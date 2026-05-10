@@ -51,3 +51,7 @@ export const Horizontal: Story = {
     </RadioGroup>
   ),
 }
+
+export const Disabled: Story = {
+  args: { children: "Disabled", disabled: true },
+}

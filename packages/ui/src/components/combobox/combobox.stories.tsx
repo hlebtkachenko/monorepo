@@ -43,3 +43,7 @@ export const Default: Story = {
     await expect(await body.findByText("Banana")).toBeInTheDocument()
   },
 }
+
+export const Disabled: Story = {
+  args: { children: "Disabled", disabled: true },
+}

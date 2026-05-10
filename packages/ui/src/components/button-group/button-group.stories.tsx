@@ -39,3 +39,7 @@ export const Mixed: Story = {
     </ButtonGroup>
   ),
 }
+
+export const OrientationHorizontal: Story = {
+  args: { children: "Horizontal", orientation: "horizontal" },
+}

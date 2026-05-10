@@ -99,3 +99,23 @@ export const TopAligned: Story = {
     )
   },
 }
+
+export const AlignStart: Story = {
+  args: { children: "Start", align: "start" },
+}
+
+export const AlignCenter: Story = {
+  args: { children: "Center", align: "center" },
+}
+
+export const AlignEnd: Story = {
+  args: { children: "End", align: "end" },
+}
+
+export const SideTop: Story = {
+  args: { children: "Top", side: "top" },
+}
+
+export const SideBottom: Story = {
+  args: { children: "Bottom", side: "bottom" },
+}

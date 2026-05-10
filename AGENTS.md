@@ -5,7 +5,8 @@ Instructions for AI agents (Claude Code, Codex, Cursor) working in this monorepo
 ## Architecture
 
 - **Monorepo**: Turborepo + pnpm workspaces
-- **UI package** (`packages/ui`): 55 shadcn/ui components, consumed source-first (no build step)
+- **UI package** (`packages/ui`): shadcn/ui components + imported components, consumed source-first (no build step)
+- **Component registry** (`packages/ui/src/lib/registry.ts`): metadata for all components (source, upstream URL, categories, deps)
 - **Web app** (`apps/web`): Next.js 16 with Turbopack
 - **Shared configs**: `packages/eslint-config` (flat config), `packages/typescript-config`
 
@@ -34,7 +35,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 ## Verification After Changes
 
 1. `pnpm typecheck` must pass
-2. `pnpm test` must pass (144 tests)
+2. `pnpm test` must pass
 3. `pnpm build` must pass
 4. For UI changes: start dev server and check visually
 
@@ -76,6 +77,31 @@ Current custom checks:
 - Config: `packages/ui/.storybook/`
 - Run: `pnpm --filter @workspace/ui storybook`
 - Stories use CSF format with Meta + StoryObj pattern
+- Sidebar sorted alphabetically via `storySort` in preview.ts
+
+## Story Coverage Rules
+
+Every component story file MUST cover:
+1. All CVA variants (one story per non-default variant value)
+2. All sizes (one story per non-default size value)
+3. Disabled state (if component accepts `disabled` prop)
+4. All prop unions that map to visual changes (e.g., `animation`, `orientation`, `side`)
+
+Audit coverage: `pnpm --filter @workspace/ui audit:stories`
+Auto-generate missing baseline stories: `pnpm --filter @workspace/ui audit:stories:fix`
+
+Generated stories use simple `args` format. For compound components (Dialog, Accordion, etc.) where variants live on sub-components, write render functions manually.
+
+## Component Design Rules
+
+Every component MUST:
+1. Use CSS custom property tokens (`var(--background)`, `var(--primary)`, etc.), never hardcoded colors
+2. Compose with existing primitives (e.g., use our Button, not raw `<button>`)
+3. Support dark mode via `.dark` class and token system
+4. Support future themes via token overrides
+5. Be registered in `packages/ui/src/lib/registry.ts`
+
+When importing from upstream, rewrite anything that violates these rules. The upstream is a reference for WHAT the component does, not HOW it should be implemented.
 
 ## CI / CD
 

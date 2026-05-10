@@ -41,3 +41,7 @@ export const Small: Story = {
     </NativeSelect>
   ),
 }
+
+export const Disabled: Story = {
+  args: { children: "Disabled", disabled: true },
+}

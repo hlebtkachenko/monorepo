@@ -56,3 +56,11 @@ export const Outline: Story = {
     </ToggleGroup>
   ),
 }
+
+export const OrientationHorizontal: Story = {
+  args: { children: "Horizontal", orientation: "horizontal" },
+}
+
+export const OrientationVertical: Story = {
+  args: { children: "Vertical", orientation: "vertical" },
+}

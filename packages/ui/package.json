@@ -12,7 +12,9 @@
     "test-storybook": "test-storybook",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "audit:stories": "tsx scripts/audit-stories.ts",
+    "audit:stories:fix": "tsx scripts/audit-stories.ts --fix"
   },
   "dependencies": {
     "@ark-ui/react": "^5.36.2",

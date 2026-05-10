@@ -32,6 +32,17 @@ dist
 # Storybook
 storybook-static
 
+# Agent cleanup artifacts (never deleted per project rules, kept locally)
+_junk/
+
+# Claude Code agent worktrees (ephemeral, local only)
+.claude/
+
+# Playwright
+.auth
+playwright-report
+test-results
+
 # Misc
 .DS_Store
 *.pem

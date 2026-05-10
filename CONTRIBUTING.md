@@ -1,56 +1,71 @@
 # Contributing
 
-Thanks for your interest. This repository is the foundation of a financial SaaS monorepo. It is currently a UI scaffold; production code lands later. While public, contributions are welcome under the rules below.
+This is a closed-beta product. External contributions are not accepted yet. This document exists for the core team and any human or AI agent doing planned work in the repo.
 
-## Before you start
+## Hard Rules (project-wide)
 
-1. Read `AGENTS.md` (project conventions)
-2. Read `docs/conventions/COMMITS.md` (conventional commits)
-3. Read `docs/conventions/CI-POLICY.md` (CI gate policy)
-4. Read `SECURITY.md` (vulnerability disclosure)
+These rules are enforced by ESLint, Git hooks, and reviewer judgement. See the full list in `AGENTS.md`.
 
-## Reporting bugs
+1. English only in files, code, comments, directory names, and documentation. Czech only appears in UI strings, legal output formats, and Czech accounting terminology with no clean English equivalent.
+2. No em-dash (U+2014) anywhere. Use comma, colon, or parentheses.
+3. Never permanently delete files. Move to `_junk/`.
+4. Never display or log secrets. `.env*`, `*.key`, `*.enc` are gitignored.
+5. TypeScript 6.0+ across every package.
+6. PostgreSQL 18, snake_case for tables and columns, full words only (`account_`, `invoice_`, never `acc_`, `inv_`).
+7. All amounts in CZK by default. Stored as `numeric(19, 4)` in Postgres and `bigint` minor units in TypeScript via `Money<Currency>`. Never use native `number` for money.
+8. AI tool input schemas must NOT declare `organization_id` / `user_id` / `role`. Server-side injection is the only path.
 
-Open an issue with:
-- Expected vs actual behavior
-- Reproduction steps (smallest possible)
-- Environment (Node version, OS, browser if frontend)
-- Logs or screenshots
+## Branching and Commits
 
-For security issues do **not** open a public issue. See `SECURITY.md`.
+- Branch naming: `<author>/<short-topic>` (e.g. `hlebtkachenko/q9-resume`).
+- Conventional Commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `perf:`, `ci:`, `build:`, `style:`, `revert:`.
+- Never use `--no-verify` unless explicitly requested by the owner.
+- Never amend a published commit; create a new one.
 
-## Submitting changes
+## Testing
 
-1. Fork the repo and create a topic branch from `main` (e.g. `feat/short-slug`).
-2. Make focused, atomic commits. **One concern per PR** — no mega-PRs.
-3. Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `perf:`, `ci:`, `build:`, `style:`, `revert:`.
-4. Sign your commits (SSH or GPG). Branch protection on `main` requires signed commits — set up signing per [GitHub docs](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification).
-5. Run `pnpm typecheck && pnpm lint && pnpm test && pnpm build` locally before opening a PR.
-6. Fill out the PR template completely. Risk classification fields are required.
+- Unit + integration: Vitest 4.x. `pnpm test` for full run.
+- Storybook: `pnpm --filter @workspace/ui storybook` (dev), `pnpm --filter @workspace/ui build-storybook` (CI).
+- E2E: Playwright (config TBA when backend ships).
 
-## Local development
+Tests are mandatory for non-trivial work. Mock the database only when documented; default is real Postgres via testcontainers.
 
-```sh
-# Bootstrap toolchain (Node 24, pnpm 11, OpenTofu, awscli, etc.)
-mise install
+## Pre-merge Gates
 
-# Or use the devcontainer (matches CI exactly)
-# Open the repo in VS Code → "Reopen in Container"
+Before opening a PR:
 
+1. `pnpm typecheck` green across all packages.
+2. `pnpm lint` 0 errors.
+3. `pnpm test` full Vitest green.
+4. `pnpm build` succeeds.
+5. Storybook builds if UI changed.
+6. CHANGELOG.md updated under `[Unreleased]` for user-facing changes.
+
+## Pull Requests
+
+Use `gh pr create` with a clear title and body that includes:
+
+- Summary (1-3 bullets).
+- Test plan (markdown checklist).
+- Linked issue or ADR if applicable.
+
+## Local Development
+
+```bash
 pnpm install --frozen-lockfile
 pnpm dev          # apps/web at http://localhost:3000
-pnpm test         # 144 tests
+pnpm test         # all tests
 ```
 
-## Code style
+## Code Style
 
 - TypeScript 6+ everywhere.
 - No unnecessary comments.
 - No premature abstractions.
 - Validate at system boundaries only.
-- One concern per file. Don't bundle unrelated changes.
+- One concern per file. Do not bundle unrelated changes.
 
-## Pull request checks
+## CI Checks
 
 Every PR triggers (advisory until promoted to required-status):
 
@@ -58,18 +73,16 @@ Every PR triggers (advisory until promoted to required-status):
 |---|---|
 | `ci` | typecheck, lint, test, storybook build, build |
 | `gitleaks` | secret scan |
-| `workflow-lint` | actionlint + zizmor (only when workflows change) |
+| `commitlint` | conventional commits enforcement |
 | `codeql` | JS/TS SAST |
 | `dependency-review` | CVE + license check on PR diff |
-| `commitlint` | conventional commits enforcement |
+| `osv-scanner` | dependency CVE scan |
 | `size-limit` | bundle budget on `apps/web` |
-| `osv-scanner-pr` | dependency CVE scan |
-| `container-scan` | Trivy fs+image (when `apps/web/Dockerfile` changes) |
 
 ## License
 
-Contributions are licensed under the MIT License (see `LICENSE`). By submitting a PR you agree your contributions are licensed under MIT.
+All Rights Reserved. See `LICENSE`.
 
-## Code of conduct
+## Questions
 
-Participation in this project requires following the [Code of Conduct](CODE_OF_CONDUCT.md).
+Ping Hleb. Office hours by appointment.

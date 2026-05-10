@@ -1,0 +1,103 @@
+name: Container Scan
+
+# Activates as soon as apps/web/Dockerfile lands in the repo. Until then the
+# guard step short-circuits so the workflow stays green on PRs that touch the
+# listed paths but do not add a Dockerfile.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/Dockerfile"
+      - "apps/web/.dockerignore"
+      - "apps/web/package.json"
+      - "apps/web/pnpm-lock.yaml"
+  pull_request:
+    paths:
+      - "apps/web/Dockerfile"
+      - "apps/web/.dockerignore"
+      - "apps/web/package.json"
+      - "apps/web/pnpm-lock.yaml"
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: container-scan-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  trivy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.1
+
+      - id: guard
+        name: Detect Dockerfile presence
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f apps/web/Dockerfile ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::apps/web/Dockerfile not present yet — skipping container scan."
+          fi
+
+      # 1. Filesystem scan — runs even before a Dockerfile exists, but only on
+      # PRs that touch the watched paths. Catches dependency CVEs in the lock
+      # file ahead of any image build.
+      - if: steps.guard.outputs.exists == 'true'
+        name: Trivy filesystem scan
+        # PIN BY COMMIT SHA — March 2026 supply-chain incident makes float tags
+        # unsafe. Use the latest verified-clean release SHA.
+        # TODO: verify SHA against trusted release before enabling required-status
+        uses: aquasecurity/trivy-action@v0.36.0 # trivy 0.70.0 — TODO: replace with commit SHA before required-status enablement
+        with:
+          scan-type: fs
+          scan-ref: ./apps/web
+          format: sarif
+          output: trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: "true"
+          skip-dirs: "node_modules,.next"
+
+      - if: steps.guard.outputs.exists == 'true' && always()
+        name: Upload Trivy filesystem SARIF
+        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4.35.4
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-filesystem
+
+      # 2. Image scan — only when a Dockerfile exists. Builds locally with no
+      # push, then scans. linux/arm64 mirrors the eventual ECR Graviton target.
+      - if: steps.guard.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v3 # TODO: replace with commit SHA before required-status enablement
+
+      - if: steps.guard.outputs.exists == 'true'
+        name: Build local image (no push)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/arm64 \
+            --load -t local/web:scan apps/web
+
+      - if: steps.guard.outputs.exists == 'true'
+        name: Trivy image scan
+        # TODO: verify SHA against trusted release before enabling required-status
+        uses: aquasecurity/trivy-action@v0.36.0 # trivy 0.70.0 — TODO: replace with commit SHA before required-status enablement
+        with:
+          image-ref: local/web:scan
+          format: sarif
+          output: trivy-image.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: "true"
+
+      - if: steps.guard.outputs.exists == 'true' && always()
+        name: Upload Trivy image SARIF
+        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4.35.4
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-container

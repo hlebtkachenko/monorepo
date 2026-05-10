@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  # Never cancel a signing/release run mid-flight — interrupted Sigstore flows
+  # leave half-state on Rekor.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tarball-name: ${{ steps.pack.outputs.tarball }}
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.1
+
+      - uses: pnpm/action-setup@v4 # TODO: replace with commit SHA before required-status enablement
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4 # TODO: replace with commit SHA before required-status enablement
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        shell: bash
+        run: pnpm turbo build
+
+      - id: pack
+        name: Pack apps/web standalone bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARBALL="web-${GITHUB_REF_NAME}.tar.gz"
+          if [ -d apps/web/.next/standalone ]; then
+            tar -czf "${TARBALL}" -C apps/web/.next/standalone .
+          else
+            # Fallback if standalone output is not configured yet.
+            tar -czf "${TARBALL}" -C apps/web .next public package.json
+          fi
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
+
+      - id: hash
+        name: Compute SLSA subject hashes (base64)
+        shell: bash
+        run: |
+          set -euo pipefail
+          HASHES=$(sha256sum "${{ steps.pack.outputs.tarball }}" | base64 -w0)
+          echo "hashes=${HASHES}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-tarball
+          path: ${{ steps.pack.outputs.tarball }}
+          retention-days: 30
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
+          gh release upload "${GITHUB_REF_NAME}" \
+            "${{ steps.pack.outputs.tarball }}" \
+            --clobber
+
+  # SLSA L3 build provenance via the SLSA generator reusable workflow.
+  # MUST be pinned to a semantic tag (the SLSA verifier rejects SHAs and float tags).
+  slsa-provenance:
+    needs: [build]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.hashes }}
+      upload-assets: true
+      provenance-name: web-${{ github.ref_name }}.intoto.jsonl
+
+  # SBOM + L2 provenance + cosign + license check via the shared orchestrator.
+  supply-chain:
+    needs: [build]
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      packages: write
+      actions: read
+    uses: ./.github/workflows/_supply-chain.yml
+    with:
+      artifact-path: ${{ needs.build.outputs.tarball-name }}
+      package-name: web
+      version: ${{ github.ref_name }}
+      release-mode: true

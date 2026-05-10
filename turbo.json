@@ -5,7 +5,8 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["BUILD_SHA", "BUILD_TIME", "BUILD_VERSION", "NODE_ENV"]
     },
     "lint": {},
     "format": {},

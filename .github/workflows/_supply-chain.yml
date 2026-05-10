@@ -37,11 +37,18 @@ permissions:
 jobs:
   supply-chain:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     outputs:
       sbom-artifact-name: sbom-${{ inputs.package-name }}-${{ inputs.version }}.cdx.json
       attestation-digest: ${{ steps.hash.outputs.sha256 }}
     steps:
+      - uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.19.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.1
+        with:
+          persist-credentials: false
 
       - name: Compute artifact digest
         id: hash
@@ -57,7 +64,7 @@ jobs:
 
       # 1. SBOM (CycloneDX 1.6) via syft
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0.24.0 # syft 1.42.3 — TODO: replace with commit SHA before required-status enablement
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0 (syft 1.42.3)
         with:
           path: ${{ inputs.artifact-path }}
           format: cyclonedx-json
@@ -71,13 +78,13 @@ jobs:
 
       # 2. SLSA L2 build provenance
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v4.1.0 # TODO: replace with commit SHA before required-status enablement
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: ${{ inputs.artifact-path }}
           subject-name: ${{ inputs.package-name }}@${{ inputs.version }}
 
       # 3. Cosign keyless signing of SBOM (and artifact when it is a file)
-      - uses: sigstore/cosign-installer@v4.1.2 # cosign 3.0.6 — TODO: replace with commit SHA before required-status enablement
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2 (cosign 3.0.6)
 
       - name: Cosign sign SBOM
         run: |
@@ -97,7 +104,7 @@ jobs:
           fi
 
       # 4. Upload SBOM + signature bundles as workflow artifacts
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: supply-chain-${{ inputs.package-name }}-${{ inputs.version }}
           path: |
@@ -122,16 +129,25 @@ jobs:
 
   license-check:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
+      - uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.19.1
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.1
-      - uses: pnpm/action-setup@v4 # TODO: replace with commit SHA before required-status enablement
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
           run_install: false
-      - uses: actions/setup-node@v4 # TODO: replace with commit SHA before required-status enablement
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version: "24"
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
         shell: bash

@@ -1,0 +1,63 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check for outdated packages
+        run: |
+          echo "## Outdated Packages" > updates.md
+          echo "" >> updates.md
+          pnpm outdated --recursive --format json 2>/dev/null | node -e "
+            const data = require('fs').readFileSync('/dev/stdin', 'utf8');
+            try {
+              const pkgs = JSON.parse(data);
+              if (Array.isArray(pkgs) && pkgs.length > 0) {
+                console.log('| Package | Current | Latest | Type |');
+                console.log('|---------|---------|--------|------|');
+                pkgs.forEach(p => {
+                  console.log('| ' + p.name + ' | ' + p.current + ' | ' + p.latest + ' | ' + (p.type || 'dep') + ' |');
+                });
+              } else {
+                console.log('All packages are up to date.');
+              }
+            } catch {
+              console.log('Could not parse outdated output. Run \`pnpm outdated\` locally.');
+            }
+          " >> updates.md || echo "Check completed with warnings" >> updates.md
+
+      - name: Check TypeScript version
+        run: |
+          CURRENT=$(node -e "console.log(require('./node_modules/typescript/package.json').version)")
+          LATEST=$(npm view typescript version)
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "::warning::TypeScript $CURRENT is outdated. Latest: $LATEST"
+          else
+            echo "TypeScript $CURRENT is the latest."
+          fi
+
+      - name: Create issue if updates found
+        if: github.event_name == 'schedule'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "chore: weekly dependency update check"
+          content-filepath: updates.md
+          labels: dependencies
+        continue-on-error: true

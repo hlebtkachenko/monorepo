@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +30,10 @@ jobs:
         run: pnpm turbo lint
 
       - name: Test
-        run: pnpm test --filter @workspace/ui
+        run: pnpm turbo test
+
+      - name: Build Storybook
+        run: pnpm --filter @workspace/ui build-storybook
 
       - name: Build
         run: pnpm turbo build
@@ -44,5 +47,4 @@ jobs:
 
       - uses: gitleaks/gitleaks-action@v2
         env:
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

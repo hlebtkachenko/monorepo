@@ -1,9 +1,5 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # Dependencies
 node_modules
-.pnp
-.pnp.js
 
 # Local env files
 .env
@@ -27,10 +23,11 @@ out/
 build
 dist
 
+# TypeScript
+*.tsbuildinfo
 
 # Debug
-npm-debug.log*
-debug-storybook.log
+*.log
 
 # Storybook
 storybook-static

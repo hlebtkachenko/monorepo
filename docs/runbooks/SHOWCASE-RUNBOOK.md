@@ -19,7 +19,7 @@ Button section is already implemented. Use it as the template for all other comp
 ### Import Rules
 1. ALL components import from `@workspace/ui/components/{component-name}`
 2. Icons import from `lucide-react`
-3. Before importing, READ the component source file at `packages/ui/src/components/{component-name}.tsx`
+3. Before importing, READ the component source file at `packages/ui/src/components/{component-name}/{component-name}.tsx`
 4. Only import exports that ACTUALLY EXIST in the source file — grep for `export {` or `export function`
 5. NEVER guess exports. NEVER use exports you haven't verified in the source file
 6. If a component re-exports from a library (e.g., `from "radix-ui"`), use the wrapper names from the shadcn file, NOT the radix originals
@@ -136,7 +136,7 @@ These are NOT standalone demo-able or are layout-level wrappers:
 
 After ALL components are added:
 1. `pnpm build` — zero errors
-2. `pnpm dev` — open http://localhost:3001/showcase in browser
+2. `pnpm dev` — open http://localhost:3000/showcase in browser
 3. Verify page renders without blank sections or errors
 4. Every `<h2>` section must have visible content beneath it
 5. No TypeScript errors, no missing imports

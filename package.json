@@ -7,15 +7,17 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "format": "turbo format",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "test": "turbo test"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "shadcn": "^4.7.0",
     "turbo": "^2.8.17",
-    "typescript": "5.9.3"
+    "typescript": "^6.0.3"
   },
   "packageManager": "pnpm@9.15.9",
   "engines": {

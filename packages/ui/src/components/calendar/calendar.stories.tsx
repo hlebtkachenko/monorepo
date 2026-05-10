@@ -45,8 +45,8 @@ export const DropdownCaption: Story = {
     <Calendar
       mode="single"
       captionLayout="dropdown"
-      fromYear={2020}
-      toYear={2030}
+      startMonth={new Date(2020, 0)}
+      endMonth={new Date(2030, 11)}
     />
   ),
 }

@@ -22,12 +22,11 @@ describe("Calendar", () => {
     render(<Calendar mode="single" onSelect={onSelect} />)
 
     const dayButtons = screen.getAllByRole("button").filter(
-      (btn) => btn.getAttribute("name") === undefined && !btn.getAttribute("aria-label")?.match(/previous|next/i)
+      (btn) => !btn.getAttribute("aria-label")?.match(/previous|next/i)
     )
 
     if (dayButtons.length > 0) {
-      await user.click(dayButtons[0])
-      // onSelect may or may not fire depending on the day state; just ensure no crash
+      await user.click(dayButtons[0]!)
     }
 
     expect(screen.getByRole("grid")).toBeInTheDocument()

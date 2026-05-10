@@ -33,7 +33,7 @@ describe("RadioGroup", () => {
         <RadioGroupItem value="b" id="b" />
       </RadioGroup>
     )
-    const radioB = screen.getAllByRole("radio")[1]
+    const radioB = screen.getAllByRole("radio")[1]!
     await user.click(radioB)
     expect(radioB).toBeChecked()
   })

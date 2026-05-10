@@ -10,7 +10,7 @@
  *   tsx packages/ui/scripts/audit-stories.ts --fix     # report + generate missing stories
  */
 
-import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs"
+import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, basename } from "node:path"
 
 const COMPONENTS_DIR = join(import.meta.dirname, "../src/components")
@@ -219,9 +219,12 @@ function auditComponent(componentDir: string): ComponentAudit | null {
   const mainFile = join(componentDir, `${name}.tsx`)
   const storiesFile = join(componentDir, `${name}.stories.tsx`)
 
-  if (!existsSync(mainFile)) return null
-
-  const source = readFileSync(mainFile, "utf-8")
+  let source: string
+  try {
+    source = readFileSync(mainFile, "utf-8")
+  } catch {
+    return null
+  }
   const cvaVariants = extractCvaVariants(source)
   const propVariants = extractPropUnionVariants(source)
   const allVariants = [...cvaVariants, ...propVariants]
@@ -229,8 +232,10 @@ function auditComponent(componentDir: string): ComponentAudit | null {
   const hasDisabledProp = /\bdisabled\b\s*[?:]/.test(source)
 
   let existingStories: string[] = []
-  if (existsSync(storiesFile)) {
+  try {
     existingStories = extractExistingStories(readFileSync(storiesFile, "utf-8"))
+  } catch {
+    // no stories file yet
   }
 
   const expectedStories: string[] = []
@@ -287,9 +292,12 @@ function generateMissingStories(
     return
   }
   const storiesFile = join(componentDir, `${audit.name}.stories.tsx`)
-  if (!existsSync(storiesFile)) return
-
-  const source = readFileSync(storiesFile, "utf-8")
+  let source: string
+  try {
+    source = readFileSync(storiesFile, "utf-8")
+  } catch {
+    return
+  }
 
   const newStories: string[] = []
 

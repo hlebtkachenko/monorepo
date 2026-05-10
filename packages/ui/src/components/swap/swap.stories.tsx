@@ -81,11 +81,3 @@ export const Disabled: Story = {
     </Swap>
   ),
 }
-
-export const ActivationModeClick: Story = {
-  args: { children: "Click", activationMode: "click" },
-}
-
-export const ActivationModeHover: Story = {
-  args: { children: "Hover", activationMode: "hover" },
-}

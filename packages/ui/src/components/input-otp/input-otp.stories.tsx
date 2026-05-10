@@ -51,7 +51,3 @@ export const FourDigit: Story = {
     </InputOTP>
   ),
 }
-
-export const Disabled: Story = {
-  args: { children: "Disabled", disabled: true },
-}

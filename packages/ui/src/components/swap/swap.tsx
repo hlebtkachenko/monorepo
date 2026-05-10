@@ -255,4 +255,4 @@ function SwapOff(props: DivProps) {
   )
 }
 
-export { Swap, SwapOff, SwapOn, type SwapProps, useStore as useSwap }
+export { Swap, SwapOff, SwapOn, type SwapProps }

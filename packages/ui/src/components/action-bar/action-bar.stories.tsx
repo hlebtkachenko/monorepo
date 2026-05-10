@@ -1,5 +1,3 @@
-"use client"
-
 import type { Meta, StoryObj } from "@storybook/react"
 import { useState } from "react"
 import {
@@ -98,24 +96,4 @@ export const TopAligned: Story = {
       </div>
     )
   },
-}
-
-export const AlignStart: Story = {
-  args: { children: "Start", align: "start" },
-}
-
-export const AlignCenter: Story = {
-  args: { children: "Center", align: "center" },
-}
-
-export const AlignEnd: Story = {
-  args: { children: "End", align: "end" },
-}
-
-export const SideTop: Story = {
-  args: { children: "Top", side: "top" },
-}
-
-export const SideBottom: Story = {
-  args: { children: "Bottom", side: "bottom" },
 }

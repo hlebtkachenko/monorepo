@@ -26,11 +26,3 @@ export const Horizontal: Story = {
     </Field>
   ),
 }
-
-export const OrientationVertical: Story = {
-  args: { children: "Vertical", orientation: "vertical" },
-}
-
-export const OrientationResponsive: Story = {
-  args: { children: "Responsive", orientation: "responsive" },
-}

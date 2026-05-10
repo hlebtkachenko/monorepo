@@ -81,7 +81,3 @@ export const DefaultOpen: Story = {
     </Accordion>
   ),
 }
-
-export const Disabled: Story = {
-  args: { children: "Disabled", disabled: true },
-}

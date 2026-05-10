@@ -60,7 +60,3 @@ export const Vertical: Story = {
     </div>
   ),
 }
-
-export const OrientationHorizontal: Story = {
-  args: { children: "Horizontal", orientation: "horizontal" },
-}

@@ -209,7 +209,7 @@ function storyNameExists(existing: string[], target: string): boolean {
     const ns = s.toLowerCase().replace(/[-_]/g, "")
     if (ns === nt) return true
     if (nt.startsWith("size") && SIZE_ALIASES[nt]?.includes(ns)) return true
-    if (ns.endsWith(nt) || nt.endsWith(ns)) return true
+    if (ns.endsWith(nt) && ns.length > nt.length) return true
     return false
   })
 }
@@ -261,10 +261,31 @@ function auditComponent(componentDir: string): ComponentAudit | null {
   }
 }
 
+const COMPOUND_COMPONENTS = new Set([
+  "accordion",
+  "action-bar",
+  "carousel",
+  "combobox",
+  "field",
+  "input-otp",
+  "native-select",
+  "radio-group",
+  "select",
+  "button-group",
+  "toggle-group",
+  "swap",
+])
+
 function generateMissingStories(
   audit: ComponentAudit,
   componentDir: string,
 ): void {
+  if (COMPOUND_COMPONENTS.has(audit.name)) {
+    console.log(
+      `    -> Skipping ${audit.name} (compound component, needs manual stories)`,
+    )
+    return
+  }
   const storiesFile = join(componentDir, `${audit.name}.stories.tsx`)
   if (!existsSync(storiesFile)) return
 

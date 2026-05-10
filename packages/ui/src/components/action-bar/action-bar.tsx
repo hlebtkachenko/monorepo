@@ -151,7 +151,7 @@ function ActionBar(props: ActionBarProps) {
 
   const dir = DirectionPrimitive.useDirection(dirProp)
 
-  React.useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     setMounted(true)
   }, [])
 
@@ -612,6 +612,7 @@ function ActionBarClose(props: ActionBarCloseProps) {
   return (
     <ClosePrimitive
       type="button"
+      aria-label="Close"
       data-slot="action-bar-close"
       {...closeProps}
       className={cn(
@@ -636,20 +637,22 @@ function ActionBarSeparator(props: ActionBarSeparatorProps) {
   } = props
 
   const context = useActionBarContext(SEPARATOR_NAME)
-  const orientation = orientationProp ?? context.orientation
+  const resolvedOrientation =
+    orientationProp ??
+    (context.orientation === "horizontal" ? "vertical" : "horizontal")
 
   const SeparatorPrimitive = asChild ? SlotPrimitive.Slot : "div"
 
   return (
     <SeparatorPrimitive
       role="separator"
-      aria-orientation={orientation}
+      aria-orientation={resolvedOrientation}
       aria-hidden="true"
       data-slot="action-bar-separator"
       {...separatorProps}
       className={cn(
         "bg-border in-data-[slot=action-bar-selection]:ml-0.5 in-data-[slot=action-bar-selection]:h-4 in-data-[slot=action-bar-selection]:w-px",
-        orientation === "horizontal" ? "h-6 w-px" : "h-px w-full",
+        resolvedOrientation === "vertical" ? "h-6 w-px" : "h-px w-full",
         className,
       )}
     />

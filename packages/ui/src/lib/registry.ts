@@ -35,15 +35,6 @@ export const registry: Record<string, ComponentMeta> = {
       "Semantic alert container with default and destructive variants",
     categories: ["feedback"],
   },
-  "download-trigger": {
-    source: "ark-ui",
-    sourceType: "import",
-    upstream: "https://shark.vini.one/docs/utilities/download-trigger",
-    description:
-      "Programmatic file download utility supporting string, Blob, File, and async data",
-    categories: ["utility"],
-    packages: ["@ark-ui/react"],
-  },
   "alert-dialog": {
     source: "shadcn",
     sourceType: "vanilla",
@@ -184,6 +175,15 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/direction",
     description: "RTL/LTR direction provider wrapper",
     categories: ["layout"],
+  },
+  "download-trigger": {
+    source: "ark-ui",
+    sourceType: "import",
+    upstream: "https://ark-ui.com/react/docs/utilities/download-trigger",
+    description:
+      "Programmatic file download utility supporting string, Blob, File, and async data",
+    categories: ["utility"],
+    packages: ["@ark-ui/react"],
   },
   drawer: {
     source: "shadcn",

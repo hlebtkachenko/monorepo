@@ -79,7 +79,3 @@ export const WithDefaultValue: Story = {
     </Select>
   ),
 }
-
-export const Disabled: Story = {
-  args: { children: "Disabled", disabled: true },
-}

@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from "./native-select"
+import {
+  NativeSelect,
+  NativeSelectOption,
+  NativeSelectOptGroup,
+} from "./native-select"
 
 const meta: Meta<typeof NativeSelect> = {
   title: "Components/NativeSelect",
@@ -40,8 +44,4 @@ export const Small: Story = {
       <NativeSelectOption value="b">Option B</NativeSelectOption>
     </NativeSelect>
   ),
-}
-
-export const Disabled: Story = {
-  args: { children: "Disabled", disabled: true },
 }

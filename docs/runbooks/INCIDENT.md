@@ -16,8 +16,8 @@ DORA Article 19 reporting timeline:
 ## Workflow
 
 1. Detection (Sentry, Honeycomb alarm, customer report, internal observation).
-2. PagerDuty alerts on-call.
-3. On-call ack within target time.
+2. AWS Incident Manager response plan triggers SNS topic `incidents-prod` -> email + ntfy.sh push.
+3. On-call ack via SSM Incident Manager web console within target time.
 4. Classification: SEV1 / 2 / 3 within 30 minutes.
 5. Open `#inc-YYYYMMDD-<slug>` channel. Even solo: dedicated channel = audit trail.
 6. Incident Commander assigned. Solo dev rota: Hleb is IC by default.
@@ -28,9 +28,11 @@ DORA Article 19 reporting timeline:
 
 ## On-call rota (solo dev caveat)
 
-Today: solo dev. PagerDuty 1-person rota with email-only escalation as fallback.
-- Primary: Hleb (PagerDuty + iPhone).
+Today: solo dev. AWS Incident Manager response plan with single contact + free notification fan-out.
+- Primary contact: Hleb. Channels: email (`<TBD>` work address) + ntfy.sh topic `windhoek-incidents-<TBD>` for iOS push.
+- ntfy.sh is OSS; default to public ntfy.sh (free) or self-host on the OVH VPS for full control.
 - Escalation: email to break-glass contact (in 1Password vault `aws-bootstrap`).
+- No paid pager service today (no PagerDuty / OpsGenie / Splunk On-Call). Revisit when team >= 2.
 
 This is **not adequate** for a regulated production launch with paying customers. Before that:
 - Add a second on-call (contractor or co-founder).

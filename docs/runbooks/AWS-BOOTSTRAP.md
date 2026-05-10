@@ -10,7 +10,7 @@ One-time manual setup before any IaC apply. After step 10, set repo var `AWS_BOO
 
 ## 0. Preconditions
 
-- [ ] Google Workspace user `hleb@<TBD-domain>`
+- [ ] Email under control of `<TBD-domain>` (used for AWS root + Identity Center user)
 - [ ] 1Password vault `aws-bootstrap` shared with break-glass contact
 - [ ] YubiKey on hand
 - [ ] `gh`, `aws`, `granted`, `tofu`, `cdk` installed locally (see `mise.toml`)
@@ -111,20 +111,20 @@ Create and attach:
 
 ---
 
-## 6. Identity Center + Google Workspace SAML
+## 6. Identity Center (built-in identity store)
 
-> Approval gate: SAML setup is per-tenant. Hleb's email becomes the only break-glass admin until further notice.
+> Approval gate: Hleb's email becomes the only break-glass admin until further notice. No external IdP. Adding more users later is documented in step 6b.
 
-1. Console -> IAM Identity Center -> Settings -> Identity source -> External identity provider.
-2. Upload Google Workspace SAML metadata XML.
-3. Map attribute `email` to AWS `subject`.
+1. Console -> IAM Identity Center -> Enable.
+2. Identity source: leave as **Identity Center directory** (the default built-in store). Free, no SAML, no Google Workspace.
+3. Add user: email = `aws-admin@<TBD-domain>`, full name `Hleb Tkachenko`, username `hleb`. Identity Center sends an invite email; complete password setup + MFA enrollment (YubiKey + authenticator app).
 4. Create permission sets:
-   - `AdministratorAccess` (break-glass, MFA + 1h session).
+   - `AdministratorAccess` (break-glass, MFA-required, PT1H session).
    - `PowerUserAccess` (PT4H session).
    - `ReadOnlyAccess`.
    - `BillingViewer`.
-5. Assign `hleb@<TBD-domain>` to all four sets, all accounts.
-6. Test login flow.
+5. Assign user `hleb` to all four sets, all accounts.
+6. Test login flow at the Access Portal URL: `https://<TBD-region>.signin.aws.amazon.com/...`.
 
 Granted profile bootstrap:
 
@@ -132,6 +132,15 @@ Granted profile bootstrap:
 granted sso populate --start-url https://<TBD>.awsapps.com/start --region eu-central-1
 assume # picks an account interactively
 ```
+
+### 6b. Adding additional users (when team grows)
+
+For a second engineer (or contractor with limited scope):
+1. Identity Center -> Users -> Add user. Email goes to the person's work email.
+2. Assign appropriate permission sets — never `AdministratorAccess` for a non-break-glass user.
+3. Force MFA enrollment on first login.
+
+If you ever need SAML federation later (e.g. moving to Google Workspace, Microsoft 365, Authentik, Keycloak), it's a switch in Identity Source settings. The built-in users get migrated; permission sets stay.
 
 ---
 

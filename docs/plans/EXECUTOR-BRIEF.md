@@ -20,7 +20,7 @@ Do not start work until you have read all five.
 | "There is a team" | **Solo developer** (Hleb Tkachenko). Controls requiring multiple humans (2 reviewers, on-call rotation, change advisory, separation of duties) cannot apply yet. Mark them **deferred until headcount**, not done. |
 | "Repo is private" | Currently **public** at `github.com/hlebtkachenko/monorepo`. Some plan items (Shield Advanced, certain SCPs, customer data flows) assume private posture. Public→private transition must happen **before** any AWS account ID, role ARN, or sensitive config lands in `main`. |
 | "Standard versions" | Bleeding edge: TypeScript 6.0, pnpm 11, Node 22, Next.js 16, Storybook 10. Some Actions / providers may lag. If blocked by a tool not yet supporting these, document the workaround in an ADR. |
-| "Identity Center is set up" | Not yet. Google Workspace SAML federation must be configured first. |
+| "Identity Center is set up" | Not yet. Identity Center built-in identity store will be enabled at bootstrap (no external IdP today; SAML federation deferred). |
 | "Domain exists" | No domain registered yet. Pick + register before Route53 / ACM / CloudFront work. |
 | "Legal entity exists" | Confirm with Hleb which entity (HAPD? new vehicle?) registers for DORA/NIS2/PCI. Solo founder ≠ regulated entity. |
 
@@ -33,9 +33,8 @@ These must exist before the corresponding plan section is executable. **Stop and
 | AWS root account + verified billing email + payment method | All of `AWS-INTEGRATION-PLAN.md` |
 | GitHub plan tier upgrade (Team minimum) | Required reviewers, deployment branch policies, rulesets on private repos |
 | Domain name registered + Route53 hosted zone | ACM certs, CloudFront, email DMARC, public endpoints |
-| Google Workspace admin access | Identity Center SAML federation |
-| Czech legal entity confirmed | DORA/NIS2 registration, DPA signing, Stripe account |
-| Stripe account (or alternate tokenization vendor) | PCI scope minimization (keeps you at SAQ A) |
+| Czech legal entity confirmed | DORA/NIS2 registration, DPA signing |
+| Payment processor (deferred until payments are in scope) | PCI scope minimization (keeps you at SAQ A) when payments are introduced |
 | Resolved Open Decisions (see below) | First IaC commit, first observability vendor commit |
 
 ## Open Decisions (Resolve First, Before Any Code)
@@ -48,7 +47,7 @@ Both plans flag decisions where consensus does not exist. **Write an ADR in `doc
 | Observability vendor | Datadog / Honeycomb | Honeycomb (cheaper, trace-first; Datadog only if RUM+APM+logs all-in-one needed) | First service emits telemetry |
 | Coverage policy | Flat % / risk-weighted | Risk-weighted (95% money paths, 70% UI shells) | First test coverage gate |
 | Self-hosted runners | Yes / No | No (GitHub-hosted ARM is competitive at <50 engineers) | First CI workflow |
-| Container runtime on Mac | OrbStack ($8/dev/mo) / Colima (free) | OrbStack | First devcontainer |
+| Container runtime on Mac | Docker Desktop / OrbStack / Colima | Docker Desktop (per Hleb) | First devcontainer |
 | Cred manager on Mac | Granted / aws-vault | Granted (better SSO ergonomics) | First Identity Center login |
 
 ## Approval Gates — Do NOT Cross Autonomously
@@ -73,7 +72,7 @@ The plans assume an eventual team. Adapt as follows while solo:
 | Plan item | Solo adaptation |
 |-----------|----------------|
 | 2 required reviewers on production | 1 reviewer (Hleb) — mark as **deferred until headcount** in PR template |
-| On-call rotation | Hleb is on-call. PagerDuty 1-person rota with email-only escalation |
+| On-call rotation | Hleb is on-call. AWS Incident Manager + SNS (email + ntfy.sh push). Paid pager deferred until headcount >= 2. |
 | Change advisory board | Self-approval with mandatory ADR + cost estimate in PR |
 | Separation of duties | Document break-glass procedure; everything else self-served |
 | Quarterly access review | Self-review documented in `docs/audits/` |
@@ -85,7 +84,7 @@ Do not skip these — record them as deferred with the trigger condition (e.g. "
 
 | Artifact | Location | Trigger |
 |----------|----------|---------|
-| ADR (Architecture Decision Record) | `docs/decisions/NNNN-<slug>.md` | Every non-trivial choice |
+| ADR (Architecture Decision Record) | `docs/adr/NNNN-<slug>.md` | Every non-trivial choice |
 | Runbook | `docs/runbooks/<service>.md` | Every AWS service stood up |
 | Cost estimate | In ADR or PR description | Before spinning up any AWS service |
 | INVENTORY.md | `docs/INVENTORY.md` | Every AWS account/service deployed (DORA ICT asset inventory requirement) |

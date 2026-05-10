@@ -53,6 +53,16 @@ ENV NODE_ENV=production \
     BUILD_VERSION=$BUILD_VERSION
 
 RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs nextjs
+
+# Strip npm + npx from the runner. Next.js standalone server.js does not need
+# them, and node:24-alpine bundles an older npm whose nested node-gyp/cacache
+# tar copies trip Trivy HIGH/CRITICAL CVEs (CVE-2026-31802, -29786, -26960,
+# -24842, -23950, -23745, etc). Removing kills the alerts at the source.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx \
+           /usr/local/bin/corepack
+
 WORKDIR /app
 
 # Standalone output bundles only the runtime files. server.js is at the repo-relative

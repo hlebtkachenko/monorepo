@@ -1,0 +1,24 @@
+{
+  "name": "@workspace/email",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1045.0",
+    "resend": "^4.7.2"
+  },
+  "devDependencies": {
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^9.39.4",
+    "typescript": "^6.0.3"
+  }
+}

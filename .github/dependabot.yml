@@ -1,6 +1,7 @@
 version: 2
 
 updates:
+  # npm — workspace root (covers all workspaces via lockfile)
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -14,12 +15,44 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    cooldown:
+      default-days: 7
 
+  # GitHub Actions — group everything together so SHA bumps land in one PR
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
+  # Docker base image used by apps/web Dockerfile (writer C territory)
+  - package-ecosystem: docker
+    directory: /apps/web
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      infra-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
+  # OpenTofu / Terraform providers and modules
+  - package-ecosystem: terraform
+    directory: /infra/tofu
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      infra-terraform:
+        patterns: ["*"]
     commit-message:
       prefix: "chore"
       include: scope

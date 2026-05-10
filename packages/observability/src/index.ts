@@ -1,0 +1,1 @@
+export { pino } from 'pino';

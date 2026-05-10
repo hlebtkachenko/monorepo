@@ -3,10 +3,16 @@ packages:
   - "packages/*"
   - "infra/cdk"
 allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': false
   '@sentry/cli': true
   '@swc/core': true
   core-js-pure: false
+  cpu-features: true
   esbuild: true
+  msgpackr-extract: true
   msw: false
+  protobufjs: true
   sharp: true
+  ssh2: true
   unrs-resolver: true

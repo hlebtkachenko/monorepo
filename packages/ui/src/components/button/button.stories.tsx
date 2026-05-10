@@ -57,3 +57,23 @@ export const AllVariants: Story = {
     </div>
   ),
 }
+
+export const SizeXs: Story = {
+  args: { children: "Xs", size: "xs" },
+}
+
+export const SizeIcon: Story = {
+  args: { children: "Icon", size: "icon" },
+}
+
+export const SizeIconXs: Story = {
+  args: { children: "Icon Xs", size: "icon-xs" },
+}
+
+export const SizeIconSm: Story = {
+  args: { children: "Icon Sm", size: "icon-sm" },
+}
+
+export const SizeIconLg: Story = {
+  args: { children: "Icon Lg", size: "icon-lg" },
+}

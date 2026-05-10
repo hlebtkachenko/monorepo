@@ -40,7 +40,7 @@ export const Default: Story = {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <div className="px-2 py-1 font-semibold text-sm">My App</div>
+          <div className="px-2 py-1 text-sm font-semibold">My App</div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -63,7 +63,7 @@ export const Default: Story = {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="flex items-center gap-2 p-4 border-b">
+        <header className="flex items-center gap-2 border-b p-4">
           <SidebarTrigger />
           <span className="text-sm font-medium">Page Title</span>
         </header>
@@ -96,7 +96,7 @@ export const Collapsed: Story = {
         </SidebarContent>
       </Sidebar>
       <SidebarInset>
-        <header className="flex items-center gap-2 p-4 border-b">
+        <header className="flex items-center gap-2 border-b p-4">
           <SidebarTrigger />
         </header>
         <main className="p-4">

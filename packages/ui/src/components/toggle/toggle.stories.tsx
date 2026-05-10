@@ -35,3 +35,7 @@ export const Large: Story = {
 export const Pressed: Story = {
   render: () => <Toggle defaultPressed>Pressed</Toggle>,
 }
+
+export const Disabled: Story = {
+  args: { children: "Disabled", disabled: true },
+}

@@ -1,5 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { NativeSelect, NativeSelectOption, NativeSelectOptGroup } from "./native-select"
+import {
+  NativeSelect,
+  NativeSelectOption,
+  NativeSelectOptGroup,
+} from "./native-select"
 
 const meta: Meta<typeof NativeSelect> = {
   title: "Components/NativeSelect",

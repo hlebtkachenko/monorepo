@@ -40,3 +40,7 @@ export const AllVariants: Story = {
     </div>
   ),
 }
+
+export const Link: Story = {
+  args: { children: "Link", variant: "link" },
+}

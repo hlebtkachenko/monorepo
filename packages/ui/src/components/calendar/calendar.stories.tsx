@@ -16,27 +16,19 @@ export const Default: Story = {
 
 export const WithSelectedDate: Story = {
   render: () => {
-    const [date, setDate] = React.useState<Date | undefined>(new Date(2024, 0, 15))
-    return (
-      <Calendar
-        mode="single"
-        selected={date}
-        onSelect={setDate}
-      />
+    const [date, setDate] = React.useState<Date | undefined>(
+      new Date(2024, 0, 15),
     )
+    return <Calendar mode="single" selected={date} onSelect={setDate} />
   },
 }
 
 export const RangeSelection: Story = {
   render: () => {
-    const [range, setRange] = React.useState<{ from: Date; to?: Date } | undefined>()
-    return (
-      <Calendar
-        mode="range"
-        selected={range}
-        onSelect={setRange as any}
-      />
-    )
+    const [range, setRange] = React.useState<
+      { from: Date; to?: Date } | undefined
+    >()
+    return <Calendar mode="range" selected={range} onSelect={setRange as any} />
   },
 }
 

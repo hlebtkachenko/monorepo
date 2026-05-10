@@ -1,0 +1,103 @@
+# ECR migration: replace registry with `${{ vars.AWS_ACCOUNT_ID_PROD }}.dkr.ecr.eu-central-1.amazonaws.com`,
+# swap docker/login-action for aws-actions/amazon-ecr-login. Trust policy must use environment scope,
+# not branch scope (branch claims are spoofable from PR forks).
+name: _build-image
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: "Short image name (lands at ghcr.io/<owner>/<image-name>)"
+        required: true
+        type: string
+      dockerfile-path:
+        description: "Dockerfile path"
+        required: false
+        type: string
+        default: "apps/web/Dockerfile"
+      context-path:
+        description: "Build context"
+        required: false
+        type: string
+        default: "."
+      platforms:
+        description: "Target platforms (comma-separated)"
+        required: false
+        type: string
+        default: "linux/amd64,linux/arm64"
+      push:
+        description: "Whether to push to registry"
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      image-digest:
+        description: "Resulting image digest (sha256:...)"
+        value: ${{ jobs.build.outputs.digest }}
+      image-ref:
+        description: "Resulting image refs (multi-line)"
+        value: ${{ jobs.build.outputs.tags }}
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ inputs.image-name }}
+          tags: |
+            type=sha,format=short,prefix=sha-
+            type=ref,event=branch,prefix=branch-
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context-path }}
+          file: ${{ inputs.dockerfile-path }}
+          platforms: ${{ inputs.platforms }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            BUILD_VERSION=${{ steps.meta.outputs.version }}
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Cosign keyless sign
+        if: ${{ inputs.push }}
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/${{ inputs.image-name }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"

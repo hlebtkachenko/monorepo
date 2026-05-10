@@ -1,0 +1,96 @@
+name: _deploy-aws
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment (staging | production)"
+        required: true
+        type: string
+      stack:
+        description: "Stack pattern (e.g. App-staging) or 'tofu'"
+        required: true
+        type: string
+    outputs:
+      deployed:
+        description: "Whether the deploy step actually ran"
+        value: ${{ jobs.deploy.outputs.deployed }}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      stack:
+        description: "Stack pattern (e.g. App-staging) or 'tofu'"
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: deploy-aws-${{ inputs.environment }}-${{ inputs.stack }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.flag.outputs.go }}
+    steps:
+      - id: flag
+        env:
+          BOOTSTRAPPED: ${{ vars.AWS_BOOTSTRAPPED }}
+        run: |
+          if [ "${BOOTSTRAPPED}" = "true" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "AWS not yet connected — complete docs/runbooks/AWS-BOOTSTRAP.md first"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: guard
+    if: needs.guard.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      deployed: ${{ steps.summary.outputs.deployed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve role ARN for environment
+        id: role
+        env:
+          STAGING_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+          ENV: ${{ inputs.environment }}
+        run: |
+          case "$ENV" in
+            staging)    echo "arn=$STAGING_ROLE"    >> "$GITHUB_OUTPUT" ;;
+            production) echo "arn=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $ENV"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.role.outputs.arn }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-${{ github.run_id }}
+
+      - name: ECR deploy stub
+        id: summary
+        env:
+          STACK: ${{ inputs.stack }}
+        run: |
+          echo "Deploy stub for stack=$STACK"
+          echo "Real deploy steps land once docs/runbooks/DEPLOY.md is implemented end-to-end."
+          echo "deployed=false" >> "$GITHUB_OUTPUT"

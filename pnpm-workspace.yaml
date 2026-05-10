@@ -3,6 +3,7 @@ packages:
   - "packages/*"
   - "infra/cdk"
 allowBuilds:
+  '@sentry/cli': true
   '@swc/core': true
   core-js-pure: false
   esbuild: true

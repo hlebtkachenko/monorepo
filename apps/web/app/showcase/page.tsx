@@ -165,13 +165,9 @@ import {
   VolumeOffIcon,
   ChevronRight as ChevronRightIcon,
   Sparkles,
-  Zap,
 } from "lucide-react"
 import { AnimatedShinyButton } from "@workspace/ui/components/animated-shiny-button"
-import {
-  BorderBeamButton,
-  BorderBeamIconButton,
-} from "@workspace/ui/components/border-beam-button"
+import { BorderBeamDemo } from "./_components/border-beam-demo"
 import { LiquidMetalDemo } from "./_components/liquid-metal-demo"
 import { StatefulButtonDemo } from "./_components/stateful-button-demo"
 
@@ -460,15 +456,7 @@ export default function ShowcasePage() {
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
               Variants
             </h3>
-            <div className="flex flex-wrap items-center gap-4">
-              <BorderBeamButton>Default</BorderBeamButton>
-              <BorderBeamButton variant="outline">Outline</BorderBeamButton>
-              <BorderBeamButton variant="secondary">Secondary</BorderBeamButton>
-              <BorderBeamButton variant="destructive">Delete</BorderBeamButton>
-              <BorderBeamIconButton aria-label="Zap">
-                <Zap />
-              </BorderBeamIconButton>
-            </div>
+            <BorderBeamDemo />
           </div>
         </div>
       </section>

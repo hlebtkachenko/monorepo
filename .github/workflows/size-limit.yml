@@ -17,21 +17,18 @@ concurrency:
 jobs:
   size:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.19.1
         with:
           egress-policy: audit
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Build web app
         run: pnpm --filter web build
-      - uses: andresz1/size-limit-action@94bc357df29c36c8f8d50ea497c3e225c3c95d1d # v1.8.0
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          package_manager: pnpm
-          directory: apps/web
-          script: pnpm size
-          skip_step: install
+      - name: Run size-limit
+        run: pnpm --filter web size

@@ -58,7 +58,7 @@ jobs:
         name: Trivy filesystem scan
         # SHA-pinned post the March 2026 supply-chain incident — re-verify if
         # aquasecurity ever force-pushes the tag (SHA pin defends against that).
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0 (trivy 0.70.0)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: ./apps/web
@@ -92,7 +92,7 @@ jobs:
 
       - if: steps.guard.outputs.exists == 'true'
         name: Trivy image scan
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0 (trivy 0.70.0)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: local/web:scan
           format: sarif

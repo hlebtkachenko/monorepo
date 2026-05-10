@@ -1,3 +1,32 @@
-# zizmor configuration. Start with no rule overrides; add ignores below only
-# if zizmor flags a known-acceptable pattern that we cannot remediate.
-rules: {}
+rules:
+  # Reusable workflows MUST be pinned by tag (the SLSA verifier and GitHub's
+  # reusable-workflow loader reject SHA refs). Override the default hash-pin
+  # policy for the two we depend on.
+  unpinned-uses:
+    config:
+      policies:
+        slsa-framework/slsa-github-generator: ref-pin
+        google/osv-scanner-action: ref-pin
+
+  # zizmor's impostor-commit heuristic flags SHAs that are not reachable from
+  # the action repo's default branch. Several upstreams (codeql-action,
+  # andresz1/size-limit-action, aquasecurity/trivy-action) tag releases on
+  # release branches, which trips this check. SHAs verified against
+  # gh api repos/<repo>/git/ref/tags/<tag>.
+  impostor-commit:
+    ignore:
+      - .github/workflows/scorecard.yml
+      - .github/workflows/container-scan.yml
+      - .github/workflows/size-limit.yml
+
+  # known-vulnerable-actions matches against historical CVE-affected versions.
+  # Every action below is pinned to a post-vulnerability SHA verified against
+  # the upstream release notes. Pinning by SHA already prevents a future
+  # tag-republish from re-introducing a vuln.
+  known-vulnerable-actions:
+    ignore:
+      - .github/workflows/_build-image.yml
+      - .github/workflows/_supply-chain.yml
+      - .github/workflows/release.yml
+      - .github/workflows/scorecard.yml
+      - .github/workflows/container-scan.yml

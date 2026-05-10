@@ -1,9 +1,19 @@
 import { ThemeToggle } from "@/components/theme-toggle"
 import { AlertCircle, Inbox, Search } from "lucide-react"
 
-import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@workspace/ui/components/alert"
 import { AspectRatio } from "@workspace/ui/components/aspect-ratio"
-import { Avatar, AvatarFallback, AvatarGroup, AvatarGroupCount, AvatarImage } from "@workspace/ui/components/avatar"
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+} from "@workspace/ui/components/avatar"
 import { Badge } from "@workspace/ui/components/badge"
 import {
   Breadcrumb,
@@ -96,7 +106,12 @@ import { TooltipDemo } from "./_components/tooltip-demo"
 import { DropdownMenuDemo } from "./_components/dropdown-menu-demo"
 import { ContextMenuDemo } from "./_components/context-menu-demo"
 
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@workspace/ui/components/tabs"
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@workspace/ui/components/tabs"
 import {
   Accordion,
   AccordionItem,
@@ -141,6 +156,7 @@ import { CarouselDemo } from "./_components/carousel-demo"
 import { ToggleDemo } from "./_components/toggle-demo"
 import { ToggleGroupDemo } from "./_components/toggle-group-demo"
 import { SonnerDemo } from "./_components/sonner-demo"
+import { ActionBarDemo } from "./_components/action-bar-demo"
 
 export default function ShowcasePage() {
   return (
@@ -156,7 +172,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Variants</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
             <div className="flex flex-wrap gap-3">
               <Button variant="default">Default</Button>
               <Button variant="secondary">Secondary</Button>
@@ -168,7 +186,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Sizes</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes
+            </h3>
             <div className="flex flex-wrap items-center gap-3">
               <Button size="xs">Extra Small</Button>
               <Button size="sm">Small</Button>
@@ -178,7 +198,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">With Icons</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Icons
+            </h3>
             <div className="flex flex-wrap gap-3">
               <Button>
                 <Mail data-icon="inline-start" />
@@ -199,7 +221,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">States</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              States
+            </h3>
             <div className="flex flex-wrap gap-3">
               <Button disabled>Disabled</Button>
               <Button disabled>
@@ -217,7 +241,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Variants</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
             <div className="flex flex-wrap gap-3">
               <Badge variant="default">Default</Badge>
               <Badge variant="secondary">Secondary</Badge>
@@ -236,16 +262,24 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Horizontal</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Horizontal
+            </h3>
             <div className="flex flex-col gap-3">
-              <span className="text-sm text-muted-foreground">Above the line</span>
+              <span className="text-sm text-muted-foreground">
+                Above the line
+              </span>
               <Separator orientation="horizontal" />
-              <span className="text-sm text-muted-foreground">Below the line</span>
+              <span className="text-sm text-muted-foreground">
+                Below the line
+              </span>
             </div>
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Vertical</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Vertical
+            </h3>
             <div className="flex h-8 items-center gap-3">
               <span className="text-sm text-muted-foreground">Left</span>
               <Separator orientation="vertical" />
@@ -261,7 +295,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Shapes</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Shapes
+            </h3>
             <div className="flex flex-wrap items-center gap-4">
               <Skeleton className="h-16 w-24 rounded-lg" />
               <Skeleton className="size-12 rounded-full" />
@@ -281,7 +317,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Sizes</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes
+            </h3>
             <div className="flex flex-wrap items-center gap-4">
               <Spinner className="size-4" />
               <Spinner className="size-6" />
@@ -298,7 +336,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Single Keys</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Single Keys
+            </h3>
             <div className="flex flex-wrap gap-3">
               <Kbd>⌘</Kbd>
               <Kbd>⇧</Kbd>
@@ -311,7 +351,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Combinations</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Combinations
+            </h3>
             <div className="flex flex-wrap gap-3">
               <KbdGroup>
                 <Kbd>⌘</Kbd>
@@ -337,7 +379,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Standalone</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Standalone
+            </h3>
             <div className="flex flex-col gap-3">
               <Label>Project Name</Label>
               <Label>Email Address</Label>
@@ -353,8 +397,10 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Values</h3>
-            <div className="flex flex-col gap-4 max-w-sm">
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Values
+            </h3>
+            <div className="flex max-w-sm flex-col gap-4">
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">0%</span>
                 <Progress value={0} />
@@ -382,7 +428,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Sizes</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes
+            </h3>
             <div className="flex flex-wrap items-center gap-3">
               <Avatar size="sm">
                 <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
@@ -400,7 +448,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Text Fallback</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Text Fallback
+            </h3>
             <div className="flex flex-wrap items-center gap-3">
               <Avatar>
                 <AvatarFallback>HT</AvatarFallback>
@@ -415,7 +465,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Group</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Group
+            </h3>
             <AvatarGroup>
               <Avatar>
                 <AvatarFallback>HT</AvatarFallback>
@@ -438,12 +490,15 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Variants</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
             <div className="flex flex-col gap-3">
               <Alert variant="default">
                 <AlertTitle>Heads up</AlertTitle>
                 <AlertDescription>
-                  Your subscription renews in 3 days. Update your payment method if needed.
+                  Your subscription renews in 3 days. Update your payment method
+                  if needed.
                 </AlertDescription>
               </Alert>
 
@@ -465,15 +520,20 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Default</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
             <Card className="max-w-sm">
               <CardHeader>
                 <CardTitle>Project Settings</CardTitle>
-                <CardDescription>Manage your project configuration.</CardDescription>
+                <CardDescription>
+                  Manage your project configuration.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Configure team access, environment variables, and deployment options.
+                  Configure team access, environment variables, and deployment
+                  options.
                 </p>
               </CardContent>
               <CardFooter>
@@ -483,13 +543,17 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Small</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Small
+            </h3>
             <Card className="max-w-xs" size="sm">
               <CardHeader>
                 <CardTitle>Quick Stats</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">24 active users today</p>
+                <p className="text-sm text-muted-foreground">
+                  24 active users today
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -502,7 +566,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Default</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
             <Empty className="border">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -523,11 +589,15 @@ export default function ShowcasePage() {
 
       {/* ==================== ASPECT RATIO ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">AspectRatio</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          AspectRatio
+        </h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">16:9</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              16:9
+            </h3>
             <div className="w-64">
               <AspectRatio ratio={16 / 9}>
                 <div className="flex size-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
@@ -538,7 +608,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">1:1</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              1:1
+            </h3>
             <div className="w-32">
               <AspectRatio ratio={1}>
                 <div className="flex size-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
@@ -552,11 +624,15 @@ export default function ShowcasePage() {
 
       {/* ==================== BREADCRUMB ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Breadcrumb</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Breadcrumb
+        </h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Three levels</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Three levels
+            </h3>
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
@@ -578,11 +654,15 @@ export default function ShowcasePage() {
 
       {/* ==================== PAGINATION ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Pagination</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Pagination
+        </h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Basic</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Basic
+            </h3>
             <Pagination>
               <PaginationContent>
                 <PaginationItem>
@@ -592,7 +672,9 @@ export default function ShowcasePage() {
                   <PaginationLink href="#">1</PaginationLink>
                 </PaginationItem>
                 <PaginationItem>
-                  <PaginationLink href="#" isActive>2</PaginationLink>
+                  <PaginationLink href="#" isActive>
+                    2
+                  </PaginationLink>
                 </PaginationItem>
                 <PaginationItem>
                   <PaginationLink href="#">3</PaginationLink>
@@ -615,7 +697,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Sample Data</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sample Data
+            </h3>
             <Table>
               <TableCaption>Recent invoices</TableCaption>
               <TableHeader>
@@ -631,19 +715,25 @@ export default function ShowcasePage() {
                   <TableCell>#INV-001</TableCell>
                   <TableCell>Acme Corp</TableCell>
                   <TableCell>12 500 Kč</TableCell>
-                  <TableCell><Badge variant="default">Paid</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant="default">Paid</Badge>
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>#INV-002</TableCell>
                   <TableCell>BuildCo</TableCell>
                   <TableCell>8 200 Kč</TableCell>
-                  <TableCell><Badge variant="secondary">Pending</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">Pending</Badge>
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>#INV-003</TableCell>
                   <TableCell>FinGroup</TableCell>
                   <TableCell>31 000 Kč</TableCell>
-                  <TableCell><Badge variant="destructive">Overdue</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant="destructive">Overdue</Badge>
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -651,30 +741,35 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-
       {/* ==================== INPUT ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Input</h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Default</h3>
-            <div className="flex flex-col gap-3 max-w-sm">
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
               <Input />
             </div>
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">With Placeholder</h3>
-            <div className="flex flex-col gap-3 max-w-sm">
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Placeholder
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
               <Input placeholder="Project name" />
               <Input placeholder="Email address" type="email" />
             </div>
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Disabled</h3>
-            <div className="flex flex-col gap-3 max-w-sm">
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Disabled
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
               <Input placeholder="Cannot edit" disabled />
             </div>
           </div>
@@ -687,21 +782,27 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Default</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
             <div className="max-w-sm">
               <Textarea />
             </div>
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">With Placeholder</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Placeholder
+            </h3>
             <div className="max-w-sm">
               <Textarea placeholder="Describe the issue in detail..." />
             </div>
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Disabled</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Disabled
+            </h3>
             <div className="max-w-sm">
               <Textarea placeholder="Read-only content" disabled />
             </div>
@@ -715,7 +816,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">States</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              States
+            </h3>
             <CheckboxDemo />
           </div>
         </div>
@@ -727,7 +830,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">States</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              States
+            </h3>
             <SwitchDemo />
           </div>
         </div>
@@ -735,11 +840,15 @@ export default function ShowcasePage() {
 
       {/* ==================== RADIOGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">RadioGroup</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          RadioGroup
+        </h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Options</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Options
+            </h3>
             <RadioGroupDemo />
           </div>
         </div>
@@ -751,7 +860,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Options</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Options
+            </h3>
             <SelectDemo />
           </div>
         </div>
@@ -759,17 +870,25 @@ export default function ShowcasePage() {
 
       {/* ==================== NATIVESELECT ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">NativeSelect</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          NativeSelect
+        </h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Default</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
             <div className="flex flex-wrap gap-4">
               <NativeSelect>
                 <NativeSelectOption value="">Select region</NativeSelectOption>
                 <NativeSelectOption value="eu">Europe</NativeSelectOption>
-                <NativeSelectOption value="us">North America</NativeSelectOption>
-                <NativeSelectOption value="asia">Asia Pacific</NativeSelectOption>
+                <NativeSelectOption value="us">
+                  North America
+                </NativeSelectOption>
+                <NativeSelectOption value="asia">
+                  Asia Pacific
+                </NativeSelectOption>
               </NativeSelect>
 
               <NativeSelect disabled>
@@ -786,7 +905,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Values</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Values
+            </h3>
             <SliderDemo />
           </div>
         </div>
@@ -798,7 +919,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">6-digit</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              6-digit
+            </h3>
             <InputOTPDemo />
           </div>
         </div>
@@ -806,12 +929,16 @@ export default function ShowcasePage() {
 
       {/* ==================== INPUTGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">InputGroup</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          InputGroup
+        </h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">With Addon Text</h3>
-            <div className="flex flex-col gap-3 max-w-sm">
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Addon Text
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
               <InputGroup>
                 <InputGroupAddon align="inline-start">
                   <InputGroupText>https://</InputGroupText>
@@ -836,7 +963,9 @@ export default function ShowcasePage() {
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">With Label and Description</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Label and Description
+            </h3>
             <div className="max-w-sm">
               <Field>
                 <FieldLabel htmlFor="field-name">Project Name</FieldLabel>
@@ -849,7 +978,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Error State</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Error State
+            </h3>
             <div className="max-w-sm">
               <Field>
                 <FieldLabel htmlFor="field-email">Email</FieldLabel>
@@ -868,11 +999,15 @@ export default function ShowcasePage() {
 
       {/* ==================== BUTTONGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">ButtonGroup</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ButtonGroup
+        </h2>
 
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Horizontal</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Horizontal
+            </h3>
             <div className="flex flex-wrap gap-4">
               <ButtonGroup>
                 <Button variant="outline">Week</Button>
@@ -891,7 +1026,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">With Text Addon</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Text Addon
+            </h3>
             <ButtonGroup>
               <ButtonGroupText>Sort by</ButtonGroupText>
               <Button variant="outline">Name</Button>
@@ -901,7 +1038,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Vertical</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Vertical
+            </h3>
             <ButtonGroup orientation="vertical" className="w-32">
               <Button variant="outline">Top</Button>
               <Button variant="outline">Middle</Button>
@@ -916,7 +1055,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Dialog</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Settings dialog with form fields</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Settings dialog with form fields
+            </h3>
             <div className="flex flex-wrap gap-3">
               <DialogDemo />
             </div>
@@ -926,10 +1067,14 @@ export default function ShowcasePage() {
 
       {/* ==================== ALERTDIALOG ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">AlertDialog</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          AlertDialog
+        </h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Destructive confirmation</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Destructive confirmation
+            </h3>
             <div className="flex flex-wrap gap-3">
               <AlertDialogDemo />
             </div>
@@ -942,7 +1087,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Sheet</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Right side panel with settings</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Right side panel with settings
+            </h3>
             <div className="flex flex-wrap gap-3">
               <SheetDemo />
             </div>
@@ -955,7 +1102,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Drawer</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Bottom drawer with actions</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Bottom drawer with actions
+            </h3>
             <div className="flex flex-wrap gap-3">
               <DrawerDemo />
             </div>
@@ -968,7 +1117,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Popover</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Filter panel</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Filter panel
+            </h3>
             <div className="flex flex-wrap gap-3">
               <PopoverDemo />
             </div>
@@ -981,7 +1132,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">HoverCard</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">User profile on hover</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              User profile on hover
+            </h3>
             <div className="flex flex-wrap gap-3">
               <HoverCardDemo />
             </div>
@@ -994,7 +1147,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Tooltip</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Icon buttons with tooltips</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Icon buttons with tooltips
+            </h3>
             <div className="flex flex-wrap gap-3">
               <TooltipDemo />
             </div>
@@ -1004,10 +1159,14 @@ export default function ShowcasePage() {
 
       {/* ==================== DROPDOWNMENU ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">DropdownMenu</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          DropdownMenu
+        </h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Account menu with groups and shortcuts</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Account menu with groups and shortcuts
+            </h3>
             <div className="flex flex-wrap gap-3">
               <DropdownMenuDemo />
             </div>
@@ -1017,10 +1176,14 @@ export default function ShowcasePage() {
 
       {/* ==================== CONTEXTMENU ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">ContextMenu</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ContextMenu
+        </h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Right-click context actions</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Right-click context actions
+            </h3>
             <div className="flex flex-wrap gap-3">
               <ContextMenuDemo />
             </div>
@@ -1033,7 +1196,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Tabs</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Default (horizontal)</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default (horizontal)
+            </h3>
             <Tabs defaultValue="account" className="max-w-md">
               <TabsList>
                 <TabsTrigger value="account">Account</TabsTrigger>
@@ -1059,7 +1224,9 @@ export default function ShowcasePage() {
           </div>
 
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Line variant</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Line variant
+            </h3>
             <Tabs defaultValue="account" className="max-w-md">
               <TabsList variant="line">
                 <TabsTrigger value="account">Account</TabsTrigger>
@@ -1091,24 +1258,29 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Accordion</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">FAQ style</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              FAQ style
+            </h3>
             <Accordion type="single" collapsible className="max-w-md">
               <AccordionItem value="item-1">
                 <AccordionTrigger>How does billing work?</AccordionTrigger>
                 <AccordionContent>
-                  Billing is monthly and based on your selected plan. You can upgrade or downgrade at any time.
+                  Billing is monthly and based on your selected plan. You can
+                  upgrade or downgrade at any time.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-2">
                 <AccordionTrigger>Can I cancel anytime?</AccordionTrigger>
                 <AccordionContent>
-                  Yes, you can cancel your subscription at any time. Your access continues until the end of the billing period.
+                  Yes, you can cancel your subscription at any time. Your access
+                  continues until the end of the billing period.
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-3">
                 <AccordionTrigger>Is there a free trial?</AccordionTrigger>
                 <AccordionContent>
-                  We offer a 14-day free trial with full access to all features. No credit card required.
+                  We offer a 14-day free trial with full access to all features.
+                  No credit card required.
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -1118,10 +1290,14 @@ export default function ShowcasePage() {
 
       {/* ==================== COLLAPSIBLE ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Collapsible</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Collapsible
+        </h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Toggleable section</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Toggleable section
+            </h3>
             <CollapsibleDemo />
           </div>
         </div>
@@ -1129,33 +1305,43 @@ export default function ShowcasePage() {
 
       {/* ==================== NAVIGATIONMENU ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">NavigationMenu</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          NavigationMenu
+        </h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Top-level items with dropdown</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Top-level items with dropdown
+            </h3>
             <NavigationMenu viewport={false}>
               <NavigationMenuList>
                 <NavigationMenuItem>
                   <NavigationMenuTrigger>Products</NavigationMenuTrigger>
                   <NavigationMenuContent>
-                    <div className="flex flex-col gap-1 p-1 w-40">
-                      <NavigationMenuLink href="#">Analytics</NavigationMenuLink>
+                    <div className="flex w-40 flex-col gap-1 p-1">
+                      <NavigationMenuLink href="#">
+                        Analytics
+                      </NavigationMenuLink>
                       <NavigationMenuLink href="#">Finance</NavigationMenuLink>
-                      <NavigationMenuLink href="#">Reporting</NavigationMenuLink>
+                      <NavigationMenuLink href="#">
+                        Reporting
+                      </NavigationMenuLink>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
                   <NavigationMenuTrigger>Company</NavigationMenuTrigger>
                   <NavigationMenuContent>
-                    <div className="flex flex-col gap-1 p-1 w-40">
+                    <div className="flex w-40 flex-col gap-1 p-1">
                       <NavigationMenuLink href="#">About</NavigationMenuLink>
                       <NavigationMenuLink href="#">Careers</NavigationMenuLink>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
-                  <NavigationMenuLink href="#" className={undefined}>Pricing</NavigationMenuLink>
+                  <NavigationMenuLink href="#" className={undefined}>
+                    Pricing
+                  </NavigationMenuLink>
                 </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
@@ -1168,7 +1354,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Menubar</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">File / Edit / View menus</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              File / Edit / View menus
+            </h3>
             <Menubar>
               <MenubarMenu>
                 <MenubarTrigger>File</MenubarTrigger>
@@ -1223,10 +1411,14 @@ export default function ShowcasePage() {
 
       {/* ==================== SCROLLAREA ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">ScrollArea</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ScrollArea
+        </h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Fixed-height list</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Fixed-height list
+            </h3>
             <ScrollArea className="h-48 w-64 rounded-lg border">
               <div className="p-3">
                 {[
@@ -1259,7 +1451,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Resizable</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Two-panel horizontal layout</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Two-panel horizontal layout
+            </h3>
             <ResizableDemo />
           </div>
         </div>
@@ -1270,7 +1464,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Item</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Variants</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
             <ItemGroup className="max-w-md">
               <Item variant="outline">
                 <ItemMedia variant="icon">
@@ -1278,10 +1474,14 @@ export default function ShowcasePage() {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>Q4 Financial Report</ItemTitle>
-                  <ItemDescription>Updated 2 hours ago by Hleb T.</ItemDescription>
+                  <ItemDescription>
+                    Updated 2 hours ago by Hleb T.
+                  </ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  <Button size="sm" variant="outline">View</Button>
+                  <Button size="sm" variant="outline">
+                    View
+                  </Button>
                 </ItemActions>
               </Item>
 
@@ -1294,7 +1494,9 @@ export default function ShowcasePage() {
                   <ItemDescription>Submitted on Jan 15, 2025.</ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  <Button size="sm" variant="outline">Download</Button>
+                  <Button size="sm" variant="outline">
+                    Download
+                  </Button>
                 </ItemActions>
               </Item>
 
@@ -1304,10 +1506,14 @@ export default function ShowcasePage() {
                 </ItemMedia>
                 <ItemContent>
                   <ItemTitle>Budget Forecast Q1</ItemTitle>
-                  <ItemDescription>Draft, last edited yesterday.</ItemDescription>
+                  <ItemDescription>
+                    Draft, last edited yesterday.
+                  </ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  <Button size="sm" variant="ghost">Edit</Button>
+                  <Button size="sm" variant="ghost">
+                    Edit
+                  </Button>
                 </ItemActions>
               </Item>
             </ItemGroup>
@@ -1320,7 +1526,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Combobox</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Searchable framework selector</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Searchable framework selector
+            </h3>
             <ComboboxDemo />
           </div>
         </div>
@@ -1331,7 +1539,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Command</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Command palette with groups</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Command palette with groups
+            </h3>
             <CommandDemo />
           </div>
         </div>
@@ -1342,7 +1552,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Calendar</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Date picker</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Date picker
+            </h3>
             <CalendarDemo />
           </div>
         </div>
@@ -1353,7 +1565,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Carousel</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">4 slides with prev/next</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              4 slides with prev/next
+            </h3>
             <CarouselDemo />
           </div>
         </div>
@@ -1364,7 +1578,9 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Toggle</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Variants and states</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants and states
+            </h3>
             <ToggleDemo />
           </div>
         </div>
@@ -1372,10 +1588,14 @@ export default function ShowcasePage() {
 
       {/* ==================== TOGGLEGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">ToggleGroup</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ToggleGroup
+        </h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Text alignment group</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Text alignment group
+            </h3>
             <ToggleGroupDemo />
           </div>
         </div>
@@ -1386,12 +1606,26 @@ export default function ShowcasePage() {
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Sonner</h2>
         <div className="flex flex-col gap-6">
           <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">Toast notifications</h3>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Toast notifications
+            </h3>
             <SonnerDemo />
           </div>
         </div>
       </section>
 
+      {/* ==================== ACTIONBAR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">ActionBar</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Selection toolbar
+            </h3>
+            <ActionBarDemo />
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

@@ -52,13 +52,15 @@ jobs:
 
       - name: Compute artifact digest
         id: hash
+        env:
+          ARTIFACT_PATH: ${{ inputs.artifact-path }}
         run: |
           set -euo pipefail
-          if [ -d "${{ inputs.artifact-path }}" ]; then
-            DIGEST=$(find "${{ inputs.artifact-path }}" -type f -print0 \
+          if [ -d "$ARTIFACT_PATH" ]; then
+            DIGEST=$(find "$ARTIFACT_PATH" -type f -print0 \
               | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
           else
-            DIGEST=$(sha256sum "${{ inputs.artifact-path }}" | cut -d' ' -f1)
+            DIGEST=$(sha256sum "$ARTIFACT_PATH" | cut -d' ' -f1)
           fi
           echo "sha256=${DIGEST}" >> "$GITHUB_OUTPUT"
 
@@ -95,12 +97,16 @@ jobs:
 
       - name: Cosign sign artifact (file only)
         if: ${{ !endsWith(inputs.artifact-path, '/') }}
+        env:
+          ARTIFACT_PATH: ${{ inputs.artifact-path }}
+          PACKAGE_NAME: ${{ inputs.package-name }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          if [ -f "${{ inputs.artifact-path }}" ]; then
+          if [ -f "$ARTIFACT_PATH" ]; then
             cosign sign-blob --yes \
-              --bundle "${{ inputs.package-name }}-${{ inputs.version }}.cosign.bundle" \
-              "${{ inputs.artifact-path }}"
+              --bundle "${PACKAGE_NAME}-${VERSION}.cosign.bundle" \
+              "$ARTIFACT_PATH"
           fi
 
       # 4. Upload SBOM + signature bundles as workflow artifacts

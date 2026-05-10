@@ -11,6 +11,12 @@
     "test": "turbo test"
   },
   "devDependencies": {
+    "@aws-sdk/client-acm": "^3.821.0",
+    "@aws-sdk/client-cloudfront": "^3.821.0",
+    "@aws-sdk/client-ecr": "^3.821.0",
+    "@aws-sdk/client-ecs": "^3.821.0",
+    "@aws-sdk/client-rds": "^3.821.0",
+    "@aws-sdk/client-route-53": "^3.821.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "prettier": "^3.8.1",

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Combobox,
   ComboboxContent,
@@ -33,4 +34,12 @@ export const Default: Story = {
       </ComboboxContent>
     </Combobox>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByPlaceholderText("Search fruit...")
+    await userEvent.click(input)
+    await userEvent.type(input, "Ban")
+    const body = within(document.body)
+    await expect(await body.findByText("Banana")).toBeInTheDocument()
+  },
 }

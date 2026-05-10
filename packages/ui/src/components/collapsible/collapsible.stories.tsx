@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./collapsible"
+import { expect, userEvent, within } from "storybook/test"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./collapsible"
 
 const meta: Meta<typeof Collapsible> = {
   title: "Components/Collapsible",
@@ -20,6 +25,13 @@ export const Default: Story = {
       </CollapsibleContent>
     </Collapsible>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole("button", { name: /toggle section/i }),
+    )
+    await expect(canvas.getByText(/collapsible/i)).toBeVisible()
+  },
 }
 
 export const DefaultOpen: Story = {

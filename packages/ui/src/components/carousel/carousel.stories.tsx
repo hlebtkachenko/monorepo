@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Carousel,
   CarouselContent,
@@ -32,6 +33,12 @@ export const Default: Story = {
       </Carousel>
     </div>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText("Slide 1")).toBeVisible()
+    const next = canvas.getByRole("button", { name: /next/i })
+    await expect(next).toBeInTheDocument()
+  },
 }
 
 export const Vertical: Story = {

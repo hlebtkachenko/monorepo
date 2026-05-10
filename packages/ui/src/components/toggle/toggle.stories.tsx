@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import { Toggle } from "./toggle"
 
 const meta: Meta<typeof Toggle> = {
@@ -10,6 +11,13 @@ type Story = StoryObj<typeof Toggle>
 
 export const Default: Story = {
   render: () => <Toggle>Bold</Toggle>,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const toggle = canvas.getByRole("button", { name: /bold/i })
+    await expect(toggle).toHaveAttribute("aria-pressed", "false")
+    await userEvent.click(toggle)
+    await expect(toggle).toHaveAttribute("aria-pressed", "true")
+  },
 }
 
 export const Outline: Story = {

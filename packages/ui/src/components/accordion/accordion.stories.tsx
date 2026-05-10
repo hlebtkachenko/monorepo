@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Accordion,
   AccordionItem,
@@ -20,7 +21,8 @@ export const Single: Story = {
       <AccordionItem value="item-1">
         <AccordionTrigger>What is shadcn/ui?</AccordionTrigger>
         <AccordionContent>
-          A collection of re-usable components built with Radix UI and Tailwind CSS.
+          A collection of re-usable components built with Radix UI and Tailwind
+          CSS.
         </AccordionContent>
       </AccordionItem>
       <AccordionItem value="item-2">
@@ -31,6 +33,12 @@ export const Single: Story = {
       </AccordionItem>
     </Accordion>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const trigger = canvas.getByRole("button", { name: /what is shadcn/i })
+    await userEvent.click(trigger)
+    await expect(canvas.getByText(/re-usable components/i)).toBeVisible()
+  },
 }
 
 export const Multiple: Story = {
@@ -50,6 +58,13 @@ export const Multiple: Story = {
       </AccordionItem>
     </Accordion>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole("button", { name: /section one/i }))
+    await userEvent.click(canvas.getByRole("button", { name: /section two/i }))
+    await expect(canvas.getByText("Content for section one.")).toBeVisible()
+    await expect(canvas.getByText("Content for section two.")).toBeVisible()
+  },
 }
 
 export const DefaultOpen: Story = {

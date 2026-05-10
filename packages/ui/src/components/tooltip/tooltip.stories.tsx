@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip"
+import { expect, userEvent, within } from "storybook/test"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./tooltip"
 
 const meta: Meta<typeof Tooltip> = {
   title: "Components/Tooltip",
@@ -19,6 +25,10 @@ export const Default: Story = {
       </Tooltip>
     </TooltipProvider>
   ),
+  play: async () => {
+    const elements = within(document.body).getAllByText("Tooltip content")
+    await expect(elements.length).toBeGreaterThan(0)
+  },
 }
 
 export const OnButton: Story = {
@@ -32,4 +42,12 @@ export const OnButton: Story = {
       </Tooltip>
     </TooltipProvider>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.hover(canvas.getByRole("button", { name: /save/i }))
+    const elements = await within(document.body).findAllByText(
+      "Save your changes",
+    )
+    await expect(elements.length).toBeGreaterThan(0)
+  },
 }

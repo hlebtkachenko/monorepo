@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Command,
   CommandEmpty,
@@ -19,7 +20,7 @@ type Story = StoryObj<typeof Command>
 
 export const Default: Story = {
   render: () => (
-    <Command className="rounded-lg border shadow-md w-80">
+    <Command className="w-80 rounded-lg border shadow-md">
       <CommandInput placeholder="Type a command or search..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
@@ -41,4 +42,10 @@ export const Default: Story = {
       </CommandList>
     </Command>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByPlaceholderText(/type a command/i)
+    await userEvent.type(input, "Cal")
+    await expect(canvas.getByText("Calendar")).toBeVisible()
+  },
 }

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Menubar,
   MenubarMenu,
@@ -55,4 +56,10 @@ export const Default: Story = {
       </MenubarMenu>
     </Menubar>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole("menuitem", { name: /file/i }))
+    const menu = await within(document.body).findByRole("menu")
+    await expect(within(menu).getByText("New Tab")).toBeInTheDocument()
+  },
 }

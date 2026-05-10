@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Drawer,
   DrawerClose,
@@ -38,4 +39,11 @@ export const Default: Story = {
       </DrawerContent>
     </Drawer>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole("button", { name: /open drawer/i }))
+    const drawer = await within(document.body).findByRole("dialog")
+    await expect(drawer).toBeInTheDocument()
+    await expect(within(drawer).getByText("Drawer Title")).toBeInTheDocument()
+  },
 }

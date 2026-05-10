@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import { RadioGroup, RadioGroupItem } from "./radio-group"
 
 const meta: Meta<typeof RadioGroup> = {
@@ -25,6 +26,15 @@ export const Default: Story = {
       </div>
     </RadioGroup>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const option2 = canvas.getByRole("radio", { name: /option 2/i })
+    await userEvent.click(option2)
+    await expect(option2).toBeChecked()
+    await expect(
+      canvas.getByRole("radio", { name: /option 1/i }),
+    ).not.toBeChecked()
+  },
 }
 
 export const Horizontal: Story = {

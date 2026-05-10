@@ -1,0 +1,58 @@
+name: pnpm version check
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for new pnpm version
+        run: |
+          CURRENT=$(node -e "console.log(require('./package.json').packageManager.split('@')[1])")
+          LATEST=$(npm view pnpm version)
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "outdated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "outdated=false" >> "$GITHUB_OUTPUT"
+          fi
+        id: pnpm
+
+      - name: Check for existing issue
+        if: steps.pnpm.outputs.outdated == 'true'
+        run: |
+          EXISTING=$(gh issue list --label pnpm-update --state open --json number --jq length)
+          echo "exists=$EXISTING" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: existing
+
+      - name: Open issue
+        if: steps.pnpm.outputs.outdated == 'true' && steps.existing.outputs.exists == '0'
+        run: |
+          gh issue create \
+            --title "chore: bump pnpm ${{ steps.pnpm.outputs.current }} → ${{ steps.pnpm.outputs.latest }}" \
+            --label pnpm-update \
+            --body "$(cat <<'BODY'
+          New pnpm version detected.
+
+          - **Current:** ${{ steps.pnpm.outputs.current }}
+          - **Latest:** ${{ steps.pnpm.outputs.latest }}
+
+          Update checklist:
+          - [ ] Update \`packageManager\` in \`package.json\`
+          - [ ] Run \`pnpm install\` to regenerate lockfile
+          - [ ] Verify CI passes
+          BODY
+          )"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

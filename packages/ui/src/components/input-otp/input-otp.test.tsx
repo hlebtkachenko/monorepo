@@ -1,6 +1,23 @@
-import { render, screen } from "@testing-library/react"
-import { describe, it, expect } from "vitest"
-import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "./input-otp"
+import { render, screen, cleanup } from "@testing-library/react"
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+  InputOTPSeparator,
+} from "./input-otp"
+
+// input-otp library sets internal timers that fire after test teardown,
+// causing "window is not defined" when jsdom environment is already gone.
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+
+afterEach(() => {
+  cleanup()
+  vi.runOnlyPendingTimers()
+  vi.useRealTimers()
+})
 
 describe("InputOTP", () => {
   it("renders without crash", () => {
@@ -12,9 +29,8 @@ describe("InputOTP", () => {
           <InputOTPSlot index={2} />
           <InputOTPSlot index={3} />
         </InputOTPGroup>
-      </InputOTP>
+      </InputOTP>,
     )
-    // OTPInput renders a hidden input
     const input = document.querySelector("input")
     expect(input).toBeInTheDocument()
   })
@@ -33,7 +49,7 @@ describe("InputOTP", () => {
           <InputOTPSlot index={4} />
           <InputOTPSlot index={5} />
         </InputOTPGroup>
-      </InputOTP>
+      </InputOTP>,
     )
     expect(document.querySelector("[role=separator]")).toBeInTheDocument()
   })

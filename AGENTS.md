@@ -43,6 +43,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 
 Agent-specific runbooks live in `docs/runbooks/`:
 - `SHOWCASE-RUNBOOK.md`: instructions for adding component demos to the showcase page
+- `COMPONENT-MIGRATION-RUNBOOK.md`: workflow for adding non-shadcn components from external registries
 
 ## Dependency Update Coverage Rule
 

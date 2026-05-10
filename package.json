@@ -8,7 +8,8 @@
     "lint": "turbo lint",
     "format": "turbo format",
     "typecheck": "turbo typecheck",
-    "test": "turbo test"
+    "test": "turbo test",
+    "check:client-secrets": "node scripts/check-client-secrets.mjs"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.8.0",

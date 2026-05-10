@@ -1,0 +1,25 @@
+{
+  "name": "@workspace/config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.821.0",
+    "@aws-sdk/client-ssm": "^3.821.0",
+    "@aws-sdk/credential-providers": "^3.821.0"
+  },
+  "devDependencies": {
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^9.39.2",
+    "typescript": "^6.0.3"
+  }
+}

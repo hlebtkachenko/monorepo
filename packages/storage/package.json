@@ -1,0 +1,25 @@
+{
+  "name": "@workspace/storage",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.821.0",
+    "@aws-sdk/lib-storage": "^3.821.0",
+    "@aws-sdk/s3-request-presigner": "^3.821.0"
+  },
+  "devDependencies": {
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^9.39.2",
+    "typescript": "^6.0.3"
+  }
+}

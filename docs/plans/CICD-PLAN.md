@@ -187,7 +187,7 @@ Merge to main → staging deploy (auto) → manual approval → production canar
 
 | Item | Priority |
 |------|----------|
-| On-call rotation defined and integrated with PagerDuty + Incident Manager | Critical |
+| On-call rotation defined and integrated with AWS Incident Manager + SNS (email + ntfy.sh push). Paid pager deferred until headcount >= 2. | Critical |
 | Runbooks per alert, linked from CloudWatch alarm description | Critical |
 | Production access model: SSO + session recording + Verified Access for human prod access | Critical |
 | Change advisory: PRs feeding prod must include risk classification | High |

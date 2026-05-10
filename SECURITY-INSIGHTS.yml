@@ -1,0 +1,122 @@
+header:
+  schema-version: 1.0.0
+  expiration-date: "2027-05-01T00:00:00.000Z"
+  last-updated: "2026-05-10"
+  last-reviewed: "2026-05-10"
+  project-url: https://github.com/hlebtkachenko/monorepo
+  project-release: pre-release
+  changelog: https://github.com/hlebtkachenko/monorepo/releases
+  license: https://github.com/hlebtkachenko/monorepo/blob/main/LICENSE
+
+project-lifecycle:
+  status: active
+  roadmap: https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/AWS-INTEGRATION-PLAN.md
+  bug-fixes-only: false
+  core-maintainers:
+    - https://github.com/hlebtkachenko
+
+contribution-policy:
+  accepts-pull-requests: true
+  accepts-automated-pull-requests: true
+  contributing-policy: https://github.com/hlebtkachenko/monorepo/blob/main/CONTRIBUTING.md
+  code-of-conduct: https://github.com/hlebtkachenko/monorepo/blob/main/CODE_OF_CONDUCT.md
+
+documentation:
+  - https://github.com/hlebtkachenko/monorepo/blob/main/README.md
+  - https://github.com/hlebtkachenko/monorepo/tree/main/docs
+
+distribution-points:
+  - https://github.com/hlebtkachenko/monorepo
+
+security-artifacts:
+  threat-model:
+    threat-model-created: false
+    evidence-url: []
+  self-assessment:
+    self-assessment-created: false
+    evidence-url: []
+  other-artifacts:
+    - artifact: SBOM (CycloneDX 1.6) attached to release artifacts
+      evidence-url:
+        - https://github.com/hlebtkachenko/monorepo/blob/main/docs/specs/SUPPLY-CHAIN.md
+    - artifact: SLSA L2 build provenance on every artifact, L3 on tagged releases
+      evidence-url:
+        - https://github.com/hlebtkachenko/monorepo/blob/main/.github/workflows/_supply-chain.yml
+        - https://github.com/hlebtkachenko/monorepo/blob/main/.github/workflows/release.yml
+    - artifact: cosign keyless signatures via GitHub OIDC and Sigstore Rekor
+      evidence-url:
+        - https://github.com/hlebtkachenko/monorepo/blob/main/docs/runbooks/SUPPLY-CHAIN-VERIFY-AT-DEPLOY.md
+
+security-testing:
+  - tool-type: sca
+    tool-name: osv-scanner
+    tool-version: "2.3.5"
+    tool-url: https://google.github.io/osv-scanner/
+    integration:
+      ad-hoc: false
+      ci: true
+      before-release: true
+  - tool-type: sast
+    tool-name: CodeQL
+    tool-version: "4.35.4"
+    tool-url: https://codeql.github.com/
+    integration:
+      ad-hoc: false
+      ci: true
+      before-release: true
+  - tool-type: sast
+    tool-name: gitleaks
+    tool-version: "2.3.9"
+    tool-url: https://github.com/gitleaks/gitleaks
+    integration:
+      ad-hoc: false
+      ci: true
+      before-release: true
+  - tool-type: sca
+    tool-name: trivy
+    tool-version: "0.70.0"
+    tool-url: https://github.com/aquasecurity/trivy
+    integration:
+      ad-hoc: false
+      ci: true
+      before-release: true
+
+security-assessments: []
+
+security-contacts:
+  - type: email
+    value: g1053015@icloud.com
+    primary: true
+
+vulnerability-reporting:
+  accepts-vulnerability-reports: true
+  email-contact: g1053015@icloud.com
+  security-policy: https://github.com/hlebtkachenko/monorepo/blob/main/SECURITY.md
+  bug-bounty-available: false
+  pgp-key: ""
+  in-scope:
+    - apps/web
+    - packages/ui
+    - infra/cdk
+    - infra/tofu
+    - .github/workflows
+  out-of-scope:
+    - "Findings against unmaintained branches (only main is supported)"
+    - "Self-XSS"
+    - "Issues that require physical access to a victim's device"
+
+dependencies:
+  third-party-packages: true
+  dependencies-lists:
+    - https://github.com/hlebtkachenko/monorepo/blob/main/pnpm-lock.yaml
+    - https://github.com/hlebtkachenko/monorepo/blob/main/infra/cdk/package.json
+  sbom:
+    - sbom-file: docs/specs/SUPPLY-CHAIN.md
+      sbom-format: CycloneDX
+      sbom-url: https://github.com/hlebtkachenko/monorepo/blob/main/docs/specs/SUPPLY-CHAIN.md
+  dependencies-lifecycle:
+    policy-url: https://github.com/hlebtkachenko/monorepo/blob/main/.github/dependabot.yml
+    comment: "Dependabot weekly. SHA-pinned third-party actions. Trivy + osv-scanner gates."
+  env-dependencies-policy:
+    policy-url: https://github.com/hlebtkachenko/monorepo/blob/main/docs/runbooks/SECRETS.md
+    comment: "All runtime secrets via AWS Secrets Manager when AWS lands. No long-lived keys, ever."

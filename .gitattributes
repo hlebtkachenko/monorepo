@@ -1,0 +1,38 @@
+* text=auto eol=lf
+
+# Explicit text — keep LF on every platform
+*.ts          text eol=lf
+*.tsx         text eol=lf
+*.js          text eol=lf
+*.jsx         text eol=lf
+*.mjs         text eol=lf
+*.cjs         text eol=lf
+*.json        text eol=lf
+*.md          text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+*.tf          text eol=lf
+*.hcl         text eol=lf
+*.sh          text eol=lf
+*.toml        text eol=lf
+Dockerfile*   text eol=lf
+Makefile      text eol=lf
+
+# Binary
+*.png         binary
+*.jpg         binary
+*.jpeg        binary
+*.gif         binary
+*.ico         binary
+*.webp        binary
+*.pdf         binary
+*.woff        binary
+*.woff2       binary
+*.ttf         binary
+
+# Generated / vendored
+pnpm-lock.yaml      linguist-generated=true
+*.lock              linguist-generated=true
+**/cdk.out/**       linguist-generated=true -diff
+**/.next/**         linguist-generated=true -diff
+**/dist/**          linguist-generated=true -diff

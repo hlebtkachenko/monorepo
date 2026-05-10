@@ -1,0 +1,17 @@
+[tools]
+node          = "24"
+pnpm          = "11.0.9"
+opentofu      = "1.8"
+awscli        = "2"
+granted       = "latest"
+cosign        = "2.4"
+syft          = "1.42"
+osv-scanner   = "2.3"
+
+[settings]
+experimental = true
+idiomatic_version_file_enable_tools = []
+
+[env]
+COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
+NEXT_TELEMETRY_DISABLED = "1"

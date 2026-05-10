@@ -47,9 +47,9 @@ jobs:
 
   gitleaks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.19.1
         with:
@@ -57,6 +57,19 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.1
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+          persist-credentials: false
+      # Run gitleaks via the binary directly. The official gitleaks-action v2
+      # makes a GitHub API call to determine account type, which fails under
+      # rate-limit pressure and falls back to "license required" — false
+      # positive failures on every busy workflow run. Binary path has none of
+      # that surface area.
+      - name: Install gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: "8.22.1"
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan
+        run: gitleaks detect --source . --no-banner --redact --log-level info --exit-code 1

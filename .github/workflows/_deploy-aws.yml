@@ -8,9 +8,10 @@ on:
         required: true
         type: string
       stack:
-        description: "Stack pattern (e.g. App-staging) or 'tofu'"
-        required: true
+        description: "Stack scope: all | infra-only | app-only"
+        required: false
         type: string
+        default: "all"
     outputs:
       deployed:
         description: "Whether the deploy step actually ran"
@@ -25,9 +26,14 @@ on:
           - staging
           - production
       stack:
-        description: "Stack pattern (e.g. App-staging) or 'tofu'"
-        required: true
-        type: string
+        description: "Stack scope"
+        required: false
+        type: choice
+        default: "all"
+        options:
+          - all
+          - infra-only
+          - app-only
 
 permissions: {}
 
@@ -53,7 +59,7 @@ jobs:
           if [ "${BOOTSTRAPPED}" = "true" ]; then
             echo "go=true" >> "$GITHUB_OUTPUT"
           else
-            echo "AWS not yet connected — complete docs/runbooks/AWS-BOOTSTRAP.md first"
+            echo "AWS not yet connected. Set AWS_BOOTSTRAPPED=true after running cdk bootstrap once."
             echo "go=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -61,13 +67,18 @@ jobs:
     needs: guard
     if: needs.guard.outputs.go == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write
       contents: read
     outputs:
       deployed: ${{ steps.summary.outputs.deployed }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: ${{ inputs.environment }}
+      STACK_SCOPE: ${{ inputs.stack }}
+      IMAGE_TAG: sha-${{ github.sha }}
     steps:
       - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         with:
@@ -77,31 +88,119 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Resolve role ARN for environment
-        id: role
+      - name: Mask account-bearing inputs in logs
         env:
-          STAGING_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN_STAGING }}
-          PRODUCTION_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
-          ENV: ${{ inputs.environment }}
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
         run: |
-          case "$ENV" in
-            staging)    echo "arn=$STAGING_ROLE"    >> "$GITHUB_OUTPUT" ;;
-            production) echo "arn=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
-            *) echo "Unknown environment: $ENV"; exit 1 ;;
+          echo "::add-mask::$ACCOUNT_ID"
+          [ -n "$STAGING_ROLE" ] && echo "::add-mask::$STAGING_ROLE" || true
+          [ -n "$PRODUCTION_ROLE" ] && echo "::add-mask::$PRODUCTION_ROLE" || true
+
+      - name: Resolve role ARN + domain for environment
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+          STAGING_DOMAIN: ${{ vars.APP_DOMAIN_STAGING }}
+          PRODUCTION_DOMAIN: ${{ vars.APP_DOMAIN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging)
+              echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT"
+              echo "domain=$STAGING_DOMAIN" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT"
+              echo "domain=$PRODUCTION_DOMAIN" >> "$GITHUB_OUTPUT"
+              ;;
+            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
       - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
-          role-to-assume: ${{ steps.role.outputs.arn }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.run_id }}
           audience: sts.amazonaws.com
 
-      - name: ECR deploy stub
-        id: summary
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 11.0.9
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Deploy infra stacks (Network + Data) [stack=all|infra-only]
+        if: env.STACK_SCOPE != 'app-only'
         env:
-          STACK: ${{ inputs.stack }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          APP_DOMAIN: ${{ steps.env.outputs.domain }}
         run: |
-          echo "Deploy stub for stack=$STACK"
-          echo "Real deploy steps land once docs/runbooks/DEPLOY.md is implemented end-to-end."
-          echo "deployed=false" >> "$GITHUB_OUTPUT"
+          pnpm --filter @workspace/cdk exec cdk deploy \
+            "Network-${ENV_NAME}" "Data-${ENV_NAME}" \
+            --context env=${ENV_NAME} \
+            --require-approval=never
+
+      - name: ECR login [stack=all|app-only]
+        if: env.STACK_SCOPE != 'infra-only'
+        uses: aws-actions/amazon-ecr-login@b16e57cdb37cad65b2eb7c3df87e8efa3eada2cd # v3.0.0
+        id: ecr
+
+      - name: Build + push web image [stack=all|app-only]
+        if: env.STACK_SCOPE != 'infra-only'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/windhoek-${{ inputs.environment }}-web:${{ env.IMAGE_TAG }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=web-${{ inputs.environment }}
+          cache-to: type=gha,scope=web-${{ inputs.environment }},mode=max
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            BUILD_VERSION=${{ env.IMAGE_TAG }}
+
+      - name: Build + push api image [stack=all|app-only]
+        if: env.STACK_SCOPE != 'infra-only'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/windhoek-${{ inputs.environment }}-api:${{ env.IMAGE_TAG }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=api-${{ inputs.environment }}
+          cache-to: type=gha,scope=api-${{ inputs.environment }},mode=max
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            BUILD_VERSION=${{ env.IMAGE_TAG }}
+
+      - name: Deploy app stack with new image tag [stack=all|app-only]
+        if: env.STACK_SCOPE != 'infra-only'
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          APP_DOMAIN: ${{ steps.env.outputs.domain }}
+          ACM_CERT_ARN: ${{ secrets[format('ACM_CERT_ARN_{0}', inputs.environment)] }}
+          UPSTASH_REDIS_SECRET_ARN: ${{ secrets[format('UPSTASH_REDIS_SECRET_ARN_{0}', inputs.environment)] }}
+        run: |
+          pnpm --filter @workspace/cdk exec cdk deploy \
+            "App-${ENV_NAME}" \
+            --context env=${ENV_NAME} \
+            --context imageTag=${IMAGE_TAG} \
+            --require-approval=never
+
+      - id: summary
+        run: echo "deployed=true" >> "$GITHUB_OUTPUT"

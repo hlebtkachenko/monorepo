@@ -1,0 +1,29 @@
+{
+  "name": "@workspace/cdk",
+  "private": true,
+  "version": "0.0.1",
+  "description": "AWS CDK v2 application stacks for the windhoek monorepo.",
+  "bin": {
+    "infra-cdk": "bin/app.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "synth": "cdk synth --all",
+    "diff": "cdk diff --all",
+    "deploy": "cdk deploy --all --require-approval=never",
+    "destroy": "cdk destroy --all",
+    "bootstrap": "cdk bootstrap",
+    "drift": "cdk drift --all"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "aws-cdk": "^2.180.0",
+    "aws-cdk-lib": "^2.180.0",
+    "constructs": "^10.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^6.0.3"
+  }
+}

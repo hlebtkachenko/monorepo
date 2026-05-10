@@ -1,0 +1,16 @@
+{
+  "name": "@workspace/infra",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Infrastructure root: wraps OpenTofu (platform) and CDK (app) via Make.",
+  "scripts": {
+    "plan:tofu": "make -C . plan-tofu",
+    "apply:tofu": "make -C . apply-tofu",
+    "fmt:tofu": "make -C . fmt-tofu",
+    "synth:cdk": "make -C . synth-cdk",
+    "diff:cdk": "make -C . diff-cdk",
+    "deploy:cdk": "make -C . deploy-cdk",
+    "drift:cdk": "make -C . drift-cdk",
+    "bootstrap:cdk": "make -C . bootstrap-cdk"
+  }
+}

@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "infra/cdk"
 allowBuilds:
   core-js-pure: false
   esbuild: true

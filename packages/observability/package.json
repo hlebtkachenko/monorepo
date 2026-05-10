@@ -12,7 +12,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "pino": "^9.8.0"
+    "pino": "^10.3.1"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

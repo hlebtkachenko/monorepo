@@ -3,7 +3,7 @@ import { ChevronRight, Sparkles } from "lucide-react"
 import { AnimatedShinyButton } from "./animated-shiny-button"
 
 const meta: Meta<typeof AnimatedShinyButton> = {
-  title: "Components/Button/AnimatedShiny",
+  title: "Components/AnimatedShinyButton",
   component: AnimatedShinyButton,
 }
 export default meta

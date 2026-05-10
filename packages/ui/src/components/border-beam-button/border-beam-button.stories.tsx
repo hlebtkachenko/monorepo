@@ -3,7 +3,7 @@ import { Sparkles, Zap } from "lucide-react"
 import { BorderBeamButton, BorderBeamIconButton } from "./border-beam-button"
 
 const meta: Meta<typeof BorderBeamButton> = {
-  title: "Components/Button/BorderBeam",
+  title: "Components/BorderBeamButton",
   component: BorderBeamButton,
 }
 export default meta

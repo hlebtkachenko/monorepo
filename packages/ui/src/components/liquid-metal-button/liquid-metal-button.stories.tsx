@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react"
 import { LiquidMetalButton } from "./liquid-metal-button"
 
 const meta: Meta<typeof LiquidMetalButton> = {
-  title: "Components/Button/LiquidMetal",
+  title: "Components/LiquidMetalButton",
   component: LiquidMetalButton,
 }
 export default meta

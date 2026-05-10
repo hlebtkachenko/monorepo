@@ -1,21 +1,28 @@
-MIT License
+All Rights Reserved
 
 Copyright (c) 2026 Hleb Tkachenko
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This source code is proprietary and confidential. The repository is hosted
+publicly only as a temporary measure to use GitHub Actions free-tier compute
+during pre-production development.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+No license is granted, expressly or by implication, to any third party. You
+may NOT:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  - copy, redistribute, or republish this code or any substantial portion;
+  - create derivative works;
+  - use this code in any product, service, or research output;
+  - claim authorship or ownership of any part.
+
+You MAY view the source for the limited purpose of evaluating the project.
+
+Forking is permitted by GitHub's Terms of Service for the purpose of
+contributing back via pull request, but no rights to the forked code are
+granted beyond that. Forks must remain private (set repository visibility
+to private after forking) or be deleted.
+
+This notice supersedes any default GitHub repository license assumption.
+The repository will be set to private visibility once the project enters
+production. At that time, this notice continues to apply.
+
+For licensing inquiries: g1053015@icloud.com

@@ -36,7 +36,11 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
-          publish_results: true
+          # Do NOT publish to scorecard.dev. The repo is public only to use
+          # GitHub Actions free-tier minutes; we do not want to be indexed by
+          # discoverability tools. SARIF still uploads to the private
+          # Security tab via the upload-sarif step below.
+          publish_results: false
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

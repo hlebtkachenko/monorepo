@@ -158,7 +158,22 @@ import { ToggleGroupDemo } from "./_components/toggle-group-demo"
 import { SonnerDemo } from "./_components/sonner-demo"
 import { ActionBarDemo } from "./_components/action-bar-demo"
 import { Swap, SwapOff, SwapOn } from "@workspace/ui/components/swap"
-import { MoonIcon, SunIcon, Volume2Icon, VolumeOffIcon } from "lucide-react"
+import {
+  MoonIcon,
+  SunIcon,
+  Volume2Icon,
+  VolumeOffIcon,
+  ChevronRight as ChevronRightIcon,
+  Sparkles,
+  Zap,
+} from "lucide-react"
+import { AnimatedShinyButton } from "@workspace/ui/components/animated-shiny-button"
+import {
+  BorderBeamButton,
+  BorderBeamIconButton,
+} from "@workspace/ui/components/border-beam-button"
+import { LiquidMetalDemo } from "./_components/liquid-metal-demo"
+import { StatefulButtonDemo } from "./_components/stateful-button-demo"
 
 export default function ShowcasePage() {
   return (
@@ -212,6 +227,39 @@ export default function ShowcasePage() {
               Selection toolbar
             </h3>
             <ActionBarDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== ANIMATEDSHINYBUTTON ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          AnimatedShinyButton
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
+            <div className="flex flex-wrap items-center gap-4">
+              <AnimatedShinyButton>Get Started</AnimatedShinyButton>
+              <AnimatedShinyButton>
+                <Sparkles className="size-4" />
+                Explore
+              </AnimatedShinyButton>
+              <AnimatedShinyButton>
+                Learn More
+                <ChevronRightIcon className="size-4 transition-transform group-hover:translate-x-1" />
+              </AnimatedShinyButton>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Custom highlight
+            </h3>
+            <AnimatedShinyButton highlightColor="var(--destructive)">
+              Custom Color
+            </AnimatedShinyButton>
           </div>
         </div>
       </section>
@@ -398,6 +446,29 @@ export default function ShowcasePage() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BORDERBEAMBUTTON ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          BorderBeamButton
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
+            <div className="flex flex-wrap items-center gap-4">
+              <BorderBeamButton>Default</BorderBeamButton>
+              <BorderBeamButton variant="outline">Outline</BorderBeamButton>
+              <BorderBeamButton variant="secondary">Secondary</BorderBeamButton>
+              <BorderBeamButton variant="destructive">Delete</BorderBeamButton>
+              <BorderBeamIconButton aria-label="Zap">
+                <Zap />
+              </BorderBeamIconButton>
+            </div>
           </div>
         </div>
       </section>
@@ -974,6 +1045,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== LIQUIDMETALBUTTON ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          LiquidMetalButton
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Text and icon modes
+            </h3>
+            <LiquidMetalDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== MENUBAR ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Menubar</h2>
@@ -1377,6 +1463,21 @@ export default function ShowcasePage() {
               <Spinner className="size-8" />
               <Spinner className="size-10" />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== STATEFULBUTTON ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          StatefulButton
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Loading and success/error states
+            </h3>
+            <StatefulButtonDemo />
           </div>
         </div>
       </section>

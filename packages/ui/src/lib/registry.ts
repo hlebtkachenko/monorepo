@@ -18,6 +18,14 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Vertically stacked expandable sections",
     categories: ["disclosure"],
   },
+  "animated-shiny-button": {
+    source: "eldoraui",
+    sourceType: "import",
+    upstream: "https://www.eldoraui.site/docs/components/animated-shiny-button",
+    description:
+      "Button with animated conic-gradient border, shimmer, and glow on hover",
+    categories: ["actions", "effects"],
+  },
   "action-bar": {
     source: "diceui",
     sourceType: "import",
@@ -72,6 +80,15 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/breadcrumb",
     description: "Navigation breadcrumb trail with separators",
     categories: ["navigation"],
+  },
+  "border-beam-button": {
+    source: "cult-ui",
+    sourceType: "import",
+    upstream: "https://www.cult-ui.com/docs/components/border-beam-button",
+    description: "Button wrapped with animated beam border effect",
+    categories: ["actions", "effects"],
+    dependencies: ["button"],
+    packages: ["border-beam"],
   },
   button: {
     source: "shadcn",
@@ -268,6 +285,16 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Form label element",
     categories: ["forms"],
   },
+  "liquid-metal-button": {
+    source: "jolyui",
+    sourceType: "import",
+    upstream:
+      "https://www.jolyui.dev/docs/components/buttons/liquid-metal-button",
+    description:
+      "WebGL shader-powered button with 3D metallic liquid animation and ripple effects",
+    categories: ["actions", "effects"],
+    packages: ["@paper-design/shaders"],
+  },
   menubar: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -392,6 +419,14 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Toast notification system",
     categories: ["feedback"],
     packages: ["sonner", "next-themes"],
+  },
+  "stateful-button": {
+    source: "aceternity",
+    sourceType: "import",
+    upstream: "https://ui.aceternity.com/components/stateful-button",
+    description:
+      "Hook providing loading/success/error state machine for async button actions",
+    categories: ["utility", "actions"],
   },
   spinner: {
     source: "shadcn",

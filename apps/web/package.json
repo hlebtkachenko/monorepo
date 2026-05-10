@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "size": "size-limit"
   },
   "dependencies": {
     "@workspace/ui": "workspace:*",
@@ -21,6 +22,7 @@
     "sonner": "^2.0.7"
   },
   "devDependencies": {
+    "@size-limit/preset-app": "^11.1.5",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.1.0",
     "@types/react": "^19.2.10",
@@ -28,6 +30,21 @@
     "@workspace/eslint-config": "workspace:^",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
+    "size-limit": "^11.1.5",
     "typescript": "^6.0.3"
-  }
+  },
+  "size-limit": [
+    {
+      "name": "Per-chunk JS budget",
+      "path": ".next/static/**/*.js",
+      "limit": "200 KB"
+    },
+    {
+      "name": "Total client bundle",
+      "path": ".next/static/**/*.js",
+      "limit": "1 MB",
+      "brotli": false,
+      "gzip": false
+    }
+  ]
 }

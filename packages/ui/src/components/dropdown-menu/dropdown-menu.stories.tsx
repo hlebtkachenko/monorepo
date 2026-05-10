@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -46,4 +47,12 @@ export const Default: Story = {
       </DropdownMenuContent>
     </DropdownMenu>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const trigger = canvas.getByRole("button", { name: /open menu/i })
+    await userEvent.click(trigger)
+    const menu = await within(document.body).findByRole("menu")
+    await expect(menu).toBeInTheDocument()
+    await expect(within(menu).getByText("Profile")).toBeInTheDocument()
+  },
 }

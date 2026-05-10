@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, within } from "storybook/test"
 import { Slider } from "./slider"
 
 const meta: Meta<typeof Slider> = {
@@ -10,6 +11,11 @@ type Story = StoryObj<typeof Slider>
 
 export const Default: Story = {
   render: () => <Slider defaultValue={[50]} className="w-64" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const slider = canvas.getByRole("slider")
+    await expect(slider).toHaveAttribute("aria-valuenow", "50")
+  },
 }
 
 export const Range: Story = {

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Select,
   SelectContent,
@@ -33,6 +34,12 @@ export const Default: Story = {
       </SelectContent>
     </Select>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole("combobox"))
+    const listbox = await within(document.body).findByRole("listbox")
+    await expect(within(listbox).getByText("Apple")).toBeInTheDocument()
+  },
 }
 
 export const WithGroups: Story = {

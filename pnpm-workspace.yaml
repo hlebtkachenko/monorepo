@@ -3,7 +3,9 @@ packages:
   - "packages/*"
   - "infra/cdk"
 allowBuilds:
+  '@swc/core': true
   core-js-pure: false
   esbuild: true
   msw: false
   sharp: true
+  unrs-resolver: true

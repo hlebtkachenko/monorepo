@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -22,7 +23,7 @@ export const Default: Story = {
         <NavigationMenuItem>
           <NavigationMenuTrigger>Products</NavigationMenuTrigger>
           <NavigationMenuContent>
-            <ul className="grid gap-3 p-4 w-48">
+            <ul className="grid w-48 gap-3 p-4">
               <li>
                 <NavigationMenuLink href="#">Analytics</NavigationMenuLink>
               </li>
@@ -38,6 +39,11 @@ export const Default: Story = {
       </NavigationMenuList>
     </NavigationMenu>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole("button", { name: /products/i }))
+    await expect(canvas.getByText("Analytics")).toBeInTheDocument()
+  },
 }
 
 export const SingleLink: Story = {

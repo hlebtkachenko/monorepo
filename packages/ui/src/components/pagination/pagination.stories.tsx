@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, within } from "storybook/test"
 import {
   Pagination,
   PaginationContent,
@@ -43,6 +44,11 @@ export const Default: Story = {
       </PaginationContent>
     </Pagination>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const activePage = canvas.getByText("2")
+    await expect(activePage).toHaveAttribute("aria-current", "page")
+  },
 }
 
 export const Simple: Story = {

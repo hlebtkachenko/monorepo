@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs"
 
 const meta: Meta<typeof Tabs> = {
@@ -19,6 +20,12 @@ export const Default: Story = {
       <TabsContent value="password">Password settings.</TabsContent>
     </Tabs>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText("Account settings.")).toBeVisible()
+    await userEvent.click(canvas.getByRole("tab", { name: /password/i }))
+    await expect(canvas.getByText("Password settings.")).toBeVisible()
+  },
 }
 
 export const LineVariant: Story = {

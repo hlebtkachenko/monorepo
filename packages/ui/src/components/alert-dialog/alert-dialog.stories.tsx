@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -41,6 +42,17 @@ export const Default: Story = {
       </AlertDialogContent>
     </AlertDialog>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole("button", { name: /delete account/i }),
+    )
+    const dialog = await within(document.body).findByRole("alertdialog")
+    await expect(dialog).toBeInTheDocument()
+    await expect(
+      within(dialog).getByText(/absolutely sure/i),
+    ).toBeInTheDocument()
+  },
 }
 
 export const Small: Story = {

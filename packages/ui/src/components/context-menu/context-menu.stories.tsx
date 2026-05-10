@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -38,4 +39,12 @@ export const Default: Story = {
       </ContextMenuContent>
     </ContextMenu>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const trigger = canvas.getByText("Right-click here")
+    await userEvent.pointer({ keys: "[MouseRight]", target: trigger })
+    const menu = await within(document.body).findByRole("menu")
+    await expect(menu).toBeInTheDocument()
+    await expect(within(menu).getByText("New Tab")).toBeInTheDocument()
+  },
 }

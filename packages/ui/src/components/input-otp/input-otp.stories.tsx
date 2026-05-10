@@ -1,5 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "./input-otp"
+import { expect, userEvent, within } from "storybook/test"
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+  InputOTPSeparator,
+} from "./input-otp"
 
 const meta: Meta<typeof InputOTP> = {
   title: "Components/InputOTP",
@@ -24,6 +30,13 @@ export const Default: Story = {
       </InputOTPGroup>
     </InputOTP>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByRole("textbox")
+    await userEvent.click(input)
+    await userEvent.type(input, "123456")
+    await expect(input).toHaveValue("123456")
+  },
 }
 
 export const FourDigit: Story = {

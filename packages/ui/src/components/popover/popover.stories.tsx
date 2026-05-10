@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 
 const meta: Meta<typeof Popover> = {
@@ -19,6 +20,13 @@ export const Default: Story = {
       </PopoverContent>
     </Popover>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole("button", { name: /open popover/i }))
+    await expect(
+      await within(document.body).findByText("Popover content goes here."),
+    ).toBeInTheDocument()
+  },
 }
 
 export const WithForm: Story = {
@@ -29,10 +37,13 @@ export const WithForm: Story = {
       </PopoverTrigger>
       <PopoverContent className="w-64">
         <div className="grid gap-2">
-          <h4 className="font-medium text-sm">Settings</h4>
+          <h4 className="text-sm font-medium">Settings</h4>
           <label className="text-sm text-muted-foreground">
             Width
-            <input className="mt-1 w-full border rounded px-2 py-1 text-sm" defaultValue="100%" />
+            <input
+              className="mt-1 w-full rounded border px-2 py-1 text-sm"
+              defaultValue="100%"
+            />
           </label>
         </div>
       </PopoverContent>

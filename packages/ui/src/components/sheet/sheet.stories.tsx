@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { expect, userEvent, within } from "storybook/test"
 import {
   Sheet,
   SheetClose,
@@ -31,7 +32,9 @@ export const Default: Story = {
           </SheetDescription>
         </SheetHeader>
         <div className="py-4">
-          <p className="text-sm text-muted-foreground">Sheet body content goes here.</p>
+          <p className="text-sm text-muted-foreground">
+            Sheet body content goes here.
+          </p>
         </div>
         <SheetFooter>
           <SheetClose asChild>
@@ -42,6 +45,13 @@ export const Default: Story = {
       </SheetContent>
     </Sheet>
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole("button", { name: /open sheet/i }))
+    const dialog = await within(document.body).findByRole("dialog")
+    await expect(dialog).toBeInTheDocument()
+    await expect(within(dialog).getByText("Edit Profile")).toBeInTheDocument()
+  },
 }
 
 export const FromLeft: Story = {
@@ -54,10 +64,16 @@ export const FromLeft: Story = {
         <SheetHeader>
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <nav className="py-4 space-y-2">
-          <a href="#" className="block text-sm">Dashboard</a>
-          <a href="#" className="block text-sm">Projects</a>
-          <a href="#" className="block text-sm">Settings</a>
+        <nav className="space-y-2 py-4">
+          <a href="#" className="block text-sm">
+            Dashboard
+          </a>
+          <a href="#" className="block text-sm">
+            Projects
+          </a>
+          <a href="#" className="block text-sm">
+            Settings
+          </a>
         </nav>
       </SheetContent>
     </Sheet>

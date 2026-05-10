@@ -1,0 +1,3 @@
+# zizmor configuration. Start with no rule overrides; add ignores below only
+# if zizmor flags a known-acceptable pattern that we cannot remediate.
+rules: {}

@@ -1,0 +1,15 @@
+name: monorepo-codeql
+
+# Single combined JS+TS analysis. Stories and tests excluded so we don't waste
+# extractor cycles on Storybook fixtures and Vitest specs.
+
+paths-ignore:
+  - "docs/**"
+  - "**/*.md"
+  - "**/*.test.tsx"
+  - "**/*.test.ts"
+  - "**/*.stories.tsx"
+  - "**/node_modules"
+  - "**/.next"
+  - "**/dist"
+  - "**/storybook-static"

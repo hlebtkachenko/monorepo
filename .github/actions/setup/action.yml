@@ -1,0 +1,19 @@
+name: Setup pnpm + Node + install
+description: Bootstrap monorepo deps with pnpm 11 and Node (default 24). Caller runs actions/checkout first.
+inputs:
+  node-version:
+    description: Node major version
+    required: false
+    default: "24"
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      with:
+        run_install: false
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash

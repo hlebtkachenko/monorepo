@@ -5,23 +5,24 @@ on:
     - cron: "0 9 * * 1"
   workflow_dispatch:
 
-permissions:
-  issues: write
+permissions: {}
+
+concurrency:
+  group: shadcn-check
+  cancel-in-progress: false
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.19.1
         with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+          egress-policy: audit
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.1
+      - uses: ./.github/actions/setup
 
       - name: Check for component updates
         id: diff

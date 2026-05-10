@@ -4,7 +4,7 @@ import { Zap } from "lucide-react"
 import {
   BorderBeamButton,
   BorderBeamIconButton,
-} from "@workspace/ui/components/border-beam-button"
+} from "@workspace/ui/components/button-border-beam"
 
 export function BorderBeamDemo() {
   return (

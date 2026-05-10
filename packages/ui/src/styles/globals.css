@@ -235,24 +235,6 @@
     --sidebar-ring: #22c55e;
 }
 
-@property --shiny-gradient-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes shiny-gradient-spin {
-  to {
-    --shiny-gradient-angle: 360deg;
-  }
-}
-
-@keyframes shiny-shimmer {
-  to {
-    rotate: 360deg;
-  }
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;

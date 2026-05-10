@@ -1,32 +1,32 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, it, expect, vi } from "vitest"
-import { AnimatedShinyButton } from "./animated-shiny-button"
+import { LiquidMetalButton } from "./button-liquid-metal"
 
-describe("AnimatedShinyButton", () => {
+describe("LiquidMetalButton", () => {
   it("renders with text", () => {
-    render(<AnimatedShinyButton>Click me</AnimatedShinyButton>)
+    render(<LiquidMetalButton>Click me</LiquidMetalButton>)
     expect(screen.getByRole("button", { name: "Click me" })).toBeInTheDocument()
   })
 
   it("calls onClick handler", async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()
-    render(<AnimatedShinyButton onClick={onClick}>Click</AnimatedShinyButton>)
+    render(<LiquidMetalButton onClick={onClick}>Click</LiquidMetalButton>)
     await user.click(screen.getByRole("button"))
     expect(onClick).toHaveBeenCalledOnce()
   })
 
   it("is disabled when disabled prop is set", () => {
-    render(<AnimatedShinyButton disabled>Disabled</AnimatedShinyButton>)
+    render(<LiquidMetalButton disabled>Disabled</LiquidMetalButton>)
     expect(screen.getByRole("button")).toBeDisabled()
   })
 
-  it("sets custom highlight color via CSS variable", () => {
-    render(
-      <AnimatedShinyButton highlightColor="#ff0000">Red</AnimatedShinyButton>,
+  it("applies variant data attribute", () => {
+    render(<LiquidMetalButton variant="destructive">Del</LiquidMetalButton>)
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "data-variant",
+      "destructive",
     )
-    const button = screen.getByRole("button")
-    expect(button.style.getPropertyValue("--shiny-highlight")).toBe("#ff0000")
   })
 })

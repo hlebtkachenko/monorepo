@@ -24,9 +24,6 @@
     "@aws-cdk/core:newStyleStackSynthesis": true,
     "homeRegion": "eu-central-1",
     "drRegion": "eu-west-1",
-    "environments": {
-      "staging": { "account": "<TBD-staging-account-id>", "region": "eu-central-1" },
-      "production": { "account": "<TBD-production-account-id>", "region": "eu-central-1" }
-    }
+    "validEnvironments": ["staging", "production"]
   }
 }

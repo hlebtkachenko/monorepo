@@ -13,8 +13,8 @@
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "prettier": "^3.8.1",
-    "prettier-plugin-tailwindcss": "^0.7.2",
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "shadcn": "^4.7.0",
     "turbo": "^2.8.17",
     "typescript": "^6.0.3"
@@ -28,7 +28,9 @@
       "_comment_basic-ftp": "Force >=5.3.1 to escape 4 CVEs in transitive 5.0.5 (path traversal, CRLF injection, 2x DoS). All patched in 5.3.1. Dev-only via @size-limit/preset-app -> puppeteer-core -> proxy-agent -> get-uri.",
       "basic-ftp": ">=5.3.1",
       "_comment_handlebars": "Force >=4.7.9 to escape 5 CVEs in transitive 4.7.8 (1 critical AST type confusion, 3 high JS injection variants, 1 high DoS). All patched in 4.7.9. Dev-only via @turbo/gen -> node-plop.",
-      "handlebars": ">=4.7.9"
+      "handlebars": ">=4.7.9",
+      "_comment_eslint": "Pin to v9.x. eslint v10 ships breaking API changes (contextOrFilename.getFilename removed) that crash eslint-plugin-react@7.37.5 'react/display-name'. Re-evaluate when eslint-plugin-react ships a v10-compatible release.",
+      "eslint": "^9.39.2"
     }
   }
 }

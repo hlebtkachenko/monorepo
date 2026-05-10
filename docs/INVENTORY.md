@@ -57,8 +57,7 @@ Audit trail of changes: git history of this file.
 
 | Asset ID | Name | Type | Owner | Criticality | Data class | DR tier | Vendor | Status |
 |----------|------|------|-------|-------------|------------|---------|--------|--------|
-| IDC-001 | Identity Center | identity provider | Hleb | Critical | Internal | Tier 1 | AWS | `<TBD>` |
-| GW-SAML-001 | Google Workspace SAML | external IdP | Hleb | Critical | Internal | Tier 1 | Google | `<TBD>` |
+| IDC-001 | Identity Center (built-in directory) | identity provider | Hleb | Critical | Internal | Tier 1 | AWS | `<TBD>` |
 | GHOID-PRD | GitHub OIDC provider (prod) | OIDC provider | Hleb | High | Internal | Tier 2 | AWS | `<TBD>` |
 | GHOID-STG | GitHub OIDC provider (staging) | OIDC provider | Hleb | Medium | Internal | Tier 3 | AWS | `<TBD>` |
 
@@ -72,7 +71,7 @@ Audit trail of changes: git history of this file.
 | SENTRY-001 | error monitoring | SaaS | Hleb | Medium | Telemetry | Tier 3 | Sentry | `<TBD>` |
 | HONEY-001 | observability | SaaS | Hleb | High | Telemetry | Tier 2 | Honeycomb | `<TBD>` |
 | SIGSTORE-001 | Sigstore Rekor + Fulcio | public log + CA | Hleb | High | Code | Tier 2 | Sigstore | Active |
-| STRIPE-001 | payment processor (future) | SaaS | `<TBD>` | Critical | Customer + Financial | Tier 1 | Stripe | Planned |
 | 1PWD-001 | break-glass vault | SaaS | Hleb | Critical | Internal | Tier 1 | 1Password | Active |
-| GOOGLE-001 | Google Workspace | SaaS | Hleb | High | Internal | Tier 2 | Google | Active |
-| PAGERDUTY-001 | on-call paging | SaaS | Hleb | High | Internal | Tier 2 | PagerDuty | `<TBD>` |
+| INCIDENT-MGR-001 | on-call paging | AWS Incident Manager + SNS | Hleb | High | Internal | Tier 2 | AWS | `<TBD>` |
+| NTFY-001 | push notification fan-out | self-host or public ntfy.sh | Hleb | Medium | Internal | Tier 3 | OSS / OVH VPS | `<TBD>` |
+| PAYMENTS-001 | payment processor (deferred) | SaaS | `<TBD>` | n/a | n/a | n/a | n/a | Deferred until payments are in scope |

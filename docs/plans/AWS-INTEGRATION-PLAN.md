@@ -29,7 +29,7 @@ Dependencies and configuration to put this monorepo on AWS for production. Three
 
 | Item | Priority |
 |------|----------|
-| Identity Center enabled, federated to Google Workspace via SAML | Critical |
+| Identity Center enabled with built-in identity store (no external IdP today; SAML federation deferred until external IdP is in scope) | Critical |
 | Permission sets: `AdministratorAccess` (break-glass, MFA-required), `PowerUserAccess` (dev), `ReadOnlyAccess` (auditors), `BillingViewer` | Critical |
 | Session duration max 4h for prod permission sets | High |
 | **No IAM users for humans, ever** | Critical |
@@ -133,7 +133,7 @@ Dependencies and configuration to put this monorepo on AWS for production. Three
 | DORA incident reporting automation: GuardDuty → EventBridge → Incident Manager (4h initial, 72h interim, 1-month final) | Critical |
 | DORA TLPT (resilience testing) annually, documented in Audit Manager | High |
 | Designate NIS2 entity status with Czech NÚKIB | Critical |
-| **PCI-DSS scope minimization**: tokenize at browser via Stripe Elements/Checkout — cardholder data never touches your VPC. Stay at SAQ A. AWS Payment Cryptography only if you must touch PAN | Critical |
+| **PCI-DSS scope minimization** (deferred — no payments yet): when payments enter scope, tokenize at the browser so cardholder data never touches your VPC. Aim for SAQ A. AWS Payment Cryptography only if you must touch PAN | Deferred |
 | **GDPR**: SCP-deny non-EU regions; backups EU↔EU; CloudFront geo-restriction on sensitive endpoints | Critical |
 | **EU CRA** (Dec 2027): SBOM generation, vulnerability disclosure policy, 5-year support commitment | High |
 
@@ -143,7 +143,7 @@ Dependencies and configuration to put this monorepo on AWS for production. Three
 |------|----------|
 | AWS CLI v2 with `aws configure sso` per account | Critical |
 | **Granted (granted.dev)** for credential management — first-class Identity Center support, profile registry, Firefox container per account | High |
-| OrbStack as container runtime (native Swift, <1GB RAM idle vs Docker Desktop's 6GB; $8/dev/mo) — Colima as free alternative | High |
+| Docker Desktop as container runtime (per ADR 0005). OrbStack and Colima documented as alternatives if RAM pressure forces a swap | High |
 | `docker buildx build --platform linux/amd64,linux/arm64` for ECR images (Fargate now Graviton default) | Critical |
 | Devcontainers (`.devcontainer/devcontainer.json`) with Linux base image for CI parity | High |
 | LocalStack Pro ($39/mo per dev) for 90% of dev/CI feedback loops; sandbox AWS account for IAM/TLS/edge validation | Medium |
@@ -205,7 +205,7 @@ Dependencies and configuration to put this monorepo on AWS for production. Three
 |------|----------|
 | SSM Incident Manager response plans tied to CloudWatch alarms | Critical |
 | Runbooks in SSM Automation, linked from each alarm description | Critical |
-| PagerDuty (or OpsGenie) for human escalation — Incident Manager has weak rotation logic on its own | Critical |
+| AWS Incident Manager + SNS topic -> email + ntfy.sh (OSS push). Paid pager (PagerDuty / OpsGenie / Grafana OnCall) deferred until headcount >= 2 demands rotation logic Incident Manager does not provide | High |
 | Pager rules: SEV1 <5min ack, SEV2 <15min | Critical |
 | SSM Change Manager for prod changes outside IaC (rare emergencies) | High |
 | Status page (Statuspage.io or Atlassian) | Medium |
@@ -222,7 +222,7 @@ Third parties become part of your audit boundary. Track these from day 1:
 | Sentry | Error data (potentially PII in stack traces) | High |
 | Datadog/Honeycomb | Telemetry (sample rates, scrubbing) | High |
 | Codecov | Source code (coverage upload) | High |
-| Stripe | Cardholder data (keeps PCI scope minimized) | Critical |
+| Payment processor (deferred) | Cardholder data when payments enter scope | Critical when in scope |
 | LocalStack | Dev only (no prod data) | Medium |
 
 Each must have: DPA signed, data residency confirmed (EU), SOC 2 report on file, incident notification clause.
@@ -235,7 +235,7 @@ These items have hard ordering — do not parallelize across the boundary:
 2. Control Tower
 3. OU structure
 4. SCPs (region, MFA, encryption guardrails)
-5. Identity Center + Google Workspace SAML
+5. Identity Center built-in identity store (no external IdP)
 6. Log Archive bucket with Object Lock + CloudTrail org trail
 7. GitHub OIDC providers per workload account
 8. CDK / OpenTofu bootstrap with cross-account trust
@@ -247,7 +247,7 @@ These items have hard ordering — do not parallelize across the boundary:
 14. AWS Backup + cross-region copy
 15. Audit Manager (SOC 2, PCI, GDPR frameworks)
 16. Budgets + Cost Anomaly Detection
-17. PagerDuty + Incident Manager runbooks
+17. AWS Incident Manager response plan + SNS notifications (email + ntfy.sh)
 18. DR drill → only then production launch
 
 After step 6 (Log Archive), most subsequent items can parallelize.
@@ -261,7 +261,7 @@ After step 6 (Log Archive), most subsequent items can parallelize.
 | Fargate baseline | ~$200 |
 | NAT Gateway + PrivateLink endpoints | ~$300 |
 | Observability (CloudWatch + Datadog/Honeycomb) | ~$500 |
-| Third-party tooling (Sentry, PagerDuty, OrbStack/dev) | ~$500 |
+| Third-party tooling (Sentry; OSS push via ntfy.sh; standard Docker on Mac) | ~$50 |
 | Control Tower + Identity Center | free |
 | **Estimated MVP total** | **~$2,500–4,000** |
 | Shield Advanced (deferred until B2C/post-DDoS) | +$3,000 |

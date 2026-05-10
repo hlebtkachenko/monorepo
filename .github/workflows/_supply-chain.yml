@@ -124,7 +124,7 @@ jobs:
           gh release upload "${{ inputs.version }}" \
             sbom.cdx.json \
             sbom.cdx.json.cosign.bundle \
-            *.cosign.bundle \
+            ./*.cosign.bundle \
             --clobber
 
   license-check:

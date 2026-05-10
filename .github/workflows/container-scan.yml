@@ -87,7 +87,8 @@ jobs:
         run: |
           set -euo pipefail
           docker buildx build --platform linux/arm64 \
-            --load -t local/web:scan apps/web
+            --load -t local/web:scan \
+            -f apps/web/Dockerfile .
 
       - if: steps.guard.outputs.exists == 'true'
         name: Trivy image scan

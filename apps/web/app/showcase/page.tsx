@@ -166,1093 +166,6 @@ export default function ShowcasePage() {
         <ThemeToggle />
       </div>
 
-      {/* ==================== BUTTON ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Button</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Variants
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <Button variant="default">Default</Button>
-              <Button variant="secondary">Secondary</Button>
-              <Button variant="outline">Outline</Button>
-              <Button variant="ghost">Ghost</Button>
-              <Button variant="destructive">Destructive</Button>
-              <Button variant="link">Link</Button>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Sizes
-            </h3>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button size="xs">Extra Small</Button>
-              <Button size="sm">Small</Button>
-              <Button size="default">Default</Button>
-              <Button size="lg">Large</Button>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              With Icons
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <Button>
-                <Mail data-icon="inline-start" />
-                Login with Email
-              </Button>
-              <Button variant="outline">
-                Next
-                <ChevronRight data-icon="inline-end" />
-              </Button>
-              <Button variant="destructive">
-                <Trash2 data-icon="inline-start" />
-                Delete
-              </Button>
-              <Button size="icon" variant="outline">
-                <Plus />
-              </Button>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              States
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <Button disabled>Disabled</Button>
-              <Button disabled>
-                <Loader2 className="animate-spin" />
-                Loading...
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== BADGE ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Badge</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Variants
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <Badge variant="default">Default</Badge>
-              <Badge variant="secondary">Secondary</Badge>
-              <Badge variant="outline">Outline</Badge>
-              <Badge variant="destructive">Destructive</Badge>
-              <Badge variant="ghost">Ghost</Badge>
-              <Badge variant="link">Link</Badge>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SEPARATOR ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Separator</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Horizontal
-            </h3>
-            <div className="flex flex-col gap-3">
-              <span className="text-sm text-muted-foreground">
-                Above the line
-              </span>
-              <Separator orientation="horizontal" />
-              <span className="text-sm text-muted-foreground">
-                Below the line
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Vertical
-            </h3>
-            <div className="flex h-8 items-center gap-3">
-              <span className="text-sm text-muted-foreground">Left</span>
-              <Separator orientation="vertical" />
-              <span className="text-sm text-muted-foreground">Right</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SKELETON ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Skeleton</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Shapes
-            </h3>
-            <div className="flex flex-wrap items-center gap-4">
-              <Skeleton className="h-16 w-24 rounded-lg" />
-              <Skeleton className="size-12 rounded-full" />
-              <div className="flex flex-col gap-2">
-                <Skeleton className="h-4 w-48" />
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-4 w-52" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SPINNER ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Spinner</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Sizes
-            </h3>
-            <div className="flex flex-wrap items-center gap-4">
-              <Spinner className="size-4" />
-              <Spinner className="size-6" />
-              <Spinner className="size-8" />
-              <Spinner className="size-10" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== KBD ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Kbd</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Single Keys
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <Kbd>⌘</Kbd>
-              <Kbd>⇧</Kbd>
-              <Kbd>⌥</Kbd>
-              <Kbd>⌃</Kbd>
-              <Kbd>Enter</Kbd>
-              <Kbd>Esc</Kbd>
-              <Kbd>Tab</Kbd>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Combinations
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <KbdGroup>
-                <Kbd>⌘</Kbd>
-                <Kbd>C</Kbd>
-              </KbdGroup>
-              <KbdGroup>
-                <Kbd>⌘</Kbd>
-                <Kbd>⇧</Kbd>
-                <Kbd>P</Kbd>
-              </KbdGroup>
-              <KbdGroup>
-                <Kbd>Ctrl</Kbd>
-                <Kbd>K</Kbd>
-              </KbdGroup>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== LABEL ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Label</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Standalone
-            </h3>
-            <div className="flex flex-col gap-3">
-              <Label>Project Name</Label>
-              <Label>Email Address</Label>
-              <Label>Due Date</Label>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== PROGRESS ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Progress</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Values
-            </h3>
-            <div className="flex max-w-sm flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">0%</span>
-                <Progress value={0} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">33%</span>
-                <Progress value={33} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">66%</span>
-                <Progress value={66} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">100%</span>
-                <Progress value={100} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== AVATAR ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Avatar</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Sizes
-            </h3>
-            <div className="flex flex-wrap items-center gap-3">
-              <Avatar size="sm">
-                <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
-                <AvatarFallback>SC</AvatarFallback>
-              </Avatar>
-              <Avatar size="default">
-                <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
-                <AvatarFallback>SC</AvatarFallback>
-              </Avatar>
-              <Avatar size="lg">
-                <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
-                <AvatarFallback>SC</AvatarFallback>
-              </Avatar>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Text Fallback
-            </h3>
-            <div className="flex flex-wrap items-center gap-3">
-              <Avatar>
-                <AvatarFallback>HT</AvatarFallback>
-              </Avatar>
-              <Avatar>
-                <AvatarFallback>JD</AvatarFallback>
-              </Avatar>
-              <Avatar>
-                <AvatarFallback>AB</AvatarFallback>
-              </Avatar>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Group
-            </h3>
-            <AvatarGroup>
-              <Avatar>
-                <AvatarFallback>HT</AvatarFallback>
-              </Avatar>
-              <Avatar>
-                <AvatarFallback>JD</AvatarFallback>
-              </Avatar>
-              <Avatar>
-                <AvatarFallback>AB</AvatarFallback>
-              </Avatar>
-              <AvatarGroupCount>+4</AvatarGroupCount>
-            </AvatarGroup>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== ALERT ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Alert</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Variants
-            </h3>
-            <div className="flex flex-col gap-3">
-              <Alert variant="default">
-                <AlertTitle>Heads up</AlertTitle>
-                <AlertDescription>
-                  Your subscription renews in 3 days. Update your payment method
-                  if needed.
-                </AlertDescription>
-              </Alert>
-
-              <Alert variant="destructive">
-                <AlertCircle />
-                <AlertTitle>Deployment failed</AlertTitle>
-                <AlertDescription>
-                  Build error on step 4. Check the logs for details and retry.
-                </AlertDescription>
-              </Alert>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== CARD ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Card</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Default
-            </h3>
-            <Card className="max-w-sm">
-              <CardHeader>
-                <CardTitle>Project Settings</CardTitle>
-                <CardDescription>
-                  Manage your project configuration.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Configure team access, environment variables, and deployment
-                  options.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button size="sm">Save Changes</Button>
-              </CardFooter>
-            </Card>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Small
-            </h3>
-            <Card className="max-w-xs" size="sm">
-              <CardHeader>
-                <CardTitle>Quick Stats</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  24 active users today
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== EMPTY ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Empty</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Default
-            </h3>
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Inbox />
-                </EmptyMedia>
-                <EmptyTitle>No messages yet</EmptyTitle>
-                <EmptyDescription>
-                  When you receive messages, they will appear here.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button size="sm">Compose message</Button>
-              </EmptyContent>
-            </Empty>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== ASPECT RATIO ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          AspectRatio
-        </h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              16:9
-            </h3>
-            <div className="w-64">
-              <AspectRatio ratio={16 / 9}>
-                <div className="flex size-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
-                  16 / 9
-                </div>
-              </AspectRatio>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              1:1
-            </h3>
-            <div className="w-32">
-              <AspectRatio ratio={1}>
-                <div className="flex size-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
-                  1 / 1
-                </div>
-              </AspectRatio>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== BREADCRUMB ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          Breadcrumb
-        </h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Three levels
-            </h3>
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="#">Dashboard</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbLink href="#">Projects</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Agentic Finance</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== PAGINATION ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          Pagination
-        </h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Basic
-            </h3>
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious href="#" />
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#">1</PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#" isActive>
-                    2
-                  </PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#">3</PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationEllipsis />
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationNext href="#" />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== TABLE ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Table</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Sample Data
-            </h3>
-            <Table>
-              <TableCaption>Recent invoices</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>#INV-001</TableCell>
-                  <TableCell>Acme Corp</TableCell>
-                  <TableCell>12 500 Kč</TableCell>
-                  <TableCell>
-                    <Badge variant="default">Paid</Badge>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>#INV-002</TableCell>
-                  <TableCell>BuildCo</TableCell>
-                  <TableCell>8 200 Kč</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">Pending</Badge>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>#INV-003</TableCell>
-                  <TableCell>FinGroup</TableCell>
-                  <TableCell>31 000 Kč</TableCell>
-                  <TableCell>
-                    <Badge variant="destructive">Overdue</Badge>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== INPUT ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Input</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Default
-            </h3>
-            <div className="flex max-w-sm flex-col gap-3">
-              <Input />
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              With Placeholder
-            </h3>
-            <div className="flex max-w-sm flex-col gap-3">
-              <Input placeholder="Project name" />
-              <Input placeholder="Email address" type="email" />
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Disabled
-            </h3>
-            <div className="flex max-w-sm flex-col gap-3">
-              <Input placeholder="Cannot edit" disabled />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== TEXTAREA ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Textarea</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Default
-            </h3>
-            <div className="max-w-sm">
-              <Textarea />
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              With Placeholder
-            </h3>
-            <div className="max-w-sm">
-              <Textarea placeholder="Describe the issue in detail..." />
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Disabled
-            </h3>
-            <div className="max-w-sm">
-              <Textarea placeholder="Read-only content" disabled />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== CHECKBOX ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Checkbox</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              States
-            </h3>
-            <CheckboxDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SWITCH ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Switch</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              States
-            </h3>
-            <SwitchDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== RADIOGROUP ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          RadioGroup
-        </h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Options
-            </h3>
-            <RadioGroupDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SELECT ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Select</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Options
-            </h3>
-            <SelectDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== NATIVESELECT ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          NativeSelect
-        </h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Default
-            </h3>
-            <div className="flex flex-wrap gap-4">
-              <NativeSelect>
-                <NativeSelectOption value="">Select region</NativeSelectOption>
-                <NativeSelectOption value="eu">Europe</NativeSelectOption>
-                <NativeSelectOption value="us">
-                  North America
-                </NativeSelectOption>
-                <NativeSelectOption value="asia">
-                  Asia Pacific
-                </NativeSelectOption>
-              </NativeSelect>
-
-              <NativeSelect disabled>
-                <NativeSelectOption value="">Disabled</NativeSelectOption>
-              </NativeSelect>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SLIDER ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Slider</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Values
-            </h3>
-            <SliderDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== INPUTOTP ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">InputOTP</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              6-digit
-            </h3>
-            <InputOTPDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== INPUTGROUP ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          InputGroup
-        </h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              With Addon Text
-            </h3>
-            <div className="flex max-w-sm flex-col gap-3">
-              <InputGroup>
-                <InputGroupAddon align="inline-start">
-                  <InputGroupText>https://</InputGroupText>
-                </InputGroupAddon>
-                <InputGroupInput placeholder="example.com" />
-              </InputGroup>
-
-              <InputGroup>
-                <InputGroupInput placeholder="Search projects..." />
-                <InputGroupAddon align="inline-end">
-                  <Search className="size-4 text-muted-foreground" />
-                </InputGroupAddon>
-              </InputGroup>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== FIELD ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Field</h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              With Label and Description
-            </h3>
-            <div className="max-w-sm">
-              <Field>
-                <FieldLabel htmlFor="field-name">Project Name</FieldLabel>
-                <Input id="field-name" placeholder="My new project" />
-                <FieldDescription>
-                  Used as the display name across the dashboard.
-                </FieldDescription>
-              </Field>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Error State
-            </h3>
-            <div className="max-w-sm">
-              <Field>
-                <FieldLabel htmlFor="field-email">Email</FieldLabel>
-                <Input
-                  id="field-email"
-                  type="email"
-                  placeholder="name@company.com"
-                  aria-invalid={true}
-                />
-                <FieldError>Please enter a valid email address.</FieldError>
-              </Field>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== BUTTONGROUP ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          ButtonGroup
-        </h2>
-
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Horizontal
-            </h3>
-            <div className="flex flex-wrap gap-4">
-              <ButtonGroup>
-                <Button variant="outline">Week</Button>
-                <Button variant="outline">Month</Button>
-                <Button variant="outline">Year</Button>
-              </ButtonGroup>
-
-              <ButtonGroup>
-                <Button variant="outline">
-                  <Plus />
-                </Button>
-                <ButtonGroupSeparator />
-                <Button variant="outline">Add Item</Button>
-              </ButtonGroup>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              With Text Addon
-            </h3>
-            <ButtonGroup>
-              <ButtonGroupText>Sort by</ButtonGroupText>
-              <Button variant="outline">Name</Button>
-              <Button variant="outline">Date</Button>
-              <Button variant="outline">Size</Button>
-            </ButtonGroup>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Vertical
-            </h3>
-            <ButtonGroup orientation="vertical" className="w-32">
-              <Button variant="outline">Top</Button>
-              <Button variant="outline">Middle</Button>
-              <Button variant="outline">Bottom</Button>
-            </ButtonGroup>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== DIALOG ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Dialog</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Settings dialog with form fields
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <DialogDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== ALERTDIALOG ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          AlertDialog
-        </h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Destructive confirmation
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <AlertDialogDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SHEET ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Sheet</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Right side panel with settings
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <SheetDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== DRAWER ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Drawer</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Bottom drawer with actions
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <DrawerDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== POPOVER ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Popover</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Filter panel
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <PopoverDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== HOVERCARD ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">HoverCard</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              User profile on hover
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <HoverCardDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== TOOLTIP ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Tooltip</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Icon buttons with tooltips
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <TooltipDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== DROPDOWNMENU ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          DropdownMenu
-        </h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Account menu with groups and shortcuts
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <DropdownMenuDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== CONTEXTMENU ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          ContextMenu
-        </h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Right-click context actions
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <ContextMenuDemo />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== TABS ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Tabs</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Default (horizontal)
-            </h3>
-            <Tabs defaultValue="account" className="max-w-md">
-              <TabsList>
-                <TabsTrigger value="account">Account</TabsTrigger>
-                <TabsTrigger value="security">Security</TabsTrigger>
-                <TabsTrigger value="notifications">Notifications</TabsTrigger>
-              </TabsList>
-              <TabsContent value="account">
-                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                  Manage your account details, display name, and avatar.
-                </div>
-              </TabsContent>
-              <TabsContent value="security">
-                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                  Update your password, enable 2FA, and view active sessions.
-                </div>
-              </TabsContent>
-              <TabsContent value="notifications">
-                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                  Configure email, push, and in-app notification preferences.
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Line variant
-            </h3>
-            <Tabs defaultValue="account" className="max-w-md">
-              <TabsList variant="line">
-                <TabsTrigger value="account">Account</TabsTrigger>
-                <TabsTrigger value="security">Security</TabsTrigger>
-                <TabsTrigger value="notifications">Notifications</TabsTrigger>
-              </TabsList>
-              <TabsContent value="account">
-                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                  Account settings panel.
-                </div>
-              </TabsContent>
-              <TabsContent value="security">
-                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                  Security settings panel.
-                </div>
-              </TabsContent>
-              <TabsContent value="notifications">
-                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-                  Notifications settings panel.
-                </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
-      </section>
-
       {/* ==================== ACCORDION ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Accordion</h2>
@@ -1288,6 +201,402 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== ACTIONBAR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">ActionBar</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Selection toolbar
+            </h3>
+            <ActionBarDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== ALERT ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Alert</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
+            <div className="flex flex-col gap-3">
+              <Alert variant="default">
+                <AlertTitle>Heads up</AlertTitle>
+                <AlertDescription>
+                  Your subscription renews in 3 days. Update your payment method
+                  if needed.
+                </AlertDescription>
+              </Alert>
+              <Alert variant="destructive">
+                <AlertCircle />
+                <AlertTitle>Deployment failed</AlertTitle>
+                <AlertDescription>
+                  Build error on step 4. Check the logs for details and retry.
+                </AlertDescription>
+              </Alert>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== ALERTDIALOG ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          AlertDialog
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Destructive confirmation
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <AlertDialogDemo />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== ASPECTRATIO ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          AspectRatio
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              16:9
+            </h3>
+            <div className="w-64">
+              <AspectRatio ratio={16 / 9}>
+                <div className="flex size-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
+                  16 / 9
+                </div>
+              </AspectRatio>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              1:1
+            </h3>
+            <div className="w-32">
+              <AspectRatio ratio={1}>
+                <div className="flex size-full items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
+                  1 / 1
+                </div>
+              </AspectRatio>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== AVATAR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Avatar</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes
+            </h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <Avatar size="sm">
+                <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
+                <AvatarFallback>SC</AvatarFallback>
+              </Avatar>
+              <Avatar size="default">
+                <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
+                <AvatarFallback>SC</AvatarFallback>
+              </Avatar>
+              <Avatar size="lg">
+                <AvatarImage src="https://github.com/shadcn.png" alt="shadcn" />
+                <AvatarFallback>SC</AvatarFallback>
+              </Avatar>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Text Fallback
+            </h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <Avatar>
+                <AvatarFallback>HT</AvatarFallback>
+              </Avatar>
+              <Avatar>
+                <AvatarFallback>JD</AvatarFallback>
+              </Avatar>
+              <Avatar>
+                <AvatarFallback>AB</AvatarFallback>
+              </Avatar>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Group
+            </h3>
+            <AvatarGroup>
+              <Avatar>
+                <AvatarFallback>HT</AvatarFallback>
+              </Avatar>
+              <Avatar>
+                <AvatarFallback>JD</AvatarFallback>
+              </Avatar>
+              <Avatar>
+                <AvatarFallback>AB</AvatarFallback>
+              </Avatar>
+              <AvatarGroupCount>+4</AvatarGroupCount>
+            </AvatarGroup>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BADGE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Badge</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <Badge variant="default">Default</Badge>
+              <Badge variant="secondary">Secondary</Badge>
+              <Badge variant="outline">Outline</Badge>
+              <Badge variant="destructive">Destructive</Badge>
+              <Badge variant="ghost">Ghost</Badge>
+              <Badge variant="link">Link</Badge>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BREADCRUMB ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Breadcrumb
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Three levels
+            </h3>
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="#">Dashboard</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="#">Projects</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Agentic Finance</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BUTTON ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Button</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="default">Default</Button>
+              <Button variant="secondary">Secondary</Button>
+              <Button variant="outline">Outline</Button>
+              <Button variant="ghost">Ghost</Button>
+              <Button variant="destructive">Destructive</Button>
+              <Button variant="link">Link</Button>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes
+            </h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="xs">Extra Small</Button>
+              <Button size="sm">Small</Button>
+              <Button size="default">Default</Button>
+              <Button size="lg">Large</Button>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Icons
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <Button>
+                <Mail data-icon="inline-start" />
+                Login with Email
+              </Button>
+              <Button variant="outline">
+                Next
+                <ChevronRight data-icon="inline-end" />
+              </Button>
+              <Button variant="destructive">
+                <Trash2 data-icon="inline-start" />
+                Delete
+              </Button>
+              <Button size="icon" variant="outline">
+                <Plus />
+              </Button>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              States
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <Button disabled>Disabled</Button>
+              <Button disabled>
+                <Loader2 className="animate-spin" />
+                Loading...
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BUTTONGROUP ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ButtonGroup
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Horizontal
+            </h3>
+            <div className="flex flex-wrap gap-4">
+              <ButtonGroup>
+                <Button variant="outline">Week</Button>
+                <Button variant="outline">Month</Button>
+                <Button variant="outline">Year</Button>
+              </ButtonGroup>
+              <ButtonGroup>
+                <Button variant="outline">
+                  <Plus />
+                </Button>
+                <ButtonGroupSeparator />
+                <Button variant="outline">Add Item</Button>
+              </ButtonGroup>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Text Addon
+            </h3>
+            <ButtonGroup>
+              <ButtonGroupText>Sort by</ButtonGroupText>
+              <Button variant="outline">Name</Button>
+              <Button variant="outline">Date</Button>
+              <Button variant="outline">Size</Button>
+            </ButtonGroup>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Vertical
+            </h3>
+            <ButtonGroup orientation="vertical" className="w-32">
+              <Button variant="outline">Top</Button>
+              <Button variant="outline">Middle</Button>
+              <Button variant="outline">Bottom</Button>
+            </ButtonGroup>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CALENDAR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Calendar</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Date picker
+            </h3>
+            <CalendarDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CARD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Card</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
+            <Card className="max-w-sm">
+              <CardHeader>
+                <CardTitle>Project Settings</CardTitle>
+                <CardDescription>
+                  Manage your project configuration.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Configure team access, environment variables, and deployment
+                  options.
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button size="sm">Save Changes</Button>
+              </CardFooter>
+            </Card>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Small
+            </h3>
+            <Card className="max-w-xs" size="sm">
+              <CardHeader>
+                <CardTitle>Quick Stats</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  24 active users today
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CAROUSEL ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Carousel</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              4 slides with prev/next
+            </h3>
+            <CarouselDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CHECKBOX ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Checkbox</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              States
+            </h3>
+            <CheckboxDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== COLLAPSIBLE ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
@@ -1303,48 +612,362 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== NAVIGATIONMENU ==================== */}
+      {/* ==================== COMBOBOX ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Combobox</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Searchable framework selector
+            </h3>
+            <ComboboxDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== COMMAND ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Command</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Command palette with groups
+            </h3>
+            <CommandDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CONTEXTMENU ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          NavigationMenu
+          ContextMenu
         </h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Top-level items with dropdown
+              Right-click context actions
             </h3>
-            <NavigationMenu viewport={false}>
-              <NavigationMenuList>
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Products</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <div className="flex w-40 flex-col gap-1 p-1">
-                      <NavigationMenuLink href="#">
-                        Analytics
-                      </NavigationMenuLink>
-                      <NavigationMenuLink href="#">Finance</NavigationMenuLink>
-                      <NavigationMenuLink href="#">
-                        Reporting
-                      </NavigationMenuLink>
-                    </div>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Company</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <div className="flex w-40 flex-col gap-1 p-1">
-                      <NavigationMenuLink href="#">About</NavigationMenuLink>
-                      <NavigationMenuLink href="#">Careers</NavigationMenuLink>
-                    </div>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-                <NavigationMenuItem>
-                  <NavigationMenuLink href="#" className={undefined}>
-                    Pricing
-                  </NavigationMenuLink>
-                </NavigationMenuItem>
-              </NavigationMenuList>
-            </NavigationMenu>
+            <div className="flex flex-wrap gap-3">
+              <ContextMenuDemo />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== DIALOG ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Dialog</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Settings dialog with form fields
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <DialogDemo />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== DRAWER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Drawer</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Bottom drawer with actions
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <DrawerDemo />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== DROPDOWNMENU ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          DropdownMenu
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Account menu with groups and shortcuts
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <DropdownMenuDemo />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== EMPTY ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Empty</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Inbox />
+                </EmptyMedia>
+                <EmptyTitle>No messages yet</EmptyTitle>
+                <EmptyDescription>
+                  When you receive messages, they will appear here.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button size="sm">Compose message</Button>
+              </EmptyContent>
+            </Empty>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== FIELD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Field</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Label and Description
+            </h3>
+            <div className="max-w-sm">
+              <Field>
+                <FieldLabel htmlFor="field-name">Project Name</FieldLabel>
+                <Input id="field-name" placeholder="My new project" />
+                <FieldDescription>
+                  Used as the display name across the dashboard.
+                </FieldDescription>
+              </Field>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Error State
+            </h3>
+            <div className="max-w-sm">
+              <Field>
+                <FieldLabel htmlFor="field-email">Email</FieldLabel>
+                <Input
+                  id="field-email"
+                  type="email"
+                  placeholder="name@company.com"
+                  aria-invalid={true}
+                />
+                <FieldError>Please enter a valid email address.</FieldError>
+              </Field>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== HOVERCARD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">HoverCard</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              User profile on hover
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <HoverCardDemo />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== INPUT ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Input</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
+              <Input />
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Placeholder
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
+              <Input placeholder="Project name" />
+              <Input placeholder="Email address" type="email" />
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Disabled
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
+              <Input placeholder="Cannot edit" disabled />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== INPUTGROUP ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          InputGroup
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Addon Text
+            </h3>
+            <div className="flex max-w-sm flex-col gap-3">
+              <InputGroup>
+                <InputGroupAddon align="inline-start">
+                  <InputGroupText>https://</InputGroupText>
+                </InputGroupAddon>
+                <InputGroupInput placeholder="example.com" />
+              </InputGroup>
+              <InputGroup>
+                <InputGroupInput placeholder="Search projects..." />
+                <InputGroupAddon align="inline-end">
+                  <Search className="size-4 text-muted-foreground" />
+                </InputGroupAddon>
+              </InputGroup>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== INPUTOTP ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">InputOTP</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              6-digit
+            </h3>
+            <InputOTPDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== ITEM ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Item</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants
+            </h3>
+            <ItemGroup className="max-w-md">
+              <Item variant="outline">
+                <ItemMedia variant="icon">
+                  <FileText />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>Q4 Financial Report</ItemTitle>
+                  <ItemDescription>
+                    Updated 2 hours ago by Hleb T.
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button size="sm" variant="outline">
+                    View
+                  </Button>
+                </ItemActions>
+              </Item>
+              <Item variant="muted">
+                <ItemMedia variant="icon">
+                  <FileText />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>Tax Declaration 2024</ItemTitle>
+                  <ItemDescription>Submitted on Jan 15, 2025.</ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button size="sm" variant="outline">
+                    Download
+                  </Button>
+                </ItemActions>
+              </Item>
+              <Item>
+                <ItemMedia variant="icon">
+                  <FileText />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>Budget Forecast Q1</ItemTitle>
+                  <ItemDescription>
+                    Draft, last edited yesterday.
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button size="sm" variant="ghost">
+                    Edit
+                  </Button>
+                </ItemActions>
+              </Item>
+            </ItemGroup>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== KBD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Kbd</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Single Keys
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <Kbd>⌘</Kbd>
+              <Kbd>⇧</Kbd>
+              <Kbd>⌥</Kbd>
+              <Kbd>⌃</Kbd>
+              <Kbd>Enter</Kbd>
+              <Kbd>Esc</Kbd>
+              <Kbd>Tab</Kbd>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Combinations
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <KbdGroup>
+                <Kbd>⌘</Kbd>
+                <Kbd>C</Kbd>
+              </KbdGroup>
+              <KbdGroup>
+                <Kbd>⌘</Kbd>
+                <Kbd>⇧</Kbd>
+                <Kbd>P</Kbd>
+              </KbdGroup>
+              <KbdGroup>
+                <Kbd>Ctrl</Kbd>
+                <Kbd>K</Kbd>
+              </KbdGroup>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== LABEL ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Label</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Standalone
+            </h3>
+            <div className="flex flex-col gap-3">
+              <Label>Project Name</Label>
+              <Label>Email Address</Label>
+              <Label>Due Date</Label>
+            </div>
           </div>
         </div>
       </section>
@@ -1409,6 +1032,192 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== NATIVESELECT ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          NativeSelect
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
+            <div className="flex flex-wrap gap-4">
+              <NativeSelect>
+                <NativeSelectOption value="">Select region</NativeSelectOption>
+                <NativeSelectOption value="eu">Europe</NativeSelectOption>
+                <NativeSelectOption value="us">
+                  North America
+                </NativeSelectOption>
+                <NativeSelectOption value="asia">
+                  Asia Pacific
+                </NativeSelectOption>
+              </NativeSelect>
+              <NativeSelect disabled>
+                <NativeSelectOption value="">Disabled</NativeSelectOption>
+              </NativeSelect>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== NAVIGATIONMENU ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          NavigationMenu
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Top-level items with dropdown
+            </h3>
+            <NavigationMenu viewport={false}>
+              <NavigationMenuList>
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger>Products</NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <div className="flex w-40 flex-col gap-1 p-1">
+                      <NavigationMenuLink href="#">
+                        Analytics
+                      </NavigationMenuLink>
+                      <NavigationMenuLink href="#">Finance</NavigationMenuLink>
+                      <NavigationMenuLink href="#">
+                        Reporting
+                      </NavigationMenuLink>
+                    </div>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger>Company</NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <div className="flex w-40 flex-col gap-1 p-1">
+                      <NavigationMenuLink href="#">About</NavigationMenuLink>
+                      <NavigationMenuLink href="#">Careers</NavigationMenuLink>
+                    </div>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink href="#" className={undefined}>
+                    Pricing
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              </NavigationMenuList>
+            </NavigationMenu>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== PAGINATION ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Pagination
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Basic
+            </h3>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious href="#" />
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationLink href="#">1</PaginationLink>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationLink href="#" isActive>
+                    2
+                  </PaginationLink>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationLink href="#">3</PaginationLink>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationEllipsis />
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext href="#" />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== POPOVER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Popover</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Filter panel
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              <PopoverDemo />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== PROGRESS ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Progress</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Values
+            </h3>
+            <div className="flex max-w-sm flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">0%</span>
+                <Progress value={0} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">33%</span>
+                <Progress value={33} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">66%</span>
+                <Progress value={66} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">100%</span>
+                <Progress value={100} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== RADIOGROUP ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          RadioGroup
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Options
+            </h3>
+            <RadioGroupDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== RESIZABLE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Resizable</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Two-panel horizontal layout
+            </h3>
+            <ResizableDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== SCROLLAREA ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
@@ -1446,129 +1255,280 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== RESIZABLE ==================== */}
+      {/* ==================== SELECT ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Resizable</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Select</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Two-panel horizontal layout
+              Options
             </h3>
-            <ResizableDemo />
+            <SelectDemo />
           </div>
         </div>
       </section>
 
-      {/* ==================== ITEM ==================== */}
+      {/* ==================== SEPARATOR ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Item</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Separator</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Variants
+              Horizontal
             </h3>
-            <ItemGroup className="max-w-md">
-              <Item variant="outline">
-                <ItemMedia variant="icon">
-                  <FileText />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>Q4 Financial Report</ItemTitle>
-                  <ItemDescription>
-                    Updated 2 hours ago by Hleb T.
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Button size="sm" variant="outline">
-                    View
-                  </Button>
-                </ItemActions>
-              </Item>
-
-              <Item variant="muted">
-                <ItemMedia variant="icon">
-                  <FileText />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>Tax Declaration 2024</ItemTitle>
-                  <ItemDescription>Submitted on Jan 15, 2025.</ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Button size="sm" variant="outline">
-                    Download
-                  </Button>
-                </ItemActions>
-              </Item>
-
-              <Item>
-                <ItemMedia variant="icon">
-                  <FileText />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>Budget Forecast Q1</ItemTitle>
-                  <ItemDescription>
-                    Draft, last edited yesterday.
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Button size="sm" variant="ghost">
-                    Edit
-                  </Button>
-                </ItemActions>
-              </Item>
-            </ItemGroup>
+            <div className="flex flex-col gap-3">
+              <span className="text-sm text-muted-foreground">
+                Above the line
+              </span>
+              <Separator orientation="horizontal" />
+              <span className="text-sm text-muted-foreground">
+                Below the line
+              </span>
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Vertical
+            </h3>
+            <div className="flex h-8 items-center gap-3">
+              <span className="text-sm text-muted-foreground">Left</span>
+              <Separator orientation="vertical" />
+              <span className="text-sm text-muted-foreground">Right</span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ==================== COMBOBOX ==================== */}
+      {/* ==================== SHEET ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Combobox</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Sheet</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Searchable framework selector
+              Right side panel with settings
             </h3>
-            <ComboboxDemo />
+            <div className="flex flex-wrap gap-3">
+              <SheetDemo />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ==================== COMMAND ==================== */}
+      {/* ==================== SKELETON ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Command</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Skeleton</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Command palette with groups
+              Shapes
             </h3>
-            <CommandDemo />
+            <div className="flex flex-wrap items-center gap-4">
+              <Skeleton className="h-16 w-24 rounded-lg" />
+              <Skeleton className="size-12 rounded-full" />
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-52" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ==================== CALENDAR ==================== */}
+      {/* ==================== SLIDER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Calendar</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Slider</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Date picker
+              Values
             </h3>
-            <CalendarDemo />
+            <SliderDemo />
           </div>
         </div>
       </section>
 
-      {/* ==================== CAROUSEL ==================== */}
+      {/* ==================== SONNER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Carousel</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Sonner</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              4 slides with prev/next
+              Toast notifications
             </h3>
-            <CarouselDemo />
+            <SonnerDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== SPINNER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Spinner</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes
+            </h3>
+            <div className="flex flex-wrap items-center gap-4">
+              <Spinner className="size-4" />
+              <Spinner className="size-6" />
+              <Spinner className="size-8" />
+              <Spinner className="size-10" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== SWITCH ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Switch</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              States
+            </h3>
+            <SwitchDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== TABLE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Table</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sample Data
+            </h3>
+            <Table>
+              <TableCaption>Recent invoices</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell>#INV-001</TableCell>
+                  <TableCell>Acme Corp</TableCell>
+                  <TableCell>12 500 Kč</TableCell>
+                  <TableCell>
+                    <Badge variant="default">Paid</Badge>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>#INV-002</TableCell>
+                  <TableCell>BuildCo</TableCell>
+                  <TableCell>8 200 Kč</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">Pending</Badge>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>#INV-003</TableCell>
+                  <TableCell>FinGroup</TableCell>
+                  <TableCell>31 000 Kč</TableCell>
+                  <TableCell>
+                    <Badge variant="destructive">Overdue</Badge>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== TABS ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Tabs</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default (horizontal)
+            </h3>
+            <Tabs defaultValue="account" className="max-w-md">
+              <TabsList>
+                <TabsTrigger value="account">Account</TabsTrigger>
+                <TabsTrigger value="security">Security</TabsTrigger>
+                <TabsTrigger value="notifications">Notifications</TabsTrigger>
+              </TabsList>
+              <TabsContent value="account">
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                  Manage your account details, display name, and avatar.
+                </div>
+              </TabsContent>
+              <TabsContent value="security">
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                  Update your password, enable 2FA, and view active sessions.
+                </div>
+              </TabsContent>
+              <TabsContent value="notifications">
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                  Configure email, push, and in-app notification preferences.
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Line variant
+            </h3>
+            <Tabs defaultValue="account" className="max-w-md">
+              <TabsList variant="line">
+                <TabsTrigger value="account">Account</TabsTrigger>
+                <TabsTrigger value="security">Security</TabsTrigger>
+                <TabsTrigger value="notifications">Notifications</TabsTrigger>
+              </TabsList>
+              <TabsContent value="account">
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                  Account settings panel.
+                </div>
+              </TabsContent>
+              <TabsContent value="security">
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                  Security settings panel.
+                </div>
+              </TabsContent>
+              <TabsContent value="notifications">
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                  Notifications settings panel.
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== TEXTAREA ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Textarea</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Default
+            </h3>
+            <div className="max-w-sm">
+              <Textarea />
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              With Placeholder
+            </h3>
+            <div className="max-w-sm">
+              <Textarea placeholder="Describe the issue in detail..." />
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Disabled
+            </h3>
+            <div className="max-w-sm">
+              <Textarea placeholder="Read-only content" disabled />
+            </div>
           </div>
         </div>
       </section>
@@ -1601,28 +1561,17 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== SONNER ==================== */}
+      {/* ==================== TOOLTIP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Sonner</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Tooltip</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Toast notifications
+              Icon buttons with tooltips
             </h3>
-            <SonnerDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== ACTIONBAR ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">ActionBar</h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Selection toolbar
-            </h3>
-            <ActionBarDemo />
+            <div className="flex flex-wrap gap-3">
+              <TooltipDemo />
+            </div>
           </div>
         </div>
       </section>

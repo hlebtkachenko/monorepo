@@ -400,6 +400,14 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Animated loading spinner",
     categories: ["feedback"],
   },
+  swap: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/swap",
+    description:
+      "Animated toggle between two content states with fade, rotate, flip, and scale transitions",
+    categories: ["actions", "effects"],
+  },
   switch: {
     source: "shadcn",
     sourceType: "vanilla",

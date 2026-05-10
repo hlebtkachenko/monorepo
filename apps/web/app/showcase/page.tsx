@@ -157,6 +157,8 @@ import { ToggleDemo } from "./_components/toggle-demo"
 import { ToggleGroupDemo } from "./_components/toggle-group-demo"
 import { SonnerDemo } from "./_components/sonner-demo"
 import { ActionBarDemo } from "./_components/action-bar-demo"
+import { Swap, SwapOff, SwapOn } from "@workspace/ui/components/swap"
+import { MoonIcon, SunIcon, Volume2Icon, VolumeOffIcon } from "lucide-react"
 
 export default function ShowcasePage() {
   return (
@@ -1374,6 +1376,76 @@ export default function ShowcasePage() {
               <Spinner className="size-6" />
               <Spinner className="size-8" />
               <Spinner className="size-10" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== SWAP ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Swap</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Animations
+            </h3>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex flex-col items-center gap-1">
+                <Swap
+                  animation="fade"
+                  className="size-10 rounded-md border p-2"
+                >
+                  <SwapOff>
+                    <SunIcon className="size-5" />
+                  </SwapOff>
+                  <SwapOn>
+                    <MoonIcon className="size-5" />
+                  </SwapOn>
+                </Swap>
+                <span className="text-xs text-muted-foreground">Fade</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <Swap
+                  animation="rotate"
+                  className="size-10 rounded-md border p-2"
+                >
+                  <SwapOff>
+                    <SunIcon className="size-5" />
+                  </SwapOff>
+                  <SwapOn>
+                    <MoonIcon className="size-5" />
+                  </SwapOn>
+                </Swap>
+                <span className="text-xs text-muted-foreground">Rotate</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <Swap
+                  animation="flip"
+                  className="size-10 rounded-md border p-2"
+                >
+                  <SwapOff>
+                    <Volume2Icon className="size-5" />
+                  </SwapOff>
+                  <SwapOn>
+                    <VolumeOffIcon className="size-5" />
+                  </SwapOn>
+                </Swap>
+                <span className="text-xs text-muted-foreground">Flip</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <Swap
+                  animation="scale"
+                  className="size-10 rounded-md border p-2"
+                >
+                  <SwapOff>
+                    <SunIcon className="size-5" />
+                  </SwapOff>
+                  <SwapOn>
+                    <MoonIcon className="size-5" />
+                  </SwapOn>
+                </Swap>
+                <span className="text-xs text-muted-foreground">Scale</span>
+              </div>
             </div>
           </div>
         </div>

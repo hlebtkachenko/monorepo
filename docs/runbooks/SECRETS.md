@@ -11,7 +11,7 @@
 | Cosign signing | none | n/a | keyless OIDC via Sigstore; no secret stored |
 | Sentry DSN | environment `secrets` | `staging`, `production` | per-env DSN; isolation |
 | Honeycomb API key | environment `secrets` | `staging`, `production` | per-env writer key |
-| Stripe / payment processor secret keys (future) | AWS Secrets Manager | runtime, not GitHub | rotated, never in CI |
+| Payment processor secret keys (deferred — no payments yet) | AWS Secrets Manager | runtime, not GitHub | rotate quarterly when introduced |
 | GitHub App private key (future cross-repo automation) | org `secrets` | org-level | one source for many repos |
 
 ## Forbidden

@@ -124,10 +124,11 @@ export const registry: Record<string, ComponentMeta> = {
     packages: ["embla-carousel-react"],
   },
   chart: {
-    source: "shadcn",
-    sourceType: "vanilla",
+    source: "shadcn+evilcharts",
+    sourceType: "custom",
     upstream: "https://ui.shadcn.com/docs/components/chart",
-    description: "Data visualization wrapper for recharts",
+    description:
+      "Unified chart component with area, bar/column, line, composed, pie, donut, and radar types. ChartContainer/Tooltip/Legend exported for custom recharts compositions.",
     categories: ["data"],
     packages: ["recharts"],
   },

@@ -60,6 +60,16 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Container enforcing a fixed aspect ratio",
     categories: ["layout"],
   },
+  autocomplete: {
+    source: "coss",
+    sourceType: "import",
+    upstream: "https://coss.com/ui/docs/components/autocomplete",
+    description:
+      "Inline-autofill input with async search, groups, clear button, and optional trigger toggle",
+    categories: ["forms"],
+    dependencies: ["scroll-area"],
+    packages: ["@base-ui/react"],
+  },
   avatar: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -200,6 +210,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Expandable and collapsible content section",
     categories: ["disclosure"],
   },
+  "color-picker": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/color-picker",
+    description:
+      "HSL color area picker with hue slider, hex/HSL input, and preset swatches inside a popover",
+    categories: ["forms"],
+    dependencies: ["button", "input", "label", "popover"],
+  },
   "color-swatch": {
     source: "diceui",
     sourceType: "import",
@@ -240,6 +259,61 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/context-menu",
     description: "Right-click context menu with items and submenus",
     categories: ["overlay"],
+  },
+  "creatable-combobox": {
+    source: "flowkit-ui",
+    sourceType: "import",
+    upstream:
+      "https://flowkit-ui.vzkiss.com/docs/components/creatable-combobox",
+    description:
+      "Combobox extension with autocomplete + dynamic item creation, built on our Combobox primitive",
+    categories: ["forms"],
+    dependencies: ["combobox"],
+  },
+  "data-grid": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/data-grid",
+    description:
+      "Virtualized editable grid with 9 cell types, clipboard, undo/redo, search, sorting, and column management",
+    categories: ["data"],
+    dependencies: [
+      "button",
+      "checkbox",
+      "command",
+      "dialog",
+      "input",
+      "popover",
+      "select",
+      "table",
+    ],
+    packages: ["@tanstack/react-table", "@tanstack/react-virtual"],
+  },
+  "data-table": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/data-table",
+    description:
+      "Feature-rich TanStack table with filtering, multi-column sort, pagination, column visibility, row selection, action bar, and router-agnostic URL state",
+    categories: ["data"],
+    dependencies: [
+      "badge",
+      "button",
+      "calendar",
+      "checkbox",
+      "command",
+      "dialog",
+      "dropdown-menu",
+      "input",
+      "popover",
+      "select",
+      "separator",
+      "skeleton",
+      "slider",
+      "table",
+      "tooltip",
+    ],
+    packages: ["@tanstack/react-table"],
   },
   dialog: {
     source: "shadcn",
@@ -314,6 +388,45 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["forms"],
     dependencies: ["label", "separator"],
   },
+  "file-upload": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/file-upload",
+    description:
+      "Drag-and-drop file upload with progress tracking, type/size validation, and preview thumbnails",
+    categories: ["forms"],
+    dependencies: ["button"],
+  },
+  "filter-bar": {
+    source: "bazza",
+    sourceType: "import",
+    upstream: "https://ui.bazza.dev/docs/data-table-filter",
+    description:
+      "Library-agnostic table filter bar with pill chips, operator selection, debounced inputs, and pluggable strings override",
+    categories: ["data", "forms"],
+    dependencies: [
+      "badge",
+      "button",
+      "calendar",
+      "checkbox",
+      "command",
+      "input",
+      "popover",
+      "select",
+      "slider",
+    ],
+    packages: ["date-fns", "react-day-picker"],
+  },
+  "floating-panel": {
+    source: "shark-ui",
+    sourceType: "import",
+    upstream: "https://shark.vini.one/docs/components/floating-panel",
+    description:
+      "Non-modal floating window with drag, resize, minimize, maximize, and restore controls",
+    categories: ["overlay"],
+    dependencies: ["button", "scroll-area"],
+    packages: ["@ark-ui/react"],
+  },
   gauge: {
     source: "diceui",
     sourceType: "import",
@@ -351,6 +464,33 @@ export const registry: Record<string, ComponentMeta> = {
     description: "One-time password input with segmented fields",
     categories: ["forms"],
     packages: ["input-otp"],
+  },
+  "input-phone": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/phone-input",
+    description:
+      "International phone input variation with country selector (Popover + Command), flag, and tel formatting",
+    categories: ["forms"],
+    dependencies: ["button", "command", "input", "popover"],
+  },
+  "input-segmented": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/segmented-input",
+    description:
+      "Multi-segment input (date, time, code) with per-segment focus, keyboard navigation, and validation",
+    categories: ["forms"],
+    dependencies: ["input"],
+  },
+  "input-tags": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/tags-input",
+    description:
+      "Tag/chip input with keyboard add, editable items, paste support, and clear button",
+    categories: ["forms"],
+    packages: ["@diceui/tags-input"],
   },
   item: {
     source: "shadcn",
@@ -393,6 +533,15 @@ export const registry: Record<string, ComponentMeta> = {
       "Horizontal or vertical scrolling marquee with pause-on-hover, reverse, and configurable speed",
     categories: ["effects"],
   },
+  mention: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/mention",
+    description:
+      "Text input with @mention autocomplete suggestions triggered by a configurable character",
+    categories: ["forms"],
+    packages: ["@diceui/mention"],
+  },
   "multi-step-loader": {
     source: "aceternity",
     sourceType: "import",
@@ -432,6 +581,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Native HTML select with custom styling",
     categories: ["forms"],
   },
+  "navigation-bottom-mobile": {
+    source: "shark-ui",
+    sourceType: "import",
+    upstream: "https://shark.vini.one/docs/components/bottom-navigation",
+    description:
+      "Mobile-first bottom navigation bar with icon and label items, fixed positioning, and safe-area support",
+    categories: ["navigation"],
+    packages: ["@ark-ui/react"],
+  },
   "navigation-menu": {
     source: "shadcn",
     sourceType: "vanilla",
@@ -447,6 +605,25 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["navigation"],
     dependencies: ["button"],
   },
+  "pdf-utils": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/pdf/pdf-utils",
+    description:
+      "Client-side PDF utility library: extract metadata, screenshot pages, search text, generate thumbnails, split page ranges",
+    categories: ["data", "utility"],
+    packages: ["pdf-lib", "pdfjs-dist", "react-pdf"],
+  },
+  "pdf-viewer": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/pdf/pdf-viewer",
+    description:
+      "Full-featured PDF viewer with single-page, continuous-scroll, and book layout modes, zoom controls, and page navigation",
+    categories: ["display"],
+    dependencies: ["button", "input"],
+    packages: ["react-pdf"],
+  },
   popover: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -460,6 +637,24 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/progress",
     description: "Linear progress bar indicator",
     categories: ["feedback"],
+  },
+  "prompt-library": {
+    source: "cult-ui",
+    sourceType: "import",
+    upstream: "https://www.cult-ui.com/docs/components/prompt-library",
+    description:
+      "AI prompt template library in a popover with search, categories, hover preview, and custom prompt creation",
+    categories: ["overlay", "forms"],
+    dependencies: [
+      "button",
+      "command",
+      "dialog",
+      "hover-card",
+      "input",
+      "popover",
+      "textarea",
+    ],
+    packages: ["cmdk", "@hugeicons/react", "@hugeicons/core-free-icons"],
   },
   "qr-code": {
     source: "diceui",
@@ -511,7 +706,8 @@ export const registry: Record<string, ComponentMeta> = {
     source: "shadcn",
     sourceType: "vanilla",
     upstream: "https://ui.shadcn.com/docs/components/separator",
-    description: "Visual divider line, horizontal or vertical",
+    description:
+      "Visual divider with solid (default), dashed, dotted, and double variants in horizontal and vertical orientations",
     categories: ["layout"],
   },
   sheet: {
@@ -537,6 +733,16 @@ export const registry: Record<string, ComponentMeta> = {
       "tooltip",
     ],
     packages: ["next-themes"],
+  },
+  "signature-pad": {
+    source: "ark-ui",
+    sourceType: "import",
+    upstream: "https://shark.vini.one/docs/components/signature-pad",
+    description:
+      "Canvas-based hand-drawn signature capture with clear button, guide line, and image export",
+    categories: ["forms"],
+    dependencies: ["button"],
+    packages: ["@ark-ui/react"],
   },
   skeleton: {
     source: "shadcn",
@@ -648,6 +854,16 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/tooltip",
     description: "Hover tooltip with text content",
     categories: ["overlay"],
+  },
+  tour: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/tour",
+    description:
+      "Multi-step guided tour overlay with spotlight, floating tooltip, step navigation, and keyboard support",
+    categories: ["overlay", "navigation"],
+    dependencies: ["button"],
+    packages: ["@floating-ui/react-dom"],
   },
   "webhook-tester": {
     source: "tryelements",

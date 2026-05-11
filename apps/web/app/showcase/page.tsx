@@ -202,6 +202,23 @@ import { NoiseBackgroundDemo } from "./_components/noise-background-demo"
 import { RingLoaderDemo } from "./_components/ring-loader-demo"
 import { SnailTimerDemo } from "./_components/snail-timer-demo"
 import { TimelineDemo } from "./_components/timeline-demo"
+import { AutocompleteDemo } from "./_components/autocomplete-demo"
+import { ColorPickerDemo } from "./_components/color-picker-demo"
+import { CreatableComboboxDemo } from "./_components/creatable-combobox-demo"
+import { FileUploadDemo } from "./_components/file-upload-demo"
+import { InputPhoneDemo } from "./_components/input-phone-demo"
+import { MentionDemo } from "./_components/mention-demo"
+import { InputSegmentedDemo } from "./_components/input-segmented-demo"
+import { SignaturePadDemo } from "./_components/signature-pad-demo"
+import { InputTagsDemo } from "./_components/input-tags-demo"
+import { NavigationBottomMobileDemo } from "./_components/navigation-bottom-mobile-demo"
+import { DataGridDemo } from "./_components/data-grid-demo"
+import { DataTableDemo } from "./_components/data-table-demo"
+import { FilterBarDemo } from "./_components/filter-bar-demo"
+import { FloatingPanelDemo } from "./_components/floating-panel-demo"
+import { PdfViewerDemo } from "./_components/pdf-viewer-demo"
+import { PromptLibraryDemo } from "./_components/prompt-library-demo"
+import { TourDemo } from "./_components/tour-demo"
 
 export default function ShowcasePage() {
   return (
@@ -352,6 +369,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== AUTOCOMPLETE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Autocomplete
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Filterable list with clear + search icon
+            </h3>
+            <AutocompleteDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== AVATAR ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Avatar</h2>
@@ -469,6 +501,21 @@ export default function ShowcasePage() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BOTTOMNAVIGATION ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          NavigationBottomMobile
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Mobile tab bar with icons
+            </h3>
+            <NavigationBottomMobileDemo />
           </div>
         </div>
       </section>
@@ -858,6 +905,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== COLORPICKER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ColorPicker
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Popover with HSL canvas, hue slider, hex input, presets
+            </h3>
+            <ColorPickerDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== COLORSWATCH ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
@@ -950,6 +1012,62 @@ export default function ShowcasePage() {
             <div className="flex flex-wrap gap-3">
               <ContextMenuDemo />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CREATABLECOMBOBOX ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          CreatableCombobox
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Type to filter or create a new entry
+            </h3>
+            <CreatableComboboxDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== DATAGRID ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Data Grid</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Editable grid with search, sort, and typed cells
+            </h3>
+            <DataGridDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== DATATABLE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Data Table
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sortable + filterable with toolbar and pagination
+            </h3>
+            <DataTableDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== FILTERBAR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">FilterBar</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Composable filter builder with operators
+            </h3>
+            <FilterBarDemo />
           </div>
         </div>
       </section>
@@ -1093,6 +1211,36 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== FILEUPLOAD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          FileUpload
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Dropzone with multi-file, validation, progress
+            </h3>
+            <FileUploadDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== FLOATINGPANEL ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Floating Panel
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Draggable, resizable panel with minimize / maximize
+            </h3>
+            <FloatingPanelDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== GAUGE ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Gauge</h2>
@@ -1190,6 +1338,21 @@ export default function ShowcasePage() {
               6-digit
             </h3>
             <InputOTPDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== INPUTPHONE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          InputPhone
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Country picker + formatted phone field
+            </h3>
+            <InputPhoneDemo />
           </div>
         </div>
       </section>
@@ -1364,6 +1527,19 @@ export default function ShowcasePage() {
               Pause on hover, reverse, custom speed
             </h3>
             <MarqueeDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== MENTION ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Mention</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Type @ to mention a team member
+            </h3>
+            <MentionDemo />
           </div>
         </div>
       </section>
@@ -1571,6 +1747,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== PDFVIEWER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          PDF Viewer
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Single / scroll / book modes with zoom
+            </h3>
+            <PdfViewerDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== POPOVER ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Popover</h2>
@@ -1612,6 +1803,21 @@ export default function ShowcasePage() {
                 <Progress value={100} />
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== PROMPTLIBRARY ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Prompt Library
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Searchable popover of reusable prompts
+            </h3>
+            <PromptLibraryDemo />
           </div>
         </div>
       </section>
@@ -1709,6 +1915,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== INPUTSEGMENTED ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          InputSegmented
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Joined inputs for split-field entry (date of birth)
+            </h3>
+            <InputSegmentedDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== SELECT ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Select</h2>
@@ -1764,6 +1985,21 @@ export default function ShowcasePage() {
             <div className="flex flex-wrap gap-3">
               <SheetDemo />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== SIGNATUREPAD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          SignaturePad
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Draw a signature, clear with the reset icon
+            </h3>
+            <SignaturePadDemo />
           </div>
         </div>
       </section>
@@ -2056,6 +2292,19 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== INPUTTAGS ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">InputTags</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Add and remove tags with the keyboard
+            </h3>
+            <InputTagsDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== TEXTAREA ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Textarea</h2>
@@ -2139,6 +2388,19 @@ export default function ShowcasePage() {
             <div className="flex flex-wrap gap-3">
               <TooltipDemo />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== TOUR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Tour</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Multi-step product tour with spotlight
+            </h3>
+            <TourDemo />
           </div>
         </div>
       </section>

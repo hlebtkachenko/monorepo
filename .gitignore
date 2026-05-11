@@ -42,6 +42,7 @@ _junk/
 .auth
 playwright-report
 test-results
+.playwright-mcp
 
 # Misc
 .DS_Store

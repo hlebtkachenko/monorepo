@@ -136,13 +136,20 @@ jobs:
 
       - name: Apply migrations
         env:
+          # Migrations run as app_owner (SUPERUSER) — owns SECURITY DEFINER
+          # functions and bypasses RLS for DDL.
           DATABASE_DIRECT_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
-          DATABASE_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
         run: pnpm --filter @workspace/db db:migrate
 
       - name: Run vitest tests
         env:
           SKIP_TESTCONTAINER: "true"
+          # DATABASE_URL connects as app_user (LOGIN, non-superuser, NOBYPASSRLS).
+          # RLS policies enforce only when the connection is non-superuser AND
+          # not a member of BYPASSRLS roles via INHERIT. app_owner would silently
+          # bypass FORCE RLS and produce false-green cross-org isolation tests.
+          DATABASE_URL: postgresql://app_user:dev_user@127.0.0.1:5432/postgres
+          # DATABASE_DIRECT_URL is the admin path (fixtures.ts adminSql) used
+          # for seed/teardown that needs to cross tenant boundaries.
           DATABASE_DIRECT_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
-          DATABASE_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
         run: pnpm --filter @workspace/db test

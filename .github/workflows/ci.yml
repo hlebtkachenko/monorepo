@@ -37,7 +37,10 @@ jobs:
         run: pnpm turbo lint
 
       - name: Test
-        run: pnpm turbo test
+        # @workspace/db tests require a Postgres 18 testcontainer or service.
+        # They run in the dedicated db-tests.yml workflow. Excluding here
+        # avoids Docker overhead + double execution.
+        run: pnpm turbo test --filter=!@workspace/db
 
       - name: Test Coverage
         run: pnpm --filter @workspace/ui test:coverage

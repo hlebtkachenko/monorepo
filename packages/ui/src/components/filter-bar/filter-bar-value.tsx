@@ -426,6 +426,9 @@ export function FilterValueOptionController<TData>({
   actions,
   strings = FILTER_BAR_DEFAULT_STRINGS,
 }: FilterValueControllerProps<TData, "option">) {
+  // Snapshot of options at mount time — drives the initial selection state.
+  // Deliberately memoized with no deps so reordering on selection changes
+  // doesn't reshuffle the visible list inside the popover.
   const initialOptions = React.useMemo(() => {
     const counts = column.getFacetedUniqueValues()
     return column.getOptions().map((o) => ({
@@ -500,6 +503,9 @@ export function FilterValueMultiOptionController<TData>({
   actions,
   strings = FILTER_BAR_DEFAULT_STRINGS,
 }: FilterValueControllerProps<TData, "multiOption">) {
+  // Snapshot of options at mount time — drives the initial selection state.
+  // Deliberately memoized with no deps so reordering on selection changes
+  // doesn't reshuffle the visible list inside the popover.
   const initialOptions = React.useMemo(() => {
     const counts = column.getFacetedUniqueValues()
     return column.getOptions().map((o) => {

@@ -64,11 +64,23 @@ function ErrorBoundaryUi({
   const [showStack, setShowStack] = React.useState(isDev)
   const [showComponentStack, setShowComponentStack] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
+  const copiedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
 
   const stackFrames = React.useMemo(
     () => (error.stack ? parseStackTrace(error.stack) : []),
     [error.stack],
   )
+
+  React.useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current !== null) {
+        clearTimeout(copiedTimeoutRef.current)
+        copiedTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const handleCopy = React.useCallback(async () => {
     const parts = [
@@ -83,7 +95,13 @@ function ErrorBoundaryUi({
     try {
       await navigator.clipboard.writeText(parts.join("\n"))
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      if (copiedTimeoutRef.current !== null) {
+        clearTimeout(copiedTimeoutRef.current)
+      }
+      copiedTimeoutRef.current = setTimeout(() => {
+        copiedTimeoutRef.current = null
+        setCopied(false)
+      }, 1500)
     } catch {
       // clipboard unavailable
     }

@@ -125,6 +125,8 @@ function getTargetElement(
   target: string | React.RefObject<HTMLElement> | HTMLElement,
 ): HTMLElement | null {
   if (typeof target === "string") {
+    // Trust boundary: target is a CSS selector supplied by the developer
+    // configuring the tour, never by user input. No HTML escaping needed.
     return document.querySelector(target)
   }
   if (target && "current" in target) {

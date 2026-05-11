@@ -223,6 +223,8 @@ function Browser({
       ) {
         url = `https://www.google.com/search?q=${encodeURIComponent(url)}`
       }
+      // Capture active tab id BEFORE setTabs to avoid stale-snapshot read.
+      const activeTabId = tabs.find((t) => t.isActive)?.id ?? ""
       setCurrentUrl(url)
       setInputUrl(url)
       setIsSecure(url.startsWith("https://"))
@@ -238,7 +240,6 @@ function Browser({
           return { ...tab, url, title, isLoading: simulateLoading }
         }),
       )
-      const activeTabId = tabs.find((t) => t.isActive)?.id ?? ""
       onNavigate?.(url, activeTabId)
       if (simulateLoading) {
         setTimeout(() => {
@@ -385,9 +386,18 @@ function Browser({
             {tabs.map((tab) => (
               <div
                 key={tab.id}
+                role="tab"
+                tabIndex={0}
+                aria-selected={tab.isActive}
                 onClick={() => switchTab(tab.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    switchTab(tab.id)
+                  }
+                }}
                 className={cn(
-                  "flex max-w-64 min-w-0 cursor-pointer items-center gap-2 border-r border-border px-4 py-2",
+                  "flex max-w-64 min-w-0 cursor-pointer items-center gap-2 border-r border-border px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   tab.isActive ? "bg-background" : "hover:bg-muted/50",
                 )}
               >

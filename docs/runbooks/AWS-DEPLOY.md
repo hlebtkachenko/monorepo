@@ -204,21 +204,92 @@ This unblocks `_deploy-aws.yml`.
 
 ## Deploys
 
-Manual dispatch:
+**Deploys are manual-only by design.** Pushing to `main` does NOT auto-deploy. Every deploy is an explicit `gh workflow run` command. This is intentional: no surprise charges, no accidental prod pushes, full control over when AWS sees new code.
+
+### Steady-state deploy (after main is updated)
+
+After your PR merges to `main`, when you decide it's time to ship:
 
 ```bash
 gh workflow run _deploy-aws.yml \
   -f environment=staging \
-  -f stack=all \
-  --repo hlebtkachenko/monorepo
+  -f stack=app-only \
+  --repo hlebtkachenko/monorepo \
+  --ref main
 ```
 
-`stack` values:
-- `all` - deploy infra + build images + sync tunnel token + deploy app + force rollout (default)
-- `infra-only` - Network + Data only
-- `app-only` - skip Network + Data deploy (steady-state after first deploy)
+`app-only` skips Network + Data deploy. Use this for any change that's purely in code (`apps/**`, `packages/**`, app config). Takes ~8-12 min: image build + ECR push + CDK App stack update + ECS rolling deploy.
 
-After first successful `all` run, switch to `app-only` for routine code-change deploys.
+Watch progress:
+
+```bash
+RUN_ID=$(gh run list --workflow=_deploy-aws.yml --repo hlebtkachenko/monorepo --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN_ID" --repo hlebtkachenko/monorepo
+# Or open in browser:
+gh run view "$RUN_ID" --web --repo hlebtkachenko/monorepo
+```
+
+Verify post-deploy:
+
+```bash
+curl -s -o /dev/null -w "HTTP %{http_code}\n" https://staging.afframe.com/
+curl -s https://staging.afframe.com/api/health | jq '.'
+```
+
+### When to use which `stack` value
+
+| Stack value | When to use | Time |
+|---|---|---|
+| `app-only` | Code change in `apps/**` or `packages/**`. **Default for ~99% of deploys.** | ~8-12 min |
+| `infra-only` | Change to `infra/cdk/lib/*-stack.ts` only (no app code change). | ~5-15 min |
+| `all` | Both infra + app changes in the same release, OR first-time setup of a new env. | ~15-25 min |
+
+### Deploy to production
+
+Same workflow, `environment=production`:
+
+```bash
+gh workflow run _deploy-aws.yml \
+  -f environment=production \
+  -f stack=app-only \
+  --repo hlebtkachenko/monorepo \
+  --ref main
+```
+
+Production deploys use a SEPARATE OIDC role (`AWS_DEPLOY_ROLE_ARN_PRODUCTION` secret) and the `app.afframe.com` Cloudflare tunnel. Same code, separate runtime.
+
+### Rollback (revert a bad deploy)
+
+The deploy workflow tags images with the git SHA (`sha-<commit>`). To roll back, either:
+
+**Option 1 - Re-deploy a previous good commit** (most surgical):
+```bash
+gh workflow run _deploy-aws.yml \
+  -f environment=staging \
+  -f stack=app-only \
+  --repo hlebtkachenko/monorepo \
+  --ref <previous-good-sha>
+```
+The `--ref` checks out that commit, the build uses its SHA tag, ECS rolls to the old image.
+
+**Option 2 - Git revert the bad commit**, push the revert to main, then deploy:
+```bash
+git revert <bad-commit-sha>
+git push origin main
+gh workflow run _deploy-aws.yml -f environment=staging -f stack=app-only --repo hlebtkachenko/monorepo --ref main
+```
+
+**Option 3 - ECS circuit breaker** auto-rolls back if new tasks fail health checks during a deploy. No manual action needed in that case; just check CloudWatch logs to understand the failure.
+
+### What blocks a deploy
+
+The workflow short-circuits with `go=false` and exits success if `vars.AWS_BOOTSTRAPPED != "true"`. Flip with:
+
+```bash
+gh variable set AWS_BOOTSTRAPPED --body true --repo hlebtkachenko/monorepo
+```
+
+Set it back to `false` to put the entire deploy machinery on ice without removing AWS resources (e.g., during a security incident).
 
 ## DNS - final wiring after first deploy
 

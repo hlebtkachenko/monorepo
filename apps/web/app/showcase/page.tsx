@@ -202,6 +202,15 @@ import { NoiseBackgroundDemo } from "./_components/noise-background-demo"
 import { RingLoaderDemo } from "./_components/ring-loader-demo"
 import { SnailTimerDemo } from "./_components/snail-timer-demo"
 import { TimelineDemo } from "./_components/timeline-demo"
+import { AutocompleteDemo } from "./_components/autocomplete-demo"
+import { ColorPickerDemo } from "./_components/color-picker-demo"
+import { CreatableComboboxDemo } from "./_components/creatable-combobox-demo"
+import { FileUploadDemo } from "./_components/file-upload-demo"
+import { InputPhoneDemo } from "./_components/input-phone-demo"
+import { MentionDemo } from "./_components/mention-demo"
+import { SegmentedInputDemo } from "./_components/segmented-input-demo"
+import { SignaturePadDemo } from "./_components/signature-pad-demo"
+import { TagsInputDemo } from "./_components/tags-input-demo"
 
 export default function ShowcasePage() {
   return (
@@ -348,6 +357,21 @@ export default function ShowcasePage() {
                 </div>
               </AspectRatio>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== AUTOCOMPLETE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          Autocomplete
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Filterable list with clear + search icon
+            </h3>
+            <AutocompleteDemo />
           </div>
         </div>
       </section>
@@ -858,6 +882,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== COLORPICKER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ColorPicker
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Popover with HSL canvas, hue slider, hex input, presets
+            </h3>
+            <ColorPickerDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== COLORSWATCH ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
@@ -950,6 +989,21 @@ export default function ShowcasePage() {
             <div className="flex flex-wrap gap-3">
               <ContextMenuDemo />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CREATABLECOMBOBOX ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          CreatableCombobox
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Type to filter or create a new entry
+            </h3>
+            <CreatableComboboxDemo />
           </div>
         </div>
       </section>
@@ -1093,6 +1147,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== FILEUPLOAD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          FileUpload
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Dropzone with multi-file, validation, progress
+            </h3>
+            <FileUploadDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== GAUGE ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Gauge</h2>
@@ -1190,6 +1259,21 @@ export default function ShowcasePage() {
               6-digit
             </h3>
             <InputOTPDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== INPUTPHONE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          InputPhone
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Country picker + formatted phone field
+            </h3>
+            <InputPhoneDemo />
           </div>
         </div>
       </section>
@@ -1364,6 +1448,19 @@ export default function ShowcasePage() {
               Pause on hover, reverse, custom speed
             </h3>
             <MarqueeDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== MENTION ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Mention</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Type @ to mention a team member
+            </h3>
+            <MentionDemo />
           </div>
         </div>
       </section>
@@ -1709,6 +1806,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== SEGMENTEDINPUT ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          SegmentedInput
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Joined inputs for split-field entry (date of birth)
+            </h3>
+            <SegmentedInputDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== SELECT ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Select</h2>
@@ -1764,6 +1876,21 @@ export default function ShowcasePage() {
             <div className="flex flex-wrap gap-3">
               <SheetDemo />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== SIGNATUREPAD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          SignaturePad
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Draw a signature, clear with the reset icon
+            </h3>
+            <SignaturePadDemo />
           </div>
         </div>
       </section>
@@ -2052,6 +2179,19 @@ export default function ShowcasePage() {
                 </div>
               </TabsContent>
             </Tabs>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== TAGSINPUT ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">TagsInput</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Add and remove tags with the keyboard
+            </h3>
+            <TagsInputDemo />
           </div>
         </div>
       </section>

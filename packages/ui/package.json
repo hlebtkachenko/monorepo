@@ -20,6 +20,8 @@
   "dependencies": {
     "@ark-ui/react": "^5.36.2",
     "@base-ui/react": "^1.4.1",
+    "@diceui/mention": "^0.8.0",
+    "@diceui/tags-input": "^0.7.2",
     "@paper-design/shaders": "^0.0.76",
     "border-beam": "^1.0.1",
     "class-variance-authority": "^0.7.1",

@@ -60,6 +60,16 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Container enforcing a fixed aspect ratio",
     categories: ["layout"],
   },
+  autocomplete: {
+    source: "coss",
+    sourceType: "import",
+    upstream: "https://coss.com/ui/docs/components/autocomplete",
+    description:
+      "Inline-autofill input with async search, groups, clear button, and optional trigger toggle",
+    categories: ["forms"],
+    dependencies: ["scroll-area"],
+    packages: ["@base-ui/react"],
+  },
   avatar: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -200,6 +210,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Expandable and collapsible content section",
     categories: ["disclosure"],
   },
+  "color-picker": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/color-picker",
+    description:
+      "HSL color area picker with hue slider, hex/HSL input, and preset swatches inside a popover",
+    categories: ["forms"],
+    dependencies: ["button", "input", "label", "popover"],
+  },
   "color-swatch": {
     source: "diceui",
     sourceType: "import",
@@ -240,6 +259,16 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/context-menu",
     description: "Right-click context menu with items and submenus",
     categories: ["overlay"],
+  },
+  "creatable-combobox": {
+    source: "flowkit-ui",
+    sourceType: "import",
+    upstream:
+      "https://flowkit-ui.vzkiss.com/docs/components/creatable-combobox",
+    description:
+      "Combobox extension with autocomplete + dynamic item creation, built on our Combobox primitive",
+    categories: ["forms"],
+    dependencies: ["combobox"],
   },
   dialog: {
     source: "shadcn",
@@ -314,6 +343,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["forms"],
     dependencies: ["label", "separator"],
   },
+  "file-upload": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/file-upload",
+    description:
+      "Drag-and-drop file upload with progress tracking, type/size validation, and preview thumbnails",
+    categories: ["forms"],
+    dependencies: ["button"],
+  },
   gauge: {
     source: "diceui",
     sourceType: "import",
@@ -351,6 +389,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "One-time password input with segmented fields",
     categories: ["forms"],
     packages: ["input-otp"],
+  },
+  "input-phone": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/phone-input",
+    description:
+      "International phone input variation with country selector (Popover + Command), flag, and tel formatting",
+    categories: ["forms"],
+    dependencies: ["button", "command", "input", "popover"],
   },
   item: {
     source: "shadcn",
@@ -392,6 +439,15 @@ export const registry: Record<string, ComponentMeta> = {
     description:
       "Horizontal or vertical scrolling marquee with pause-on-hover, reverse, and configurable speed",
     categories: ["effects"],
+  },
+  mention: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/mention",
+    description:
+      "Text input with @mention autocomplete suggestions triggered by a configurable character",
+    categories: ["forms"],
+    packages: ["@diceui/mention"],
   },
   "multi-step-loader": {
     source: "aceternity",
@@ -500,6 +556,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Custom scrollbar wrapper with smooth scrolling",
     categories: ["layout"],
   },
+  "segmented-input": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/segmented-input",
+    description:
+      "Multi-segment input (date, time, code) with per-segment focus, keyboard navigation, and validation",
+    categories: ["forms"],
+    dependencies: ["input"],
+  },
   select: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -537,6 +602,16 @@ export const registry: Record<string, ComponentMeta> = {
       "tooltip",
     ],
     packages: ["next-themes"],
+  },
+  "signature-pad": {
+    source: "ark-ui",
+    sourceType: "import",
+    upstream: "https://shark.vini.one/docs/components/signature-pad",
+    description:
+      "Canvas-based hand-drawn signature capture with clear button, guide line, and image export",
+    categories: ["forms"],
+    dependencies: ["button"],
+    packages: ["@ark-ui/react"],
   },
   skeleton: {
     source: "shadcn",
@@ -611,6 +686,15 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/tabs",
     description: "Tabbed interface with content panels",
     categories: ["navigation"],
+  },
+  "tags-input": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/tags-input",
+    description:
+      "Tag/chip input with keyboard add, editable items, paste support, and clear button",
+    categories: ["forms"],
+    packages: ["@diceui/tags-input"],
   },
   textarea: {
     source: "shadcn",

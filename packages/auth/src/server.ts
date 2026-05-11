@@ -57,6 +57,13 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24, // 1 day rolling
     cookieCache: { enabled: true, maxAge: 60 * 5 },
   },
+  advanced: {
+    database: {
+      // Schema declares uuid for every BA-managed primary key + FK. Force
+      // BA's ID generator to UUID rather than its 32-char base62 default.
+      generateId: "uuid",
+    },
+  },
   plugins: [admin(), twoFactor()],
 })
 

@@ -32,22 +32,22 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
 
-      - name: Install squawk
+      - name: Install squawk via cargo
         run: |
           set -euo pipefail
-          SQUAWK_VERSION="1.4.0"
-          curl -fsSL \
-            "https://github.com/sbdchd/squawk/releases/download/v${SQUAWK_VERSION}/squawk-linux-x86_64" \
-            -o squawk
-          chmod +x squawk
-          sudo mv squawk /usr/local/bin/squawk
-          squawk --version
+          # squawk distributes via crates.io; binary releases on GitHub are
+          # inconsistent across versions. cargo install is the canonical path.
+          # ubuntu-latest ships cargo via rustup.
+          cargo install squawk --locked --version 2.0.0
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Lint migrations
         # prefer-text-field: we use varchar/text intentionally per schema design.
         # disallowed-unique-constraint: unique constraints via indexes are preferred
         #   but some early migrations use inline UNIQUE — allowed for now.
         run: |
+          set -euo pipefail
+          export PATH="$HOME/.cargo/bin:$PATH"
           squawk \
             --exclude prefer-text-field,disallowed-unique-constraint \
             packages/db/migrations/*.sql

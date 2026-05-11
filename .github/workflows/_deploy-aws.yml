@@ -188,13 +188,37 @@ jobs:
             BUILD_TIME=${{ github.event.repository.updated_at }}
             BUILD_VERSION=${{ env.IMAGE_TAG }}
 
+      - name: Ensure Cloudflare Tunnel token secret exists in Secrets Manager [stack=all|app-only]
+        if: env.STACK_SCOPE != 'infra-only'
+        env:
+          TUNNEL_TOKEN: ${{ secrets[format('CLOUDFLARE_TUNNEL_TOKEN_{0}', inputs.environment)] }}
+        run: |
+          if [ -z "$TUNNEL_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_TUNNEL_TOKEN_${ENV_NAME^^} secret is not set. Create the tunnel in Cloudflare and store its token."
+            exit 1
+          fi
+          echo "::add-mask::$TUNNEL_TOKEN"
+          SECRET_NAME="windhoek-${ENV_NAME}-cloudflare-tunnel-token"
+          if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            aws secretsmanager put-secret-value \
+              --secret-id "$SECRET_NAME" \
+              --secret-string "$TUNNEL_TOKEN" \
+              --region "$AWS_REGION" \
+              >/dev/null
+          else
+            aws secretsmanager create-secret \
+              --name "$SECRET_NAME" \
+              --secret-string "$TUNNEL_TOKEN" \
+              --description "Cloudflare Tunnel connector token for cloudflared sidecar (windhoek ${ENV_NAME})" \
+              --region "$AWS_REGION" \
+              >/dev/null
+          fi
+
       - name: Deploy app stack with new image tag [stack=all|app-only]
         if: env.STACK_SCOPE != 'infra-only'
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           APP_DOMAIN: ${{ steps.env.outputs.domain }}
-          ACM_CERT_ARN: ${{ secrets[format('ACM_CERT_ARN_{0}', inputs.environment)] }}
-          UPSTASH_REDIS_SECRET_ARN: ${{ secrets[format('UPSTASH_REDIS_SECRET_ARN_{0}', inputs.environment)] }}
         run: |
           pnpm --filter @workspace/cdk exec cdk deploy \
             "App-${ENV_NAME}" \

@@ -88,6 +88,7 @@ export function DataTableSliderFilter<TData>({
   )
 
   const formatValue = React.useCallback(
+    // hardcoded en-US for SSR consistency
     (value: number) =>
       value.toLocaleString("en-US", { maximumFractionDigits: 0 }),
     [],

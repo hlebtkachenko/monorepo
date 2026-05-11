@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import type { ShaderMount } from "@paper-design/shaders"
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
 
@@ -39,38 +40,41 @@ function LiquidMetalButton({
   ...props
 }: LiquidMetalButtonProps) {
   const shaderRef = React.useRef<HTMLDivElement>(null)
-  const shaderMount = React.useRef<any>(null)
+  const shaderMount = React.useRef<ShaderMount | null>(null)
+  const clickTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  )
   const [isHovered, setIsHovered] = React.useState(false)
 
   useEnsureLiquidMetalStyles()
 
   React.useEffect(() => {
+    let aborted = false
     const loadShader = async () => {
       try {
         const { liquidMetalFragmentShader, ShaderMount } =
           await import("@paper-design/shaders")
-        if (shaderRef.current) {
-          if (shaderMount.current?.destroy) shaderMount.current.destroy()
-          shaderMount.current = new ShaderMount(
-            shaderRef.current,
-            liquidMetalFragmentShader,
-            {
-              u_repetition: 4,
-              u_softness: 0.5,
-              u_shiftRed: 0.3,
-              u_shiftBlue: 0.3,
-              u_distortion: 0,
-              u_contour: 0,
-              u_angle: 45,
-              u_scale: 8,
-              u_shape: 1,
-              u_offsetX: 0.1,
-              u_offsetY: -0.1,
-            },
-            undefined,
-            0.6,
-          )
-        }
+        if (aborted || !shaderRef.current) return
+        if (shaderMount.current?.dispose) shaderMount.current.dispose()
+        shaderMount.current = new ShaderMount(
+          shaderRef.current,
+          liquidMetalFragmentShader,
+          {
+            u_repetition: 4,
+            u_softness: 0.5,
+            u_shiftRed: 0.3,
+            u_shiftBlue: 0.3,
+            u_distortion: 0,
+            u_contour: 0,
+            u_angle: 45,
+            u_scale: 8,
+            u_shape: 1,
+            u_offsetX: 0.1,
+            u_offsetY: -0.1,
+          },
+          undefined,
+          0.6,
+        )
       } catch {
         // shader load failure is non-critical
       }
@@ -78,8 +82,13 @@ function LiquidMetalButton({
 
     loadShader()
     return () => {
-      if (shaderMount.current?.destroy) {
-        shaderMount.current.destroy()
+      aborted = true
+      if (clickTimeoutRef.current !== null) {
+        clearTimeout(clickTimeoutRef.current)
+        clickTimeoutRef.current = null
+      }
+      if (shaderMount.current?.dispose) {
+        shaderMount.current.dispose()
         shaderMount.current = null
       }
     }
@@ -98,7 +107,11 @@ function LiquidMetalButton({
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (shaderMount.current?.setSpeed) {
       shaderMount.current.setSpeed(2.4)
-      setTimeout(() => {
+      if (clickTimeoutRef.current !== null) {
+        clearTimeout(clickTimeoutRef.current)
+      }
+      clickTimeoutRef.current = setTimeout(() => {
+        clickTimeoutRef.current = null
         shaderMount.current?.setSpeed?.(isHovered ? 1 : 0.6)
       }, 300)
     }

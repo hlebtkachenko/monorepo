@@ -141,6 +141,7 @@ export function getCellKey(rowIndex: number, columnId: string): string {
 
 export function parseCellKey(key: string): CellPosition {
   const [r, ...rest] = key.split(":")
+  if (r === undefined) return { rowIndex: -1, columnId: "" }
   return { rowIndex: Number(r), columnId: rest.join(":") }
 }
 

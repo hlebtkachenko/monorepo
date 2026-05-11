@@ -41,6 +41,29 @@ interface EnvEditorProps {
 
 const EMPTY_VARIABLES: EnvVariable[] = []
 
+function unescapeQuotedValue(value: string): string {
+  // Round-trip with toEnvString: unescape \\, \" and \n inside quoted values.
+  let result = ""
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i]
+    if (ch === "\\" && i + 1 < value.length) {
+      const next = value[i + 1]
+      if (next === "n") {
+        result += "\n"
+        i++
+        continue
+      }
+      if (next === '"' || next === "\\") {
+        result += next
+        i++
+        continue
+      }
+    }
+    result += ch
+  }
+  return result
+}
+
 function parseEnvString(content: string): EnvVariable[] {
   const lines = content.split("\n")
   const variables: EnvVariable[] = []
@@ -55,10 +78,10 @@ function parseEnvString(content: string): EnvVariable[] {
     const key = trimmed.slice(0, eqIndex).trim()
     let value = trimmed.slice(eqIndex + 1).trim()
 
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = unescapeQuotedValue(value.slice(1, -1))
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      // single-quoted values are literal (per dotenv convention)
       value = value.slice(1, -1)
     }
 

@@ -18,14 +18,6 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Vertically stacked expandable sections",
     categories: ["disclosure"],
   },
-  "animated-shiny-button": {
-    source: "eldoraui",
-    sourceType: "import",
-    upstream: "https://www.eldoraui.site/docs/components/animated-shiny-button",
-    description:
-      "Button with animated conic-gradient border, shimmer, and glow on hover",
-    categories: ["actions", "effects"],
-  },
   "action-bar": {
     source: "diceui",
     sourceType: "import",
@@ -81,7 +73,7 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Navigation breadcrumb trail with separators",
     categories: ["navigation"],
   },
-  "border-beam-button": {
+  "button-border-beam": {
     source: "cult-ui",
     sourceType: "import",
     upstream: "https://www.cult-ui.com/docs/components/border-beam-button",
@@ -132,10 +124,11 @@ export const registry: Record<string, ComponentMeta> = {
     packages: ["embla-carousel-react"],
   },
   chart: {
-    source: "shadcn",
-    sourceType: "vanilla",
+    source: "shadcn+evilcharts",
+    sourceType: "custom",
     upstream: "https://ui.shadcn.com/docs/components/chart",
-    description: "Data visualization wrapper for recharts",
+    description:
+      "Unified chart component with area, bar/column, line, composed, pie, donut, and radar types. ChartContainer/Tooltip/Legend exported for custom recharts compositions.",
     categories: ["data"],
     packages: ["recharts"],
   },
@@ -285,7 +278,7 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Form label element",
     categories: ["forms"],
   },
-  "liquid-metal-button": {
+  "button-liquid-metal": {
     source: "jolyui",
     sourceType: "import",
     upstream:

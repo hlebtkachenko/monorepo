@@ -153,25 +153,33 @@ import { ComboboxDemo } from "./_components/combobox-demo"
 import { CommandDemo } from "./_components/command-demo"
 import { CalendarDemo } from "./_components/calendar-demo"
 import { CarouselDemo } from "./_components/carousel-demo"
+import {
+  ChartAreaGradient,
+  ChartAreaSolid,
+  ChartAreaStacked,
+  ChartAreaDashed,
+  ChartColumn,
+  ChartColumnStacked,
+  ChartColumnGradient,
+  ChartBarHorizontal,
+  ChartLineDefault,
+  ChartLineWithDots,
+  ChartLineDashed,
+  ChartLineStepped,
+  ChartComposedBarLine,
+  ChartComposedAreaBar,
+  ChartPie,
+  ChartDonut,
+  ChartRadarFilled,
+  ChartRadarLines,
+} from "./_components/chart-demo"
 import { ToggleDemo } from "./_components/toggle-demo"
 import { ToggleGroupDemo } from "./_components/toggle-group-demo"
 import { SonnerDemo } from "./_components/sonner-demo"
 import { ActionBarDemo } from "./_components/action-bar-demo"
 import { Swap, SwapOff, SwapOn } from "@workspace/ui/components/swap"
-import {
-  MoonIcon,
-  SunIcon,
-  Volume2Icon,
-  VolumeOffIcon,
-  ChevronRight as ChevronRightIcon,
-  Sparkles,
-  Zap,
-} from "lucide-react"
-import { AnimatedShinyButton } from "@workspace/ui/components/animated-shiny-button"
-import {
-  BorderBeamButton,
-  BorderBeamIconButton,
-} from "@workspace/ui/components/border-beam-button"
+import { MoonIcon, SunIcon, Volume2Icon, VolumeOffIcon } from "lucide-react"
+import { BorderBeamDemo } from "./_components/border-beam-demo"
 import { LiquidMetalDemo } from "./_components/liquid-metal-demo"
 import { StatefulButtonDemo } from "./_components/stateful-button-demo"
 
@@ -227,39 +235,6 @@ export default function ShowcasePage() {
               Selection toolbar
             </h3>
             <ActionBarDemo />
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== ANIMATEDSHINYBUTTON ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          AnimatedShinyButton
-        </h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Default
-            </h3>
-            <div className="flex flex-wrap items-center gap-4">
-              <AnimatedShinyButton>Get Started</AnimatedShinyButton>
-              <AnimatedShinyButton>
-                <Sparkles className="size-4" />
-                Explore
-              </AnimatedShinyButton>
-              <AnimatedShinyButton>
-                Learn More
-                <ChevronRightIcon className="size-4 transition-transform group-hover:translate-x-1" />
-              </AnimatedShinyButton>
-            </div>
-          </div>
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Custom highlight
-            </h3>
-            <AnimatedShinyButton highlightColor="var(--destructive)">
-              Custom Color
-            </AnimatedShinyButton>
           </div>
         </div>
       </section>
@@ -450,25 +425,17 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== BORDERBEAMBUTTON ==================== */}
+      {/* ==================== BUTTONBORDERBEAM ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          BorderBeamButton
+          ButtonBorderBeam
         </h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
               Variants
             </h3>
-            <div className="flex flex-wrap items-center gap-4">
-              <BorderBeamButton>Default</BorderBeamButton>
-              <BorderBeamButton variant="outline">Outline</BorderBeamButton>
-              <BorderBeamButton variant="secondary">Secondary</BorderBeamButton>
-              <BorderBeamButton variant="destructive">Delete</BorderBeamButton>
-              <BorderBeamIconButton aria-label="Zap">
-                <Zap />
-              </BorderBeamIconButton>
-            </div>
+            <BorderBeamDemo />
           </div>
         </div>
       </section>
@@ -653,6 +620,121 @@ export default function ShowcasePage() {
               4 slides with prev/next
             </h3>
             <CarouselDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CHART ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Chart</h2>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Area — Gradient
+            </h3>
+            <ChartAreaGradient />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Area — Solid
+            </h3>
+            <ChartAreaSolid />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Area — Stacked
+            </h3>
+            <ChartAreaStacked />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Area — Dashed stroke
+            </h3>
+            <ChartAreaDashed />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Column
+            </h3>
+            <ChartColumn />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Column — Stacked
+            </h3>
+            <ChartColumnStacked />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Column — Gradient
+            </h3>
+            <ChartColumnGradient />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Bar — Horizontal
+            </h3>
+            <ChartBarHorizontal />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Line — Default
+            </h3>
+            <ChartLineDefault />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Line — With dots
+            </h3>
+            <ChartLineWithDots />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Line — Dashed
+            </h3>
+            <ChartLineDashed />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Line — Stepped
+            </h3>
+            <ChartLineStepped />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Composed — Bar + Line
+            </h3>
+            <ChartComposedBarLine />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Composed — Area + Bar
+            </h3>
+            <ChartComposedAreaBar />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Pie
+            </h3>
+            <ChartPie />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Donut
+            </h3>
+            <ChartDonut />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Radar — Filled
+            </h3>
+            <ChartRadarFilled />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Radar — Lines
+            </h3>
+            <ChartRadarLines />
           </div>
         </div>
       </section>
@@ -1045,10 +1127,10 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== LIQUIDMETALBUTTON ==================== */}
+      {/* ==================== BUTTONLIQUIDMETAL ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          LiquidMetalButton
+          ButtonLiquidMetal
         </h2>
         <div className="flex flex-col gap-6">
           <div>

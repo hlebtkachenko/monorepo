@@ -17,6 +17,12 @@ export type ChartConfig = Record<
   {
     label?: React.ReactNode
     icon?: React.ComponentType
+    /**
+     * Optional gradient stops per theme. When provided, the ChartStyle emits
+     * `--color-{key}-{N}` CSS vars for each stop. Charts that support gradient
+     * fills (e.g., area, bar with gradient variants) read these stops.
+     */
+    gradient?: Record<keyof typeof THEMES, string[]>
   } & (
     | { color?: string; theme?: never }
     | { color?: never; theme: Record<keyof typeof THEMES, string> }
@@ -66,7 +72,7 @@ function ChartContainer({
         data-chart={chartId}
         className={cn(
           "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-hidden [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector]:outline-hidden [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-surface]:outline-hidden",
-          className
+          className,
         )}
         {...props}
       >
@@ -83,12 +89,34 @@ function ChartContainer({
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme ?? config.color
+    ([, config]) => config.theme ?? config.color ?? config.gradient,
   )
 
   if (!colorConfig.length) {
     return null
   }
+
+  const buildVars = (theme: keyof typeof THEMES) =>
+    colorConfig
+      .flatMap(([key, itemConfig]) => {
+        const lines: string[] = []
+        const color = itemConfig.theme?.[theme] ?? itemConfig.color
+        if (color) {
+          lines.push(`  --color-${key}: ${color};`)
+        }
+        const stops = itemConfig.gradient?.[theme]
+        if (stops?.length) {
+          stops.forEach((stop, i) => {
+            lines.push(`  --color-${key}-${i}: ${stop};`)
+          })
+          if (!color) {
+            // Fallback primary color from first gradient stop
+            lines.push(`  --color-${key}: ${stops[0]};`)
+          }
+        }
+        return lines
+      })
+      .join("\n")
 
   return (
     <style
@@ -97,16 +125,9 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
           .map(
             ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ??
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
+${buildVars(theme as keyof typeof THEMES)}
 }
-`
+`,
           )
           .join("\n"),
       }}
@@ -192,7 +213,7 @@ function ChartTooltipContent({
     <div
       className={cn(
         "grid min-w-32 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl",
-        className
+        className,
       )}
     >
       {!nestLabel ? tooltipLabel : null}
@@ -209,7 +230,7 @@ function ChartTooltipContent({
                 key={index}
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
-                  indicator === "dot" && "items-center"
+                  indicator === "dot" && "items-center",
                 )}
               >
                 {formatter && item?.value !== undefined && item.name ? (
@@ -229,7 +250,7 @@ function ChartTooltipContent({
                               "w-0 border-[1.5px] border-dashed bg-transparent":
                                 indicator === "dashed",
                               "my-0.5": nestLabel && indicator === "dashed",
-                            }
+                            },
                           )}
                           style={
                             {
@@ -243,7 +264,7 @@ function ChartTooltipContent({
                     <div
                       className={cn(
                         "flex flex-1 justify-between leading-none",
-                        nestLabel ? "items-end" : "items-center"
+                        nestLabel ? "items-end" : "items-center",
                       )}
                     >
                       <div className="grid gap-1.5">
@@ -293,7 +314,7 @@ function ChartLegendContent({
       className={cn(
         "flex items-center justify-center gap-4",
         verticalAlign === "top" ? "pb-3" : "pt-3",
-        className
+        className,
       )}
     >
       {payload
@@ -306,7 +327,7 @@ function ChartLegendContent({
             <div
               key={index}
               className={cn(
-                "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
+                "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground",
               )}
             >
               {itemConfig?.icon && !hideIcon ? (
@@ -330,7 +351,7 @@ function ChartLegendContent({
 function getPayloadConfigFromPayload(
   config: ChartConfig,
   payload: unknown,
-  key: string
+  key: string,
 ) {
   if (typeof payload !== "object" || payload === null) {
     return undefined
@@ -363,7 +384,53 @@ function getPayloadConfigFromPayload(
   return configLabelKey in config ? config[configLabelKey] : config[key]
 }
 
+import { ChartArea, type ChartAreaProps } from "./chart-area"
+import { ChartBar, type ChartBarProps } from "./chart-bar"
+import { ChartLine, type ChartLineProps } from "./chart-line"
+import { ChartComposed, type ChartComposedProps } from "./chart-composed"
+import { ChartPie, type ChartPieProps } from "./chart-pie"
+import { ChartRadar, type ChartRadarProps } from "./chart-radar"
+
+type ChartTypeProps<TData extends Record<string, unknown>> =
+  | ({ type: "area" } & ChartAreaProps<TData>)
+  | ({ type: "bar" } & ChartBarProps<TData>)
+  | ({ type: "line" } & ChartLineProps<TData>)
+  | ({ type: "composed" } & ChartComposedProps<TData>)
+  | ({ type: "pie" } & ChartPieProps<TData>)
+  | ({ type: "radar" } & ChartRadarProps<TData>)
+
+function Chart<TData extends Record<string, unknown>>(
+  props: ChartTypeProps<TData>,
+) {
+  if (props.type === "area") {
+    const { type: _type, ...rest } = props
+    return <ChartArea {...rest} />
+  }
+  if (props.type === "bar") {
+    const { type: _type, ...rest } = props
+    return <ChartBar {...rest} />
+  }
+  if (props.type === "line") {
+    const { type: _type, ...rest } = props
+    return <ChartLine {...rest} />
+  }
+  if (props.type === "composed") {
+    const { type: _type, ...rest } = props
+    return <ChartComposed {...rest} />
+  }
+  if (props.type === "pie") {
+    const { type: _type, ...rest } = props
+    return <ChartPie {...rest} />
+  }
+  if (props.type === "radar") {
+    const { type: _type, ...rest } = props
+    return <ChartRadar {...rest} />
+  }
+  return null
+}
+
 export {
+  Chart,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,

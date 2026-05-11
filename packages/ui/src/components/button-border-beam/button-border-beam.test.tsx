@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, it, expect, vi } from "vitest"
-import { BorderBeamButton, BorderBeamIconButton } from "./border-beam-button"
+import { BorderBeamButton, BorderBeamIconButton } from "./button-border-beam"
 
 describe("BorderBeamButton", () => {
   it("renders with text", () => {

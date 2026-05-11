@@ -75,6 +75,15 @@ export const registry: Record<string, ComponentMeta> = {
       "Small label with default, secondary, outline, and destructive variants",
     categories: ["display"],
   },
+  banner: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/banner",
+    description:
+      "Dismissible notification banner with info/success/warning/destructive variants and optional queue manager",
+    categories: ["feedback"],
+    dependencies: ["button"],
+  },
   breadcrumb: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -159,6 +168,14 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["display"],
     dependencies: ["button"],
     packages: ["embla-carousel-react"],
+  },
+  "circular-progress": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/circular-progress",
+    description:
+      "SVG circular progress indicator with track + range, indeterminate state, configurable size and thickness",
+    categories: ["feedback", "display"],
   },
   chart: {
     source: "shadcn+evilcharts",
@@ -368,6 +385,32 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["display", "forms"],
     dependencies: ["button", "input", "textarea"],
   },
+  marquee: {
+    source: "magicui",
+    sourceType: "import",
+    upstream: "https://magicui.design/docs/components/marquee",
+    description:
+      "Horizontal or vertical scrolling marquee with pause-on-hover, reverse, and configurable speed",
+    categories: ["effects"],
+  },
+  "multi-step-loader": {
+    source: "aceternity",
+    sourceType: "import",
+    upstream: "https://ui.aceternity.com/components/multi-step-loader",
+    description:
+      "Full-screen overlay that cycles through ordered loading states with check animations",
+    categories: ["feedback", "effects"],
+    packages: ["motion"],
+  },
+  "noise-background": {
+    source: "aceternity",
+    sourceType: "import",
+    upstream: "https://ui.aceternity.com/components/noise-background",
+    description:
+      "Animated gradient backdrop with SVG turbulence noise overlay, semantic-token defaults, optional backdrop blur",
+    categories: ["effects", "display"],
+    packages: ["motion"],
+  },
   label: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -442,6 +485,14 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["layout"],
     packages: ["react-resizable-panels"],
   },
+  "ring-loader": {
+    source: "loading-ui",
+    sourceType: "import",
+    upstream: "https://loading-ui.com",
+    description:
+      "Lightweight SVG spinning ring indicator with currentColor and --duration override",
+    categories: ["feedback"],
+  },
   "scroll-area": {
     source: "shadcn",
     sourceType: "vanilla",
@@ -501,6 +552,14 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Range slider with draggable thumb",
     categories: ["forms"],
   },
+  "snail-timer": {
+    source: "uicapsule",
+    sourceType: "import",
+    upstream: "https://www.uicapsule.com",
+    description:
+      "Animated countdown timer with a token-themed snail traversing the container, configurable initial seconds",
+    categories: ["feedback"],
+  },
   sonner: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -559,6 +618,14 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/textarea",
     description: "Multi-line text input field",
     categories: ["forms"],
+  },
+  timeline: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/timeline",
+    description:
+      "Vertical/horizontal timeline with active step tracking, connector lines, dot status, and optional alternate layout",
+    categories: ["display"],
   },
   toggle: {
     source: "shadcn",

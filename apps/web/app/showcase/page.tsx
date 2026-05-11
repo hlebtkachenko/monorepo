@@ -194,6 +194,14 @@ import { GaugeDemo } from "./_components/gauge-demo"
 import { KeyValueDemo } from "./_components/key-value-demo"
 import { QRCodeDemo } from "./_components/qr-code-demo"
 import { ColorSwatch } from "@workspace/ui/components/color-swatch"
+import { BannerDemo } from "./_components/banner-demo"
+import { CircularProgressDemo } from "./_components/circular-progress-demo"
+import { MarqueeDemo } from "./_components/marquee-demo"
+import { MultiStepLoaderDemo } from "./_components/multi-step-loader-demo"
+import { NoiseBackgroundDemo } from "./_components/noise-background-demo"
+import { RingLoaderDemo } from "./_components/ring-loader-demo"
+import { SnailTimerDemo } from "./_components/snail-timer-demo"
+import { TimelineDemo } from "./_components/timeline-demo"
 
 export default function ShowcasePage() {
   return (
@@ -419,6 +427,19 @@ export default function ShowcasePage() {
               <Badge variant="ghost">Ghost</Badge>
               <Badge variant="link">Link</Badge>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BANNER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Banner</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Variants with actions
+            </h3>
+            <BannerDemo />
           </div>
         </div>
       </section>
@@ -790,6 +811,21 @@ export default function ShowcasePage() {
               Radar — Lines
             </h3>
             <ChartRadarLines />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== CIRCULARPROGRESS ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          CircularProgress
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Loading, complete, indeterminate, custom color
+            </h3>
+            <CircularProgressDemo />
           </div>
         </div>
       </section>
@@ -1319,6 +1355,19 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== MARQUEE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Marquee</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Pause on hover, reverse, custom speed
+            </h3>
+            <MarqueeDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== MENUBAR ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Menubar</h2>
@@ -1375,6 +1424,21 @@ export default function ShowcasePage() {
                 </MenubarContent>
               </MenubarMenu>
             </Menubar>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== MULTISTEPLOADER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          MultiStepLoader
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Full-screen overlay with check-icon sequence
+            </h3>
+            <MultiStepLoaderDemo />
           </div>
         </div>
       </section>
@@ -1450,6 +1514,21 @@ export default function ShowcasePage() {
                 </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== NOISEBACKGROUND ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          NoiseBackground
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Animated gradients with SVG noise overlay
+            </h3>
+            <NoiseBackgroundDemo />
           </div>
         </div>
       </section>
@@ -1574,6 +1653,21 @@ export default function ShowcasePage() {
               Two-panel horizontal layout
             </h3>
             <ResizableDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== RINGLOADER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          RingLoader
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes, colors, custom --duration
+            </h3>
+            <RingLoaderDemo />
           </div>
         </div>
       </section>
@@ -1704,6 +1798,21 @@ export default function ShowcasePage() {
               Values
             </h3>
             <SliderDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== SNAILTIMER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          SnailTimer
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              30-second countdown with token-themed SVG snail
+            </h3>
+            <SnailTimerDemo />
           </div>
         </div>
       </section>
@@ -1974,6 +2083,19 @@ export default function ShowcasePage() {
             <div className="max-w-sm">
               <Textarea placeholder="Read-only content" disabled />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== TIMELINE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Timeline</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Vertical timeline with active step
+            </h3>
+            <TimelineDemo />
           </div>
         </div>
       </section>

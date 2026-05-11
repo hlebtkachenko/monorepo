@@ -1,0 +1,148 @@
+# NOTE on path-filtering: required-status-check rules + path filters on a
+# workflow trigger create stuck PRs (skipped checks read as "missing" to the
+# rule engine). This workflow is ADVISORY (continue-on-error on the job level
+# is not supported for service containers; advisory status is tracked via the
+# workflow-level check not being marked required in branch protection).
+# Flip to required in branch protection after first green PR cycle.
+
+name: DB tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: db-tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  smoke:
+    name: Static checks (no postgres)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+
+      - name: Verify migration filename pattern (NNNN_<snake>.sql)
+        run: |
+          set -euo pipefail
+          bad=()
+          for f in packages/db/migrations/*.sql; do
+            base=$(basename "$f")
+            if ! echo "$base" | grep -qE '^[0-9]{4}_[a-z][a-z0-9_]*\.sql$'; then
+              bad+=("$base")
+            fi
+          done
+          if [ ${#bad[@]} -gt 0 ]; then
+            echo "::error::Migration filenames do not match pattern NNNN_<snake>.sql:"
+            printf '  %s\n' "${bad[@]}"
+            exit 1
+          fi
+          echo "All migration filenames OK"
+
+      - name: Verify all migration files end in .sql
+        run: |
+          set -euo pipefail
+          non_sql=$(find packages/db/migrations -maxdepth 1 -type f ! -name "*.sql" ! -name "_journal.json" 2>/dev/null || true)
+          if [ -n "$non_sql" ]; then
+            echo "::error::Non-.sql files found in migrations/:"
+            echo "$non_sql"
+            exit 1
+          fi
+          echo "All migration files are .sql"
+
+      - name: Verify no lac_ prefix strings in db/observability source
+        run: |
+          set -euo pipefail
+          matches=$(grep -rn 'lac_' \
+            packages/db/src/ \
+            packages/observability/src/ \
+            2>/dev/null || true)
+          if [ -n "$matches" ]; then
+            echo "::error::Found lac_ prefix in source (port residue):"
+            echo "$matches"
+            exit 1
+          fi
+          echo "No lac_ strings found"
+
+      - name: Verify drizzle-kit journal is absent or empty
+        run: |
+          set -euo pipefail
+          journal="packages/db/migrations/meta/_journal.json"
+          if [ -f "$journal" ]; then
+            entries=$(node -e "
+              const j = JSON.parse(require('fs').readFileSync('$journal', 'utf8'));
+              console.log((j.entries ?? []).length);
+            ")
+            if [ "$entries" -gt 0 ]; then
+              echo "::error::$journal has $entries entries — drizzle-kit generate/push is forbidden (ADR-0009). Remove meta/ or wipe entries."
+              exit 1
+            fi
+          fi
+          echo "Journal check passed"
+
+  integration:
+    name: Migration + vitest (postgres 18)
+    runs-on: ubuntu-latest
+    continue-on-error: true  # ADVISORY — flip to required after first green run
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: ./.github/actions/setup
+
+      - name: Wait for postgres
+        run: |
+          set -euo pipefail
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres; do
+            echo "waiting for postgres..."
+            sleep 2
+          done
+
+      - name: Bootstrap roles and default privileges
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          for f in infra/compose/postgres/init.d/*.sql; do
+            echo "Applying $f"
+            psql -h 127.0.0.1 -p 5432 -U postgres -f "$f"
+          done
+
+      - name: Apply migrations
+        env:
+          DATABASE_DIRECT_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
+          DATABASE_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
+        run: pnpm --filter @workspace/db db:migrate
+
+      - name: Run vitest tests
+        env:
+          SKIP_TESTCONTAINER: "true"
+          DATABASE_DIRECT_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
+          DATABASE_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
+        run: pnpm --filter @workspace/db test

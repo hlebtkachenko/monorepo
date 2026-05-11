@@ -2,12 +2,7 @@
 
 import * as React from "react"
 import { AnimatePresence, motion } from "motion/react"
-import {
-  CheckCircle2Icon,
-  CircleDashedIcon,
-  XCircleIcon,
-  XIcon,
-} from "lucide-react"
+import { CheckCircle2Icon, XCircleIcon } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
@@ -35,28 +30,15 @@ function StepRow({
   state,
   index,
   value,
-  isFinal,
-  finalStatus,
 }: {
   state: LoadingState
   index: number
   value: number
-  isFinal: boolean
-  finalStatus: FinalStatus
 }) {
   const distance = Math.abs(index - value)
   const opacity = Math.max(1 - distance * 0.2, 0)
   const isCurrent = index === value
-  const isDone = index < value || isFinal
-  const isLastInFinal = isFinal && index === value
-
-  const iconColor = isLastInFinal
-    ? finalStatus === "success"
-      ? "text-success"
-      : "text-destructive"
-    : isCurrent
-      ? "text-primary"
-      : "text-foreground"
+  const isDone = index < value
 
   return (
     <motion.div
@@ -67,29 +49,21 @@ function StepRow({
       transition={{ duration: 0.5 }}
     >
       <div>
-        {isLastInFinal && finalStatus === "failed" ? (
-          <XCircleIcon className={cn("size-6", iconColor)} />
-        ) : isDone || isCurrent ? (
-          <CheckCircle2Icon
-            className={cn("size-6", iconColor)}
-            fill="currentColor"
-            stroke="var(--background)"
-            strokeWidth={2}
-          />
-        ) : (
-          <CircleDashedIcon className="size-6 text-muted-foreground" />
-        )}
+        <CheckCircle2Icon
+          className={cn(
+            "size-6",
+            isDone || isCurrent ? "text-foreground" : "text-muted-foreground",
+          )}
+          fill={isDone || isCurrent ? "currentColor" : "none"}
+          stroke={isDone || isCurrent ? "var(--background)" : "currentColor"}
+          strokeWidth={2}
+        />
       </div>
       <span
         className={cn(
           "text-foreground",
-          isCurrent && !isFinal && "font-medium text-primary",
-          isLastInFinal &&
-            finalStatus === "success" &&
-            "font-medium text-success",
-          isLastInFinal &&
-            finalStatus === "failed" &&
-            "font-medium text-destructive",
+          !isDone && !isCurrent && "text-muted-foreground",
+          isCurrent && "font-medium",
         )}
       >
         {state.text}
@@ -98,51 +72,53 @@ function StepRow({
   )
 }
 
-function FinalBanner({ status }: { status: FinalStatus }) {
-  if (status === "success") {
-    return (
-      <div className="mb-6 flex items-center justify-center gap-2 text-lg font-semibold text-success">
+function FinalIndicator({ status }: { status: FinalStatus }) {
+  const isSuccess = status === "success"
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
+      className="flex flex-col items-center justify-center gap-3"
+    >
+      {isSuccess ? (
         <CheckCircle2Icon
-          className="size-6"
+          className="size-14 text-success"
           fill="currentColor"
           stroke="var(--background)"
           strokeWidth={2}
         />
-        Successful
-      </div>
-    )
-  }
-  return (
-    <div className="mb-6 flex items-center justify-center gap-2 text-lg font-semibold text-destructive">
-      <XCircleIcon className="size-6" />
-      Failed
-    </div>
+      ) : (
+        <XCircleIcon
+          className="size-14 text-destructive"
+          fill="currentColor"
+          stroke="var(--background)"
+          strokeWidth={2}
+        />
+      )}
+      <p
+        className={cn(
+          "text-2xl font-semibold",
+          isSuccess ? "text-success" : "text-destructive",
+        )}
+      >
+        {isSuccess ? "Successful" : "Failed"}
+      </p>
+    </motion.div>
   )
 }
 
 function LoaderCore({
   loadingStates,
   value,
-  isFinal,
-  finalStatus,
 }: {
   loadingStates: LoadingState[]
   value: number
-  isFinal: boolean
-  finalStatus: FinalStatus
 }) {
   return (
     <div className="relative mx-auto mt-40 flex max-w-xl flex-col justify-start">
-      {isFinal && <FinalBanner status={finalStatus} />}
       {loadingStates.map((state, index) => (
-        <StepRow
-          key={index}
-          state={state}
-          index={index}
-          value={value}
-          isFinal={isFinal}
-          finalStatus={finalStatus}
-        />
+        <StepRow key={index} state={state} index={index} value={value} />
       ))}
     </div>
   )
@@ -180,7 +156,6 @@ function MultiStepLoader({
     const reachedEnd = currentState >= lastIndex
 
     if (!loop && reachedEnd) {
-      // Hold on the last step briefly, then flip to the final state.
       const holdId = setTimeout(() => setIsFinal(true), duration)
       return () => clearTimeout(holdId)
     }
@@ -219,21 +194,20 @@ function MultiStepLoader({
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="sm"
               onClick={() => onClose()}
               aria-label="Close loader"
               className="absolute top-4 right-4 z-30"
             >
-              <XIcon />
+              Close
             </Button>
           )}
-          <div className="relative h-96">
-            <LoaderCore
-              value={currentState}
-              loadingStates={loadingStates}
-              isFinal={isFinal}
-              finalStatus={finalStatus}
-            />
+          <div className="relative flex h-96 items-center justify-center">
+            {isFinal ? (
+              <FinalIndicator status={finalStatus} />
+            ) : (
+              <LoaderCore value={currentState} loadingStates={loadingStates} />
+            )}
           </div>
           <div
             aria-hidden

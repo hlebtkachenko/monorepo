@@ -1,2 +1,7 @@
-export { Resend } from 'resend';
-export { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+export {
+  sendEmail,
+  getTransport,
+  type EmailMessage,
+  type EmailTransport,
+} from "./transport"
+export { passwordResetEmail, verifyEmailEmail } from "./templates"

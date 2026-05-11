@@ -3,6 +3,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { admin, twoFactor } from "better-auth/plugins"
 import { db } from "@workspace/db/client"
 import * as schema from "@workspace/db/schema"
+import {
+  sendEmail,
+  passwordResetEmail,
+  verifyEmailEmail,
+} from "@workspace/email"
 
 /**
  * Better Auth server instance.
@@ -38,6 +43,14 @@ export const auth = betterAuth({
     autoSignIn: false,
     minPasswordLength: 12,
     maxPasswordLength: 128,
+    sendResetPassword: async ({ user, url }) => {
+      await sendEmail(passwordResetEmail({ to: user.email, url }))
+    },
+  },
+  emailVerification: {
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail(verifyEmailEmail({ to: user.email, url }))
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 days

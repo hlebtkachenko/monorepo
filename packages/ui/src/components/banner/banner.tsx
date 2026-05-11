@@ -10,6 +10,7 @@ import { Button } from "@workspace/ui/components/button"
 import { useAsRef } from "@workspace/ui/hooks/use-as-ref"
 import { useLazyRef } from "@workspace/ui/hooks/use-lazy-ref"
 import { cn } from "@workspace/ui/lib/utils"
+import { makeId } from "@workspace/ui/lib/id"
 
 const BANNER_ANIMATION_DURATION = 400
 const DEFAULT_BANNER_PRIORITY = 0
@@ -139,7 +140,7 @@ function Banners({
         for (const listener of listenersRef.current) listener()
       },
       onBannerAdd: (banner) => {
-        const id = crypto.randomUUID()
+        const id = makeId("banner")
         const newBanner: BannerData = { ...banner, id }
         const priority = banner.priority ?? DEFAULT_BANNER_PRIORITY
         const banners = [...stateRef.current.banners]

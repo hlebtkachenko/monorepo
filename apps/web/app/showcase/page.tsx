@@ -1,4 +1,5 @@
 import { ThemeToggle } from "@/components/theme-toggle"
+import { ScrollToTop } from "./_components/scroll-to-top"
 import { AlertCircle, Inbox, Search } from "lucide-react"
 
 import {
@@ -219,6 +220,7 @@ import { FloatingPanelDemo } from "./_components/floating-panel-demo"
 import { PdfViewerDemo } from "./_components/pdf-viewer-demo"
 import { PromptLibraryDemo } from "./_components/prompt-library-demo"
 import { TourDemo } from "./_components/tour-demo"
+import { SidebarDemo } from "./_components/sidebar-demo"
 
 export default function ShowcasePage() {
   return (
@@ -505,7 +507,7 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== BOTTOMNAVIGATION ==================== */}
+      {/* ==================== NAVIGATIONBOTTOMMOBILE ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
           NavigationBottomMobile
@@ -2004,6 +2006,19 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== SIDEBAR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Sidebar</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Collapsible sidebar with menu, header, and footer
+            </h3>
+            <SidebarDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== SKELETON ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Skeleton</h2>
@@ -2419,6 +2434,7 @@ export default function ShowcasePage() {
           </div>
         </div>
       </section>
+      <ScrollToTop />
     </div>
   )
 }

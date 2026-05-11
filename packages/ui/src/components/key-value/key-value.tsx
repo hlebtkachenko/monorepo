@@ -11,6 +11,7 @@ import { useAsRef } from "@workspace/ui/hooks/use-as-ref"
 import { useIsomorphicLayoutEffect } from "@workspace/ui/hooks/use-isomorphic-layout-effect"
 import { useLazyRef } from "@workspace/ui/hooks/use-lazy-ref"
 import { cn } from "@workspace/ui/lib/utils"
+import { makeId } from "@workspace/ui/lib/id"
 
 const ROOT_NAME = "KeyValue"
 const LIST_NAME = "KeyValueList"
@@ -181,7 +182,7 @@ function KeyValue({
   const listenersRef = useLazyRef(() => new Set<() => void>())
   const stateRef = useLazyRef<KeyValueState>(() => ({
     value: valueProp ??
-      defaultValue ?? [{ id: crypto.randomUUID(), key: "", value: "" }],
+      defaultValue ?? [{ id: makeId("kv"), key: "", value: "" }],
     focusedId: null,
     errors: {},
   }))
@@ -473,7 +474,7 @@ function KeyValueKeyInput({
             context.stripQuotes,
           )
         }
-        if (key) parsed.push({ id: crypto.randomUUID(), key, value })
+        if (key) parsed.push({ id: makeId("kv"), key, value })
       }
       if (parsed.length === 0) return
 
@@ -709,7 +710,7 @@ function KeyValueAdd({
         state.value.length >= context.maxItems
       )
         return
-      const newItem: ItemData = { id: crypto.randomUUID(), key: "", value: "" }
+      const newItem: ItemData = { id: makeId("kv"), key: "", value: "" }
       store.setState("value", [...state.value, newItem])
       store.setState("focusedId", newItem.id)
       context.onAdd?.(newItem)

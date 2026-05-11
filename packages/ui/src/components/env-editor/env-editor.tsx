@@ -5,7 +5,26 @@ import { Download, Eye, EyeOff, Plus, Trash2, Upload } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
+import { makeId } from "@workspace/ui/lib/id"
 import { cn } from "@workspace/ui/lib/utils"
+
+interface EnvVariableEntry {
+  id: string
+  key: string
+  value: string
+}
+
+function withIds(variables: ReadonlyArray<EnvVariable>): EnvVariableEntry[] {
+  return variables.map((v) => ({
+    id: makeId("env"),
+    key: v.key,
+    value: v.value,
+  }))
+}
+
+function stripIds(entries: ReadonlyArray<EnvVariableEntry>): EnvVariable[] {
+  return entries.map(({ key, value }) => ({ key, value }))
+}
 
 interface EnvVariable {
   key: string
@@ -78,56 +97,61 @@ function EnvEditor({
   masked: defaultMasked = true,
   className,
 }: EnvEditorProps) {
-  const [variables, setVariables] = React.useState<EnvVariable[]>(value)
-  const [maskedIndices, setMaskedIndices] = React.useState<Set<number>>(
-    () => new Set(value.map((_, i) => i)),
+  const [entries, setEntries] = React.useState<EnvVariableEntry[]>(() =>
+    withIds(value),
+  )
+  const [maskedIds, setMaskedIds] = React.useState<Set<string>>(
+    () => new Set(entries.map((e) => e.id)),
   )
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
-    setVariables(value)
+    const nextEntries = withIds(value)
+    setEntries(nextEntries)
     if (defaultMasked) {
-      setMaskedIndices(new Set(value.map((_, i) => i)))
+      setMaskedIds(new Set(nextEntries.map((e) => e.id)))
     }
   }, [value, defaultMasked])
 
+  const commit = React.useCallback(
+    (updated: EnvVariableEntry[]) => {
+      setEntries(updated)
+      onChange?.(stripIds(updated))
+    },
+    [onChange],
+  )
+
   const handleAdd = React.useCallback(() => {
-    const updated = [...variables, { key: "", value: "" }]
-    setVariables(updated)
-    onChange?.(updated)
-  }, [variables, onChange])
+    commit([...entries, { id: makeId("env"), key: "", value: "" }])
+  }, [entries, commit])
 
   const handleRemove = React.useCallback(
-    (index: number) => {
-      const updated = variables.filter((_, i) => i !== index)
-      setVariables(updated)
-      onChange?.(updated)
+    (id: string) => {
+      commit(entries.filter((e) => e.id !== id))
     },
-    [variables, onChange],
+    [entries, commit],
   )
 
   const handleChange = React.useCallback(
-    (index: number, field: "key" | "value", newValue: string) => {
-      const updated = variables.map((v, i) =>
-        i === index ? { ...v, [field]: newValue } : v,
+    (id: string, field: "key" | "value", newValue: string) => {
+      commit(
+        entries.map((e) => (e.id === id ? { ...e, [field]: newValue } : e)),
       )
-      setVariables(updated)
-      onChange?.(updated)
     },
-    [variables, onChange],
+    [entries, commit],
   )
 
-  const toggleMask = React.useCallback((index: number) => {
-    setMaskedIndices((prev) => {
+  const toggleMask = React.useCallback((id: string) => {
+    setMaskedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(index)) next.delete(index)
-      else next.add(index)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }, [])
 
   const handleExport = React.useCallback(() => {
-    const content = toEnvString(variables)
+    const content = toEnvString(stripIds(entries))
     const blob = new Blob([content], { type: "text/plain" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -135,7 +159,7 @@ function EnvEditor({
     a.download = ".env"
     a.click()
     URL.revokeObjectURL(url)
-  }, [variables])
+  }, [entries])
 
   const handleImport = React.useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,11 +169,11 @@ function EnvEditor({
       const reader = new FileReader()
       reader.onload = (evt) => {
         const content = evt.target?.result as string
-        const parsed = parseEnvString(content)
-        setVariables(parsed)
-        onChange?.(parsed)
+        const parsed = withIds(parseEnvString(content))
+        setEntries(parsed)
+        onChange?.(stripIds(parsed))
         if (defaultMasked) {
-          setMaskedIndices(new Set(parsed.map((_, i) => i)))
+          setMaskedIds(new Set(parsed.map((p) => p.id)))
         }
       }
       reader.readAsText(file)
@@ -201,16 +225,16 @@ function EnvEditor({
       </div>
 
       <div className="divide-y divide-border">
-        {variables.map((variable, index) => (
+        {entries.map((entry) => (
           <div
-            key={index}
+            key={entry.id}
             className="flex items-center gap-2 px-3 py-2"
             role="row"
           >
             <Input
               type="text"
-              value={variable.key}
-              onChange={(e) => handleChange(index, "key", e.target.value)}
+              value={entry.key}
+              onChange={(e) => handleChange(entry.id, "key", e.target.value)}
               placeholder="KEY"
               readOnly={readOnly}
               aria-label="Variable name"
@@ -221,31 +245,33 @@ function EnvEditor({
             </span>
             <div className="flex flex-[2] items-center gap-1">
               <Input
-                type={maskedIndices.has(index) ? "password" : "text"}
-                value={variable.value}
-                onChange={(e) => handleChange(index, "value", e.target.value)}
+                type={maskedIds.has(entry.id) ? "password" : "text"}
+                value={entry.value}
+                onChange={(e) =>
+                  handleChange(entry.id, "value", e.target.value)
+                }
                 placeholder="value"
                 readOnly={readOnly}
-                aria-label={`Value for ${variable.key || "variable"}`}
+                aria-label={`Value for ${entry.key || "variable"}`}
                 className="flex-1 font-mono"
               />
               <Button
                 variant="ghost"
                 size="icon-xs"
-                onClick={() => toggleMask(index)}
+                onClick={() => toggleMask(entry.id)}
                 aria-label={
-                  maskedIndices.has(index) ? "Show value" : "Hide value"
+                  maskedIds.has(entry.id) ? "Show value" : "Hide value"
                 }
-                aria-pressed={maskedIndices.has(index)}
+                aria-pressed={maskedIds.has(entry.id)}
               >
-                {maskedIndices.has(index) ? <Eye /> : <EyeOff />}
+                {maskedIds.has(entry.id) ? <Eye /> : <EyeOff />}
               </Button>
               {!readOnly && (
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  onClick={() => handleRemove(index)}
-                  aria-label={`Remove ${variable.key || "variable"}`}
+                  onClick={() => handleRemove(entry.id)}
+                  aria-label={`Remove ${entry.key || "variable"}`}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 />
@@ -255,7 +281,7 @@ function EnvEditor({
           </div>
         ))}
 
-        {variables.length === 0 && (
+        {entries.length === 0 && (
           <div className="px-3 py-4 text-center text-sm text-muted-foreground">
             No environment variables
           </div>

@@ -1,7 +1,5 @@
 "use client"
 
-/* eslint-disable react-hooks/immutability */
-
 import * as React from "react"
 import {
   FileArchiveIcon,
@@ -390,6 +388,9 @@ function FileUpload(props: FileUploadProps) {
     return {
       getState: () => state,
       dispatch: (action) => {
+        // Internal store mutation: `state` is closure-scoped store state, not
+        // React state. Listeners pull fresh state via getState() after dispatch.
+        // eslint-disable-next-line react-hooks/immutability
         state = reducer(state, action)
         for (const listener of listeners) {
           listener()
@@ -528,9 +529,7 @@ function FileUpload(props: FileUploadProps) {
         if (propsRef.current.onFileValidate) {
           const validationMessage = propsRef.current.onFileValidate(file)
           if (validationMessage) {
-            rejectionMessage = validationMessage
-            propsRef.current.onFileReject?.(file, rejectionMessage)
-            rejected = true
+            propsRef.current.onFileReject?.(file, validationMessage)
             invalid = true
             continue
           }
@@ -772,6 +771,8 @@ function FileUploadDropzone(props: FileUploadDropzoneProps) {
   )
 
   const onDrop = React.useCallback(
+    // Programmatic FileList assignment on the native input requires DOM mutation.
+    // eslint-disable-next-line react-hooks/immutability
     (event: React.DragEvent<HTMLDivElement>) => {
       propsRef.current.onDrop?.(event)
 
@@ -789,6 +790,9 @@ function FileUploadDropzone(props: FileUploadDropzoneProps) {
         dataTransfer.items.add(file)
       }
 
+      // Programmatically populating the native file input requires direct DOM
+      // mutation; this is the only supported browser API for the pattern.
+      // eslint-disable-next-line react-hooks/immutability
       inputElement.files = dataTransfer.files
       inputElement.dispatchEvent(new Event("change", { bubbles: true }))
     },
@@ -796,6 +800,8 @@ function FileUploadDropzone(props: FileUploadDropzoneProps) {
   )
 
   const onPaste = React.useCallback(
+    // Programmatic FileList assignment on the native input requires DOM mutation.
+    // eslint-disable-next-line react-hooks/immutability
     (event: React.ClipboardEvent<HTMLDivElement>) => {
       propsRef.current.onPaste?.(event)
 
@@ -828,6 +834,9 @@ function FileUploadDropzone(props: FileUploadDropzoneProps) {
         dataTransfer.items.add(file)
       }
 
+      // Programmatically populating the native file input requires direct DOM
+      // mutation; this is the only supported browser API for the pattern.
+      // eslint-disable-next-line react-hooks/immutability
       inputElement.files = dataTransfer.files
       inputElement.dispatchEvent(new Event("change", { bubbles: true }))
     },

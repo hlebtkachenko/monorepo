@@ -5,6 +5,7 @@ import { LibraryIcon, PlusSignIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 
 import { cn } from "@workspace/ui/lib/utils"
+import { makeId } from "@workspace/ui/lib/id"
 import { Button } from "@workspace/ui/components/button"
 import {
   Command,
@@ -126,7 +127,7 @@ function PromptLibrary({
     (prompt: Omit<Prompt, "id" | "isCustom">) => {
       const newPrompt: Prompt = {
         ...prompt,
-        id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        id: makeId("custom"),
         isCustom: true,
       }
       if (controlledPrompts) {

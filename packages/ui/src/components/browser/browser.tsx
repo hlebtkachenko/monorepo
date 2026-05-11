@@ -102,26 +102,34 @@ const DEFAULT_BOOKMARKS: Bookmark[] = [
   },
 ]
 
-const DEFAULT_HISTORY: HistoryItem[] = [
+// Hour offsets for default history timestamps; resolved lazily inside the
+// component to avoid Date.now() running at module scope (SSR hydration drift).
+const DEFAULT_HISTORY_OFFSETS_MS: ReadonlyArray<{
+  id: string
+  title: string
+  url: string
+  offsetMs: number
+  favicon: string
+}> = [
   {
     id: "1",
     title: "Google",
     url: "https://www.google.com",
-    timestamp: new Date(Date.now() - 3_600_000),
+    offsetMs: 3_600_000,
     favicon: "🔍",
   },
   {
     id: "2",
     title: "GitHub",
     url: "https://github.com",
-    timestamp: new Date(Date.now() - 7_200_000),
+    offsetMs: 7_200_000,
     favicon: "🐙",
   },
   {
     id: "3",
     title: "Stack Overflow",
     url: "https://stackoverflow.com",
-    timestamp: new Date(Date.now() - 10_800_000),
+    offsetMs: 10_800_000,
     favicon: "📚",
   },
 ]
@@ -188,7 +196,20 @@ function Browser({
   const [isDownloading, setIsDownloading] = React.useState(false)
 
   const bookmarks = customBookmarks ?? DEFAULT_BOOKMARKS
-  const history = customHistory ?? DEFAULT_HISTORY
+  // Resolving Date.now() inside useMemo (not module scope) is intentional:
+  // module-scope evaluation would drift between SSR and CSR.
+  // eslint-disable-next-line react-hooks/purity
+  const defaultHistory = React.useMemo<HistoryItem[]>(() => {
+    const now = Date.now()
+    return DEFAULT_HISTORY_OFFSETS_MS.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      timestamp: new Date(now - item.offsetMs),
+      favicon: item.favicon,
+    }))
+  }, [])
+  const history = customHistory ?? defaultHistory
 
   const activeTab = tabs.find((t) => t.isActive)
 
@@ -259,12 +280,17 @@ function Browser({
       const nextIndex = Math.min(tabIndex, remaining.length - 1)
       const next = remaining[nextIndex]
       if (next) {
-        next.isActive = true
         setCurrentUrl(next.url)
         setInputUrl(next.url)
       }
+      setTabs(
+        remaining.map((t, i) =>
+          i === nextIndex ? { ...t, isActive: true } : t,
+        ),
+      )
+    } else {
+      setTabs(remaining)
     }
-    setTabs(remaining)
     onTabClose?.(tabId)
   }
 

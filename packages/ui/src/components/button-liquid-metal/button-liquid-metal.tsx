@@ -8,6 +8,28 @@ type ButtonProps = React.ComponentProps<typeof Button>
 
 interface LiquidMetalButtonProps extends ButtonProps {}
 
+const LIQUID_METAL_STYLE_ID = "liquid-metal-shader-style"
+const LIQUID_METAL_STYLE_CONTENT =
+  ".liquid-metal-shader canvas { width: 100% !important; height: 100% !important; display: block !important; position: absolute !important; inset: 0 !important; border-radius: inherit !important; }"
+
+let liquidMetalStylesInjected = false
+
+function useEnsureLiquidMetalStyles() {
+  React.useInsertionEffect(() => {
+    if (liquidMetalStylesInjected) return
+    if (typeof document === "undefined") return
+    if (document.getElementById(LIQUID_METAL_STYLE_ID)) {
+      liquidMetalStylesInjected = true
+      return
+    }
+    const style = document.createElement("style")
+    style.id = LIQUID_METAL_STYLE_ID
+    style.textContent = LIQUID_METAL_STYLE_CONTENT
+    document.head.appendChild(style)
+    liquidMetalStylesInjected = true
+  }, [])
+}
+
 function LiquidMetalButton({
   className,
   children,
@@ -20,15 +42,9 @@ function LiquidMetalButton({
   const shaderMount = React.useRef<any>(null)
   const [isHovered, setIsHovered] = React.useState(false)
 
-  React.useEffect(() => {
-    const styleId = "liquid-metal-shader-style"
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement("style")
-      style.id = styleId
-      style.textContent = `.liquid-metal-shader canvas { width: 100% !important; height: 100% !important; display: block !important; position: absolute !important; inset: 0 !important; border-radius: inherit !important; }`
-      document.head.appendChild(style)
-    }
+  useEnsureLiquidMetalStyles()
 
+  React.useEffect(() => {
     const loadShader = async () => {
       try {
         const { liquidMetalFragmentShader, ShaderMount } =

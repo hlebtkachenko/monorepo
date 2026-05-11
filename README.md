@@ -66,14 +66,43 @@ Components are placed in `packages/ui/src/components/`. After adding, create the
 import { Button } from "@workspace/ui/components/button"
 ```
 
+## Full Stack Quick Start (TBA)
+
+Once backend packages are implemented:
+
+```bash
+pnpm install
+pnpm bootstrap:env                                   # hydrate .env from infra/env.example + SOPS
+docker compose -f infra/compose/docker-compose.dev.yml up -d
+pnpm --filter @workspace/db migrate
+pnpm seed:dev
+pnpm dev                                             # all services
+```
+
+Requires `sops` on PATH and age private key at `~/.config/sops/age/keys.txt`.
+
 ## Stack
 
 - Next.js 16 + Turbopack
+- NestJS API (separate backend)
 - React 19
 - Tailwind CSS v4
 - shadcn/ui + Radix UI
 - TypeScript 6
-- Turborepo
-- pnpm workspaces
+- PostgreSQL 18 + Drizzle ORM (FORCE RLS)
+- Better Auth + Drizzle adapter
+- Anthropic TypeScript SDK direct
+- pg-boss background jobs (7 lanes)
+- Turborepo + pnpm workspaces
 - Storybook 10
-- Vitest 4 + React Testing Library
+- Vitest 4 + Playwright + React Testing Library
+- pino + OpenTelemetry
+- AWS (ECS Fargate + RDS + S3)
+
+## Documentation
+
+- [`AGENTS.md`](AGENTS.md): project rules for AI agents and contributors
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): system architecture overview
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): workflow and contribution rules
+- [`CHANGELOG.md`](CHANGELOG.md): release notes
+- [`docs/adr/`](docs/adr/): architecture decision records

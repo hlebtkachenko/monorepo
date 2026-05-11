@@ -1,28 +1,19 @@
-All Rights Reserved
+All Rights Reserved.
 
-Copyright (c) 2026 Hleb Tkachenko
+Copyright (c) 2026 Hleb Tkachenko.
 
-This source code is proprietary and confidential. The repository is hosted
-publicly only as a temporary measure to use GitHub Actions free-tier compute
-during pre-production development.
+This software is provided as a closed beta to a private cohort. No license is granted to
+copy, modify, distribute, sublicense, or use the software outside of the closed beta cohort
+without prior written permission from the copyright holder.
 
-No license is granted, expressly or by implication, to any third party. You
-may NOT:
+The software is provided "as is", without warranty of any kind, express or implied,
+including but not limited to the warranties of merchantability, fitness for a particular
+purpose, and noninfringement. In no event shall the authors or copyright holders be liable
+for any claim, damages, or other liability, whether in an action of contract, tort, or
+otherwise, arising from, out of, or in connection with the software or the use or other
+dealings in the software.
 
-  - copy, redistribute, or republish this code or any substantial portion;
-  - create derivative works;
-  - use this code in any product, service, or research output;
-  - claim authorship or ownership of any part.
-
-You MAY view the source for the limited purpose of evaluating the project.
-
-Forking is permitted by GitHub's Terms of Service for the purpose of
-contributing back via pull request, but no rights to the forked code are
-granted beyond that. Forks must remain private (set repository visibility
-to private after forking) or be deleted.
-
-This notice supersedes any default GitHub repository license assumption.
-The repository will be set to private visibility once the project enters
-production. At that time, this notice continues to apply.
+The open-source licensing decision is deferred to a post-v1 milestone. Until that decision
+is made, this notice governs.
 
 For licensing inquiries: g1053015@icloud.com

@@ -65,6 +65,25 @@ Current custom checks:
 - Validate at system boundaries only
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
 
+## Domain Rules
+
+- All amounts in CZK by default. Stored as `numeric(19, 4)` in Postgres and `bigint` minor units in TypeScript via `Money<Currency>`. Never use native `number` for money fields.
+- Cross-currency conversion uses `FxRate<From, To>`. Call `FxRate.convert(money)` only. Never query rate tables directly; never auto-invert; never substitute a neighbor date.
+- AI tool input schemas must NOT declare `organization_id`, `user_id`, or `role`. Server-side injection is the only path.
+- PostgreSQL 18 uses snake_case for tables and columns. No abbreviated prefixes (`acc_`, `inv_`); full words only (`account_`, `invoice_`).
+- Multi-tenant isolation via FORCE RLS. Every tenant-scoped table has `organization_id` + pgPolicy using `current_setting('app.organization_id')`.
+- Test-only HTTP endpoints must gate on `NODE_ENV !== 'production'` + explicit env flag check.
+
+## Multi-tenant Isolation
+
+Three tiers (see `ARCHITECTURE.md` for full detail):
+
+1. **Global**: identity, permissions (no scoping)
+2. **Workspace**: accountant's office (GUC `app.workspace_id`)
+3. **Organization**: client book (GUC `app.organization_id`)
+
+All reads/writes go through `withWorkspace`, `withOrganization`, or `withAdminBypass`.
+
 ## Testing
 
 - Framework: Vitest + jsdom + @testing-library/react

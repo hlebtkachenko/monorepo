@@ -54,6 +54,21 @@ function BorderBeamButton({
   ref,
   ...buttonProps
 }: BorderBeamButtonProps) {
+  const [mounted, setMounted] = React.useState(false)
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <Button
+        className={className}
+        {...buttonProps}
+        ref={ref as React.Ref<HTMLButtonElement>}
+      />
+    )
+  }
+
   return (
     <BorderBeam
       {...(active !== undefined ? { active } : {})}

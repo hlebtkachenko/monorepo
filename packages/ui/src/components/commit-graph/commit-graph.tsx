@@ -389,8 +389,10 @@ function CommitDetail({
       <Popover.Trigger asChild>{children}</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          side="right"
-          sideOffset={8}
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={16}
           className="z-50 w-80 animate-in rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-md fade-in-0 zoom-in-95"
         >
           <div className="flex flex-col gap-2">

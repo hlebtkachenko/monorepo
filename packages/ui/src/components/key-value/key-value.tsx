@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { PlusIcon, XIcon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "lucide-react"
 import { Slot } from "radix-ui"
 
 import { Button } from "@workspace/ui/components/button"
@@ -339,7 +339,30 @@ function KeyValueItem({ asChild, className, ...itemProps }: KeyValueItemProps) {
       data-slot="key-value-item"
       data-highlighted={focusedId === itemData.id ? "" : undefined}
       {...itemProps}
-      className={cn("flex items-start gap-2", className)}
+      className={cn("flex items-center gap-2", className)}
+    />
+  )
+}
+
+interface KeyValueItemIconProps extends React.ComponentProps<"span"> {
+  asChild?: boolean
+}
+
+function KeyValueItemIcon({
+  asChild,
+  className,
+  ...iconProps
+}: KeyValueItemIconProps) {
+  const Comp = asChild ? Slot.Root : "span"
+  return (
+    <Comp
+      aria-hidden
+      data-slot="key-value-item-icon"
+      {...iconProps}
+      className={cn(
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground [&_svg]:size-4",
+        className,
+      )}
     />
   )
 }
@@ -508,6 +531,7 @@ interface KeyValueValueInputProps extends Omit<
   React.ComponentProps<"textarea">,
   "rows"
 > {
+  multiline?: boolean
   maxRows?: number
   asChild?: boolean
 }
@@ -519,6 +543,7 @@ function KeyValueValueInput({
   readOnly,
   required,
   className,
+  multiline = false,
   maxRows,
   style,
   ...rest
@@ -536,8 +561,10 @@ function KeyValueValueInput({
   const maxHeight = maxRows ? `calc(${maxRows} * 1.5em + 1rem)` : undefined
 
   const onChange = React.useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      propsRef.current.onChange?.(event)
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      propsRef.current.onChange?.(
+        event as React.ChangeEvent<HTMLTextAreaElement>,
+      )
       const state = store.getState()
       const newValue = state.value.map((item) => {
         if (item.id !== itemData.id) return item
@@ -555,31 +582,56 @@ function KeyValueValueInput({
     [store, itemData.id, context, propsRef],
   )
 
-  const Comp = asChild ? Slot.Root : Textarea
+  const commonProps = {
+    "aria-invalid": isInvalid,
+    "aria-describedby": isInvalid
+      ? getErrorId(context.rootId, itemData.id, "value")
+      : undefined,
+    "data-slot": "key-value-value-input",
+    autoCapitalize: "off",
+    autoComplete: "off",
+    autoCorrect: "off",
+    spellCheck: "false" as const,
+    disabled: isDisabled,
+    readOnly: isReadOnly,
+    required: isRequired,
+    placeholder: context.valuePlaceholder,
+    value: itemData.value,
+    onChange,
+  }
+
+  if (asChild) {
+    return (
+      <Slot.Root
+        {...rest}
+        {...commonProps}
+        className={className}
+        style={style}
+      />
+    )
+  }
+
+  if (multiline) {
+    return (
+      <Textarea
+        {...(rest as React.ComponentProps<"textarea">)}
+        {...commonProps}
+        className={cn(
+          "field-sizing-content min-h-8 resize-none",
+          maxRows && "overflow-y-auto",
+          className,
+        )}
+        style={{ ...style, ...(maxHeight && { maxHeight }) }}
+      />
+    )
+  }
+
   return (
-    <Comp
-      aria-invalid={isInvalid}
-      aria-describedby={
-        isInvalid ? getErrorId(context.rootId, itemData.id, "value") : undefined
-      }
-      data-slot="key-value-value-input"
-      autoCapitalize="off"
-      autoComplete="off"
-      autoCorrect="off"
-      spellCheck="false"
-      disabled={isDisabled}
-      readOnly={isReadOnly}
-      required={isRequired}
-      placeholder={context.valuePlaceholder}
-      {...rest}
-      className={cn(
-        "field-sizing-content min-h-9 resize-none",
-        maxRows && "overflow-y-auto",
-        className,
-      )}
-      style={{ ...style, ...(maxHeight && { maxHeight }) }}
-      value={itemData.value}
-      onChange={onChange}
+    <Input
+      {...(rest as React.ComponentProps<"input">)}
+      {...commonProps}
+      className={cn("h-8", className)}
+      style={style}
     />
   )
 }
@@ -619,14 +671,18 @@ function KeyValueRemove({
     <Button
       type="button"
       data-slot="key-value-remove"
-      variant="outline"
-      size="icon"
+      variant="ghost"
+      size="icon-sm"
       disabled={isDisabled}
       aria-label="Remove row"
       {...rest}
+      className={cn(
+        "shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+        rest.className,
+      )}
       onClick={onClick}
     >
-      {children ?? <XIcon />}
+      {children ?? <Trash2Icon />}
     </Button>
   )
 }
@@ -713,6 +769,7 @@ export {
   KeyValueAdd,
   KeyValueError,
   KeyValueItem,
+  KeyValueItemIcon,
   KeyValueKeyInput,
   KeyValueList,
   KeyValueRemove,

@@ -98,10 +98,10 @@ function CardDecoration({ variant }: { variant: CardExtendedVariant }) {
     return (
       <div
         aria-hidden
-        className="absolute inset-1 z-0 rounded-lg opacity-50"
+        className="absolute inset-1 z-0 rounded-lg"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(45deg, transparent, transparent 2px, var(--border) 2px, var(--border) 4px)",
+            "repeating-linear-gradient(45deg, transparent, transparent 3px, color-mix(in oklab, var(--foreground) 18%, transparent) 3px, color-mix(in oklab, var(--foreground) 18%, transparent) 5px)",
         }}
       />
     )
@@ -114,10 +114,10 @@ function CardDecoration({ variant }: { variant: CardExtendedVariant }) {
         className="absolute inset-0 rounded-lg"
         style={{
           backgroundImage: `
-            radial-gradient(ellipse at 20% 30%, color-mix(in oklab, var(--chart-1) 30%, transparent) 0%, transparent 60%),
-            radial-gradient(ellipse at 80% 70%, color-mix(in oklab, var(--chart-2) 20%, transparent) 0%, transparent 70%),
-            radial-gradient(ellipse at 60% 20%, color-mix(in oklab, var(--chart-3) 20%, transparent) 0%, transparent 50%),
-            radial-gradient(ellipse at 40% 80%, color-mix(in oklab, var(--chart-4) 20%, transparent) 0%, transparent 65%)
+            radial-gradient(ellipse at 20% 30%, color-mix(in oklab, var(--info) 35%, transparent) 0%, transparent 60%),
+            radial-gradient(ellipse at 80% 70%, color-mix(in oklab, var(--success) 30%, transparent) 0%, transparent 70%),
+            radial-gradient(ellipse at 60% 20%, color-mix(in oklab, var(--warning) 30%, transparent) 0%, transparent 55%),
+            radial-gradient(ellipse at 40% 80%, color-mix(in oklab, var(--destructive) 25%, transparent) 0%, transparent 65%)
           `,
         }}
       />

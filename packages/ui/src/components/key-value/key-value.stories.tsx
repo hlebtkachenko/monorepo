@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react"
+import { TagIcon } from "lucide-react"
 import {
   KeyValue,
   KeyValueAdd,
   KeyValueError,
   KeyValueItem,
+  KeyValueItemIcon,
   KeyValueKeyInput,
   KeyValueList,
   KeyValueRemove,
@@ -18,16 +20,22 @@ const meta: Meta<typeof KeyValue> = {
 export default meta
 type Story = StoryObj<typeof KeyValue>
 
+const sample: KeyValueItemData[] = [
+  { id: "1", key: "Subject", value: "Welcome aboard" },
+  { id: "2", key: "From", value: "team@example.com" },
+  { id: "3", key: "Reply-To", value: "noreply@example.com" },
+]
+
 function Composed(args: React.ComponentProps<typeof KeyValue>) {
   return (
     <KeyValue {...args}>
       <KeyValueList>
         <KeyValueItem>
-          <div className="flex flex-col gap-1">
+          <div className="flex w-40 flex-col gap-1">
             <KeyValueKeyInput />
             <KeyValueError field="key" />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-1 flex-col gap-1">
             <KeyValueValueInput />
             <KeyValueError field="value" />
           </div>
@@ -39,12 +47,6 @@ function Composed(args: React.ComponentProps<typeof KeyValue>) {
   )
 }
 
-const sample: KeyValueItemData[] = [
-  { id: "1", key: "Subject", value: "Welcome aboard" },
-  { id: "2", key: "From", value: "team@example.com" },
-  { id: "3", key: "Reply-To", value: "noreply@example.com" },
-]
-
 export const Default: Story = {
   render: () => <Composed defaultValue={sample} />,
 }
@@ -53,13 +55,43 @@ export const Empty: Story = {
   render: () => <Composed />,
 }
 
-export const Horizontal: Story = {
-  render: (args) => (
-    <KeyValue {...args} defaultValue={sample}>
-      <KeyValueList orientation="horizontal">
+export const WithIcon: Story = {
+  render: () => (
+    <KeyValue defaultValue={sample}>
+      <KeyValueList>
         <KeyValueItem>
-          <KeyValueKeyInput />
-          <KeyValueValueInput />
+          <KeyValueItemIcon>
+            <TagIcon />
+          </KeyValueItemIcon>
+          <div className="flex w-40 flex-col gap-1">
+            <KeyValueKeyInput />
+            <KeyValueError field="key" />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <KeyValueValueInput />
+            <KeyValueError field="value" />
+          </div>
+          <KeyValueRemove />
+        </KeyValueItem>
+      </KeyValueList>
+      <KeyValueAdd />
+    </KeyValue>
+  ),
+}
+
+export const Multiline: Story = {
+  render: () => (
+    <KeyValue defaultValue={sample}>
+      <KeyValueList>
+        <KeyValueItem>
+          <div className="flex w-40 flex-col gap-1">
+            <KeyValueKeyInput />
+            <KeyValueError field="key" />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <KeyValueValueInput multiline />
+            <KeyValueError field="value" />
+          </div>
           <KeyValueRemove />
         </KeyValueItem>
       </KeyValueList>

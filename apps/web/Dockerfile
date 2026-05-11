@@ -80,4 +80,9 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -q -O- http://127.0.0.1:3000/api/version >/dev/null || exit 1
 
-CMD ["node", "apps/web/server.js"]
+# Force HOSTNAME=0.0.0.0 at exec time. Without this, Fargate/Docker runtime
+# overrides our ENV HOSTNAME with the container's auto-assigned hostname
+# (like ip-10-42-x-x), and Next.js standalone server binds to that non-
+# loopback interface only. The cloudflared sidecar reaching localhost:3000
+# then gets connection refused.
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node apps/web/server.js"]

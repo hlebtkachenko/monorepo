@@ -24,4 +24,7 @@ allowBuilds:
   protobufjs: true
   sharp: true
   ssh2: true
-  unrs-resolver: true
+  # Native postinstall is broken inside pnpm-managed isolated node_modules
+  # (napi-postinstall can't resolve its own package.json). JS fallback is
+  # transparent; only build-time resolution is marginally slower.
+  unrs-resolver: false

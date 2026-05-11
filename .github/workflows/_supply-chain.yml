@@ -28,16 +28,17 @@ on:
         description: "SHA256 of the attested artifact"
         value: ${{ jobs.supply-chain.outputs.attestation-digest }}
 
-permissions:
-  id-token: write
-  contents: write
-  attestations: write
-  packages: write
+permissions: {}
 
 jobs:
   supply-chain:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+      packages: write
     outputs:
       sbom-artifact-name: sbom-${{ inputs.package-name }}-${{ inputs.version }}.cdx.json
       attestation-digest: ${{ steps.hash.outputs.sha256 }}

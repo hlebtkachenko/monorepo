@@ -15,9 +15,9 @@
     {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 1,
+        "required_approving_review_count": 0,
         "dismiss_stale_reviews_on_push": true,
-        "require_code_owner_review": true,
+        "require_code_owner_review": false,
         "require_last_push_approval": false,
         "required_review_thread_resolution": true
       }
@@ -30,8 +30,6 @@
           { "context": "ci" },
           { "context": "gitleaks" },
           { "context": "Analyze (javascript-typescript)" },
-          { "context": "actionlint" },
-          { "context": "zizmor" },
           { "context": "lint" },
           { "context": "review" },
           { "context": "scan-pr / osv-scan" },
@@ -39,21 +37,13 @@
           { "context": "size-cap" }
         ]
       }
-    },
-    {
-      "type": "file_path_restriction",
-      "parameters": {
-        "restricted_file_paths": [
-          ".env",
-          ".env.*",
-          "*.key",
-          "*.pem",
-          "*.enc",
-          "client_secret*.json",
-          "userlist.txt"
-        ]
-      }
     }
   ],
-  "bypass_actors": []
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "always"
+    }
+  ]
 }

@@ -1,8 +1,10 @@
 # 1. IaC platform: hybrid OpenTofu + AWS CDK
 
-- Status: Accepted
+- Status: **Superseded by [0007](0007-mvp-single-account-cdk-only.md)** (2026-05-11)
 - Date: 2026-05-10
 - Deciders: Hleb Tkachenko
+
+> **Note 2026-05-11:** The hybrid model assumed multi-account AWS Organizations with a platform layer separate from app stacks. MVP scope collapsed to a single existing account, removing the platform-layer rationale. See ADR 0007 for the replacement.
 
 ## Context and Problem Statement
 

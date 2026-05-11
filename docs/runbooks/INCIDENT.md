@@ -26,6 +26,16 @@ DORA Article 19 reporting timeline:
 9. Mitigation, then resolution.
 10. PIR (Post-Incident Review) within 5 business days.
 
+## Vendor outage triage
+
+Hard dependencies that can degrade or fail us: GitHub (CI, code, packages), npm registry, Cloudflare (DNS, CDN), Anthropic API, AWS (when wired), Honeycomb. Triage path:
+
+1. Confirm vendor status via their public status page (link in postmortem).
+2. Classify as SEV based on user impact, not vendor severity. A GitHub Actions outage is SEV3 if no deploys are in flight; SEV2 if release is blocked.
+3. Workaround if cheap (e.g., npm down → switch to a registry mirror; AI provider down → graceful 503 with retry-after).
+4. No mitigation work that creates new debt during the outage. Wait it out, document, resume.
+5. Postmortem only if user impact occurred or if the vendor outage exposed a missing fallback we should add.
+
 ## On-call rota (solo dev caveat)
 
 Today: solo dev. AWS Incident Manager response plan with single contact + free notification fan-out.

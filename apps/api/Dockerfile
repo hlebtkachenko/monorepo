@@ -13,26 +13,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
-COPY apps/web/package.json apps/web/
+COPY apps/api/package.json apps/api/
 COPY packages packages
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm fetch --frozen-lockfile && \
-    pnpm install --frozen-lockfile --filter=web... --filter=@workspace/ui...
+    pnpm install --frozen-lockfile --filter=api...
 
 # ---------- builder ----------
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS builder
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
-ENV NEXT_TELEMETRY_DISABLED=1 \
-    BUILD_SHA=$BUILD_SHA \
+ENV BUILD_SHA=$BUILD_SHA \
     BUILD_TIME=$BUILD_TIME \
     BUILD_VERSION=$BUILD_VERSION
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY --from=deps /repo /repo
 COPY . .
-RUN pnpm --filter web build
+RUN pnpm --filter api build
+RUN pnpm --filter api deploy --prod --legacy /prod
 
 # ---------- runner ----------
 FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim AS runner
@@ -40,7 +40,7 @@ ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
 
-LABEL org.opencontainers.image.title="windhoek-web" \
+LABEL org.opencontainers.image.title="windhoek-api" \
       org.opencontainers.image.source="https://github.com/hlebtkachenko/monorepo" \
       org.opencontainers.image.revision="$BUILD_SHA" \
       org.opencontainers.image.created="$BUILD_TIME" \
@@ -48,21 +48,16 @@ LABEL org.opencontainers.image.title="windhoek-web" \
       org.opencontainers.image.licenses="UNLICENSED"
 
 ENV NODE_ENV=production \
-    NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0 \
+    PORT=3001 \
+    HOST=0.0.0.0 \
     BUILD_SHA=$BUILD_SHA \
     BUILD_TIME=$BUILD_TIME \
     BUILD_VERSION=$BUILD_VERSION
 
-RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nextjs \
-    && apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nestjs \
+    && apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Strip npm + npx + corepack from the runner. Next.js standalone server.js
-# does not need them, and the bundled npm ships an older node-gyp/cacache
-# tar copies that trip Trivy HIGH/CRITICAL CVEs. Removing kills the alerts
-# at the source.
 RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
            /usr/local/bin/npx \
@@ -70,19 +65,9 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 
 WORKDIR /app
 
-COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nestjs:nodejs /prod ./
 
-USER nextjs:nodejs
-EXPOSE 3000
+USER nestjs:nodejs
+EXPOSE 3001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -q -O- http://127.0.0.1:3000/api/version >/dev/null || exit 1
-
-# Force HOSTNAME=0.0.0.0 at exec time. Without this, Fargate/Docker runtime
-# overrides our ENV HOSTNAME with the container's auto-assigned hostname
-# (like ip-10-42-x-x), and Next.js standalone server binds to that non-
-# loopback interface only. The cloudflared sidecar reaching localhost:3000
-# then gets connection refused.
-CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node apps/web/server.js"]
+CMD ["node", "dist/main.js"]

@@ -2,6 +2,15 @@ packages:
   - "apps/*"
   - "packages/*"
   - "infra/cdk"
+overrides:
+  # Force >=5.3.1: 4 CVEs in transitive 5.0.5 (path traversal, CRLF injection, 2x DoS)
+  basic-ftp: ">=5.3.1"
+  # Force >=0.25.0: GHSA dev-server SSRF. Transitive 0.18.20 via drizzle-kit -> @esbuild-kit/core-utils
+  esbuild: ">=0.25.0"
+  # Force >=8.5.10: XSS via unescaped </style> in CSS stringify. Transitive 8.4.31 via next@16
+  postcss: ">=8.5.10"
+  # Pin v9.x: eslint v10 breaks eslint-plugin-react@7.37.5 'react/display-name'
+  eslint: "^9.39.2"
 allowBuilds:
   '@nestjs/core': true
   '@scarf/scarf': false
@@ -15,4 +24,7 @@ allowBuilds:
   protobufjs: true
   sharp: true
   ssh2: true
-  unrs-resolver: true
+  # Native postinstall is broken inside pnpm-managed isolated node_modules
+  # (napi-postinstall can't resolve its own package.json). JS fallback is
+  # transparent; only build-time resolution is marginally slower.
+  unrs-resolver: false

@@ -1,53 +1,42 @@
 # Infrastructure
 
-Hybrid IaC layout. Two tools, one ownership boundary at SSM Parameter Store.
+Single-account AWS CDK v2 (TypeScript). One tool, one state system, one CI path.
 
-| Layer | Tool | Path | Owner |
-|-------|------|------|-------|
-| Platform (Org, OUs, SCPs, Identity Center, Log Archive, baseline VPC) | OpenTofu | `infra/tofu` | Platform |
-| Application stacks (Network, Data, App, Observability) | AWS CDK v2 (TS) | `infra/cdk` | Service teams |
-
-Cross-layer flow is one direction: Tofu publishes `/platform/*` keys to SSM Parameter Store, CDK consumes via `StringParameter.valueFromLookup`. We do not use CloudFormation Exports — they pin producer stacks and prevent renames.
-
-See ADR `docs/adr/0001-iac-platform-hybrid-tofu-cdk.md`.
+See ADR `docs/adr/0007-mvp-single-account-cdk-only.md`. Earlier hybrid OpenTofu + CDK model in `docs/adr/0001-...` is Superseded; archived files at `_junk/2026-05-11-mvp-single-account-pivot/`.
 
 ## Bootstrap order
 
-This entire directory is **dormant** until the AWS account exists. Before running any target here:
+This directory is **dormant** until the deploy workflow's bootstrap flag flips. Before any deploy:
 
-1. Complete every step in `docs/runbooks/AWS-BOOTSTRAP.md` (creates the management account, OUs, SCPs, Identity Center, log archive, OIDC providers, Tofu state backend, CDK bootstrap stacks).
-2. Set repo variable `AWS_BOOTSTRAPPED=true` (`gh variable set AWS_BOOTSTRAPPED --body true`).
+1. Owner completes `docs/runbooks/AWS-DEPLOY.md` setup section (creates GitHub OIDC provider + deploy role; runs `cdk bootstrap` per environment).
+2. Owner sets repo variable `AWS_BOOTSTRAPPED=true` (`gh variable set AWS_BOOTSTRAPPED --body true`).
 3. Then the Make targets here become real (until then, env-var checks abort the run).
 
 ## Quickstart (post-bootstrap)
 
 ```bash
-make plan-tofu                      # tofu init + plan against current workspace
-make apply-tofu                     # tofu apply previously generated plan
-make synth-cdk                      # cdk synth all stacks (no AWS calls)
-make diff-cdk                       # cdk diff vs deployed state
+make synth-cdk ENV=staging          # cdk synth --context env=staging
+make diff-cdk ENV=staging           # cdk diff vs deployed state
 make deploy-cdk ENV=staging         # cdk deploy --all --context env=staging
-make drift-cdk                      # cdk drift --all (scheduled job target)
-make bootstrap-cdk ACCOUNT=<TBD> REGION=eu-central-1
+make drift-cdk ENV=staging          # cdk drift --all
+make bootstrap-cdk REGION=eu-central-1  # one-time per fresh env
 ```
 
 ## State location
 
-| Item | Where | Status |
-|------|-------|--------|
-| Tofu state | `s3://<TBD-tofu-state-bucket>/platform/global/terraform.tfstate` | `<TBD>` until bootstrap |
-| Tofu lock | DynamoDB table `<TBD-tofu-lock-table>` | `<TBD>` until bootstrap |
-| CDK state | CloudFormation per workload account | created by `cdk bootstrap` |
+| Item | Where |
+|------|-------|
+| CDK state | CloudFormation per stack in the same AWS account |
+| CDK assets | The `cdk-hnb659fds-*` S3 bucket created by `cdk bootstrap` |
 
 ## Required env vars
 
-OpenTofu targets:
-- `AWS_REGION`, `AWS_PROFILE`, `TOFU_STATE_BUCKET`, `TOFU_LOCK_TABLE`
+CDK targets read from:
+- `AWS_REGION` (repo var: `AWS_REGION=eu-central-1`)
+- `AWS_PROFILE` (local only; deploys use the OIDC role)
+- `AWS_ACCOUNT_ID` (repo secret; never logged or committed)
 
-CDK targets:
-- `AWS_REGION`, `AWS_PROFILE`, `CDK_DEFAULT_ACCOUNT`
-
-Local profiles are managed via the `granted` CLI (see ADR 0006).
+Local profiles managed via the `granted` CLI (see ADR 0006).
 
 ## Layout
 
@@ -56,27 +45,22 @@ infra/
   Makefile
   README.md
   package.json              # workspace member
-  tofu/
-    main.tf                 # backend + providers
-    versions.tf
-    variables.tf
-    modules/
-      ou/
-      scp/
-      identity-center/
-      log-archive/
-      network/
   cdk/
     cdk.json
     package.json
     tsconfig.json
-    bin/app.ts
+    bin/app.ts              # reads AWS_ACCOUNT_ID from env, NEVER a literal
     lib/
-      network-stack.ts
-      data-stack.ts
-      app-stack.ts
-      observability-stack.ts
+      network-stack.ts      # VPC, NAT, endpoints
+      data-stack.ts         # RDS, S3, Secrets Manager
+      app-stack.ts          # ECR, ECS, ALB, ACM (Observability folded in)
     README.md
 ```
 
-`infra/tofu` and the `Makefile` are not pnpm-managed. `infra/cdk` is a pnpm workspace member (`@workspace/cdk`).
+`infra/cdk` is a pnpm workspace member (`@workspace/cdk`).
+
+## Public-repo guardrails
+
+- AWS account ID lives in repo **secret** `AWS_ACCOUNT_ID`. Never commit it to code, comments, commit messages, or PR descriptions.
+- Deploy role ARN lives in repo **secret** `AWS_DEPLOY_ROLE_ARN_STAGING` / `AWS_DEPLOY_ROLE_ARN_PRODUCTION`. ARNs include the account ID, so they're treated as secrets too.
+- Workflow logs are filtered: any line with the account ID gets masked via `::add-mask::`.

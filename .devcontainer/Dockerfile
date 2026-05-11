@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:c4a8d5503dfb2a3eb8ab5f807da5bc69a85730fb49b5cfca2330194ebcc41c7b
 
 ARG TARGETARCH=amd64
 
@@ -59,16 +59,35 @@ RUN curl -fsSL "https://releases.commonfate.io/granted/v0.32.0/granted_0.32.0_li
 RUN curl -fsSL "https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-${TARGETARCH}" -o /usr/local/bin/cosign \
     && chmod +x /usr/local/bin/cosign
 
-# Syft (SBOM)
-RUN curl -fsSL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+# Syft (SBOM) — pinned version + checksum
+RUN SYFT_VERSION=1.23.0 \
+    && ARCH_SYFT=$([ "${TARGETARCH}" = "arm64" ] && echo "arm64" || echo "amd64") \
+    && CHECKSUM=$([ "${TARGETARCH}" = "arm64" ] \
+         && echo "8119429a83a38ee174129413a1452586362f91342b84d963a3b277995c29ea18" \
+         || echo "c51b3f0104a28fee233eee07de22d6e73704d1be5c40b34b81ec749a5f37efc3") \
+    && curl -fsSL "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_${ARCH_SYFT}.tar.gz" -o /tmp/syft.tar.gz \
+    && echo "${CHECKSUM}  /tmp/syft.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/syft.tar.gz -C /usr/local/bin syft \
+    && rm /tmp/syft.tar.gz
 
-# osv-scanner (CVE scan)
-RUN curl -fsSL "https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_${TARGETARCH}" -o /usr/local/bin/osv-scanner \
+# osv-scanner (CVE scan) — pinned version + checksum
+RUN OSV_VERSION=2.3.8 \
+    && CHECKSUM=$([ "${TARGETARCH}" = "arm64" ] \
+         && echo "8158b18edd2d03b1a30d905ca91b032bc62262167be8f206c27114f08823e27c" \
+         || echo "bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc") \
+    && curl -fsSL "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_${TARGETARCH}" -o /usr/local/bin/osv-scanner \
+    && echo "${CHECKSUM}  /usr/local/bin/osv-scanner" | sha256sum -c - \
     && chmod +x /usr/local/bin/osv-scanner
 
-# mise (tool version manager)
-RUN curl -fsSL https://mise.run | sh \
-    && mv /root/.local/bin/mise /usr/local/bin/mise
+# mise (tool version manager) — pinned version + checksum
+RUN MISE_VERSION=2026.5.5 \
+    && ARCH_MISE=$([ "${TARGETARCH}" = "arm64" ] && echo "arm64" || echo "x64") \
+    && CHECKSUM=$([ "${TARGETARCH}" = "arm64" ] \
+         && echo "084487717ba01adb233ceb26fa897532fc206476fd4bda97b147deb36e5b5148" \
+         || echo "3aaab5c05a8a94a93b42b4f581779bbd5c44ddb251e7f3639fc671ec5c6aab8a") \
+    && curl -fsSL "https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/mise-v${MISE_VERSION}-linux-${ARCH_MISE}" -o /usr/local/bin/mise \
+    && echo "${CHECKSUM}  /usr/local/bin/mise" | sha256sum -c - \
+    && chmod +x /usr/local/bin/mise
 
 # Docker CLI + buildx (docker-in-docker via devcontainer feature provides daemon)
 RUN install -m 0755 -d /etc/apt/keyrings \

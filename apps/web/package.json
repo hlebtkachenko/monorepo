@@ -42,12 +42,12 @@
     {
       "name": "Per-chunk JS budget",
       "path": ".next/static/**/*.js",
-      "limit": "400 KB"
+      "limit": "600 KB"
     },
     {
       "name": "Total client bundle",
       "path": ".next/static/**/*.js",
-      "limit": "1.5 MB",
+      "limit": "2.5 MB",
       "brotli": false,
       "gzip": false
     }

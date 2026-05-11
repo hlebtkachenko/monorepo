@@ -39,20 +39,6 @@
           { "context": "size-cap" }
         ]
       }
-    },
-    {
-      "type": "file_path_restriction",
-      "parameters": {
-        "restricted_file_paths": [
-          ".env",
-          ".env.*",
-          "*.key",
-          "*.pem",
-          "*.enc",
-          "client_secret*.json",
-          "userlist.txt"
-        ]
-      }
     }
   ],
   "bypass_actors": []

@@ -48,7 +48,7 @@ gh api --method DELETE /repos/hlebtkachenko/monorepo/rulesets/<id>
 
 - `target: branch` + `ref_name.include: refs/heads/main`. Default branch is `main`.
 - `required_status_checks` references the **per-job context strings** (GitHub Rulesets resolution rule), not workflow names. The 10 listed match what runs on every PR (verified via `gh pr view <n> --json statusCheckRollup`). Excluded: `CodeQL` and `osv-scanner` advisory app status (no PR-time workflow attribution; can disappear).
-- `file_path_restriction` blocks `.env*`, `*.key`, `*.pem`, `*.enc`, `client_secret*.json`, `userlist.txt`. Aligns with `.gitignore` and `scripts/check-client-secrets.mjs`.
+- `file_path_restriction` is NOT included: requires GitHub Pro/Enterprise tier (returns 422 on free). Secret-file leak guard handled by `gitleaks` workflow + `.gitignore` + `scripts/check-client-secrets.mjs` instead.
 - `bypass_actors: []` — no exceptions. Owner can bypass via repo admin if needed in emergency.
 
 ## Why JSON in repo

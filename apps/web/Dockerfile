@@ -1,13 +1,15 @@
 # syntax=docker/dockerfile:1.10
 
-# Tag ARGs are documentation; digest pins the actual image. Update both together.
 ARG NODE_VERSION=24
-ARG ALPINE_VERSION=3.21
 ARG PNPM_VERSION=11.0.9
 
 # ---------- deps ----------
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION}@sha256:b8f7c9056af700568c1ce76173f1c93743fb64ca1343e18cdf3a6ded8985ad3d AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+# Debian-slim (glibc) chosen over alpine to avoid musl-binding compatibility
+# issues with native modules (unrs-resolver, ssh2, etc).
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
@@ -18,7 +20,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter=web... --filter=@workspace/ui...
 
 # ---------- builder ----------
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION}@sha256:b8f7c9056af700568c1ce76173f1c93743fb64ca1343e18cdf3a6ded8985ad3d AS builder
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS builder
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
@@ -33,7 +35,7 @@ COPY . .
 RUN pnpm --filter web build
 
 # ---------- runner ----------
-FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION}@sha256:b8f7c9056af700568c1ce76173f1c93743fb64ca1343e18cdf3a6ded8985ad3d AS runner
+FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim AS runner
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
@@ -53,12 +55,14 @@ ENV NODE_ENV=production \
     BUILD_TIME=$BUILD_TIME \
     BUILD_VERSION=$BUILD_VERSION
 
-RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs nextjs
+RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nextjs \
+    && apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Strip npm + npx from the runner. Next.js standalone server.js does not need
-# them, and node:24-alpine bundles an older npm whose nested node-gyp/cacache
-# tar copies trip Trivy HIGH/CRITICAL CVEs (CVE-2026-31802, -29786, -26960,
-# -24842, -23950, -23745, etc). Removing kills the alerts at the source.
+# Strip npm + npx + corepack from the runner. Next.js standalone server.js
+# does not need them, and the bundled npm ships an older node-gyp/cacache
+# tar copies that trip Trivy HIGH/CRITICAL CVEs. Removing kills the alerts
+# at the source.
 RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
            /usr/local/bin/npx \
@@ -66,8 +70,6 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 
 WORKDIR /app
 
-# Standalone output bundles only the runtime files. server.js is at the repo-relative
-# path inside the standalone bundle.
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/web/public ./apps/web/public

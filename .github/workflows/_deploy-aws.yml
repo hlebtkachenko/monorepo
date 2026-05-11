@@ -95,8 +95,8 @@ jobs:
           PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
         run: |
           echo "::add-mask::$ACCOUNT_ID"
-          [ -n "$STAGING_ROLE" ] && echo "::add-mask::$STAGING_ROLE" || true
-          [ -n "$PRODUCTION_ROLE" ] && echo "::add-mask::$PRODUCTION_ROLE" || true
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
 
       - name: Resolve role ARN + domain for environment
         id: env
@@ -144,7 +144,7 @@ jobs:
         run: |
           pnpm --filter @workspace/cdk exec cdk deploy \
             "Network-${ENV_NAME}" "Data-${ENV_NAME}" \
-            --context env=${ENV_NAME} \
+            --context "env=${ENV_NAME}" \
             --require-approval=never
 
       - name: ECR login [stack=all|app-only]
@@ -222,8 +222,8 @@ jobs:
         run: |
           pnpm --filter @workspace/cdk exec cdk deploy \
             "App-${ENV_NAME}" \
-            --context env=${ENV_NAME} \
-            --context imageTag=${IMAGE_TAG} \
+            --context "env=${ENV_NAME}" \
+            --context "imageTag=${IMAGE_TAG}" \
             --require-approval=never
 
       - id: summary

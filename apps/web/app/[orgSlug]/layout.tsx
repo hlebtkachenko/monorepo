@@ -55,9 +55,11 @@ export default async function OrgLayout({
           <NavItem href={`/${orgSlug}/inbox`} label="Inbox" />
           <NavItem href={`/${orgSlug}/documents`} label="Documents" />
           <NavItem href={`/${orgSlug}/transactions`} label="Transactions" />
+          <NavItem href={`/${orgSlug}/accounting`} label="Accounting" />
+          <NavItem href={`/${orgSlug}/finance`} label="Finance" />
           <NavItem href={`/${orgSlug}/taxes`} label="Taxes" />
-          <NavItem href={`/${orgSlug}/closure`} label="Closure" />
-          <NavItem href={`/${orgSlug}/salaries`} label="Salaries" />
+          <NavItem href={`/${orgSlug}/closing`} label="Closing" />
+          <NavItem href={`/${orgSlug}/personnel`} label="Personnel" />
           <NavItem href={`/${orgSlug}/assets`} label="Assets" />
           <NavItem href={`/${orgSlug}/directory`} label="Directory" />
           <NavItem href={`/${orgSlug}/reports`} label="Reports" />

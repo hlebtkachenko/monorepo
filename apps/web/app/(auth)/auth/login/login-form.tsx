@@ -14,14 +14,32 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
+const ERROR_MESSAGES: Record<string, string> = {
+  "no-workspace-access":
+    "You are signed in but no workspace is linked to this account. Ask support for an invitation.",
+  "signup-session-expired":
+    "Your signup link expired. Ask support for a new invitation.",
+  "invite-session-expired":
+    "Your invite link expired. Ask the inviter to resend it.",
+  "missing-signup-token": "The signup link is missing its token.",
+  "missing-invite-token": "The invite link is missing its token.",
+  expired: "Your link has expired. Request a new one.",
+  invalid: "Your link is invalid or has been tampered with.",
+  wrong_kind: "Your link is the wrong type for this flow.",
+  disabled: "This flow is currently disabled. Contact support.",
+}
+
 export function LoginForm() {
   const router = useRouter()
   const search = useSearchParams()
   const next = search.get("next") ?? "/workspace"
+  const errorCode = search.get("error")
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(
+    errorCode ? (ERROR_MESSAGES[errorCode] ?? errorCode) : null,
+  )
   const [submitting, setSubmitting] = useState(false)
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {

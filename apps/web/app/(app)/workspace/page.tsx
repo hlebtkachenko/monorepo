@@ -39,7 +39,24 @@ export default async function WorkspaceChooserPage() {
 
   const workspaces = await listWorkspacesForUser(session.user.id)
   if (workspaces.length === 0) {
-    redirect("/auth/login?error=no-workspace-access")
+    return (
+      <div className="mx-auto max-w-md space-y-4 px-4 py-12">
+        <Card>
+          <CardHeader>
+            <CardTitle>No workspaces yet</CardTitle>
+            <CardDescription>
+              Your account is not linked to a workspace. Ask support to send you
+              an invitation to get started.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Signed in as {session.user.email}.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   const onlyWorkspace = workspaces.length === 1 ? workspaces[0] : null

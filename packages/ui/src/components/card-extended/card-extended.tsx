@@ -12,29 +12,36 @@ type CardExtendedVariant =
   | "tilted"
   | "stacked"
 
-const wrapperVariants = cva("relative", {
+// All variants share the same outer footprint so a grid of variants reads
+// as a consistent set of cards with different decoration.
+const FRAME = "relative h-44 w-full"
+
+const wrapperVariants = cva(FRAME, {
   variants: {
     variant: {
       shadow: "",
-      lines: "",
-      hatched: "overflow-hidden rounded-xl",
-      aurora: "overflow-hidden rounded-xl bg-background",
-      tilted: "",
-      stacked: "h-full pt-6",
+      lines: "px-4 py-3",
+      hatched: "overflow-hidden rounded-xl p-2",
+      aurora: "overflow-hidden rounded-xl bg-background p-2",
+      tilted: "py-4",
+      stacked: "pt-4",
     },
   },
   defaultVariants: { variant: "shadow" },
 })
 
-const cardVariants = cva("", {
+// Card always fills its slot inside the wrapper. Decoration sits behind via z-0,
+// Card on top via z-10. Card stays opaque (bg-card) so the decoration reads as a
+// frame around the card rather than overlapping its content.
+const cardVariants = cva("relative z-10 h-full", {
   variants: {
     variant: {
       shadow: "shadow-[5px_5px_0px_0px_var(--border)]",
-      lines: "w-full border-none p-10 shadow-none",
-      hatched: "isolate z-10 h-full border-2 border-border bg-transparent",
-      aurora: "isolate z-10 h-full border-border bg-transparent",
-      tilted: "isolate z-10",
-      stacked: "isolate z-10 shadow-[0_-3px_6px_-2px_var(--border)]",
+      lines: "border-none shadow-none",
+      hatched: "border border-border",
+      aurora: "border-border",
+      tilted: "",
+      stacked: "shadow-[0_-3px_6px_-2px_var(--border)]",
     },
   },
   defaultVariants: { variant: "shadow" },
@@ -53,14 +60,16 @@ function CardExtended({
 }: CardExtendedProps) {
   if (variant === "shadow") {
     return (
-      <Card
-        data-slot="card-extended"
-        data-variant={variant}
-        className={cn(cardVariants({ variant }), className)}
-        {...props}
-      >
-        {children}
-      </Card>
+      <div className={FRAME} data-slot="card-extended-wrapper">
+        <Card
+          data-slot="card-extended"
+          data-variant={variant}
+          className={cn(cardVariants({ variant }), className)}
+          {...props}
+        >
+          {children}
+        </Card>
+      </div>
     )
   }
 
@@ -86,10 +95,10 @@ function CardDecoration({ variant }: { variant: CardExtendedVariant }) {
   if (variant === "lines") {
     return (
       <>
-        <Line className="top-2 left-0 bg-linear-to-l sm:top-4 md:top-6" />
-        <Line className="bottom-2 left-0 bg-linear-to-r sm:bottom-4 md:bottom-6" />
-        <div className="absolute inset-y-0 left-2 z-0 w-px bg-linear-to-t from-transparent via-border to-border sm:left-4 md:left-6" />
-        <div className="absolute inset-y-0 right-2 z-0 w-px bg-linear-to-t from-transparent via-border to-border sm:right-4 md:right-6" />
+        <Line className="top-1 left-0 bg-linear-to-l" />
+        <Line className="bottom-1 left-0 bg-linear-to-r" />
+        <div className="absolute inset-y-0 left-1 z-0 w-px bg-linear-to-t from-transparent via-border to-border" />
+        <div className="absolute inset-y-0 right-1 z-0 w-px bg-linear-to-t from-transparent via-border to-border" />
       </>
     )
   }
@@ -98,10 +107,10 @@ function CardDecoration({ variant }: { variant: CardExtendedVariant }) {
     return (
       <div
         aria-hidden
-        className="absolute inset-1 z-0 rounded-lg"
+        className="absolute inset-0 z-0 rounded-xl"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(45deg, transparent, transparent 3px, color-mix(in oklab, var(--foreground) 18%, transparent) 3px, color-mix(in oklab, var(--foreground) 18%, transparent) 5px)",
+            "repeating-linear-gradient(45deg, transparent, transparent 3px, color-mix(in oklab, var(--foreground) 20%, transparent) 3px, color-mix(in oklab, var(--foreground) 20%, transparent) 5px)",
         }}
       />
     )
@@ -111,7 +120,7 @@ function CardDecoration({ variant }: { variant: CardExtendedVariant }) {
     return (
       <div
         aria-hidden
-        className="absolute inset-0 rounded-lg"
+        className="absolute inset-0 z-0 rounded-xl"
         style={{
           backgroundImage: `
             radial-gradient(ellipse at 20% 30%, color-mix(in oklab, var(--info) 35%, transparent) 0%, transparent 60%),
@@ -128,7 +137,7 @@ function CardDecoration({ variant }: { variant: CardExtendedVariant }) {
     return (
       <div
         aria-hidden
-        className="absolute inset-0 isolate z-0 scale-x-95 -rotate-[5deg] rounded-xl border border-border/50 bg-muted/30 py-10"
+        className="absolute inset-0 z-0 scale-x-95 -rotate-[5deg] rounded-xl border border-border/50 bg-muted/30"
       />
     )
   }
@@ -138,11 +147,11 @@ function CardDecoration({ variant }: { variant: CardExtendedVariant }) {
       <>
         <div
           aria-hidden
-          className="absolute top-0 h-full w-full scale-95 rounded-xl border border-border bg-card"
+          className="absolute inset-x-0 top-0 h-full scale-95 rounded-xl border border-border bg-card"
         />
         <div
           aria-hidden
-          className="absolute top-3 h-full w-full scale-[0.97] rounded-xl border border-border bg-card shadow-[0_-2px_6px_-2px_var(--border)]"
+          className="absolute inset-x-0 top-2 h-full scale-[0.97] rounded-xl border border-border bg-card shadow-[0_-2px_6px_-2px_var(--border)]"
         />
       </>
     )

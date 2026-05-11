@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1.10
 
+# Tag ARGs are documentation; digest pins the actual image. Update both together.
 ARG NODE_VERSION=24
-ARG ALPINE_VERSION=3.20
+ARG ALPINE_VERSION=3.21
 ARG PNPM_VERSION=11.0.9
 
 # ---------- deps ----------
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS deps
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION}@sha256:b8f7c9056af700568c1ce76173f1c93743fb64ca1343e18cdf3a6ded8985ad3d AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
@@ -17,7 +18,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter=web... --filter=@workspace/ui...
 
 # ---------- builder ----------
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION}@sha256:b8f7c9056af700568c1ce76173f1c93743fb64ca1343e18cdf3a6ded8985ad3d AS builder
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
@@ -32,7 +33,7 @@ COPY . .
 RUN pnpm --filter web build
 
 # ---------- runner ----------
-FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS runner
+FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION}@sha256:b8f7c9056af700568c1ce76173f1c93743fb64ca1343e18cdf3a6ded8985ad3d AS runner
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0

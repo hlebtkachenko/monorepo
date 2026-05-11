@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.10
 
+# Tag ARGs are documentation; digest pins the actual image. Update both together.
 ARG NODE_VERSION=24
 ARG ALPINE_VERSION=3.21
 ARG PNPM_VERSION=11.0.9

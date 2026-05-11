@@ -1,0 +1,53 @@
+name: DB migration lint (squawk)
+
+# Runs squawk against migration SQL files on PRs that touch migrations/.
+# Flags destructive or unsafe DDL patterns (missing NOT VALID, lock escalation
+# risks, etc.) before they reach main.
+#
+# ADVISORY — continue-on-error: true per project convention for new workflows.
+# Flip to required after a full PR cycle passes green.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/db/migrations/**"
+
+permissions: {}
+
+concurrency:
+  group: db-migration-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  squawk:
+    name: squawk migration lint
+    runs-on: ubuntu-latest
+    continue-on-error: true  # ADVISORY
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+
+      - name: Install squawk
+        run: |
+          set -euo pipefail
+          SQUAWK_VERSION="1.4.0"
+          curl -fsSL \
+            "https://github.com/sbdchd/squawk/releases/download/v${SQUAWK_VERSION}/squawk-linux-x86_64" \
+            -o squawk
+          chmod +x squawk
+          sudo mv squawk /usr/local/bin/squawk
+          squawk --version
+
+      - name: Lint migrations
+        # prefer-text-field: we use varchar/text intentionally per schema design.
+        # disallowed-unique-constraint: unique constraints via indexes are preferred
+        #   but some early migrations use inline UNIQUE — allowed for now.
+        run: |
+          squawk \
+            --exclude prefer-text-field,disallowed-unique-constraint \
+            packages/db/migrations/*.sql

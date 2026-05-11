@@ -42,6 +42,7 @@ jobs:
             revert
           scopes: |
             ai
+            api
             auth
             bundle
             ci
@@ -50,15 +51,19 @@ jobs:
             deps
             deps-dev
             docs
+            email
             github
             i18n
             infra
             observability
+            pdf
             release
             secrets
+            shared
             storage
             tests
             ui
             web
+            workers
           requireScope: false
           subjectPattern: ^[a-z0-9].+$

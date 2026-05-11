@@ -34,15 +34,15 @@ jobs:
           BASE: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          loc=$(git diff --shortstat "origin/${BASE}...HEAD" -- \
+          stat=$(git diff --shortstat "origin/${BASE}...HEAD" -- \
             ':!pnpm-lock.yaml' \
             ':!**/migrations/meta/**' \
             ':!**/*.svg' \
             ':!**/*.png' \
             ':!**/*.ico' \
             ':!**/*.woff' \
-            ':!**/*.woff2' \
-            | awk '{print $4}')
+            ':!**/*.woff2')
+          loc=$(echo "${stat}" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
           loc=${loc:-0}
           echo "loc added: ${loc}"
           if [ "${loc}" -gt 2000 ]; then

@@ -3,6 +3,7 @@ import { App, Tags } from "aws-cdk-lib"
 import { NetworkStack } from "../lib/network-stack.js"
 import { DataStack } from "../lib/data-stack.js"
 import { AppStack } from "../lib/app-stack.js"
+import { ObservabilityStack } from "../lib/observability-stack.js"
 
 const app = new App()
 
@@ -48,7 +49,7 @@ const data = new DataStack(app, `Data-${env}`, {
   appSecurityGroupId: network.appSecurityGroup.securityGroupId,
 })
 
-new AppStack(app, `App-${env}`, {
+const appStack = new AppStack(app, `App-${env}`, {
   env: stackEnv,
   envName: env,
   vpc: network.vpc,
@@ -60,6 +61,13 @@ new AppStack(app, `App-${env}`, {
   webRepository: data.webRepository,
   apiRepository: data.apiRepository,
   domain,
+})
+
+new ObservabilityStack(app, `Observability-${env}`, {
+  env: stackEnv,
+  envName: env,
+  appStack,
+  dataStack: data,
 })
 
 Tags.of(app).add("Environment", env)

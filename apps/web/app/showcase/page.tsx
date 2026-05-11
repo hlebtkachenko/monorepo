@@ -208,17 +208,16 @@ import { CreatableComboboxDemo } from "./_components/creatable-combobox-demo"
 import { FileUploadDemo } from "./_components/file-upload-demo"
 import { InputPhoneDemo } from "./_components/input-phone-demo"
 import { MentionDemo } from "./_components/mention-demo"
-import { SegmentedInputDemo } from "./_components/segmented-input-demo"
+import { InputSegmentedDemo } from "./_components/input-segmented-demo"
 import { SignaturePadDemo } from "./_components/signature-pad-demo"
-import { TagsInputDemo } from "./_components/tags-input-demo"
-import { BottomNavigationDemo } from "./_components/bottom-navigation-demo"
+import { InputTagsDemo } from "./_components/input-tags-demo"
+import { NavigationBottomMobileDemo } from "./_components/navigation-bottom-mobile-demo"
 import { DataGridDemo } from "./_components/data-grid-demo"
 import { DataTableDemo } from "./_components/data-table-demo"
-import { DataTableFilterDemo } from "./_components/data-table-filter-demo"
+import { FilterBarDemo } from "./_components/filter-bar-demo"
 import { FloatingPanelDemo } from "./_components/floating-panel-demo"
 import { PdfViewerDemo } from "./_components/pdf-viewer-demo"
 import { PromptLibraryDemo } from "./_components/prompt-library-demo"
-import { SeparatorExtendedDemo } from "./_components/separator-extended-demo"
 import { TourDemo } from "./_components/tour-demo"
 
 export default function ShowcasePage() {
@@ -509,14 +508,14 @@ export default function ShowcasePage() {
       {/* ==================== BOTTOMNAVIGATION ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          Bottom Navigation
+          NavigationBottomMobile
         </h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
               Mobile tab bar with icons
             </h3>
-            <BottomNavigationDemo />
+            <NavigationBottomMobileDemo />
           </div>
         </div>
       </section>
@@ -1060,17 +1059,15 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== DATATABLEFILTER ==================== */}
+      {/* ==================== FILTERBAR ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          Data Table Filter
-        </h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">FilterBar</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
               Composable filter builder with operators
             </h3>
-            <DataTableFilterDemo />
+            <FilterBarDemo />
           </div>
         </div>
       </section>
@@ -1918,17 +1915,17 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== SEGMENTEDINPUT ==================== */}
+      {/* ==================== INPUTSEGMENTED ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          SegmentedInput
+          InputSegmented
         </h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
               Joined inputs for split-field entry (date of birth)
             </h3>
-            <SegmentedInputDemo />
+            <InputSegmentedDemo />
           </div>
         </div>
       </section>
@@ -1973,21 +1970,6 @@ export default function ShowcasePage() {
               <Separator orientation="vertical" />
               <span className="text-sm text-muted-foreground">Right</span>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== SEPARATOREXTENDED ==================== */}
-      <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
-          Separator Extended
-        </h2>
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Solid, dashed, dotted, double; horizontal + vertical
-            </h3>
-            <SeparatorExtendedDemo />
           </div>
         </div>
       </section>
@@ -2310,15 +2292,15 @@ export default function ShowcasePage() {
         </div>
       </section>
 
-      {/* ==================== TAGSINPUT ==================== */}
+      {/* ==================== INPUTTAGS ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">TagsInput</h2>
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">InputTags</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
               Add and remove tags with the keyboard
             </h3>
-            <TagsInputDemo />
+            <InputTagsDemo />
           </div>
         </div>
       </section>

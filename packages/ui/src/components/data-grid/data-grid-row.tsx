@@ -24,6 +24,7 @@ interface DataGridRowProps<TData> {
   searchMatchKeys: Set<string>
   activeSearchMatch: CellPosition | null
   readOnly: boolean
+  gridTemplateColumns: string
 }
 
 function DataGridRowImpl<TData>({
@@ -36,6 +37,7 @@ function DataGridRowImpl<TData>({
   searchMatchKeys,
   activeSearchMatch,
   readOnly,
+  gridTemplateColumns,
 }: DataGridRowProps<TData>) {
   const rowIndex = virtualItem.index
   const visibleCells = row.getVisibleCells()
@@ -46,10 +48,11 @@ function DataGridRowImpl<TData>({
       aria-rowindex={rowIndex + 2}
       data-slot="data-grid-row"
       data-index={rowIndex}
-      className={cn("absolute flex w-full border-b will-change-transform")}
+      className={cn("absolute grid w-full border-b will-change-transform")}
       style={{
         height: `${getRowHeightValue(rowHeight)}px`,
         transform: `translateY(${virtualItem.start}px)`,
+        gridTemplateColumns,
       }}
     >
       {visibleCells.map((cell, colIndex) => {
@@ -73,14 +76,10 @@ function DataGridRowImpl<TData>({
             aria-colindex={colIndex + 1}
             data-slot="data-grid-cell"
             className={cn(
-              "border-r last:border-r-0",
+              "min-w-0 border-r last:border-r-0",
               isSearchMatch && !isActiveSearchMatch && "bg-warning/15",
               isActiveSearchMatch && "bg-warning/30",
             )}
-            style={{
-              width: cell.column.getSize(),
-              minWidth: cell.column.getSize(),
-            }}
           >
             <DataGridCell
               cell={cell}
@@ -106,6 +105,7 @@ export const DataGridRow = React.memo(DataGridRowImpl, (prev, next) => {
   if (prev.virtualItem.start !== next.virtualItem.start) return false
   if (prev.rowHeight !== next.rowHeight) return false
   if (prev.readOnly !== next.readOnly) return false
+  if (prev.gridTemplateColumns !== next.gridTemplateColumns) return false
   if (prev.searchMatchKeys !== next.searchMatchKeys) return false
 
   const idx = prev.virtualItem.index

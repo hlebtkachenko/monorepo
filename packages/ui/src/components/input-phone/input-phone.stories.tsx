@@ -74,11 +74,15 @@ export const Invalid: Story = {
 
 export const WithoutFlag: Story = {
   render: () => (
-    <div className="w-full max-w-sm">
+    <div className="w-full max-w-sm space-y-2">
       <PhoneInput showFlag={false} defaultCountry="JP" defaultValue="+8131234">
         <PhoneInputCountry />
         <PhoneInputField />
       </PhoneInput>
+      <p className="text-xs text-muted-foreground">
+        With <code>showFlag=false</code>, the left trigger renders the calling
+        code (e.g. <code>+81</code>) as text instead of the flag emoji.
+      </p>
     </div>
   ),
 }

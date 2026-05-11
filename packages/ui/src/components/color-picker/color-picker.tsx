@@ -141,23 +141,53 @@ function ColorPicker({
     }
   }, [color])
 
+  const hslRef = React.useRef(hsl)
+  React.useEffect(() => {
+    hslRef.current = hsl
+  }, [hsl])
+
   const handleHueChange = (hue: number) => {
-    const next: [number, number, number] = [hue, hsl[1], hsl[2]]
+    const current = hslRef.current
+    const next: [number, number, number] = [hue, current[1], current[2]]
     setHsl(next)
     applyColor(`hsl(${next[0]}, ${next[1]}%, ${next[2]}%)`)
   }
 
-  const handleSaturationLightnessChange = (
-    event: React.MouseEvent<HTMLDivElement>,
-  ) => {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    const s = Math.round((x / rect.width) * 100)
-    const l = Math.round(100 - (y / rect.height) * 100)
-    const next: [number, number, number] = [hsl[0], s, l]
-    setHsl(next)
-    applyColor(`hsl(${next[0]}, ${next[1]}%, ${next[2]}%)`)
+  const computeSaturationLightness = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect()
+      const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width))
+      const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height))
+      const s = Math.round((x / rect.width) * 100)
+      const l = Math.round(100 - (y / rect.height) * 100)
+      const current = hslRef.current
+      const next: [number, number, number] = [current[0], s, l]
+      setHsl(next)
+      applyColor(`hsl(${next[0]}, ${next[1]}%, ${next[2]}%)`)
+    },
+    [applyColor],
+  )
+
+  const isDraggingAreaRef = React.useRef(false)
+
+  const handleAreaPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    isDraggingAreaRef.current = true
+    event.currentTarget.setPointerCapture(event.pointerId)
+    computeSaturationLightness(event)
+  }
+
+  const handleAreaPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingAreaRef.current) return
+    computeSaturationLightness(event)
+  }
+
+  const handleAreaPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingAreaRef.current) return
+    isDraggingAreaRef.current = false
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
   }
 
   const handleColorInputChange = (
@@ -199,7 +229,7 @@ function ColorPicker({
         <div
           data-slot="color-picker-area"
           role="presentation"
-          className="relative h-40 w-full cursor-crosshair overflow-hidden rounded-md border border-border/60"
+          className="relative h-40 w-full cursor-crosshair touch-none overflow-hidden rounded-md border border-border/60"
           style={{
             background: `
               linear-gradient(to top, rgba(0, 0, 0, 1), transparent),
@@ -207,7 +237,10 @@ function ColorPicker({
               hsl(${hsl[0]}, 100%, 50%)
             `,
           }}
-          onClick={handleSaturationLightnessChange}
+          onPointerDown={handleAreaPointerDown}
+          onPointerMove={handleAreaPointerMove}
+          onPointerUp={handleAreaPointerUp}
+          onPointerCancel={handleAreaPointerUp}
         >
           <div
             data-slot="color-picker-thumb"

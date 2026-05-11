@@ -187,6 +187,7 @@ function FloatingPanelMaximize({
 function FloatingPanelRestore({
   size = "icon-xs",
   variant = "outline",
+  className,
   ...props
 }: FloatingPanelStageTriggerProps) {
   return (
@@ -196,7 +197,15 @@ function FloatingPanelRestore({
       asChild
       stage="default"
     >
-      <Button aria-label="Restore" size={size} variant={variant}>
+      <Button
+        aria-label="Restore"
+        size={size}
+        variant={variant}
+        className={cn(
+          "hidden group-data-maximized/floating-panel:inline-flex group-data-minimized/floating-panel:inline-flex",
+          className,
+        )}
+      >
         <MinimizeIcon className="hidden group-data-maximized/floating-panel:block" />
         <MaximizeIcon className="hidden group-data-minimized/floating-panel:block" />
       </Button>

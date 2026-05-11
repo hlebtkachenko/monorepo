@@ -156,20 +156,62 @@ const allColumns: ColumnDef<Person>[] = [
 function Controlled({
   columns,
   enableSearch,
+  readOnly,
+  seed,
 }: {
   columns: ColumnDef<Person>[]
   enableSearch?: boolean
+  readOnly?: boolean
+  seed?: Person[]
 }) {
-  const [data, setData] = React.useState(initialData)
+  const [data, setData] = React.useState(seed ?? initialData)
   return (
     <DataGrid<Person>
       data={data}
       columns={columns}
       onDataChange={setData}
       enableSearch={enableSearch}
+      readOnly={readOnly}
     />
   )
 }
+
+const sortingDataset: Person[] = [
+  ...initialData,
+  {
+    name: "Margaret Hamilton",
+    email: "margaret@example.com",
+    age: 88,
+    active: true,
+    role: "engineer",
+    joined: "2021-04-10",
+    tags: ["math"],
+    url: "https://example.com/margaret",
+    notes: "Apollo software.",
+  },
+  {
+    name: "Barbara Liskov",
+    email: "barbara@example.com",
+    age: 85,
+    active: true,
+    role: "researcher",
+    joined: "2020-08-05",
+    tags: ["algorithms"],
+    url: "https://example.com/barbara",
+    notes: "Substitution principle.",
+  },
+  {
+    name: "Linus Torvalds",
+    email: "linus@example.com",
+    age: 54,
+    active: true,
+    role: "engineer",
+    joined: "2024-02-12",
+    tags: ["code"],
+    url: "https://example.com/linus",
+    notes: "Kernel author.",
+  },
+]
 
 const meta: Meta<typeof DataGrid> = {
   title: "Components/DataGrid",
@@ -183,12 +225,40 @@ export const Default: Story = {
   render: () => <Controlled columns={baseColumns} />,
 }
 
-export const WithEditing: Story = {
+export const Editable: Story = {
   render: () => <Controlled columns={baseColumns} />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Double-click any cell (or focus + Enter) to edit. Changes persist via onDataChange.",
+      },
+    },
+  },
+}
+
+export const ReadOnly: Story = {
+  render: () => <Controlled columns={baseColumns} readOnly />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "readOnly disables editing, paste, and clear; cells remain focusable.",
+      },
+    },
+  },
 }
 
 export const WithSorting: Story = {
-  render: () => <Controlled columns={baseColumns} />,
+  render: () => <Controlled columns={baseColumns} seed={sortingDataset} />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Click a column header to sort asc/desc. Larger dataset surfaces ordering changes.",
+      },
+    },
+  },
 }
 
 export const WithSearch: Story = {
@@ -201,4 +271,11 @@ export const WithCellTypes: Story = {
 
 export const WithContextMenu: Story = {
   render: () => <Controlled columns={baseColumns} />,
+  parameters: {
+    docs: {
+      description: {
+        story: "Right-click any cell for copy / cut / clear / paste actions.",
+      },
+    },
+  },
 }

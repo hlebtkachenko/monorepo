@@ -597,12 +597,24 @@ export function DataGrid<TData>({
     return () => document.removeEventListener("keydown", onKey)
   }, [enableSearch])
 
+  const gridTemplateColumns = React.useMemo(() => {
+    return columns
+      .map((column) => {
+        const size = (column as { size?: number }).size
+        if (typeof size === "number" && Number.isFinite(size) && size > 0) {
+          return `${size}px`
+        }
+        return "minmax(120px, 1fr)"
+      })
+      .join(" ")
+  }, [columns])
+
   return (
     <div
       data-slot="data-grid"
       ref={dataGridRef}
       {...props}
-      className={cn("relative flex w-full flex-col", className)}
+      className={cn("relative flex w-full flex-col gap-2", className)}
     >
       {enableSearch && (
         <DataGridSearch
@@ -652,25 +664,22 @@ export function DataGrid<TData>({
         <div
           role="rowgroup"
           data-slot="data-grid-header"
-          className="sticky top-0 z-10 grid border-b bg-background"
+          className="sticky top-0 z-10 border-b bg-background"
         >
           {table.getHeaderGroups().map((headerGroup, rowIndex) => (
             <div
               key={headerGroup.id}
               role="row"
               aria-rowindex={rowIndex + 1}
-              className="flex w-full"
+              className="grid w-full"
+              style={{ gridTemplateColumns }}
             >
               {headerGroup.headers.map((header, colIndex) => (
                 <div
                   key={header.id}
                   role="columnheader"
                   aria-colindex={colIndex + 1}
-                  className="relative flex-1 border-r last:border-r-0"
-                  style={{
-                    width: header.getSize(),
-                    minWidth: header.getSize(),
-                  }}
+                  className="relative min-w-0 border-r last:border-r-0"
                 >
                   {header.isPlaceholder ? null : (
                     <DataGridColumnHeader header={header} />
@@ -701,6 +710,7 @@ export function DataGrid<TData>({
                 searchMatchKeys={searchMatchKeys}
                 activeSearchMatch={activeSearchMatch}
                 readOnly={readOnly}
+                gridTemplateColumns={gridTemplateColumns}
               />
             )
           })}

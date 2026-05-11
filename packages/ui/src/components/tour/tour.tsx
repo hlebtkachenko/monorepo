@@ -603,34 +603,11 @@ interface TourSpotlightProps extends DivProps {
   forceMount?: boolean
 }
 
-function TourSpotlight({
-  asChild,
-  className,
-  style,
-  forceMount = false,
-  ...backdropProps
-}: TourSpotlightProps) {
-  const open = useStore((state) => state.open)
-  const maskPath = useStore((state) => state.maskPath)
-
-  if (!open && !forceMount) return null
-
-  const SpotlightPrimitive = asChild ? SlotPrimitive.Slot : "div"
-
-  return (
-    <SpotlightPrimitive
-      data-slot="tour-spotlight"
-      data-state={open ? "open" : "closed"}
-      {...backdropProps}
-      className={cn(
-        "fixed inset-0 z-50 bg-background/95",
-        "data-[state=open]:animate-in data-[state=open]:fade-in-0",
-        "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
-        className,
-      )}
-      style={{ clipPath: maskPath, ...style }}
-    />
-  )
+// Dim overlay disabled by design: the spotlight ring alone is enough,
+// and the masked overlay was visually heavy. Component kept as a no-op
+// so consumers can compose it without breaking their layouts.
+function TourSpotlight(_props: TourSpotlightProps) {
+  return null
 }
 
 interface TourSpotlightRingProps extends DivProps {
@@ -658,7 +635,7 @@ function TourSpotlightRing({
       data-state={open ? "open" : "closed"}
       {...ringProps}
       className={cn(
-        "pointer-events-none fixed z-50 border-2 border-primary ring-4 ring-primary/30",
+        "pointer-events-none fixed z-50 rounded-md border-2 border-primary ring-4 ring-primary/30",
         className,
       )}
       style={{
@@ -666,6 +643,7 @@ function TourSpotlightRing({
         top: spotlightRect.y,
         width: spotlightRect.width,
         height: spotlightRect.height,
+        borderRadius: "var(--radius)",
         ...style,
       }}
     />

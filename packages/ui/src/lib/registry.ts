@@ -94,15 +94,6 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["feedback"],
     dependencies: ["button"],
   },
-  "bottom-navigation": {
-    source: "shark-ui",
-    sourceType: "import",
-    upstream: "https://shark.vini.one/docs/components/bottom-navigation",
-    description:
-      "Mobile-first bottom navigation bar with icon and label items, fixed positioning, and safe-area support",
-    categories: ["navigation"],
-    packages: ["@ark-ui/react"],
-  },
   breadcrumb: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -324,26 +315,6 @@ export const registry: Record<string, ComponentMeta> = {
     ],
     packages: ["@tanstack/react-table"],
   },
-  "data-table-filter": {
-    source: "bazza",
-    sourceType: "import",
-    upstream: "https://ui.bazza.dev/docs/data-table-filter",
-    description:
-      "Library-agnostic table filter system with pill chips, operator selection, debounced inputs, and pluggable strings override",
-    categories: ["data", "forms"],
-    dependencies: [
-      "badge",
-      "button",
-      "calendar",
-      "checkbox",
-      "command",
-      "input",
-      "popover",
-      "select",
-      "slider",
-    ],
-    packages: ["date-fns", "react-day-picker"],
-  },
   dialog: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -426,6 +397,26 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["forms"],
     dependencies: ["button"],
   },
+  "filter-bar": {
+    source: "bazza",
+    sourceType: "import",
+    upstream: "https://ui.bazza.dev/docs/data-table-filter",
+    description:
+      "Library-agnostic table filter bar with pill chips, operator selection, debounced inputs, and pluggable strings override",
+    categories: ["data", "forms"],
+    dependencies: [
+      "badge",
+      "button",
+      "calendar",
+      "checkbox",
+      "command",
+      "input",
+      "popover",
+      "select",
+      "slider",
+    ],
+    packages: ["date-fns", "react-day-picker"],
+  },
   "floating-panel": {
     source: "shark-ui",
     sourceType: "import",
@@ -482,6 +473,24 @@ export const registry: Record<string, ComponentMeta> = {
       "International phone input variation with country selector (Popover + Command), flag, and tel formatting",
     categories: ["forms"],
     dependencies: ["button", "command", "input", "popover"],
+  },
+  "input-segmented": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/segmented-input",
+    description:
+      "Multi-segment input (date, time, code) with per-segment focus, keyboard navigation, and validation",
+    categories: ["forms"],
+    dependencies: ["input"],
+  },
+  "input-tags": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/tags-input",
+    description:
+      "Tag/chip input with keyboard add, editable items, paste support, and clear button",
+    categories: ["forms"],
+    packages: ["@diceui/tags-input"],
   },
   item: {
     source: "shadcn",
@@ -571,6 +580,15 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/native-select",
     description: "Native HTML select with custom styling",
     categories: ["forms"],
+  },
+  "navigation-bottom-mobile": {
+    source: "shark-ui",
+    sourceType: "import",
+    upstream: "https://shark.vini.one/docs/components/bottom-navigation",
+    description:
+      "Mobile-first bottom navigation bar with icon and label items, fixed positioning, and safe-area support",
+    categories: ["navigation"],
+    packages: ["@ark-ui/react"],
   },
   "navigation-menu": {
     source: "shadcn",
@@ -677,15 +695,6 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Custom scrollbar wrapper with smooth scrolling",
     categories: ["layout"],
   },
-  "segmented-input": {
-    source: "diceui",
-    sourceType: "import",
-    upstream: "https://www.diceui.com/docs/components/radix/segmented-input",
-    description:
-      "Multi-segment input (date, time, code) with per-segment focus, keyboard navigation, and validation",
-    categories: ["forms"],
-    dependencies: ["input"],
-  },
   select: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -697,18 +706,9 @@ export const registry: Record<string, ComponentMeta> = {
     source: "shadcn",
     sourceType: "vanilla",
     upstream: "https://ui.shadcn.com/docs/components/separator",
-    description: "Visual divider line, horizontal or vertical",
-    categories: ["layout"],
-  },
-  "separator-extended": {
-    source: "basecn",
-    sourceType: "import",
-    upstream: "https://basecn.dev/docs/components/separator-extended",
     description:
-      "Separator variant set: solid, dashed, dotted, double. Horizontal and vertical orientations",
+      "Visual divider with solid (default), dashed, dotted, and double variants in horizontal and vertical orientations",
     categories: ["layout"],
-    dependencies: ["separator"],
-    packages: ["@base-ui/react"],
   },
   sheet: {
     source: "shadcn",
@@ -817,15 +817,6 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/tabs",
     description: "Tabbed interface with content panels",
     categories: ["navigation"],
-  },
-  "tags-input": {
-    source: "diceui",
-    sourceType: "import",
-    upstream: "https://www.diceui.com/docs/components/radix/tags-input",
-    description:
-      "Tag/chip input with keyboard add, editable items, paste support, and clear button",
-    categories: ["forms"],
-    packages: ["@diceui/tags-input"],
   },
   textarea: {
     source: "shadcn",

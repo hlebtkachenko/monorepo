@@ -23,7 +23,7 @@ type Story = StoryObj<typeof FloatingPanel>
 
 export const Default: Story = {
   render: () => (
-    <FloatingPanel>
+    <FloatingPanel defaultOpen>
       <FloatingPanelTrigger asChild>
         <Button variant="outline">Open panel</Button>
       </FloatingPanelTrigger>
@@ -32,6 +32,7 @@ export const Default: Story = {
           <FloatingPanelTitle>Floating panel</FloatingPanelTitle>
           <FloatingPanelControl>
             <FloatingPanelMinimize />
+            <FloatingPanelRestore />
             <FloatingPanelMaximize />
           </FloatingPanelControl>
         </FloatingPanelHeader>
@@ -81,6 +82,7 @@ export const CustomSize: Story = {
           <FloatingPanelTitle>Custom dimensions</FloatingPanelTitle>
           <FloatingPanelControl>
             <FloatingPanelMinimize />
+            <FloatingPanelRestore />
             <FloatingPanelMaximize />
           </FloatingPanelControl>
         </FloatingPanelHeader>

@@ -2,7 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react"
 import type { ColumnDef } from "@tanstack/react-table"
 import * as React from "react"
 
-import { Button } from "@workspace/ui/components/button"
+import {
+  ActionBar,
+  ActionBarGroup,
+  ActionBarItem,
+  ActionBarSelection,
+  ActionBarSeparator,
+} from "@workspace/ui/components/action-bar"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 
 import { DataTable } from "./data-table"
@@ -227,10 +233,12 @@ function PaginationExample() {
     initialState: { pagination: { pageIndex: 0, pageSize: 5 } },
   })
   return (
-    <DataTable table={table}>
-      <DataTableToolbar table={table} />
+    <div className="flex flex-col gap-2.5">
+      <DataTable table={table}>
+        <DataTableToolbar table={table} />
+      </DataTable>
       <DataTablePagination table={table} />
-    </DataTable>
+    </div>
   )
 }
 
@@ -245,10 +253,12 @@ function RowSelectionExample() {
     initialState: { pagination: { pageIndex: 0, pageSize: 5 } },
   })
   return (
-    <DataTable table={table}>
-      <DataTableToolbar table={table} />
+    <div className="flex flex-col gap-2.5">
+      <DataTable table={table}>
+        <DataTableToolbar table={table} />
+      </DataTable>
       <DataTablePagination table={table} />
-    </DataTable>
+    </div>
   )
 }
 
@@ -267,31 +277,36 @@ function ActionBarExample() {
   })
   const selected = table.getFilteredSelectedRowModel().rows.length
   return (
-    <DataTable
-      table={table}
-      actionBar={
-        <div
-          className="flex items-center gap-2 rounded-md border bg-muted/40 p-2"
-          role="group"
-          aria-label="Bulk actions"
-        >
-          <span className="text-sm text-muted-foreground">
-            {selected} selected
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => table.resetRowSelection()}
-          >
-            Clear
-          </Button>
-          <Button size="sm">Archive</Button>
-        </div>
-      }
-    >
-      <DataTableToolbar table={table} />
+    <div className="flex flex-col gap-2.5">
+      <DataTable table={table}>
+        <DataTableToolbar table={table} />
+      </DataTable>
       <DataTablePagination table={table} />
-    </DataTable>
+      <ActionBar
+        open={selected > 0}
+        onOpenChange={(open) => {
+          if (!open) table.resetRowSelection()
+        }}
+        aria-label="Bulk actions"
+      >
+        <ActionBarSelection>
+          {selected} selected
+          <ActionBarSeparator />
+        </ActionBarSelection>
+        <ActionBarGroup>
+          <ActionBarItem onSelect={() => table.resetRowSelection()}>
+            Delete
+          </ActionBarItem>
+          <ActionBarItem onSelect={() => table.resetRowSelection()}>
+            Archive
+          </ActionBarItem>
+          <ActionBarSeparator />
+          <ActionBarItem onSelect={() => table.resetRowSelection()}>
+            Cancel
+          </ActionBarItem>
+        </ActionBarGroup>
+      </ActionBar>
+    </div>
   )
 }
 

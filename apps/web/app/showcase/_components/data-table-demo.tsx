@@ -138,9 +138,11 @@ export function DataTableDemo() {
   })
 
   return (
-    <DataTable table={table}>
-      <DataTableToolbar table={table} />
+    <div className="flex flex-col gap-2.5">
+      <DataTable table={table}>
+        <DataTableToolbar table={table} />
+      </DataTable>
       <DataTablePagination table={table} />
-    </DataTable>
+    </div>
   )
 }

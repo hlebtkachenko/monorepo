@@ -681,13 +681,16 @@ function PhoneInputCountry(props: PhoneInputCountryProps) {
         >
           {!countryContext ? (
             <span className="h-4 w-6 rounded-sm bg-muted" aria-hidden />
-          ) : (
-            showFlag &&
+          ) : showFlag ? (
             countryContext.flag && (
               <span className="text-base leading-none" aria-hidden>
                 {countryContext.flag}
               </span>
             )
+          ) : (
+            <span className="text-sm font-medium text-foreground tabular-nums">
+              {countryContext.dialCode}
+            </span>
           )}
           <ChevronDownIcon className="size-3.5 opacity-60" />
         </Button>

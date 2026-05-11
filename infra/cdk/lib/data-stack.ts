@@ -22,7 +22,7 @@ import {
 } from "aws-cdk-lib/aws-s3"
 import { Secret } from "aws-cdk-lib/aws-secretsmanager"
 import { InstanceClass, InstanceSize, InstanceType } from "aws-cdk-lib/aws-ec2"
-import { Repository, TagMutability } from "aws-cdk-lib/aws-ecr"
+import { Repository, TagMutability, TagStatus } from "aws-cdk-lib/aws-ecr"
 import type { Construct } from "constructs"
 
 export interface DataStackProps extends StackProps {
@@ -55,7 +55,14 @@ export class DataStack extends Stack {
       imageScanOnPush: true,
       lifecycleRules: [
         {
-          description: "Retain last 10 images",
+          description:
+            "Expire untagged images after 1 day (catches dangling build cache)",
+          tagStatus: TagStatus.UNTAGGED,
+          maxImageAge: Duration.days(1),
+        },
+        {
+          description: "Retain last 10 tagged images",
+          tagStatus: TagStatus.ANY,
           maxImageCount: 10,
         },
       ],
@@ -72,7 +79,14 @@ export class DataStack extends Stack {
       imageScanOnPush: true,
       lifecycleRules: [
         {
-          description: "Retain last 10 images",
+          description:
+            "Expire untagged images after 1 day (catches dangling build cache)",
+          tagStatus: TagStatus.UNTAGGED,
+          maxImageAge: Duration.days(1),
+        },
+        {
+          description: "Retain last 10 tagged images",
+          tagStatus: TagStatus.ANY,
           maxImageCount: 10,
         },
       ],
@@ -118,7 +132,7 @@ export class DataStack extends Stack {
       }),
       instanceType: InstanceType.of(InstanceClass.T4G, InstanceSize.MICRO),
       allocatedStorage: 20,
-      maxAllocatedStorage: 100,
+      maxAllocatedStorage: 40,
       storageType: StorageType.GP3,
       multiAz: false,
       publiclyAccessible: false,

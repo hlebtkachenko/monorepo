@@ -94,6 +94,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["feedback"],
     dependencies: ["button"],
   },
+  "bottom-navigation": {
+    source: "shark-ui",
+    sourceType: "import",
+    upstream: "https://shark.vini.one/docs/components/bottom-navigation",
+    description:
+      "Mobile-first bottom navigation bar with icon and label items, fixed positioning, and safe-area support",
+    categories: ["navigation"],
+    packages: ["@ark-ui/react"],
+  },
   breadcrumb: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -270,6 +279,71 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["forms"],
     dependencies: ["combobox"],
   },
+  "data-grid": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/data-grid",
+    description:
+      "Virtualized editable grid with 9 cell types, clipboard, undo/redo, search, sorting, and column management",
+    categories: ["data"],
+    dependencies: [
+      "button",
+      "checkbox",
+      "command",
+      "dialog",
+      "input",
+      "popover",
+      "select",
+      "table",
+    ],
+    packages: ["@tanstack/react-table", "@tanstack/react-virtual"],
+  },
+  "data-table": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/data-table",
+    description:
+      "Feature-rich TanStack table with filtering, multi-column sort, pagination, column visibility, row selection, action bar, and router-agnostic URL state",
+    categories: ["data"],
+    dependencies: [
+      "badge",
+      "button",
+      "calendar",
+      "checkbox",
+      "command",
+      "dialog",
+      "dropdown-menu",
+      "input",
+      "popover",
+      "select",
+      "separator",
+      "skeleton",
+      "slider",
+      "table",
+      "tooltip",
+    ],
+    packages: ["@tanstack/react-table"],
+  },
+  "data-table-filter": {
+    source: "bazza",
+    sourceType: "import",
+    upstream: "https://ui.bazza.dev/docs/data-table-filter",
+    description:
+      "Library-agnostic table filter system with pill chips, operator selection, debounced inputs, and pluggable strings override",
+    categories: ["data", "forms"],
+    dependencies: [
+      "badge",
+      "button",
+      "calendar",
+      "checkbox",
+      "command",
+      "input",
+      "popover",
+      "select",
+      "slider",
+    ],
+    packages: ["date-fns", "react-day-picker"],
+  },
   dialog: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -351,6 +425,16 @@ export const registry: Record<string, ComponentMeta> = {
       "Drag-and-drop file upload with progress tracking, type/size validation, and preview thumbnails",
     categories: ["forms"],
     dependencies: ["button"],
+  },
+  "floating-panel": {
+    source: "shark-ui",
+    sourceType: "import",
+    upstream: "https://shark.vini.one/docs/components/floating-panel",
+    description:
+      "Non-modal floating window with drag, resize, minimize, maximize, and restore controls",
+    categories: ["overlay"],
+    dependencies: ["button", "scroll-area"],
+    packages: ["@ark-ui/react"],
   },
   gauge: {
     source: "diceui",
@@ -503,6 +587,25 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["navigation"],
     dependencies: ["button"],
   },
+  "pdf-utils": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/pdf/pdf-utils",
+    description:
+      "Client-side PDF utility library: extract metadata, screenshot pages, search text, generate thumbnails, split page ranges",
+    categories: ["data", "utility"],
+    packages: ["pdf-lib", "pdfjs-dist", "react-pdf"],
+  },
+  "pdf-viewer": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/pdf/pdf-viewer",
+    description:
+      "Full-featured PDF viewer with single-page, continuous-scroll, and book layout modes, zoom controls, and page navigation",
+    categories: ["display"],
+    dependencies: ["button", "input"],
+    packages: ["react-pdf"],
+  },
   popover: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -516,6 +619,24 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/progress",
     description: "Linear progress bar indicator",
     categories: ["feedback"],
+  },
+  "prompt-library": {
+    source: "cult-ui",
+    sourceType: "import",
+    upstream: "https://www.cult-ui.com/docs/components/prompt-library",
+    description:
+      "AI prompt template library in a popover with search, categories, hover preview, and custom prompt creation",
+    categories: ["overlay", "forms"],
+    dependencies: [
+      "button",
+      "command",
+      "dialog",
+      "hover-card",
+      "input",
+      "popover",
+      "textarea",
+    ],
+    packages: ["cmdk", "@hugeicons/react", "@hugeicons/core-free-icons"],
   },
   "qr-code": {
     source: "diceui",
@@ -578,6 +699,16 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/separator",
     description: "Visual divider line, horizontal or vertical",
     categories: ["layout"],
+  },
+  "separator-extended": {
+    source: "basecn",
+    sourceType: "import",
+    upstream: "https://basecn.dev/docs/components/separator-extended",
+    description:
+      "Separator variant set: solid, dashed, dotted, double. Horizontal and vertical orientations",
+    categories: ["layout"],
+    dependencies: ["separator"],
+    packages: ["@base-ui/react"],
   },
   sheet: {
     source: "shadcn",
@@ -732,6 +863,16 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/tooltip",
     description: "Hover tooltip with text content",
     categories: ["overlay"],
+  },
+  tour: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/tour",
+    description:
+      "Multi-step guided tour overlay with spotlight, floating tooltip, step navigation, and keyboard support",
+    categories: ["overlay", "navigation"],
+    dependencies: ["button"],
+    packages: ["@floating-ui/react-dom"],
   },
   "webhook-tester": {
     source: "tryelements",

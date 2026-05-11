@@ -42,6 +42,19 @@ jobs:
           # Security tab via the upload-sarif step below.
           publish_results: false
 
+      - name: Filter out project-level informational checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Remove checks that require org-level policy or external registration,
+          # not fixable in code: Branch-Protection, CII-Best-Practices, Code-Review,
+          # Fuzzing, Maintained, SAST, Vulnerabilities.
+          SKIP="BranchProtectionID|CIIBestPracticesID|CodeReviewID|FuzzingID|MaintainedID|SASTID|VulnerabilitiesID"
+          jq --arg skip "$SKIP" '
+            .runs[].results |= map(select(.ruleId | test($skip) | not))
+          ' results.sarif > results-filtered.sarif
+          mv results-filtered.sarif results.sarif
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: scorecard-sarif

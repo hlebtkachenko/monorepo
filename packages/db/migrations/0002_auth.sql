@@ -20,11 +20,16 @@
 BEGIN;
 
 -- 1. Roles (idempotent; testcontainer environments may not pre-create them) ---
+--
+-- Canonical role provisioning lives in infra/compose/postgres/init.d/00-roles.sql
+-- (runs at compose container init). The blocks below are a fallback for
+-- environments without the init.d hook (testcontainers, ad-hoc fresh DBs).
+-- Attributes here MUST match init.d to avoid drift.
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
-    CREATE ROLE app_user LOGIN PASSWORD 'app_user_dev';
+    CREATE ROLE app_user LOGIN PASSWORD 'dev_user';
   END IF;
 END
 $$;
@@ -40,7 +45,7 @@ $$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner') THEN
-    CREATE ROLE app_owner SUPERUSER NOLOGIN;
+    CREATE ROLE app_owner SUPERUSER LOGIN PASSWORD 'dev_owner';
   END IF;
 END
 $$;

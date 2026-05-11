@@ -68,7 +68,7 @@ COPY --from=builder --chown=nestjs:nodejs /prod ./
 USER nestjs:nodejs
 EXPOSE 3001
 
-# No Docker HEALTHCHECK — ALB target group does HTTP /health checks from outside.
+# No Docker HEALTHCHECK - ALB target group does HTTP /health checks from outside.
 # Docker-level health adds a second source of truth that can drift from ALB's view.
 
 CMD ["node", "dist/main.js"]

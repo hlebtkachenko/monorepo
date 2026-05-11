@@ -21,7 +21,7 @@ A senior AWS advisor review (`.context/attachments/AWS-PLATFORM-OVERVIEW.md`, `a
 
 ## Considered Options
 
-1. **Stay with hybrid** (per ADR 0001). Tofu provisions Org + OUs + SCPs (no-op on single account) + a baseline VPC; CDK provisions app stacks. Adds a second state system, second CI path, second tool to keep current — for zero MVP value.
+1. **Stay with hybrid** (per ADR 0001). Tofu provisions Org + OUs + SCPs (no-op on single account) + a baseline VPC; CDK provisions app stacks. Adds a second state system, second CI path, second tool to keep current - for zero MVP value.
 2. **CDK-only.** All application infrastructure (network, data, app, observability) in one tool. State in CloudFormation per stack. App-layer VPC owned by NetworkStack.
 3. **OpenTofu-only.** Owner-familiar with neither HCL nor advanced OpenTofu features; CDK's L2 constructs (ApplicationLoadBalancedFargateService, DatabaseInstance) collapse far more boilerplate than HCL for ECS + RDS shapes.
 

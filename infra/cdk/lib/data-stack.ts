@@ -34,9 +34,9 @@ export interface DataStackProps extends StackProps {
 
 /**
  * RDS Postgres 18 single-AZ + S3 app bucket + Secrets Manager. AWS-managed KMS
- * (skip customer CMK at MVP per advisor — saves ~$6/mo). No RDS Proxy at MVP
+ * (skip customer CMK at MVP per advisor - saves ~$6/mo). No RDS Proxy at MVP
  * (1-3 Fargate tasks × 10 conns < 85 max_connections). Object Lock NOT enabled
- * — turn it on later via a dedicated audit bucket when retention compliance
+ * - turn it on later via a dedicated audit bucket when retention compliance
  * becomes load-bearing.
  */
 export class DataStack extends Stack {
@@ -85,7 +85,7 @@ export class DataStack extends Stack {
 
     const dbSecurityGroup = new SecurityGroup(this, "DbSg", {
       vpc: props.vpc,
-      description: "RDS Postgres security group — only inbound from app SG",
+      description: "RDS Postgres security group - only inbound from app SG",
       allowAllOutbound: false,
     })
 

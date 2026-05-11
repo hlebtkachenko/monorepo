@@ -133,7 +133,7 @@ One-time per account+region.
 3. Cloudflare auto-scans current DNS. Verify the imported records look complete (apex A/AAAA, wildcards, MX, SPF TXT, DMARC TXT, DKIM TXT)
 4. Cloudflare gives 2 nameservers (e.g., `ana.ns.cloudflare.com`, `bob.ns.cloudflare.com`)
 5. At the registrar (Spaceship): change nameservers for `afframe.com` to Cloudflare's pair
-6. Wait propagation — Cloudflare dashboard shows "Active" within 1-24h
+6. Wait propagation - Cloudflare dashboard shows "Active" within 1-24h
 
 After Active: adm.tools can be dropped entirely.
 
@@ -155,7 +155,7 @@ After Active: adm.tools can be dropped entirely.
 1. Sign up at resend.com (free plan, 3K/mo + 100/day)
 2. Add domain `afframe.com` in Resend → it emits ~3 DNS records (SPF, DKIM CNAMEs, return-path)
 3. Add those records at Cloudflare DNS
-4. In Resend, click "Verify" — flips to verified in ~5 min
+4. In Resend, click "Verify" - flips to verified in ~5 min
 5. Generate API key in Resend → store as repo secret:
    ```bash
    gh secret set RESEND_API_KEY --body "<key>" --repo hlebtkachenko/monorepo
@@ -163,7 +163,7 @@ After Active: adm.tools can be dropped entirely.
 
 `packages/email` already has the Resend client wired.
 
-### 8. AWS SES (outbound transactional, larger free tier — wait 24-48h for approval)
+### 8. AWS SES (outbound transactional, larger free tier - wait 24-48h for approval)
 
 ```bash
 aws ses verify-domain-identity --domain afframe.com --region eu-central-1
@@ -214,13 +214,13 @@ gh workflow run _deploy-aws.yml \
 ```
 
 `stack` values:
-- `all` — deploy infra + build images + sync tunnel token + deploy app + force rollout (default)
-- `infra-only` — Network + Data only
-- `app-only` — skip Network + Data deploy (steady-state after first deploy)
+- `all` - deploy infra + build images + sync tunnel token + deploy app + force rollout (default)
+- `infra-only` - Network + Data only
+- `app-only` - skip Network + Data deploy (steady-state after first deploy)
 
 After first successful `all` run, switch to `app-only` for routine code-change deploys.
 
-## DNS — final wiring after first deploy
+## DNS - final wiring after first deploy
 
 The Cloudflare Tunnel handles `staging.afframe.com` and `app.afframe.com` end-to-end. No CNAME at adm.tools to set; Cloudflare's Tunnel hostname config auto-creates a DNS record at Cloudflare DNS.
 

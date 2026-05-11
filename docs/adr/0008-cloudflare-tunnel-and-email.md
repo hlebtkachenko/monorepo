@@ -84,16 +84,16 @@ Same shape for production. Web + api scale together in one task; trip-wire to sp
 
 Positive:
 - MVP idle cost ~$49/mo instead of ~$140/mo
-- Single Cloudflare account handles DNS + Tunnel + Email Routing + DDoS + WAF + CDN — fewer surfaces to manage
-- AWS-side surface shrinks to just the AppStack + DataStack + NetworkStack — no ALB, no NAT, no endpoints to worry about
+- Single Cloudflare account handles DNS + Tunnel + Email Routing + DDoS + WAF + CDN - fewer surfaces to manage
+- AWS-side surface shrinks to just the AppStack + DataStack + NetworkStack - no ALB, no NAT, no endpoints to worry about
 - adm.tools dependency eliminated
 - Email deliverability uses industry-grade SES/Resend, not unknown shared-hosting mail
 
 Negative:
 - Cloudflare becomes load-bearing for inbound + email. Cloudflare outage = site down + mail down.
 - Tunnel adds one container to the task (cloudflared ~50MB RAM)
-- Public IPv4 on Fargate task ($3.65/mo) — same cost as before through NAT-GW's one IP, but the security model needs SG diligence (deny all public ingress)
-- Two outbound mail providers (Resend + SES) configured during a transition window until SES production access approves — small operational complexity for ~48h
+- Public IPv4 on Fargate task ($3.65/mo) - same cost as before through NAT-GW's one IP, but the security model needs SG diligence (deny all public ingress)
+- Two outbound mail providers (Resend + SES) configured during a transition window until SES production access approves - small operational complexity for ~48h
 
 ## Validation
 

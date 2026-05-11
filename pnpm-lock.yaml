@@ -192,6 +192,10 @@ importers:
         version: 6.0.3
 
   infra/cdk:
+    dependencies:
+      cdk-monitoring-constructs:
+        specifier: 10.0.0
+        version: 10.0.0(aws-cdk-lib@2.253.1(constructs@10.6.0))(constructs@10.6.0)
     devDependencies:
       '@types/node':
         specifier: ^25.6.0
@@ -5895,6 +5899,12 @@ packages:
 
   caniuse-lite@1.0.30001792:
     resolution: {integrity: sha512-hVLMUZFgR4JJ6ACt1uEESvQN1/dBVqPAKY0hgrV70eN3391K6juAfTjKZLKvOMsx8PxA7gsY1/tLMMTcfFLLpw==}
+
+  cdk-monitoring-constructs@10.0.0:
+    resolution: {integrity: sha512-bYvletF/CavpoQGQhKiJBa7w1cUoiB535fOPcd8oeL5MGtvXxUZeGl85RKlNcki5KjQ0dpCnUO7Uo4eZKIkVZA==}
+    peerDependencies:
+      aws-cdk-lib: ^2.160.0
+      constructs: ^10.0.5
 
   chai@5.3.3:
     resolution: {integrity: sha512-4zNhdJD/iOjSH0A05ea+Ke6MU5mmpQcbQsSOkgdaUMJ9zTlDTD/GYlwohmIE2u0gaxHYiVHEn1Fw9mZ/ktJWgw==}
@@ -16950,6 +16960,11 @@ snapshots:
   camelcase@6.3.0: {}
 
   caniuse-lite@1.0.30001792: {}
+
+  cdk-monitoring-constructs@10.0.0(aws-cdk-lib@2.253.1(constructs@10.6.0))(constructs@10.6.0):
+    dependencies:
+      aws-cdk-lib: 2.253.1(constructs@10.6.0)
+      constructs: 10.6.0
 
   chai@5.3.3:
     dependencies:

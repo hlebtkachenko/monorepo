@@ -1,24 +1,32 @@
 {
-  "name": "@workspace/shared",
+  "name": "@workspace/i18n",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./config": "./src/config.ts",
+    "./request": "./src/request.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts",
+    "./messages/*": "./src/messages/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint"
   },
   "dependencies": {
-    "date-fns": "^4.1.0",
-    "zod": "^4.4.2"
+    "next-intl": "^4.11.1"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
+    "next": "16.2.6",
     "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "next": "^16.2.6"
   }
 }

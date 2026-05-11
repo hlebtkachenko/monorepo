@@ -13,18 +13,6 @@ overrides:
   eslint: "^9.39.2"
 allowBuilds:
   '@nestjs/core': true
-  '@scarf/scarf': false
-  '@sentry/cli': true
-  '@swc/core': true
-  core-js-pure: false
-  cpu-features: true
-  esbuild: true
-  msgpackr-extract: true
-  msw: false
-  protobufjs: true
-  sharp: true
-  ssh2: true
-  # Native postinstall is broken inside pnpm-managed isolated node_modules
-  # (napi-postinstall can't resolve its own package.json). JS fallback is
-  # transparent; only build-time resolution is marginally slower.
-  unrs-resolver: false
+  # @parcel/watcher pulled in transitively by next-intl message loader.
+  # Native postinstall is optional; pnpm falls back to FS polling.
+  '@parcel/watcher': false

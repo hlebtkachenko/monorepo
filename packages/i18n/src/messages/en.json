@@ -1,0 +1,26 @@
+{
+  "auth": {
+    "login": {
+      "metaTitle": "Sign in",
+      "title": "Sign in",
+      "description": "Use your email and password to access your workspace.",
+      "email": "Email",
+      "password": "Password",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign in",
+      "submitting": "Signing in…"
+    },
+    "errors": {
+      "no-workspace-access": "You are signed in but no workspace is linked to this account. Ask support for an invitation.",
+      "signup-session-expired": "Your signup link expired. Ask support for a new invitation.",
+      "invite-session-expired": "Your invite link expired. Ask the inviter to resend it.",
+      "missing-signup-token": "The signup link is missing its token.",
+      "missing-invite-token": "The invite link is missing its token.",
+      "expired": "Your link has expired. Request a new one.",
+      "invalid": "Your link is invalid or has been tampered with.",
+      "wrong_kind": "Your link is the wrong type for this flow.",
+      "disabled": "This flow is currently disabled. Contact support.",
+      "signInFailed": "Sign-in failed"
+    }
+  }
+}

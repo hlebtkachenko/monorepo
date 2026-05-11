@@ -18,8 +18,8 @@
 const registry = new Map<string, readonly string[]>()
 
 /**
- * Register per-tool redaction paths. Idempotent: same paths = no-op;
- * different paths = throw.
+ * Register per-tool redaction paths. Idempotent: same set of paths = no-op
+ * (order does not matter); different set = throw.
  */
 export function registerToolRedactions(
   toolName: string,
@@ -27,10 +27,10 @@ export function registerToolRedactions(
 ): void {
   const existing = registry.get(toolName)
   if (existing) {
-    if (
-      existing.length !== paths.length ||
-      existing.some((p, i) => p !== paths[i])
-    ) {
+    const a = new Set(existing)
+    const b = new Set(paths)
+    const sameSet = a.size === b.size && [...a].every((p) => b.has(p))
+    if (!sameSet) {
       throw new Error(
         `redaction-registry: tool '${toolName}' already registered with different paths`,
       )

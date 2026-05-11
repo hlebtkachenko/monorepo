@@ -65,11 +65,18 @@ The four GUCs and their purpose:
 | `app.user_id` | uuid text | `withOrganization`, `withWorkspace` |
 | `app.app_user_role_name` | text | `ALTER ROLE` in init.d/00-roles.sql (not set by runtime helpers) |
 
-`app.app_user_role_name` is set defensively at the top of every helper transaction. The
-last-owner-demotion trigger on `workspace_membership` reads this GUC to distinguish the
+`app.app_user_role_name` is **not** set by runtime helpers. It is configured per role via
+`ALTER ROLE ... SET app.app_user_role_name = '...'` in `infra/compose/postgres/init.d/00-roles.sql`.
+The last-owner-demotion trigger on `workspace_membership` reads this GUC to distinguish the
 application role from the admin bypass role. `withAdminBypass` uses `SET LOCAL ROLE app_admin`
-and relies on the per-role GUC default set in init.d/00-roles.sql; the runtime helpers do not
-set `app.app_user_role_name` directly.
+and relies on the per-role GUC default; the runtime helpers do not set
+`app.app_user_role_name` directly.
+
+**Consequence for test environments without init.d**: the trigger fails closed when the GUC
+is NULL. Testcontainer setups must apply equivalent `ALTER ROLE` statements at boot, or set
+`app.app_user_role_name` explicitly via `SET` on the test connection, or the first
+`workspace_membership` write through any helper will raise `check_violation`. This is
+intentional fail-closed behavior; do not paper over it with a runtime default.
 
 ## Branded types + helpers
 

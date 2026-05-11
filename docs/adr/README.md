@@ -12,6 +12,12 @@ Decisions worth recording: the ones a future contributor (human or agent) would 
 | [0004](0004-no-self-hosted-runners.md) | CI runners: GitHub-hosted only, no self-hosted | Accepted |
 | [0005](0005-container-runtime-docker-desktop.md) | Container runtime on Mac: Docker Desktop | Accepted |
 | [0006](0006-cred-manager-granted.md) | AWS credential manager: Granted CLI | Accepted |
+| [0007](0007-mvp-single-account-cdk-only.md) | MVP single-account: CDK-only, archive OpenTofu platform layer | Accepted |
+| [0008](0008-cloudflare-tunnel-and-email.md) | Cloudflare Tunnel front door + Cloudflare/SES email split | Accepted |
+| [0009](0009-orm-and-migration-style.md) | ORM + migration style: drizzle-orm types-only + handwritten SQL | Accepted |
+| [0010](0010-multi-tenant-rls.md) | Multi-tenant RLS design (workspace + organization tiers) | Proposed |
+| [0011](0011-audit-log.md) | Audit log: two-table append-only with two-pass redaction | Proposed |
+| [0013](0013-money-and-fx.md) | Money + FX representation (`numeric(19,4)` + `Money<Currency>` brand) | Proposed |
 
 Append in commit order, never reshuffled. Numbers are immutable after merge.
 

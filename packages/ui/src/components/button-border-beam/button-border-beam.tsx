@@ -60,6 +60,9 @@ function BorderBeamButton({
   }, [])
 
   if (!mounted) {
+    // SSR / pre-mount: ref points to the inner Button (HTMLButtonElement).
+    // The forwarded ref is widened via `React.ComponentProps<typeof Button>`
+    // to accept either side of the mount branch.
     return (
       <Button
         className={className}
@@ -83,6 +86,9 @@ function BorderBeamButton({
       {...(hueRange !== undefined ? { hueRange } : {})}
       {...(onActivate ? { onActivate } : {})}
       {...(onDeactivate ? { onDeactivate } : {})}
+      // Post-mount: ref targets the BorderBeam wrapper div, not the Button.
+      // This is intentional — callers needing the button element should
+      // attach a ref via children. The widened type is unavoidable here.
       ref={ref as React.Ref<HTMLDivElement>}
       {...(saturation !== undefined ? { saturation } : {})}
       size={beamSize}

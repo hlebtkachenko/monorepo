@@ -298,6 +298,9 @@ function QRCodeSvg({ asChild, className, style, ...rest }: QRCodeSvgProps) {
         className,
       )}
       style={{ width: ctx.size, height: ctx.size, ...style }}
+      // Trust boundary: svgString is generated locally by the `qrcode`
+      // library from the user-supplied `value` prop. The library outputs a
+      // sanitized SVG with no script/style content — never user HTML.
       dangerouslySetInnerHTML={{ __html: svgString }}
     />
   )

@@ -87,6 +87,14 @@ function ChartContainer({
   )
 }
 
+// Whitelist for CSS color values injected into the <style> block from
+// ChartConfig. Allows hex, rgb(), rgba(), hsl(), oklch(), and CSS custom
+// property references — but rejects anything containing a semicolon, brace,
+// or other CSS structure that could break out of the property value.
+const CHART_COLOR_VALUE_RE = /^[#a-zA-Z0-9(),.\s%-]+$/
+const isSafeColorValue = (value: string): boolean =>
+  CHART_COLOR_VALUE_RE.test(value)
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
     ([, config]) => config.theme ?? config.color ?? config.gradient,
@@ -101,17 +109,20 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
       .flatMap(([key, itemConfig]) => {
         const lines: string[] = []
         const color = itemConfig.theme?.[theme] ?? itemConfig.color
-        if (color) {
+        if (color && isSafeColorValue(color)) {
           lines.push(`  --color-${key}: ${color};`)
         }
         const stops = itemConfig.gradient?.[theme]
         if (stops?.length) {
           stops.forEach((stop, i) => {
-            lines.push(`  --color-${key}-${i}: ${stop};`)
+            if (isSafeColorValue(stop)) {
+              lines.push(`  --color-${key}-${i}: ${stop};`)
+            }
           })
-          if (!color) {
+          const firstStop = stops[0]
+          if (!color && firstStop && isSafeColorValue(firstStop)) {
             // Fallback primary color from first gradient stop
-            lines.push(`  --color-${key}: ${stops[0]};`)
+            lines.push(`  --color-${key}: ${firstStop};`)
           }
         }
         return lines
@@ -276,7 +287,8 @@ function ChartTooltipContent({
                       {item.value != null && (
                         <span className="font-mono font-medium text-foreground tabular-nums">
                           {typeof item.value === "number"
-                            ? item.value.toLocaleString()
+                            ? // hardcoded en-US for SSR consistency
+                              item.value.toLocaleString("en-US")
                             : String(item.value)}
                         </span>
                       )}

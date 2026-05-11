@@ -188,6 +188,7 @@ function MultiStepLoader({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          /* z-[100]: above all other content (modals, dropdowns, toasts) */
           className="fixed inset-0 z-[100] flex h-full w-full items-center justify-center backdrop-blur-2xl"
         >
           {onClose && (

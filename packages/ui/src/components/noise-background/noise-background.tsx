@@ -78,6 +78,8 @@ function NoiseBackground({
 
   const velocityRef = React.useRef({ x: 0, y: 0 })
   const lastDirectionChangeRef = React.useRef(0)
+  // Pause animation when off-screen to avoid wasted RAF cycles / battery drain.
+  const [isInView, setIsInView] = React.useState(true)
 
   React.useEffect(() => {
     if (!containerRef.current) return
@@ -85,6 +87,20 @@ function NoiseBackground({
     x.set(rect.width / 2)
     y.set(rect.height / 2)
   }, [x, y])
+
+  React.useEffect(() => {
+    const node = containerRef.current
+    if (!node || typeof IntersectionObserver === "undefined") return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (entry) setIsInView(entry.isIntersecting)
+      },
+      { threshold: 0 },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   const generateRandomVelocityRef = React.useRef(() => {
     const angle = Math.random() * Math.PI * 2
@@ -102,7 +118,7 @@ function NoiseBackground({
   }, [speed])
 
   useAnimationFrame((time) => {
-    if (!animating || !containerRef.current) return
+    if (!animating || !isInView || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
     const maxX = rect.width
     const maxY = rect.height

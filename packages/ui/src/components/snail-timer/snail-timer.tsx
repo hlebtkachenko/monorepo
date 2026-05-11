@@ -57,7 +57,6 @@ function SnailTimer({
       style={{ containerType: "inline-size" }}
       {...props}
     >
-      <SnailKeyframes />
       <div
         className="snail-timer__track"
         style={
@@ -78,53 +77,6 @@ function SnailTimer({
         )}
       </div>
     </div>
-  )
-}
-
-function SnailKeyframes() {
-  return (
-    <style>{`
-      @keyframes snail-move {
-        from { transform: translateX(calc(100cqw - 138px)); }
-        to { transform: translateX(0); }
-      }
-      @keyframes snail-scale {
-        0% { transform: scaleX(1); }
-        50% { transform: scaleX(0.95); }
-        100% { transform: scaleX(1); }
-      }
-      @keyframes snail-eye {
-        0% { transform: translate(0); }
-        50% { transform: translate(3px, 0); }
-        100% { transform: translate(0); }
-      }
-      .snail-timer__track {
-        animation: snail-move var(--snail-move-duration, 45s) linear 1 both;
-      }
-      .snail .right-eye {
-        animation: snail-eye 1s ease infinite;
-        animation-delay: 0.1s;
-        transform-box: fill-box;
-        transform-origin: center;
-      }
-      .snail .body {
-        animation: snail-scale 1s ease infinite;
-        animation-delay: 0.1s;
-        transform-box: fill-box;
-        transform-origin: center;
-      }
-      .snail .shell {
-        animation: snail-scale 1s ease infinite;
-        transform-box: fill-box;
-        transform-origin: center;
-      }
-      .snail-timer.is-paused .snail-timer__track,
-      .snail-timer.is-paused .snail .right-eye,
-      .snail-timer.is-paused .snail .body,
-      .snail-timer.is-paused .snail .shell {
-        animation-play-state: paused !important;
-      }
-    `}</style>
   )
 }
 

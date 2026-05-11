@@ -21,6 +21,9 @@ export {
 } from "./redact-baseline.js"
 
 const isProduction = process.env["NODE_ENV"] === "production"
+// Skip pino-pretty in test env — it is not a dependency and tests don't need
+// formatted output. JSON is sufficient for assertion and CI logs.
+const isTest = process.env["NODE_ENV"] === "test"
 
 function buildOptions(extraPaths: readonly string[] = []): LoggerOptions {
   const paths = Array.from(new Set([...BASELINE_REDACT_PATHS, ...extraPaths]))
@@ -31,7 +34,8 @@ function buildOptions(extraPaths: readonly string[] = []): LoggerOptions {
       censor: "[REDACTED]",
     },
   }
-  return isProduction ? base : { ...base, transport: { target: "pino-pretty" } }
+  if (isProduction || isTest) return base
+  return { ...base, transport: { target: "pino-pretty" } }
 }
 
 /**

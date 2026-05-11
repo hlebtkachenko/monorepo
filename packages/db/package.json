@@ -16,6 +16,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "node -e \"console.error('drizzle-kit generate is forbidden in this repo. Migrations are handwritten SQL in packages/db/migrations/. See ADR-0009.'); process.exit(1)\"",
     "db:migrate": "tsx scripts/apply-migrations.ts",
     "db:push": "node -e \"console.error('drizzle-kit push is forbidden in this repo. Apply migrations via pnpm db:migrate. See ADR-0009.'); process.exit(1)\"",
@@ -28,10 +30,12 @@
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
+    "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.2",
     "tsx": "^4.19.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }

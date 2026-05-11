@@ -1,0 +1,59 @@
+{
+  "name": "main-protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": true,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "ci" },
+          { "context": "gitleaks" },
+          { "context": "Analyze (javascript-typescript)" },
+          { "context": "actionlint" },
+          { "context": "zizmor" },
+          { "context": "lint" },
+          { "context": "review" },
+          { "context": "scan-pr / osv-scan" },
+          { "context": "conv-title" },
+          { "context": "size-cap" }
+        ]
+      }
+    },
+    {
+      "type": "file_path_restriction",
+      "parameters": {
+        "restricted_file_paths": [
+          ".env",
+          ".env.*",
+          "*.key",
+          "*.pem",
+          "*.enc",
+          "client_secret*.json",
+          "userlist.txt"
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}

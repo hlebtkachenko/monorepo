@@ -2,7 +2,10 @@ import { signToken, verifyToken } from "./jwt.js"
 
 /**
  * Invite token — issued by a workspace owner or admin from
- * `/<orgSlug>/settings` to invite a user to an organization.
+ * `/<orgSlug>/settings` to invite a user to an organization. The email
+ * link points to `/auth/invite/start?token=<jwt>`; that Route Handler
+ * verifies, stashes the JWT in an HttpOnly cookie, then redirects to
+ * `/auth/invite` (the welcome card).
  *
  * Claims:
  *   kind            always "invite"

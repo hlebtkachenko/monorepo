@@ -17,27 +17,19 @@ export const metadata = {
 
 const SIGNUP_TOKEN_COOKIE = "app-signup-token"
 
-export default async function SignupWelcomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>
-}) {
-  const { token } = await searchParams
+/**
+ * Welcome card. Reads the signup token from the HttpOnly cookie set by
+ * `/auth/signup/start`. Server Components cannot write cookies under Next
+ * 16; the route handler at /auth/signup/start owns the write.
+ */
+export default async function SignupWelcomePage() {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SIGNUP_TOKEN_COOKIE)?.value
   if (!token) {
     redirect("/auth/login?error=missing-signup-token")
   }
-
   try {
     const claims = await verifySignupToken(token)
-    const cookieStore = await cookies()
-    cookieStore.set(SIGNUP_TOKEN_COOKIE, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/auth/signup",
-      maxAge: 60 * 60 * 24,
-    })
-
     return (
       <Card>
         <CardHeader>

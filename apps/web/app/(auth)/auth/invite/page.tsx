@@ -1,9 +1,8 @@
-import { cookies } from "next/headers"
+import { cookies, headers as nextHeaders } from "next/headers"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { verifyInviteToken, TokenError } from "@workspace/auth/tokens"
 import { auth } from "@workspace/auth/server"
-import { headers as nextHeaders } from "next/headers"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -19,12 +18,14 @@ export const metadata = {
 
 const INVITE_TOKEN_COOKIE = "app-invite-token"
 
-export default async function InviteWelcomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>
-}) {
-  const { token } = await searchParams
+/**
+ * Welcome card for invite recipients. Reads the invite token from the
+ * HttpOnly cookie set by /auth/invite/start (route handler). Server
+ * Components cannot write cookies under Next 16.
+ */
+export default async function InviteWelcomePage() {
+  const cookieStore = await cookies()
+  const token = cookieStore.get(INVITE_TOKEN_COOKIE)?.value
   if (!token) {
     redirect("/auth/login?error=missing-invite-token")
   }
@@ -39,16 +40,6 @@ export default async function InviteWelcomePage({
     throw err
   }
 
-  const cookieStore = await cookies()
-  cookieStore.set(INVITE_TOKEN_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/auth/invite",
-    maxAge: 60 * 60 * 24,
-  })
-
-  // If user is already signed in with the same email, accept directly.
   const session = await auth.api.getSession({ headers: await nextHeaders() })
   const alreadySignedIn =
     session?.user.email?.toLowerCase() === claims.email.toLowerCase()

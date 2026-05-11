@@ -2,7 +2,10 @@ import { signToken, verifyToken } from "./jwt.js"
 
 /**
  * Signup token — issued by support (or the future admin app) when a new
- * workspace owner is invited. Claims:
+ * workspace owner is invited. The email link points to
+ * `/auth/signup/start?token=<jwt>`; that Route Handler verifies, stashes
+ * the JWT in an HttpOnly cookie, then redirects to `/auth/signup` (the
+ * welcome card). Claims:
  *
  *   kind       always "signup"
  *   email      the invitee's email (becomes app_user.email)

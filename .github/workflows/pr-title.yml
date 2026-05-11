@@ -1,0 +1,64 @@
+name: PR title
+
+# Squash-merge ships ONLY the PR title to main as the single commit.
+# commitlint validates per-commit messages on the branch (discarded on squash).
+# Both gates together keep main history conventional.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conv-title:
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            perf
+            chore
+            docs
+            test
+            build
+            ci
+            style
+            revert
+          scopes: |
+            ai
+            auth
+            bundle
+            ci
+            config
+            db
+            deps
+            deps-dev
+            docs
+            github
+            i18n
+            infra
+            observability
+            release
+            secrets
+            storage
+            tests
+            ui
+            web
+          requireScope: false
+          subjectPattern: ^[a-z0-9].+$

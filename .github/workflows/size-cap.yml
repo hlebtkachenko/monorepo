@@ -1,0 +1,54 @@
+name: Size cap
+
+# Raw LOC cap on review burden. Different signal from `Size limit` workflow:
+# size-limit measures shipped JS bundle bytes; size-cap measures lines added
+# (review effort). A 50-line PR can blow size-limit (added a 200KB lib);
+# a 3000-line PR can be invisible to size-limit (docs + tests).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: size-cap-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  size-cap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: size-cap
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'size-cap-override') }}
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          loc=$(git diff --shortstat "origin/${BASE}...HEAD" -- \
+            ':!pnpm-lock.yaml' \
+            ':!**/migrations/meta/**' \
+            ':!**/*.svg' \
+            ':!**/*.png' \
+            ':!**/*.ico' \
+            ':!**/*.woff' \
+            ':!**/*.woff2' \
+            | awk '{print $4}')
+          loc=${loc:-0}
+          echo "loc added: ${loc}"
+          if [ "${loc}" -gt 2000 ]; then
+            echo "::error::PR too large (${loc} lines added). Split into smaller PRs, or add label \`size-cap-override\` if justified."
+            exit 1
+          fi
+          if [ "${loc}" -gt 800 ]; then
+            echo "::warning::PR is large (${loc} lines added). Justify in description."
+          fi

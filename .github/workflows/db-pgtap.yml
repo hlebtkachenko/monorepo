@@ -1,0 +1,102 @@
+# Postgres-side pgTap tests for invariants vitest can't reach: policy
+# existence, function ownership, trigger configuration, role grants.
+#
+# Advisory until first green PR cycle (see CLAUDE.md CI policy).
+#
+# Triggered on migration or pgTap test changes.
+
+name: DB pgTap
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/db/migrations/**"
+      - "packages/db/tests/pgtap/**"
+      - "infra/compose/pgtap/**"
+      - ".github/workflows/db-pgtap.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/db/migrations/**"
+      - "packages/db/tests/pgtap/**"
+
+permissions: {}
+
+concurrency:
+  group: db-pgtap-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pgtap:
+    name: pgTap suite
+    runs-on: ubuntu-latest
+    continue-on-error: true  # ADVISORY — flip after first green run
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: ./.github/actions/setup
+
+      - name: Install pgTap + pg_prove
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            postgresql-client-18 \
+            postgresql-18-pgtap \
+            libtap-parser-sourcehandler-pgtap-perl
+
+      - name: Wait for postgres
+        run: |
+          set -euo pipefail
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres; do
+            echo "waiting for postgres..."
+            sleep 2
+          done
+
+      - name: Bootstrap roles
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          for f in infra/compose/postgres/init.d/*.sql; do
+            echo "Applying $f"
+            psql -h 127.0.0.1 -p 5432 -U postgres -f "$f"
+          done
+
+      - name: Apply migrations
+        env:
+          DATABASE_DIRECT_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
+        run: pnpm --filter @workspace/db db:migrate
+
+      - name: Run pgTap suite
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: app_owner
+          PGPASSWORD: dev_owner
+          PGDATABASE: postgres
+        run: |
+          set -euo pipefail
+          chmod +x packages/db/tests/pgtap/run-pgtap.sh
+          packages/db/tests/pgtap/run-pgtap.sh

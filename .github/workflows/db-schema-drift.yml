@@ -1,0 +1,130 @@
+# Schema drift detector.
+#
+# Catches: a hand-edited Drizzle schema file that diverges from the
+# migration DDL, OR a migration applied without updating the committed
+# schema snapshot. Either way, runtime types and DB shape would disagree.
+#
+# Mechanism: apply migrations against a fresh postgres, pg_dump the result,
+# normalize, diff against the committed snapshot at
+# packages/db/migrations/.schema-snapshot.sql. Any diff fails the check.
+#
+# Updating the snapshot: developer runs `pnpm --filter @workspace/db
+# db:schema-snapshot` locally (or copies the CI artifact on failure) and
+# commits the result. Out-of-band updates are the intended workflow —
+# schema changes always require a snapshot bump.
+#
+# Advisory until first green PR cycle. drizzle-kit introspect is forbidden
+# by ADR-0009, so this is the alternative for tracking schema-vs-migration
+# parity.
+
+name: DB schema drift
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/db/migrations/**"
+      - "packages/db/src/schema/**"
+      - "scripts/db-schema-snapshot.sh"
+      - ".github/workflows/db-schema-drift.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/db/migrations/**"
+
+permissions: {}
+
+concurrency:
+  group: db-schema-drift-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  drift:
+    name: Migration vs schema snapshot
+    runs-on: ubuntu-latest
+    continue-on-error: true  # ADVISORY — flip to required after first green run
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: ./.github/actions/setup
+
+      - name: Install pg client (matching server version)
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-18
+
+      - name: Wait for postgres + bootstrap roles
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres; do sleep 2; done
+          for f in infra/compose/postgres/init.d/*.sql; do
+            psql -h 127.0.0.1 -p 5432 -U postgres -f "$f"
+          done
+
+      - name: Apply migrations
+        env:
+          DATABASE_DIRECT_URL: postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres
+        run: pnpm --filter @workspace/db db:migrate
+
+      - name: Dump schema (normalized)
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: app_owner
+          PGPASSWORD: dev_owner
+          PGDATABASE: postgres
+        run: |
+          set -euo pipefail
+          chmod +x scripts/db-schema-snapshot.sh
+          scripts/db-schema-snapshot.sh > /tmp/current-schema.sql
+
+      - name: Diff against committed snapshot
+        run: |
+          set -euo pipefail
+          snapshot="packages/db/migrations/.schema-snapshot.sql"
+          if [ ! -f "$snapshot" ]; then
+            echo "::error::Snapshot file missing: $snapshot"
+            echo "Generate with: pnpm --filter @workspace/db db:schema-snapshot"
+            echo "Commit the result and re-run this check."
+            exit 1
+          fi
+          if ! diff -u "$snapshot" /tmp/current-schema.sql; then
+            echo "::error::Schema drift detected. The applied migrations produce a different shape than the committed snapshot."
+            echo ""
+            echo "If this PR adds/changes migrations: regenerate the snapshot:"
+            echo "  pnpm --filter @workspace/db db:schema-snapshot"
+            echo "and commit the result."
+            exit 1
+          fi
+          echo "Schema matches snapshot"
+
+      - name: Upload current dump as artifact
+        if: always()
+        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4.3.0
+        with:
+          name: schema-drift-current
+          path: /tmp/current-schema.sql
+          retention-days: 7

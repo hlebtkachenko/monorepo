@@ -35,6 +35,15 @@ export const registry: Record<string, ComponentMeta> = {
       "Semantic alert container with default and destructive variants",
     categories: ["feedback"],
   },
+  "api-response-viewer": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/devtools/api-response-viewer",
+    description:
+      "Tabbed HTTP response inspector with semantic status badge, JSON body, headers table, and timing waterfall",
+    categories: ["data", "display"],
+    dependencies: ["button", "json-viewer", "tabs"],
+  },
   "alert-dialog": {
     source: "shadcn",
     sourceType: "vanilla",
@@ -96,6 +105,16 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Container for visually grouped buttons",
     categories: ["actions", "layout"],
     dependencies: ["separator"],
+  },
+  "button-liquid-metal": {
+    source: "jolyui",
+    sourceType: "import",
+    upstream:
+      "https://www.jolyui.dev/docs/components/buttons/liquid-metal-button",
+    description:
+      "WebGL shader-powered button with 3D metallic liquid animation and ripple effects",
+    categories: ["actions", "effects"],
+    packages: ["@paper-design/shaders"],
   },
   calendar: {
     source: "shadcn",
@@ -217,6 +236,24 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Empty state display with icon, title, and description",
     categories: ["feedback"],
   },
+  "env-editor": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/devtools/env-editor",
+    description:
+      "Key-value editor for environment variables with masked values, add/remove rows, and .env import/export",
+    categories: ["forms", "data"],
+    dependencies: ["button", "input"],
+  },
+  "error-boundary-ui": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/devtools/error-boundary-ui",
+    description:
+      "Error fallback display with stack trace parsing, copy-to-clipboard, retry, and dev/prod verbosity modes",
+    categories: ["feedback"],
+    dependencies: ["button"],
+  },
   field: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -264,6 +301,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["display", "layout"],
     dependencies: ["separator"],
   },
+  "json-viewer": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/devtools/json-viewer",
+    description:
+      "Collapsible JSON tree with chart-token syntax highlighting, search filter, and copy-path-on-hover",
+    categories: ["data", "display"],
+    dependencies: ["button", "input"],
+  },
   kbd: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -277,16 +323,6 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/label",
     description: "Form label element",
     categories: ["forms"],
-  },
-  "button-liquid-metal": {
-    source: "jolyui",
-    sourceType: "import",
-    upstream:
-      "https://www.jolyui.dev/docs/components/buttons/liquid-metal-button",
-    description:
-      "WebGL shader-powered button with 3D metallic liquid animation and ripple effects",
-    categories: ["actions", "effects"],
-    packages: ["@paper-design/shaders"],
   },
   menubar: {
     source: "shadcn",
@@ -485,6 +521,15 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/tooltip",
     description: "Hover tooltip with text content",
     categories: ["overlay"],
+  },
+  "webhook-tester": {
+    source: "tryelements",
+    sourceType: "import",
+    upstream: "https://www.tryelements.dev/docs/devtools/webhook-tester",
+    description:
+      "HTTP request builder with method selector, header editor, JSON body, and semantic-colored response. Requires caller-supplied onSend handler (no built-in fetch).",
+    categories: ["forms", "data"],
+    dependencies: ["button", "input", "native-select", "textarea"],
   },
 }
 

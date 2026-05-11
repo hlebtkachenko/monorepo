@@ -182,6 +182,11 @@ import { MoonIcon, SunIcon, Volume2Icon, VolumeOffIcon } from "lucide-react"
 import { BorderBeamDemo } from "./_components/border-beam-demo"
 import { LiquidMetalDemo } from "./_components/liquid-metal-demo"
 import { StatefulButtonDemo } from "./_components/stateful-button-demo"
+import { ApiResponseViewerDemo } from "./_components/api-response-viewer-demo"
+import { EnvEditorDemo } from "./_components/env-editor-demo"
+import { ErrorBoundaryUiDemo } from "./_components/error-boundary-ui-demo"
+import { JsonViewerDemo } from "./_components/json-viewer-demo"
+import { WebhookTesterDemo } from "./_components/webhook-tester-demo"
 
 export default function ShowcasePage() {
   return (
@@ -280,6 +285,21 @@ export default function ShowcasePage() {
             <div className="flex flex-wrap gap-3">
               <AlertDialogDemo />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== APIRESPONSEVIEWER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ApiResponseViewer
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Success + error responses with body, headers, timing tabs
+            </h3>
+            <ApiResponseViewerDemo />
           </div>
         </div>
       </section>
@@ -883,6 +903,34 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== ENVEDITOR ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">EnvEditor</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Masked values with import/export
+            </h3>
+            <EnvEditorDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== ERRORBOUNDARYUI ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ErrorBoundaryUi
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Dev mode with stack trace and component stack
+            </h3>
+            <ErrorBoundaryUiDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== FIELD ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Field</h2>
@@ -1065,6 +1113,21 @@ export default function ShowcasePage() {
                 </ItemActions>
               </Item>
             </ItemGroup>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== JSONVIEWER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          JsonViewer
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Tree view, syntax via chart tokens, optional search
+            </h3>
+            <JsonViewerDemo />
           </div>
         </div>
       </section>
@@ -1827,6 +1890,21 @@ export default function ShowcasePage() {
             <div className="flex flex-wrap gap-3">
               <TooltipDemo />
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== WEBHOOKTESTER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          WebhookTester
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Mock onSend handler (no real network)
+            </h3>
+            <WebhookTesterDemo />
           </div>
         </div>
       </section>

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
 
 /**
- * Edge-runtime middleware.
+ * Edge-runtime proxy (Next.js 16 — formerly `middleware.ts`).
  *
  * Performs an OPTIMISTIC cookie-presence check on protected routes only.
  * It does NOT validate the session against the database — that happens in
@@ -20,7 +20,7 @@ import { getSessionCookie } from "better-auth/cookies"
  * Real authorization (workspace + organization membership, onboarding
  * completion, MFA state) is checked in layouts where the data lives.
  */
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
     const loginUrl = new URL("/auth/login", request.url)

@@ -5,20 +5,29 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./server": "./src/server.ts",
+    "./client": "./src/client.ts",
+    "./tokens": "./src/tokens/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint"
   },
   "dependencies": {
-    "better-auth": "^1.2.12",
+    "@workspace/db": "workspace:*",
+    "better-auth": "^1.6.10",
     "jose": "^6.0.12"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.10",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
+    "react": "^19.2.5",
     "typescript": "^6.0.3"
+  },
+  "peerDependencies": {
+    "react": "^19.2.5"
   }
 }

@@ -55,11 +55,19 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
       - uses: ./.github/actions/setup
 
-      - name: Install pgTap + pg_prove
+      - name: Install pgTap + pg_prove via PGDG apt repo
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           set -euo pipefail
+          # Ubuntu 24.04 (noble) default repos don't carry postgresql-18 yet.
+          # Add the PostgreSQL Global Development Group apt repo first.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${codename}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             postgresql-client-18 \

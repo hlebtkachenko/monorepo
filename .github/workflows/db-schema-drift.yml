@@ -24,6 +24,7 @@ on:
     branches: [main]
     paths:
       - "packages/db/migrations/**"
+      - "packages/db/schema-snapshot.sql"
       - "packages/db/src/schema/**"
       - "scripts/db-schema-snapshot.sh"
       - ".github/workflows/db-schema-drift.yml"
@@ -31,6 +32,7 @@ on:
     branches: [main]
     paths:
       - "packages/db/migrations/**"
+      - "packages/db/schema-snapshot.sql"
 
 permissions: {}
 
@@ -66,11 +68,18 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
       - uses: ./.github/actions/setup
 
-      - name: Install pg client (matching server version)
+      - name: Install pg client 18 via PGDG apt repo
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           set -euo pipefail
+          # Ubuntu 24.04 (noble) default repos don't carry postgresql-18 yet.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${codename}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends postgresql-client-18
 
@@ -104,7 +113,7 @@ jobs:
       - name: Diff against committed snapshot
         run: |
           set -euo pipefail
-          snapshot="packages/db/migrations/.schema-snapshot.sql"
+          snapshot="packages/db/schema-snapshot.sql"
           if [ ! -f "$snapshot" ]; then
             echo "::error::Snapshot file missing: $snapshot"
             echo "Generate with: pnpm --filter @workspace/db db:schema-snapshot"

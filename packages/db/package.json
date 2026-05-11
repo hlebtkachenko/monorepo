@@ -22,7 +22,7 @@
     "db:migrate": "tsx scripts/apply-migrations.ts",
     "db:push": "node -e \"console.error('drizzle-kit push is forbidden in this repo. Apply migrations via pnpm db:migrate. See ADR-0009.'); process.exit(1)\"",
     "db:studio": "drizzle-kit studio",
-    "db:schema-snapshot": "bash ../../scripts/db-schema-snapshot.sh > migrations/.schema-snapshot.sql"
+    "db:schema-snapshot": "bash ../../scripts/db-schema-snapshot.sh > schema-snapshot.sql"
   },
   "dependencies": {
     "@workspace/observability": "workspace:*",

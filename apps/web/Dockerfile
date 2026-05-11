@@ -7,7 +7,7 @@ ARG PNPM_VERSION=11.0.9
 
 # ---------- deps ----------
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine${ALPINE_VERSION}@sha256:b8f7c9056af700568c1ce76173f1c93743fb64ca1343e18cdf3a6ded8985ad3d AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat python3 make g++
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./

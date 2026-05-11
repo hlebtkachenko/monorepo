@@ -149,7 +149,7 @@ jobs:
 
       - name: ECR login [stack=all|app-only]
         if: env.STACK_SCOPE != 'infra-only'
-        uses: aws-actions/amazon-ecr-login@b16e57cdb37cad65b2eb7c3df87e8efa3eada2cd # v3.0.0
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
         id: ecr
 
       - name: Build + push web image [stack=all|app-only]

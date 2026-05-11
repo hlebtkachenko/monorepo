@@ -2,6 +2,8 @@
 
 Branch protection as code. Apply via `gh api`.
 
+**Live ruleset ID: `16205433`** (deployed 2026-05-11).
+
 ## Apply (first time)
 
 ```bash
@@ -20,7 +22,7 @@ The response includes `id`. Save it for subsequent updates.
 gh api \
   --method PUT \
   -H "Accept: application/vnd.github+json" \
-  /repos/hlebtkachenko/monorepo/rulesets/<id> \
+  /repos/hlebtkachenko/monorepo/rulesets/16205433 \
   --input .github/rulesets/main.json
 ```
 
@@ -28,20 +30,20 @@ gh api \
 
 ```bash
 gh api /repos/hlebtkachenko/monorepo/rulesets
-gh api /repos/hlebtkachenko/monorepo/rulesets/<id> | jq .
+gh api /repos/hlebtkachenko/monorepo/rulesets/16205433 | jq .
 ```
 
 ## Drift detection
 
 ```bash
-gh api /repos/hlebtkachenko/monorepo/rulesets/<id> > /tmp/live.json
+gh api /repos/hlebtkachenko/monorepo/rulesets/16205433 > /tmp/live.json
 diff <(jq -S . .github/rulesets/main.json) <(jq -S . /tmp/live.json)
 ```
 
 ## Rollback
 
 ```bash
-gh api --method DELETE /repos/hlebtkachenko/monorepo/rulesets/<id>
+gh api --method DELETE /repos/hlebtkachenko/monorepo/rulesets/16205433
 ```
 
 ## Notes

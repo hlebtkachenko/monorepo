@@ -38,6 +38,24 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",") ?? [],
+  user: {
+    additionalFields: {
+      // Surface app_user.locale on session.user so RSC + middleware can
+      // resolve the i18n locale without an extra DB round-trip.
+      locale: {
+        type: "string",
+        required: false,
+        defaultValue: "en",
+        input: false,
+      },
+      timezone: {
+        type: "string",
+        required: false,
+        defaultValue: "Europe/Prague",
+        input: false,
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,

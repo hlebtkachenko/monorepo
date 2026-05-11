@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { authClient } from "@workspace/auth/client"
+import { useTranslations } from "@workspace/i18n/client"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -14,19 +15,22 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
-const ERROR_MESSAGES: Record<string, string> = {
-  "no-workspace-access":
-    "You are signed in but no workspace is linked to this account. Ask support for an invitation.",
-  "signup-session-expired":
-    "Your signup link expired. Ask support for a new invitation.",
-  "invite-session-expired":
-    "Your invite link expired. Ask the inviter to resend it.",
-  "missing-signup-token": "The signup link is missing its token.",
-  "missing-invite-token": "The invite link is missing its token.",
-  expired: "Your link has expired. Request a new one.",
-  invalid: "Your link is invalid or has been tampered with.",
-  wrong_kind: "Your link is the wrong type for this flow.",
-  disabled: "This flow is currently disabled. Contact support.",
+const KNOWN_ERROR_CODES = [
+  "no-workspace-access",
+  "signup-session-expired",
+  "invite-session-expired",
+  "missing-signup-token",
+  "missing-invite-token",
+  "expired",
+  "invalid",
+  "wrong_kind",
+  "disabled",
+] as const
+
+function isKnownErrorCode(
+  code: string,
+): code is (typeof KNOWN_ERROR_CODES)[number] {
+  return (KNOWN_ERROR_CODES as readonly string[]).includes(code)
 }
 
 export function LoginForm() {
@@ -34,11 +38,17 @@ export function LoginForm() {
   const search = useSearchParams()
   const next = search.get("next") ?? "/workspace"
   const errorCode = search.get("error")
+  const t = useTranslations("auth.login")
+  const tErrors = useTranslations("auth.errors")
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(
-    errorCode ? (ERROR_MESSAGES[errorCode] ?? errorCode) : null,
+    errorCode
+      ? isKnownErrorCode(errorCode)
+        ? tErrors(errorCode)
+        : errorCode
+      : null,
   )
   const [submitting, setSubmitting] = useState(false)
 
@@ -53,7 +63,7 @@ export function LoginForm() {
         callbackURL: next,
       })
       if (result.error) {
-        setError(result.error.message ?? "Sign-in failed")
+        setError(result.error.message ?? tErrors("signInFailed"))
         setSubmitting(false)
         return
       }
@@ -65,7 +75,7 @@ export function LoginForm() {
       }
       router.push(next)
     } catch (err) {
-      setError((err as Error).message ?? "Sign-in failed")
+      setError((err as Error).message ?? tErrors("signInFailed"))
       setSubmitting(false)
     }
   }
@@ -73,15 +83,13 @@ export function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sign in</CardTitle>
-        <CardDescription>
-          Use your email and password to access your workspace.
-        </CardDescription>
+        <CardTitle>{t("title")}</CardTitle>
+        <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("email")}</Label>
             <Input
               id="email"
               type="email"
@@ -93,12 +101,12 @@ export function LoginForm() {
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("password")}</Label>
               <a
                 href="/auth/forgot-password"
                 className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
               >
-                Forgot password?
+                {t("forgotPassword")}
               </a>
             </div>
             <Input
@@ -117,7 +125,7 @@ export function LoginForm() {
             </p>
           ) : null}
           <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+            {submitting ? t("submitting") : t("submit")}
           </Button>
         </form>
       </CardContent>

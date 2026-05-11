@@ -187,6 +187,13 @@ import { EnvEditorDemo } from "./_components/env-editor-demo"
 import { ErrorBoundaryUiDemo } from "./_components/error-boundary-ui-demo"
 import { JsonViewerDemo } from "./_components/json-viewer-demo"
 import { WebhookTesterDemo } from "./_components/webhook-tester-demo"
+import { BrowserDemo } from "./_components/browser-demo"
+import { CardExtendedDemo } from "./_components/card-extended-demo"
+import { CommitGraphDemo } from "./_components/commit-graph-demo"
+import { GaugeDemo } from "./_components/gauge-demo"
+import { KeyValueDemo } from "./_components/key-value-demo"
+import { QRCodeDemo } from "./_components/qr-code-demo"
+import { ColorSwatch } from "@workspace/ui/components/color-swatch"
 
 export default function ShowcasePage() {
   return (
@@ -445,6 +452,19 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== BROWSER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Browser</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Chrome with tabs + bookmarks bar
+            </h3>
+            <BrowserDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== BUTTONBORDERBEAM ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
@@ -631,6 +651,21 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== CARDEXTENDED ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          CardExtended
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              6 decorative variants of base Card
+            </h3>
+            <CardExtendedDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== CAROUSEL ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Carousel</h2>
@@ -787,6 +822,44 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== COLORSWATCH ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          ColorSwatch
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Token colors with sizes
+            </h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <ColorSwatch color="var(--primary)" />
+              <ColorSwatch color="var(--success)" />
+              <ColorSwatch color="var(--warning)" />
+              <ColorSwatch color="var(--info)" />
+              <ColorSwatch color="var(--destructive)" />
+              <ColorSwatch color="var(--chart-1)" />
+              <ColorSwatch color="var(--chart-2)" />
+              <ColorSwatch color="var(--chart-3)" />
+              <ColorSwatch color="var(--chart-4)" />
+              <ColorSwatch color="var(--chart-5)" />
+              <ColorSwatch color="rgba(255,0,0,0.5)" />
+              <ColorSwatch />
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes
+            </h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <ColorSwatch color="var(--primary)" size="sm" />
+              <ColorSwatch color="var(--primary)" />
+              <ColorSwatch color="var(--primary)" size="lg" />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ==================== COMBOBOX ==================== */}
       <section className="mb-16">
         <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Combobox</h2>
@@ -809,6 +882,21 @@ export default function ShowcasePage() {
               Command palette with groups
             </h3>
             <CommandDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== COMMITGRAPH ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">
+          CommitGraph
+        </h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Branched topology with merge + tag
+            </h3>
+            <CommitGraphDemo />
           </div>
         </div>
       </section>
@@ -965,6 +1053,19 @@ export default function ShowcasePage() {
                 <FieldError>Please enter a valid email address.</FieldError>
               </Field>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== GAUGE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">Gauge</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              SVG meter with full circle, semi, custom token, and indeterminate
+            </h3>
+            <GaugeDemo />
           </div>
         </div>
       </section>
@@ -1169,6 +1270,19 @@ export default function ShowcasePage() {
                 <Kbd>K</Kbd>
               </KbdGroup>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== KEYVALUE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">KeyValue</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Generic key/value editor with paste-parsing
+            </h3>
+            <KeyValueDemo />
           </div>
         </div>
       </section>
@@ -1419,6 +1533,19 @@ export default function ShowcasePage() {
                 <Progress value={100} />
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== QRCODE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6 border-b pb-2 text-2xl font-semibold">QRCode</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Canvas + SVG output, download, overlay logo
+            </h3>
+            <QRCodeDemo />
           </div>
         </div>
       </section>

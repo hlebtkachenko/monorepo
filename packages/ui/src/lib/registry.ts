@@ -82,6 +82,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Navigation breadcrumb trail with separators",
     categories: ["navigation"],
   },
+  browser: {
+    source: "eldoraui",
+    sourceType: "import",
+    upstream: "https://www.eldoraui.site/docs/components/browser",
+    description:
+      "Browser simulator chrome with address bar, tabs, bookmarks, history, downloads, and settings",
+    categories: ["display"],
+    dependencies: ["badge", "button", "card", "input", "separator"],
+  },
   "button-border-beam": {
     source: "cult-ui",
     sourceType: "import",
@@ -133,6 +142,15 @@ export const registry: Record<string, ComponentMeta> = {
       "Container for grouped content with header, content, and footer",
     categories: ["layout"],
   },
+  "card-extended": {
+    source: "cardcn",
+    sourceType: "import",
+    upstream: "https://cardcn.dev/cards/basic-cards/",
+    description:
+      "Card with decorative variants: shadow, lines, hatched, aurora, tilted, stacked",
+    categories: ["display", "layout"],
+    dependencies: ["card"],
+  },
   carousel: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -164,6 +182,22 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/collapsible",
     description: "Expandable and collapsible content section",
     categories: ["disclosure"],
+  },
+  "color-swatch": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/color-swatch",
+    description:
+      "Color preview swatch with sm/default/lg sizes, transparency checker, and asChild support",
+    categories: ["display"],
+  },
+  "commit-graph": {
+    source: "justinlevine",
+    sourceType: "import",
+    upstream: "https://ui.justinlevine.me/docs/components/commit-graph",
+    description:
+      "Topological git graph with SVG rail lines, branch forks, merges, and commit popovers",
+    categories: ["display", "data"],
   },
   combobox: {
     source: "shadcn",
@@ -263,6 +297,14 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["forms"],
     dependencies: ["label", "separator"],
   },
+  gauge: {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/gauge",
+    description:
+      "SVG gauge/meter with configurable min/max, thickness, start/end angles, and value text",
+    categories: ["display", "feedback"],
+  },
   "hover-card": {
     source: "shadcn",
     sourceType: "vanilla",
@@ -317,6 +359,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Keyboard key display for shortcuts",
     categories: ["display"],
   },
+  "key-value": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/key-value",
+    description:
+      "Generic editable key-value pair input with paste-parsing, validation, duplicate detection, and reorder",
+    categories: ["display", "forms"],
+    dependencies: ["button", "input", "textarea"],
+  },
   label: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -366,6 +417,15 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/progress",
     description: "Linear progress bar indicator",
     categories: ["feedback"],
+  },
+  "qr-code": {
+    source: "diceui",
+    sourceType: "import",
+    upstream: "https://www.diceui.com/docs/components/radix/qr-code",
+    description:
+      "QR code generator with configurable size, error correction level, optional logo overlay, and PNG/SVG download",
+    categories: ["display"],
+    packages: ["qrcode"],
   },
   "radio-group": {
     source: "shadcn",

@@ -36,4 +36,5 @@ pg_dump \
   | grep -v '^-- Completed on' \
   | grep -v '^\\restrict ' \
   | grep -v '^\\unrestrict ' \
-  | sed -E '/^$/N;/^\n$/D'
+  | sed -E '/^$/N;/^\n$/D' \
+  | awk '{lines[NR]=$0} END{ n=NR; while (n>0 && lines[n]=="") n--; for (i=1; i<=n; i++) print lines[i] }'

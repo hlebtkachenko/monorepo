@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react"
 import * as React from "react"
 
 import { Button } from "@workspace/ui/components/button"
-import { MultiStepLoader } from "./multi-step-loader"
+import { MultiStepLoader, type FinalStatus } from "./multi-step-loader"
 
 const meta: Meta<typeof MultiStepLoader> = {
   title: "Components/MultiStepLoader",
@@ -19,7 +19,13 @@ const states = [
   { text: "Almost ready" },
 ]
 
-function Trigger({ loop }: { loop?: boolean }) {
+function Trigger({
+  loop,
+  finalStatus,
+}: {
+  loop: boolean
+  finalStatus?: FinalStatus
+}) {
   const [loading, setLoading] = React.useState(false)
   return (
     <div className="flex flex-col gap-4">
@@ -27,14 +33,12 @@ function Trigger({ loop }: { loop?: boolean }) {
       <MultiStepLoader
         loadingStates={states}
         loading={loading}
-        duration={1500}
-        loop={!!loop}
+        duration={1200}
+        loop={loop}
+        {...(finalStatus ? { finalStatus } : {})}
+        autoCloseDelay={1500}
+        onClose={() => setLoading(false)}
       />
-      {loading && (
-        <Button variant="outline" onClick={() => setLoading(false)}>
-          Stop
-        </Button>
-      )}
     </div>
   )
 }
@@ -43,6 +47,10 @@ export const Looping: Story = {
   render: () => <Trigger loop />,
 }
 
-export const OneShot: Story = {
-  render: () => <Trigger />,
+export const OneShotSuccess: Story = {
+  render: () => <Trigger loop={false} finalStatus="success" />,
+}
+
+export const OneShotFailed: Story = {
+  render: () => <Trigger loop={false} finalStatus="failed" />,
 }

@@ -31,8 +31,8 @@ const cardVariants = cva("", {
     variant: {
       shadow: "shadow-[5px_5px_0px_0px_var(--border)]",
       lines: "w-full border-none p-10 shadow-none",
-      hatched: "isolate z-10 border-2 border-border bg-transparent",
-      aurora: "isolate z-10 border-border bg-transparent",
+      hatched: "isolate z-10 h-full border-2 border-border bg-transparent",
+      aurora: "isolate z-10 h-full border-border bg-transparent",
       tilted: "isolate z-10",
       stacked: "isolate z-10 shadow-[0_-3px_6px_-2px_var(--border)]",
     },

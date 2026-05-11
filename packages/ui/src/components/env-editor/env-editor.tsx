@@ -92,35 +92,29 @@ function EnvEditor({
   }, [value, defaultMasked])
 
   const handleAdd = React.useCallback(() => {
-    setVariables((prev) => {
-      const updated = [...prev, { key: "", value: "" }]
-      onChange?.(updated)
-      return updated
-    })
-  }, [onChange])
+    const updated = [...variables, { key: "", value: "" }]
+    setVariables(updated)
+    onChange?.(updated)
+  }, [variables, onChange])
 
   const handleRemove = React.useCallback(
     (index: number) => {
-      setVariables((prev) => {
-        const updated = prev.filter((_, i) => i !== index)
-        onChange?.(updated)
-        return updated
-      })
+      const updated = variables.filter((_, i) => i !== index)
+      setVariables(updated)
+      onChange?.(updated)
     },
-    [onChange],
+    [variables, onChange],
   )
 
   const handleChange = React.useCallback(
     (index: number, field: "key" | "value", newValue: string) => {
-      setVariables((prev) => {
-        const updated = prev.map((v, i) =>
-          i === index ? { ...v, [field]: newValue } : v,
-        )
-        onChange?.(updated)
-        return updated
-      })
+      const updated = variables.map((v, i) =>
+        i === index ? { ...v, [field]: newValue } : v,
+      )
+      setVariables(updated)
+      onChange?.(updated)
     },
-    [onChange],
+    [variables, onChange],
   )
 
   const toggleMask = React.useCallback((index: number) => {

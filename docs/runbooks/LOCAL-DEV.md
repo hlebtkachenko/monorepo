@@ -4,27 +4,25 @@ Bring up the web app locally with a real Postgres + Better Auth wired in.
 
 ## Required environment
 
-Create `apps/web/.env.local` with:
+Generate `apps/web/.env.local` with random secrets:
 
 ```bash
-# Postgres connection (consumed by @workspace/db client)
-DATABASE_URL=postgres://app:app_dev@localhost:5432/app_dev
-
-# Better Auth secret — 32+ byte random string
-# Generate: openssl rand -base64 33
-BETTER_AUTH_SECRET=<generated>
-
-# Public base URL of this web app
-BETTER_AUTH_URL=http://localhost:3000
-NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
-
-# Origins allowed to call /api/auth/* (comma-separated)
-BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000
-
-# HMAC secret for signup + invite JWTs — 32+ byte random string,
-# separate from BETTER_AUTH_SECRET so they rotate independently
-APP_TOKEN_SECRET=<generated>
+bash scripts/generate-env.sh
 ```
+
+The script writes the file at `chmod 600`. Re-run with `--force` to
+regenerate. The generated file contains:
+
+| Var | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection used by `@workspace/db` |
+| `BETTER_AUTH_SECRET` | Better Auth signing key (33-byte base64) |
+| `BETTER_AUTH_URL` | Server-side base URL |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | Client-side base URL |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | Allowed `/api/auth/*` callers |
+| `APP_TOKEN_SECRET` | HMAC secret for signup + invite JWTs |
+| `RESEND_API_KEY` | Set to send real password-reset emails; empty = log to console |
+| `EMAIL_FROM` | From address for outbound mail |
 
 `.env*` is gitignored. Never commit secrets.
 

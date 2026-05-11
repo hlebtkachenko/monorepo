@@ -51,6 +51,15 @@ Use `gh pr create` with a clear title and body that includes:
 
 ## Local Development
 
+### Pre-flight (one-time)
+
+```bash
+brew install mise   # runtime version manager
+mise install        # reads mise.toml: Node 24 + pnpm 11
+```
+
+### Day-to-day
+
 ```bash
 pnpm install --frozen-lockfile
 pnpm dev          # apps/web at http://localhost:3000

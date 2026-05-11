@@ -88,7 +88,7 @@ function resolveUrl(): string {
   }
 
   // Dev fallback: local direct Postgres.
-  return "postgres://app_owner:app_owner_dev@localhost:5432/workspace_dev"
+  return "postgres://app_owner:dev_owner@localhost:5432/app_dev"
 }
 
 function sha256(content: string): string {

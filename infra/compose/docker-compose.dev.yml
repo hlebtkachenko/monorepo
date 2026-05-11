@@ -1,0 +1,73 @@
+services:
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: workspace-postgres:dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app_owner
+      POSTGRES_PASSWORD: dev_owner
+      POSTGRES_DB: app_dev
+      # pgaudit: log DDL + ROLE statements (matches RDS parameter group prod setting)
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command: >
+      postgres
+        -c shared_preload_libraries=pgaudit,pg_stat_statements,vector
+        -c pgaudit.log=ddl,role
+        -c pgaudit.log_client=on
+        -c log_min_messages=warning
+        -c max_connections=200
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.d:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_owner -d app_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # edoburu/pgbouncer reads these env vars and generates pgbouncer.ini.
+      # Alternatively mount pgbouncer.ini directly (see volumes below).
+      DATABASE_URL: "postgres://app_user:dev_user@postgres:5432/app_dev"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "100"
+      DEFAULT_POOL_SIZE: "20"
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports:
+      - "6432:6432"
+    healthcheck:
+      # TCP probe: nc exits 0 if port is open.
+      test: ["CMD-SHELL", "nc -z localhost 6432 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    profiles:
+      - mailpit
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+
+volumes:
+  postgres_data:

@@ -1,0 +1,21 @@
+{
+  "name": "@workspace/testcontainers",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@testcontainers/postgresql": "^10.24.2",
+    "postgres": "^3.4.7",
+    "testcontainers": "^10.24.2"
+  },
+  "devDependencies": {
+    "@workspace/typescript-config": "workspace:*",
+    "typescript": "^6.0.3"
+  }
+}

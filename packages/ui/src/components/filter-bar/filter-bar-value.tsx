@@ -21,6 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
+import { Input } from "@workspace/ui/components/input"
 import { Slider } from "@workspace/ui/components/slider"
 import {
   Tabs,
@@ -29,6 +30,7 @@ import {
   TabsTrigger,
 } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
+import { formatNumber, parseNumber } from "@workspace/ui/lib/format-number"
 import { numberFilterOperators } from "./filter-bar-core"
 import { createNumberRange, take } from "./filter-bar-helpers"
 import { DebouncedInput } from "./filter-bar-debounced-input"
@@ -293,11 +295,16 @@ export function FilterValueNumberDisplay({
   ) {
     return (
       <span className="tracking-tight tabular-nums">
-        {filter.values[0]} {strings.and} {filter.values[1]}
+        {formatNumber(filter.values[0])} {strings.and}{" "}
+        {formatNumber(filter.values[1])}
       </span>
     )
   }
-  return <span className="tracking-tight tabular-nums">{filter.values[0]}</span>
+  return (
+    <span className="tracking-tight tabular-nums">
+      {formatNumber(filter.values[0])}
+    </span>
+  )
 }
 
 /* ---------------- value controllers ---------------- */
@@ -650,6 +657,48 @@ export function FilterValueTextController<TData>({
   )
 }
 
+interface FormattedNumberInputProps {
+  id?: string
+  value: number
+  onCommit: (value: number) => void
+}
+
+function FormattedNumberInput({
+  id,
+  value,
+  onCommit,
+}: FormattedNumberInputProps) {
+  const [draft, setDraft] = React.useState<string>(() => formatNumber(value))
+
+  React.useEffect(() => {
+    setDraft(formatNumber(value))
+  }, [value])
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const next = event.target.value
+    setDraft(next)
+    const parsed = parseNumber(next)
+    if (parsed !== null) onCommit(parsed)
+  }
+
+  const handleBlur = () => {
+    const parsed = parseNumber(draft)
+    if (parsed === null) setDraft(formatNumber(value))
+    else setDraft(formatNumber(parsed))
+  }
+
+  return (
+    <Input
+      id={id}
+      inputMode="decimal"
+      value={draft}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className="min-w-[10rem]"
+    />
+  )
+}
+
 export function FilterValueNumberController<TData>({
   filter,
   column,
@@ -744,11 +793,10 @@ export function FilterValueNumberController<TData>({
                 )}
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium">{strings.value}</span>
-                  <DebouncedInput
+                  <FormattedNumberInput
                     id="single"
-                    type="number"
-                    value={(values[0] ?? 0).toString()}
-                    onChange={(v) => changeNumber([Number(v)])}
+                    value={values[0] ?? 0}
+                    onCommit={(v) => changeNumber([v])}
                   />
                 </div>
               </TabsContent>
@@ -766,18 +814,16 @@ export function FilterValueNumberController<TData>({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium">{strings.min}</span>
-                    <DebouncedInput
-                      type="number"
+                    <FormattedNumberInput
                       value={values[0] ?? 0}
-                      onChange={(v) => changeMinNumber(Number(v))}
+                      onCommit={changeMinNumber}
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium">{strings.max}</span>
-                    <DebouncedInput
-                      type="number"
+                    <FormattedNumberInput
                       value={values[1] ?? 0}
-                      onChange={(v) => changeMaxNumber(Number(v))}
+                      onCommit={changeMaxNumber}
                     />
                   </div>
                 </div>

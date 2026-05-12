@@ -5,6 +5,7 @@ import { PlusCircle, XCircle } from "lucide-react"
 import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"
+import { formatNumber, parseNumber } from "@workspace/ui/lib/format-number"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
@@ -88,16 +89,14 @@ export function DataTableSliderFilter<TData>({
   )
 
   const formatValue = React.useCallback(
-    // hardcoded en-US for SSR consistency
-    (value: number) =>
-      value.toLocaleString("en-US", { maximumFractionDigits: 0 }),
+    (value: number) => formatNumber(value, { maximumFractionDigits: 0 }),
     [],
   )
 
   const onFromChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const num = Number(event.target.value)
-      if (!Number.isNaN(num) && num >= min && num <= range[1]) {
+      const num = parseNumber(event.target.value)
+      if (num !== null && num >= min && num <= range[1]) {
         column.setFilterValue([num, range[1]])
       }
     },
@@ -106,8 +105,8 @@ export function DataTableSliderFilter<TData>({
 
   const onToChange = React.useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const num = Number(event.target.value)
-      if (!Number.isNaN(num) && num <= max && num >= range[0]) {
+      const num = parseNumber(event.target.value)
+      if (num !== null && num <= max && num >= range[0]) {
         column.setFilterValue([range[0], num])
       }
     },
@@ -183,17 +182,14 @@ export function DataTableSliderFilter<TData>({
             <div className="relative">
               <Input
                 id={`${id}-from`}
-                type="number"
+                type="text"
                 aria-valuemin={min}
                 aria-valuemax={max}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder={min.toString()}
-                min={min}
-                max={max}
-                value={range[0]?.toString()}
+                inputMode="decimal"
+                placeholder={formatValue(min)}
+                value={formatValue(range[0] ?? min)}
                 onChange={onFromChange}
-                className={cn("h-8 w-24", unit && "pr-8")}
+                className={cn("h-8 min-w-[8rem]", unit && "pr-8")}
               />
               {unit && (
                 <span className="absolute top-0 right-0 bottom-0 flex items-center rounded-r-md bg-accent px-2 text-sm text-muted-foreground">
@@ -207,17 +203,14 @@ export function DataTableSliderFilter<TData>({
             <div className="relative">
               <Input
                 id={`${id}-to`}
-                type="number"
+                type="text"
                 aria-valuemin={min}
                 aria-valuemax={max}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder={max.toString()}
-                min={min}
-                max={max}
-                value={range[1]?.toString()}
+                inputMode="decimal"
+                placeholder={formatValue(max)}
+                value={formatValue(range[1] ?? max)}
                 onChange={onToChange}
-                className={cn("h-8 w-24", unit && "pr-8")}
+                className={cn("h-8 min-w-[8rem]", unit && "pr-8")}
               />
               {unit && (
                 <span className="absolute top-0 right-0 bottom-0 flex items-center rounded-r-md bg-accent px-2 text-sm text-muted-foreground">

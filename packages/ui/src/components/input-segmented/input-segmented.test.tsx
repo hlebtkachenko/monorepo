@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, it, expect } from "vitest"
 import { InputSegmented, InputSegmentedItem } from "./input-segmented"
 
@@ -72,5 +72,47 @@ describe("InputSegmented", () => {
     expect(
       container.querySelector("[data-slot=input-segmented]"),
     ).toHaveAttribute("aria-orientation", "vertical")
+  })
+
+  it("advances focus to next item when maxLength is reached (autoAdvance)", () => {
+    render(
+      <InputSegmented autoAdvance>
+        <InputSegmentedItem placeholder="MM" maxLength={2} />
+        <InputSegmentedItem placeholder="DD" maxLength={2} />
+        <InputSegmentedItem placeholder="YYYY" maxLength={4} />
+      </InputSegmented>,
+    )
+    const first = screen.getByPlaceholderText("MM") as HTMLInputElement
+    const second = screen.getByPlaceholderText("DD") as HTMLInputElement
+    first.focus()
+    fireEvent.input(first, { target: { value: "12" } })
+    expect(document.activeElement).toBe(second)
+  })
+
+  it("moves focus to previous item on Backspace when empty (autoAdvance)", () => {
+    render(
+      <InputSegmented autoAdvance>
+        <InputSegmentedItem placeholder="MM" maxLength={2} />
+        <InputSegmentedItem placeholder="DD" maxLength={2} />
+      </InputSegmented>,
+    )
+    const first = screen.getByPlaceholderText("MM") as HTMLInputElement
+    const second = screen.getByPlaceholderText("DD") as HTMLInputElement
+    second.focus()
+    fireEvent.keyDown(second, { key: "Backspace" })
+    expect(document.activeElement).toBe(first)
+  })
+
+  it("does not advance focus when autoAdvance is disabled (default)", () => {
+    render(
+      <InputSegmented>
+        <InputSegmentedItem placeholder="MM" maxLength={2} />
+        <InputSegmentedItem placeholder="DD" maxLength={2} />
+      </InputSegmented>,
+    )
+    const first = screen.getByPlaceholderText("MM") as HTMLInputElement
+    first.focus()
+    fireEvent.input(first, { target: { value: "12" } })
+    expect(document.activeElement).toBe(first)
   })
 })

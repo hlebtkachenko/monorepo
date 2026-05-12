@@ -12,30 +12,40 @@ import {
 } from "@workspace/ui/components/drawer"
 import { Button } from "@workspace/ui/components/button"
 
+const directions = ["top", "right", "bottom", "left"] as const
+
 export function DrawerDemo() {
   return (
-    <Drawer>
-      <DrawerTrigger asChild>
-        <Button variant="outline">Open Drawer</Button>
-      </DrawerTrigger>
-      <DrawerContent>
-        <DrawerHeader>
-          <DrawerTitle>Export Report</DrawerTitle>
-          <DrawerDescription>
-            Choose a format to export your financial report.
-          </DrawerDescription>
-        </DrawerHeader>
-        <div className="flex flex-col gap-2 p-4">
-          <Button variant="outline" className="justify-start">PDF Document</Button>
-          <Button variant="outline" className="justify-start">Excel Spreadsheet</Button>
-          <Button variant="outline" className="justify-start">CSV File</Button>
-        </div>
-        <DrawerFooter>
-          <DrawerClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+    <div className="flex flex-wrap items-center gap-2">
+      {directions.map((direction) => (
+        <Drawer key={direction} direction={direction}>
+          <DrawerTrigger asChild>
+            <Button variant="outline" className="capitalize">
+              {direction}
+            </Button>
+          </DrawerTrigger>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle className="capitalize">
+                Drawer from {direction}
+              </DrawerTitle>
+              <DrawerDescription>
+                This drawer slides in from the {direction} edge of the screen.
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="flex flex-col gap-2 p-4">
+              <p className="text-sm text-muted-foreground">
+                Drawers work well on mobile and for transient flows.
+              </p>
+            </div>
+            <DrawerFooter>
+              <DrawerClose asChild>
+                <Button variant="outline">Close</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      ))}
+    </div>
   )
 }

@@ -272,7 +272,12 @@ export function NumberCell<TData>(props: DataGridCellProps<TData>) {
         />
       ) : (
         <span data-slot="data-grid-cell-content">
-          {initialValue == null ? "" : formatNumber(initialValue)}
+          {initialValue == null
+            ? ""
+            : formatNumber(initialValue, {
+                minimumFractionDigits: numberOpts?.decimals,
+                maximumFractionDigits: numberOpts?.decimals,
+              })}
         </span>
       )}
     </DataGridCellWrapper>

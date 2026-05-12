@@ -50,7 +50,13 @@ export interface CellSelectOption {
 export type CellOpts =
   | { variant: "short-text" }
   | { variant: "long-text" }
-  | { variant: "number"; min?: number; max?: number; step?: number }
+  | {
+      variant: "number"
+      min?: number
+      max?: number
+      step?: number
+      decimals?: number
+    }
   | { variant: "select"; options: CellSelectOption[] }
   | { variant: "multi-select"; options: CellSelectOption[] }
   | { variant: "checkbox" }

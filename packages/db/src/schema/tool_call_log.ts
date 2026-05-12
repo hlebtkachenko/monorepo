@@ -19,8 +19,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { actorKind } from "./_enums.js"
-import { app_user } from "./app_user.js"
+import { actorKind } from "./_enums"
+import { app_user } from "./app_user"
 
 export const tool_call_log = pgTable("tool_call_log", {
   id: uuid("id")

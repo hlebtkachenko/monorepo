@@ -1,5 +1,5 @@
 import pino, { type LoggerOptions } from "pino"
-import { BASELINE_REDACT_PATHS } from "./redact-baseline.js"
+import { BASELINE_REDACT_PATHS } from "./redact-baseline"
 
 /**
  * Default application logger. JSON in production, pino-pretty in dev.
@@ -18,7 +18,7 @@ import { BASELINE_REDACT_PATHS } from "./redact-baseline.js"
 export {
   BASELINE_REDACT_PATHS,
   BASELINE_PINO_REDACT_PATHS,
-} from "./redact-baseline.js"
+} from "./redact-baseline"
 
 const isProduction = process.env["NODE_ENV"] === "production"
 // Skip pino-pretty in test env — it is not a dependency and tests don't need

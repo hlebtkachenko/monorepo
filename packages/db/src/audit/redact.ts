@@ -19,7 +19,7 @@
  */
 
 import { BASELINE_REDACT_PATHS } from "@workspace/observability"
-import type { RedactionRules } from "./types.js"
+import type { RedactionRules } from "./types"
 
 const REDACTION_CENSOR = "[REDACTED]"
 

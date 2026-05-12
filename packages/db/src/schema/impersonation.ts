@@ -11,10 +11,10 @@
  */
 import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { workspace } from "./workspace.js"
-import { organization } from "./organization.js"
-import { app_user } from "./app_user.js"
-import { auth_session } from "./auth_session.js"
+import { workspace } from "./workspace"
+import { organization } from "./organization"
+import { app_user } from "./app_user"
+import { auth_session } from "./auth_session"
 
 export const impersonation = pgTable("impersonation", {
   id: uuid("id")

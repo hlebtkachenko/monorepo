@@ -34,8 +34,8 @@ import { resolve, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { PostgreSqlContainer } from "@testcontainers/postgresql"
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql"
-import { applyRoleBootstrap } from "./roles.js"
-import { applyMigrations } from "./migrations.js"
+import { applyRoleBootstrap } from "./roles"
+import { applyMigrations } from "./migrations"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 

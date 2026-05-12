@@ -13,8 +13,8 @@
 import { text, timestamp, uuid, varchar } from "drizzle-orm/pg-core"
 import { pgTable } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { inviteStatus } from "./_enums.js"
-import { app_user } from "./app_user.js"
+import { inviteStatus } from "./_enums"
+import { app_user } from "./app_user"
 
 export const auth_invite = pgTable("auth_invite", {
   id: uuid("id")

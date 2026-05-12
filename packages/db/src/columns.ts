@@ -10,7 +10,7 @@
  * See ADR-0013.
  */
 import { numeric } from "drizzle-orm/pg-core"
-import type { Currency, Money } from "./types.js"
+import type { Currency, Money } from "./types"
 
 /**
  * Money column: numeric(19,4) branded as Money<Currency> at compile time.

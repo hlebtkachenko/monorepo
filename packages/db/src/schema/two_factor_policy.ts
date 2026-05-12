@@ -7,8 +7,8 @@
  * workspace_membership.mfa_grace_until to gate sign-ins.
  */
 import { boolean, integer, pgTable, timestamp, uuid } from "drizzle-orm/pg-core"
-import { workspace } from "./workspace.js"
-import { app_user } from "./app_user.js"
+import { workspace } from "./workspace"
+import { app_user } from "./app_user"
 
 export const two_factor_policy = pgTable("two_factor_policy", {
   workspace_id: uuid("workspace_id")

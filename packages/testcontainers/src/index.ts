@@ -1,2 +1,2 @@
-export { bootPostgres18 } from "./postgres.js"
-export type { BootResult } from "./postgres.js"
+export { bootPostgres18 } from "./postgres"
+export type { BootResult } from "./postgres"

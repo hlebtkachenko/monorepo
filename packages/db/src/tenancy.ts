@@ -36,8 +36,8 @@ import { sql } from "drizzle-orm"
 import type { ExtractTablesWithRelations } from "drizzle-orm"
 import type { PgTransaction } from "drizzle-orm/pg-core"
 import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js"
-import { db } from "./client.js"
-import type * as schema from "./schema/index.js"
+import { db } from "./client"
+import type * as schema from "./schema/index"
 
 // ---------------------------------------------------------------------------
 // Branded transaction types (ADR-0010 §3.2)

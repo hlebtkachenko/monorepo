@@ -84,4 +84,45 @@ export const config = [
       "workspace-rls/no-bare-role-identifier": "warn",
     },
   },
+  // ADR-0015: monorepo uniformly uses Bundler moduleResolution. Relative
+  // imports + re-exports MUST omit the `.js` extension. Turbopack does
+  // not resolve `.js` -> `.ts` in transpilePackages; an extension here
+  // breaks `pnpm --filter web build`. The rule applies to every .ts/.tsx
+  // file linted by the shared config; real `.js` files (postcss configs,
+  // ESLint configs, generated build artefacts) are untouched because the
+  // selector only matches `.js`-suffixed RELATIVE imports.
+  {
+    files: ["**/*.ts", "**/*.tsx"],
+    ignores: [
+      "**/migrations/**",
+      "**/scripts/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportDeclaration[source.value=/^\\.\\.?\\/.*\\.js$/]",
+          message:
+            "Relative TS imports must omit the .js extension (ADR-0015 — Bundler resolution).",
+        },
+        {
+          selector:
+            "ExportNamedDeclaration[source.value=/^\\.\\.?\\/.*\\.js$/]",
+          message:
+            "Relative TS re-exports must omit the .js extension (ADR-0015 — Bundler resolution).",
+        },
+        {
+          selector:
+            "ExportAllDeclaration[source.value=/^\\.\\.?\\/.*\\.js$/]",
+          message:
+            "Relative TS barrel re-exports must omit the .js extension (ADR-0015 — Bundler resolution).",
+        },
+      ],
+    },
+  },
 ]

@@ -6,7 +6,7 @@
 import { boolean, text, timestamp, uuid } from "drizzle-orm/pg-core"
 import { pgTable } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { app_user } from "./app_user.js"
+import { app_user } from "./app_user"
 
 export const two_factor = pgTable("two_factor", {
   id: uuid("id")

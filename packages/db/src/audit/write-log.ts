@@ -22,14 +22,14 @@
  * the write-side guarantees.
  */
 import { and, eq } from "drizzle-orm"
-import type { OrganizationBoundDb } from "../tenancy.js"
-import { tool_call_log } from "../schema/tool_call_log.js"
-import { applyBaselineKeyRedactions, applyRedactions } from "./redact.js"
+import type { OrganizationBoundDb } from "../tenancy"
+import { tool_call_log } from "../schema/tool_call_log"
+import { applyBaselineKeyRedactions, applyRedactions } from "./redact"
 import type {
   UpdateOutputInput,
   WriteLogInput,
   WriteLogResult,
-} from "./types.js"
+} from "./types"
 
 export async function writeToolCallLog(
   tx: OrganizationBoundDb,

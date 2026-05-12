@@ -9,9 +9,9 @@
  */
 import { boolean, pgTable, timestamp, uuid } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { workspaceRole } from "./_enums.js"
-import { workspace } from "./workspace.js"
-import { app_user } from "./app_user.js"
+import { workspaceRole } from "./_enums"
+import { workspace } from "./workspace"
+import { app_user } from "./app_user"
 
 export const workspace_membership = pgTable("workspace_membership", {
   id: uuid("id")

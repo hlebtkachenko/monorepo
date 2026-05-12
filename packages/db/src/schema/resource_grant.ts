@@ -8,8 +8,8 @@
  */
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { workspace_membership } from "./workspace_membership.js"
-import { organization } from "./organization.js"
+import { workspace_membership } from "./workspace_membership"
+import { organization } from "./organization"
 
 export const resource_grant = pgTable("resource_grant", {
   id: uuid("id")

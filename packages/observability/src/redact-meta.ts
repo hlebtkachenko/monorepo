@@ -15,7 +15,7 @@
  * Cycle-safe via WeakSet. Lives in @workspace/observability so the alerts
  * module has zero @workspace/db back-edge.
  */
-import { BASELINE_REDACT_PATHS } from "./redact-baseline.js"
+import { BASELINE_REDACT_PATHS } from "./redact-baseline"
 
 const REDACTION_CENSOR = "[REDACTED]"
 const TELEGRAM_TOKEN_RE = /\/bot[A-Za-z0-9_:-]+\//g

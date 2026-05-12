@@ -15,13 +15,13 @@ export {
   organizationBrand,
   workspaceBrand,
   adminBypassBrand,
-} from "./tenancy.js"
+} from "./tenancy"
 export type {
   OrganizationBoundDb,
   WorkspaceBoundDb,
   AdminBypassBound,
   AdminBypassDb,
-} from "./tenancy.js"
+} from "./tenancy"
 
 // Domain types (Money, FxRate, branded IDs)
 export type {
@@ -32,26 +32,26 @@ export type {
   OrganizationId,
   UserId,
   ToolCallLogId,
-} from "./types.js"
+} from "./types"
 
 // Column helpers
-export { money } from "./columns.js"
+export { money } from "./columns"
 
 // Schema (all tables + enums)
-export * from "./schema/index.js"
+export * from "./schema/index"
 
 // RLS policy helpers
 export {
   ORGANIZATION_SCOPED_TABLES,
   applyOrganizationPolicy,
-} from "./policies/rls.js"
-export type { OrganizationScopedTable } from "./policies/rls.js"
+} from "./policies/rls"
+export type { OrganizationScopedTable } from "./policies/rls"
 
 // Audit module
-export * from "./audit/index.js"
+export * from "./audit/index"
 
 // Drizzle helpers for consumers
 export { sql, eq, and, or, inArray, ne } from "drizzle-orm"
 
 // Db type for consumers that need the raw client type
-export type { Db } from "./client.js"
+export type { Db } from "./client"

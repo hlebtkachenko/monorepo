@@ -9,10 +9,10 @@
  * `organizationId` predicate is defence-in-depth.
  */
 import { and, eq } from "drizzle-orm"
-import type { OrganizationBoundDb } from "../tenancy.js"
-import { app_user } from "../schema/app_user.js"
-import { tool_call_log } from "../schema/tool_call_log.js"
-import type { ActorKind } from "./types.js"
+import type { OrganizationBoundDb } from "../tenancy"
+import { app_user } from "../schema/app_user"
+import { tool_call_log } from "../schema/tool_call_log"
+import type { ActorKind } from "./types"
 
 export interface AuditDetail {
   id: string

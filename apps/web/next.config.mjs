@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@workspace/ui"],
+  transpilePackages: [
+    "@workspace/ui",
+    "@workspace/db",
+    "@workspace/observability",
+    "@workspace/testcontainers",
+  ],
   output: "standalone",
 }
 

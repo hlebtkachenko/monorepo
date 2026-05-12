@@ -6,7 +6,7 @@
  * Generalized: tax_id, vat_id, country (ISO-3166-1 alpha-2). No CZ-specific regex.
  */
 import { pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core"
-import { workspace } from "./workspace.js"
+import { workspace } from "./workspace"
 
 export const workspace_billing = pgTable("workspace_billing", {
   workspace_id: uuid("workspace_id")

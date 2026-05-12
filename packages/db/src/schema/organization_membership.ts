@@ -8,11 +8,11 @@
  */
 import { boolean, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { organizationRole } from "./_enums.js"
-import { organization } from "./organization.js"
-import { workspace } from "./workspace.js"
-import { workspace_membership } from "./workspace_membership.js"
-import { app_user } from "./app_user.js"
+import { organizationRole } from "./_enums"
+import { organization } from "./organization"
+import { workspace } from "./workspace"
+import { workspace_membership } from "./workspace_membership"
+import { app_user } from "./app_user"
 
 export const organization_membership = pgTable(
   "organization_membership",

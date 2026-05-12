@@ -11,8 +11,8 @@
  */
 import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { workspaceRole } from "./_enums.js"
-import { workspace } from "./workspace.js"
+import { workspaceRole } from "./_enums"
+import { workspace } from "./workspace"
 
 export const permission_template = pgTable("permission_template", {
   id: uuid("id")

@@ -1,5 +1,5 @@
 {
-  "extends": "@workspace/typescript-config/base.json",
+  "extends": "@workspace/typescript-config/node-library.json",
   "compilerOptions": { "outDir": "dist" },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

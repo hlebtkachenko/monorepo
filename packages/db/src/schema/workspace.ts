@@ -11,7 +11,7 @@
  */
 import { pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { app_user } from "./app_user.js"
+import { app_user } from "./app_user"
 
 export const workspace = pgTable("workspace", {
   id: uuid("id")

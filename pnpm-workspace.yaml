@@ -16,3 +16,11 @@ allowBuilds:
   # @parcel/watcher pulled in transitively by next-intl message loader.
   # Native postinstall is optional; pnpm falls back to FS polling.
   '@parcel/watcher': false
+  '@sentry/cli': set this to true or false
+  '@swc/core': set this to true or false
+  cpu-features: set this to true or false
+  esbuild: set this to true or false
+  msgpackr-extract: set this to true or false
+  protobufjs: set this to true or false
+  sharp: set this to true or false
+  ssh2: set this to true or false

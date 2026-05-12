@@ -1,4 +1,4 @@
-import { signToken, verifyToken } from "./jwt.js"
+import { signToken, verifyToken } from "./jwt"
 
 /**
  * Signup token — issued by support (or the future admin app) when a new

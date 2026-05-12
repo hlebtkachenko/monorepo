@@ -2,10 +2,10 @@ export {
   signSignupToken,
   verifySignupToken,
   type SignupClaims,
-} from "./signup.js"
+} from "./signup"
 export {
   signInviteToken,
   verifyInviteToken,
   type InviteClaims,
-} from "./invite.js"
-export { TokenError } from "./jwt.js"
+} from "./invite"
+export { TokenError } from "./jwt"

@@ -1,4 +1,4 @@
-import { signToken, verifyToken } from "./jwt.js"
+import { signToken, verifyToken } from "./jwt"
 
 /**
  * Invite token — issued by a workspace owner or admin from

@@ -10,4 +10,4 @@
  * for. Server and client live behind explicit subpaths to keep their
  * runtime requirements separate.
  */
-export * from "./tokens/index.js"
+export * from "./tokens/index"

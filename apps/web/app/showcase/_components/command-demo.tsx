@@ -13,8 +13,11 @@ import {
 
 export function CommandDemo() {
   return (
-    <Command className="w-72 rounded-lg border shadow-md" shouldFilter>
-      <CommandInput placeholder="Type a command or search..." autoFocus={false} />
+    <Command className="w-72 rounded-lg border shadow-md" shouldFilter value="">
+      <CommandInput
+        placeholder="Type a command or search..."
+        autoFocus={false}
+      />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Navigation">

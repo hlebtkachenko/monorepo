@@ -28,12 +28,13 @@ const items = [
 
 export function SidebarDemo() {
   return (
-    <div className="h-[420px] w-full overflow-hidden rounded-md border bg-background">
+    <div className="relative h-[420px] w-full overflow-hidden rounded-md border bg-background [&_[data-slot=sidebar-container]]:!absolute [&_[data-slot=sidebar-container]]:!h-full [&_[data-slot=sidebar-container]]:!min-h-0">
       <TooltipProvider>
         <SidebarProvider
+          className="h-full min-h-0"
           style={{ "--sidebar-width": "14rem" } as React.CSSProperties}
         >
-          <Sidebar collapsible="icon" className="!absolute">
+          <Sidebar collapsible="icon">
             <SidebarHeader className="px-3 py-2 text-sm font-semibold">
               Workspace
             </SidebarHeader>

@@ -10,8 +10,10 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogMedia,
 } from "./alert-dialog"
 import { Button } from "@workspace/ui/components/button"
+import { AlertTriangle } from "lucide-react"
 
 const meta: Meta<typeof AlertDialog> = {
   title: "Components/AlertDialog",
@@ -71,6 +73,53 @@ export const Small: Story = {
         <AlertDialogFooter>
           <AlertDialogCancel>No</AlertDialogCancel>
           <AlertDialogAction>Yes</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  ),
+}
+
+export const Destructive: Story = {
+  render: () => (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive">Delete project</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete project?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. All data will be permanently removed.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive">Delete</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  ),
+}
+
+export const Media: Story = {
+  render: () => (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline">With media</Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogMedia className="bg-destructive/10 text-destructive">
+            <AlertTriangle className="size-6 text-destructive" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>Permanent action</AlertDialogTitle>
+          <AlertDialogDescription>
+            You are about to remove this resource. This cannot be reverted.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive">Remove</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

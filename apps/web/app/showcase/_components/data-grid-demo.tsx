@@ -80,25 +80,25 @@ const COLUMNS: ColumnDef<Person>[] = [
     accessorKey: "age",
     header: "Age",
     meta: { label: "Age", cell: { variant: "number", min: 0, max: 120 } },
-    size: 100,
+    size: 110,
   },
   {
     accessorKey: "active",
     header: "Active",
     meta: { label: "Active", cell: { variant: "checkbox" } },
-    size: 90,
+    size: 120,
   },
   {
     accessorKey: "role",
     header: "Role",
     meta: { label: "Role", cell: { variant: "select", options: ROLE_OPTIONS } },
-    size: 140,
+    size: 160,
   },
   {
     accessorKey: "joined",
     header: "Joined",
     meta: { label: "Joined", cell: { variant: "date" } },
-    size: 140,
+    size: 160,
   },
 ]
 

@@ -53,9 +53,9 @@ importers:
       '@cerbos/core':
         specifier: ^0.31.0
         version: 0.31.0(@bufbuild/protobuf@2.12.0)
-      '@cerbos/embedded':
-        specifier: ^0.15.4
-        version: 0.15.4(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)
+      '@cerbos/grpc':
+        specifier: ^0.27.1
+        version: 0.27.1(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)
       '@nestjs/common':
         specifier: ^11.1.19
         version: 11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -1382,8 +1382,8 @@ packages:
     peerDependencies:
       '@bufbuild/protobuf': ^2.12.0
 
-  '@cerbos/embedded@0.15.4':
-    resolution: {integrity: sha512-UdIpvT9lgXxQHjAlM9964NUIxeJ2/0B93g1U+IU9jtiD7cx5I+ZKoO67/GTuX3kj/nPpdk08zDVXpfpwXn/PdA==}
+  '@cerbos/grpc@0.27.1':
+    resolution: {integrity: sha512-cYNr3okdnz/tJnO5eeo1gAMlMiQ2JTCWWFxOrNWOzlblpALfGtyESR3HKkLUZ1JytI0XYAUGHdJuLGAHxWQ+Sg==}
     engines: {node: '>= 20'}
     peerDependencies:
       '@bufbuild/protobuf': ^2.12.0
@@ -10570,10 +10570,6 @@ packages:
     resolution: {integrity: sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A==}
     engines: {node: '>=18'}
 
-  ulid@3.0.2:
-    resolution: {integrity: sha512-yu26mwteFYzBAot7KVMqFGCVpsF6g8wXfJzQUHvu1no3+rRRSFcSV2nKeYvNPLD2J4b08jYBDhHUjeH0ygIl9w==}
-    hasBin: true
-
   unbox-primitive@1.1.0:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
     engines: {node: '>= 0.4'}
@@ -12339,12 +12335,12 @@ snapshots:
       '@cerbos/api': 0.8.0
       uuid: 14.0.0
 
-  '@cerbos/embedded@0.15.4(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)':
+  '@cerbos/grpc@0.27.1(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)':
     dependencies:
       '@bufbuild/protobuf': 2.12.0
       '@cerbos/api': 0.8.0
       '@cerbos/core': 0.31.0(@bufbuild/protobuf@2.12.0)
-      ulid: 3.0.2
+      '@grpc/grpc-js': 1.14.3
 
   '@chromatic-com/storybook@5.1.2(storybook@10.3.6(@testing-library/dom@10.4.1)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
     dependencies:
@@ -22609,8 +22605,6 @@ snapshots:
       '@lukeed/csprng': 1.1.0
 
   uint8array-extras@1.5.0: {}
-
-  ulid@3.0.2: {}
 
   unbox-primitive@1.1.0:
     dependencies:

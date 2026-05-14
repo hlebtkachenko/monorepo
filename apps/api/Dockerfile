@@ -32,27 +32,15 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY --from=deps /repo /repo
 COPY . .
 
-# Install Cerbos CLI and compile policies to a WASM bundle.
-# The bundle is copied to the runner stage and loaded at runtime by CerbosModule.
+# Cerbos L3 runs as a sidecar (ghcr.io/cerbos/cerbos with policies baked in),
+# NOT embedded. The api container talks to it over localhost:3593 gRPC.
+# See ADR-0018 amendment 2026-05-14: Cerbos closed-source Rust transpiler
+# makes self-hosted WASM bundle generation impossible, so the embedded path
+# was abandoned in favor of the sidecar pattern (same as OpenFGA).
 #
-# Version pinned to latest stable (v0.53.0). To update:
-#   1. Download the new release tarball for Linux_arm64
-#   2. Run: shasum -a 256 cerbos_<version>_Linux_arm64.tar.gz
-#   3. Update CERBOS_VERSION + CERBOS_SHA256 below
-#
-# SHA256 source: https://github.com/cerbos/cerbos/releases/download/v0.53.0/checksums.txt
-ARG CERBOS_VERSION=0.53.0
-ARG CERBOS_SHA256=c8adbd22e41676d8957d24af11ebb3dec312eabf0361731f9bef0604144af493
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
-    curl -fsSL \
-      "https://github.com/cerbos/cerbos/releases/download/v${CERBOS_VERSION}/cerbos_${CERBOS_VERSION}_Linux_arm64.tar.gz" \
-      -o /tmp/cerbos.tgz && \
-    echo "${CERBOS_SHA256}  /tmp/cerbos.tgz" | sha256sum -c && \
-    tar -xz -C /usr/local/bin cerbos -f /tmp/cerbos.tgz && \
-    rm /tmp/cerbos.tgz && \
-    apt-get remove -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
-# Compile policies to WASM bundle (also runs .cerbos-tests assertions).
-RUN cd infra/cerbos && bash ./build.sh
+# Policy compile + tests still run in CI via the upstream cerbos binary
+# (see .github/workflows/cerbos-policies-test.yml); no policy code is built
+# into this image.
 
 RUN pnpm --filter api build
 RUN pnpm --filter api deploy --prod --legacy /prod
@@ -89,8 +77,6 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 WORKDIR /app
 
 COPY --from=builder --chown=nestjs:nodejs /prod ./
-# Cerbos WASM bundle — loaded at runtime by CerbosModule from /app/cerbos-bundle.wasm
-COPY --from=builder --chown=nestjs:nodejs /repo/infra/cerbos/policies/bundle.wasm /app/cerbos-bundle.wasm
 
 USER nestjs:nodejs
 EXPOSE 3001

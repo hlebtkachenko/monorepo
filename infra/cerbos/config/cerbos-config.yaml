@@ -1,0 +1,42 @@
+# Cerbos PDP runtime config.
+#
+# Loaded by `cerbos server --config=/etc/cerbos/config.yaml` (see Dockerfile
+# CMD). Disk storage driver reads policies from /policies (baked into the
+# image at build time — see Dockerfile COPY). No Cerbos Hub, no auth, no
+# outbound network.
+#
+# Listens on:
+#   :3592 — HTTP (admin + healthcheck only)
+#   :3593 — gRPC (the api container's CerbosService calls this on localhost)
+#
+# Audit log goes to stdout in JSON; the Fargate awslogs driver forwards to
+# CloudWatch where the structured fields are searchable. No file-based
+# audit log => no need for a writable rootfs.
+server:
+  httpListenAddr: ":3592"
+  grpcListenAddr: ":3593"
+  adminAPI:
+    enabled: false
+
+storage:
+  driver: disk
+  disk:
+    directory: /policies
+    # watchForChanges: container restart pulls fresh policies via a new image
+    # tag (DockerImageAsset rehashes on policy edit). Watch is redundant + a
+    # small mtime-poll cost we don't need.
+    watchForChanges: false
+
+audit:
+  enabled: true
+  backend: local
+  local:
+    storagePath: /tmp/cerbos/audit
+    retentionPeriod: 168h  # 7 days
+    advanced:
+      bufferSize: 16
+      maxBatchSize: 32
+      flushInterval: 30s
+
+schema:
+  enforcement: reject

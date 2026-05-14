@@ -18,9 +18,10 @@ resourcePolicy:
   version: default
   variables:
     import:
-      - common/conditions
+      - conditions
   rules:
-    # VIEW: all authenticated principals in the org
+    # VIEW: all authenticated principals in the org, including agents.
+    # See invoice.yaml — agent role required for principal+resource AND match.
     - actions: [view]
       effect: EFFECT_ALLOW
       roles:
@@ -28,6 +29,7 @@ resourcePolicy:
         - org_admin
         - org_owner
         - org_guest
+        - agent
         - workspace_admin
 
     # EDIT: allowed only when entry has NOT been posted.
@@ -38,6 +40,7 @@ resourcePolicy:
         - org_member
         - org_admin
         - org_owner
+        - agent
         - workspace_admin
       condition:
         match:

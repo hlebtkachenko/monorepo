@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@cerbos/core": "^0.31.0",
-    "@cerbos/embedded": "^0.15.4",
+    "@cerbos/grpc": "^0.27.1",
     "@openfga/sdk": "^0.9.6",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",

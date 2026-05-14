@@ -2,47 +2,47 @@ import {
   type CheckResourceRequest,
   type CheckResourcesResult,
 } from "@cerbos/core"
-import { Embedded, Loader } from "@cerbos/embedded"
+import { GRPC } from "@cerbos/grpc"
 import { Injectable, Logger, Module, type OnModuleInit } from "@nestjs/common"
-import { readFile } from "node:fs/promises"
-import { resolve } from "node:path"
 
-// Path to the WASM bundle compiled at Docker build time via infra/cerbos/build.sh.
-// In production the bundle lives at /app/cerbos-bundle.wasm (see Dockerfile COPY step).
-// In development or CI, set CERBOS_BUNDLE_PATH to an absolute path to override.
-const BUNDLE_PATH =
-  process.env["CERBOS_BUNDLE_PATH"] ?? resolve("/app/cerbos-bundle.wasm")
+// The Cerbos PDP runs as a sidecar in the same Fargate task at localhost:3593.
+// In dev compose, it's also localhost:3593 via the `auth` profile. Override
+// with CERBOS_ENDPOINT for non-local-loopback wiring (none today).
+const ENDPOINT = process.env["CERBOS_ENDPOINT"] ?? "localhost:3593"
 
 /**
- * Thin wrapper around the Cerbos embedded client.
+ * Thin wrapper around the Cerbos gRPC client.
  *
- * Loaded once at module init from the pre-compiled WASM bundle.
- * All policy decisions are in-process — no network call at runtime.
+ * L3 of the three-layer authz stack (ADR-0018 amendment 2026-05-14):
+ *   L1: Postgres FORCE RLS (ADR-0010)
+ *   L2: OpenFGA sidecar (port 8080 gRPC, relationship/graph checks)
+ *   L3: Cerbos sidecar (port 3593 gRPC, action gates + conditional rules)
  *
- * This module provides L3 of the three-layer authz stack (ADR-0018):
- *   L1: Postgres FORCE RLS
- *   L2: OpenFGA (relationship/graph checks, Commit 8-9)
- *   L3: Cerbos embedded (action gates + conditional rules)
+ * The embedded WASM path was abandoned because Cerbos's policy→Rust→WASM
+ * transpiler is closed-source and only runs inside Cerbos Hub. See ADR-0018
+ * for full rationale.
  */
 @Injectable()
 export class CerbosService implements OnModuleInit {
   private readonly logger = new Logger(CerbosService.name)
-  private client!: Embedded
+  private client!: GRPC
 
   async onModuleInit(): Promise<void> {
-    this.logger.log(`Loading Cerbos bundle from: ${BUNDLE_PATH}`)
-    const wasmBytes = await readFile(BUNDLE_PATH)
-    const loader = new Loader(wasmBytes.buffer as ArrayBuffer)
-    this.client = new Embedded(loader)
-    await loader.active()
-    this.logger.log("Cerbos embedded PDP ready")
+    this.logger.log(`Connecting to Cerbos PDP at: ${ENDPOINT}`)
+    // tls: false — we're talking loopback inside the Fargate task network
+    // namespace, no TLS termination needed. The sidecar is unreachable from
+    // outside the task (binds to its container interface, awsvpc).
+    this.client = new GRPC(ENDPOINT, { tls: false })
+    // Probe so failures surface at boot, not on first request. The serverInfo
+    // call rejects if the PDP is unreachable.
+    const info = await this.client.serverInfo()
+    this.logger.log(
+      `Cerbos PDP ready (version=${info.version}, commit=${info.commit})`,
+    )
   }
 
   /**
    * Check a principal's permissions on a single resource.
-   *
-   * @param request - The Cerbos CheckResourceRequest (principal, resource, actions).
-   * @returns CheckResourcesResult with per-action allow/deny decisions.
    *
    * @example
    * ```typescript
@@ -67,15 +67,6 @@ export class CerbosService implements OnModuleInit {
  * Import CerbosModule into any feature module that needs action-gate checks.
  * AuthzModule (Commit 10) will re-export both CerbosModule and OpenFGAModule
  * as a combined authz facade.
- *
- * @example
- * ```typescript
- * @Module({
- *   imports: [CerbosModule],
- *   controllers: [InvoiceController],
- * })
- * export class InvoiceModule {}
- * ```
  */
 @Module({
   providers: [CerbosService],

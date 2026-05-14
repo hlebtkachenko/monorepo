@@ -1,12 +1,12 @@
-# Shared variables and derived roles used across resource policies.
+# Shared variables used across resource policies.
 #
-# Import this file in a resource policy with:
+# Import in a resource policy by EXPORT NAME (not file path):
 #   variables:
 #     import:
-#       - common/conditions
+#       - conditions
 #
-# Derived roles in this file are also available to all resource policies
-# that reference them via derivedRoles field.
+# The import list matches `^[\w\-\.]+$` — no slashes. Cerbos resolves the
+# name "conditions" against the exportVariables.name field below.
 ---
 apiVersion: api.cerbos.dev/v1
 exportVariables:

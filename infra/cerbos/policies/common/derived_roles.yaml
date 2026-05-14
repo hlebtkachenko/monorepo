@@ -5,10 +5,9 @@
 # express intent ("can_administer") rather than enumerating every
 # base role that satisfies the condition.
 #
-# Reference in a resource policy with:
-#   derivedRoles:
-#     import:
-#       - common/derived_roles
+# Reference in a resource policy with (EXPORT NAME, not file path):
+#   importDerivedRoles:
+#     - derived_roles
 ---
 apiVersion: api.cerbos.dev/v1
 derivedRoles:

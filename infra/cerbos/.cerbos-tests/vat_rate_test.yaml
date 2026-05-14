@@ -1,26 +1,42 @@
 # Tests for the vat_rate resource policy.
 #
 # Verifies:
-#   - Org admin can edit VAT rate (has can_administer derived role)
-#   - Org owner can edit VAT rate (has can_administer derived role)
-#   - Org member cannot edit VAT rate
-#   - Workspace admin cannot edit VAT rate
-#   - Guest cannot edit VAT rate
-#   - All roles can view VAT rates
-#   - Delete is denied for everyone (no delete rule in policy)
+#   - Org admin can edit (has can_administer derived role)
+#   - Org owner can edit (has can_administer derived role)
+#   - Org member cannot edit
+#   - Workspace admin cannot edit
+#   - Guest cannot edit
+#   - All roles can view
+#   - Delete denied for everyone (no delete rule)
 ---
 name: VAT rate resource policy tests
 description: Admin-only edit/create; view for all; no delete
+principals:
+  admin-001:
+    id: admin-001
+    roles: [org_admin]
+  owner-001:
+    id: owner-001
+    roles: [org_owner]
+  member-001:
+    id: member-001
+    roles: [org_member]
+  ws-admin-001:
+    id: ws-admin-001
+    roles: [workspace_admin]
+  guest-001:
+    id: guest-001
+    roles: [org_guest]
+resources:
+  vat-std:
+    id: vat-std
+    kind: vat_rate
+    attr: {}
 tests:
   - name: org admin can edit vat_rate
     input:
-      principals:
-        - id: admin-001
-          roles: [org_admin]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [admin-001]
+      resources: [vat-std]
       actions: [edit]
     expected:
       - principal: admin-001
@@ -30,13 +46,8 @@ tests:
 
   - name: org owner can edit vat_rate
     input:
-      principals:
-        - id: owner-001
-          roles: [org_owner]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [owner-001]
+      resources: [vat-std]
       actions: [edit]
     expected:
       - principal: owner-001
@@ -46,13 +57,8 @@ tests:
 
   - name: org member cannot edit vat_rate
     input:
-      principals:
-        - id: member-001
-          roles: [org_member]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [member-001]
+      resources: [vat-std]
       actions: [edit]
     expected:
       - principal: member-001
@@ -62,13 +68,8 @@ tests:
 
   - name: workspace admin cannot edit vat_rate
     input:
-      principals:
-        - id: ws-admin-001
-          roles: [workspace_admin]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [ws-admin-001]
+      resources: [vat-std]
       actions: [edit]
     expected:
       - principal: ws-admin-001
@@ -78,13 +79,8 @@ tests:
 
   - name: guest cannot edit vat_rate
     input:
-      principals:
-        - id: guest-001
-          roles: [org_guest]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [guest-001]
+      resources: [vat-std]
       actions: [edit]
     expected:
       - principal: guest-001
@@ -94,13 +90,8 @@ tests:
 
   - name: org member can view vat_rate
     input:
-      principals:
-        - id: member-001
-          roles: [org_member]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [member-001]
+      resources: [vat-std]
       actions: [view]
     expected:
       - principal: member-001
@@ -110,13 +101,8 @@ tests:
 
   - name: guest can view vat_rate
     input:
-      principals:
-        - id: guest-001
-          roles: [org_guest]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [guest-001]
+      resources: [vat-std]
       actions: [view]
     expected:
       - principal: guest-001
@@ -126,13 +112,8 @@ tests:
 
   - name: delete is denied for org admin (no delete rule in policy)
     input:
-      principals:
-        - id: admin-001
-          roles: [org_admin]
-      resources:
-        - id: vat-std
-          kind: vat_rate
-          attr: {}
+      principals: [admin-001]
+      resources: [vat-std]
       actions: [delete]
     expected:
       - principal: admin-001

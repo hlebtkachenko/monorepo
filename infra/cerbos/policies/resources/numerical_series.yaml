@@ -16,12 +16,11 @@ apiVersion: api.cerbos.dev/v1
 resourcePolicy:
   resource: numerical_series
   version: default
-  derivedRoles:
-    import:
-      - common/derived_roles
+  importDerivedRoles:
+    - derived_roles
   variables:
     import:
-      - common/conditions
+      - conditions
   rules:
     # VIEW: all authenticated principals
     - actions: [view]

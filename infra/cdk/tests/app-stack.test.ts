@@ -12,13 +12,13 @@ describe("AppStack Fargate hardening", () => {
     })
   })
 
-  it("all 4 containers drop ALL Linux capabilities", () => {
+  it("all 5 containers drop ALL Linux capabilities", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
       | undefined
     const containers = taskDef?.Properties?.ContainerDefinitions ?? []
-    expect(containers.length).toBe(4)
+    expect(containers.length).toBe(5)
     for (const container of containers as Array<{
       LinuxParameters?: { Capabilities?: { Drop?: string[] } }
       Name?: string
@@ -28,7 +28,7 @@ describe("AppStack Fargate hardening", () => {
     }
   })
 
-  it("api + cloudflared + pgbouncer have readonlyRootFilesystem=true", () => {
+  it("api + cloudflared + pgbouncer + cerbos have readonlyRootFilesystem=true", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -42,6 +42,25 @@ describe("AppStack Fargate hardening", () => {
     expect(byName["api"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["cloudflared"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["pgbouncer"]?.ReadonlyRootFilesystem).toBe(true)
+    expect(byName["cerbos"]?.ReadonlyRootFilesystem).toBe(true)
+  })
+
+  it("cerbos sidecar is present with telemetry disabled", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+    }>
+    const cerbos = containers.find((c) => c.Name === "cerbos")
+    expect(cerbos).toBeDefined()
+    const envByName = Object.fromEntries(
+      (cerbos?.Environment ?? []).map((e) => [e.Name, e.Value]),
+    )
+    expect(envByName["CERBOS_NO_TELEMETRY"]).toBe("1")
   })
 
   it("api connects to pgbouncer sidecar on localhost:6432", () => {
@@ -131,7 +150,7 @@ describe("AppStack Fargate hardening", () => {
         SourceVolume?: string
       }>
     }>
-    expect(containers.length).toBe(4)
+    expect(containers.length).toBe(5)
     for (const container of containers) {
       const tmpMount = container.MountPoints?.find(
         (m) => m.ContainerPath === "/tmp",

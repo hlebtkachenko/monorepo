@@ -1,4 +1,6 @@
+import * as path from "node:path"
 import { CfnOutput, Duration, Stack, type StackProps } from "aws-cdk-lib"
+import { DockerImageAsset, Platform } from "aws-cdk-lib/aws-ecr-assets"
 import {
   SubnetSelection,
   type ISubnet,
@@ -42,11 +44,16 @@ export interface AppStackProps extends StackProps {
 /**
  * Cloudflare-Tunnel-fronted ECS Fargate task (ADR 0008).
  *
- * One task per environment, four containers sharing a network namespace:
+ * One task per environment, five containers sharing a network namespace:
  *   - web         : Next.js, port 3000
- *   - api         : NestJS, port 3001 (connects to localhost:6432 for db)
+ *   - api         : NestJS, port 3001 (talks to localhost:6432 for db,
+ *                   localhost:3593 for Cerbos L3, localhost:8080 for
+ *                   OpenFGA L2 once Commit 9 lands)
  *   - pgbouncer   : connection pool, listens on 127.0.0.1:6432, forwards
  *                   to RDS :5432 (ADR-0012 amendment 2026-05-14, E.2)
+ *   - cerbos      : PDP sidecar, listens on 127.0.0.1:3593 gRPC. Policies
+ *                   baked into the image via infra/cerbos/Dockerfile +
+ *                   DockerImageAsset (ADR-0018 amendment 2026-05-14)
  *   - cloudflared : sidecar establishing outbound tunnel to Cloudflare edge
  *
  * Task lives in public subnet with assignPublicIp=true (one public IPv4 per
@@ -69,6 +76,7 @@ export class AppStack extends Stack {
   readonly apiLogGroup: LogGroup
   readonly tunnelLogGroup: LogGroup
   readonly pgbouncerLogGroup: LogGroup
+  readonly cerbosLogGroup: LogGroup
 
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props)
@@ -153,6 +161,10 @@ export class AppStack extends Stack {
     })
     this.pgbouncerLogGroup = new LogGroup(this, "PgBouncerLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/pgbouncer`,
+      retention: RetentionDays.ONE_WEEK,
+    })
+    this.cerbosLogGroup = new LogGroup(this, "CerbosLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/cerbos`,
       retention: RetentionDays.ONE_WEEK,
     })
 
@@ -306,6 +318,44 @@ export class AppStack extends Stack {
     pgbouncerContainer.addMountPoints({
       containerPath: "/etc/pgbouncer",
       sourceVolume: "pgbouncerEtc",
+      readOnly: false,
+    })
+
+    // Cerbos PDP sidecar (ADR-0018 amendment 2026-05-14): L3 action-gate
+    // engine. api calls localhost:3593 (gRPC). Policies + config baked into
+    // the image via infra/cerbos/Dockerfile (FROM ghcr.io/cerbos/cerbos +
+    // COPY policies + COPY config). DockerImageAsset hashes the build
+    // context — any policy edit produces a new image tag automatically.
+    //
+    // Reason for sidecar over @cerbos/embedded: the WASM bundle is generated
+    // by Cerbos's closed-source Rust transpiler and only available through
+    // Cerbos Hub SaaS. We chose the OSS PDP server instead — same engine,
+    // same CEL, ~0.5-1 ms localhost gRPC overhead (same order as OpenFGA).
+    const cerbosPoliciesImage = new DockerImageAsset(this, "CerbosImage", {
+      directory: path.join(__dirname, "..", "..", "cerbos"),
+      // arm64 to match the runtimePlatform; cerbos publishes both arches.
+      platform: Platform.LINUX_ARM64,
+    })
+    const cerbosContainer = taskDef.addContainer("cerbos", {
+      containerName: "cerbos",
+      image: ContainerImage.fromDockerImageAsset(cerbosPoliciesImage),
+      essential: true,
+      logging: LogDriver.awsLogs({
+        streamPrefix: "cerbos",
+        logGroup: this.cerbosLogGroup,
+      }),
+      // No env, no secrets — config is baked. CERBOS_NO_TELEMETRY=1 disables
+      // upstream telemetry beacons (we run fully isolated; no outbound HTTP).
+      environment: {
+        CERBOS_NO_TELEMETRY: "1",
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("CerbosLinuxParams"),
+    })
+    cerbosContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
       readOnly: false,
     })
 

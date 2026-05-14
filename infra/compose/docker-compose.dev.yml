@@ -56,6 +56,31 @@ services:
       retries: 10
       start_period: 5s
 
+  cerbos:
+    # L3 of three-layer authz (ADR-0018). Upstream image, policies + config
+    # bind-mounted from the repo so edits hot-reload (watchForChanges:true
+    # in the dev config below — different from prod where it's false and
+    # changes ship via a new image tag).
+    image: ghcr.io/cerbos/cerbos:0.53.0
+    restart: unless-stopped
+    profiles:
+      - auth
+    command: ["server", "--config=/etc/cerbos/config.yaml"]
+    volumes:
+      - ../cerbos/policies:/policies:ro
+      - ../cerbos/config/cerbos-config.yaml:/etc/cerbos/config.yaml:ro
+    ports:
+      - "3592:3592"  # HTTP (admin + healthcheck)
+      - "3593:3593"  # gRPC (api calls this)
+    environment:
+      CERBOS_NO_TELEMETRY: "1"
+    healthcheck:
+      test: ["CMD", "/cerbos", "healthcheck", "--insecure"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   mailpit:
     image: axllent/mailpit:v1.30.0
     restart: unless-stopped

@@ -38,7 +38,7 @@ function AuthShell({ className, children, ...props }: AuthShellProps) {
     <div
       data-slot="auth-shell"
       className={cn(
-        "grid min-h-svh bg-background md:grid-cols-[2fr_3fr]",
+        "grid min-h-svh bg-background md:h-svh md:min-h-0 md:grid-cols-[2fr_3fr] md:overflow-hidden",
         className,
       )}
       {...props}
@@ -96,13 +96,10 @@ function AuthShellBody({
   return (
     <main
       data-slot="auth-shell-body"
-      className={cn(
-        "flex flex-1 items-center justify-center px-6 py-8",
-        className,
-      )}
+      className={cn("flex flex-1 flex-col items-center px-6 py-8", className)}
       {...props}
     >
-      <div className="w-full max-w-lg">{children}</div>
+      <div className="my-auto w-full max-w-lg">{children}</div>
     </main>
   )
 }
@@ -155,7 +152,10 @@ const AuthShellLeft = function AuthShellLeft({
   return (
     <div
       data-slot="auth-shell-left"
-      className={cn("flex flex-col", className)}
+      className={cn(
+        "flex min-h-svh flex-col md:h-svh md:min-h-0 md:overflow-y-auto",
+        className,
+      )}
       {...props}
     >
       {children}

@@ -1,7 +1,6 @@
-import { Duration, Stack, type StackProps } from "aws-cdk-lib"
-import { Alarm, ComparisonOperator, Metric } from "aws-cdk-lib/aws-cloudwatch"
-import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
+import { Stack, type StackProps } from "aws-cdk-lib"
 import { Topic } from "aws-cdk-lib/aws-sns"
+import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { MonitoringFacade } from "cdk-monitoring-constructs"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
@@ -11,8 +10,22 @@ export interface ObservabilityStackProps extends StackProps {
   readonly envName: string
   readonly appStack: AppStack
   readonly dataStack: DataStack
+  /**
+   * Email address that receives all CloudWatch alarm notifications produced
+   * by this stack. Subscription is "Pending" until the recipient clicks the
+   * AWS confirmation link after first deploy. See ADR 0016.
+   */
+  readonly alertEmail: string
 }
 
+/**
+ * Regional alarms (ECS, RDS, CloudWatch Logs, ECR, S3) wired to a single
+ * BillingTopic. Warning at 70% surfaces problems early enough to act; the
+ * 95% Critical threshold leaves room for the SecurityStack kill-switch.
+ *
+ * Pure billing-dollar alarms ($40/$80) live in BillingAlarmsStack
+ * (us-east-1, where AWS publishes EstimatedCharges).
+ */
 export class ObservabilityStack extends Stack {
   readonly billingTopic: Topic
 
@@ -29,11 +42,11 @@ export class ObservabilityStack extends Stack {
     monitoring.monitorSimpleFargateService({
       fargateService: props.appStack.service,
       addCpuUsageAlarm: {
-        Warning: { maxUsagePercent: 80 },
+        Warning: { maxUsagePercent: 70 },
         Critical: { maxUsagePercent: 95 },
       },
       addMemoryUsageAlarm: {
-        Warning: { maxUsagePercent: 80 },
+        Warning: { maxUsagePercent: 70 },
         Critical: { maxUsagePercent: 95 },
       },
     })
@@ -41,7 +54,7 @@ export class ObservabilityStack extends Stack {
     monitoring.monitorRdsInstance({
       instance: props.dataStack.database,
       addCpuUsageAlarm: {
-        Warning: { maxUsagePercent: 80 },
+        Warning: { maxUsagePercent: 70 },
         Critical: { maxUsagePercent: 95 },
       },
       addFreeStorageSpaceAlarm: {
@@ -50,27 +63,9 @@ export class ObservabilityStack extends Stack {
     })
 
     this.billingTopic = new Topic(this, "BillingTopic", {
-      displayName: `windhoek-${props.envName} billing alerts`,
+      displayName: `windhoek-${props.envName} regional alerts`,
     })
 
-    const billingMetric = new Metric({
-      metricName: "EstimatedCharges",
-      namespace: "AWS/Billing",
-      statistic: "Maximum",
-      dimensionsMap: { Currency: "USD" },
-      period: Duration.hours(9),
-      region: "us-east-1",
-    })
-
-    const billingAlarm = new Alarm(this, "BillingAlarm", {
-      alarmName: `windhoek-${props.envName}-billing-25usd`,
-      alarmDescription: "Monthly estimated AWS charges reached $25 USD",
-      metric: billingMetric,
-      threshold: 25,
-      evaluationPeriods: 1,
-      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
-    })
-
-    billingAlarm.addAlarmAction(new SnsAction(this.billingTopic))
+    this.billingTopic.addSubscription(new EmailSubscription(props.alertEmail))
   }
 }

@@ -4,6 +4,7 @@ import { NetworkStack } from "../lib/network-stack.js"
 import { DataStack } from "../lib/data-stack.js"
 import { AppStack } from "../lib/app-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
+import { BillingAlarmsStack } from "../lib/billing-alarms-stack.js"
 
 const app = new App()
 
@@ -35,6 +36,8 @@ if (!domain) {
     `APP_DOMAIN env var is required for env=${env}. In CI it comes from the APP_DOMAIN_${env.toUpperCase()} repo variable.`,
   )
 }
+
+const alertEmail = process.env.ALERT_EMAIL ?? "g1053015@icloud.com"
 
 const network = new NetworkStack(app, `Network-${env}`, {
   env: stackEnv,
@@ -68,6 +71,13 @@ new ObservabilityStack(app, `Observability-${env}`, {
   envName: env,
   appStack,
   dataStack: data,
+  alertEmail,
+})
+
+new BillingAlarmsStack(app, `BillingAlarms-${env}`, {
+  env: { account, region: "us-east-1" },
+  envName: env,
+  alertEmail,
 })
 
 Tags.of(app).add("Environment", env)

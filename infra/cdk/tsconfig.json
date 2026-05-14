@@ -17,6 +17,6 @@
     "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["bin/**/*", "lib/**/*"],
+  "include": ["bin/**/*", "lib/**/*", "tests/**/*"],
   "exclude": ["node_modules", "cdk.out", "dist"]
 }

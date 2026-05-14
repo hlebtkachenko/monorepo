@@ -31,15 +31,29 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Typecheck
+        env:
+          AWS_ACCOUNT_ID: "000000000000"
+          APP_DOMAIN: example.com
         run: pnpm turbo typecheck
 
       - name: Lint
         run: pnpm turbo lint
 
+      - name: CDK Synth
+        # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
+        # Real account ID + domain come from repo secrets at deploy time.
+        env:
+          AWS_ACCOUNT_ID: "000000000000"
+          APP_DOMAIN: example.com
+        run: pnpm --filter @workspace/cdk synth
+
       - name: Test
         # @workspace/db tests require a Postgres 18 testcontainer or service.
         # They run in the dedicated db-tests.yml workflow. Excluding here
         # avoids Docker overhead + double execution.
+        env:
+          AWS_ACCOUNT_ID: "123456789012"
+          APP_DOMAIN: test.example.com
         run: pnpm turbo test --filter=!@workspace/db
 
       - name: Test Coverage

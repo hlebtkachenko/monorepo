@@ -8,6 +8,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "AWS_ACCOUNT_ID=123456789012 APP_DOMAIN=test.example.com vitest run",
+    "test:watch": "AWS_ACCOUNT_ID=123456789012 APP_DOMAIN=test.example.com vitest",
     "synth": "cdk synth --all",
     "diff": "cdk diff --all",
     "deploy": "cdk deploy --all --require-approval=never",
@@ -27,6 +29,7 @@
     "aws-cdk-lib": "^2.180.0",
     "constructs": "^10.4.0",
     "tsx": "^4.19.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
   }
 }

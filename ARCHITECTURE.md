@@ -173,6 +173,20 @@ Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> De
 - **Dev:** macOS local Docker (Postgres 18 + pgBouncer).
 - **Prod:** AWS eu-central-1 (ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, ALB + ACM, CloudWatch + OTel Collector sidecar).
 
+## Cost Protection
+
+Three-layer defense against cost-runaway attacks (see [ADR 0016](docs/adr/0016-cost-runaway-protection.md)):
+
+1. **CloudWatch alarms** at 70% warning + 95% critical + 6 attack-vector signals (egress, S3 PUT rate, bucket size, log ingest, ECR pulls). All publish to a regional SNS topic with email subscription.
+2. **Lambda kill-switch** in `SecurityStack`. SNS-triggered, sets ECS `desiredCount=0` idempotently. Narrowly scoped IAM (single service ARN). No IAM-deny on user.
+3. **5 AWS Budgets** ($40 total + $10 data transfer + $5 S3 + $20 RDS + $25 ECS). 80% notification email; 100% notification publishes to the kill-switch SNS topic.
+
+Container hardening: `capDrop ALL` on all 3 containers, `readonlyRootFilesystem` on api + cloudflared, shared ephemeral `/tmp` mount.
+
+CloudTrail single-region management-events trail (free tier) for forensics. RDS auto-restart watcher Lambda re-stops the DB after AWS's 7-day forced restart when tagged `cost-stop-requested=true`.
+
+Incident response: [docs/runbooks/COST-INCIDENT-RESPONSE.md](docs/runbooks/COST-INCIDENT-RESPONSE.md).
+
 ## Stack
 
 - Next.js 16 App Router + React 19 (RSC-first, islands of client)

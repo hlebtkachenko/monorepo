@@ -4,7 +4,7 @@ import {
   SignaturePad as ArkSignaturePad,
   useSignaturePadContext,
 } from "@ark-ui/react/signature-pad"
-import { RotateCcwIcon } from "lucide-react"
+import { RotateCcwIcon } from "@workspace/ui/lib/icons"
 import type * as React from "react"
 
 import { Button } from "@workspace/ui/components/button"

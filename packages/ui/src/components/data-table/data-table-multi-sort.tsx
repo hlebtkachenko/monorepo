@@ -1,7 +1,7 @@
 "use client"
 
 import type { Table } from "@tanstack/react-table"
-import { ArrowDown, ArrowUp, ArrowUpDown, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, Trash2 } from "@workspace/ui/lib/icons"
 import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"

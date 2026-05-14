@@ -3,7 +3,7 @@
 import * as React from "react"
 import * as ReactDOM from "react-dom"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "lucide-react"
+import { X } from "@workspace/ui/lib/icons"
 import { Slot } from "radix-ui"
 
 import { Button } from "@workspace/ui/components/button"

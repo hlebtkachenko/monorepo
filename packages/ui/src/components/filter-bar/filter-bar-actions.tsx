@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { FilterXIcon } from "lucide-react"
+import { FilterXIcon } from "@workspace/ui/lib/icons"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import type {

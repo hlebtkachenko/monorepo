@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { PlusIcon, Trash2Icon } from "lucide-react"
+import { PlusIcon, Trash2Icon } from "@workspace/ui/lib/icons"
 import { Slot } from "radix-ui"
 
 import { Button } from "@workspace/ui/components/button"

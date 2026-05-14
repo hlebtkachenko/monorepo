@@ -14,7 +14,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronDownIcon,
-} from "lucide-react"
+} from "@workspace/ui/lib/icons"
 
 function Calendar({
   className,

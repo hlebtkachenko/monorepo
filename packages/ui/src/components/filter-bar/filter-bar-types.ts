@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react"
+import type { LucideIcon } from "@workspace/ui/lib/icons"
 
 export type ElementType<T> = T extends (infer U)[] ? U : T
 

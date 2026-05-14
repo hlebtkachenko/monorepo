@@ -1,7 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { ArrowRightIcon, ChevronRightIcon, FilterIcon } from "lucide-react"
+import {
+  ArrowRightIcon,
+  ChevronRightIcon,
+  FilterIcon,
+} from "@workspace/ui/lib/icons"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import {

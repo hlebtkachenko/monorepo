@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { CheckCircle2Icon, XCircleIcon } from "lucide-react"
+import { CheckCircle2Icon, XCircleIcon } from "@workspace/ui/lib/icons"
 
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"

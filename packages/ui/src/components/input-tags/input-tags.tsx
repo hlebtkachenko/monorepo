@@ -1,7 +1,7 @@
 "use client"
 
 import * as TagsInputPrimitive from "@diceui/tags-input"
-import { XIcon } from "lucide-react"
+import { XIcon } from "@workspace/ui/lib/icons"
 import type * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"

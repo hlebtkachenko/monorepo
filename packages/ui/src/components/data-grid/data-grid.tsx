@@ -30,7 +30,7 @@ import {
   ListIcon,
   Presentation,
   TextInitialIcon,
-} from "lucide-react"
+} from "@workspace/ui/lib/icons"
 
 import { cn } from "@workspace/ui/lib/utils"
 

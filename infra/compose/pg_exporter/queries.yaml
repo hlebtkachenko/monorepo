@@ -1,0 +1,72 @@
+# Custom pg_exporter queries for postgres_exporter.
+#
+# Surfaces the pg-boss job queue metrics that the default pg-stat-statements
+# exporter doesn't know about: per-lane queue depth + per-lane failures.
+# Mounted into the pg-exporter container via the `observability` profile in
+# docker-compose.dev.yml. Cross-joined with VALUES so a query against an
+# empty queue still emits a 0 gauge (avoids missing-metric noise in
+# Grafana).
+
+pg_boss_queue_depth:
+  query: |
+    SELECT lane, COALESCE(c, 0)::int AS depth
+    FROM (VALUES
+      ('permissions-drain'),
+      ('email-outbound'),
+      ('billing-rollup'),
+      ('audit-export')
+    ) AS lanes(lane)
+    LEFT JOIN (
+      SELECT name AS lane, COUNT(*) AS c
+      FROM pgboss.job
+      WHERE state IN ('created', 'retry', 'active')
+      GROUP BY name
+    ) AS counts USING (lane)
+  metrics:
+    - lane:
+        usage: LABEL
+        description: "pg-boss lane name"
+    - depth:
+        usage: GAUGE
+        description: "Outstanding jobs (created + retry + active)"
+
+pg_boss_failed_last_hour:
+  query: |
+    SELECT lane, COALESCE(c, 0)::int AS failed
+    FROM (VALUES
+      ('permissions-drain'),
+      ('email-outbound'),
+      ('billing-rollup'),
+      ('audit-export')
+    ) AS lanes(lane)
+    LEFT JOIN (
+      SELECT name AS lane, COUNT(*) AS c
+      FROM pgboss.archive
+      WHERE state = 'failed' AND completedon > now() - interval '1 hour'
+      GROUP BY name
+    ) AS counts USING (lane)
+  metrics:
+    - lane:
+        usage: LABEL
+        description: "pg-boss lane name"
+    - failed:
+        usage: GAUGE
+        description: "Failed jobs in the last hour"
+
+permissions_outbox_unprocessed:
+  query: |
+    SELECT
+      COALESCE(EXTRACT(EPOCH FROM (now() - MIN(created_at)))::bigint, 0) AS oldest_age_seconds,
+      COUNT(*) FILTER (WHERE processed_at IS NULL AND failed_at IS NULL)::int AS pending,
+      COUNT(*) FILTER (WHERE failed_at IS NOT NULL)::int AS dead_lettered
+    FROM permissions_outbox
+  metrics:
+    - oldest_age_seconds:
+        usage: GAUGE
+        description: "Age of oldest unprocessed outbox row in seconds (target < 10; alarm > 60)"
+    - pending:
+        usage: GAUGE
+        description: "Rows waiting to drain (processed_at IS NULL AND failed_at IS NULL)"
+    - dead_lettered:
+        usage: GAUGE
+        description: "Rows that exhausted MAX_ATTEMPTS (failed_at IS NOT NULL); alarm > 0"

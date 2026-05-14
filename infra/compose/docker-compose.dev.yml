@@ -82,6 +82,25 @@ services:
       retries: 5
       start_period: 5s
 
+  pg_exporter:
+    # Prometheus exporter for Postgres metrics + custom pg-boss / outbox
+    # queue gauges (queries.yaml). Opt-in via the `observability` profile.
+    image: prometheuscommunity/postgres-exporter:v0.18.1
+    restart: unless-stopped
+    profiles:
+      - observability
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: "postgresql://app_owner:dev_owner@postgres:5432/app_dev?sslmode=disable"
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/pg_exporter/queries.yaml
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "false"
+    volumes:
+      - ./pg_exporter/queries.yaml:/etc/pg_exporter/queries.yaml:ro
+    ports:
+      - "9187:9187"
+
   mailpit:
     image: axllent/mailpit:v1.30.0
     restart: unless-stopped

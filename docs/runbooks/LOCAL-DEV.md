@@ -4,51 +4,67 @@ Bring up the web app locally with a real Postgres + Better Auth wired in.
 
 ## Required environment
 
-Generate `apps/web/.env.local` with random secrets:
+The full env-var registry lives at `docs/env-vars.md` — that's the
+canonical list of every variable the app reads, what package consumes it,
+and what's required vs optional.
+
+For local dev, the fastest path is to run the generator:
 
 ```bash
 bash scripts/generate-env.sh
 ```
 
-The script writes the file at `chmod 600`. Re-run with `--force` to
-regenerate. The generated file contains:
-
-| Var | Purpose |
-|---|---|
-| `DATABASE_URL` | Postgres connection used by `@workspace/db` |
-| `BETTER_AUTH_SECRET` | Better Auth signing key (33-byte base64) |
-| `BETTER_AUTH_URL` | Server-side base URL |
-| `NEXT_PUBLIC_BETTER_AUTH_URL` | Client-side base URL |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | Allowed `/api/auth/*` callers |
-| `APP_TOKEN_SECRET` | HMAC secret for signup + invite JWTs |
-| `RESEND_API_KEY` | Set to send real password-reset emails; empty = log to console |
-| `EMAIL_FROM` | From address for outbound mail |
+The script writes `apps/web/.env.local` at `chmod 600` with random secrets
+for `BETTER_AUTH_SECRET` + `APP_TOKEN_SECRET`. Re-run with `--force` to
+regenerate. Add or override variables in `apps/web/.env.local` by hand for
+anything outside the generator's default set (Sentry DSN, OpenFGA IDs,
+etc.).
 
 `.env*` is gitignored. Never commit secrets.
 
-## Bring up Postgres
+## Bring up the local infrastructure
 
-Quickest path:
+The full local stack runs via docker compose with optional profiles:
+
+```bash
+# Default profile: Postgres + pgBouncer.
+docker compose -f infra/compose/docker-compose.dev.yml up -d
+
+# Add the auth profile to include OpenFGA + Cerbos sidecars.
+docker compose -f infra/compose/docker-compose.dev.yml \
+  -f infra/openfga/docker-compose.openfga.yml \
+  --profile auth up -d
+
+# Add the observability profile for pg_exporter metrics.
+docker compose -f infra/compose/docker-compose.dev.yml \
+  --profile observability up -d
+
+# Add the mailpit profile for local email testing.
+docker compose -f infra/compose/docker-compose.dev.yml --profile mailpit up -d
+```
+
+For a quick standalone Postgres without the rest of the stack:
 
 ```bash
 docker run --rm -d \
   --name app-dev-pg \
-  -e POSTGRES_USER=app \
-  -e POSTGRES_PASSWORD=app_dev \
+  -e POSTGRES_USER=app_owner \
+  -e POSTGRES_PASSWORD=dev_owner \
   -e POSTGRES_DB=app_dev \
   -p 5432:5432 \
   postgres:18
 ```
 
-Apply migrations:
+Apply migrations against the running database:
 
 ```bash
 pnpm --filter @workspace/db db:migrate
 ```
 
-The migrate script reads `DATABASE_URL` from env. It applies every SQL file
-under `packages/db/src/migrations/` in lexical order, tracking which have
-been applied in a `_schema_migrations` ledger.
+The migrate script reads `DATABASE_DIRECT_URL` from env (it refuses port
+6432 — pgBouncer transaction mode would break advisory locks). It applies
+every SQL file under `packages/db/migrations/` in lexical order, tracking
+which have been applied in a `_app_migrations` ledger.
 
 ## Run the web app
 

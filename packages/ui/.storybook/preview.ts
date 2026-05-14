@@ -113,6 +113,10 @@ const preview: Preview = {
       themes: {
         light: "",
         dark: "dark",
+        "blue-light": "theme-blue",
+        "blue-dark": "theme-blue dark",
+        "green-light": "theme-green",
+        "green-dark": "theme-green dark",
       },
       defaultTheme: "light",
     }),

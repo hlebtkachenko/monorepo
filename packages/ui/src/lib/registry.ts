@@ -435,6 +435,13 @@ export const registry: Record<string, ComponentMeta> = {
       "SVG gauge/meter with configurable min/max, thickness, start/end angles, and value text",
     categories: ["display", "feedback"],
   },
+  heading: {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Semantic heading (h1-h4) with shadcn typography scale and font-heading family",
+    categories: ["typography"],
+  },
   "hover-card": {
     source: "shadcn",
     sourceType: "vanilla",
@@ -818,12 +825,34 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Tabbed interface with content panels",
     categories: ["navigation"],
   },
+  text: {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Body text with default, lead, large, small, muted, blockquote, and inline-code variants",
+    categories: ["typography"],
+  },
   textarea: {
     source: "shadcn",
     sourceType: "vanilla",
     upstream: "https://ui.shadcn.com/docs/components/textarea",
     description: "Multi-line text input field",
     categories: ["forms"],
+  },
+  "theme-provider": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Dark/light mode provider with color theme context and keyboard shortcut",
+    categories: ["utility"],
+    packages: ["next-themes"],
+  },
+  "theme-toggle": {
+    source: "custom",
+    sourceType: "custom",
+    description: "Combined dark/light and color theme toggle controls",
+    categories: ["actions"],
+    dependencies: ["button", "dropdown-menu", "theme-provider"],
   },
   timeline: {
     source: "diceui",

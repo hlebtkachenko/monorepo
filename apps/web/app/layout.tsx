@@ -3,16 +3,15 @@ import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getMessages } from "next-intl/server"
 
 import "@workspace/ui/globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-})
+// Font variable names must match fonts.ts and globals.css @theme declarations.
+// Next.js font loader requires literal strings — cannot reference fonts.ts at build time.
+const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
+const fontHeading = Geist({ subsets: ["latin"], variable: "--font-heading" })
 
 export default async function RootLayout({
   children,
@@ -26,10 +25,10 @@ export default async function RootLayout({
       lang={locale}
       suppressHydrationWarning
       className={cn(
-        "antialiased",
+        "font-sans antialiased",
+        fontSans.variable,
         fontMono.variable,
-        "font-sans",
-        geist.variable,
+        fontHeading.variable,
       )}
     >
       <body>

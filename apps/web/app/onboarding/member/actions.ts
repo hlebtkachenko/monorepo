@@ -1,22 +1,22 @@
 "use server"
 
-import { headers } from "next/headers"
-import { eq, and } from "drizzle-orm"
+import { cookies, headers } from "next/headers"
+import { eq } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
-import {
-  app_user,
-  organization,
-  organization_membership,
-  workspace_membership,
-} from "@workspace/db/schema"
+import { app_user } from "@workspace/db/schema"
 import {
   OnboardingPasswordSchema,
   type OnboardingPasswordInput,
 } from "@workspace/shared/auth"
 
+import { materializeInvite } from "../../auth/_lib/materialize-invite"
 import { readOnboardingState, clearOnboardingState } from "../_lib/state-cookie"
-import { clearInviteCookie, readInviteClaims } from "./_lib/invite-cookie"
+import {
+  INVITE_TOKEN_COOKIE,
+  clearInviteCookie,
+  readInviteClaims,
+} from "./_lib/invite-cookie"
 
 export interface MemberPasswordResult {
   ok: boolean
@@ -26,10 +26,16 @@ export interface MemberPasswordResult {
 }
 
 /**
- * Step 3 — creates the BA user, applies the cookie-stashed profile +
- * experience to the new app_user row, materializes the invite (workspace
- * + organization membership), then signs in. Returns the org slug so the
- * client can redirect to /[orgSlug] of the inviting org.
+ * Step 3 — creates the BA user (autoSignIn on the BA side), applies the
+ * cookie-stashed profile + experience to the new app_user row, then
+ * materializes the invite (workspace + organization membership +
+ * accepted auth_invite audit row). Returns the org slug so the client
+ * redirects to /[orgSlug].
+ *
+ * Idempotent across double-clicks and refreshes: if a session already
+ * exists (i.e. the BA user was already created in an earlier attempt),
+ * the action skips re-creating the account and only runs the profile
+ * UPDATE + invite materialization tail.
  */
 export async function submitMemberPasswordAction(
   input: OnboardingPasswordInput,
@@ -51,17 +57,36 @@ export async function submitMemberPasswordAction(
     return { ok: false, errorKey: "sessionExpired" }
   }
 
-  let userId: string
-  try {
-    const signUp = await auth.api.signUpEmail({
-      body: {
-        email: claims.email,
-        password: parsed.data.password,
-        name: `${state.profile.firstName} ${state.profile.lastName}`.trim(),
-      },
-    })
-    userId = signUp.user.id
-  } catch {
+  // Capture the raw JWT before the cookie is cleared — materializeInvite
+  // hashes it for the auth_invite audit-trail row.
+  const cookieStore = await cookies()
+  const inviteJwt = cookieStore.get(INVITE_TOKEN_COOKIE)?.value ?? ""
+
+  // Idempotency guard (CR-2). If a session is already active, the BA
+  // user was created in a previous attempt — skip signUpEmail.
+  const session = await auth.api.getSession({ headers: await headers() })
+  let userId: string | null = session?.user?.id ?? null
+
+  if (!userId) {
+    try {
+      const signUp = await auth.api.signUpEmail({
+        body: {
+          email: claims.email,
+          password: parsed.data.password,
+          name: `${state.profile.firstName} ${state.profile.lastName}`.trim(),
+        },
+      })
+      userId = signUp.user.id
+    } catch (err) {
+      if (isEmailAlreadyRegistered(err)) {
+        return { ok: false, errorKey: "emailAlreadyRegistered" }
+      }
+      console.error("[onboarding/member/password] signUpEmail failed", err)
+      return { ok: false, errorKey: "createAccountFailed" }
+    }
+  }
+
+  if (!userId) {
     return { ok: false, errorKey: "createAccountFailed" }
   }
 
@@ -81,7 +106,8 @@ export async function submitMemberPasswordAction(
         })
         .where(eq(app_user.id, userId))
     })
-  } catch {
+  } catch (err) {
+    console.error("[onboarding/member/password] persist profile failed", err)
     return { ok: false, errorKey: "saveProfileFailed" }
   }
 
@@ -91,18 +117,12 @@ export async function submitMemberPasswordAction(
       organizationId: claims.organizationId,
       role: claims.role,
       userId,
+      inviteJwt,
+      email: claims.email,
     })
-  } catch {
+  } catch (err) {
+    console.error("[onboarding/member/password] materializeInvite failed", err)
     return { ok: false, errorKey: "acceptInviteFailed" }
-  }
-
-  try {
-    await auth.api.signInEmail({
-      body: { email: claims.email, password: parsed.data.password },
-      headers: await headers(),
-    })
-  } catch {
-    return { ok: false, errorKey: "createAccountFailed" }
   }
 
   await clearOnboardingState()
@@ -111,79 +131,17 @@ export async function submitMemberPasswordAction(
 }
 
 /**
- * Step 4 — terminal; clears any leftover cookies and returns the org
- * slug stored at step 3. Idempotent because cookies are already gone.
+ * Step 4 — terminal; clears any leftover cookies. Idempotent because
+ * cookies may already be gone after step 3 success.
  */
 export async function completeMemberOnboardingAction(): Promise<void> {
   await clearOnboardingState()
   await clearInviteCookie()
 }
 
-// ---------------------------------------------------------------------------
-// materializeInvite — shared helper between /auth/invite/actions.ts and
-// the member onboarding step 3. Creates workspace_membership +
-// organization_membership for the user joining `organizationId`. Runs
-// under withAdminBypass because no tenancy context is bound at this
-// moment.
-// ---------------------------------------------------------------------------
-
-async function materializeInvite(input: {
-  organizationId: string
-  role: "owner" | "admin" | "member" | "agent" | "guest"
-  userId: string
-}): Promise<string> {
-  return await withAdminBypass(async (db) => {
-    const [org] = await db
-      .select({
-        id: organization.id,
-        workspace_id: organization.workspace_id,
-        slug: organization.slug,
-      })
-      .from(organization)
-      .where(eq(organization.id, input.organizationId))
-      .limit(1)
-    if (!org) {
-      throw new Error("Organization not found for invite.")
-    }
-
-    const [existingWsM] = await db
-      .select({ id: workspace_membership.id })
-      .from(workspace_membership)
-      .where(
-        and(
-          eq(workspace_membership.workspace_id, org.workspace_id),
-          eq(workspace_membership.user_id, input.userId),
-          eq(workspace_membership.active, true),
-        ),
-      )
-      .limit(1)
-
-    let wsMembershipId: string
-    if (existingWsM) {
-      wsMembershipId = existingWsM.id
-    } else {
-      const [inserted] = await db
-        .insert(workspace_membership)
-        .values({
-          workspace_id: org.workspace_id,
-          user_id: input.userId,
-          role: "member",
-        })
-        .returning()
-      if (!inserted) {
-        throw new Error("Could not create workspace membership.")
-      }
-      wsMembershipId = inserted.id
-    }
-
-    await db.insert(organization_membership).values({
-      organization_id: org.id,
-      workspace_id: org.workspace_id,
-      user_id: input.userId,
-      workspace_membership_id: wsMembershipId,
-      role: input.role,
-    })
-
-    return org.slug
-  })
+function isEmailAlreadyRegistered(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  return /already.*exist|already.*registered|user.*exist|duplicate/i.test(
+    err.message,
+  )
 }

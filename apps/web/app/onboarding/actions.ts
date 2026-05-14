@@ -122,7 +122,13 @@ export async function submitExperienceAction(
 }
 
 // ---------------------------------------------------------------------------
-// Step 3 — Password (creates the BA user, applies cookie state, signs in)
+// Step 3 — Password (creates the BA user, applies cookie state)
+//
+// Idempotent across double-clicks and refreshes: if a session already
+// exists (because the user already submitted this step in this browser
+// or a previous attempt completed signUpEmail and was interrupted before
+// cookie cleanup), the action skips re-creating the BA account and only
+// runs the "persist profile + experience + clear cookie" tail.
 // ---------------------------------------------------------------------------
 
 export async function submitPasswordAction(
@@ -143,21 +149,41 @@ export async function submitPasswordAction(
     return { ok: false, errorKey: "sessionExpired" }
   }
 
-  let userId: string
-  try {
-    const signUp = await auth.api.signUpEmail({
-      body: {
-        email: claims.email,
-        password: parsed.data.password,
-        name: `${state.profile.firstName} ${state.profile.lastName}`.trim(),
-      },
-    })
-    userId = signUp.user.id
-  } catch {
+  // Idempotency guard: if a session already exists for this email, the
+  // BA user was already created by an earlier attempt. Skip signUpEmail
+  // and proceed to the profile UPDATE + cookie cleanup. Without this,
+  // a double-click or refresh hits BA's "email already exists" path,
+  // which is opaque to the user and leaves the cookie state dangling.
+  let userId: string | null = await getActiveUserId()
+
+  if (!userId) {
+    try {
+      const signUp = await auth.api.signUpEmail({
+        body: {
+          email: claims.email,
+          password: parsed.data.password,
+          name: `${state.profile.firstName} ${state.profile.lastName}`.trim(),
+        },
+      })
+      userId = signUp.user.id
+    } catch (err) {
+      // Surface the actionable "account already exists" case so the user
+      // can recover via /auth/login. Other failures stay generic.
+      if (isEmailAlreadyRegistered(err)) {
+        return { ok: false, errorKey: "emailAlreadyRegistered" }
+      }
+      console.error("[onboarding/password] signUpEmail failed", err)
+      return { ok: false, errorKey: "createAccountFailed" }
+    }
+  }
+
+  if (!userId) {
     return { ok: false, errorKey: "createAccountFailed" }
   }
 
-  // Persist profile + experience onto the new app_user row.
+  // Persist profile + experience onto the new app_user row. autoSignIn:true
+  // + the nextCookies plugin in @workspace/auth/server forward the session
+  // cookie automatically, so no manual signInEmail call is needed here.
   try {
     await withAdminBypass(async (db) => {
       await db
@@ -174,22 +200,20 @@ export async function submitPasswordAction(
         })
         .where(eq(app_user.id, userId))
     })
-  } catch {
+  } catch (err) {
+    console.error("[onboarding/password] persist profile failed", err)
     return { ok: false, errorKey: "saveProfileFailed" }
-  }
-
-  // Sign the user in so steps 4-7 run authenticated.
-  try {
-    await auth.api.signInEmail({
-      body: { email: claims.email, password: parsed.data.password },
-      headers: await headers(),
-    })
-  } catch {
-    return { ok: false, errorKey: "createAccountFailed" }
   }
 
   await clearOnboardingState()
   return { ok: true }
+}
+
+function isEmailAlreadyRegistered(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  return /already.*exist|already.*registered|user.*exist|duplicate/i.test(
+    err.message,
+  )
 }
 
 // ---------------------------------------------------------------------------

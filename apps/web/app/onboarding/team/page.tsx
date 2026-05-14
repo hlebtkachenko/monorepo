@@ -4,6 +4,7 @@ import { auth } from "@workspace/auth/server"
 import { getTranslations } from "@workspace/i18n/server"
 
 import { OnboardingShell } from "../_components/onboarding-shell"
+import { assertOwnerOnStep } from "../_lib/resume"
 import { TeamForm } from "./team-form"
 
 export async function generateMetadata() {
@@ -16,6 +17,7 @@ export default async function TeamPage() {
   if (!session?.user) {
     redirect("/onboarding/password")
   }
+  await assertOwnerOnStep(session.user.id, "team")
   return (
     <OnboardingShell step="team" backHref="/onboarding/plan">
       <TeamForm />

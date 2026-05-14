@@ -104,6 +104,7 @@
       "wrong_kind": "Your link is the wrong type for this flow.",
       "disabled": "This flow is currently disabled. Contact support.",
       "signInFailed": "Sign-in failed",
+      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead.",
       "invalidCredentials": "Email or password is incorrect.",
       "invalidCode": "That code didn't match. Try again.",
       "loginSessionExpired": "Your sign-in session expired. Please start over.",
@@ -345,7 +346,8 @@
       "saveExperienceFailed": "Could not save your experience.",
       "saveTeamFailed": "Could not save your invitations.",
       "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue.",
-      "acceptInviteFailed": "Could not accept the invitation."
+      "acceptInviteFailed": "Could not accept the invitation.",
+      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead."
     }
   }
 }

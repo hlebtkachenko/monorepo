@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { nextCookies } from "better-auth/next-js"
 import { admin, twoFactor } from "better-auth/plugins"
 import { db } from "@workspace/db/client"
 import * as schema from "@workspace/db/schema"
@@ -112,7 +113,14 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    autoSignIn: false,
+    // autoSignIn issues a session on signUpEmail and (via the nextCookies
+    // plugin below) pipes the Set-Cookie through Next's cookies() store
+    // automatically. The onboarding password action used to call
+    // signInEmail manually after signUpEmail — that path didn't forward
+    // the cookie reliably in server actions and was the cause of HI-6
+    // in PHASE_REVIEW.md (infinite redirect from /onboarding/workspace
+    // back to /onboarding/password because the session cookie was lost).
+    autoSignIn: true,
     minPasswordLength: 12,
     maxPasswordLength: 128,
     sendResetPassword: async ({ user, url }) => {
@@ -154,6 +162,12 @@ export const auth = betterAuth({
         },
       },
     }),
+    // MUST be last in the plugin chain (per Better Auth docs). nextCookies
+    // hooks into outgoing responses and forwards the Set-Cookie BA emits
+    // through Next's cookies() store, so server actions that call
+    // signUpEmail / signInEmail establish the session on the browser
+    // without manual cookie plumbing.
+    nextCookies(),
   ],
 })
 

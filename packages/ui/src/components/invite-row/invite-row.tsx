@@ -70,6 +70,7 @@ function InviteRow({
         </SelectContent>
       </Select>
       <Button
+        type="button"
         variant="destructive"
         size="icon"
         aria-label={removeLabel}
@@ -95,6 +96,7 @@ function InviteRowAddButton({
 }: InviteRowAddButtonProps) {
   return (
     <Button
+      type="button"
       variant="outline"
       onClick={onClick}
       className={cn(

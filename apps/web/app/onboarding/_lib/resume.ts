@@ -101,6 +101,29 @@ export async function resolveNextStep(userId: string | null): Promise<StepKey> {
 }
 
 /**
+ * Server-side guard for owner-onboarding step pages 4-7. If the user is
+ * not on their canonical "next" step (per `resolveNextStep`), redirect
+ * them there. Prevents back-button refreshes from re-running mutations
+ * (HI-8 in PHASE_REVIEW.md) and forces a stale browser tab back into
+ * the right step.
+ *
+ * Done-page caveat: callers may want to allow the user to land on /done
+ * even after onboarding completion (it just renders the success card and
+ * routes to /workspace). Pass `allowOnDone: true` from that page.
+ */
+export async function assertOwnerOnStep(
+  userId: string,
+  expected: StepKey,
+  options: { allowOnDone?: boolean } = {},
+): Promise<void> {
+  const { redirect } = await import("next/navigation")
+  const next = await resolveNextStep(userId)
+  if (next === expected) return
+  if (options.allowOnDone && next === "done") return
+  redirect(stepPath(next))
+}
+
+/**
  * Looks up the owner workspace id for the given user. Filters strictly
  * by role='owner' + active=true so an invited member who has joined
  * another workspace doesn't shadow their own onboarding-in-progress

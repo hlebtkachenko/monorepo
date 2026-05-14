@@ -469,7 +469,7 @@ export default function TypographyPage() {
               <CardTitle>Heading</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-heading text-lg">Geist</p>
+              <p className="font-heading text-lg">Roobert</p>
               <Text variant="muted">--font-heading</Text>
               <p className="mt-3 font-heading text-sm">
                 ABCDEFGHIJKLMNOPQRSTUVWXYZ
@@ -486,7 +486,7 @@ export default function TypographyPage() {
               <CardTitle>Mono</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-lg">Geist Mono</p>
+              <p className="font-mono text-lg">Roobert Mono</p>
               <Text variant="muted">--font-mono</Text>
               <p className="mt-3 font-mono text-sm">
                 ABCDEFGHIJKLMNOPQRSTUVWXYZ

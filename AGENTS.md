@@ -134,7 +134,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## Infrastructure
 
-- Single-account AWS CDK v2 (`infra/cdk/`). Stacks: network, data, app, security, observability, billing alarms, backup. See ADR-0007.
+- Single-account AWS CDK v2 (`infra/cdk/`). Stacks: network, data, app, security, observability, billing alarms. See ADR-0007.
 - All AWS-specific values are `<TBD>` placeholders today. AWS account is NOT yet connected. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
 - See `docs/adr/` for the architectural decisions backing this layout.
 

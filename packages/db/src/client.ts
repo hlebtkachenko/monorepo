@@ -19,23 +19,68 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import * as schema from "./schema/index"
 
-const url = process.env["DATABASE_URL"]
-if (!url) {
-  throw new Error("DATABASE_URL environment variable is required")
+/**
+ * DATABASE_URL is read lazily so consumers of this module can be imported
+ * in build-time contexts (Next.js page-data collection, container image
+ * builds) without DATABASE_URL being set. The throw is deferred to the
+ * first SQL call — the moment a connection is actually attempted.
+ */
+function readDatabaseUrl(): string {
+  const url = process.env["DATABASE_URL"]
+  if (!url) {
+    throw new Error("DATABASE_URL environment variable is required")
+  }
+  return url
 }
 
-export const sqlClient = postgres(url, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 10,
+let _sqlClient: ReturnType<typeof postgres> | null = null
+function getSqlClient(): ReturnType<typeof postgres> {
+  if (_sqlClient === null) {
+    _sqlClient = postgres(readDatabaseUrl(), {
+      max: 10,
+      idle_timeout: 20,
+      connect_timeout: 10,
+    })
+    fireProbeOnce()
+  }
+  return _sqlClient
+}
+
+// Proxy target must be a function for the `apply` trap to fire — postgres-js's
+// client is a tagged-template callable (sqlClient`SELECT ...`).
+export const sqlClient = new Proxy(
+  function () {} as unknown as ReturnType<typeof postgres>,
+  {
+    get(_target, prop) {
+      return Reflect.get(getSqlClient(), prop)
+    },
+    apply(_target, thisArg, argArray) {
+      const client = getSqlClient() as unknown as (
+        ...args: unknown[]
+      ) => unknown
+      return Reflect.apply(client, thisArg, argArray)
+    },
+  },
+)
+
+let _db: ReturnType<typeof drizzle<typeof schema>> | null = null
+function getDb(): ReturnType<typeof drizzle<typeof schema>> {
+  if (_db === null) {
+    _db = drizzle(getSqlClient(), {
+      schema,
+      casing: "snake_case",
+    })
+  }
+  return _db
+}
+
+export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
+  get(_target, prop) {
+    return Reflect.get(getDb(), prop)
+  },
 })
 
-export const db = drizzle(sqlClient, {
-  schema,
-  casing: "snake_case",
-})
-
-export type Db = typeof db
+export type Db = ReturnType<typeof drizzle<typeof schema>>
 
 // ---------------------------------------------------------------------------
 // Startup GUC probe — runs once, cached in module scope
@@ -72,7 +117,10 @@ export function ensureStartupProbe(): Promise<void> {
 async function runStartupProbe(): Promise<void> {
   // Use a single-connection client for the probe; do not consume from the
   // main pool. The probe connection is closed after the check completes.
-  const probeClient = postgres(url!, { max: 1, connect_timeout: 10 })
+  const probeClient = postgres(readDatabaseUrl(), {
+    max: 1,
+    connect_timeout: 10,
+  })
   try {
     const rows = await probeClient<
       Array<{ current_role: string; guc_value: string | null }>
@@ -118,7 +166,15 @@ async function runStartupProbe(): Promise<void> {
   }
 }
 
-// Fire the probe once on module import. Errors for non-privileged roles bubble
-// up; connection errors are logged as warnings so the module loads cleanly even
-// if the DB is temporarily unavailable (e.g. container starting).
-void ensureStartupProbe()
+// Fire the probe once on first db/sqlClient property access. We intentionally
+// do NOT fire it eagerly at module import: this module is loaded in build-time
+// contexts (Next.js page-data collection, container image builds) where
+// DATABASE_URL is unset. Lazy firing keeps those builds green while still
+// surfacing the GUC misconfiguration on the first real query.
+let probeFired = false
+function fireProbeOnce(): void {
+  if (probeFired) return
+  probeFired = true
+  if (!process.env["DATABASE_URL"]) return
+  void ensureStartupProbe()
+}

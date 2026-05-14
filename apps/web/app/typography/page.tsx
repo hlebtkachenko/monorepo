@@ -9,6 +9,43 @@ import {
 } from "@workspace/ui/components/card"
 import { Separator } from "@workspace/ui/components/separator"
 import { Badge } from "@workspace/ui/components/badge"
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarIcon,
+  CheckIcon,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Copy,
+  Download,
+  Eye,
+  EyeOff,
+  File,
+  FilterIcon,
+  Globe,
+  Home,
+  InfoIcon,
+  LinkIcon,
+  Loader2Icon,
+  Lock,
+  Moon,
+  MoreHorizontalIcon,
+  Palette,
+  PanelLeftIcon,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Sun,
+  Trash2,
+  Upload,
+  X,
+  XIcon,
+} from "@workspace/ui/lib/icons"
 
 export const metadata = {
   title: "Typography",
@@ -460,6 +497,134 @@ export default function TypographyPage() {
               </p>
             </CardContent>
           </Card>
+        </div>
+      </section>
+
+      <Separator className="mb-16" />
+
+      {/* ==================== ICONS ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Icons</h2>
+        <Text variant="muted" className="mb-4">
+          103 icons re-exported from{" "}
+          <Text variant="inline-code">lucide-react</Text> via{" "}
+          <Text variant="inline-code">@workspace/ui/lib/icons</Text>. Default
+          size: <Text variant="inline-code">size-4</Text> (16px). Components
+          auto-size child SVGs via{" "}
+          <Text variant="inline-code">
+            {"[&_svg:not([class*='size-'])]:size-4"}
+          </Text>
+          .
+        </Text>
+
+        <div className="space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Common Icons</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-6 gap-4 sm:grid-cols-8 md:grid-cols-10">
+                {[
+                  { icon: Home, name: "Home" },
+                  { icon: Search, name: "Search" },
+                  { icon: Settings, name: "Settings" },
+                  { icon: Plus, name: "Plus" },
+                  { icon: X, name: "X" },
+                  { icon: CheckIcon, name: "Check" },
+                  { icon: Copy, name: "Copy" },
+                  { icon: Trash2, name: "Trash2" },
+                  { icon: Download, name: "Download" },
+                  { icon: Upload, name: "Upload" },
+                  { icon: Eye, name: "Eye" },
+                  { icon: EyeOff, name: "EyeOff" },
+                  { icon: Lock, name: "Lock" },
+                  { icon: Globe, name: "Globe" },
+                  { icon: LinkIcon, name: "Link" },
+                  { icon: CalendarIcon, name: "Calendar" },
+                  { icon: FilterIcon, name: "Filter" },
+                  { icon: InfoIcon, name: "Info" },
+                  { icon: AlertTriangle, name: "Alert" },
+                  { icon: RefreshCw, name: "Refresh" },
+                  { icon: File, name: "File" },
+                  { icon: Moon, name: "Moon" },
+                  { icon: Sun, name: "Sun" },
+                  { icon: Palette, name: "Palette" },
+                  { icon: PanelLeftIcon, name: "Panel" },
+                  { icon: MoreHorizontalIcon, name: "More" },
+                  { icon: Loader2Icon, name: "Loader" },
+                  { icon: XIcon, name: "XIcon" },
+                  { icon: ArrowUp, name: "ArrowUp" },
+                  { icon: ArrowDown, name: "ArrowDown" },
+                ].map(({ icon: Icon, name }) => (
+                  <div
+                    key={name}
+                    className="flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-colors hover:bg-muted"
+                  >
+                    <Icon className="size-5" />
+                    <span className="text-[10px] text-muted-foreground">
+                      {name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Sizes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-6">
+                {[
+                  { size: "size-3", label: "12px" },
+                  { size: "size-3.5", label: "14px" },
+                  { size: "size-4", label: "16px (default)" },
+                  { size: "size-5", label: "20px" },
+                  { size: "size-6", label: "24px" },
+                  { size: "size-8", label: "32px" },
+                ].map(({ size, label }) => (
+                  <div key={size} className="flex flex-col items-center gap-2">
+                    <Settings className={size} />
+                    <span className="text-xs text-muted-foreground">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Navigation Icons</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <ChevronLeft className="size-4" />
+                  <ChevronDown className="size-4" />
+                  <ChevronUp className="size-4" />
+                  <ChevronRight className="size-4" />
+                </div>
+                <Separator orientation="vertical" className="h-6" />
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <ArrowUp className="size-4" />
+                  <ArrowDown className="size-4" />
+                  <ArrowUpDown className="size-4" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="rounded-lg border border-dashed p-4">
+            <Text variant="muted">
+              To swap icon library: change only{" "}
+              <Text variant="inline-code">packages/ui/src/lib/icons.ts</Text>.
+              44 UI components import from this file. App-level code imports
+              directly from lucide-react for app-specific icons.
+            </Text>
+          </div>
         </div>
       </section>
 

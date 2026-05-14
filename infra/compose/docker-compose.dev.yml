@@ -58,9 +58,10 @@ services:
 
   cerbos:
     # L3 of three-layer authz (ADR-0018). Upstream image, policies + config
-    # bind-mounted from the repo so edits hot-reload (watchForChanges:true
-    # in the dev config below — different from prod where it's false and
-    # changes ship via a new image tag).
+    # bind-mounted from the repo so edits hot-reload via the shared
+    # cerbos-config.yaml's storage.disk.watchForChanges:true. The same flag
+    # is harmless in prod where /policies is baked into a content-hashed
+    # image (no writes inside the running container).
     image: ghcr.io/cerbos/cerbos:0.53.0
     restart: unless-stopped
     profiles:

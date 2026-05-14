@@ -265,8 +265,10 @@ export class AppStack extends Stack {
     //
     // GUC contract is preserved because pool_mode=transaction means each
     // transaction holds a server connection from start to commit; SET LOCAL
-    // bindings stay attached. SERVER_RESET_QUERY="" is the canary against
-    // accidental GUC reset.
+    // bindings stay attached for the full transaction and go out of scope
+    // at COMMIT/ROLLBACK. server_reset_query (default DISCARD ALL) only
+    // fires AFTER release — SET LOCAL has already cleared. See the env
+    // block below for the deeper note on why we don't override the default.
     //
     // Volume `pgbouncerEtc` is a writable scratch over /etc/pgbouncer so
     // the entrypoint can materialize its generated config (required when

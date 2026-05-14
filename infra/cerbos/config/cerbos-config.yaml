@@ -11,18 +11,19 @@
 #
 # Logs: Cerbos uses zap logger and writes server/access logs to stdout as
 # structured JSON. The Fargate awslogs driver forwards to the CloudWatch
-# group declared in app-stack.ts (see CerbosLogs LogGroup).
+# group declared in app-stack.ts (see CerbosLogs LogGroup). At the default
+# INFO log level the access log records call_id + method + peer + timing
+# only — it does NOT include the principal/resource/action payload.
 #
 # Per-decision audit is intentionally DISABLED for now:
 #   - `backend: local` would write a BadgerDB to disk; with our /tmp
 #     ephemeral volume, those records are lost on every task replacement,
 #     and there's no in-task reader (adminAPI is disabled).
-#   - DORA Article 8 per-decision audit needs an external sink (Kafka,
-#     ES, or app-side capture from the gRPC response) — wire that in a
-#     follow-up when the persistence target exists.
-# Server logs to stdout still capture every check call's principal +
-# resource + action shape, which is sufficient for MVP ops + incident
-# triage.
+#   - DORA Article 8 per-decision audit lives APP-SIDE in `tool_call_log`
+#     (ADR-0011). The api captures the inputs + Cerbos verdict on every
+#     check and writes one row per call. That's the auditable trail.
+#   - If we later want PDP-emitted audit, the backend choices are Kafka,
+#     Elasticsearch, GCS, or the Hub sink. Wire when the target exists.
 server:
   httpListenAddr: ":3592"
   grpcListenAddr: ":3593"

@@ -330,28 +330,44 @@ APP_DOMAIN=staging.afframe.com \
 pnpm --filter @workspace/cdk exec cdk destroy App-staging --context env=staging
 ```
 
-## Follow-up: per-tenant role split
+## Follow-up: per-tenant role split (open design)
 
 Today the api + pgbouncer sidecar both authenticate against RDS using the
 RDS master credentials (`app_owner`). ADR-0010 specifies a separate
 `app_user` role for runtime queries, with FORCE RLS enforced through GUCs
-(`set_config('app.organization_id', ..., true)`).
+(`set_config('app.organization_id', ..., true)`). The role split is
+DEFERRED — and the implementation path is not trivial.
 
-The role split is deferred until `app_user` exists in the database. Once
-the role + grants migration has run:
+The naive "just give api a different secret" sequence does NOT work
+because the edoburu/pgbouncer entrypoint generates `userlist.txt` from
+its OWN `DATABASE_URL` only. If api connects to pgbouncer as `app_user`
+while pgbouncer's own URL is `app_owner`, the SCRAM front-end auth fails
+with `password authentication failed for user "app_user"`.
 
-1. Add a second Secrets Manager entry `monorepo-{env}-rds-app-user`
-   containing `app_user` credentials (workflow needs to populate it before
-   `cdk deploy` the same way the cloudflared tunnel token works today).
-2. In `infra/cdk/lib/app-stack.ts` switch the api container's `DB_USER` +
-   `DB_PASSWORD` secrets refs to point at the new secret (pgbouncer keeps
-   `app_owner` so it can connect to RDS as the privileged role).
-3. The api will then connect as `app_user` through pgbouncer, and the
-   GUC contract enforces RLS isolation.
+Three viable patterns to investigate before implementation:
 
-This is a follow-up because (a) bootstrap requires `app_owner` for
-`CREATE SCHEMA openfga` + `openfga migrate`, and (b) the first deploy
-of this branch is from a clean RDS where `app_user` does not yet exist.
+1. **`AUTH_USER` + `AUTH_QUERY`**: pgbouncer authenticates clients by
+   querying RDS for the SCRAM secret on demand. Requires an extra grant
+   on `pg_shadow`/`pg_authid` plus a custom auth query. Most flexible.
+2. **`DATABASE_URLS=` comma-separated**: pass both
+   `postgres://app_owner:...@...` AND `postgres://app_user:...@...` to
+   pgbouncer's entrypoint. The image's `parse_url` loop populates
+   `userlist.txt` with both credentials. Simplest if both passwords are
+   available as secrets at task start.
+3. **Rebake pgbouncer image**: drop edoburu, ship our own image with a
+   custom entrypoint that materialises a multi-user `userlist.txt` from
+   a SCRAM verifier file copied at build time.
+
+Before flipping the api secret reference, decide which pattern fits and
+update this section with the concrete CDK + secrets layout.
+
+Other deferred dependencies:
+- bootstrap chain runs as `app_owner` (CREATE SCHEMA openfga, openfga
+  migrate, drizzle migrate). That continues to use the master credential
+  regardless of which pattern wins.
+- Worker pg-boss queue needs DIRECT (port 5432) RDS access for advisory
+  locks + LISTEN/NOTIFY — it bypasses pgbouncer entirely, so it can use
+  a third secret if needed.
 
 ## What this runbook deliberately does NOT cover
 

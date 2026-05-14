@@ -1,6 +1,12 @@
 import * as path from "node:path"
 import { Duration, Stack, type StackProps } from "aws-cdk-lib"
-import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam"
+import { CfnBudget } from "aws-cdk-lib/aws-budgets"
+import {
+  AnyPrincipal,
+  Effect,
+  PolicyStatement,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam"
 import {
   Code,
   Function as LambdaFunction,
@@ -15,6 +21,17 @@ import type { AppStack } from "./app-stack.js"
 export interface SecurityStackProps extends StackProps {
   readonly envName: string
   readonly appStack: AppStack
+  /**
+   * Email recipient subscribed to every Budget threshold notification.
+   * Same address as ObservabilityStack.alertEmail.
+   */
+  readonly alertEmail: string
+}
+
+interface BudgetSpec {
+  readonly id: string
+  readonly limitUsd: number
+  readonly costFilters?: Record<string, string[]>
 }
 
 /**
@@ -81,5 +98,135 @@ export class SecurityStack extends Stack {
     this.killSwitchTopic.addSubscription(
       new LambdaSubscription(this.killSwitchFn),
     )
+
+    // Allow AWS Budgets to publish breach notifications to the kill-switch
+    // topic. budgets.amazonaws.com is the service principal that signs
+    // these publishes. The Lambda subscription then converts a breach into
+    // ecs:UpdateService(desiredCount=0).
+    this.killSwitchTopic.addToResourcePolicy(
+      new PolicyStatement({
+        sid: "AllowBudgetsToPublish",
+        effect: Effect.ALLOW,
+        principals: [new ServicePrincipal("budgets.amazonaws.com")],
+        actions: ["sns:Publish"],
+        resources: [this.killSwitchTopic.topicArn],
+      }),
+    )
+    // Block all non-Budget non-CloudWatch non-AWS-internal publishes. The
+    // service principals for CloudWatch alarms (cloudwatch.amazonaws.com)
+    // are auto-added by CDK when alarms subscribe; we add Budgets above.
+    // Deny everything else by default.
+    this.killSwitchTopic.addToResourcePolicy(
+      new PolicyStatement({
+        sid: "DenyExternalPublish",
+        effect: Effect.DENY,
+        principals: [new AnyPrincipal()],
+        actions: ["sns:Publish"],
+        resources: [this.killSwitchTopic.topicArn],
+        conditions: {
+          StringNotEquals: {
+            "aws:PrincipalAccount": this.account,
+          },
+        },
+      }),
+    )
+
+    // ----- AWS Budgets (5) -----
+    //
+    // Total $40 + Data Transfer $10 + S3 $5 + RDS $20 + ECS $25.
+    // 80% threshold -> email warning. 100% threshold -> email + SNS to the
+    // kill-switch topic (stops ECS service).
+    //
+    // First 2 budgets per account are free. The remaining 3 cost
+    // $0.02/day each = ~$1.80/mo total. Cheap insurance.
+    //
+    // NOTE: AWS Budgets Actions (auto-attach IAM-deny, RUN_SSM_DOCUMENTS,
+    // APPLY_SCP) are intentionally deferred. They require an execution role
+    // with high blast-radius permissions; first-7-day requiresApproval mode
+    // is also an operational lift. The SNS->Lambda->stop-ECS path is the
+    // dollar-cap safety net.
+    const budgets: BudgetSpec[] = [
+      {
+        id: "MonthlyTotal",
+        limitUsd: 40,
+      },
+      {
+        id: "DataTransfer",
+        limitUsd: 10,
+        costFilters: { Service: ["AWS Data Transfer"] },
+      },
+      {
+        id: "S3",
+        limitUsd: 5,
+        costFilters: { Service: ["Amazon Simple Storage Service"] },
+      },
+      {
+        id: "Rds",
+        limitUsd: 20,
+        costFilters: { Service: ["Amazon Relational Database Service"] },
+      },
+      {
+        id: "Ecs",
+        limitUsd: 25,
+        costFilters: {
+          Service: ["Amazon Elastic Container Service", "AWS Fargate"],
+        },
+      },
+    ]
+
+    for (const spec of budgets) {
+      new CfnBudget(this, `Budget${spec.id}`, {
+        budget: {
+          budgetName: `windhoek-${props.envName}-${spec.id.toLowerCase()}`,
+          budgetType: "COST",
+          timeUnit: "MONTHLY",
+          budgetLimit: {
+            amount: spec.limitUsd,
+            unit: "USD",
+          },
+          costFilters: spec.costFilters,
+          costTypes: {
+            includeCredit: false,
+            includeRefund: false,
+            includeDiscount: true,
+            includeSubscription: true,
+            includeOtherSubscription: true,
+            includeSupport: true,
+            includeTax: true,
+            includeUpfront: true,
+            useAmortized: false,
+            useBlended: false,
+          },
+        },
+        notificationsWithSubscribers: [
+          {
+            notification: {
+              notificationType: "ACTUAL",
+              comparisonOperator: "GREATER_THAN",
+              threshold: 80,
+              thresholdType: "PERCENTAGE",
+            },
+            subscribers: [
+              { subscriptionType: "EMAIL", address: props.alertEmail },
+            ],
+          },
+          {
+            notification: {
+              notificationType: "ACTUAL",
+              comparisonOperator: "GREATER_THAN",
+              threshold: 100,
+              thresholdType: "PERCENTAGE",
+            },
+            subscribers: [
+              { subscriptionType: "EMAIL", address: props.alertEmail },
+              {
+                subscriptionType: "SNS",
+                address: this.killSwitchTopic.topicArn,
+              },
+            ],
+          },
+        ],
+      })
+    }
   }
 }

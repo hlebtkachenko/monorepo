@@ -71,6 +71,7 @@ const security = new SecurityStack(app, `Security-${env}`, {
   env: stackEnv,
   envName: env,
   appStack,
+  alertEmail,
 })
 
 new ObservabilityStack(app, `Observability-${env}`, {

@@ -14,7 +14,7 @@ export type LoginEmailInput = z.infer<typeof LoginEmailSchema>
 /** Step 2 of two-step login — password + remember-me. Email is from cookie. */
 export const LoginPasswordSchema = z.object({
   password: z.string().min(1, { error: "password.required" }),
-  rememberMe: z.boolean().default(false),
+  rememberMe: z.boolean(),
 })
 export type LoginPasswordInput = z.infer<typeof LoginPasswordSchema>
 

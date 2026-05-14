@@ -1,14 +1,94 @@
 {
+  "brand": {
+    "name": "Afframe",
+    "tagline": "A calmer place to manage accounting. Now with agents."
+  },
+  "common": {
+    "back": "Back",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "submitting": "Working…",
+    "comingSoon": "Coming soon"
+  },
   "auth": {
+    "aside": {
+      "headline": "A calmer place to manage accounting.",
+      "subtitle": "Now with agents.",
+      "quote": {
+        "text": "It cut our month-end close from two weeks to four days. Our team finally has time to advise clients, not chase receipts.",
+        "author": "Lukáš Krejčí",
+        "role": "Managing Partner, Krejčí & Partneři"
+      }
+    },
     "login": {
       "metaTitle": "Sign in",
-      "title": "Sign in",
-      "description": "Use your email and password to access your workspace.",
-      "email": "Email",
-      "password": "Password",
-      "forgotPassword": "Forgot password?",
-      "submit": "Sign in",
-      "submitting": "Signing in…"
+      "email": {
+        "title": "Welcome back",
+        "description": "Sign in to your {brand} workspace.",
+        "label": "Work email",
+        "placeholder": "you@company.com",
+        "submit": "Continue",
+        "submitting": "Continuing…",
+        "noAccount": "Don't have an account?",
+        "contactSupport": "Contact support"
+      },
+      "password": {
+        "title": "Enter your password",
+        "description": "Signing in as {email}.",
+        "label": "Password",
+        "rememberMe": "Remember me on this device",
+        "forgotPassword": "Forgot password?",
+        "submit": "Sign in",
+        "submitting": "Signing in…",
+        "useDifferentEmail": "Use a different email"
+      },
+      "mfa": {
+        "title": "Two-factor verification",
+        "description": "Enter the 6-digit code from your authenticator app.",
+        "label": "Authentication code",
+        "submit": "Verify",
+        "submitting": "Verifying…",
+        "useRecoveryCode": "Use a recovery code",
+        "tryAnotherMethod": "Try another method"
+      },
+      "sso": {
+        "label": "Continue with SSO",
+        "tooltip": "Coming soon"
+      },
+      "magicLink": {
+        "label": "Sign in with a magic link",
+        "tooltip": "Coming soon"
+      },
+      "divider": "or"
+    },
+    "forgot": {
+      "metaTitle": "Forgot password",
+      "title": "Forgot your password?",
+      "description": "We'll send a reset link to your email if an account exists.",
+      "label": "Work email",
+      "placeholder": "you@company.com",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "backToLogin": "Back to sign in",
+      "sent": {
+        "title": "Check your email",
+        "description": "If an account exists for {email}, a password-reset link is on the way."
+      }
+    },
+    "reset": {
+      "metaTitle": "Reset password",
+      "title": "Set a new password",
+      "description": "Choose a strong password of at least 12 characters.",
+      "newPasswordLabel": "New password",
+      "confirmPasswordLabel": "Confirm password",
+      "submit": "Reset password",
+      "submitting": "Saving…",
+      "backToLogin": "Back to sign in",
+      "invalidLink": {
+        "title": "Invalid link",
+        "description": "This reset link is missing its token. Request a new one from the forgot-password page."
+      }
     },
     "errors": {
       "no-workspace-access": "You are signed in but no workspace is linked to this account. Ask support for an invitation.",
@@ -20,7 +100,33 @@
       "invalid": "Your link is invalid or has been tampered with.",
       "wrong_kind": "Your link is the wrong type for this flow.",
       "disabled": "This flow is currently disabled. Contact support.",
-      "signInFailed": "Sign-in failed"
+      "signInFailed": "Sign-in failed",
+      "invalidCredentials": "Email or password is incorrect.",
+      "invalidCode": "That code didn't match. Try again.",
+      "loginSessionExpired": "Your sign-in session expired. Please start over.",
+      "resetFailed": "Could not reset password.",
+      "resetSent": "If an account exists, a reset link is on the way.",
+      "couldNotSendReset": "Could not send the reset email. Try again in a moment."
+    },
+    "validation": {
+      "email": {
+        "required": "Enter your email address.",
+        "invalid": "Enter a valid email address."
+      },
+      "password": {
+        "required": "Enter your password.",
+        "mismatch": "Passwords do not match.",
+        "length": "At least 12 characters",
+        "number": "Contains a number",
+        "symbol": "Contains a symbol",
+        "mixedCase": "Mixed upper and lower case"
+      },
+      "otp": {
+        "format": "Enter the 6-digit code."
+      },
+      "token": {
+        "required": "Reset token is missing."
+      }
     }
   }
 }

@@ -1,91 +1,188 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useState } from "react"
+import Link from "next/link"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+
 import { authClient } from "@workspace/auth/client"
+import { useTranslations } from "@workspace/i18n/client"
+import {
+  ForgotPasswordSchema,
+  type ForgotPasswordInput,
+} from "@workspace/shared/auth"
+import {
+  AuthShell,
+  AuthShellAside,
+  AuthShellBody,
+  AuthShellFooter,
+  AuthShellHeader,
+  AuthShellLeft,
+} from "@workspace/ui/components/auth-shell"
+import {
+  AuthAside,
+  AuthAsideHeadline,
+  AuthAsideQuote,
+  AuthAsideSubtitle,
+} from "@workspace/ui/components/auth-aside"
 import { Button } from "@workspace/ui/components/button"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
 
 export function ForgotPasswordForm() {
-  const [email, setEmail] = useState("")
-  const [submitting, setSubmitting] = useState(false)
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const tBrand = useTranslations("brand")
+  const tAside = useTranslations("auth.aside")
+  const t = useTranslations("auth.forgot")
+  const tValidation = useTranslations("auth.validation")
+  const tErrors = useTranslations("auth.errors")
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
-    setSubmitting(true)
+  const form = useForm<ForgotPasswordInput>({
+    resolver: zodResolver(ForgotPasswordSchema),
+    defaultValues: { email: "" },
+    mode: "onSubmit",
+  })
+
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [sentEmail, setSentEmail] = useState<string | null>(null)
+
+  function translateValidation(msg: string | undefined): string | undefined {
+    if (!msg) return undefined
+    if (msg.startsWith("email.")) return tValidation(msg)
+    return msg
+  }
+
+  async function onSubmit(values: ForgotPasswordInput) {
+    setServerError(null)
     try {
       const result = await authClient.requestPasswordReset({
-        email,
+        email: values.email,
         redirectTo: "/auth/reset-password",
       })
       if (result.error) {
-        setError(result.error.message ?? "Could not send reset email")
-        setSubmitting(false)
+        setServerError(result.error.message ?? tErrors("couldNotSendReset"))
         return
       }
-      setSent(true)
+      setSentEmail(values.email)
     } catch (err) {
-      setError((err as Error).message ?? "Could not send reset email")
-    } finally {
-      setSubmitting(false)
+      setServerError((err as Error).message ?? tErrors("couldNotSendReset"))
     }
   }
 
-  if (sent) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Check your email</CardTitle>
-          <CardDescription>
-            If an account exists for {email}, a password-reset link is on the
-            way.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    )
-  }
+  const brandName = tBrand("name")
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Forgot password</CardTitle>
-        <CardDescription>
-          We will email you a link to reset your password.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+    <AuthShell>
+      <AuthShellLeft>
+        <AuthShellHeader backHref="/auth/login" backLabel={t("backToLogin")}>
+          <span className="text-base font-semibold tracking-tight">
+            {brandName}
+          </span>
+        </AuthShellHeader>
+        <AuthShellBody>
+          <div className="flex flex-col gap-8">
+            {sentEmail ? (
+              <header className="flex flex-col gap-2">
+                <h1 className="font-heading text-3xl font-semibold tracking-tight">
+                  {t("sent.title")}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {t("sent.description", { email: sentEmail })}
+                </p>
+              </header>
+            ) : (
+              <>
+                <header className="flex flex-col gap-2">
+                  <h1 className="font-heading text-3xl font-semibold tracking-tight">
+                    {t("title")}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    {t("description")}
+                  </p>
+                </header>
+
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="flex flex-col gap-5"
+                  noValidate
+                >
+                  <FieldGroup>
+                    <Field
+                      data-invalid={
+                        form.formState.errors.email ? "true" : undefined
+                      }
+                    >
+                      <FieldLabel htmlFor="email">{t("label")}</FieldLabel>
+                      <Input
+                        id="email"
+                        type="email"
+                        autoComplete="email"
+                        autoFocus
+                        placeholder={t("placeholder")}
+                        {...form.register("email")}
+                        aria-invalid={!!form.formState.errors.email}
+                      />
+                      {form.formState.errors.email && (
+                        <FieldError>
+                          {translateValidation(
+                            form.formState.errors.email.message,
+                          )}
+                        </FieldError>
+                      )}
+                    </Field>
+                  </FieldGroup>
+
+                  {serverError && (
+                    <p className="text-sm text-destructive" role="alert">
+                      {serverError}
+                    </p>
+                  )}
+
+                  <Button
+                    type="submit"
+                    size="lg"
+                    disabled={form.formState.isSubmitting}
+                  >
+                    {form.formState.isSubmitting
+                      ? t("submitting")
+                      : t("submit")}
+                  </Button>
+                </form>
+
+                <p className="text-sm text-muted-foreground">
+                  <Link
+                    href="/auth/login"
+                    className="underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    {t("backToLogin")}
+                  </Link>
+                </p>
+              </>
+            )}
           </div>
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? "Sending…" : "Send reset link"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </AuthShellBody>
+        <AuthShellFooter>
+          <span>
+            © {new Date().getFullYear()} {brandName}
+          </span>
+        </AuthShellFooter>
+      </AuthShellLeft>
+      <AuthShellAside>
+        <AuthAside variant="photo" image="/auth/aside-bg.jpg">
+          <AuthAsideHeadline>{tAside("headline")}</AuthAsideHeadline>
+          <AuthAsideSubtitle>{tAside("subtitle")}</AuthAsideSubtitle>
+          <AuthAsideQuote
+            author={tAside("quote.author")}
+            role={tAside("quote.role")}
+          >
+            {tAside("quote.text")}
+          </AuthAsideQuote>
+        </AuthAside>
+      </AuthShellAside>
+    </AuthShell>
   )
 }

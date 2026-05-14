@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import { getTranslations } from "@workspace/i18n/server"
-import { LoginForm } from "./login-form"
+
+import { LoginEmailForm } from "./login-email-form"
 
 export async function generateMetadata() {
   const t = await getTranslations("auth.login")
@@ -10,7 +11,7 @@ export async function generateMetadata() {
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
-      <LoginForm />
+      <LoginEmailForm />
     </Suspense>
   )
 }

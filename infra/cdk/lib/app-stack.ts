@@ -6,12 +6,14 @@ import {
   type SecurityGroup,
 } from "aws-cdk-lib/aws-ec2"
 import {
+  Capability,
   Cluster,
   ContainerImage,
   ContainerInsights,
   CpuArchitecture,
   FargateService,
   FargateTaskDefinition,
+  LinuxParameters,
   LogDriver,
   OperatingSystemFamily,
   Secret as EcsSecret,
@@ -120,6 +122,20 @@ export class AppStack extends Stack {
       taskRole,
     })
 
+    // Shared ephemeral volume mounted at /tmp on every container so apps
+    // still have a writable scratch directory after readonlyRootFilesystem
+    // is set below. Fargate-managed - storage comes out of the task's
+    // built-in 20 GiB ephemeral pool.
+    taskDef.addVolume({ name: "tmp" })
+
+    // Drop ALL Linux capabilities. Removes NET_ADMIN/SYS_ADMIN/etc. that
+    // most cryptominer payloads need to operate.
+    const linuxParams = (id: string) => {
+      const params = new LinuxParameters(this, id)
+      params.dropCapabilities(Capability.ALL)
+      return params
+    }
+
     this.webLogGroup = new LogGroup(this, "WebLogs", {
       logGroupName: `/ecs/windhoek-${props.envName}/web`,
       retention: RetentionDays.ONE_WEEK,
@@ -133,7 +149,11 @@ export class AppStack extends Stack {
       retention: RetentionDays.ONE_WEEK,
     })
 
-    taskDef.addContainer("web", {
+    // Next.js standalone server writes to /app/.next/cache, which a readonly
+    // rootfs blocks. Until a custom cacheHandler + Dockerfile copy is in
+    // place, the web container keeps a writable root. capDrop ALL still
+    // blocks crypto-miner payloads. Tmpfs mount is harmless extra capacity.
+    const webContainer = taskDef.addContainer("web", {
       containerName: "web",
       image: ContainerImage.fromEcrRepository(props.webRepository, imageTag),
       portMappings: [{ containerPort: 3000 }],
@@ -149,9 +169,15 @@ export class AppStack extends Stack {
         APP_DOMAIN: props.domain,
       },
       memoryReservationMiB: 384,
+      linuxParameters: linuxParams("WebLinuxParams"),
+    })
+    webContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
     })
 
-    taskDef.addContainer("api", {
+    const apiContainer = taskDef.addContainer("api", {
       containerName: "api",
       image: ContainerImage.fromEcrRepository(props.apiRepository, imageTag),
       portMappings: [{ containerPort: 3001 }],
@@ -182,9 +208,16 @@ export class AppStack extends Stack {
         ),
       },
       memoryReservationMiB: 512,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("ApiLinuxParams"),
+    })
+    apiContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
     })
 
-    taskDef.addContainer("cloudflared", {
+    const tunnelContainer = taskDef.addContainer("cloudflared", {
       containerName: "cloudflared",
       image: ContainerImage.fromRegistry("cloudflare/cloudflared:latest"),
       essential: true,
@@ -197,6 +230,13 @@ export class AppStack extends Stack {
         TUNNEL_TOKEN: EcsSecret.fromSecretsManager(this.tunnelTokenSecret),
       },
       memoryReservationMiB: 128,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("TunnelLinuxParams"),
+    })
+    tunnelContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
     })
 
     this.service = new FargateService(this, "Service", {

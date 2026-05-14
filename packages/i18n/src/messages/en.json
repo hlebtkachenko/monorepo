@@ -158,6 +158,21 @@
         "alreadyHave": "Already have an account?",
         "signIn": "Sign in"
       }
+    },
+    "invite": {
+      "metaTitle": "Invitation",
+      "welcome": {
+        "title": "You've been invited",
+        "description": "Join the team on {brand} and pick up where everyone else left off.",
+        "issuedTo": "Issued to",
+        "role": "Role",
+        "validity": "Valid for 7 days from issue",
+        "continueExisting": "Accept and continue",
+        "continueNew": "Create my account",
+        "submittingExisting": "Joining…",
+        "wrongEmail": "This invite is for {email}, but you're signed in as {sessionEmail}. Sign out to accept it.",
+        "signOut": "Sign out"
+      }
     }
   },
   "onboarding": {
@@ -327,7 +342,8 @@
       "saveProfileFailed": "Could not save your profile.",
       "saveExperienceFailed": "Could not save your experience.",
       "saveTeamFailed": "Could not save your invitations.",
-      "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue."
+      "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue.",
+      "acceptInviteFailed": "Could not accept the invitation."
     }
   }
 }

@@ -32,7 +32,9 @@ export async function GET(request: NextRequest) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    path: "/auth/invite",
+    // Path "/" so the cookie survives the handoff into /onboarding/member/*
+    // for new-account members. Still HttpOnly, signed (HS256), 24h TTL.
+    path: "/",
     maxAge: 60 * 60 * 24,
   })
   return res

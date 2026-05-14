@@ -9,7 +9,9 @@
     "cancel": "Cancel",
     "submit": "Submit",
     "submitting": "Working…",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "skipForNow": "Skip for now",
+    "step": "Step {current} of {total}"
   },
   "auth": {
     "aside": {
@@ -126,7 +128,206 @@
       },
       "token": {
         "required": "Reset token is missing."
+      },
+      "name": {
+        "required": "Enter your name.",
+        "tooLong": "Name is too long."
+      },
+      "phone": {
+        "tooLong": "Phone number is too long.",
+        "format": "Enter a valid phone number."
+      },
+      "workspace": {
+        "required": "Enter a workspace name.",
+        "tooLong": "Workspace name is too long."
+      },
+      "invites": {
+        "tooMany": "You can invite up to 50 people at once."
       }
+    },
+    "signup": {
+      "metaTitle": "Welcome",
+      "welcome": {
+        "title": "Welcome to {brand}",
+        "description": "You've been invited to set up a workspace. Continue to create your account.",
+        "issuedTo": "Issued to",
+        "role": "Role",
+        "ownerRole": "Workspace owner",
+        "validity": "Valid for 7 days from issue",
+        "continue": "Continue",
+        "alreadyHave": "Already have an account?",
+        "signIn": "Sign in"
+      }
+    }
+  },
+  "onboarding": {
+    "shell": {
+      "progressLabel": "Onboarding progress",
+      "stepIndicator": "Step {current} of {total}"
+    },
+    "profile": {
+      "metaTitle": "Your profile",
+      "title": "Tell us who you are",
+      "description": "We use this to personalize {brand} and how teammates see you.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "phone": "Phone (optional)",
+      "phonePlaceholder": "+420 123 456 789",
+      "locale": "Language",
+      "timezone": "Time zone",
+      "submit": "Continue",
+      "submitting": "Saving…"
+    },
+    "experience": {
+      "metaTitle": "Your experience",
+      "title": "How familiar are you with accounting?",
+      "description": "We'll tune the experience to your level. You can change this later.",
+      "submit": "Continue",
+      "submitting": "Saving…",
+      "options": {
+        "new": {
+          "title": "New to accounting",
+          "description": "I'm just getting started."
+        },
+        "some": {
+          "title": "Some experience",
+          "description": "I've done bookkeeping casually."
+        },
+        "bookkeeper": {
+          "title": "Bookkeeper",
+          "description": "I work with books day to day."
+        },
+        "accountant": {
+          "title": "Accountant",
+          "description": "I'm a certified accountant."
+        }
+      }
+    },
+    "password": {
+      "metaTitle": "Choose a password",
+      "title": "Choose a password",
+      "description": "Pick a strong password of at least 12 characters. You'll use this with {email} to sign in.",
+      "newPasswordLabel": "Password",
+      "confirmPasswordLabel": "Confirm password",
+      "submit": "Create account",
+      "submitting": "Creating account…"
+    },
+    "workspace": {
+      "metaTitle": "Your workspace",
+      "title": "Set up your workspace",
+      "description": "A workspace is the home for your team and clients in {brand}.",
+      "displayName": "Workspace name",
+      "displayNamePlaceholder": "e.g. Krejčí & Partneři",
+      "useCase": "How will you use {brand}?",
+      "useCaseOptions": {
+        "firm": {
+          "title": "For my firm",
+          "description": "We serve multiple client books."
+        },
+        "biz": {
+          "title": "For my business",
+          "description": "We manage our own books."
+        }
+      },
+      "teamSize": "Team size",
+      "teamSizeOptions": {
+        "solo": "Just me",
+        "sm": "2 – 5",
+        "md": "6 – 20",
+        "lg": "21 – 50",
+        "xl": "50+"
+      },
+      "submit": "Continue",
+      "submitting": "Saving…"
+    },
+    "plan": {
+      "metaTitle": "Pick a plan",
+      "title": "Pick a plan",
+      "description": "You can change plans anytime. No card required during beta.",
+      "submit": "Continue",
+      "submitting": "Saving…",
+      "perMonth": "/mo",
+      "plans": {
+        "starter": {
+          "name": "Starter",
+          "price": "Free",
+          "description": "Solo bookkeepers getting started.",
+          "features": {
+            "f1": "Up to 1 organization",
+            "f2": "Up to 2 users",
+            "f3": "Core ledger + reports"
+          }
+        },
+        "growth": {
+          "name": "Growth",
+          "price": "$29",
+          "description": "Growing firms with multiple clients.",
+          "badge": "Most popular",
+          "features": {
+            "f1": "Up to 10 organizations",
+            "f2": "Up to 20 users",
+            "f3": "Agents + automations",
+            "f4": "Priority support"
+          }
+        },
+        "scale": {
+          "name": "Scale",
+          "price": "$99",
+          "description": "Established firms with deep operations.",
+          "features": {
+            "f1": "Unlimited organizations",
+            "f2": "Unlimited users",
+            "f3": "Custom agents + SSO",
+            "f4": "Dedicated success manager"
+          }
+        }
+      }
+    },
+    "team": {
+      "metaTitle": "Invite your team",
+      "title": "Invite your team",
+      "description": "Add people who'll work with you. You can always invite more later.",
+      "addAnother": "Add another",
+      "emailPlaceholder": "teammate@company.com",
+      "roleLabel": "Role",
+      "submit": "Send invites",
+      "submitting": "Saving…",
+      "skip": "Skip for now",
+      "note": "Invites are saved as drafts and sent when you first add an organization."
+    },
+    "done": {
+      "metaTitle": "You're all set",
+      "title": "You're all set",
+      "description": "Your workspace is ready. Here's what's next.",
+      "open": "Open {brand}",
+      "timeline": {
+        "step1": "Profile",
+        "step2": "Experience",
+        "step3": "Account",
+        "step4": "Workspace",
+        "step5": "Plan",
+        "step6": "Team",
+        "step7": "Ready"
+      },
+      "nextSteps": {
+        "title": "Next steps",
+        "addOrg": "Add your first organization",
+        "addOrgDescription": "Set up a client book or your own business.",
+        "inviteMore": "Invite more teammates",
+        "inviteMoreDescription": "From workspace settings.",
+        "exploreAgents": "Explore AI agents",
+        "exploreAgentsDescription": "See how agents can take routine work off your plate."
+      }
+    },
+    "errors": {
+      "sessionExpired": "Your onboarding session expired. Sign in to continue.",
+      "createAccountFailed": "Could not create your account.",
+      "createWorkspaceFailed": "Could not create your workspace.",
+      "savePlanFailed": "Could not save your plan choice.",
+      "saveProfileFailed": "Could not save your profile.",
+      "saveExperienceFailed": "Could not save your experience.",
+      "saveTeamFailed": "Could not save your invitations.",
+      "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue."
     }
   }
 }

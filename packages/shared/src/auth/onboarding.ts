@@ -67,7 +67,7 @@ export const InviteRowSchema = z.object({
     .email({ error: "email.invalid" })
     .max(320)
     .or(z.literal("")),
-  role: z.enum(["admin", "member"]).default("member"),
+  role: z.enum(["admin", "member"]),
 })
 export type InviteRowInput = z.infer<typeof InviteRowSchema>
 

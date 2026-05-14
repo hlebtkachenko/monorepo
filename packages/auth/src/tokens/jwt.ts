@@ -37,7 +37,6 @@ const ISSUER = "app"
 
 export interface BaseClaims {
   kind: string
-  email: string
 }
 
 export async function signToken<TClaims extends BaseClaims>(

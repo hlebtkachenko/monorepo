@@ -34,7 +34,11 @@ export async function GET(request: NextRequest) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    path: "/auth/signup",
+    // Path "/" so the cookie is readable from `/auth/signup` (welcome screen)
+    // and from `/onboarding/*` (the 7-step wizard) without juggling two
+    // separate cookies. Still HttpOnly, signed (HS256), and bounded to a
+    // 24h TTL.
+    path: "/",
     maxAge: 60 * 60 * 24,
   })
   return res

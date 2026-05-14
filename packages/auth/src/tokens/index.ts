@@ -5,4 +5,9 @@ export {
   verifyLoginEmailToken,
   type LoginEmailClaims,
 } from "./login-email"
+export {
+  signOnboardingStateToken,
+  verifyOnboardingStateToken,
+  type OnboardingStateClaims,
+} from "./onboarding-state"
 export { TokenError } from "./jwt"

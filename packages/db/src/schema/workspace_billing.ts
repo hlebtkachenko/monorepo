@@ -7,7 +7,6 @@
  */
 import { pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core"
 import { workspace } from "./workspace"
-import { billingPlan } from "./_enums"
 
 export const workspace_billing = pgTable("workspace_billing", {
   workspace_id: uuid("workspace_id")
@@ -22,8 +21,7 @@ export const workspace_billing = pgTable("workspace_billing", {
   address_zip: varchar("address_zip", { length: 20 }).notNull(),
   country: varchar("country", { length: 2 }).notNull(),
   billing_email: text("billing_email"),
-  // Plan selected during onboarding — added in migration 0012_onboarding_extensions.sql
-  plan: billingPlan("plan").notNull().default("starter"),
+  // Plan choice lives on workspace.plan (see migration 0013).
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

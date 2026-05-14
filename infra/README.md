@@ -12,17 +12,29 @@ infra/
   package.json              # scripts (no workspace member)
   README.md
   cdk/                      # AWS CDK v2 app stacks (see cdk/README.md)
-    bin/app.ts              # stack registration
-    lib/                    # stack definitions + Lambda code
+    bin/app.ts              # stack registration (7 stacks)
+    lib/                    # network, data, app, security, observability, billing-alarms, backup
     tests/                  # vitest CDK template assertions
     cdk.json
     cdk.context.json        # committed AZ data for reproducible synth
-  compose/                  # Local Docker Compose (Postgres 18 + pgBouncer + pgTap)
+  cerbos/                   # L3 authz: policies + tests + DockerImageAsset (ADR-0018)
+    Dockerfile, policies/, .cerbos-tests/, config/cerbos-config.yaml
+  openfga/                  # L2 authz: model + tests + bootstrap.mjs -> SSM
+  compose/                  # Local Docker Compose; profiles: auth, observability, mailpit
     docker-compose.dev.yml
     postgres/               # custom postgres:18 + pgvector + pgaudit + init.d roles
-    pgbouncer/              # transaction-mode config
+    pgbouncer/              # transaction-mode config (ADR-0012 amendment)
+    pg_exporter/queries.yaml # pg-boss + outbox gauges (observability profile)
     pgtap/                  # pgtap test runner image
+  observability/            # OTel + FireLens configs (UNWIRED in CDK; ADR-0002 trip-wire)
+  scripts/                  # backup + restore + WAL archive scripts (Commit 11)
+  Dockerfile.backup         # minimal image for the ECS Scheduled Task
+  secrets/                  # SOPS+age scaffold per docs/runbooks/SECRETS.md
 ```
+
+App task topology (one Fargate task per env): 6 containers
+`web + api + pgbouncer + cerbos + openfga + cloudflared`. See
+`infra/cdk/lib/app-stack.ts` and ADR-0008 / ADR-0012 / ADR-0018.
 
 ## Bootstrap state
 

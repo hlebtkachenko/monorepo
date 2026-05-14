@@ -3,7 +3,12 @@ import { and, eq } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
 import { app_user, workspace, workspace_membership } from "@workspace/db/schema"
 
-import { decideNextStep, stepPath, type StepKey } from "@workspace/shared/auth"
+import {
+  decideNextStep,
+  stepPath,
+  STEP_ORDER,
+  type StepKey,
+} from "@workspace/shared/auth"
 
 import { readActiveWorkspaceCookie } from "./active-workspace-cookie"
 import { readOnboardingState } from "./state-cookie"
@@ -140,9 +145,12 @@ export async function resolveNextStep(userId: string | null): Promise<StepKey> {
 }
 
 /**
- * Server-side guard for owner-onboarding step pages 4-7. If the user is
- * not on their canonical "next" step (per `resolveNextStep`), redirect
- * them there. Done-page can opt out with `allowOnDone: true`.
+ * Server-side guard for owner-onboarding step pages 4-7. Lets the user
+ * visit any step at-or-before their next-incomplete step, but blocks
+ * forward-skipping. This is what enables the "Back" link in the shell —
+ * navigating back to /onboarding/plan from /onboarding/team must NOT
+ * redirect forward to /team again. Done-page can opt out of the
+ * "redirect if next==done" guard with `allowOnDone: true`.
  */
 export async function assertOwnerOnStep(
   userId: string,
@@ -153,6 +161,11 @@ export async function assertOwnerOnStep(
   const next = await resolveNextStep(userId)
   if (next === expected) return
   if (options.allowOnDone && next === "done") return
+  const expectedIdx = STEP_ORDER.indexOf(expected)
+  const nextIdx = STEP_ORDER.indexOf(next)
+  // Revisiting an already-completed step is allowed; only skipping
+  // forward redirects to the canonical next step.
+  if (expectedIdx !== -1 && nextIdx !== -1 && expectedIdx < nextIdx) return
   redirect(stepPath(next))
 }
 

@@ -1,5 +1,6 @@
 import { App } from "aws-cdk-lib"
 import { AppStack } from "../lib/app-stack.js"
+import { BackupStack } from "../lib/backup-stack.js"
 import { BillingAlarmsStack } from "../lib/billing-alarms-stack.js"
 import { DataStack } from "../lib/data-stack.js"
 import { NetworkStack } from "../lib/network-stack.js"
@@ -20,6 +21,7 @@ interface BuiltApp {
   readonly security: SecurityStack
   readonly observability: ObservabilityStack
   readonly billingAlarms: BillingAlarmsStack
+  readonly backup: BackupStack
 }
 
 export function buildTestApp(): BuiltApp {
@@ -96,6 +98,14 @@ export function buildTestApp(): BuiltApp {
     },
   )
 
+  const backup = new BackupStack(app, `Backup-${TEST_ENV_NAME}`, {
+    env: stackEnv,
+    envName: TEST_ENV_NAME,
+    appStack,
+    dataStack: data,
+    appSecurityGroup: network.appSecurityGroup,
+  })
+
   return {
     app,
     network,
@@ -104,5 +114,6 @@ export function buildTestApp(): BuiltApp {
     security,
     observability,
     billingAlarms,
+    backup,
   }
 }

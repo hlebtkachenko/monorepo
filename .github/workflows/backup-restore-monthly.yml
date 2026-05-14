@@ -1,0 +1,199 @@
+# Monthly backup-restore drill.
+#
+# On the 2nd of each month at 03:00 UTC:
+#   1. Trigger a fresh backup via ECS RunTask (writes to S3).
+#   2. Run the restore-drill inside the same backup image: download latest
+#      from S3, restore into a scratch container, assert org-scoped table
+#      row counts.
+#
+# Step 2 runs on the GitHub runner (Docker available); step 1 runs on AWS
+# inside the cluster the BackupStack provisioned. The schedule overlaps the
+# daily 03:00 UTC EventBridge schedule by design - the daily backup is the
+# write side, this workflow is the read-back validation.
+#
+# Advisory until the first green run (continue-on-error true).
+
+name: backup-restore-monthly
+
+on:
+  schedule:
+    - cron: "0 3 2 * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to drill (staging | production)"
+        required: true
+        type: choice
+        default: "staging"
+        options:
+          - staging
+          - production
+
+permissions: {}
+
+concurrency:
+  group: backup-restore-monthly-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true # ADVISORY - flip to required after first green run
+    environment: ${{ inputs.environment || 'staging' }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: ${{ inputs.environment || 'staging' }}
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve role ARN for environment
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          case "$ENV_NAME" in
+            staging)    echo "role=$STAGING_ROLE"    >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *)          echo "Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: backup-restore-${{ github.run_id }}
+          audience: sts.amazonaws.com
+
+      - name: Resolve cluster + task definition + networking
+        id: ecs
+        run: |
+          set -euo pipefail
+          CLUSTER="monorepo-${ENV_NAME}"
+          TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix "BackupStack${ENV_NAME^}BackupTaskDef" \
+            --sort DESC --max-items 1 \
+            --region "$AWS_REGION" \
+            --query 'taskDefinitionArns[0]' \
+            --output text)
+          if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
+            echo "::error::No backup task definition found in cluster $CLUSTER"
+            exit 1
+          fi
+          SUBNETS=$(aws ec2 describe-subnets \
+            --region "$AWS_REGION" \
+            --filters "Name=tag:aws-cdk:subnet-name,Values=public" \
+            --query 'Subnets[].SubnetId' \
+            --output text)
+          SG=$(aws ec2 describe-security-groups \
+            --region "$AWS_REGION" \
+            --filters "Name=tag:aws:cloudformation:logical-id,Values=AppSecurityGroup" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+          {
+            echo "cluster=$CLUSTER"
+            echo "task_def=$TASK_DEF"
+            echo "subnets=${SUBNETS// /,}"
+            echo "security_group=$SG"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: RunTask backup (write side)
+        id: backup
+        env:
+          CLUSTER: ${{ steps.ecs.outputs.cluster }}
+          TASK_DEF: ${{ steps.ecs.outputs.task_def }}
+          SUBNETS: ${{ steps.ecs.outputs.subnets }}
+          SECURITY_GROUP: ${{ steps.ecs.outputs.security_group }}
+        run: |
+          set -euo pipefail
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUP}],assignPublicIp=ENABLED}" \
+            --region "$AWS_REGION" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "task_arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
+          echo "Waiting for backup task $TASK_ARN to finish..."
+          aws ecs wait tasks-stopped \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --region "$AWS_REGION"
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --region "$AWS_REGION" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          if [ "$EXIT" != "0" ]; then
+            echo "::error::Backup task exited $EXIT"
+            exit 1
+          fi
+
+      - name: RunTask restore-drill (read side, scratch container)
+        env:
+          CLUSTER: ${{ steps.ecs.outputs.cluster }}
+          TASK_DEF: ${{ steps.ecs.outputs.task_def }}
+          SUBNETS: ${{ steps.ecs.outputs.subnets }}
+          SECURITY_GROUP: ${{ steps.ecs.outputs.security_group }}
+        run: |
+          set -euo pipefail
+          DATE_UTC=$(date -u +%Y-%m-%d)
+          # Override the entrypoint to invoke the restore-drill against the
+          # latest prefix produced by the backup step above.
+          OVERRIDES=$(cat <<JSON
+          {
+            "containerOverrides": [
+              {
+                "name": "backup",
+                "command": [
+                  "/usr/local/bin/restore-drill"
+                ],
+                "environment": [
+                  { "name": "APP_S3_PREFIX", "value": "backups/${DATE_UTC}" }
+                ]
+              }
+            ]
+          }
+          JSON
+          )
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUP}],assignPublicIp=ENABLED}" \
+            --overrides "$OVERRIDES" \
+            --region "$AWS_REGION" \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          aws ecs wait tasks-stopped \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --region "$AWS_REGION"
+          EXIT=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --region "$AWS_REGION" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+          if [ "$EXIT" != "0" ]; then
+            echo "::error::Restore drill task exited $EXIT - backups did not round-trip"
+            exit 1
+          fi
+
+      - name: Alarm on failure
+        if: failure()
+        run: |
+          echo "::error::Monthly backup-restore drill failed. Investigate via CloudWatch Logs /ecs/monorepo-${ENV_NAME}/backup."

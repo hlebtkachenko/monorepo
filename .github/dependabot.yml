@@ -43,3 +43,17 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+
+  # Docker base image used by infra/Dockerfile.backup (ECS Scheduled Task in
+  # BackupStack). Pinned per ADR-0015; bumped via Dependabot.
+  - package-ecosystem: docker
+    directory: /infra
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      infra-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope

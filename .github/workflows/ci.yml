@@ -49,12 +49,13 @@ jobs:
         run: pnpm --filter @workspace/ui build-storybook
 
       - name: Install Playwright
-        # Use `pnpm exec` so we run the workspace-pinned Playwright (1.59.x)
-        # rather than whatever `pnpm dlx` resolves freshly. Include
-        # `chromium-headless-shell`: @storybook/test-runner launches this
-        # variant explicitly, and GitHub runner image updates stopped
-        # pre-caching it. `--with-deps` installs the apt dependencies too.
-        run: pnpm exec playwright install --with-deps chromium chromium-headless-shell webkit
+        # Run inside @workspace/ui where playwright is a devDependency.
+        # `pnpm exec` from repo root cannot find the binary because the
+        # package isn't a root dep. Include chromium-headless-shell:
+        # @storybook/test-runner launches that variant explicitly and
+        # GitHub runner image updates stopped pre-caching it.
+        # `--with-deps` installs the apt dependencies too.
+        run: pnpm --filter @workspace/ui exec playwright install --with-deps chromium chromium-headless-shell webkit
 
       - name: Storybook Interaction & A11y Tests
         run: |

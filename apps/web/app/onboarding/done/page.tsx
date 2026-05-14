@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
+import { eq } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
+import { withAdminBypass } from "@workspace/db"
+import { workspace } from "@workspace/db/schema"
 import { getTranslations } from "@workspace/i18n/server"
 
 import { OnboardingShell } from "../_components/onboarding-shell"
-import { assertOwnerOnStep } from "../_lib/resume"
-import { completeOnboardingAction } from "../actions"
+import { findOwnerWorkspaceId, assertOwnerOnStep } from "../_lib/resume"
 import { DoneCard } from "./done-card"
 
 export async function generateMetadata() {
@@ -18,16 +20,33 @@ export default async function DonePage() {
   if (!session?.user) {
     redirect("/onboarding/password")
   }
-  // Auto-run the completion-marker write so closing the tab before
+
+  // Idempotent completion-marker write so closing the tab before
   // clicking "Open Afframe" still finalizes onboarding (MED-3 in
-  // PHASE_REVIEW.md). The action is idempotent — calling it on a
-  // workspace that already has onboarding_completed_at set just bumps
-  // updated_at with the same timestamps.
-  await completeOnboardingAction()
+  // PHASE_REVIEW.md). Only writes to the workspace row — does NOT
+  // touch cookies. Cookies are cleared by `completeOnboardingAction`
+  // when the user clicks the button (which runs in a server-action
+  // context where cookies are writable). Server Components like this
+  // page cannot write cookies.
+  const workspaceId = await findOwnerWorkspaceId(session.user.id)
+  if (workspaceId) {
+    await withAdminBypass(async (db) => {
+      const now = new Date()
+      await db
+        .update(workspace)
+        .set({
+          step_4_completed_at: now,
+          onboarding_completed_at: now,
+          updated_at: now,
+        })
+        .where(eq(workspace.id, workspaceId))
+    })
+  }
 
   // Allow landing on /done even after onboarding completion (don't
-  // redirect to /workspace via assertOwnerOnStep) — the page renders the
-  // success card; the "Open Afframe" button does the navigation.
+  // redirect to /workspace via assertOwnerOnStep) — the page renders
+  // the success card; the "Open Afframe" button does the navigation
+  // and clears the signup cookie.
   await assertOwnerOnStep(session.user.id, "done", { allowOnDone: true })
   return (
     <OnboardingShell step="done">

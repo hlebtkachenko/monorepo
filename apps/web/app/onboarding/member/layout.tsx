@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import Link from "next/link"
 import { getTranslations } from "@workspace/i18n/server"
 import {
   AuthShell,
@@ -15,15 +16,16 @@ import {
   AuthAsideSubtitle,
 } from "@workspace/ui/blocks/auth-aside"
 
+import { LanguagePicker } from "../../_components/language-picker"
+
 /**
- * Member onboarding chrome — tone aside, 4-step variant.
+ * Member onboarding chrome — tone aside, 4-step variant. Sibling of
+ * (owner)/layout.tsx; parent `onboarding/layout.tsx` is a passthrough so
+ * neither inherits the other's chrome.
  *
- * Sits as a sibling of `(owner)/layout.tsx` under `app/onboarding/`. The
- * parent `onboarding/layout.tsx` is a passthrough so this layout owns
- * its own AuthShell composition without inheriting owner chrome.
- *
- * Outstanding pieces same as owner layout (tracked in
- * docs/plans/AUTH-OUTSTANDING.md).
+ * Same chrome composition as owner: brand mark in header, legal links
+ * + language picker in footer. Outstanding pieces tracked in
+ * docs/plans/AUTH-OUTSTANDING.md.
  */
 export default async function MemberOnboardingLayout({
   children,
@@ -31,6 +33,7 @@ export default async function MemberOnboardingLayout({
   children: ReactNode
 }) {
   const tBrand = await getTranslations("brand")
+  const tLayout = await getTranslations("layout.footer")
   const tAside = await getTranslations("auth.aside")
   const brand = tBrand("name")
   const year = new Date().getFullYear()
@@ -45,15 +48,38 @@ export default async function MemberOnboardingLayout({
         </AuthShellHeader>
         <AuthShellBody>{children}</AuthShellBody>
         <AuthShellFooter>
-          <span>
-            © {year} {brand}
-          </span>
+          <div className="flex w-full flex-wrap items-center justify-between gap-3 text-xs">
+            <span>
+              © {year} {brand}
+            </span>
+            <div className="flex items-center gap-4">
+              <Link
+                href="#"
+                className="transition-colors hover:text-foreground"
+              >
+                {tLayout("privacy")}
+              </Link>
+              <Link
+                href="#"
+                className="transition-colors hover:text-foreground"
+              >
+                {tLayout("terms")}
+              </Link>
+              <Link
+                href="#"
+                className="transition-colors hover:text-foreground"
+              >
+                {tLayout("status")}
+              </Link>
+              <LanguagePicker />
+            </div>
+          </div>
         </AuthShellFooter>
       </AuthShellLeft>
       <AuthShellAside>
         <AuthAside variant="tone">
           <AuthAsideHeadline>{tAside("headline")}</AuthAsideHeadline>
-          <AuthAsideSubtitle>{tAside("subtitle")}</AuthAsideSubtitle>
+          <AuthAsideSubtitle>{tAside("subtitle", { brand })}</AuthAsideSubtitle>
           <AuthAsideQuote
             author={tAside("quote.author")}
             role={tAside("quote.role")}

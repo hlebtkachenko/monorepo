@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { KeyRound, Sparkles } from "lucide-react"
+import { KeyRound, ArrowUpRight } from "lucide-react"
 
 import { useTranslations } from "@workspace/i18n/client"
 import { LoginEmailSchema, type LoginEmailInput } from "@workspace/shared/auth"
@@ -54,7 +55,6 @@ export function LoginEmailForm() {
   const tBrand = useTranslations("brand")
   const t = useTranslations("auth.login.email")
   const tSso = useTranslations("auth.login.sso")
-  const tMagic = useTranslations("auth.login.magicLink")
   const tDivider = useTranslations("auth.login")
   const tValidation = useTranslations("auth.validation")
   const tErrors = useTranslations("auth.errors")
@@ -102,11 +102,9 @@ export function LoginEmailForm() {
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">
-          {t("title")}
+          {t("title", { brand: brandName })}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("description", { brand: brandName })}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("description")}</p>
       </header>
 
       <form
@@ -150,45 +148,36 @@ export function LoginEmailForm() {
       <FieldSeparator>{tDivider("divider")}</FieldSeparator>
 
       <TooltipProvider>
-        <div className="flex flex-col gap-3">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={0} className="inline-block">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className="w-full"
-                  disabled
-                  aria-disabled="true"
-                >
-                  <KeyRound className="size-4" aria-hidden="true" />
-                  {tSso("label")}
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{tSso("tooltip")}</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={0} className="inline-block">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className="w-full"
-                  disabled
-                  aria-disabled="true"
-                >
-                  <Sparkles className="size-4" aria-hidden="true" />
-                  {tMagic("label")}
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{tMagic("tooltip")}</TooltipContent>
-          </Tooltip>
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span tabIndex={0} className="inline-block">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full"
+                disabled
+                aria-disabled="true"
+              >
+                <KeyRound className="size-4" aria-hidden="true" />
+                {tSso("label")}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{tSso("tooltip")}</TooltipContent>
+        </Tooltip>
       </TooltipProvider>
+
+      <p className="text-sm text-muted-foreground">
+        {t("contactSalesPrompt", { brand: brandName })}{" "}
+        <Link
+          href="#"
+          className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
+        >
+          {t("contactSalesCta")}
+          <ArrowUpRight className="size-3" aria-hidden="true" />
+        </Link>
+      </p>
     </div>
   )
 }

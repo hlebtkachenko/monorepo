@@ -1,7 +1,16 @@
 {
   "brand": {
     "name": "Afframe",
-    "tagline": "A calmer place to manage accounting. Now with agents."
+    "tagline": "A calmer place to manage accounting. Now with agents.",
+    "returnLinkLabel": "Return to afframe.com",
+    "returnLinkHref": "https://afframe.com"
+  },
+  "layout": {
+    "footer": {
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "status": "Status"
+    }
   },
   "common": {
     "back": "Back",
@@ -15,8 +24,8 @@
   },
   "auth": {
     "aside": {
-      "headline": "A calmer place to manage accounting.",
-      "subtitle": "Now with agents.",
+      "headline": "A calmer place to manage accounting. Now with agents.",
+      "subtitle": "{brand} brings documents, postings, and reports into one workspace where accountants and AI agents can work together.",
       "quote": {
         "text": "It cut our month-end close from two weeks to four days. Our team finally has time to advise clients, not chase receipts.",
         "author": "Lukáš Krejčí",
@@ -26,14 +35,16 @@
     "login": {
       "metaTitle": "Sign in",
       "email": {
-        "title": "Welcome back",
-        "description": "Sign in to your {brand} workspace.",
+        "title": "Sign in to {brand}",
+        "description": "Enter your work email to continue.",
         "label": "Work email",
         "placeholder": "you@company.com",
         "submit": "Continue",
         "submitting": "Continuing…",
         "noAccount": "Don't have an account?",
-        "contactSupport": "Contact support"
+        "contactSupport": "Contact support",
+        "contactSalesPrompt": "Looking to get started with {brand} for your business?",
+        "contactSalesCta": "Contact sales"
       },
       "password": {
         "title": "Enter your password",

@@ -17,3 +17,20 @@ export const BRAND = {
 } as const
 
 export type Brand = typeof BRAND
+
+/**
+ * Placeholder customer-logo marquee names shown in the auth/onboarding
+ * aside until real partner logos are commissioned. These are render-time
+ * strings, not i18n keys — they're proper-noun brand names that don't
+ * translate. Drop-in real SVG assets later by extending
+ * `AuthAside.LogoMarquee` to accept an array of `{ src, alt }` items.
+ */
+export const AUTH_ASIDE_LOGOS = [
+  "Northwind",
+  "Helix",
+  "Atrium",
+  "Lumen",
+  "Parallel",
+  "Vantage",
+  "Cobalt",
+] as const

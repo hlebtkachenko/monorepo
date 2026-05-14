@@ -11,6 +11,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@cerbos/core": "^0.31.0",
+    "@cerbos/embedded": "^0.15.4",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.19",

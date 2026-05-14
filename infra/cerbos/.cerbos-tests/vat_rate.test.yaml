@@ -1,0 +1,141 @@
+# Tests for the vat_rate resource policy.
+#
+# Verifies:
+#   - Org admin can edit VAT rate (has can_administer derived role)
+#   - Org owner can edit VAT rate (has can_administer derived role)
+#   - Org member cannot edit VAT rate
+#   - Workspace admin cannot edit VAT rate
+#   - Guest cannot edit VAT rate
+#   - All roles can view VAT rates
+#   - Delete is denied for everyone (no delete rule in policy)
+---
+name: VAT rate resource policy tests
+description: Admin-only edit/create; view for all; no delete
+tests:
+  - name: org admin can edit vat_rate
+    input:
+      principals:
+        - id: admin-001
+          roles: [org_admin]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [edit]
+    expected:
+      - principal: admin-001
+        resource: vat-std
+        actions:
+          edit: EFFECT_ALLOW
+
+  - name: org owner can edit vat_rate
+    input:
+      principals:
+        - id: owner-001
+          roles: [org_owner]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [edit]
+    expected:
+      - principal: owner-001
+        resource: vat-std
+        actions:
+          edit: EFFECT_ALLOW
+
+  - name: org member cannot edit vat_rate
+    input:
+      principals:
+        - id: member-001
+          roles: [org_member]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [edit]
+    expected:
+      - principal: member-001
+        resource: vat-std
+        actions:
+          edit: EFFECT_DENY
+
+  - name: workspace admin cannot edit vat_rate
+    input:
+      principals:
+        - id: ws-admin-001
+          roles: [workspace_admin]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [edit]
+    expected:
+      - principal: ws-admin-001
+        resource: vat-std
+        actions:
+          edit: EFFECT_DENY
+
+  - name: guest cannot edit vat_rate
+    input:
+      principals:
+        - id: guest-001
+          roles: [org_guest]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [edit]
+    expected:
+      - principal: guest-001
+        resource: vat-std
+        actions:
+          edit: EFFECT_DENY
+
+  - name: org member can view vat_rate
+    input:
+      principals:
+        - id: member-001
+          roles: [org_member]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [view]
+    expected:
+      - principal: member-001
+        resource: vat-std
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: guest can view vat_rate
+    input:
+      principals:
+        - id: guest-001
+          roles: [org_guest]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [view]
+    expected:
+      - principal: guest-001
+        resource: vat-std
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: delete is denied for org admin (no delete rule in policy)
+    input:
+      principals:
+        - id: admin-001
+          roles: [org_admin]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [delete]
+    expected:
+      - principal: admin-001
+        resource: vat-std
+        actions:
+          delete: EFFECT_DENY

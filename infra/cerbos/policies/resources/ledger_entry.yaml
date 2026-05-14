@@ -1,0 +1,25 @@
+# Resource policy for ledger entries.
+#
+# Ledger entries are fully APPEND-ONLY. Once written, they cannot be edited
+# or deleted by anyone — this is a double-entry bookkeeping invariant.
+#
+# Actions: view ONLY
+# No edit, no delete (omitting = default deny).
+#
+# This policy enforces the append-only constraint at the authorization layer,
+# complementing the Postgres trigger-based immutability guard.
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: ledger_entry
+  version: default
+  rules:
+    # VIEW: all authenticated org members and guests may view ledger entries
+    - actions: [view]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - org_guest
+        - workspace_admin

@@ -41,7 +41,8 @@ jobs:
             ':!**/*.png' \
             ':!**/*.ico' \
             ':!**/*.woff' \
-            ':!**/*.woff2')
+            ':!**/*.woff2' \
+            ':!**/*.wasm')
           loc=$(echo "${stat}" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
           loc=${loc:-0}
           echo "loc added: ${loc}"

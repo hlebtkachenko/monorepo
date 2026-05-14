@@ -50,6 +50,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@cerbos/core':
+        specifier: ^0.31.0
+        version: 0.31.0(@bufbuild/protobuf@2.12.0)
+      '@cerbos/embedded':
+        specifier: ^0.15.4
+        version: 0.15.4(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)
       '@nestjs/common':
         specifier: ^11.1.19
         version: 11.1.19(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -1359,6 +1365,26 @@ packages:
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
+
+  '@bufbuild/protobuf@2.12.0':
+    resolution: {integrity: sha512-B/XlCaFIP8LOwzo+bz5uFzATYokcwCKQcghqnlfwSmM5eX/qTkvDBnDPs+gXtX/RyjxJ4DRikECcPJbyALA8FA==}
+
+  '@cerbos/api@0.8.0':
+    resolution: {integrity: sha512-iVEdsoYax/gKchx8jv60yNv48HzXfVC/1//f6U4mo5PrGt8k28Nbb95RM4R2U7eT0p3uqDUC8PSovTIrdA6Xww==}
+    engines: {node: '>= 20'}
+
+  '@cerbos/core@0.31.0':
+    resolution: {integrity: sha512-rlHWHqGMxwDwokkzm2Fajm7ACbq4FAgImJ7pVhWT+Qh5jB6jmyPC2v/SXLhhsX5c6OHLGOyEBVtoJ+zlF1k33Q==}
+    engines: {node: '>= 20'}
+    peerDependencies:
+      '@bufbuild/protobuf': ^2.12.0
+
+  '@cerbos/embedded@0.15.4':
+    resolution: {integrity: sha512-UdIpvT9lgXxQHjAlM9964NUIxeJ2/0B93g1U+IU9jtiD7cx5I+ZKoO67/GTuX3kj/nPpdk08zDVXpfpwXn/PdA==}
+    engines: {node: '>= 20'}
+    peerDependencies:
+      '@bufbuild/protobuf': ^2.12.0
+      '@cerbos/api': ^0.8.0
 
   '@chromatic-com/storybook@5.1.2':
     resolution: {integrity: sha512-H/hgvwC3E+OtseP2OT2QYUJH2VfnzT6wM3pWOkaNV6g7QI+VUdWJbeJ3o2jFqvEPQNqzhQKWDOlvM4lu+7is6g==}
@@ -10531,6 +10557,10 @@ packages:
     resolution: {integrity: sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A==}
     engines: {node: '>=18'}
 
+  ulid@3.0.2:
+    resolution: {integrity: sha512-yu26mwteFYzBAot7KVMqFGCVpsF6g8wXfJzQUHvu1no3+rRRSFcSV2nKeYvNPLD2J4b08jYBDhHUjeH0ygIl9w==}
+    hasBin: true
+
   unbox-primitive@1.1.0:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
     engines: {node: '>= 0.4'}
@@ -10628,6 +10658,10 @@ packages:
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
+
+  uuid@14.0.0:
+    resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
 
   uuid@8.3.2:
@@ -12279,6 +12313,25 @@ snapshots:
   '@bramus/specificity@2.4.2':
     dependencies:
       css-tree: 3.2.1
+
+  '@bufbuild/protobuf@2.12.0': {}
+
+  '@cerbos/api@0.8.0':
+    dependencies:
+      '@bufbuild/protobuf': 2.12.0
+
+  '@cerbos/core@0.31.0(@bufbuild/protobuf@2.12.0)':
+    dependencies:
+      '@bufbuild/protobuf': 2.12.0
+      '@cerbos/api': 0.8.0
+      uuid: 14.0.0
+
+  '@cerbos/embedded@0.15.4(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)':
+    dependencies:
+      '@bufbuild/protobuf': 2.12.0
+      '@cerbos/api': 0.8.0
+      '@cerbos/core': 0.31.0(@bufbuild/protobuf@2.12.0)
+      ulid: 3.0.2
 
   '@chromatic-com/storybook@5.1.2(storybook@10.3.6(@testing-library/dom@10.4.1)(prettier@3.8.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
     dependencies:
@@ -22531,6 +22584,8 @@ snapshots:
 
   uint8array-extras@1.5.0: {}
 
+  ulid@3.0.2: {}
+
   unbox-primitive@1.1.0:
     dependencies:
       call-bound: 1.0.4
@@ -22652,6 +22707,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   uuid@10.0.0: {}
+
+  uuid@14.0.0: {}
 
   uuid@8.3.2: {}
 

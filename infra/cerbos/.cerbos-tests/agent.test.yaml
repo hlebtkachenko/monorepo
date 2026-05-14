@@ -1,0 +1,95 @@
+# Tests for the agent principal policy.
+#
+# Verifies:
+#   - Agent is DENIED delete on invoice
+#   - Agent is DENIED administer on vat_rate
+#   - Agent is DENIED manage_members on any resource
+#   - Agent is ALLOWED view on invoice
+#   - Agent is ALLOWED edit on invoice (when not locked)
+#   - Agent is DENIED edit on invoice (when locked, resource policy constraint)
+---
+name: Agent principal policy tests
+description: Verifies ADR-0018 L3 agent constraints — no delete, no administer, no manage_members
+tests:
+  - name: agent denied delete on invoice
+    input:
+      principals:
+        - id: agent-001
+          roles: [agent]
+      resources:
+        - id: inv-001
+          kind: invoice
+          attr:
+            locked: false
+      actions: [delete]
+    expected:
+      - principal: agent-001
+        resource: inv-001
+        actions:
+          delete: EFFECT_DENY
+
+  - name: agent denied administer on vat_rate
+    input:
+      principals:
+        - id: agent-001
+          roles: [agent]
+      resources:
+        - id: vat-std
+          kind: vat_rate
+          attr: {}
+      actions: [administer]
+    expected:
+      - principal: agent-001
+        resource: vat-std
+        actions:
+          administer: EFFECT_DENY
+
+  - name: agent denied manage_members
+    input:
+      principals:
+        - id: agent-001
+          roles: [agent]
+      resources:
+        - id: org-001
+          kind: invoice
+          attr: {}
+      actions: [manage_members]
+    expected:
+      - principal: agent-001
+        resource: org-001
+        actions:
+          manage_members: EFFECT_DENY
+
+  - name: agent allowed view on invoice
+    input:
+      principals:
+        - id: agent-001
+          roles: [agent]
+      resources:
+        - id: inv-002
+          kind: invoice
+          attr:
+            locked: false
+      actions: [view]
+    expected:
+      - principal: agent-001
+        resource: inv-002
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: agent allowed edit on unlocked invoice
+    input:
+      principals:
+        - id: agent-001
+          roles: [agent]
+      resources:
+        - id: inv-003
+          kind: invoice
+          attr:
+            locked: false
+      actions: [edit]
+    expected:
+      - principal: agent-001
+        resource: inv-003
+        actions:
+          edit: EFFECT_ALLOW

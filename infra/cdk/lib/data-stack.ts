@@ -171,5 +171,11 @@ export class DataStack extends Stack {
           : RemovalPolicy.DESTROY,
       autoDeleteObjects: props.envName !== "production",
     })
+
+    // CloudWatch S3 request metrics. Enables AllRequests/PutRequests metrics
+    // (the bucket-size + object-count metrics ship for free). Needed by the
+    // s3-put-rate-high alarm in ObservabilityStack. First 1M requests/month
+    // are free, then $1 per million.
+    this.appBucket.addMetric({ id: "EntireBucket" })
   }
 }

@@ -61,6 +61,9 @@ export class AppStack extends Stack {
   readonly cluster: Cluster
   readonly service: FargateService
   readonly tunnelTokenSecret: ISecret
+  readonly webLogGroup: LogGroup
+  readonly apiLogGroup: LogGroup
+  readonly tunnelLogGroup: LogGroup
 
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props)
@@ -117,15 +120,15 @@ export class AppStack extends Stack {
       taskRole,
     })
 
-    const webLogGroup = new LogGroup(this, "WebLogs", {
+    this.webLogGroup = new LogGroup(this, "WebLogs", {
       logGroupName: `/ecs/windhoek-${props.envName}/web`,
       retention: RetentionDays.ONE_WEEK,
     })
-    const apiLogGroup = new LogGroup(this, "ApiLogs", {
+    this.apiLogGroup = new LogGroup(this, "ApiLogs", {
       logGroupName: `/ecs/windhoek-${props.envName}/api`,
       retention: RetentionDays.ONE_WEEK,
     })
-    const tunnelLogGroup = new LogGroup(this, "TunnelLogs", {
+    this.tunnelLogGroup = new LogGroup(this, "TunnelLogs", {
       logGroupName: `/ecs/windhoek-${props.envName}/cloudflared`,
       retention: RetentionDays.ONE_WEEK,
     })
@@ -137,7 +140,7 @@ export class AppStack extends Stack {
       essential: true,
       logging: LogDriver.awsLogs({
         streamPrefix: "web",
-        logGroup: webLogGroup,
+        logGroup: this.webLogGroup,
       }),
       environment: {
         NODE_ENV: "production",
@@ -155,7 +158,7 @@ export class AppStack extends Stack {
       essential: true,
       logging: LogDriver.awsLogs({
         streamPrefix: "api",
-        logGroup: apiLogGroup,
+        logGroup: this.apiLogGroup,
       }),
       environment: {
         NODE_ENV: "production",
@@ -188,7 +191,7 @@ export class AppStack extends Stack {
       command: ["tunnel", "--no-autoupdate", "run"],
       logging: LogDriver.awsLogs({
         streamPrefix: "cloudflared",
-        logGroup: tunnelLogGroup,
+        logGroup: this.tunnelLogGroup,
       }),
       secrets: {
         TUNNEL_TOKEN: EcsSecret.fromSecretsManager(this.tunnelTokenSecret),

@@ -42,9 +42,11 @@ export interface AppStackProps extends StackProps {
 /**
  * Cloudflare-Tunnel-fronted ECS Fargate task (ADR 0008).
  *
- * One task per environment, three containers sharing a network namespace:
+ * One task per environment, four containers sharing a network namespace:
  *   - web         : Next.js, port 3000
- *   - api         : NestJS, port 3001
+ *   - api         : NestJS, port 3001 (connects to localhost:6432 for db)
+ *   - pgbouncer   : connection pool, listens on 127.0.0.1:6432, forwards
+ *                   to RDS :5432 (ADR-0012 amendment 2026-05-14, E.2)
  *   - cloudflared : sidecar establishing outbound tunnel to Cloudflare edge
  *
  * Task lives in public subnet with assignPublicIp=true (one public IPv4 per
@@ -182,6 +184,14 @@ export class AppStack extends Stack {
       readOnly: false,
     })
 
+    // api connects to pgBouncer sidecar (localhost:6432, transaction mode);
+    // pgBouncer forwards to props.database on :5432. Required for ADR-0010
+    // GUC contract (set_config is_local=true).
+    //
+    // @workspace/db reads only DATABASE_URL (packages/db/src/client.ts).
+    // The URL is composed at container start by /bin/sh from DB_USER /
+    // DB_PASSWORD (secrets) + DB_HOST / DB_PORT / DB_NAME (env). This avoids
+    // a second Secrets Manager entry or a wrapper image just to inject one URL.
     const apiContainer = taskDef.addContainer("api", {
       containerName: "api",
       image: ContainerImage.fromEcrRepository(props.apiRepository, imageTag),
@@ -196,25 +206,23 @@ export class AppStack extends Stack {
         APP_ENV: props.envName,
         PORT: "3001",
         HOST: "0.0.0.0",
-        // Connect through pgBouncer sidecar (localhost:6432, transaction mode).
-        // pgBouncer forwards to props.database on :5432. Required for
-        // ADR-0010 GUC contract (set_config is_local=true).
-        DATABASE_HOST: "localhost",
-        DATABASE_PORT: "6432",
-        DATABASE_NAME: "monorepo",
+        DB_HOST: "localhost",
+        DB_PORT: "6432",
+        DB_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
         APP_DOMAIN: props.domain,
       },
       secrets: {
-        DATABASE_PASSWORD: EcsSecret.fromSecretsManager(
+        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        DB_PASSWORD: EcsSecret.fromSecretsManager(
           props.databaseSecret,
           "password",
         ),
-        DATABASE_USERNAME: EcsSecret.fromSecretsManager(
-          props.databaseSecret,
-          "username",
-        ),
       },
+      entryPoint: ["/bin/sh", "-c"],
+      command: [
+        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && exec node dist/main.js',
+      ],
       memoryReservationMiB: 512,
       readonlyRootFilesystem: true,
       linuxParameters: linuxParams("ApiLinuxParams"),
@@ -225,23 +233,32 @@ export class AppStack extends Stack {
       readOnly: false,
     })
 
-    // pgBouncer sidecar (ADR-0017 E.2): in-task connection pool in
-    // transaction mode. api connects to localhost:6432; pgBouncer
-    // forwards to RDS on :5432 using the master credentials.
+    // pgBouncer sidecar (ADR-0012 amendment 2026-05-14, decision E.2):
+    // in-task connection pool in transaction mode. api connects to
+    // 127.0.0.1:6432; pgBouncer forwards to RDS on :5432 using master
+    // credentials.
     //
-    // edoburu/pgbouncer reads DATABASE_URL + POOL_MODE + AUTH_TYPE
-    // env vars and generates /etc/pgbouncer/pgbouncer.ini at boot.
-    // userlist.txt is auto-generated from the same DATABASE_URL.
+    // edoburu/pgbouncer entrypoint requires DATABASE_URL (it parse_urls
+    // the value into DB_USER/DB_PASSWORD/DB_HOST/DB_PORT/DB_NAME and writes
+    // /etc/pgbouncer/{pgbouncer.ini,userlist.txt}). We compose the URL at
+    // container start so the password stays in secrets, not env.
     //
-    // GUC contract is preserved because pool_mode=transaction means
-    // each transaction holds a server connection from start to commit;
-    // SET LOCAL bindings stay attached.
+    // GUC contract is preserved because pool_mode=transaction means each
+    // transaction holds a server connection from start to commit; SET LOCAL
+    // bindings stay attached. SERVER_RESET_QUERY="" is the canary against
+    // accidental GUC reset.
     //
-    // Per-tenant role separation (ADR-0010 app_user) is a follow-up:
-    // requires a separate Secrets Manager entry for app_user that the
-    // migration runbook populates after the role exists. For now, the
-    // sidecar uses master credentials (app_owner) which preserves
-    // pooling semantics but skips the role split.
+    // Volume `pgbouncerEtc` is a writable scratch over /etc/pgbouncer so
+    // the entrypoint can materialize its generated config (required when
+    // readonlyRootFilesystem=true blocks all other writes).
+    //
+    // Per-tenant role separation (ADR-0010 app_user) is a follow-up;
+    // see docs/runbooks/AWS-DEPLOY.md "Follow-up: per-tenant role split".
+    taskDef.addVolume({ name: "pgbouncerEtc" })
+
+    // pgBouncer SCRAM hash is built by its entrypoint from the plaintext
+    // password — the userlist.txt write itself doesn't depend on alpine
+    // having any tool other than /bin/sh + awk + sed (all present).
     const pgbouncerContainer = taskDef.addContainer("pgbouncer", {
       containerName: "pgbouncer",
       image: ContainerImage.fromRegistry("edoburu/pgbouncer:v1.25.1-p0"),
@@ -251,9 +268,11 @@ export class AppStack extends Stack {
         logGroup: this.pgbouncerLogGroup,
       }),
       environment: {
+        // Bind to loopback only — defense-in-depth even with appSecurityGroup
+        // denying all public ingress (assignPublicIp=true).
+        LISTEN_ADDR: "127.0.0.1",
+        LISTEN_PORT: "6432",
         POOL_MODE: "transaction",
-        // Empty server_reset_query is the canary that detects accidental
-        // GUC leakage in dev (ADR-0012). Same setting in prod.
         SERVER_RESET_QUERY: "",
         MAX_CLIENT_CONN: "100",
         DEFAULT_POOL_SIZE: "20",
@@ -269,6 +288,10 @@ export class AppStack extends Stack {
           "password",
         ),
       },
+      entryPoint: ["/bin/sh", "-c"],
+      command: [
+        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && exec /entrypoint.sh /usr/bin/pgbouncer /etc/pgbouncer/pgbouncer.ini',
+      ],
       memoryReservationMiB: 64,
       readonlyRootFilesystem: true,
       linuxParameters: linuxParams("PgBouncerLinuxParams"),
@@ -276,6 +299,13 @@ export class AppStack extends Stack {
     pgbouncerContainer.addMountPoints({
       containerPath: "/tmp",
       sourceVolume: "tmp",
+      readOnly: false,
+    })
+    // Writable scratch over /etc/pgbouncer — edoburu entrypoint writes
+    // pgbouncer.ini + userlist.txt here at boot. Fargate ephemeral storage.
+    pgbouncerContainer.addMountPoints({
+      containerPath: "/etc/pgbouncer",
+      sourceVolume: "pgbouncerEtc",
       readOnly: false,
     })
 

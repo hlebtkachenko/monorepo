@@ -502,6 +502,274 @@ export default function TypographyPage() {
 
       <Separator className="mb-16" />
 
+      {/* ==================== NUMBERS ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Numbers &amp; Data</h2>
+        <Text variant="muted" className="mb-8">
+          How each font renders numbers, currencies, and data patterns common in
+          accounting software.
+        </Text>
+
+        <div className="space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Side-by-Side Comparison</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="pr-6 pb-2 font-medium text-muted-foreground">
+                        Sample
+                      </th>
+                      <th className="pr-6 pb-2 font-medium text-muted-foreground">
+                        Geist (body)
+                      </th>
+                      <th className="pr-6 pb-2 font-medium text-muted-foreground">
+                        Roobert (heading)
+                      </th>
+                      <th className="pb-2 font-medium text-muted-foreground">
+                        Roobert Mono
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      "0123456789",
+                      "1,234,567.89",
+                      "CZK 1 250 000,00",
+                      "EUR 42,069.99",
+                      "$3.14",
+                      "-12,345.67",
+                      "+0.05%",
+                      "2026-05-15",
+                      "14:30:00",
+                      "ICO: 12345678",
+                      "CZ1234567890",
+                    ].map((sample) => (
+                      <tr key={sample} className="border-b last:border-0">
+                        <td className="py-2.5 pr-6 text-xs text-muted-foreground">
+                          {sample.length > 16
+                            ? sample.slice(0, 16) + "..."
+                            : sample}
+                        </td>
+                        <td className="py-2.5 pr-6 font-sans">{sample}</td>
+                        <td className="py-2.5 pr-6 font-heading">{sample}</td>
+                        <td className="py-2.5 font-mono">{sample}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Large Numbers (Dashboard KPIs)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 md:grid-cols-3">
+                <div className="space-y-1">
+                  <Text variant="overline">Revenue (body font)</Text>
+                  <p className="font-sans text-3xl font-bold tracking-tight">
+                    1 250 000 Kc
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Text variant="overline">Revenue (heading font)</Text>
+                  <p className="font-heading text-3xl font-bold tracking-tight">
+                    1 250 000 Kc
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Text variant="overline">Revenue (mono font)</Text>
+                  <p className="font-mono text-3xl font-bold tracking-tight">
+                    1 250 000 Kc
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Tabular Numbers</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Text variant="muted" className="mb-4">
+                Numbers that should align vertically in tables. Compare
+                proportional vs monospace rendering.
+              </Text>
+              <div className="grid gap-8 md:grid-cols-3">
+                <div>
+                  <Text variant="overline">Geist (body)</Text>
+                  <div className="mt-2 space-y-0.5 font-sans text-sm tabular-nums">
+                    <p className="text-right">1,234.56</p>
+                    <p className="text-right">789.00</p>
+                    <p className="text-right">12,345,678.90</p>
+                    <p className="text-right">0.01</p>
+                    <p className="border-t pt-0.5 text-right font-semibold">
+                      12,347,702.47
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <Text variant="overline">Roobert (heading)</Text>
+                  <div className="mt-2 space-y-0.5 font-heading text-sm tabular-nums">
+                    <p className="text-right">1,234.56</p>
+                    <p className="text-right">789.00</p>
+                    <p className="text-right">12,345,678.90</p>
+                    <p className="text-right">0.01</p>
+                    <p className="border-t pt-0.5 text-right font-semibold">
+                      12,347,702.47
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <Text variant="overline">Roobert Mono</Text>
+                  <div className="mt-2 space-y-0.5 font-mono text-sm">
+                    <p className="text-right">1,234.56</p>
+                    <p className="text-right">789.00</p>
+                    <p className="text-right">12,345,678.90</p>
+                    <p className="text-right">0.01</p>
+                    <p className="border-t pt-0.5 text-right font-semibold">
+                      12,347,702.47
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Weight Variants with Numbers</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-8 md:grid-cols-3">
+                <div>
+                  <Text variant="overline">Geist (body)</Text>
+                  <div className="mt-2 space-y-1 font-sans">
+                    <p className="font-light">300: 1,250,000.00 Kc</p>
+                    <p className="font-normal">400: 1,250,000.00 Kc</p>
+                    <p className="font-medium">500: 1,250,000.00 Kc</p>
+                    <p className="font-semibold">600: 1,250,000.00 Kc</p>
+                    <p className="font-bold">700: 1,250,000.00 Kc</p>
+                    <p className="font-extrabold">800: 1,250,000.00 Kc</p>
+                  </div>
+                </div>
+                <div>
+                  <Text variant="overline">Roobert (heading)</Text>
+                  <div className="mt-2 space-y-1 font-heading">
+                    <p className="font-light">300: 1,250,000.00 Kc</p>
+                    <p className="font-normal">400: 1,250,000.00 Kc</p>
+                    <p className="font-medium">500: 1,250,000.00 Kc</p>
+                    <p className="font-semibold">600: 1,250,000.00 Kc</p>
+                    <p className="font-bold">700: 1,250,000.00 Kc</p>
+                    <p className="font-extrabold">800: 1,250,000.00 Kc</p>
+                  </div>
+                </div>
+                <div>
+                  <Text variant="overline">Roobert Mono</Text>
+                  <div className="mt-2 space-y-1 font-mono">
+                    <p className="font-light">300: 1,250,000.00 Kc</p>
+                    <p className="font-normal">400: 1,250,000.00 Kc</p>
+                    <p className="font-medium">500: 1,250,000.00 Kc</p>
+                    <p className="font-semibold">600: 1,250,000.00 Kc</p>
+                    <p className="font-bold">700: 1,250,000.00 Kc</p>
+                    <p className="font-extrabold">800: 1,250,000.00 Kc</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Real-World Accounting Examples</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="pr-4 pb-2 font-medium text-muted-foreground">
+                        Invoice
+                      </th>
+                      <th className="pr-4 pb-2 font-medium text-muted-foreground">
+                        Client
+                      </th>
+                      <th className="pr-4 pb-2 text-right font-medium text-muted-foreground">
+                        Amount
+                      </th>
+                      <th className="pr-4 pb-2 text-right font-medium text-muted-foreground">
+                        VAT 21%
+                      </th>
+                      <th className="pb-2 text-right font-medium text-muted-foreground">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono tabular-nums">
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-sans">FV-2026-0042</td>
+                      <td className="py-2 pr-4 font-sans">HAPD s.r.o.</td>
+                      <td className="py-2 pr-4 text-right">45 000,00</td>
+                      <td className="py-2 pr-4 text-right">9 450,00</td>
+                      <td className="py-2 text-right font-semibold">
+                        54 450,00
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-sans">FV-2026-0043</td>
+                      <td className="py-2 pr-4 font-sans">Rotary Club Praha</td>
+                      <td className="py-2 pr-4 text-right">12 500,00</td>
+                      <td className="py-2 pr-4 text-right">2 625,00</td>
+                      <td className="py-2 text-right font-semibold">
+                        15 125,00
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-sans">FV-2026-0044</td>
+                      <td className="py-2 pr-4 font-sans">Henderson Profese</td>
+                      <td className="py-2 pr-4 text-right">187 320,00</td>
+                      <td className="py-2 pr-4 text-right">39 337,20</td>
+                      <td className="py-2 text-right font-semibold">
+                        226 657,20
+                      </td>
+                    </tr>
+                    <tr>
+                      <td
+                        colSpan={2}
+                        className="py-2 pr-4 font-sans font-semibold"
+                      >
+                        Total
+                      </td>
+                      <td className="py-2 pr-4 text-right font-semibold">
+                        244 820,00
+                      </td>
+                      <td className="py-2 pr-4 text-right font-semibold">
+                        51 412,20
+                      </td>
+                      <td className="py-2 text-right font-bold">296 232,20</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <Text variant="caption" className="mt-3">
+                Invoice numbers and client names in body font (Geist), amounts
+                in mono font (Roobert Mono) with tabular-nums for column
+                alignment.
+              </Text>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <Separator className="mb-16" />
+
       {/* ==================== ICONS ==================== */}
       <section className="mb-16">
         <h2 className="mb-6">Icons</h2>

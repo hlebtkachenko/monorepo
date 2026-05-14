@@ -1,0 +1,66 @@
+# Compiles Cerbos policies and runs the .cerbos-tests assertion suite.
+#
+# Triggers on PRs that touch infra/cerbos/** to catch policy regressions
+# before they land in main and affect the Docker build.
+#
+# Advisory until first green PR cycle (see CLAUDE.md CI policy).
+# Flip to required in branch protection after first green run.
+
+name: Cerbos policies test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/cerbos/**"
+      - ".github/workflows/cerbos-policies-test.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/cerbos/**"
+
+permissions: {}
+
+concurrency:
+  group: cerbos-policies-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compile-and-test:
+    name: Compile policies + run assertions
+    runs-on: ubuntu-latest
+    continue-on-error: true  # ADVISORY — flip after first green run
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download Cerbos CLI
+        env:
+          CERBOS_VERSION: "0.53.0"
+          # SHA256 for cerbos_0.53.0_Linux_x86_64.tar.gz
+          # Source: https://github.com/cerbos/cerbos/releases/download/v0.53.0/checksums.txt
+          CERBOS_SHA256: "56427176bd2e5e676097f9a08743ed211e7c0123af1e71a48f94d497e3c9e131"
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            "https://github.com/cerbos/cerbos/releases/download/v${CERBOS_VERSION}/cerbos_${CERBOS_VERSION}_Linux_x86_64.tar.gz" \
+            -o /tmp/cerbos.tgz
+          echo "${CERBOS_SHA256}  /tmp/cerbos.tgz" | sha256sum -c
+          sudo tar -xz -C /usr/local/bin cerbos -f /tmp/cerbos.tgz
+          rm /tmp/cerbos.tgz
+          # cerbos v0.53.0 removed the `version` subcommand; use --version flag.
+          cerbos --version
+
+      - name: Compile policies and run test assertions
+        run: |
+          set -euo pipefail
+          cerbos compile \
+            --tests infra/cerbos/.cerbos-tests \
+            infra/cerbos/policies

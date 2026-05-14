@@ -1,0 +1,49 @@
+# Resource policy for journal entries.
+#
+# Journal entries are IMMUTABLE once posted — this is an accounting invariant.
+# There is NO delete action in this policy (omitting it = default deny).
+#
+# Actions: view, edit
+#
+# Rules:
+#   view   — any org member (member, admin, owner) or workspace admin
+#   edit   — org member + workspace admin; ONLY if entry is NOT yet posted
+#
+# Agents follow principal policy (can view + edit) but are further constrained
+# here by the posted-check condition.
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: journal_entry
+  version: default
+  variables:
+    import:
+      - conditions
+  rules:
+    # VIEW: all authenticated principals in the org, including agents.
+    # See invoice.yaml — agent role required for principal+resource AND match.
+    - actions: [view]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - org_guest
+        - agent
+        - workspace_admin
+
+    # EDIT: allowed only when entry has NOT been posted.
+    # Once posted, the journal entry is immutable — no further edits.
+    - actions: [edit]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - agent
+        - workspace_admin
+      condition:
+        match:
+          none:
+            of:
+              - expr: V.is_posted

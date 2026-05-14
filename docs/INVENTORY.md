@@ -34,6 +34,10 @@ Audit trail of changes: git history of this file.
 | LAMBDA-ROT-PRD | secret rotation | Lambda | `<TBD>` | High | Internal | Tier 2 | AWS | `<TBD>` |
 | LAMBDA-KILLSWITCH | cost kill-switch (SecurityStack) | Lambda | Hleb | High | Internal | Tier 2 | AWS | `<TBD>` |
 | LAMBDA-RDSWATCH | RDS auto-restart watcher (SecurityStack) | Lambda | Hleb | Medium | Internal | Tier 3 | AWS | `<TBD>` |
+| ECS-PGBOUNCER-SC | pgBouncer sidecar (api task) | ECS Fargate container | Hleb | High | Customer + Financial | Tier 1 | AWS | `<TBD>` |
+| ECS-CERBOS-SC | Cerbos PDP sidecar (api task, L3 authz) | ECS Fargate container | Hleb | High | Internal | Tier 1 | AWS | `<TBD>` |
+| ECS-OPENFGA-SC | OpenFGA sidecar (api task, L2 authz) | ECS Fargate container | Hleb | High | Customer | Tier 1 | AWS | `<TBD>` |
+| ECS-BACKUP-TASK | nightly backup scheduled task | ECS Fargate Spot | Hleb | High | Customer + Financial | Tier 1 | AWS | `<TBD>` |
 
 ## 3. Data stores
 
@@ -47,6 +51,9 @@ Audit trail of changes: git history of this file.
 | SECRETS-PRD | runtime secrets | Secrets Manager | `<TBD>` | Critical | Customer + Financial | Tier 1 | AWS | `<TBD>` |
 | CT-MGMT | CloudTrail management-events trail | CloudTrail | Hleb | High | Audit | Tier 2 | AWS | `<TBD>` |
 | BUDGETS-COST | 5 AWS Budgets (cost-runaway protection) | AWS Budgets | Hleb | High | Internal | Tier 2 | AWS | `<TBD>` |
+| SSM-OPENFGA-IDS | OpenFGA store-id + model-id (L2 authz) | SSM Parameter Store | Hleb | High | Internal | Tier 1 | AWS | `<TBD>` |
+| S3-BACKUPS | encrypted nightly backups (BackupStack) | S3 (versioned, IA/Glacier/DeepArchive lifecycle) | Hleb | Critical | Customer + Financial | Tier 1 | AWS | `<TBD>` |
+| RDS-OPENFGA-SCHEMA | openfga schema in primary RDS (ReBAC graph) | RDS Postgres schema | Hleb | High | Customer | Tier 1 | AWS | `<TBD>` |
 
 ## 4. Networking
 

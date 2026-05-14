@@ -31,7 +31,7 @@ services:
       start_period: 10s
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    image: edoburu/pgbouncer:v1.25.1-p0
     restart: unless-stopped
     depends_on:
       postgres:
@@ -56,8 +56,53 @@ services:
       retries: 10
       start_period: 5s
 
+  cerbos:
+    # L3 of three-layer authz (ADR-0018). Upstream image, policies + config
+    # bind-mounted from the repo so edits hot-reload via the shared
+    # cerbos-config.yaml's storage.disk.watchForChanges:true. The same flag
+    # is harmless in prod where /policies is baked into a content-hashed
+    # image (no writes inside the running container).
+    image: ghcr.io/cerbos/cerbos:0.53.0
+    restart: unless-stopped
+    profiles:
+      - auth
+    command: ["server", "--config=/etc/cerbos/config.yaml"]
+    volumes:
+      - ../cerbos/policies:/policies:ro
+      - ../cerbos/config/cerbos-config.yaml:/etc/cerbos/config.yaml:ro
+    ports:
+      - "3592:3592"  # HTTP (admin + healthcheck)
+      - "3593:3593"  # gRPC (api calls this)
+    environment:
+      CERBOS_NO_TELEMETRY: "1"
+    healthcheck:
+      test: ["CMD", "/cerbos", "healthcheck", "--insecure"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  pg_exporter:
+    # Prometheus exporter for Postgres metrics + custom pg-boss / outbox
+    # queue gauges (queries.yaml). Opt-in via the `observability` profile.
+    image: prometheuscommunity/postgres-exporter:v0.18.1
+    restart: unless-stopped
+    profiles:
+      - observability
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATA_SOURCE_NAME: "postgresql://app_owner:dev_owner@postgres:5432/app_dev?sslmode=disable"
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/pg_exporter/queries.yaml
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "false"
+    volumes:
+      - ./pg_exporter/queries.yaml:/etc/pg_exporter/queries.yaml:ro
+    ports:
+      - "9187:9187"
+
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.30.0
     restart: unless-stopped
     profiles:
       - mailpit

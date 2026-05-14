@@ -1,0 +1,177 @@
+# OpenFGA assertion suite: AI principal (agent) action gates
+# Verifies agent semantics per ADR-0018:
+#   - agent has can_view on all org resources
+#   - agent has can_edit on standard resources (account, invoice, counterparty, etc.)
+#   - agent does NOT have can_delete anywhere
+#   - agent does NOT have can_edit on vat_rate / numerical_series (requires can_administer)
+#   - agent does NOT have can_administer at org level
+#   - agent does NOT have can_manage_members
+#   - agent does NOT have any workspace-level permissions
+# Run: fga model test --tests infra/openfga/tests/03-agent-action-gates.fga.yaml
+name: agent-action-gates
+
+model_file: ../model.fga
+
+tuples:
+  # Workspace
+  - user: user:ws-owner
+    relation: owner
+    object: workspace:w1
+
+  # Org setup
+  - user: workspace:w1
+    relation: parent_workspace
+    object: organization:org1
+  - user: user:org-admin
+    relation: admin
+    object: organization:org1
+
+  # Agent is a member of org1 via the agent relation
+  - user: agent:ai-service
+    relation: agent
+    object: organization:org1
+
+  # Resources parented to org1
+  - user: organization:org1
+    relation: parent_organization
+    object: account:acc1
+  - user: organization:org1
+    relation: parent_organization
+    object: invoice:inv1
+  - user: organization:org1
+    relation: parent_organization
+    object: journal_entry:je1
+  - user: organization:org1
+    relation: parent_organization
+    object: ledger_entry:le1
+  - user: organization:org1
+    relation: parent_organization
+    object: counterparty:cp1
+  - user: organization:org1
+    relation: parent_organization
+    object: bank_account:ba1
+  - user: organization:org1
+    relation: parent_organization
+    object: vat_rate:vr1
+  - user: organization:org1
+    relation: parent_organization
+    object: numerical_series:ns1
+  - user: organization:org1
+    relation: parent_organization
+    object: project:proj1
+  - user: organization:org1
+    relation: parent_organization
+    object: file:file1
+
+tests:
+  - name: agent — org-level permissions (view+edit, NOT delete/administer/manage)
+    check:
+      - user: agent:ai-service
+        object: organization:org1
+        assertions:
+          can_view_dashboard: true
+          can_view: true
+          can_edit: true
+          can_delete: false
+          can_administer: false
+          can_manage_members: false
+
+  - name: agent — workspace-level permissions are NONE
+    check:
+      - user: agent:ai-service
+        object: workspace:w1
+        assertions:
+          can_view_dashboard: false
+          can_administer: false
+          can_manage_members: false
+          can_create_organization: false
+
+  - name: agent — account (view+edit, NOT delete)
+    check:
+      - user: agent:ai-service
+        object: account:acc1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+
+  - name: agent — invoice (view+edit NOT delete; NOT can_share which requires can_administer)
+    check:
+      - user: agent:ai-service
+        object: invoice:inv1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+          can_share: false
+
+  - name: agent — journal_entry (view+edit; model has no can_delete)
+    check:
+      - user: agent:ai-service
+        object: journal_entry:je1
+        assertions:
+          can_view: true
+          can_edit: true
+
+  - name: agent — ledger_entry (view+edit; model has no can_delete)
+    check:
+      - user: agent:ai-service
+        object: ledger_entry:le1
+        assertions:
+          can_view: true
+          can_edit: true
+
+  - name: agent — counterparty (view+edit, NOT delete)
+    check:
+      - user: agent:ai-service
+        object: counterparty:cp1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+
+  - name: agent — bank_account (view+edit, NOT delete)
+    check:
+      - user: agent:ai-service
+        object: bank_account:ba1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+
+  - name: agent — vat_rate (view only; can_edit requires can_administer which agent lacks)
+    check:
+      - user: agent:ai-service
+        object: vat_rate:vr1
+        assertions:
+          can_view: true
+          can_edit: false
+          can_delete: false
+
+  - name: agent — numerical_series (view only; can_edit requires can_administer which agent lacks)
+    check:
+      - user: agent:ai-service
+        object: numerical_series:ns1
+        assertions:
+          can_view: true
+          can_edit: false
+          can_delete: false
+
+  - name: agent — project (view+edit, NOT delete)
+    check:
+      - user: agent:ai-service
+        object: project:proj1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+
+  - name: agent — file (view+edit NOT delete; NOT can_share which requires can_administer)
+    check:
+      - user: agent:ai-service
+        object: file:file1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+          can_share: false

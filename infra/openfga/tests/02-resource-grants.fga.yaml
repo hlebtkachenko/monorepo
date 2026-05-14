@@ -1,0 +1,271 @@
+# OpenFGA assertion suite: resource grants matrix
+# All 10 resource types x org roles x actions (30+ assertions).
+# Special rules:
+#   - journal_entry + ledger_entry have NO can_delete (immutability at model layer)
+#   - vat_rate + numerical_series can_edit requires can_administer (admin+ only)
+#   - workspace admin cascade: view+edit NOT delete; NOT can_edit on admin-only resources
+# Run: fga model test --tests infra/openfga/tests/02-resource-grants.fga.yaml
+name: resource-grants
+
+model_file: ../model.fga
+
+tuples:
+  # Workspace + cascade setup
+  - user: user:ws-admin
+    relation: admin
+    object: workspace:w1
+  - user: workspace:w1
+    relation: parent_workspace
+    object: organization:org1
+
+  # Org1 roles
+  - user: user:org-owner
+    relation: owner
+    object: organization:org1
+  - user: user:org-admin
+    relation: admin
+    object: organization:org1
+  - user: user:org-member
+    relation: member
+    object: organization:org1
+  - user: user:org-guest
+    relation: guest
+    object: organization:org1
+  - user: agent:ai1
+    relation: agent
+    object: organization:org1
+
+  # Resources parented to org1
+  - user: organization:org1
+    relation: parent_organization
+    object: account:acc1
+  - user: organization:org1
+    relation: parent_organization
+    object: journal_entry:je1
+  - user: organization:org1
+    relation: parent_organization
+    object: ledger_entry:le1
+  - user: organization:org1
+    relation: parent_organization
+    object: invoice:inv1
+  - user: organization:org1
+    relation: parent_organization
+    object: counterparty:cp1
+  - user: organization:org1
+    relation: parent_organization
+    object: bank_account:ba1
+  - user: organization:org1
+    relation: parent_organization
+    object: vat_rate:vr1
+  - user: organization:org1
+    relation: parent_organization
+    object: numerical_series:ns1
+  - user: organization:org1
+    relation: parent_organization
+    object: project:proj1
+  - user: organization:org1
+    relation: parent_organization
+    object: file:file1
+
+  # Project-specific ad-hoc roles
+  - user: user:proj-lead
+    relation: lead
+    object: project:proj1
+  - user: user:proj-collab
+    relation: collaborator
+    object: project:proj1
+
+tests:
+  - name: account — admin has full access, member can view+edit not delete
+    check:
+      - user: user:org-admin
+        object: account:acc1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: true
+      - user: user:org-member
+        object: account:acc1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+      - user: user:org-guest
+        object: account:acc1
+        assertions:
+          can_view: false
+
+  - name: journal_entry — view+edit allowed, NO can_delete at model layer
+    check:
+      - user: user:org-admin
+        object: journal_entry:je1
+        assertions:
+          can_view: true
+          can_edit: true
+      - user: user:org-member
+        object: journal_entry:je1
+        assertions:
+          can_view: true
+          can_edit: true
+      - user: user:org-guest
+        object: journal_entry:je1
+        assertions:
+          can_view: false
+
+  - name: ledger_entry — view+edit allowed, NO can_delete at model layer
+    check:
+      - user: user:org-admin
+        object: ledger_entry:le1
+        assertions:
+          can_view: true
+          can_edit: true
+      - user: user:org-member
+        object: ledger_entry:le1
+        assertions:
+          can_view: true
+          can_edit: true
+      - user: user:org-guest
+        object: ledger_entry:le1
+        assertions:
+          can_view: false
+
+  - name: invoice — admin has full access + can_share, member cannot delete or share
+    check:
+      - user: user:org-admin
+        object: invoice:inv1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: true
+          can_share: true
+      - user: user:org-member
+        object: invoice:inv1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+          can_share: false
+
+  - name: counterparty — standard member access, admin can delete
+    check:
+      - user: user:org-member
+        object: counterparty:cp1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+      - user: user:org-admin
+        object: counterparty:cp1
+        assertions:
+          can_delete: true
+
+  - name: bank_account — standard member access, admin can delete
+    check:
+      - user: user:org-member
+        object: bank_account:ba1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+      - user: user:org-admin
+        object: bank_account:ba1
+        assertions:
+          can_delete: true
+
+  - name: vat_rate — member can view, can_edit requires admin (can_administer gate)
+    check:
+      - user: user:org-member
+        object: vat_rate:vr1
+        assertions:
+          can_view: true
+          can_edit: false
+          can_delete: false
+      - user: user:org-admin
+        object: vat_rate:vr1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: true
+
+  - name: numerical_series — member can view, can_edit requires admin (can_administer gate)
+    check:
+      - user: user:org-member
+        object: numerical_series:ns1
+        assertions:
+          can_view: true
+          can_edit: false
+      - user: user:org-admin
+        object: numerical_series:ns1
+        assertions:
+          can_view: true
+          can_edit: true
+
+  - name: project — member + lead + collaborator semantics
+    check:
+      - user: user:org-member
+        object: project:proj1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+      - user: user:proj-lead
+        object: project:proj1
+        assertions:
+          can_edit: true
+          can_manage: true
+      - user: user:proj-collab
+        object: project:proj1
+        assertions:
+          can_view: true
+      - user: user:org-admin
+        object: project:proj1
+        assertions:
+          can_delete: true
+          can_manage: true
+
+  - name: file — admin has full access + can_share, member cannot delete or share
+    check:
+      - user: user:org-admin
+        object: file:file1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: true
+          can_share: true
+      - user: user:org-member
+        object: file:file1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+          can_share: false
+
+  - name: workspace-admin cascade — view+edit but NOT delete; NOT can_edit on admin-only resources
+    check:
+      - user: user:ws-admin
+        object: account:acc1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+      - user: user:ws-admin
+        object: vat_rate:vr1
+        assertions:
+          can_view: true
+          # can_edit on vat_rate requires can_administer, which is NOT inherited by ws-admin.
+          # can_administer requires explicit org admin role; ws-admin cascade only grants can_view + can_edit.
+          # vat_rate.can_edit = can_administer from parent_organization, so ws-admin is denied here.
+          can_edit: false
+          can_delete: false
+
+  - name: complete stranger has no access to any resource
+    check:
+      - user: user:stranger
+        object: invoice:inv1
+        assertions:
+          can_view: false
+          can_edit: false
+      - user: user:stranger
+        object: account:acc1
+        assertions:
+          can_view: false

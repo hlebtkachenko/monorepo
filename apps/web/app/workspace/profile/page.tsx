@@ -15,7 +15,7 @@ export default async function ProfilePage() {
   }
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-12">
-      <h1 className="text-2xl font-semibold">Your profile</h1>
+      <h1>Your profile</h1>
       <dl className="text-sm">
         <div className="flex gap-4 py-1">
           <dt className="w-24 text-muted-foreground">Name</dt>
@@ -27,7 +27,7 @@ export default async function ProfilePage() {
         </div>
       </dl>
       <div className="space-y-2 pt-2">
-        <h2 className="text-base font-medium">Two-factor authentication</h2>
+        <h3>Two-factor authentication</h3>
         <p className="text-sm text-muted-foreground">
           {session.user.twoFactorEnabled
             ? "Two-factor is enabled on this account."

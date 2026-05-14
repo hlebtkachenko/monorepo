@@ -39,7 +39,7 @@ Hard dependencies that can degrade or fail us: GitHub (CI, code, packages), npm 
 ## On-call rota (solo dev caveat)
 
 Today: solo dev. AWS Incident Manager response plan with single contact + free notification fan-out.
-- Primary contact: Hleb. Channels: email (`<TBD>` work address) + ntfy.sh topic `windhoek-incidents-<TBD>` for iOS push.
+- Primary contact: Hleb. Channels: email (`<TBD>` work address) + ntfy.sh topic `monorepo-incidents-<TBD>` for iOS push.
 - ntfy.sh is OSS; default to public ntfy.sh (free) or self-host on the OVH VPS for full control.
 - Escalation: email to break-glass contact (in 1Password vault `aws-bootstrap`).
 - No paid pager service today (no PagerDuty / OpsGenie / Splunk On-Call). Revisit when team >= 2.

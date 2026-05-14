@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronDownIcon } from "lucide-react"
+import { ChevronDownIcon } from "@workspace/ui/lib/icons"
 import { Slot as SlotPrimitive } from "radix-ui"
 
 import { Button } from "@workspace/ui/components/button"

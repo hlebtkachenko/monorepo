@@ -7,7 +7,12 @@ import {
   ark,
   useFloatingPanelContext,
 } from "@ark-ui/react"
-import { Maximize, MaximizeIcon, MinimizeIcon, MinusIcon } from "lucide-react"
+import {
+  Maximize,
+  MaximizeIcon,
+  MinimizeIcon,
+  MinusIcon,
+} from "@workspace/ui/lib/icons"
 
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"

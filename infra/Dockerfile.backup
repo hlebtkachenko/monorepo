@@ -1,0 +1,43 @@
+# Backup utility image used by the ECS Scheduled Task in BackupStack.
+#
+# Contains exactly what infra/scripts/pg-dump-nightly.sh + wal-archive.sh +
+# restore-drill.sh need: postgres-client (pg_dump, pg_dumpall, psql,
+# pg_restore), aws-cli (for s3 cp), zstd (compression), bash, jq.
+#
+# Pinned per ADR-0015 (no :latest). Bumped via Dependabot docker ecosystem.
+FROM postgres:18-alpine
+
+# aws-cli on alpine ships via apk's "aws-cli" package (v2 since alpine 3.20).
+# jq is used by future per-org filtering helpers; tiny and worth pre-installing.
+RUN apk add --no-cache \
+    bash \
+    zstd \
+    aws-cli \
+    jq \
+    ca-certificates \
+  && rm -rf /var/cache/apk/*
+
+# Scripts are baked in so the scheduled task does not need to fetch them at
+# runtime. The CI build context is the repo root (see BackupStack Docker
+# image asset).
+COPY infra/scripts/pg-dump-nightly.sh /usr/local/bin/pg-dump-nightly
+COPY infra/scripts/wal-archive.sh     /usr/local/bin/wal-archive
+COPY infra/scripts/restore-drill.sh   /usr/local/bin/restore-drill
+
+RUN chmod +x \
+    /usr/local/bin/pg-dump-nightly \
+    /usr/local/bin/wal-archive \
+    /usr/local/bin/restore-drill
+
+# Defense in depth: capDrop ALL + readonlyRootFilesystem at the task level
+# already block most attack paths, but running as a non-root UID
+# additionally protects from any escalation if a CVE in postgres-client
+# or aws-cli is later exploited. UID 65532 (Chainguard "nobody") is the
+# common non-zero default and doesn't collide with the postgres user the
+# upstream image creates.
+USER 65532:65532
+
+# Default to the nightly backup. The monthly drill workflow runs
+# restore-drill on the GHA runner (docker daemon available there);
+# Fargate distroless cannot exec a script that needs docker.
+ENTRYPOINT ["/usr/local/bin/pg-dump-nightly"]

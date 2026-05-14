@@ -65,7 +65,7 @@ export default async function WorkspaceChooserPage() {
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-12">
       <header className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Your workspaces</h1>
+          <h1>Your workspaces</h1>
           <p className="text-sm text-muted-foreground">
             Pick a workspace to enter, or open one of its organizations.
           </p>

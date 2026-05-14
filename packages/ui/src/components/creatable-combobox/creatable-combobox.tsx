@@ -5,7 +5,7 @@ import {
   Combobox as ComboboxPrimitive,
   type ComboboxRootChangeEventDetails,
 } from "@base-ui/react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon } from "@workspace/ui/lib/icons"
 
 import { cn } from "@workspace/ui/lib/utils"
 import { Combobox } from "@workspace/ui/components/combobox"

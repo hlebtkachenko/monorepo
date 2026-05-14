@@ -91,11 +91,11 @@ cat > /tmp/trust-staging.json <<JSON
 JSON
 
 aws iam create-role \
-  --role-name windhoek-deploy-staging \
+  --role-name monorepo-deploy-staging \
   --assume-role-policy-document file:///tmp/trust-staging.json
 
 aws iam attach-role-policy \
-  --role-name windhoek-deploy-staging \
+  --role-name monorepo-deploy-staging \
   --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 ```
 
@@ -105,8 +105,8 @@ Repeat the trust JSON + role for `production` (substitute `staging` → `product
 
 ```bash
 gh secret set AWS_ACCOUNT_ID --body "${AWS_ACCOUNT_ID}" --repo hlebtkachenko/monorepo
-gh secret set AWS_DEPLOY_ROLE_ARN_STAGING --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/windhoek-deploy-staging" --repo hlebtkachenko/monorepo
-gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/windhoek-deploy-production" --repo hlebtkachenko/monorepo
+gh secret set AWS_DEPLOY_ROLE_ARN_STAGING --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/monorepo-deploy-staging" --repo hlebtkachenko/monorepo
+gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/monorepo-deploy-production" --repo hlebtkachenko/monorepo
 
 gh variable set AWS_REGION --body eu-central-1 --repo hlebtkachenko/monorepo
 gh variable set APP_DOMAIN_STAGING --body staging.afframe.com --repo hlebtkachenko/monorepo
@@ -181,7 +181,7 @@ Until approved, SES is sandboxed (200/day to verified addresses only). Resend co
 Per env:
 
 1. In Cloudflare → Zero Trust → Access → Tunnels → Create a tunnel
-2. Name it `windhoek-staging` (then later `windhoek-production`)
+2. Name it `monorepo-staging` (then later `monorepo-production`)
 3. Cloudflare emits a connector token. Copy it.
 4. Store as repo secret:
    ```bash
@@ -190,7 +190,7 @@ Per env:
 5. In the tunnel's Public Hostnames tab, add:
    - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
    - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (leave blank for catch-all), **Service** `HTTP localhost:3000`
-6. Repeat for `windhoek-production` with `app.afframe.com`
+6. Repeat for `monorepo-production` with `app.afframe.com`
 
 The tunnel connector starts running inside the Fargate task on first deploy. Until then it'll show "inactive" in Cloudflare dashboard.
 
@@ -313,8 +313,8 @@ Both should return 200 with JSON.
 ## Monitoring after first deploy
 
 Watch for 24h:
-- **CloudWatch** → `/ecs/windhoek-staging/{web,api,cloudflared}` log groups for errors
-- **CloudWatch** → ECS Cluster `windhoek-staging` → task count steady at 1
+- **CloudWatch** → `/ecs/monorepo-staging/{web,api,cloudflared}` log groups for errors
+- **CloudWatch** → ECS Cluster `monorepo-staging` → task count steady at 1
 - **Cloudflare dashboard** → Zero Trust → Tunnels → connector status "Healthy"
 - **Cost Explorer** → AWS daily spend tracks against ~$1.50/day target
 
@@ -329,6 +329,165 @@ AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text) \
 APP_DOMAIN=staging.afframe.com \
 pnpm --filter @workspace/cdk exec cdk destroy App-staging --context env=staging
 ```
+
+## Follow-up: per-tenant role split (open design)
+
+Today the api + pgbouncer sidecar both authenticate against RDS using the
+RDS master credentials (`app_owner`). ADR-0010 specifies a separate
+`app_user` role for runtime queries, with FORCE RLS enforced through GUCs
+(`set_config('app.organization_id', ..., true)`). The role split is
+DEFERRED — and the implementation path is not trivial.
+
+The naive "just give api a different secret" sequence does NOT work
+because the edoburu/pgbouncer entrypoint generates `userlist.txt` from
+its OWN `DATABASE_URL` only. If api connects to pgbouncer as `app_user`
+while pgbouncer's own URL is `app_owner`, the SCRAM front-end auth fails
+with `password authentication failed for user "app_user"`.
+
+Three viable patterns to investigate before implementation:
+
+1. **`AUTH_USER` + `AUTH_QUERY`**: pgbouncer authenticates clients by
+   querying RDS for the SCRAM secret on demand. Requires an extra grant
+   on `pg_shadow`/`pg_authid` plus a custom auth query. Most flexible.
+2. **`DATABASE_URLS=` comma-separated**: pass both
+   `postgres://app_owner:...@...` AND `postgres://app_user:...@...` to
+   pgbouncer's entrypoint. The image's `parse_url` loop populates
+   `userlist.txt` with both credentials. Simplest if both passwords are
+   available as secrets at task start.
+3. **Rebake pgbouncer image**: drop edoburu, ship our own image with a
+   custom entrypoint that materialises a multi-user `userlist.txt` from
+   a SCRAM verifier file copied at build time.
+
+Before flipping the api secret reference, decide which pattern fits and
+update this section with the concrete CDK + secrets layout.
+
+Other deferred dependencies:
+- bootstrap chain runs as `app_owner` (CREATE SCHEMA openfga, openfga
+  migrate, drizzle migrate). That continues to use the master credential
+  regardless of which pattern wins.
+- Worker pg-boss queue needs DIRECT (port 5432) RDS access for advisory
+  locks + LISTEN/NOTIFY — it bypasses pgbouncer entirely, so it can use
+  a third secret if needed.
+
+## Bootstrap chain: schemas + openfga model (manual one-time)
+
+Before the first `cdk deploy App-{env}` lands real app containers, the operator
+must seed three things in the freshly-created RDS instance: the `openfga`
+schema, the OpenFGA migration history, and the OpenFGA store + authorization
+model. The `app` schema for application tables (drizzle migrations) is the
+fourth step. All four run as `app_owner` (the RDS master credential) via a
+temporary bastion / port-forward — there is no in-cluster bootstrap task yet
+(see "Drizzle migration ECS task" in deferred work below).
+
+This chain ships once per env. Re-runs are safe but produce a fresh
+`authorization_model_id` and SSM-write it (per `infra/openfga/README.md`).
+
+### 1. Open a tunnel to RDS
+
+The RDS instance is in private subnets. The simplest path is a SSM Session
+Manager tunnel through any task in the cluster, or an SSH bastion. Either way
+the operator ends with a local port forward to `5432` on RDS:
+
+```bash
+# Substitute the actual RDS endpoint + a free local port.
+aws rds describe-db-instances \
+  --db-instance-identifier monorepo-{env} \
+  --query 'DBInstances[0].Endpoint.Address' --output text
+# → e.g. monorepo-staging.xxxx.eu-central-1.rds.amazonaws.com
+
+# Open a forward. Operator picks transport (SSM, SSH bastion, EC2 tunnel).
+# Forward localhost:55432 → <rds-endpoint>:5432.
+```
+
+Fetch the `app_owner` password from Secrets Manager:
+
+```bash
+DB_PASSWORD=$(aws secretsmanager get-secret-value \
+  --secret-id /monorepo/{env}/rds/master \
+  --query SecretString --output text | jq -r .password)
+```
+
+### 2. Create the `openfga` schema
+
+```bash
+psql "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
+  -c 'CREATE SCHEMA IF NOT EXISTS openfga AUTHORIZATION app_owner;'
+```
+
+Idempotent — safe to re-run.
+
+### 3. Run `openfga migrate`
+
+```bash
+docker run --rm --network host \
+  openfga/openfga:v1.15.1 \
+  migrate \
+    --datastore-engine postgres \
+    --datastore-uri "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga"
+```
+
+Pin the OpenFGA image to the SAME tag deployed in the task definition
+(`infra/cdk/lib/app-stack.ts` — currently `v1.15.1`) so the schema version
+matches what the running server will expect.
+
+### 4. Boot a TEMPORARY OpenFGA server + run bootstrap.mjs
+
+This step MUST happen BEFORE the first `cdk deploy App-{env}`. CDK references
+SSM parameters `/monorepo/{env}/openfga/{store-id,model-id}` via
+`StringParameter.fromStringParameterName`, which resolves at deploy time —
+if the parameters do not exist, the deploy fails. There is no chicken-and-egg
+in the chain because we boot OpenFGA LOCALLY in docker (still pointed at the
+real RDS via the same port-forward) just long enough to populate the store
+and write SSM.
+
+```bash
+# Boot a throwaway OpenFGA server pointing at the migrated RDS schema.
+# Background; we'll stop it after bootstrap.mjs returns.
+docker run --rm -d --name openfga-bootstrap --network host \
+  -e OPENFGA_DATASTORE_ENGINE=postgres \
+  -e OPENFGA_DATASTORE_URI="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga&sslmode=disable" \
+  -e OPENFGA_HTTP_ADDR="127.0.0.1:8080" \
+  openfga/openfga:v1.15.1 run
+
+# Wait for /healthz to come up (grpc_health_probe ships in the image).
+docker exec openfga-bootstrap /usr/local/bin/grpc_health_probe -addr=127.0.0.1:8081
+
+# Populate SSM (creates the store, writes the auth model, sets
+# /monorepo/{env}/openfga/store-id + model-id under your AWS profile).
+AWS_REGION=eu-central-1 \
+OPENFGA_API_URL=http://localhost:8080 \
+node infra/openfga/bootstrap.mjs --env {env}
+
+docker stop openfga-bootstrap
+```
+
+`bootstrap.mjs` is idempotent: it looks up the store by name and reuses it.
+Each run writes a fresh authorization model and overwrites the SSM parameter
+`/monorepo/{env}/openfga/model-id`. The api container reads this parameter at
+boot, so a deploy following a bootstrap re-run picks up the new model ID
+automatically.
+
+### 5. Run schema migrations for the `app` schema
+
+The application tables (organizations, users, audit log, etc.) live in the
+`app` schema and are managed by drizzle. Until the in-cluster migration ECS
+task ships, this runs through the same tunnel:
+
+```bash
+DATABASE_URL="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
+pnpm db:migrate
+```
+
+The `pnpm db:migrate` script lives in `packages/db` and applies all pending
+drizzle migrations under `packages/db/migrations/`. Re-running against an
+already-current database is a no-op. Once `packages/db/src/migrate.ts` plus
+the migration ECS task land, this manual step folds into the CDK pipeline.
+
+### 6. Tear down the tunnel
+
+Close the port forward / SSH session. Subsequent app deploys read RDS through
+the task-local pgBouncer sidecar as designed — the operator credentials are
+no longer required at runtime.
 
 ## What this runbook deliberately does NOT cover
 

@@ -7,7 +7,7 @@ import {
   ChevronUp,
   Copy,
   RefreshCw,
-} from "lucide-react"
+} from "@workspace/ui/lib/icons"
 
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"

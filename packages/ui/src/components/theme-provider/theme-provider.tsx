@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
+import { COLOR_THEMES } from "@workspace/ui/lib/theme"
 
 function ThemeProvider({
   children,
@@ -15,10 +16,21 @@ function ThemeProvider({
       disableTransitionOnChange
       {...props}
     >
+      <ColorThemeRestorer />
       <ThemeHotkey />
       {children}
     </NextThemesProvider>
   )
+}
+
+function ColorThemeRestorer() {
+  React.useEffect(() => {
+    const saved = localStorage.getItem("color-theme") ?? ""
+    if (!saved) return
+    const match = COLOR_THEMES.find((t) => t.value === saved)
+    if (match?.cssClass) document.documentElement.classList.add(match.cssClass)
+  }, [])
+  return null
 }
 
 function isTypingTarget(target: EventTarget | null) {
@@ -68,4 +80,4 @@ function ThemeHotkey() {
   return null
 }
 
-export { ThemeProvider }
+export { ThemeProvider, ThemeHotkey }

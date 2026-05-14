@@ -1,0 +1,179 @@
+# Tests for the invoice resource policy.
+#
+# Verifies:
+#   - Locked invoice cannot be edited (even by admin)
+#   - Locked invoice cannot be deleted (even by admin)
+#   - Guest can only view (not edit/delete/share)
+#   - Org member can view and edit (unlocked)
+#   - Org admin can share
+#   - Org admin can delete (unlocked)
+#   - Org member cannot delete
+#   - Org member cannot share
+---
+name: Invoice resource policy tests
+description: Full coverage of invoice CRUD + locked state + role matrix
+principals:
+  admin-001:
+    id: admin-001
+    roles:
+      - org_admin
+  owner-001:
+    id: owner-001
+    roles:
+      - org_owner
+  member-001:
+    id: member-001
+    roles:
+      - org_member
+  guest-001:
+    id: guest-001
+    roles:
+      - org_guest
+resources:
+  inv-locked:
+    id: inv-locked
+    kind: invoice
+    attr:
+      locked: true
+  inv-001:
+    id: inv-001
+    kind: invoice
+    attr:
+      locked: false
+  inv-002:
+    id: inv-002
+    kind: invoice
+    attr:
+      locked: false
+tests:
+  - name: locked invoice cannot be edited by org admin
+    input:
+      principals: [admin-001]
+      resources: [inv-locked]
+      actions: [edit]
+    expected:
+      - principal: admin-001
+        resource: inv-locked
+        actions:
+          edit: EFFECT_DENY
+
+  - name: locked invoice cannot be deleted by org admin
+    input:
+      principals: [admin-001]
+      resources: [inv-locked]
+      actions: [delete]
+    expected:
+      - principal: admin-001
+        resource: inv-locked
+        actions:
+          delete: EFFECT_DENY
+
+  - name: locked invoice cannot be edited by org owner
+    input:
+      principals: [owner-001]
+      resources: [inv-locked]
+      actions: [edit]
+    expected:
+      - principal: owner-001
+        resource: inv-locked
+        actions:
+          edit: EFFECT_DENY
+
+  - name: guest can view invoice
+    input:
+      principals: [guest-001]
+      resources: [inv-001]
+      actions: [view]
+    expected:
+      - principal: guest-001
+        resource: inv-001
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: guest cannot edit invoice
+    input:
+      principals: [guest-001]
+      resources: [inv-001]
+      actions: [edit]
+    expected:
+      - principal: guest-001
+        resource: inv-001
+        actions:
+          edit: EFFECT_DENY
+
+  - name: guest cannot delete invoice
+    input:
+      principals: [guest-001]
+      resources: [inv-001]
+      actions: [delete]
+    expected:
+      - principal: guest-001
+        resource: inv-001
+        actions:
+          delete: EFFECT_DENY
+
+  - name: guest cannot share invoice
+    input:
+      principals: [guest-001]
+      resources: [inv-001]
+      actions: [share]
+    expected:
+      - principal: guest-001
+        resource: inv-001
+        actions:
+          share: EFFECT_DENY
+
+  - name: org member can edit unlocked invoice
+    input:
+      principals: [member-001]
+      resources: [inv-002]
+      actions: [edit]
+    expected:
+      - principal: member-001
+        resource: inv-002
+        actions:
+          edit: EFFECT_ALLOW
+
+  - name: org member cannot delete invoice
+    input:
+      principals: [member-001]
+      resources: [inv-002]
+      actions: [delete]
+    expected:
+      - principal: member-001
+        resource: inv-002
+        actions:
+          delete: EFFECT_DENY
+
+  - name: org member cannot share invoice
+    input:
+      principals: [member-001]
+      resources: [inv-002]
+      actions: [share]
+    expected:
+      - principal: member-001
+        resource: inv-002
+        actions:
+          share: EFFECT_DENY
+
+  - name: org admin can share invoice
+    input:
+      principals: [admin-001]
+      resources: [inv-002]
+      actions: [share]
+    expected:
+      - principal: admin-001
+        resource: inv-002
+        actions:
+          share: EFFECT_ALLOW
+
+  - name: org admin can delete unlocked invoice
+    input:
+      principals: [admin-001]
+      resources: [inv-002]
+      actions: [delete]
+    expected:
+      - principal: admin-001
+        resource: inv-002
+        actions:
+          delete: EFFECT_ALLOW

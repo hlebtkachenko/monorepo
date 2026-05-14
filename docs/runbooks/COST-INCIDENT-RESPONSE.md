@@ -6,13 +6,13 @@ See [ADR 0016](../adr/0016-cost-runaway-protection.md) for the defense layering 
 
 ## 1. Kill-switch fired (ECS service stopped)
 
-Symptoms: app returns 502 / no response, `aws ecs describe-services` shows `desiredCount: 0`, an email landed naming a `windhoek-*-critical` or attack-vector alarm.
+Symptoms: app returns 502 / no response, `aws ecs describe-services` shows `desiredCount: 0`, an email landed naming a `monorepo-*-critical` or attack-vector alarm.
 
 ### 1.1 Identify what fired
 
 ```bash
 ENV=staging  # or production
-aws logs tail /aws/lambda/windhoek-$ENV-cost-killswitch --since 1h --format short
+aws logs tail /aws/lambda/monorepo-$ENV-cost-killswitch --since 1h --format short
 ```
 
 The Lambda logs structured JSON: `event=service-stopped` lines name the alarm.
@@ -26,9 +26,9 @@ Inspect CloudWatch for the metric the alarm fires on:
 | Alarm | Metric | What to look at |
 |---|---|---|
 | `*-fargate-network-out-high` | `ECS/ContainerInsights NetworkTxBytes` | Who is the task talking to? Check VPC Flow Logs (if enabled) and Cloudflare Tunnel access logs |
-| `*-s3-put-rate-high` | `AWS/S3 PutRequests` | `aws s3 ls s3://windhoek-$ENV-app-* --recursive --human-readable --summarize` |
+| `*-s3-put-rate-high` | `AWS/S3 PutRequests` | `aws s3 ls s3://monorepo-$ENV-app-* --recursive --human-readable --summarize` |
 | `*-s3-bucket-size-high` | `AWS/S3 BucketSizeBytes` | Same as above; look for unexpected prefixes |
-| `*-cwlogs-ingest-high` | `AWS/Logs IncomingBytes` | `aws logs filter-log-events --log-group-name /ecs/windhoek-$ENV/<container> --start-time ...` |
+| `*-cwlogs-ingest-high` | `AWS/Logs IncomingBytes` | `aws logs filter-log-events --log-group-name /ecs/monorepo-$ENV/<container> --start-time ...` |
 | `*-fargate-cpu-critical` | `AWS/ECS CPUUtilization` | Crypto-miner? Inspect last container image; rebuild from known-good SHA |
 | `*-fargate-memory-critical` | `AWS/ECS MemoryUtilization` | Same |
 
@@ -36,12 +36,12 @@ Inspect CloudWatch for the metric the alarm fires on:
 
 ```bash
 aws ecs update-service \
-  --cluster windhoek-$ENV \
+  --cluster monorepo-$ENV \
   --service <service-name> \
   --desired-count 1
 ```
 
-(Get the service name from the most recent CloudFormation output or `aws ecs list-services --cluster windhoek-$ENV`.)
+(Get the service name from the most recent CloudFormation output or `aws ecs list-services --cluster monorepo-$ENV`.)
 
 The task takes ~2 min to come up. Watch the health check at the cloudflared domain.
 
@@ -51,12 +51,12 @@ Inspect AWS Console -> Billing -> Budgets. The breached budget will be > 100%. W
 
 ## 2. Budget exceeded (notification only, no auto-action)
 
-Symptoms: email named `windhoek-*-monthlytotal` (or another service line). Service still running because either the 100% threshold has not been crossed yet or the kill-switch failed.
+Symptoms: email named `monorepo-*-monthlytotal` (or another service line). Service still running because either the 100% threshold has not been crossed yet or the kill-switch failed.
 
 ### 2.1 Confirm whether ECS is still running
 
 ```bash
-aws ecs describe-services --cluster windhoek-$ENV --services <service-name> --query 'services[0].desiredCount'
+aws ecs describe-services --cluster monorepo-$ENV --services <service-name> --query 'services[0].desiredCount'
 ```
 
 If `1`, the 100% threshold has not yet been crossed. Wait or pre-empt by manually stopping (`update-service --desired-count 0`).
@@ -73,7 +73,7 @@ AWS Console -> Cost Explorer -> Group by Service -> filter to current month -> s
 
 ## 3. RDS auto-restart watcher fired
 
-Symptoms: an email or CloudWatch Logs entry from `/aws/lambda/windhoek-$ENV-rds-restart-watcher` showing `event=db-stopped`.
+Symptoms: an email or CloudWatch Logs entry from `/aws/lambda/monorepo-$ENV-rds-restart-watcher` showing `event=db-stopped`.
 
 This is expected after AWS forcibly starts a stopped DB (~7-day clock). The watcher only re-stops when the DB has tag `cost-stop-requested=true`.
 
@@ -98,13 +98,13 @@ If a specific alarm is false-positiving (e.g., a planned bulk-load triggers `s3-
 ### 4.1 Temporary silence (CLI)
 
 ```bash
-aws cloudwatch disable-alarm-actions --alarm-names windhoek-$ENV-<alarm-name>
+aws cloudwatch disable-alarm-actions --alarm-names monorepo-$ENV-<alarm-name>
 ```
 
 Re-enable after the planned event:
 
 ```bash
-aws cloudwatch enable-alarm-actions --alarm-names windhoek-$ENV-<alarm-name>
+aws cloudwatch enable-alarm-actions --alarm-names monorepo-$ENV-<alarm-name>
 ```
 
 ### 4.2 Permanent threshold change
@@ -139,4 +139,4 @@ Before merging changes to `infra/cdk/lib/security-stack.ts` or `observability-st
 - [ ] `pnpm --filter @workspace/cdk test` passes
 - [ ] `cdk diff` reviewed line by line (especially for IAM policy changes)
 - [ ] Email subscription confirmation: after first deploy, click the AWS confirmation link in the alert inbox. Subscription stays `PendingConfirmation` until clicked
-- [ ] Smoke-test alarm fire: `aws cloudwatch set-alarm-state --alarm-name windhoek-$ENV-fargate-network-out-high --state-value ALARM --state-reason "manual test"` -> confirm desiredCount=0 within 2 min -> restore desired count
+- [ ] Smoke-test alarm fire: `aws cloudwatch set-alarm-state --alarm-name monorepo-$ENV-fargate-network-out-high --state-value ALARM --state-reason "manual test"` -> confirm desiredCount=0 within 2 min -> restore desired count

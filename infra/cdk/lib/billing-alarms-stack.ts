@@ -27,7 +27,7 @@ export class BillingAlarmsStack extends Stack {
     super(scope, id, props)
 
     this.billingTopic = new Topic(this, "BillingTopic", {
-      displayName: `windhoek-${props.envName} billing-dollar alerts`,
+      displayName: `monorepo-${props.envName} billing-dollar alerts`,
     })
 
     this.billingTopic.addSubscription(new EmailSubscription(props.alertEmail))
@@ -41,7 +41,7 @@ export class BillingAlarmsStack extends Stack {
     })
 
     const warning = new Alarm(this, "BillingWarning", {
-      alarmName: `windhoek-${props.envName}-billing-warning-40usd`,
+      alarmName: `monorepo-${props.envName}-billing-warning-40usd`,
       alarmDescription:
         "Monthly estimated AWS charges reached $40 USD (Budget 1 warning threshold)",
       metric: billingMetric,
@@ -52,7 +52,7 @@ export class BillingAlarmsStack extends Stack {
     warning.addAlarmAction(new SnsAction(this.billingTopic))
 
     const critical = new Alarm(this, "BillingCritical", {
-      alarmName: `windhoek-${props.envName}-billing-critical-80usd`,
+      alarmName: `monorepo-${props.envName}-billing-critical-80usd`,
       alarmDescription:
         "Monthly estimated AWS charges reached $80 USD (Budget 1 critical threshold)",
       metric: billingMetric,

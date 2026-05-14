@@ -1,8 +1,9 @@
 # 10. Multi-tenant RLS design (workspace + organization tiers)
 
-- Status: **Proposed**
-- Date: 2026-05-11
+- Status: Accepted
+- Date: 2026-05-11 (Accepted 2026-05-14)
 - Deciders: Hleb Tkachenko
+- Related: ADR-0018 (three-layer authz extends this with OpenFGA + Cerbos)
 
 ## Context and Problem Statement
 

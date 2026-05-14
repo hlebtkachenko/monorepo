@@ -13,7 +13,7 @@ import {
   shift,
   useFloating,
 } from "@floating-ui/react-dom"
-import { ChevronLeft, ChevronRight, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, X } from "@workspace/ui/lib/icons"
 import {
   Direction as DirectionPrimitive,
   Slot as SlotPrimitive,

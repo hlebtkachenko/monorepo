@@ -1,0 +1,137 @@
+# Tests for the ledger_entry resource policy.
+#
+# Ledger entries are append-only — view ONLY action defined. Delete and edit
+# must be denied for every role (default-deny via omitted rule).
+---
+name: Ledger entry resource policy tests
+description: Append-only invariant (edit and delete always denied for all roles)
+principals:
+  member-001:
+    id: member-001
+    roles: [org_member]
+  admin-001:
+    id: admin-001
+    roles: [org_admin]
+  owner-001:
+    id: owner-001
+    roles: [org_owner]
+  guest-001:
+    id: guest-001
+    roles: [org_guest]
+  wsadmin-001:
+    id: wsadmin-001
+    roles: [workspace_admin]
+resources:
+  le-001:
+    id: le-001
+    kind: ledger_entry
+tests:
+  - name: view is allowed for org member
+    input:
+      principals: [member-001]
+      resources: [le-001]
+      actions: [view]
+    expected:
+      - principal: member-001
+        resource: le-001
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: view is allowed for org admin
+    input:
+      principals: [admin-001]
+      resources: [le-001]
+      actions: [view]
+    expected:
+      - principal: admin-001
+        resource: le-001
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: view is allowed for org owner
+    input:
+      principals: [owner-001]
+      resources: [le-001]
+      actions: [view]
+    expected:
+      - principal: owner-001
+        resource: le-001
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: view is allowed for org guest
+    input:
+      principals: [guest-001]
+      resources: [le-001]
+      actions: [view]
+    expected:
+      - principal: guest-001
+        resource: le-001
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: view is allowed for workspace admin
+    input:
+      principals: [wsadmin-001]
+      resources: [le-001]
+      actions: [view]
+    expected:
+      - principal: wsadmin-001
+        resource: le-001
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: edit is denied for org admin (no edit rule in policy)
+    input:
+      principals: [admin-001]
+      resources: [le-001]
+      actions: [edit]
+    expected:
+      - principal: admin-001
+        resource: le-001
+        actions:
+          edit: EFFECT_DENY
+
+  - name: edit is denied for org owner (no edit rule in policy)
+    input:
+      principals: [owner-001]
+      resources: [le-001]
+      actions: [edit]
+    expected:
+      - principal: owner-001
+        resource: le-001
+        actions:
+          edit: EFFECT_DENY
+
+  - name: delete is denied for org admin (no delete rule in policy)
+    input:
+      principals: [admin-001]
+      resources: [le-001]
+      actions: [delete]
+    expected:
+      - principal: admin-001
+        resource: le-001
+        actions:
+          delete: EFFECT_DENY
+
+  - name: delete is denied for org owner (no delete rule in policy)
+    input:
+      principals: [owner-001]
+      resources: [le-001]
+      actions: [delete]
+    expected:
+      - principal: owner-001
+        resource: le-001
+        actions:
+          delete: EFFECT_DENY
+
+  - name: delete is denied for workspace admin (no delete rule in policy)
+    input:
+      principals: [wsadmin-001]
+      resources: [le-001]
+      actions: [delete]
+    expected:
+      - principal: wsadmin-001
+        resource: le-001
+        actions:
+          delete: EFFECT_DENY

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, Upload, X } from "lucide-react"
+import { Check, Upload, X } from "@workspace/ui/lib/icons"
 
 import { cn } from "@workspace/ui/lib/utils"
 import { formatNumber, parseNumber } from "@workspace/ui/lib/format-number"

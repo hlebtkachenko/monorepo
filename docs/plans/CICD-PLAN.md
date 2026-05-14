@@ -1,5 +1,7 @@
 # CI/CD Execution Plan
 
+> **SUPERSEDED** by ADR-0007 (MVP single-account CDK-only, 2026-05-11). The OpenTofu state-bucket + DDB-lock design below is no longer current. Current CI/CD state: see `.github/workflows/_deploy-aws.yml` and `docs/runbooks/AWS-DEPLOY.md`.
+
 Foundation for a financial SaaS monorepo. GitHub Actions + AWS + Mac dev parity. No time-based deadlines. Priorities: **Critical** (blocking, security/compliance), **High** (significant value or risk), **Medium** (real value), **Easy** (low effort, often missed).
 
 ## Priority Legend

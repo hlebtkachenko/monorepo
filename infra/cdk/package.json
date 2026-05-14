@@ -2,7 +2,7 @@
   "name": "@workspace/cdk",
   "private": true,
   "version": "0.0.1",
-  "description": "AWS CDK v2 application stacks for the windhoek monorepo.",
+  "description": "AWS CDK v2 application stacks for the monorepo.",
   "bin": {
     "infra-cdk": "bin/app.ts"
   },

@@ -1,0 +1,40 @@
+# Resource policy for VAT rates (statutory tax configuration).
+#
+# VAT rates are configuration data that directly affect financial calculations.
+# Edit and create are restricted to principals with the can_administer role.
+# There is NO delete action (omitting = default deny) to prevent accidental
+# removal of rates referenced by historical invoices.
+#
+# Actions: view, edit, create
+#
+# Rules:
+#   view   — any org member, guest, or workspace admin
+#   edit   — requires can_administer role (org admin scope)
+#   create — requires can_administer role (org admin scope)
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: vat_rate
+  version: default
+  importDerivedRoles:
+    - derived_roles
+  variables:
+    import:
+      - conditions
+  rules:
+    # VIEW: all authenticated principals
+    - actions: [view]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - org_guest
+        - workspace_admin
+
+    # EDIT + CREATE: admin-only. Requires the can_administer derived role,
+    # which is granted only to org_admin and org_owner.
+    - actions: [edit, create]
+      effect: EFFECT_ALLOW
+      derivedRoles:
+        - can_administer

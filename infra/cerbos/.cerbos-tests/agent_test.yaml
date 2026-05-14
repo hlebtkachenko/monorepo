@@ -1,0 +1,148 @@
+# Tests for the agent principal policy.
+#
+# Verifies ADR-0018 L3 agent constraints:
+#   - DENIED delete on invoice
+#   - DENIED administer on vat_rate
+#   - DENIED manage_members on any resource
+#   - ALLOWED view on invoice
+#   - ALLOWED edit on invoice (when not locked)
+---
+name: Agent principal policy tests
+description: ADR-0018 L3 agent constraints (no delete, no administer, no manage_members)
+principals:
+  agent-001:
+    id: agent-001
+    roles:
+      - agent
+resources:
+  inv-001:
+    id: inv-001
+    kind: invoice
+    attr:
+      locked: false
+  inv-002:
+    id: inv-002
+    kind: invoice
+    attr:
+      locked: false
+  inv-003:
+    id: inv-003
+    kind: invoice
+    attr:
+      locked: false
+  inv-locked:
+    id: inv-locked
+    kind: invoice
+    attr:
+      locked: true
+  je-posted:
+    id: je-posted
+    kind: journal_entry
+    attr:
+      posted: true
+  vat-std:
+    id: vat-std
+    kind: vat_rate
+    attr: {}
+  org-001:
+    id: org-001
+    kind: invoice
+    attr: {}
+tests:
+  - name: agent denied delete on invoice
+    input:
+      principals:
+        - agent-001
+      resources:
+        - inv-001
+      actions:
+        - delete
+    expected:
+      - principal: agent-001
+        resource: inv-001
+        actions:
+          delete: EFFECT_DENY
+
+  - name: agent denied administer on vat_rate
+    input:
+      principals:
+        - agent-001
+      resources:
+        - vat-std
+      actions:
+        - administer
+    expected:
+      - principal: agent-001
+        resource: vat-std
+        actions:
+          administer: EFFECT_DENY
+
+  - name: agent denied manage_members
+    input:
+      principals:
+        - agent-001
+      resources:
+        - org-001
+      actions:
+        - manage_members
+    expected:
+      - principal: agent-001
+        resource: org-001
+        actions:
+          manage_members: EFFECT_DENY
+
+  - name: agent allowed view on invoice
+    input:
+      principals:
+        - agent-001
+      resources:
+        - inv-002
+      actions:
+        - view
+    expected:
+      - principal: agent-001
+        resource: inv-002
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: agent allowed edit on unlocked invoice
+    input:
+      principals:
+        - agent-001
+      resources:
+        - inv-003
+      actions:
+        - edit
+    expected:
+      - principal: agent-001
+        resource: inv-003
+        actions:
+          edit: EFFECT_ALLOW
+
+  - name: agent denied edit on locked invoice (resource policy condition)
+    input:
+      principals:
+        - agent-001
+      resources:
+        - inv-locked
+      actions:
+        - edit
+    expected:
+      - principal: agent-001
+        resource: inv-locked
+        actions:
+          edit: EFFECT_DENY
+
+  - name: agent denied edit on posted journal entry (resource policy condition)
+    input:
+      principals:
+        - agent-001
+      resources:
+        - je-posted
+      actions:
+        - edit
+    expected:
+      - principal: agent-001
+        resource: je-posted
+        actions:
+          edit: EFFECT_DENY

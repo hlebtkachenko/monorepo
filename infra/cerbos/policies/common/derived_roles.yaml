@@ -1,0 +1,29 @@
+# Shared derived roles used across resource policies.
+#
+# Derived roles are computed at request time based on the principal's
+# base roles and optional attribute conditions. They allow policies to
+# express intent ("can_administer") rather than enumerating every
+# base role that satisfies the condition.
+#
+# Reference in a resource policy with (EXPORT NAME, not file path):
+#   importDerivedRoles:
+#     - derived_roles
+---
+apiVersion: api.cerbos.dev/v1
+derivedRoles:
+  name: derived_roles
+  definitions:
+    # can_administer: granted to org administrators and owners.
+    # Used to gate VAT rate and numerical series edit/create actions.
+    - name: can_administer
+      parentRoles:
+        - org_admin
+        - org_owner
+
+    # can_manage: granted to any active org member with write access.
+    # Excludes guests and workspace admins (they have narrower scope).
+    - name: can_manage
+      parentRoles:
+        - org_member
+        - org_admin
+        - org_owner

@@ -134,8 +134,8 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## Infrastructure
 
-- Hybrid IaC: `infra/tofu/` (OpenTofu) for platform layer (Org, OUs, SCPs, Identity Center, log archive, network); `infra/cdk/` (AWS CDK v2) for app stacks (network, data, app, security, observability, billing alarms).
-- All AWS-specific values are `<TBD>` placeholders today. AWS account is NOT yet connected. Bootstrap procedure: `docs/runbooks/AWS-BOOTSTRAP.md`.
+- Single-account AWS CDK v2 (`infra/cdk/`). Stacks: network, data, app, security, observability, billing alarms. See ADR-0007.
+- All AWS-specific values are `<TBD>` placeholders today. AWS account is NOT yet connected. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
 - See `docs/adr/` for the architectural decisions backing this layout.
 
 ### Budgets & Cost-Runaway Protection

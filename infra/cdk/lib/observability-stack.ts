@@ -66,7 +66,7 @@ export class ObservabilityStack extends Stack {
     const monitoring = new MonitoringFacade(this, "MonitoringFacade", {
       alarmFactoryDefaults: {
         actionsEnabled: true,
-        alarmNamePrefix: `windhoek-${props.envName}`,
+        alarmNamePrefix: `monorepo-${props.envName}`,
       },
     })
 
@@ -94,7 +94,7 @@ export class ObservabilityStack extends Stack {
     })
 
     this.billingTopic = new Topic(this, "BillingTopic", {
-      displayName: `windhoek-${props.envName} regional alerts`,
+      displayName: `monorepo-${props.envName} regional alerts`,
     })
 
     this.billingTopic.addSubscription(new EmailSubscription(props.alertEmail))
@@ -108,7 +108,7 @@ export class ObservabilityStack extends Stack {
     // so SecurityStack stops the service on sustained breach. Email arrives
     // too (kill-switch Lambda also logs to CloudWatch for audit).
     const fargateCpuCritical = new Alarm(this, "FargateCpuCritical", {
-      alarmName: `windhoek-${props.envName}-fargate-cpu-critical`,
+      alarmName: `monorepo-${props.envName}-fargate-cpu-critical`,
       alarmDescription:
         "Fargate CPUUtilization >= 95% for 2x5min. Kill-switch stops the service.",
       metric: new Metric({
@@ -131,7 +131,7 @@ export class ObservabilityStack extends Stack {
     fargateCpuCritical.addAlarmAction(killSwitchAction)
 
     const fargateMemoryCritical = new Alarm(this, "FargateMemoryCritical", {
-      alarmName: `windhoek-${props.envName}-fargate-memory-critical`,
+      alarmName: `monorepo-${props.envName}-fargate-memory-critical`,
       alarmDescription:
         "Fargate MemoryUtilization >= 95% for 2x5min. Kill-switch stops the service.",
       metric: new Metric({
@@ -161,7 +161,7 @@ export class ObservabilityStack extends Stack {
     // 1) Fargate egress: 5 GB sustained over 1h. Container Insights v2
     // publishes per-service network bytes to ECS/ContainerInsights.
     const fargateNetworkOut = new Alarm(this, "FargateNetworkOutHigh", {
-      alarmName: `windhoek-${props.envName}-fargate-network-out-high`,
+      alarmName: `monorepo-${props.envName}-fargate-network-out-high`,
       alarmDescription:
         "Fargate NetworkBytesOut > 5 GB in 1h. Possible data exfil or runaway egress.",
       metric: new Metric({
@@ -185,7 +185,7 @@ export class ObservabilityStack extends Stack {
     // 2) RDS egress: alarm-only (Lambda kill-switch must NOT auto-stop a
     // live DB session - aborting mid-query can corrupt state).
     const rdsNetworkOut = new Alarm(this, "RdsNetworkOutHigh", {
-      alarmName: `windhoek-${props.envName}-rds-network-out-high`,
+      alarmName: `monorepo-${props.envName}-rds-network-out-high`,
       alarmDescription:
         "RDS NetworkTransmitThroughput > 50 MB/s sustained over 5min. Possible bulk data dump.",
       metric: new Metric({
@@ -208,7 +208,7 @@ export class ObservabilityStack extends Stack {
     // bucket (DataStack.appBucket.addMetric).
     const bucketName = props.dataStack.appBucket.bucketName
     const s3PutRate = new Alarm(this, "S3PutRateHigh", {
-      alarmName: `windhoek-${props.envName}-s3-put-rate-high`,
+      alarmName: `monorepo-${props.envName}-s3-put-rate-high`,
       alarmDescription:
         "S3 PutRequests > 10k in 1h. Possible bulk-write attack against the app bucket.",
       metric: new Metric({
@@ -231,7 +231,7 @@ export class ObservabilityStack extends Stack {
 
     // 4) S3 bucket size: 5 GB. BucketSizeBytes ships daily for free.
     const s3BucketSize = new Alarm(this, "S3BucketSizeHigh", {
-      alarmName: `windhoek-${props.envName}-s3-bucket-size-high`,
+      alarmName: `monorepo-${props.envName}-s3-bucket-size-high`,
       alarmDescription:
         "S3 BucketSizeBytes > 5 GB. Possible storage flood (uploads designed to inflate the bill).",
       metric: new Metric({
@@ -265,7 +265,7 @@ export class ObservabilityStack extends Stack {
       })
 
     const cwLogsIngest = new Alarm(this, "CwLogsIngestHigh", {
-      alarmName: `windhoek-${props.envName}-cwlogs-ingest-high`,
+      alarmName: `monorepo-${props.envName}-cwlogs-ingest-high`,
       alarmDescription:
         "CloudWatch Logs incoming bytes > 1 GB in 1h across web, api, cloudflared. Possible log-flood.",
       metric: new MathExpression({
@@ -302,7 +302,7 @@ export class ObservabilityStack extends Stack {
       })
 
     const ecrPullAnomaly = new Alarm(this, "EcrPullAnomalyHigh", {
-      alarmName: `windhoek-${props.envName}-ecr-pull-anomaly`,
+      alarmName: `monorepo-${props.envName}-ecr-pull-anomaly`,
       alarmDescription:
         "ECR pulls > 50 in 1h across web+api repos. Possible compromised pull credentials.",
       metric: new MathExpression({

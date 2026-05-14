@@ -45,10 +45,11 @@ export function proxy(request: NextRequest): NextResponse {
  *   /_next/image     — image optimizer
  *   /favicon.ico
  *   /showcase/*      — component demo pages (public during scaffold)
+ *   /typography/*    — typography showcase (public during scaffold)
  *   /                — public landing page
  */
 export const config = {
   matcher: [
-    "/((?!api|auth|onboarding|_next/static|_next/image|favicon\\.ico|showcase|$).*)",
+    "/((?!api|auth|onboarding|_next/static|_next/image|favicon\\.ico|showcase|typography|$).*)",
   ],
 }

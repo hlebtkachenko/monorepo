@@ -1,0 +1,87 @@
+# OpenTelemetry Collector — sidecar config for ECS Fargate.
+#
+# STATUS: UNWIRED in CDK. Ship-ready for the moment the Honeycomb API key is
+# provisioned (ADR-0002 trip-wire). DO NOT enable without Hleb's go-ahead —
+# enabling this adds an ECS sidecar container, bumps task memory from 2 GB to
+# 3 GB (+$3.68/mo in eu-central-1), and starts shipping span data to a US-hosted
+# third party. See `.context/decision-observability-mvp.md` for the cost +
+# data-residency reasoning and `infra/observability/README.md` for the wire-up
+# steps.
+#
+# Pipeline shape (when wired): app processes (web :3000, api :3001) emit OTLP
+# over localhost:4317 (gRPC) or :4318 (HTTP) into this collector running as a
+# task-local sidecar; collector enriches with ECS resource attributes then
+# exports to Honeycomb. CloudWatch via awslogs driver stays the always-on log
+# baseline regardless of this collector's state.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+  # Pulls ECS task / container / cluster identity from the task metadata
+  # endpoint. Same-account, no extra IAM beyond the default task role.
+  resourcedetection/aws:
+    detectors: [env, ecs]
+    timeout: 2s
+    override: false
+
+  # Drops common PII headers before they leave the task boundary. Audit before
+  # adding additional attributes when wiring.
+  attributes/scrub:
+    actions:
+      - key: http.request.header.authorization
+        action: delete
+      - key: http.request.header.cookie
+        action: delete
+      - key: http.request.header.x-api-key
+        action: delete
+      - key: db.statement.parameters
+        action: delete
+
+exporters:
+  # Placeholder Honeycomb config. HONEYCOMB_API_KEY is injected from Secrets
+  # Manager via the ECS task definition when this sidecar is wired. Until then
+  # the value is unset and the collector is not started.
+  otlp/honeycomb:
+    endpoint: api.honeycomb.io:443
+    headers:
+      x-honeycomb-team: ${env:HONEYCOMB_API_KEY}
+      x-honeycomb-dataset: ${env:HONEYCOMB_DATASET}
+    compression: gzip
+
+  # Local debug only. Never enabled in the deployed pipeline.
+  debug:
+    verbosity: basic
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection/aws, attributes/scrub, batch]
+      exporters: [otlp/honeycomb]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection/aws, attributes/scrub, batch]
+      exporters: [otlp/honeycomb]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection/aws, batch]
+      exporters: [otlp/honeycomb]

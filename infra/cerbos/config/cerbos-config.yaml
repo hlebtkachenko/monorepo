@@ -1,0 +1,48 @@
+# Cerbos PDP runtime config.
+#
+# Loaded by `cerbos server --config=/etc/cerbos/config.yaml` (see Dockerfile
+# CMD). Disk storage driver reads policies from /policies (baked into the
+# image at build time — see Dockerfile COPY). No Cerbos Hub, no auth, no
+# outbound network.
+#
+# Listens on:
+#   :3592 — HTTP (admin + healthcheck only)
+#   :3593 — gRPC (the api container's CerbosService calls this on localhost)
+#
+# Logs: Cerbos uses zap logger and writes server/access logs to stdout as
+# structured JSON. The Fargate awslogs driver forwards to the CloudWatch
+# group declared in app-stack.ts (see CerbosLogs LogGroup). At the default
+# INFO log level the access log records call_id + method + peer + timing
+# only — it does NOT include the principal/resource/action payload.
+#
+# Per-decision audit is intentionally DISABLED for now:
+#   - `backend: local` would write a BadgerDB to disk; with our /tmp
+#     ephemeral volume, those records are lost on every task replacement,
+#     and there's no in-task reader (adminAPI is disabled).
+#   - DORA Article 8 per-decision audit lives APP-SIDE in `tool_call_log`
+#     (ADR-0011). The api captures the inputs + Cerbos verdict on every
+#     check and writes one row per call. That's the auditable trail.
+#   - If we later want PDP-emitted audit, the backend choices are Kafka,
+#     Elasticsearch, GCS, or the Hub sink. Wire when the target exists.
+server:
+  httpListenAddr: ":3592"
+  grpcListenAddr: ":3593"
+  adminAPI:
+    enabled: false
+
+storage:
+  driver: disk
+  disk:
+    directory: /policies
+    # Enabled so local dev (compose bind-mounts policies) hot-reloads on
+    # edit. In prod the policies are baked into the image and never change
+    # inside a running container (a policy edit triggers a new image tag,
+    # which restarts the container anyway), so the mtime poll is a no-op
+    # cost we accept for dev parity.
+    watchForChanges: true
+
+audit:
+  enabled: false
+
+schema:
+  enforcement: reject

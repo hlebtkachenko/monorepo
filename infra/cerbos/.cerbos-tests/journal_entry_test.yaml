@@ -1,0 +1,105 @@
+# Tests for the journal_entry resource policy.
+#
+# Verifies financial immutability:
+#   - Delete action is always denied (no rule = default deny)
+#   - Edit denied when entry posted
+#   - Edit allowed when entry not yet posted
+#   - View allowed for all org members + guests
+---
+name: Journal entry resource policy tests
+description: Immutability invariant (delete always denied, edit denied once posted)
+principals:
+  admin-001:
+    id: admin-001
+    roles: [org_admin]
+  owner-001:
+    id: owner-001
+    roles: [org_owner]
+  member-001:
+    id: member-001
+    roles: [org_member]
+  guest-001:
+    id: guest-001
+    roles: [org_guest]
+resources:
+  je-001:
+    id: je-001
+    kind: journal_entry
+    attr:
+      posted: false
+  je-posted:
+    id: je-posted
+    kind: journal_entry
+    attr:
+      posted: true
+  je-draft:
+    id: je-draft
+    kind: journal_entry
+    attr:
+      posted: false
+tests:
+  - name: delete is denied for org admin (no delete rule in policy)
+    input:
+      principals: [admin-001]
+      resources: [je-001]
+      actions: [delete]
+    expected:
+      - principal: admin-001
+        resource: je-001
+        actions:
+          delete: EFFECT_DENY
+
+  - name: delete is denied for org owner (no delete rule in policy)
+    input:
+      principals: [owner-001]
+      resources: [je-001]
+      actions: [delete]
+    expected:
+      - principal: owner-001
+        resource: je-001
+        actions:
+          delete: EFFECT_DENY
+
+  - name: edit is denied when entry is posted
+    input:
+      principals: [admin-001]
+      resources: [je-posted]
+      actions: [edit]
+    expected:
+      - principal: admin-001
+        resource: je-posted
+        actions:
+          edit: EFFECT_DENY
+
+  - name: edit is allowed when entry is not posted
+    input:
+      principals: [member-001]
+      resources: [je-draft]
+      actions: [edit]
+    expected:
+      - principal: member-001
+        resource: je-draft
+        actions:
+          edit: EFFECT_ALLOW
+
+  - name: view is allowed for org member
+    input:
+      principals: [member-001]
+      resources: [je-posted]
+      actions: [view]
+    expected:
+      - principal: member-001
+        resource: je-posted
+        actions:
+          view: EFFECT_ALLOW
+
+  - name: view is allowed for guest
+    input:
+      principals: [guest-001]
+      resources: [je-001]
+      actions: [view]
+    expected:
+      - principal: guest-001
+        resource: je-001
+        actions:
+          view: EFFECT_ALLOW

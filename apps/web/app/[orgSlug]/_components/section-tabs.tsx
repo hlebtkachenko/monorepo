@@ -25,7 +25,7 @@ export function SectionTabs({ title, tabs }: SectionTabsProps) {
   return (
     <div className="border-b border-border">
       <div className="mx-auto max-w-6xl space-y-4 px-6 pt-8 pb-0">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+        <h1>{title}</h1>
         <nav className="flex gap-1 text-sm">
           {tabs.map((tab) => {
             const active =

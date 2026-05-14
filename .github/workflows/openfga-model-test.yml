@@ -1,0 +1,68 @@
+# Validates the OpenFGA authorization model and runs the FGA assertion suite.
+# Model tests are stateless — no Postgres service needed.
+#
+# Advisory until first green PR cycle (see CLAUDE.md CI policy).
+# Flip to required in branch protection after first green run.
+
+name: OpenFGA model test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/openfga/model.fga"
+      - "infra/openfga/tests/**"
+      - ".github/workflows/openfga-model-test.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/openfga/model.fga"
+      - "infra/openfga/tests/**"
+
+permissions: {}
+
+concurrency:
+  group: openfga-model-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  model-test:
+    name: Validate model + run assertions
+    runs-on: ubuntu-latest
+    continue-on-error: true  # ADVISORY — flip after first green run
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download OpenFGA CLI
+        env:
+          # SHA256 for fga_0.7.13_linux_amd64.tar.gz
+          # Source: https://github.com/openfga/cli/releases/download/v0.7.13/checksums.txt
+          FGA_CLI_VERSION: "0.7.13"
+          FGA_CLI_SHA256: "de043bdee6318680125ea1f6160422389ec254411ea23c170e92dc101952ae31"
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            "https://github.com/openfga/cli/releases/download/v${FGA_CLI_VERSION}/fga_${FGA_CLI_VERSION}_linux_amd64.tar.gz" \
+            -o /tmp/fga.tgz
+          echo "${FGA_CLI_SHA256}  /tmp/fga.tgz" | sha256sum -c
+          sudo tar -xz -C /usr/local/bin fga -f /tmp/fga.tgz
+          rm /tmp/fga.tgz
+          fga version
+
+      - name: Validate model DSL
+        run: |
+          set -euo pipefail
+          fga model validate --file infra/openfga/model.fga
+
+      - name: Run model assertion suite
+        run: |
+          set -euo pipefail
+          fga model test --tests "infra/openfga/tests/*.fga.yaml"

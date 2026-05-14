@@ -1,0 +1,58 @@
+# OpenFGA compose overlay — NOT a standalone file.
+# Combine with the base dev compose:
+#
+#   docker compose \
+#     -f infra/compose/docker-compose.dev.yml \
+#     -f infra/openfga/docker-compose.openfga.yml \
+#     --profile auth up -d
+#
+# Both services use the `auth` profile so they are opt-in.
+# The base compose file MUST be started first (or in the same command) to
+# provide the postgres service that OpenFGA depends on.
+
+services:
+  openfga-migrate:
+    image: openfga/openfga:v1.15.1
+    profiles:
+      - auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # One-shot: run the migration, then exit 0.
+    command: migrate
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: "postgres://app_owner:dev_owner@postgres:5432/app_dev?search_path=openfga"
+    restart: "no"
+    # No ports — init container only.
+
+  openfga:
+    image: openfga/openfga:v1.15.1
+    profiles:
+      - auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+      openfga-migrate:
+        condition: service_completed_successfully
+    command: run
+    environment:
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: "postgres://app_owner:dev_owner@postgres:5432/app_dev?search_path=openfga"
+      OPENFGA_HTTP_ADDR: "0.0.0.0:8080"
+      OPENFGA_LOG_FORMAT: json
+      OPENFGA_LOG_LEVEL: info
+    ports:
+      - "8080:8080"  # HTTP API. gRPC (:8081) intentionally not published —
+                     # the container still binds it internally (v1.15.1 has
+                     # no --grpc-enabled toggle), but it's unreachable from
+                     # the host so dev tools default to HTTP cleanly.
+    healthcheck:
+      # openfga/openfga:v1.15.1 is Chainguard distroless: no /bin/sh, no
+      # wget, no curl. Probe via the in-image grpc_health_probe binary.
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=127.0.0.1:8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped

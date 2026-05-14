@@ -14,7 +14,7 @@ describe("SecurityStack", () => {
     template.hasResourceProperties("AWS::Lambda::Function", {
       Runtime: "nodejs20.x",
       Handler: "index.handler",
-      FunctionName: "windhoek-test-cost-killswitch",
+      FunctionName: "monorepo-test-cost-killswitch",
     })
   })
 
@@ -22,7 +22,7 @@ describe("SecurityStack", () => {
     template.hasResourceProperties("AWS::Lambda::Function", {
       Runtime: "nodejs20.x",
       Handler: "index.handler",
-      FunctionName: "windhoek-test-rds-restart-watcher",
+      FunctionName: "monorepo-test-rds-restart-watcher",
     })
   })
 
@@ -65,11 +65,11 @@ describe("SecurityStack", () => {
     expect(Object.keys(budgets).length).toBe(5)
 
     const expectedLimits: Record<string, number> = {
-      "windhoek-test-monthlytotal": 40,
-      "windhoek-test-datatransfer": 10,
-      "windhoek-test-s3": 5,
-      "windhoek-test-rds": 20,
-      "windhoek-test-ecs": 25,
+      "monorepo-test-monthlytotal": 40,
+      "monorepo-test-datatransfer": 10,
+      "monorepo-test-s3": 5,
+      "monorepo-test-rds": 20,
+      "monorepo-test-ecs": 25,
     }
 
     for (const [name, limit] of Object.entries(expectedLimits)) {
@@ -100,7 +100,7 @@ describe("SecurityStack", () => {
 
   it("creates a CloudTrail trail with file validation + management events", () => {
     template.hasResourceProperties("AWS::CloudTrail::Trail", {
-      TrailName: "windhoek-test-management",
+      TrailName: "monorepo-test-management",
       EnableLogFileValidation: true,
       IsMultiRegionTrail: false,
     })

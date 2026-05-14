@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ClipboardIcon, CopyIcon, EraserIcon, ScissorsIcon } from "lucide-react"
+import { ClipboardIcon, CopyIcon, EraserIcon, ScissorsIcon } from "@workspace/ui/lib/icons"
 
 import {
   DropdownMenu,

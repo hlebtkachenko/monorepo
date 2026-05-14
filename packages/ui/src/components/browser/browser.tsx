@@ -25,7 +25,7 @@ import {
   Volume2,
   Wifi,
   X,
-} from "lucide-react"
+} from "@workspace/ui/lib/icons"
 
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"

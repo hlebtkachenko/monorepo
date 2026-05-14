@@ -1,0 +1,71 @@
+# Resource policy for invoices.
+#
+# Actions: view, edit, delete, share
+#
+# Rules:
+#   view   — any org member (member, admin, owner) or workspace admin
+#   edit   — org member + workspace admin; DENIED if resource is locked
+#   delete — org owner OR org admin; DENIED if resource is locked
+#   share  — org admin only
+#
+# Locked invoices (post-period-close) cannot be edited or deleted by anyone.
+# This is enforced at the policy layer as a post-condition to Postgres FORCE RLS.
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: invoice
+  version: default
+  variables:
+    import:
+      - conditions
+  rules:
+    # VIEW: any authenticated org member, guest, agent, or workspace admin.
+    # Agent role is included here so the principal policy's allow-view rule
+    # combines with this resource policy's match (Cerbos AND semantics:
+    # both layers must allow). Agent-specific denies for delete/administer
+    # come from principals/agent.yaml.
+    - actions: [view]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - org_guest
+        - agent
+        - workspace_admin
+
+    # EDIT: org member, agent, org admin, org owner, workspace admin.
+    # Conditional: denied when invoice is locked.
+    - actions: [edit]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - agent
+        - workspace_admin
+      condition:
+        match:
+          none:
+            of:
+              - expr: V.is_locked
+
+    # DELETE: only org owner or org admin
+    # Conditional: denied when invoice is locked
+    - actions: [delete]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_owner
+        - org_admin
+      condition:
+        match:
+          none:
+            of:
+              - expr: V.is_locked
+
+    # SHARE: org admin and org owner only
+    - actions: [share]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_admin
+        - org_owner

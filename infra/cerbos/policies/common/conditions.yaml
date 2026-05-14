@@ -1,0 +1,28 @@
+# Shared variables used across resource policies.
+#
+# Import in a resource policy by EXPORT NAME (not file path):
+#   variables:
+#     import:
+#       - conditions
+#
+# The import list matches `^[\w\-\.]+$` — no slashes. Cerbos resolves the
+# name "conditions" against the exportVariables.name field below.
+---
+apiVersion: api.cerbos.dev/v1
+exportVariables:
+  name: conditions
+  definitions:
+    # True when the resource has been locked (post-period-close).
+    # Locked invoices cannot be edited or deleted by anyone.
+    is_locked: "'locked' in R.attr && R.attr.locked == true"
+
+    # True when a journal entry has been posted to the ledger.
+    # Posted entries are immutable and cannot be edited.
+    is_posted: "'posted' in R.attr && R.attr.posted == true"
+
+    # True when the principal has administrative privileges
+    # (org_admin or org_owner roles).
+    is_admin: "('org_admin' in P.roles || 'org_owner' in P.roles)"
+
+    # True when the principal is a workspace-level administrator.
+    is_workspace_admin: "'workspace_admin' in P.roles"

@@ -1,5 +1,7 @@
 # AWS Integration Plan
 
+> **SUPERSEDED** by ADR-0007 (MVP single-account CDK-only, 2026-05-11). The multi-account control-tower vision below is aspirational post-MVP work. Current state: single account, CDK-only, no OpenTofu. See `docs/runbooks/AWS-DEPLOY.md` and `docs/adr/0007-mvp-single-account-cdk-only.md`.
+
 Dependencies and configuration to put this monorepo on AWS for production. Three poles: GitHub (source + CI), AWS (runtime), Mac (developer). Priorities: **Critical** (blocking before prod traffic), **High** (significant value/risk), **Medium** (real value), **Easy** (low effort).
 
 ## Priority Legend

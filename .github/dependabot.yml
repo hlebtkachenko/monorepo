@@ -31,27 +31,28 @@ updates:
       prefix: "chore"
       include: scope
 
-  # Docker base image used by apps/web Dockerfile (writer C territory)
+  # Docker base image used by apps/web Dockerfile (the Next.js runtime)
   - package-ecosystem: docker
     directory: /apps/web
     schedule:
       interval: weekly
       day: monday
     groups:
-      infra-docker:
+      apps-web-docker:
         patterns: ["*"]
     commit-message:
       prefix: "chore"
       include: scope
 
-  # OpenTofu / Terraform providers and modules
-  - package-ecosystem: terraform
-    directory: /infra/tofu
+  # Docker base image used by infra/Dockerfile.backup (ECS Scheduled Task in
+  # BackupStack). Pinned per ADR-0015; bumped via Dependabot.
+  - package-ecosystem: docker
+    directory: /infra
     schedule:
       interval: weekly
       day: monday
     groups:
-      infra-terraform:
+      infra-docker:
         patterns: ["*"]
     commit-message:
       prefix: "chore"

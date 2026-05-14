@@ -1,0 +1,40 @@
+# Principal policy for AI agent principals.
+#
+# Agent can view and edit most resources but is NEVER allowed to:
+#   - delete any resource
+#   - perform administrative actions (administer, manage_members)
+#
+# This enforces ADR-0018 L3 rule: AI principals cannot escalate privileges
+# even if they somehow acquire admin roles from L1/L2.
+#
+# Schema note: Cerbos principalPolicy permits one rule per resource. All
+# action gates for resource "*" collapse into a single rules entry.
+---
+apiVersion: api.cerbos.dev/v1
+principalPolicy:
+  principal: agent
+  version: default
+  rules:
+    - resource: "*"
+      actions:
+        # Deny destructive + administrative actions across all resource kinds.
+        - name: deny-delete
+          action: delete
+          effect: EFFECT_DENY
+        - name: deny-administer
+          action: administer
+          effect: EFFECT_DENY
+        - name: deny-manage-members
+          action: manage_members
+          effect: EFFECT_DENY
+        # Allow view/edit/create. Resource policies further constrain edits
+        # via attribute conditions (locked invoice, posted journal entry, etc.).
+        - name: allow-view
+          action: view
+          effect: EFFECT_ALLOW
+        - name: allow-edit
+          action: edit
+          effect: EFFECT_ALLOW
+        - name: allow-create
+          action: create
+          effect: EFFECT_ALLOW

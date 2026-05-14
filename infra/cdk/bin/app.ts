@@ -6,6 +6,7 @@ import { AppStack } from "../lib/app-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
 import { BillingAlarmsStack } from "../lib/billing-alarms-stack.js"
 import { SecurityStack } from "../lib/security-stack.js"
+import { BackupStack } from "../lib/backup-stack.js"
 
 const app = new App()
 
@@ -88,6 +89,14 @@ new BillingAlarmsStack(app, `BillingAlarms-${env}`, {
   env: { account, region: "us-east-1" },
   envName: env,
   alertEmail,
+})
+
+new BackupStack(app, `Backup-${env}`, {
+  env: stackEnv,
+  envName: env,
+  appStack,
+  dataStack: data,
+  appSecurityGroup: network.appSecurityGroup,
 })
 
 Tags.of(app).add("Environment", env)

@@ -9,7 +9,7 @@ import {
   FileIcon,
   FileTextIcon,
   FileVideoIcon,
-} from "lucide-react"
+} from "@workspace/ui/lib/icons"
 import {
   Direction as DirectionPrimitive,
   Slot as SlotPrimitive,

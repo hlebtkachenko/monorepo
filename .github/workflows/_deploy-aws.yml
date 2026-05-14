@@ -136,14 +136,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Deploy infra stacks (Network + Data) [stack=all|infra-only]
+      - name: Deploy infra stacks (Network, Data, Security, Observability, BillingAlarms, Backup) [stack=all|infra-only]
         if: env.STACK_SCOPE != 'app-only'
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           APP_DOMAIN: ${{ steps.env.outputs.domain }}
+        # BillingAlarms-${ENV_NAME} deploys to us-east-1 (EstimatedCharges is
+        # only published there); the deploy IAM role must therefore have
+        # CloudFormation + SNS + CloudWatch permissions in BOTH eu-central-1
+        # and us-east-1. CDK handles the cross-region orchestration in a
+        # single `cdk deploy` call.
         run: |
           pnpm --filter @workspace/cdk exec cdk deploy \
             "Network-${ENV_NAME}" "Data-${ENV_NAME}" \
+            "Security-${ENV_NAME}" "Observability-${ENV_NAME}" \
+            "BillingAlarms-${ENV_NAME}" "Backup-${ENV_NAME}" \
             --context "env=${ENV_NAME}" \
             --require-approval=never
 
@@ -168,7 +175,7 @@ jobs:
           file: apps/web/Dockerfile
           platforms: linux/arm64
           push: true
-          tags: ${{ steps.ecr.outputs.registry }}/windhoek-${{ inputs.environment }}-web:${{ env.IMAGE_TAG }}
+          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-web:${{ env.IMAGE_TAG }}
           provenance: false
           sbom: false
           cache-from: type=gha,scope=web-${{ inputs.environment }}
@@ -186,7 +193,7 @@ jobs:
           file: apps/api/Dockerfile
           platforms: linux/arm64
           push: true
-          tags: ${{ steps.ecr.outputs.registry }}/windhoek-${{ inputs.environment }}-api:${{ env.IMAGE_TAG }}
+          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-api:${{ env.IMAGE_TAG }}
           provenance: false
           sbom: false
           cache-from: type=gha,scope=api-${{ inputs.environment }}
@@ -206,7 +213,7 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$TUNNEL_TOKEN"
-          SECRET_NAME="windhoek-${ENV_NAME}-cloudflare-tunnel-token"
+          SECRET_NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
           if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             aws secretsmanager put-secret-value \
               --secret-id "$SECRET_NAME" \
@@ -217,7 +224,7 @@ jobs:
             aws secretsmanager create-secret \
               --name "$SECRET_NAME" \
               --secret-string "$TUNNEL_TOKEN" \
-              --description "Cloudflare Tunnel connector token for cloudflared sidecar (windhoek ${ENV_NAME})" \
+              --description "Cloudflare Tunnel connector token for cloudflared sidecar (monorepo ${ENV_NAME})" \
               --region "$AWS_REGION" \
               >/dev/null
           fi

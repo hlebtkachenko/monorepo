@@ -1,0 +1,35 @@
+# Resource policy for projects (cost center grouping).
+#
+# Standard CRUD policy:
+#   view   — any org member, guest, or workspace admin
+#   edit   — org member, org admin, org owner, workspace admin
+#   create — org member, org admin, org owner
+#   delete — org admin, org owner only; workspace admin CANNOT delete
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: project
+  version: default
+  rules:
+    - actions: [view]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - org_guest
+        - workspace_admin
+
+    - actions: [edit, create]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_member
+        - org_admin
+        - org_owner
+        - workspace_admin
+
+    - actions: [delete]
+      effect: EFFECT_ALLOW
+      roles:
+        - org_admin
+        - org_owner

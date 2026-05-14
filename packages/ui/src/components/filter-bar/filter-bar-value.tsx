@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Ellipsis } from "lucide-react"
+import { Ellipsis } from "@workspace/ui/lib/icons"
 import { format, isEqual } from "date-fns"
 import type { DateRange } from "react-day-picker"
 import { Button } from "@workspace/ui/components/button"

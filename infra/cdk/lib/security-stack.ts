@@ -56,16 +56,16 @@ export class SecurityStack extends Stack {
     super(scope, id, props)
 
     this.killSwitchTopic = new Topic(this, "KillSwitchTopic", {
-      displayName: `windhoek-${props.envName} cost kill-switch`,
+      displayName: `monorepo-${props.envName} cost kill-switch`,
     })
 
     const killSwitchLogGroup = new LogGroup(this, "KillSwitchLogs", {
-      logGroupName: `/aws/lambda/windhoek-${props.envName}-cost-killswitch`,
+      logGroupName: `/aws/lambda/monorepo-${props.envName}-cost-killswitch`,
       retention: RetentionDays.ONE_MONTH,
     })
 
     this.killSwitchFn = new LambdaFunction(this, "KillSwitchFn", {
-      functionName: `windhoek-${props.envName}-cost-killswitch`,
+      functionName: `monorepo-${props.envName}-cost-killswitch`,
       runtime: Runtime.NODEJS_20_X,
       handler: "index.handler",
       code: Code.fromAsset(path.join(__dirname, "lambda", "killswitch")),
@@ -172,7 +172,7 @@ export class SecurityStack extends Stack {
     for (const spec of budgets) {
       new CfnBudget(this, `Budget${spec.id}`, {
         budget: {
-          budgetName: `windhoek-${props.envName}-${spec.id.toLowerCase()}`,
+          budgetName: `monorepo-${props.envName}-${spec.id.toLowerCase()}`,
           budgetType: "COST",
           timeUnit: "MONTHLY",
           budgetLimit: {
@@ -231,7 +231,7 @@ export class SecurityStack extends Stack {
     // Destination bucket is in the same region, encrypted SSE-S3, public
     // access blocked, 90-day lifecycle to keep storage bounded.
     const auditBucket = new Bucket(this, "AuditBucket", {
-      bucketName: `windhoek-${props.envName}-audit-logs-${this.account}`,
+      bucketName: `monorepo-${props.envName}-audit-logs-${this.account}`,
       encryption: BucketEncryption.S3_MANAGED,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
@@ -251,7 +251,7 @@ export class SecurityStack extends Stack {
     })
 
     new Trail(this, "ManagementTrail", {
-      trailName: `windhoek-${props.envName}-management`,
+      trailName: `monorepo-${props.envName}-management`,
       bucket: auditBucket,
       includeGlobalServiceEvents: true,
       isMultiRegionTrail: false,
@@ -269,7 +269,7 @@ export class SecurityStack extends Stack {
     const dbArn = `arn:aws:rds:${this.region}:${this.account}:db:${dbInstanceId}`
 
     const rdsWatcherLogGroup = new LogGroup(this, "RdsRestartWatcherLogs", {
-      logGroupName: `/aws/lambda/windhoek-${props.envName}-rds-restart-watcher`,
+      logGroupName: `/aws/lambda/monorepo-${props.envName}-rds-restart-watcher`,
       retention: RetentionDays.ONE_MONTH,
     })
 
@@ -277,7 +277,7 @@ export class SecurityStack extends Stack {
       this,
       "RdsRestartWatcherFn",
       {
-        functionName: `windhoek-${props.envName}-rds-restart-watcher`,
+        functionName: `monorepo-${props.envName}-rds-restart-watcher`,
         runtime: Runtime.NODEJS_20_X,
         handler: "index.handler",
         code: Code.fromAsset(
@@ -310,7 +310,7 @@ export class SecurityStack extends Stack {
     )
 
     new Rule(this, "RdsRestartRule", {
-      ruleName: `windhoek-${props.envName}-rds-restart-watch`,
+      ruleName: `monorepo-${props.envName}-rds-restart-watch`,
       description:
         "Trigger the RDS auto-restart watcher on any RDS DB Instance Event",
       eventPattern: {

@@ -1,5 +1,7 @@
 # Executor Brief
 
+> **SUPERSEDED** by ADR-0007 (MVP single-account CDK-only, 2026-05-11) and `docs/plans/INFRA-REBUILD-PLAN.md`. Historical reference only — the hybrid OpenTofu + CDK model this brief assumes is no longer current. Read ADR-0007 + ADR-0016 + INFRA-REBUILD-PLAN.md instead.
+
 Read this **before** touching anything. You are executing the foundation plans for a financial SaaS monorepo: `CICD-PLAN.md` and `AWS-INTEGRATION-PLAN.md`. This brief tells you what those plans assume, what blocks autonomous execution, and where you must stop and ask.
 
 ## Read Order

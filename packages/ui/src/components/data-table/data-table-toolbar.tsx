@@ -1,7 +1,7 @@
 "use client"
 
 import type { Column, Table } from "@tanstack/react-table"
-import { X } from "lucide-react"
+import { X } from "@workspace/ui/lib/icons"
 import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"

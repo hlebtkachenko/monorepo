@@ -1,7 +1,7 @@
 "use client"
 
 import type { Column } from "@tanstack/react-table"
-import { Check, PlusCircle, XCircle } from "lucide-react"
+import { Check, PlusCircle, XCircle } from "@workspace/ui/lib/icons"
 import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"

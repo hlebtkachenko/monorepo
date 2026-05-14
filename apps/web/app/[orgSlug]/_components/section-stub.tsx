@@ -22,7 +22,7 @@ export function SectionStub({
         </p>
       </header>
       <p className="text-sm text-muted-foreground">
-        {description ?? `${title} — content lands here.`}
+        {description ?? `${title}: content lands here.`}
       </p>
     </div>
   )

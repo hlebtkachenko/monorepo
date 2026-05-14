@@ -15,7 +15,7 @@ export default async function OrgDashboardPage({
         <p className="text-sm text-muted-foreground">/{orgSlug}</p>
       </header>
       <p className="text-sm text-muted-foreground">
-        Organization dashboard — context-specific widgets land here.
+        Organization dashboard: context-specific widgets land here.
       </p>
     </div>
   )

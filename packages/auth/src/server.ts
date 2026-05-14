@@ -133,7 +133,28 @@ export const auth = betterAuth({
       generateId: "uuid",
     },
   },
-  plugins: [admin(), twoFactor()],
+  plugins: [
+    admin(),
+    twoFactor({
+      // BA plugin core treats field names as camelCase (backupCodes, userId).
+      // Our Drizzle table exposes snake_case JS keys (backup_codes, user_id)
+      // matching the SQL columns. Remap so the adapter's `schema[fieldName]`
+      // lookup hits the right Drizzle column object.
+      schema: {
+        twoFactor: {
+          fields: {
+            backupCodes: "backup_codes",
+            userId: "user_id",
+          },
+        },
+        user: {
+          fields: {
+            twoFactorEnabled: "two_factor_enabled",
+          },
+        },
+      },
+    }),
+  ],
 })
 
 export type Auth = typeof auth

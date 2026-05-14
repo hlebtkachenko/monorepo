@@ -13,7 +13,7 @@ export default async function AccountingOverviewPage({
       title="Overview"
       orgSlug={orgSlug}
       subpath="accounting"
-      description="General accounting — ledger, journal, posting, chart of accounts. Pick a tab to drill in."
+      description="General accounting: ledger, journal, posting, chart of accounts. Pick a tab to drill in."
     />
   )
 }

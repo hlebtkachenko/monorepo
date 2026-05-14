@@ -13,7 +13,7 @@ export default async function PeriodClosingPage({
       title="Period"
       orgSlug={orgSlug}
       subpath="closing/period"
-      description="Month or quarter close — drives interim reporting."
+      description="Month or quarter close: drives interim reporting."
     />
   )
 }

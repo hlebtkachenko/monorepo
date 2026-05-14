@@ -13,7 +13,7 @@ export default async function FinanceOverviewPage({
       title="Overview"
       orgSlug={orgSlug}
       subpath="finance"
-      description="Money lives here — bank, cash, accounts, credits. Pick a tab to drill in."
+      description="Money lives here: bank, cash, accounts, credits. Pick a tab to drill in."
     />
   )
 }

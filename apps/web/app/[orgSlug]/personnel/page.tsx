@@ -13,7 +13,7 @@ export default async function PersonnelOverviewPage({
       title="Overview"
       orgSlug={orgSlug}
       subpath="personnel"
-      description="People and payments — employees, payroll, travels, expenses."
+      description="People and payments: employees, payroll, travels, expenses."
     />
   )
 }

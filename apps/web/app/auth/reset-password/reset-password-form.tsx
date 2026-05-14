@@ -179,10 +179,9 @@ export function ResetPasswordForm() {
                     showGenerate
                     autoFocus
                     value={password}
-                    onValueChange={(v) => {
+                    onValueChange={(v) =>
                       form.setValue("password", v, { shouldValidate: false })
-                      form.setValue("confirm", v, { shouldValidate: false })
-                    }}
+                    }
                     onGenerate={(pw) => {
                       form.setValue("confirm", pw, { shouldValidate: false })
                     }}

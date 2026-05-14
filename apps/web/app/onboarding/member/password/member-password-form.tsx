@@ -62,9 +62,7 @@ export function MemberPasswordForm({ email }: Props) {
       setServerError(tErrors(result.errorKey ?? "createAccountFailed"))
       return
     }
-    router.push(
-      `/onboarding/member/done?slug=${encodeURIComponent(result.orgSlug ?? "")}`,
-    )
+    router.push("/onboarding/member/done")
   }
 
   return (
@@ -94,10 +92,9 @@ export function MemberPasswordForm({ email }: Props) {
               showGenerate
               autoFocus
               value={password}
-              onValueChange={(v) => {
+              onValueChange={(v) =>
                 form.setValue("password", v, { shouldValidate: false })
-                form.setValue("confirm", v, { shouldValidate: false })
-              }}
+              }
               onGenerate={(pw) =>
                 form.setValue("confirm", pw, { shouldValidate: false })
               }

@@ -41,7 +41,7 @@ describe("PasswordInput", () => {
     ).toBeInTheDocument()
   })
 
-  it("generate button calls onGenerate with a 16-char string", async () => {
+  it("generate button calls onGenerate with an Apple-style grouped string", async () => {
     const user = userEvent.setup()
     const onGenerate = vi.fn()
     render(
@@ -56,7 +56,10 @@ describe("PasswordInput", () => {
 
     expect(onGenerate).toHaveBeenCalledOnce()
     const generated = onGenerate.mock.lastCall![0] as string
-    expect(generated).toHaveLength(16)
+    // 18 chars + 2 hyphens (three groups of six)
+    expect(generated).toHaveLength(20)
+    expect(generated.split("-")).toHaveLength(3)
+    expect(generated.split("-").every((g) => g.length === 6)).toBe(true)
   })
 
   it("generated string contains digit, symbol, uppercase and lowercase", async () => {

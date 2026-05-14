@@ -17,26 +17,67 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 
-const GENERATE_CHARSET =
-  "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*"
+const LOWER = "abcdefghijkmnpqrstuvwxyz"
+const UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+const DIGIT = "23456789"
+const SYMBOL = "!@#$%^&*"
+const READABLE = LOWER + UPPER + DIGIT
 
-function generatePassword(length = 16): string {
-  const charset = GENERATE_CHARSET
+function randomBytes(length: number): Uint32Array {
   const values = new Uint32Array(length)
-
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.getRandomValues === "function"
   ) {
     crypto.getRandomValues(values)
   } else {
-    // Fallback: less secure — avoid in production environments
     for (let i = 0; i < length; i++) {
       values[i] = Math.floor(Math.random() * 0x100000000)
     }
   }
+  return values
+}
 
-  return Array.from(values, (v) => charset[v % charset.length]).join("")
+function pick(charset: string, rand: number): string {
+  return charset[rand % charset.length]!
+}
+
+/**
+ * Apple-style suggested password: four hyphen-separated groups,
+ * readable mixed alphanumeric, with guaranteed uppercase, lowercase,
+ * digit, and symbol to satisfy app password rules.
+ *
+ *   abcdEF-12gh3K-mnPq45-xy!Z67    (18 chars + 3 hyphens, 21 total)
+ *
+ * Hyphens count toward the rules-checker's length (>=12) but are not
+ * treated as symbols by Zod's symbol class. We inject one explicit
+ * symbol into a random slot so PasswordSchema.symbol passes.
+ */
+function generatePassword(): string {
+  const groupSize = 6
+  const groupCount = 3
+  const total = groupSize * groupCount
+  const rand = randomBytes(total + 4)
+
+  const chars: string[] = new Array(total)
+  for (let i = 0; i < total; i++) {
+    chars[i] = pick(READABLE, rand[i]!)
+  }
+
+  // Guarantee at least one of each required class.
+  chars[rand[total]! % total] = pick(UPPER, rand[total + 1]!)
+  chars[rand[total + 2]! % total] = pick(DIGIT, rand[total + 3]!)
+  // Force one symbol slot (overrides one readable char). PasswordSchema
+  // requires at least one symbol; without this the readable charset
+  // alone would never satisfy it.
+  const symIdx = rand[total + 1]! % total
+  chars[symIdx] = pick(SYMBOL, rand[total + 3]!)
+
+  const groups: string[] = []
+  for (let g = 0; g < groupCount; g++) {
+    groups.push(chars.slice(g * groupSize, (g + 1) * groupSize).join(""))
+  }
+  return groups.join("-")
 }
 
 export interface PasswordInputProps extends Omit<
@@ -78,7 +119,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
     }
 
     function handleGenerate() {
-      const pw = generatePassword(16)
+      const pw = generatePassword()
       onGenerate?.(pw)
       onValueChange?.(pw)
     }

@@ -1,6 +1,9 @@
 import * as path from "node:path"
-import { Duration, Stack, type StackProps } from "aws-cdk-lib"
+import { Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib"
 import { CfnBudget } from "aws-cdk-lib/aws-budgets"
+import { ReadWriteType, Trail } from "aws-cdk-lib/aws-cloudtrail"
+import { Rule } from "aws-cdk-lib/aws-events"
+import { LambdaFunction as LambdaTarget } from "aws-cdk-lib/aws-events-targets"
 import {
   AnyPrincipal,
   Effect,
@@ -13,14 +16,17 @@ import {
   Runtime,
 } from "aws-cdk-lib/aws-lambda"
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
+import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
 import { LambdaSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
+import type { DataStack } from "./data-stack.js"
 
 export interface SecurityStackProps extends StackProps {
   readonly envName: string
   readonly appStack: AppStack
+  readonly dataStack: DataStack
   /**
    * Email recipient subscribed to every Budget threshold notification.
    * Same address as ObservabilityStack.alertEmail.
@@ -228,5 +234,101 @@ export class SecurityStack extends Stack {
         ],
       })
     }
+
+    // ----- CloudTrail -----
+    //
+    // Single-region trail in this stack's region. Management events only
+    // (free tier - first trail with management events is no-charge).
+    // Destination bucket is in the same region, encrypted SSE-S3, public
+    // access blocked, 90-day lifecycle to keep storage bounded.
+    const auditBucket = new Bucket(this, "AuditBucket", {
+      bucketName: `windhoek-${props.envName}-audit-logs-${this.account}`,
+      encryption: BucketEncryption.S3_MANAGED,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      versioned: false,
+      lifecycleRules: [
+        {
+          id: "Expire90d",
+          expiration: Duration.days(90),
+          abortIncompleteMultipartUploadAfter: Duration.days(7),
+        },
+      ],
+      removalPolicy:
+        props.envName === "production"
+          ? RemovalPolicy.RETAIN
+          : RemovalPolicy.DESTROY,
+      autoDeleteObjects: props.envName !== "production",
+    })
+
+    new Trail(this, "ManagementTrail", {
+      trailName: `windhoek-${props.envName}-management`,
+      bucket: auditBucket,
+      includeGlobalServiceEvents: true,
+      isMultiRegionTrail: false,
+      enableFileValidation: true,
+      managementEvents: ReadWriteType.ALL,
+    })
+
+    // ----- RDS auto-restart watcher -----
+    //
+    // AWS forcibly starts a stopped RDS instance after ~7 days. When the
+    // kill-switch or an operator intentionally stopped it (signaled via the
+    // `cost-stop-requested=true` tag on the DB), this Lambda re-stops on
+    // the start event. Without the tag, the Lambda no-ops.
+    const dbInstanceId = props.dataStack.database.instanceIdentifier
+    const dbArn = `arn:aws:rds:${this.region}:${this.account}:db:${dbInstanceId}`
+
+    const rdsWatcherLogGroup = new LogGroup(this, "RdsRestartWatcherLogs", {
+      logGroupName: `/aws/lambda/windhoek-${props.envName}-rds-restart-watcher`,
+      retention: RetentionDays.ONE_MONTH,
+    })
+
+    const rdsRestartWatcherFn = new LambdaFunction(
+      this,
+      "RdsRestartWatcherFn",
+      {
+        functionName: `windhoek-${props.envName}-rds-restart-watcher`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "index.handler",
+        code: Code.fromAsset(
+          path.join(__dirname, "lambda", "rds-restart-watcher"),
+        ),
+        timeout: Duration.seconds(30),
+        memorySize: 256,
+        logGroup: rdsWatcherLogGroup,
+        environment: {
+          DB_INSTANCE_IDENTIFIER: dbInstanceId,
+        },
+        description:
+          "Re-stops the RDS instance after AWS's 7-day forced restart when tagged cost-stop-requested=true",
+      },
+    )
+
+    rdsRestartWatcherFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["rds:DescribeDBInstances", "rds:ListTagsForResource"],
+        resources: ["*"],
+      }),
+    )
+    rdsRestartWatcherFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["rds:StopDBInstance"],
+        resources: [dbArn],
+      }),
+    )
+
+    new Rule(this, "RdsRestartRule", {
+      ruleName: `windhoek-${props.envName}-rds-restart-watch`,
+      description:
+        "Trigger the RDS auto-restart watcher on any RDS DB Instance Event",
+      eventPattern: {
+        source: ["aws.rds"],
+        detailType: ["RDS DB Instance Event"],
+      },
+      targets: [new LambdaTarget(rdsRestartWatcherFn)],
+    })
   }
 }

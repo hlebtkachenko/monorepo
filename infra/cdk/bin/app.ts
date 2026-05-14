@@ -71,6 +71,7 @@ const security = new SecurityStack(app, `Security-${env}`, {
   env: stackEnv,
   envName: env,
   appStack,
+  dataStack: data,
   alertEmail,
 })
 

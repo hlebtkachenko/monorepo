@@ -55,7 +55,8 @@ jobs:
           echo "${CERBOS_SHA256}  /tmp/cerbos.tgz" | sha256sum -c
           sudo tar -xz -C /usr/local/bin cerbos -f /tmp/cerbos.tgz
           rm /tmp/cerbos.tgz
-          cerbos version
+          # cerbos v0.53.0 removed the `version` subcommand; use --version flag.
+          cerbos --version
 
       - name: Compile policies and run test assertions
         run: |

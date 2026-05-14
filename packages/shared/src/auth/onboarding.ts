@@ -13,10 +13,13 @@ export const ProfileSchema = z.object({
     .min(1, { error: "name.required" })
     .max(100, { error: "name.tooLong" })
     .trim(),
+  // Must match the `app_user_phone_format` DB CHECK constraint
+  // (E.164: ^\+[1-9][0-9]{7,14}$). Empty string passes — the server action
+  // coerces empty to NULL before INSERT/UPDATE.
   phone: z
     .string()
     .max(32, { error: "phone.tooLong" })
-    .regex(/^\+?[0-9 ()-]*$/, { error: "phone.format" })
+    .regex(/^\+[1-9][0-9]{7,14}$/, { error: "phone.format" })
     .optional()
     .or(z.literal("")),
   locale: z.string().min(2).max(10),

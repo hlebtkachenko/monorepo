@@ -31,6 +31,27 @@ CREATE TYPE public.actor_kind AS ENUM (
 );
 
 --
+-- Name: app_user_experience; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.app_user_experience AS ENUM (
+    'new',
+    'some',
+    'bookkeeper',
+    'accountant'
+);
+
+--
+-- Name: billing_plan; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.billing_plan AS ENUM (
+    'starter',
+    'growth',
+    'scale'
+);
+
+--
 -- Name: invite_status; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -61,6 +82,27 @@ CREATE TYPE public.workspace_role AS ENUM (
     'owner',
     'admin',
     'member'
+);
+
+--
+-- Name: workspace_team_size; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.workspace_team_size AS ENUM (
+    'solo',
+    'sm',
+    'md',
+    'lg',
+    'xl'
+);
+
+--
+-- Name: workspace_use_case; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.workspace_use_case AS ENUM (
+    'firm',
+    'biz'
 );
 
 --
@@ -509,6 +551,7 @@ CREATE TABLE public.app_user (
     profile_completed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    experience public.app_user_experience,
     CONSTRAINT app_user_phone_format CHECK (((phone IS NULL) OR (phone ~ '^\+[1-9][0-9]{7,14}$'::text))),
     CONSTRAINT app_user_system_role_valid CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text])))
 );
@@ -832,7 +875,10 @@ CREATE TABLE public.workspace (
     step_3_completed_at timestamp with time zone,
     step_4_completed_at timestamp with time zone,
     step_5_completed_at timestamp with time zone,
-    onboarding_completed_at timestamp with time zone
+    onboarding_completed_at timestamp with time zone,
+    use_case public.workspace_use_case,
+    team_size public.workspace_team_size,
+    plan public.billing_plan DEFAULT 'starter'::public.billing_plan NOT NULL
 );
 
 ALTER TABLE ONLY public.workspace FORCE ROW LEVEL SECURITY;

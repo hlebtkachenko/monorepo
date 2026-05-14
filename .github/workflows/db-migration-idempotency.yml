@@ -89,7 +89,9 @@ jobs:
         env:
           PGPASSWORD: dev_owner
         run: |
-          pg_dump \
+          # Use full path to v18 pg_dump; the runner's default pg_dump is older
+          # and refuses to dump from a v18 server ("server version mismatch").
+          /usr/lib/postgresql/18/bin/pg_dump \
             --schema-only \
             --no-owner \
             --no-privileges \
@@ -106,7 +108,7 @@ jobs:
         env:
           PGPASSWORD: dev_owner
         run: |
-          pg_dump \
+          /usr/lib/postgresql/18/bin/pg_dump \
             --schema-only \
             --no-owner \
             --no-privileges \

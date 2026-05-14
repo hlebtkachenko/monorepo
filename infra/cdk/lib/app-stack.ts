@@ -219,7 +219,7 @@ export class AppStack extends Stack {
 
     const tunnelContainer = taskDef.addContainer("cloudflared", {
       containerName: "cloudflared",
-      image: ContainerImage.fromRegistry("cloudflare/cloudflared:latest"),
+      image: ContainerImage.fromRegistry("cloudflare/cloudflared:2026.5.0"),
       essential: true,
       command: ["tunnel", "--no-autoupdate", "run"],
       logging: LogDriver.awsLogs({

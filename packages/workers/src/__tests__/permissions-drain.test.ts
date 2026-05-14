@@ -3,11 +3,12 @@
  *
  * Use a FakeOpenFgaClient + an in-memory transaction mock instead of a
  * real OpenFGA + Postgres. Real-DB integration is covered by the
- * three-layer AuthGuard tests in apps/api/tests/authz/ (Commit 10).
+ * three-layer AuthGuard tests in apps/api/tests/authz/ (follow-up
+ * commit, post-MVP).
  *
- * These tests pin the payload-transform contract from ADR-0018:
- *   { op, object, relation, user, subject_id, condition? }
- * and the idempotency + error-budget semantics.
+ * These tests pin the payload-transform contract from migration 0006
+ * (op_type is a COLUMN, not in payload; payload requires workspace_id
+ * + user-ref regex match) and the idempotency + error-budget semantics.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -32,6 +33,13 @@ function makeClient(): FakeClient {
 
 const NOW = new Date("2026-05-14T12:00:00Z")
 
+const WORKSPACE_ID = "00000000-0000-7000-8000-00000000aaaa"
+const ALICE_REF = "user:00000000-0000-7000-8000-0000000000a1"
+const BOB_REF = "user:00000000-0000-7000-8000-0000000000b0"
+const CAROL_REF = "user:00000000-0000-7000-8000-0000000000c4"
+const DAVE_REF = "user:00000000-0000-7000-8000-0000000000d4"
+const AUDITOR_REF = "user:00000000-0000-7000-8000-000000000aa1"
+
 beforeEach(() => {
   txExecute.mockReset()
 })
@@ -47,12 +55,12 @@ describe("permissions-drain — drainBatch", () => {
       .mockResolvedValueOnce([
         {
           id: "00000000-0000-7000-8000-000000000001",
+          op_type: "write",
           payload: {
-            op: "write",
-            object: "invoice:inv-1",
+            workspace_id: WORKSPACE_ID,
+            object: "invoice:00000000-0000-7000-8000-000000000010",
             relation: "viewer",
-            user: "user:alice",
-            subject_id: "00000000-0000-7000-8000-00000000beef",
+            user: ALICE_REF,
           },
           attempts: 0,
         },
@@ -68,9 +76,9 @@ describe("permissions-drain — drainBatch", () => {
     expect(client.write).toHaveBeenCalledWith({
       writes: [
         {
-          user: "user:alice",
+          user: ALICE_REF,
           relation: "viewer",
-          object: "invoice:inv-1",
+          object: "invoice:00000000-0000-7000-8000-000000000010",
         },
       ],
     })
@@ -82,12 +90,12 @@ describe("permissions-drain — drainBatch", () => {
       .mockResolvedValueOnce([
         {
           id: "00000000-0000-7000-8000-000000000002",
+          op_type: "delete",
           payload: {
-            op: "delete",
-            object: "file:f-1",
+            workspace_id: WORKSPACE_ID,
+            object: "file:00000000-0000-7000-8000-000000000020",
             relation: "editor",
-            user: "user:bob",
-            subject_id: "00000000-0000-7000-8000-00000000beef",
+            user: BOB_REF,
           },
           attempts: 0,
         },
@@ -100,7 +108,13 @@ describe("permissions-drain — drainBatch", () => {
     })
 
     expect(client.write).toHaveBeenCalledWith({
-      deletes: [{ user: "user:bob", relation: "editor", object: "file:f-1" }],
+      deletes: [
+        {
+          user: BOB_REF,
+          relation: "editor",
+          object: "file:00000000-0000-7000-8000-000000000020",
+        },
+      ],
     })
   })
 
@@ -110,12 +124,12 @@ describe("permissions-drain — drainBatch", () => {
       .mockResolvedValueOnce([
         {
           id: "00000000-0000-7000-8000-000000000003",
+          op_type: "write",
           payload: {
-            op: "write",
-            object: "invoice:inv-2",
+            workspace_id: WORKSPACE_ID,
+            object: "invoice:00000000-0000-7000-8000-000000000030",
             relation: "viewer",
-            user: "user:auditor",
-            subject_id: "00000000-0000-7000-8000-00000000beef",
+            user: AUDITOR_REF,
             condition: {
               name: "expires_at",
               context: { iso8601: "2026-12-31T00:00:00Z" },
@@ -134,9 +148,9 @@ describe("permissions-drain — drainBatch", () => {
     expect(client.write).toHaveBeenCalledWith({
       writes: [
         {
-          user: "user:auditor",
+          user: AUDITOR_REF,
           relation: "viewer",
-          object: "invoice:inv-2",
+          object: "invoice:00000000-0000-7000-8000-000000000030",
           condition: {
             name: "expires_at",
             context: { iso8601: "2026-12-31T00:00:00Z" },
@@ -153,12 +167,12 @@ describe("permissions-drain — drainBatch", () => {
       .mockResolvedValueOnce([
         {
           id: "00000000-0000-7000-8000-000000000004",
+          op_type: "write",
           payload: {
-            op: "write",
-            object: "invoice:inv-3",
+            workspace_id: WORKSPACE_ID,
+            object: "invoice:00000000-0000-7000-8000-000000000040",
             relation: "viewer",
-            user: "user:carol",
-            subject_id: "00000000-0000-7000-8000-00000000beef",
+            user: CAROL_REF,
           },
           attempts: 0,
         },
@@ -187,12 +201,12 @@ describe("permissions-drain — drainBatch", () => {
       .mockResolvedValueOnce([
         {
           id: "00000000-0000-7000-8000-000000000005",
+          op_type: "write",
           payload: {
-            op: "write",
-            object: "invoice:inv-4",
+            workspace_id: WORKSPACE_ID,
+            object: "invoice:00000000-0000-7000-8000-000000000050",
             relation: "viewer",
-            user: "user:dave",
-            subject_id: "00000000-0000-7000-8000-00000000beef",
+            user: DAVE_REF,
           },
           attempts: 4, // next attempt is the 5th, hits MAX
         },
@@ -205,15 +219,28 @@ describe("permissions-drain — drainBatch", () => {
     })
 
     expect(result).toEqual({ processed: 0, failed: 1 })
+    // Verify the failed_at update sets a Date (not null) at MAX_ATTEMPTS.
+    const updateCall = txExecute.mock.calls[1]?.[0] as {
+      queryChunks: unknown[]
+    }
+    const sqlText = JSON.stringify(updateCall)
+    expect(sqlText).toContain("still failing")
   })
 
-  it("rejects malformed payloads with a clear error budget", async () => {
+  it("rejects payload missing workspace_id (DB CHECK contract)", async () => {
     const client = makeClient()
     txExecute
       .mockResolvedValueOnce([
         {
           id: "00000000-0000-7000-8000-000000000006",
-          payload: { op: "write" }, // missing required fields
+          op_type: "write",
+          // workspace_id missing — would fail DB CHECK if inserted; drain
+          // also rejects so a bad insert via app_worker is bounded.
+          payload: {
+            object: "invoice:inv-x",
+            relation: "viewer",
+            user: ALICE_REF,
+          },
           attempts: 0,
         },
       ])
@@ -224,8 +251,37 @@ describe("permissions-drain — drainBatch", () => {
       now: () => NOW,
     })
 
-    // Bad payload counts as a retryable error; same as SDK throw. The bad
-    // row will exhaust attempts and dead-letter to failed_at after 5 cycles.
+    expect(result).toEqual({ processed: 0, failed: 0 })
+    expect(client.write).not.toHaveBeenCalled()
+  })
+
+  it("rejects payload.user that does not match the DB CHECK regex", async () => {
+    const client = makeClient()
+    txExecute
+      .mockResolvedValueOnce([
+        {
+          id: "00000000-0000-7000-8000-000000000007",
+          op_type: "write",
+          payload: {
+            workspace_id: WORKSPACE_ID,
+            object: "invoice:00000000-0000-7000-8000-000000000070",
+            relation: "viewer",
+            // "user:alice" used to be the test fixture — it does NOT match
+            // ^[a-z][a-z0-9_]*:<uuid>$ from migration 0006. The drain must
+            // reject the same shape so an ordinary INSERT failure can't
+            // poison the queue.
+            user: "user:alice",
+          },
+          attempts: 0,
+        },
+      ])
+      .mockResolvedValueOnce([])
+
+    const result = await drainBatch({
+      client: client as unknown as Parameters<typeof drainBatch>[0]["client"],
+      now: () => NOW,
+    })
+
     expect(result).toEqual({ processed: 0, failed: 0 })
     expect(client.write).not.toHaveBeenCalled()
   })

@@ -48,7 +48,9 @@ services:
                      # no --grpc-enabled toggle), but it's unreachable from
                      # the host so dev tools default to HTTP cleanly.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      # openfga/openfga:v1.15.1 is Chainguard distroless: no /bin/sh, no
+      # wget, no curl. Probe via the in-image grpc_health_probe binary.
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=127.0.0.1:8081"]
       interval: 10s
       timeout: 5s
       retries: 10

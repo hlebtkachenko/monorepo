@@ -426,6 +426,14 @@ export class AppStack extends Stack {
       environment: {
         CERBOS_NO_TELEMETRY: "1",
       },
+      // Cerbos ships an in-binary healthcheck subcommand; no shell needed.
+      healthCheck: {
+        command: ["CMD", "/cerbos", "healthcheck", "--insecure"],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(5),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 64,
       readonlyRootFilesystem: true,
       linuxParameters: linuxParams("CerbosLinuxParams"),
@@ -435,18 +443,29 @@ export class AppStack extends Stack {
       sourceVolume: "tmp",
       readOnly: false,
     })
+    // api waits for cerbos HEALTHY too — symmetric with pgbouncer + openfga.
+    apiContainer.addContainerDependencies({
+      container: cerbosContainer,
+      condition: ContainerDependencyCondition.HEALTHY,
+    })
 
     // OpenFGA sidecar (ADR-0018 L2): ReBAC graph engine.
     //
     // Datastore = the same RDS, under schema `openfga`. Connects DIRECT
-    // (port 5432, not via pgbouncer) because OpenFGA opens many concurrent
-    // sessions and the pool semantics there don't apply. The bootstrap
-    // step `CREATE SCHEMA openfga` + `openfga migrate` runs once before
-    // first cdk deploy (see docs/runbooks/AWS-DEPLOY.md).
+    // (port 5432, not via pgbouncer) — OpenFGA opens many concurrent
+    // sessions and the pool semantics don't apply. Bootstrap
+    // (CREATE SCHEMA openfga + openfga migrate + bootstrap.mjs) runs from
+    // an operator workstation against a port-forwarded RDS BEFORE the
+    // first cdk deploy App-{env}; see docs/runbooks/AWS-DEPLOY.md.
     //
-    // OPENFGA_DATASTORE_URI is composed at container start from the same
-    // secret pgbouncer uses — the entrypoint shell builds the URL so the
-    // password stays in Secrets Manager, not env.
+    // openfga/openfga:v1.15.1 is a Chainguard distroless image — no
+    // /bin/sh, no busybox. We pass URI + username/password as separate
+    // env vars (OpenFGA's native config keys) instead of composing a URL
+    // with a shell wrapper. The image's entrypoint is the `/openfga`
+    // binary; we only set `command: ["run"]` to start the server.
+    //
+    // Healthcheck uses the in-image `grpc_health_probe` binary against
+    // the gRPC port (:8081) — no shell needed.
     //
     // Hardening: capDrop ALL + readonlyRootFilesystem + /tmp ephemeral
     // mount (PR #77 pattern).
@@ -460,30 +479,36 @@ export class AppStack extends Stack {
       }),
       environment: {
         OPENFGA_DATASTORE_ENGINE: "postgres",
+        // Bind HTTP to loopback only; gRPC defaults to :8081 (used by
+        // grpc_health_probe below + an internal admin path).
         OPENFGA_HTTP_ADDR: "127.0.0.1:8080",
         OPENFGA_LOG_FORMAT: "json",
         OPENFGA_LOG_LEVEL: "info",
-        DB_DIRECT_HOST: props.database.dbInstanceEndpointAddress,
-        DB_DIRECT_PORT: props.database.dbInstanceEndpointPort,
-        DB_NAME: "monorepo",
+        // OPENFGA_DATASTORE_URI carries host/port/db only — no creds.
+        // OPENFGA_DATASTORE_USERNAME + PASSWORD env are merged in by the
+        // server at boot. This avoids the closed entrypoint problem on
+        // the distroless image.
+        OPENFGA_DATASTORE_URI: `postgres://${props.database.dbInstanceEndpointAddress}:${props.database.dbInstanceEndpointPort}/monorepo?search_path=openfga&sslmode=require`,
       },
       secrets: {
-        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
-        DB_PASSWORD: EcsSecret.fromSecretsManager(
+        OPENFGA_DATASTORE_USERNAME: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "username",
+        ),
+        OPENFGA_DATASTORE_PASSWORD: EcsSecret.fromSecretsManager(
           props.databaseSecret,
           "password",
         ),
       },
-      entryPoint: ["/bin/sh", "-c"],
-      command: [
-        'export OPENFGA_DATASTORE_URI="postgres://${DB_USER}:${DB_PASSWORD}@${DB_DIRECT_HOST}:${DB_DIRECT_PORT}/${DB_NAME}?search_path=openfga" && ' +
-          "exec /openfga run",
-      ],
+      command: ["run"],
       healthCheck: {
-        // openfga ships /healthz at the HTTP listener.
+        // grpc_health_probe is baked into the distroless image at
+        // /usr/local/bin/grpc_health_probe (verified by extracting the
+        // layers locally). Probes the openfga gRPC server.
         command: [
-          "CMD-SHELL",
-          "wget -qO- http://127.0.0.1:8080/healthz || exit 1",
+          "CMD",
+          "/usr/local/bin/grpc_health_probe",
+          "-addr=127.0.0.1:8081",
         ],
         interval: Duration.seconds(10),
         timeout: Duration.seconds(5),

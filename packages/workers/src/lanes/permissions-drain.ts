@@ -5,7 +5,8 @@
  * Drain pattern (one batch per pg-boss tick):
  *   1. SELECT ... FOR UPDATE SKIP LOCKED N rows where processed_at IS NULL
  *      AND failed_at IS NULL (skip the dead-letter set).
- *   2. Transform payload jsonb -> OpenFGA tuple write/delete via the SDK.
+ *   2. Read op_type from the COLUMN (not payload). Transform payload jsonb
+ *      into an OpenFGA tuple. Write via the SDK.
  *   3. On success: UPDATE processed_at = now() in the same transaction so
  *      the row releases its lock + commits "done" together.
  *   4. On failure: bump attempts + last_error. After MAX_ATTEMPTS, set
@@ -16,15 +17,27 @@
  * all orgs via withAdminBypass — the workspace-rls/require-with-organization
  * ESLint rule does not apply to admin-scope tables.
  *
- * PAYLOAD shape (ADR-0018):
- *   {
- *     "op": "write" | "delete",
- *     "object": "resource_type:id",     // OpenFGA object ref
- *     "relation": "viewer"|"editor"|"owner"|... ,
- *     "user": "user:user_id",           // OpenFGA user ref
- *     "subject_id": "<uuid>",           // db CHECK constraint
- *     "condition"?: { name, context? }, // optional ABAC condition
- *   }
+ * SCHEMA SHAPE — must match migration 0006_permissions_outbox.sql:
+ *
+ *   Columns:
+ *     id            uuid PK
+ *     op_type       text NOT NULL CHECK IN ('write', 'delete')
+ *     payload       jsonb NOT NULL (CHECK constraints below)
+ *     attempts      int NOT NULL DEFAULT 0
+ *     last_error    text
+ *     failed_at     timestamptz
+ *     processed_at  timestamptz
+ *     created_at    timestamptz NOT NULL DEFAULT now()
+ *
+ *   Payload jsonb (object) MUST contain (DB-enforced):
+ *     - "workspace_id" : valid uuid string
+ *     - "user"         : matches ^[a-z][a-z0-9_]*:<uuid>$ (OpenFGA user ref,
+ *                        e.g. "user:00000000-0000-7000-8000-0000000000aa")
+ *
+ *   Payload jsonb (object) ADDITIONALLY required by drain (app-level):
+ *     - "object"       : OpenFGA object ref ("resource_kind:<uuid>")
+ *     - "relation"     : OpenFGA relation name ("viewer", "editor", ...)
+ *     - "condition"?   : { name: string, context?: Record<string, unknown> }
  *
  * Idempotency:
  *   - Same OpenFGA write twice = no-op (FGA enforces tuple uniqueness).
@@ -43,19 +56,35 @@ export const PERMISSIONS_DRAIN_LANE_NAME = "permissions-drain"
 const BATCH_SIZE = 50
 const MAX_ATTEMPTS = 5
 
+// Migration 0006 CHECK constraint regex for payload.user.
+const USER_REF_RE =
+  /^[a-z][a-z0-9_]*:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+// Validator for payload.workspace_id (any valid uuid v1/v3/v4/v5/v7).
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+type OpType = "write" | "delete"
+
 type OutboxRow = {
   id: string
+  op_type: OpType
   payload: DrainPayload
   attempts: number
 }
 
 interface DrainPayload {
-  op: "write" | "delete"
+  workspace_id: string
+  user: string
   object: string
   relation: string
-  user: string
-  subject_id: string
   condition?: { name: string; context?: Record<string, unknown> }
+}
+
+function assertOpType(value: unknown): asserts value is OpType {
+  if (value !== "write" && value !== "delete") {
+    throw new Error(`permissions_outbox.op_type invalid: ${String(value)}`)
+  }
 }
 
 function assertPayload(value: unknown): asserts value is DrainPayload {
@@ -63,10 +92,20 @@ function assertPayload(value: unknown): asserts value is DrainPayload {
     throw new Error("permissions_outbox.payload must be an object")
   }
   const p = value as Record<string, unknown>
-  if (p["op"] !== "write" && p["op"] !== "delete") {
-    throw new Error(`permissions_outbox.payload.op invalid: ${String(p["op"])}`)
+  if (
+    typeof p["workspace_id"] !== "string" ||
+    !UUID_RE.test(p["workspace_id"])
+  ) {
+    throw new Error(
+      "permissions_outbox.payload.workspace_id must be a valid uuid string",
+    )
   }
-  for (const key of ["object", "relation", "user", "subject_id"] as const) {
+  if (typeof p["user"] !== "string" || !USER_REF_RE.test(p["user"])) {
+    throw new Error(
+      "permissions_outbox.payload.user must match /^[a-z][a-z0-9_]*:<uuid>$/",
+    )
+  }
+  for (const key of ["object", "relation"] as const) {
     if (typeof p[key] !== "string" || (p[key] as string).length === 0) {
       throw new Error(
         `permissions_outbox.payload.${key} must be non-empty string`,
@@ -91,7 +130,7 @@ export async function drainBatch(deps: DrainDeps): Promise<{
   return await withAdminBypass(async (tx) => {
     const rows = (await tx.execute<OutboxRow>(
       sql`
-        SELECT id, payload, attempts
+        SELECT id, op_type, payload, attempts
         FROM permissions_outbox
         WHERE processed_at IS NULL
           AND failed_at IS NULL
@@ -106,8 +145,9 @@ export async function drainBatch(deps: DrainDeps): Promise<{
 
     for (const row of rows) {
       try {
+        assertOpType(row.op_type)
         assertPayload(row.payload)
-        await applyTuple(deps.client, row.payload)
+        await applyTuple(deps.client, row.op_type, row.payload)
         await tx.execute(sql`
           UPDATE permissions_outbox
           SET processed_at = ${deps.now()}
@@ -135,6 +175,7 @@ export async function drainBatch(deps: DrainDeps): Promise<{
 
 async function applyTuple(
   client: OpenFgaClient,
+  opType: OpType,
   payload: DrainPayload,
 ): Promise<void> {
   const tuple = {
@@ -144,7 +185,7 @@ async function applyTuple(
     ...(payload.condition && { condition: payload.condition }),
   }
 
-  if (payload.op === "write") {
+  if (opType === "write") {
     await client.write({ writes: [tuple] })
   } else {
     await client.write({

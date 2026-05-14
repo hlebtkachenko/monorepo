@@ -420,24 +420,45 @@ Idempotent — safe to re-run.
 
 ```bash
 docker run --rm --network host \
-  openfga/openfga:latest \
+  openfga/openfga:v1.15.1 \
   migrate \
     --datastore-engine postgres \
     --datastore-uri "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga"
 ```
 
-Pin the OpenFGA image to the same tag deployed in the task definition so the
-schema version matches what the running server expects.
+Pin the OpenFGA image to the SAME tag deployed in the task definition
+(`infra/cdk/lib/app-stack.ts` — currently `v1.15.1`) so the schema version
+matches what the running server will expect.
 
-### 4. Bootstrap the OpenFGA store + write SSM
+### 4. Boot a TEMPORARY OpenFGA server + run bootstrap.mjs
 
-After `openfga migrate` is green and the openfga container is reachable
-(typically via a second port forward to the running ECS task on `:8080`):
+This step MUST happen BEFORE the first `cdk deploy App-{env}`. CDK references
+SSM parameters `/monorepo/{env}/openfga/{store-id,model-id}` via
+`StringParameter.fromStringParameterName`, which resolves at deploy time —
+if the parameters do not exist, the deploy fails. There is no chicken-and-egg
+in the chain because we boot OpenFGA LOCALLY in docker (still pointed at the
+real RDS via the same port-forward) just long enough to populate the store
+and write SSM.
 
 ```bash
+# Boot a throwaway OpenFGA server pointing at the migrated RDS schema.
+# Background; we'll stop it after bootstrap.mjs returns.
+docker run --rm -d --name openfga-bootstrap --network host \
+  -e OPENFGA_DATASTORE_ENGINE=postgres \
+  -e OPENFGA_DATASTORE_URI="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga&sslmode=disable" \
+  -e OPENFGA_HTTP_ADDR="127.0.0.1:8080" \
+  openfga/openfga:v1.15.1 run
+
+# Wait for /healthz to come up (grpc_health_probe ships in the image).
+docker exec openfga-bootstrap /usr/local/bin/grpc_health_probe -addr=127.0.0.1:8081
+
+# Populate SSM (creates the store, writes the auth model, sets
+# /monorepo/{env}/openfga/store-id + model-id under your AWS profile).
 AWS_REGION=eu-central-1 \
 OPENFGA_API_URL=http://localhost:8080 \
 node infra/openfga/bootstrap.mjs --env {env}
+
+docker stop openfga-bootstrap
 ```
 
 `bootstrap.mjs` is idempotent: it looks up the store by name and reuses it.

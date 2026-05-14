@@ -23,8 +23,16 @@ export const permissions_outbox = pgTable("permissions_outbox", {
     .notNull()
     .default(sql`uuidv7()`)
     .primaryKey(),
+  /** op_type column (NOT in payload). DB CHECK constrains to 'write' | 'delete'. */
   op_type: text("op_type").notNull(),
-  /** Structured event payload. DB CHECK: payload ? 'op' AND payload ? 'subject_id'. Validated at insert time by app_worker before processing. */
+  /**
+   * Structured event payload. DB CHECK (migration 0006):
+   *   - payload->>'workspace_id' must be a valid uuid string
+   *   - payload->>'user' must match ^[a-z][a-z0-9_]*:<uuid>$
+   * App-level (drain) additionally requires payload->>'object' + 'relation'
+   * and an optional 'condition' { name, context? }. See
+   * packages/workers/src/lanes/permissions-drain.ts for the full contract.
+   */
   payload: jsonb("payload").notNull(),
   attempts: integer("attempts").notNull().default(0),
   last_error: text("last_error"),

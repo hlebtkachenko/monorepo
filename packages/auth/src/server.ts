@@ -86,7 +86,14 @@ export const auth = betterAuth({
     },
     expiresIn: 60 * 60 * 24 * 30, // 30 days
     updateAge: 60 * 60 * 24, // 1 day rolling
-    cookieCache: { enabled: true, maxAge: 60 * 5 },
+    // cookieCache disabled: BA's session-cookie-cache refresh triggers a
+    // cookies().set() during `getSession()` reads. Server Components
+    // (e.g. /onboarding/* page files) cannot write cookies — that throws
+    // "Cookies can only be modified in a Server Action or Route Handler".
+    // Tradeoff: one extra DB roundtrip per session read. Re-enable only
+    // if every getSession() call site moves into actions / route
+    // handlers, or if BA gains a "skip refresh in RSC" knob.
+    cookieCache: { enabled: false },
   },
   account: {
     modelName: "auth_account",

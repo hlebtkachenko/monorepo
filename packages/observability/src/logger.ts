@@ -25,6 +25,16 @@ const isProduction = process.env["NODE_ENV"] === "production"
 // formatted output. JSON is sufficient for assertion and CI logs.
 const isTest = process.env["NODE_ENV"] === "test"
 
+// pino-pretty is opt-in. The transport tries to dynamically require
+// "pino-pretty" at module evaluation, which Turbopack / esbuild / etc.
+// cannot resolve unless the package is bundled as a direct dependency.
+// Rather than ship pino-pretty into every Next.js bundle, we only enable
+// it when the developer asks for it explicitly (`PINO_PRETTY=1 pnpm dev`)
+// and the package is present. Without the flag, dev logs are plain JSON,
+// which is still readable and avoids the "unable to determine transport
+// target" runtime error in Next + Turbopack.
+const wantsPretty = process.env["PINO_PRETTY"] === "1"
+
 function buildOptions(extraPaths: readonly string[] = []): LoggerOptions {
   const paths = Array.from(new Set([...BASELINE_REDACT_PATHS, ...extraPaths]))
   const base: LoggerOptions = {
@@ -34,7 +44,7 @@ function buildOptions(extraPaths: readonly string[] = []): LoggerOptions {
       censor: "[REDACTED]",
     },
   }
-  if (isProduction || isTest) return base
+  if (isProduction || isTest || !wantsPretty) return base
   return { ...base, transport: { target: "pino-pretty" } }
 }
 

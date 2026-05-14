@@ -40,7 +40,6 @@ Path filters skip checks that are demonstrably orthogonal to the changed paths. 
 |--------------|------|
 | Only `docs/**`, `*.md` | typecheck, test, build, mutation |
 | Only `.github/workflows/**` | typecheck, lint, test, build (but actionlint and zizmor MUST run) |
-| Only `infra/tofu/**` | typescript checks (not TS); but `tofu fmt` and `tofu validate` MUST run |
 | Only `apps/web/**` | mutation testing for `packages/**` |
 
 Any check that is part of *required* status above cannot be skipped by path filter on PRs targeting `main`.

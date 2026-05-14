@@ -43,16 +43,3 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
-
-  # OpenTofu / Terraform providers and modules
-  - package-ecosystem: terraform
-    directory: /infra/tofu
-    schedule:
-      interval: weekly
-      day: monday
-    groups:
-      infra-terraform:
-        patterns: ["*"]
-    commit-message:
-      prefix: "chore"
-      include: scope

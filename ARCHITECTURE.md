@@ -26,9 +26,8 @@ packages/
   eslint-config/                   Shared ESLint flat configs
   typescript-config/               Shared TypeScript presets
 infra/
-  tofu/                            OpenTofu platform layer (Org, OUs, SCPs, network)
-  cdk/                             AWS CDK v2 app stacks (network, data, app, observability)
-  compose/                         Local Docker Compose (Postgres 18 + pgBouncer)
+  cdk/                             AWS CDK v2 app stacks (network, data, app, security, observability, billing alarms)
+  compose/                         Local Docker Compose (Postgres 18 + pgBouncer + pgTap)
 docs/
   adr/                             Architecture Decision Records
   runbooks/                        Operational runbooks

@@ -1,47 +1,31 @@
 # CDK App Stacks
 
-Application-layer infrastructure. Four stacks, deployed per environment, named `Network-<env>`, `Data-<env>`, `App-<env>`, `Observability-<env>`.
+Application-layer infrastructure. Deployed per environment.
 
-## Stack layout
+## Stacks
 
 | Stack | Responsibilities |
 |-------|------------------|
-| `NetworkStack` | VPC, subnets, NAT, PrivateLink endpoints, security groups |
-| `DataStack` | RDS Postgres Multi-AZ, KMS CMK, Secrets Manager runtime creds |
-| `AppStack` | ECS Fargate (Graviton), ALB, WAFv2, autoscaling, IAM task role |
-| `ObservabilityStack` | CloudWatch + Honeycomb (OTel) + alarms + EventBridge -> PagerDuty |
+| `NetworkStack` | VPC, subnets (public + isolated), security groups. Zero NAT gateways (ADR-0008). |
+| `DataStack` | RDS Postgres 18, ECR repos, S3 app bucket, Secrets Manager runtime creds. |
+| `AppStack` | ECS Fargate (arm64), 3-container task (web + api + cloudflared sidecar). Hardened (capDrop ALL + readonlyRootFilesystem on api/cloudflared + shared /tmp). |
+| `SecurityStack` | Kill-switch Lambda + 5 budgets + CloudTrail + RDS restart watcher (ADR-0016). |
+| `ObservabilityStack` | CloudWatch alarms (6 attack-vector + 2 critical Fargate) wired to email + kill-switch SNS. |
+| `BillingAlarmsStack` | Deployed to `us-east-1`. `EstimatedCharges` alarms at $40 warning / $80 critical. |
 
-All stacks throw `Error('… not yet implemented')` until `docs/runbooks/AWS-BOOTSTRAP.md` is complete. `cdk synth` exercises type-checking and stack instantiation pre-bootstrap.
+Stacks named `<Stack>-<env>` where `env` ∈ {`staging`, `production`}.
 
-## Cross-stack references
-
-We do **not** use CloudFormation Exports. Exports pin producer stacks and prevent renames or replacements. Instead:
-
-1. Producer stack writes a `StringParameter` under `/platform/<env>/<resource>`.
-2. Consumer stack reads via `StringParameter.valueFromLookup(this, '/platform/<env>/<resource>')`.
-
-Same convention for outputs from OpenTofu (Tofu writes the parameter, CDK reads).
-
-```ts
-// In NetworkStack (producer)
-new StringParameter(this, "VpcIdParam", {
-  parameterName: `/platform/${env}/vpc/id`,
-  stringValue: this.vpc.vpcId,
-});
-
-// In AppStack (consumer)
-const vpcId = StringParameter.valueFromLookup(this, `/platform/${env}/vpc/id`);
-```
+`cdk synth` exercises type-checking + stack instantiation pre-bootstrap (works with dummy `AWS_ACCOUNT_ID=000000000000`). `cdk.context.json` is committed with dummy AZ data; refresh after first real bootstrap via `cdk context --clear` + re-synth.
 
 ## Bootstrap order
 
 Per environment (staging, production):
 
-1. Run `docs/runbooks/AWS-BOOTSTRAP.md` steps 1 through 8.
-2. `make bootstrap-cdk ACCOUNT=<account-id> REGION=eu-central-1` — creates the CDK toolkit stack.
-3. `make synth-cdk` — produces `cdk.out/`, no AWS API calls.
-4. `make diff-cdk` — first run shows the entire stack as a create.
-5. `make deploy-cdk ENV=staging` — deploy via OIDC role from CI; do not deploy from a workstation outside dev.
+1. Run `docs/runbooks/AWS-DEPLOY.md` setup section (creates GitHub OIDC provider + deploy roles).
+2. `make bootstrap-cdk REGION=eu-central-1` — creates the CDK toolkit stack.
+3. `make synth-cdk ENV=staging` — produces `cdk.out/`, no AWS API calls.
+4. `make diff-cdk ENV=staging` — first run shows the entire stack as a create.
+5. `make deploy-cdk ENV=staging` — deploy via OIDC role from CI.
 
 ## Drift detection
 
@@ -51,7 +35,7 @@ Per environment (staging, production):
 
 ```bash
 pnpm install
-pnpm --filter @workspace/cdk synth
+pnpm --filter @workspace/cdk exec cdk synth --context env=staging
 ```
 
 `bin/app.ts` warns when the configured account is `<TBD>` but proceeds with synth so type-checking and unit tests run pre-bootstrap.

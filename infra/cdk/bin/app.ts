@@ -5,6 +5,7 @@ import { DataStack } from "../lib/data-stack.js"
 import { AppStack } from "../lib/app-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
 import { BillingAlarmsStack } from "../lib/billing-alarms-stack.js"
+import { SecurityStack } from "../lib/security-stack.js"
 
 const app = new App()
 
@@ -66,12 +67,19 @@ const appStack = new AppStack(app, `App-${env}`, {
   domain,
 })
 
+const security = new SecurityStack(app, `Security-${env}`, {
+  env: stackEnv,
+  envName: env,
+  appStack,
+})
+
 new ObservabilityStack(app, `Observability-${env}`, {
   env: stackEnv,
   envName: env,
   appStack,
   dataStack: data,
   alertEmail,
+  killSwitchTopic: security.killSwitchTopic,
 })
 
 new BillingAlarmsStack(app, `BillingAlarms-${env}`, {

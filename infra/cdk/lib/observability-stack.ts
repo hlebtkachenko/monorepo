@@ -25,6 +25,12 @@ export interface ObservabilityStackProps extends StackProps {
    * AWS confirmation link after first deploy. See ADR 0016.
    */
   readonly alertEmail: string
+  /**
+   * Kill-switch SNS topic from SecurityStack. The 5 critical alarms publish
+   * to BOTH this topic (which fans out to the kill-switch Lambda) and the
+   * regional BillingTopic (which fans out to email).
+   */
+  readonly killSwitchTopic: Topic
 }
 
 /**
@@ -41,6 +47,10 @@ export interface ObservabilityStackProps extends StackProps {
  */
 export class ObservabilityStack extends Stack {
   readonly billingTopic: Topic
+  readonly criticalAlarms: {
+    readonly fargateCpu: Alarm
+    readonly fargateMemory: Alarm
+  }
   readonly attackVectorAlarms: {
     readonly fargateNetworkOut: Alarm
     readonly rdsNetworkOut: Alarm
@@ -60,15 +70,15 @@ export class ObservabilityStack extends Stack {
       },
     })
 
+    // Warning thresholds only via the facade; we own the Critical alarms
+    // manually so SecurityStack can subscribe its kill-switch to them.
     monitoring.monitorSimpleFargateService({
       fargateService: props.appStack.service,
       addCpuUsageAlarm: {
         Warning: { maxUsagePercent: 70 },
-        Critical: { maxUsagePercent: 95 },
       },
       addMemoryUsageAlarm: {
         Warning: { maxUsagePercent: 70 },
-        Critical: { maxUsagePercent: 95 },
       },
     })
 
@@ -90,8 +100,63 @@ export class ObservabilityStack extends Stack {
     this.billingTopic.addSubscription(new EmailSubscription(props.alertEmail))
 
     const snsAction = new SnsAction(this.billingTopic)
+    const killSwitchAction = new SnsAction(props.killSwitchTopic)
     const clusterName = props.appStack.cluster.clusterName
     const serviceName = props.appStack.service.serviceName
+
+    // Manual Fargate Critical alarms (95%). Each gets the kill-switch action
+    // so SecurityStack stops the service on sustained breach. Email arrives
+    // too (kill-switch Lambda also logs to CloudWatch for audit).
+    const fargateCpuCritical = new Alarm(this, "FargateCpuCritical", {
+      alarmName: `windhoek-${props.envName}-fargate-cpu-critical`,
+      alarmDescription:
+        "Fargate CPUUtilization >= 95% for 2x5min. Kill-switch stops the service.",
+      metric: new Metric({
+        namespace: "AWS/ECS",
+        metricName: "CPUUtilization",
+        dimensionsMap: {
+          ClusterName: clusterName,
+          ServiceName: serviceName,
+        },
+        statistic: Stats.AVERAGE,
+        period: Duration.minutes(5),
+      }),
+      threshold: 95,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    fargateCpuCritical.addAlarmAction(snsAction)
+    fargateCpuCritical.addAlarmAction(killSwitchAction)
+
+    const fargateMemoryCritical = new Alarm(this, "FargateMemoryCritical", {
+      alarmName: `windhoek-${props.envName}-fargate-memory-critical`,
+      alarmDescription:
+        "Fargate MemoryUtilization >= 95% for 2x5min. Kill-switch stops the service.",
+      metric: new Metric({
+        namespace: "AWS/ECS",
+        metricName: "MemoryUtilization",
+        dimensionsMap: {
+          ClusterName: clusterName,
+          ServiceName: serviceName,
+        },
+        statistic: Stats.AVERAGE,
+        period: Duration.minutes(5),
+      }),
+      threshold: 95,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    fargateMemoryCritical.addAlarmAction(snsAction)
+    fargateMemoryCritical.addAlarmAction(killSwitchAction)
+
+    this.criticalAlarms = {
+      fargateCpu: fargateCpuCritical,
+      fargateMemory: fargateMemoryCritical,
+    }
 
     // 1) Fargate egress: 5 GB sustained over 1h. Container Insights v2
     // publishes per-service network bytes to ECS/ContainerInsights.
@@ -115,6 +180,7 @@ export class ObservabilityStack extends Stack {
       treatMissingData: TreatMissingData.NOT_BREACHING,
     })
     fargateNetworkOut.addAlarmAction(snsAction)
+    fargateNetworkOut.addAlarmAction(killSwitchAction)
 
     // 2) RDS egress: alarm-only (Lambda kill-switch must NOT auto-stop a
     // live DB session - aborting mid-query can corrupt state).
@@ -161,6 +227,7 @@ export class ObservabilityStack extends Stack {
       treatMissingData: TreatMissingData.NOT_BREACHING,
     })
     s3PutRate.addAlarmAction(snsAction)
+    s3PutRate.addAlarmAction(killSwitchAction)
 
     // 4) S3 bucket size: 5 GB. BucketSizeBytes ships daily for free.
     const s3BucketSize = new Alarm(this, "S3BucketSizeHigh", {
@@ -219,6 +286,7 @@ export class ObservabilityStack extends Stack {
       treatMissingData: TreatMissingData.NOT_BREACHING,
     })
     cwLogsIngest.addAlarmAction(snsAction)
+    cwLogsIngest.addAlarmAction(killSwitchAction)
 
     // 6) ECR pull anomaly: 50 pulls/h across both repos summed. ECR pulls
     // outside our deploy cadence (a few times a day) signal compromise of

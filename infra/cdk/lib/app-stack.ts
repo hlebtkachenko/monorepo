@@ -66,6 +66,7 @@ export class AppStack extends Stack {
   readonly webLogGroup: LogGroup
   readonly apiLogGroup: LogGroup
   readonly tunnelLogGroup: LogGroup
+  readonly pgbouncerLogGroup: LogGroup
 
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props)
@@ -148,6 +149,10 @@ export class AppStack extends Stack {
       logGroupName: `/ecs/monorepo-${props.envName}/cloudflared`,
       retention: RetentionDays.ONE_WEEK,
     })
+    this.pgbouncerLogGroup = new LogGroup(this, "PgBouncerLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/pgbouncer`,
+      retention: RetentionDays.ONE_WEEK,
+    })
 
     // Next.js standalone server writes to /app/.next/cache, which a readonly
     // rootfs blocks. Until a custom cacheHandler + Dockerfile copy is in
@@ -191,8 +196,11 @@ export class AppStack extends Stack {
         APP_ENV: props.envName,
         PORT: "3001",
         HOST: "0.0.0.0",
-        DATABASE_HOST: props.database.dbInstanceEndpointAddress,
-        DATABASE_PORT: props.database.dbInstanceEndpointPort,
+        // Connect through pgBouncer sidecar (localhost:6432, transaction mode).
+        // pgBouncer forwards to props.database on :5432. Required for
+        // ADR-0010 GUC contract (set_config is_local=true).
+        DATABASE_HOST: "localhost",
+        DATABASE_PORT: "6432",
         DATABASE_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
         APP_DOMAIN: props.domain,
@@ -212,6 +220,60 @@ export class AppStack extends Stack {
       linuxParameters: linuxParams("ApiLinuxParams"),
     })
     apiContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    // pgBouncer sidecar (ADR-0017 E.2): in-task connection pool in
+    // transaction mode. api connects to localhost:6432; pgBouncer
+    // forwards to RDS on :5432 using the master credentials.
+    //
+    // edoburu/pgbouncer reads DATABASE_URL + POOL_MODE + AUTH_TYPE
+    // env vars and generates /etc/pgbouncer/pgbouncer.ini at boot.
+    // userlist.txt is auto-generated from the same DATABASE_URL.
+    //
+    // GUC contract is preserved because pool_mode=transaction means
+    // each transaction holds a server connection from start to commit;
+    // SET LOCAL bindings stay attached.
+    //
+    // Per-tenant role separation (ADR-0010 app_user) is a follow-up:
+    // requires a separate Secrets Manager entry for app_user that the
+    // migration runbook populates after the role exists. For now, the
+    // sidecar uses master credentials (app_owner) which preserves
+    // pooling semantics but skips the role split.
+    const pgbouncerContainer = taskDef.addContainer("pgbouncer", {
+      containerName: "pgbouncer",
+      image: ContainerImage.fromRegistry("edoburu/pgbouncer:v1.25.1-p0"),
+      essential: true,
+      logging: LogDriver.awsLogs({
+        streamPrefix: "pgbouncer",
+        logGroup: this.pgbouncerLogGroup,
+      }),
+      environment: {
+        POOL_MODE: "transaction",
+        // Empty server_reset_query is the canary that detects accidental
+        // GUC leakage in dev (ADR-0012). Same setting in prod.
+        SERVER_RESET_QUERY: "",
+        MAX_CLIENT_CONN: "100",
+        DEFAULT_POOL_SIZE: "20",
+        AUTH_TYPE: "scram-sha-256",
+        DB_HOST: props.database.dbInstanceEndpointAddress,
+        DB_PORT: props.database.dbInstanceEndpointPort,
+        DB_NAME: "monorepo",
+      },
+      secrets: {
+        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        DB_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("PgBouncerLinuxParams"),
+    })
+    pgbouncerContainer.addMountPoints({
       containerPath: "/tmp",
       sourceVolume: "tmp",
       readOnly: false,

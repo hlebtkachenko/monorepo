@@ -12,13 +12,13 @@ describe("AppStack Fargate hardening", () => {
     })
   })
 
-  it("all 3 containers drop ALL Linux capabilities", () => {
+  it("all 4 containers drop ALL Linux capabilities", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
       | undefined
     const containers = taskDef?.Properties?.ContainerDefinitions ?? []
-    expect(containers.length).toBe(3)
+    expect(containers.length).toBe(4)
     for (const container of containers as Array<{
       LinuxParameters?: { Capabilities?: { Drop?: string[] } }
       Name?: string
@@ -28,7 +28,7 @@ describe("AppStack Fargate hardening", () => {
     }
   })
 
-  it("api + cloudflared have readonlyRootFilesystem=true", () => {
+  it("api + cloudflared + pgbouncer have readonlyRootFilesystem=true", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -41,6 +41,25 @@ describe("AppStack Fargate hardening", () => {
     const byName = Object.fromEntries(containers.map((c) => [c.Name, c]))
     expect(byName["api"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["cloudflared"]?.ReadonlyRootFilesystem).toBe(true)
+    expect(byName["pgbouncer"]?.ReadonlyRootFilesystem).toBe(true)
+  })
+
+  it("api connects to pgbouncer sidecar on localhost:6432", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+    }>
+    const api = containers.find((c) => c.Name === "api")
+    const envByName = Object.fromEntries(
+      (api?.Environment ?? []).map((e) => [e.Name, e.Value]),
+    )
+    expect(envByName["DATABASE_HOST"]).toBe("localhost")
+    expect(envByName["DATABASE_PORT"]).toBe("6432")
   })
 
   it("every container mounts the shared tmp volume at /tmp", () => {
@@ -56,7 +75,7 @@ describe("AppStack Fargate hardening", () => {
         SourceVolume?: string
       }>
     }>
-    expect(containers.length).toBe(3)
+    expect(containers.length).toBe(4)
     for (const container of containers) {
       const tmpMount = container.MountPoints?.find(
         (m) => m.ContainerPath === "/tmp",

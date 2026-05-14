@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import localFont from "next/font/local"
 
@@ -5,6 +6,11 @@ import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
+
+export const metadata: Metadata = {
+  title: "Admin",
+  description: "Design system tools",
+}
 
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
 

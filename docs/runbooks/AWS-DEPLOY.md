@@ -369,6 +369,105 @@ Other deferred dependencies:
   locks + LISTEN/NOTIFY — it bypasses pgbouncer entirely, so it can use
   a third secret if needed.
 
+## Bootstrap chain: schemas + openfga model (manual one-time)
+
+Before the first `cdk deploy App-{env}` lands real app containers, the operator
+must seed three things in the freshly-created RDS instance: the `openfga`
+schema, the OpenFGA migration history, and the OpenFGA store + authorization
+model. The `app` schema for application tables (drizzle migrations) is the
+fourth step. All four run as `app_owner` (the RDS master credential) via a
+temporary bastion / port-forward — there is no in-cluster bootstrap task yet
+(see "Drizzle migration ECS task" in deferred work below).
+
+This chain ships once per env. Re-runs are safe but produce a fresh
+`authorization_model_id` and SSM-write it (per `infra/openfga/README.md`).
+
+### 1. Open a tunnel to RDS
+
+The RDS instance is in private subnets. The simplest path is a SSM Session
+Manager tunnel through any task in the cluster, or an SSH bastion. Either way
+the operator ends with a local port forward to `5432` on RDS:
+
+```bash
+# Substitute the actual RDS endpoint + a free local port.
+aws rds describe-db-instances \
+  --db-instance-identifier monorepo-{env} \
+  --query 'DBInstances[0].Endpoint.Address' --output text
+# → e.g. monorepo-staging.xxxx.eu-central-1.rds.amazonaws.com
+
+# Open a forward. Operator picks transport (SSM, SSH bastion, EC2 tunnel).
+# Forward localhost:55432 → <rds-endpoint>:5432.
+```
+
+Fetch the `app_owner` password from Secrets Manager:
+
+```bash
+DB_PASSWORD=$(aws secretsmanager get-secret-value \
+  --secret-id /monorepo/{env}/rds/master \
+  --query SecretString --output text | jq -r .password)
+```
+
+### 2. Create the `openfga` schema
+
+```bash
+psql "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
+  -c 'CREATE SCHEMA IF NOT EXISTS openfga AUTHORIZATION app_owner;'
+```
+
+Idempotent — safe to re-run.
+
+### 3. Run `openfga migrate`
+
+```bash
+docker run --rm --network host \
+  openfga/openfga:latest \
+  migrate \
+    --datastore-engine postgres \
+    --datastore-uri "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga"
+```
+
+Pin the OpenFGA image to the same tag deployed in the task definition so the
+schema version matches what the running server expects.
+
+### 4. Bootstrap the OpenFGA store + write SSM
+
+After `openfga migrate` is green and the openfga container is reachable
+(typically via a second port forward to the running ECS task on `:8080`):
+
+```bash
+AWS_REGION=eu-central-1 \
+OPENFGA_API_URL=http://localhost:8080 \
+node infra/openfga/bootstrap.mjs --env {env}
+```
+
+`bootstrap.mjs` is idempotent: it looks up the store by name and reuses it.
+Each run writes a fresh authorization model and overwrites the SSM parameter
+`/monorepo/{env}/openfga/model-id`. The api container reads this parameter at
+boot, so a deploy following a bootstrap re-run picks up the new model ID
+automatically.
+
+### 5. Run schema migrations for the `app` schema
+
+The application tables (organizations, users, audit log, etc.) live in the
+`app` schema and are managed by drizzle. Until the in-cluster migration ECS
+task ships, this runs through the same tunnel:
+
+```bash
+DATABASE_URL="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
+pnpm db:migrate
+```
+
+The `pnpm db:migrate` script lives in `packages/db` and applies all pending
+drizzle migrations under `packages/db/migrations/`. Re-running against an
+already-current database is a no-op. Once `packages/db/src/migrate.ts` plus
+the migration ECS task land, this manual step folds into the CDK pipeline.
+
+### 6. Tear down the tunnel
+
+Close the port forward / SSH session. Subsequent app deploys read RDS through
+the task-local pgBouncer sidecar as designed — the operator credentials are
+no longer required at runtime.
+
 ## What this runbook deliberately does NOT cover
 
 Trip-wired for later (see ADR 0008 trip-wire section):

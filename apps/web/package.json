@@ -18,6 +18,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.6.10",

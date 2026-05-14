@@ -2,10 +2,16 @@
 
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
-import { app_user, workspace, workspace_membership } from "@workspace/db/schema"
+import {
+  app_user,
+  organization,
+  organization_membership,
+  workspace,
+  workspace_membership,
+} from "@workspace/db/schema"
 import {
   ExperienceSchema,
   type ExperienceInput,
@@ -21,6 +27,7 @@ import {
   type WorkspaceInput,
 } from "@workspace/shared/auth"
 
+import { issueInvite, revokePendingInvites } from "../auth/_lib/issue-invite"
 import { findOwnerWorkspaceId } from "./_lib/resume"
 import { readSignupClaims, clearSignupCookie } from "./_lib/signup-cookie"
 import {
@@ -217,7 +224,8 @@ function isEmailAlreadyRegistered(err: unknown): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — Workspace (creates workspace + owner membership)
+// Step 4 — Workspace (creates workspace + owner membership +
+// default organization, so step 6 has an org to issue invites against)
 // ---------------------------------------------------------------------------
 
 export async function submitWorkspaceAction(
@@ -254,17 +262,85 @@ export async function submitWorkspaceAction(
         })
         .returning()
       if (!ws) throw new Error("workspace insert returned no row")
-      await db.insert(workspace_membership).values({
+      const [wsMembership] = await db
+        .insert(workspace_membership)
+        .values({
+          workspace_id: ws.id,
+          user_id: userId,
+          role: "owner",
+        })
+        .returning()
+      if (!wsMembership) {
+        throw new Error("workspace_membership insert returned no row")
+      }
+
+      // Default organization seeded so step 6 (team invites) can target
+      // it. Slug = first available {base, base-2, base-3, ...}; legal
+      // name mirrors the workspace display_name for now (editable later
+      // from /[orgSlug]/settings).
+      const slug = await pickUniqueSlug(db, slugify(ws.display_name))
+      // organization_id is NOT NULL on insert (no default); the trigger
+      // app_organization_self_id ensures organization_id = id after the
+      // row exists. We pass a fresh uuid here, then UPDATE to match.
+      const [org] = await db
+        .insert(organization)
+        .values({
+          organization_id: sql`uuidv7()`,
+          workspace_id: ws.id,
+          slug,
+          legal_name: ws.display_name,
+          person_kind: "legal_entity",
+          legal_subject_kind: "for_profit",
+        })
+        .returning()
+      if (!org) throw new Error("organization insert returned no row")
+
+      // Backfill organization_id = id (trigger enforces this invariant).
+      await db.execute(
+        sql`UPDATE organization SET organization_id = id WHERE id = ${org.id}::uuid`,
+      )
+
+      await db.insert(organization_membership).values({
+        organization_id: org.id,
         workspace_id: ws.id,
         user_id: userId,
+        workspace_membership_id: wsMembership.id,
         role: "owner",
       })
     })
-  } catch {
+  } catch (err) {
+    console.error("[onboarding/workspace] create workspace failed", err)
     return { ok: false, errorKey: "createWorkspaceFailed" }
   }
 
   return { ok: true }
+}
+
+/** Lowercase, replace non-alnum with `-`, collapse runs, trim. */
+function slugify(input: string): string {
+  return (
+    input
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "workspace"
+  )
+}
+
+async function pickUniqueSlug(
+  db: import("@workspace/db").AdminBypassDb,
+  base: string,
+): Promise<string> {
+  for (let i = 0; i < 50; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`
+    const [row] = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.slug, candidate))
+      .limit(1)
+    if (!row) return candidate
+  }
+  throw new Error("Could not pick a unique organization slug")
 }
 
 // ---------------------------------------------------------------------------
@@ -303,19 +379,20 @@ export async function submitPlanAction(
 }
 
 // ---------------------------------------------------------------------------
-// Step 6 — Team (validates invites + marks step complete)
+// Step 6 — Team (issues real invites against the default organization
+// created at step 4, then marks step complete)
 // ---------------------------------------------------------------------------
 
-// Step 6 records the user's intent. We do NOT write `auth_invite` rows
-// yet because that table requires `organization_id`, and no organization
-// exists during owner onboarding (the workspace is empty). The collected
-// invites are validated and dropped; the user re-invites teammates from
-// workspace settings after creating the first organization. This is
-// surfaced in the i18n copy: onboarding.team.note.
+export interface TeamActionResult extends ActionResult {
+  /** Number of invites successfully issued + emailed. */
+  invitesSent?: number
+  /** Per-email failure messages (if any). */
+  failures?: Array<{ email: string; reason: string }>
+}
 
 export async function submitTeamAction(
   input: InviteListInput,
-): Promise<ActionResult> {
+): Promise<TeamActionResult> {
   const parsed = InviteListSchema.safeParse(input)
   if (!parsed.success) {
     return { ok: false, errorKey: firstErrorKey(parsed.error.issues) }
@@ -325,6 +402,51 @@ export async function submitTeamAction(
   if (!userId) return { ok: false, errorKey: "sessionExpired" }
   const workspaceId = await findOwnerWorkspaceId(userId)
   if (!workspaceId) return { ok: false, errorKey: "noActiveWorkspace" }
+
+  // Find the default organization seeded at step 4 (the workspace owner's
+  // first org). Email invites target this organization. The invite row
+  // carries workspace_id + organization_id; multi-org workspaces will
+  // pick the right one from a future invite-people UI.
+  const defaultOrgId = await withAdminBypass(async (db) => {
+    const [row] = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.workspace_id, workspaceId))
+      .orderBy(organization.created_at)
+      .limit(1)
+    return row?.id ?? null
+  })
+  if (!defaultOrgId) return { ok: false, errorKey: "noActiveWorkspace" }
+
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
+  const brandName = await loadBrandName()
+
+  const failures: Array<{ email: string; reason: string }> = []
+  let sent = 0
+  for (const row of parsed.data.invites) {
+    if (!row.email) continue
+    try {
+      await revokePendingInvites({
+        organizationId: defaultOrgId,
+        email: row.email,
+      })
+      await issueInvite({
+        email: row.email,
+        organizationId: defaultOrgId,
+        role: row.role,
+        issuedByUserId: userId,
+        baseUrl,
+        brandName,
+      })
+      sent++
+    } catch (err) {
+      console.error("[onboarding/team] issueInvite failed", row.email, err)
+      failures.push({
+        email: row.email,
+        reason: err instanceof Error ? err.message : "unknown",
+      })
+    }
+  }
 
   try {
     await withWorkspace(workspaceId, userId, async (db) => {
@@ -340,7 +462,16 @@ export async function submitTeamAction(
     return { ok: false, errorKey: "saveTeamFailed" }
   }
 
-  return { ok: true }
+  return { ok: true, invitesSent: sent, failures }
+}
+
+async function loadBrandName(): Promise<string> {
+  // Dynamic import to avoid pulling next-intl/server into the action's
+  // initial module graph when the action runs from a non-i18n context
+  // (e.g. a test or a script that imports this module directly).
+  const { getTranslations } = await import("@workspace/i18n/server")
+  const t = await getTranslations("brand")
+  return t("name")
 }
 
 // ---------------------------------------------------------------------------

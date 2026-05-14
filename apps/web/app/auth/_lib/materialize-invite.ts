@@ -1,6 +1,6 @@
 import "server-only"
 import { createHash } from "node:crypto"
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
 import {
   auth_invite,
@@ -12,12 +12,20 @@ import {
 /**
  * Shared helper for accept-invite flows.
  *
- * Creates (or reuses) `workspace_membership` and `organization_membership`
- * rows for the user joining `organizationId`, and inserts a matching
- * `auth_invite` row with `status='accepted'` for the audit trail.
+ * Atomically flips the `auth_invite` row (pre-created at issue time with
+ * status='pending') to status='accepted', then materializes
+ * `workspace_membership` + `organization_membership` for the user.
  *
  * Runs under `withAdminBypass` because no tenancy context is bound at
  * this point (the user has no `app.organization_id` GUC yet).
+ *
+ * Lifecycle (mirroring lac/packages/domain/src/auth/invite.ts):
+ *   issue   →  auth_invite (status='pending', token_hash, expires_at)
+ *   accept  →  this function: UPDATE status='accepted' WHERE
+ *              token_hash=? AND status='pending' RETURNING id
+ *              → if 0 rows updated, the invite is already-accepted,
+ *                revoked, or expired → throw.
+ *   revoke  →  see issue-invite.ts `revokePendingInvites`.
  *
  * Returns the organization slug so the caller can redirect to /[orgSlug].
  */
@@ -32,9 +40,21 @@ export interface MaterializeInviteInput {
   inviteJwt: string
   /** Email recorded on the invite (from the JWT claims). */
   email: string
-  /** Optional: user id of the issuer (only known to the issuer, not the cookie). */
-  issuedByUserId?: string
 }
+
+export class InviteAcceptError extends Error {
+  constructor(public readonly code: InviteAcceptErrorCode) {
+    super(code)
+    this.name = "InviteAcceptError"
+  }
+}
+
+export type InviteAcceptErrorCode =
+  | "invite-not-found"
+  | "invite-already-accepted"
+  | "invite-revoked"
+  | "invite-expired"
+  | "organization-not-found"
 
 export async function materializeInvite(
   input: MaterializeInviteInput,
@@ -42,6 +62,52 @@ export async function materializeInvite(
   const tokenHash = sha256(input.inviteJwt)
 
   return await withAdminBypass(async (db) => {
+    // Atomic check-and-set: only one accept can succeed per token.
+    const updated = await db
+      .update(auth_invite)
+      .set({
+        status: "accepted",
+        accepted_at: new Date(),
+        accepted_by_user_id: input.userId,
+      })
+      .where(
+        and(
+          eq(auth_invite.token_hash, tokenHash),
+          eq(auth_invite.status, "pending"),
+          // expires_at > now()  — let expired tokens fail explicitly
+          sql`${auth_invite.expires_at} > now()`,
+        ),
+      )
+      .returning({
+        id: auth_invite.id,
+        organization_id: auth_invite.organization_id,
+        workspace_id: auth_invite.workspace_id,
+      })
+
+    if (updated.length === 0) {
+      // Diagnose why: was it already accepted / revoked / expired / not found?
+      const [existing] = await db
+        .select({
+          status: auth_invite.status,
+          expires_at: auth_invite.expires_at,
+        })
+        .from(auth_invite)
+        .where(eq(auth_invite.token_hash, tokenHash))
+        .limit(1)
+      if (!existing) throw new InviteAcceptError("invite-not-found")
+      if (existing.status === "accepted") {
+        throw new InviteAcceptError("invite-already-accepted")
+      }
+      if (existing.status === "revoked") {
+        throw new InviteAcceptError("invite-revoked")
+      }
+      if (existing.expires_at < new Date()) {
+        throw new InviteAcceptError("invite-expired")
+      }
+      throw new InviteAcceptError("invite-not-found")
+    }
+    const inviteRow = updated[0]!
+
     const [org] = await db
       .select({
         id: organization.id,
@@ -51,8 +117,12 @@ export async function materializeInvite(
       .from(organization)
       .where(eq(organization.id, input.organizationId))
       .limit(1)
-    if (!org) {
-      throw new Error("Organization not found for invite.")
+    if (!org) throw new InviteAcceptError("organization-not-found")
+    if (org.id !== inviteRow.organization_id) {
+      // Defense-in-depth: the JWT claim must match the row's
+      // organization_id. Mismatch implies tampering or a token from
+      // another org being replayed here.
+      throw new InviteAcceptError("invite-not-found")
     }
 
     const [existingWsM] = await db
@@ -86,8 +156,8 @@ export async function materializeInvite(
     }
 
     // The partial unique index on (organization_id, user_id) WHERE
-    // active = true blocks the immediate duplicate. Surface that as a
-    // "already a member" no-op rather than a thrown error.
+    // active = true blocks an immediate duplicate. No-op if the row
+    // already exists.
     const [existingOrgM] = await db
       .select({ id: organization_membership.id })
       .from(organization_membership)
@@ -108,33 +178,6 @@ export async function materializeInvite(
         workspace_membership_id: wsMembershipId,
         role: input.role,
       })
-    }
-
-    // Audit-trail invite row. Recording acceptance regardless of whether
-    // a `pending` row was pre-created — the unique constraint on
-    // token_hash blocks replay of the same JWT.
-    try {
-      await db
-        .insert(auth_invite)
-        .values({
-          organization_id: org.id,
-          workspace_id: org.workspace_id,
-          token_hash: tokenHash,
-          email: input.email,
-          role: input.role,
-          status: "accepted",
-          issued_by_user_id: input.issuedByUserId ?? null,
-          // JWT TTL is 7 days; this expires_at mirrors that so the row
-          // stays self-describing even if the JWT-side TTL changes.
-          expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
-          accepted_at: new Date(),
-          accepted_by_user_id: input.userId,
-        })
-        .onConflictDoNothing({ target: auth_invite.token_hash })
-    } catch (err) {
-      // Don't fail the whole accept on the audit insert — but log so a
-      // missed row is debuggable later.
-      console.error("[materializeInvite] audit insert failed", err)
     }
 
     return org.slug

@@ -4,4 +4,4 @@ export {
   type EmailMessage,
   type EmailTransport,
 } from "./transport"
-export { passwordResetEmail, verifyEmailEmail } from "./templates"
+export { passwordResetEmail, verifyEmailEmail, inviteEmail } from "./templates"

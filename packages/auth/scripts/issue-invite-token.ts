@@ -1,28 +1,36 @@
 #!/usr/bin/env tsx
 /**
- * Dev CLI — issue an invite JWT and print the /auth/invite/start link.
+ * Dev CLI — issue an invite and email it. Mirrors the path the
+ * onboarding team-step uses: sign the JWT, INSERT the auth_invite row
+ * at status='pending', send the invite email via the configured
+ * transport (Resend / SES / Console).
  *
  * Usage:
  *   pnpm tsx packages/auth/scripts/issue-invite-token.ts \
  *     --email teammate@example.com \
  *     --org <organization-id-uuid> \
  *     [--role member|admin|owner|agent|guest] \
+ *     [--issuer <issuer-user-id>] \
+ *     [--brand Afframe] \
  *     [--base-url http://localhost:3000] \
  *     [--ttl 604800]                       # seconds; default 7 days
  *
- * The invite-token cookie path was widened to "/" in Phase 6 so the
- * cookie survives the handoff into /onboarding/member/*.
- *
- * Organization must already exist (auth_invite has a NOT NULL
- * organization_id). Create one first via:
+ * Organization must already exist. If not, create one via:
  *   pnpm tsx packages/auth/scripts/seed-organization.ts ...
  */
-import { signInviteToken, type InviteClaims } from "../src/tokens/invite"
+import {
+  issueInvite,
+  revokePendingInvites,
+  findOrganizationOwner,
+} from "../src/invite-issuer"
+import type { InviteClaims } from "../src/tokens/invite"
 
 interface Args {
   email: string
   organizationId: string
   role: InviteClaims["role"]
+  issuerUserId: string | null
+  brandName: string
   baseUrl: string
   ttlSeconds: number
 }
@@ -44,6 +52,8 @@ function parseArgs(argv: string[]): Args {
   const email = get("--email")
   const organizationId = get("--org")
   const roleArg = (get("--role") ?? "member") as InviteClaims["role"]
+  const issuerUserId = get("--issuer") ?? null
+  const brandName = get("--brand") ?? "Afframe"
   const baseUrl = get("--base-url") ?? "http://localhost:3000"
   const ttlSeconds = Number(get("--ttl") ?? 60 * 60 * 24 * 7)
 
@@ -68,7 +78,15 @@ function parseArgs(argv: string[]): Args {
     throw new Error(`--email "${email}" is not a valid email address`)
   }
 
-  return { email, organizationId, role: roleArg, baseUrl, ttlSeconds }
+  return {
+    email,
+    organizationId,
+    role: roleArg,
+    issuerUserId,
+    brandName,
+    baseUrl,
+    ttlSeconds,
+  }
 }
 
 async function main(): Promise<void> {
@@ -79,28 +97,57 @@ async function main(): Promise<void> {
     )
     process.exit(2)
   }
+  if (!process.env.DATABASE_URL && !process.env.DATABASE_DIRECT_URL) {
+    console.error(
+      "ERROR: DATABASE_URL (or DATABASE_DIRECT_URL) must be set so the auth_invite row can be persisted.",
+    )
+    process.exit(2)
+  }
 
   const args = parseArgs(process.argv.slice(2))
-  const token = await signInviteToken(
-    {
-      email: args.email,
-      organizationId: args.organizationId,
-      role: args.role,
-    },
-    args.ttlSeconds,
+
+  // Auto-discover the issuing user from the org's owner if not provided.
+  const issuerUserId =
+    args.issuerUserId ?? (await findOrganizationOwner(args.organizationId))
+
+  // Revoke any older pending invites for the same (org, email) so the
+  // recipient can only redeem the latest link.
+  const revoked = await revokePendingInvites({
+    organizationId: args.organizationId,
+    email: args.email,
+  })
+
+  const { inviteId, url, expiresAt } = await issueInvite({
+    email: args.email,
+    organizationId: args.organizationId,
+    role: args.role,
+    issuedByUserId: issuerUserId,
+    baseUrl: args.baseUrl,
+    brandName: args.brandName,
+    ttlSeconds: args.ttlSeconds,
+  })
+
+  console.log("")
+  console.log("Invite issued + emailed:")
+  console.log("  invite_id:    ", inviteId)
+  console.log("  email:        ", args.email)
+  console.log("  organization: ", args.organizationId)
+  console.log("  role:         ", args.role)
+  console.log("  issued_by:    ", issuerUserId ?? "(none)")
+  console.log("  expires_at:   ", expiresAt.toISOString())
+  console.log("  revoked_prior:", revoked)
+  console.log("")
+  console.log("Link (also sent to the recipient by email):")
+  console.log(url)
+  console.log("")
+  console.log(
+    "Email transport: " +
+      (process.env.RESEND_API_KEY
+        ? "Resend"
+        : process.env.AWS_REGION
+          ? "SES v2"
+          : "Console (logs to stdout — see your dev-server console)"),
   )
-  const link = `${args.baseUrl}/auth/invite/start?token=${encodeURIComponent(token)}`
-
-  const expiresAt = new Date(Date.now() + args.ttlSeconds * 1000)
-
-  console.log("")
-  console.log("Invite link issued:")
-  console.log("  email:      ", args.email)
-  console.log("  organization:", args.organizationId)
-  console.log("  role:       ", args.role)
-  console.log("  expires_at: ", expiresAt.toISOString())
-  console.log("")
-  console.log(link)
   console.log("")
 }
 

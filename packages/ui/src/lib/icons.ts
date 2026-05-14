@@ -103,4 +103,5 @@ export {
   XIcon,
 } from "lucide-react"
 
-export type { LucideIcon, LucideProps } from "lucide-react"
+export { createLucideIcon } from "lucide-react"
+export type { LucideIcon, LucideProps, IconNode } from "lucide-react"

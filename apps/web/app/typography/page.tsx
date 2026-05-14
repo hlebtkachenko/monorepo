@@ -597,6 +597,127 @@ export default function TypographyPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Color</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col items-center gap-1.5">
+                  <Settings className="size-5" />
+                  <span className="text-[10px] text-muted-foreground">
+                    default
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Settings className="size-5 text-primary" />
+                  <span className="text-[10px] text-muted-foreground">
+                    text-primary
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Settings className="size-5 text-destructive" />
+                  <span className="text-[10px] text-muted-foreground">
+                    text-destructive
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Settings className="size-5 text-success" />
+                  <span className="text-[10px] text-muted-foreground">
+                    text-success
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Settings className="size-5 text-warning" />
+                  <span className="text-[10px] text-muted-foreground">
+                    text-warning
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Settings className="size-5 text-info" />
+                  <span className="text-[10px] text-muted-foreground">
+                    text-info
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Settings className="size-5 text-muted-foreground" />
+                  <span className="text-[10px] text-muted-foreground">
+                    muted
+                  </span>
+                </div>
+              </div>
+              <code className="mt-3 block rounded bg-muted px-2 py-1 text-xs">
+                {'<Settings className="text-primary" />'}
+              </code>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Stroke Width</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-6">
+                {[1, 1.5, 2, 2.5, 3].map((sw) => (
+                  <div key={sw} className="flex flex-col items-center gap-1.5">
+                    <Settings className="size-6" strokeWidth={sw} />
+                    <span className="text-[10px] text-muted-foreground">
+                      {sw}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <code className="mt-3 block rounded bg-muted px-2 py-1 text-xs">
+                {"<Settings strokeWidth={1.5} />"}
+              </code>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>absoluteStrokeWidth</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Text variant="muted" className="mb-4">
+                Without <Text variant="inline-code">absoluteStrokeWidth</Text>,
+                stroke scales with icon size. With it, stroke stays constant
+                regardless of size.
+              </Text>
+              <div className="flex items-end gap-6">
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="flex gap-3">
+                    <div className="flex flex-col items-center gap-1">
+                      <Settings className="size-4" strokeWidth={2} />
+                      <Settings className="size-6" strokeWidth={2} />
+                      <Settings className="size-8" strokeWidth={2} />
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <Settings
+                        className="size-4"
+                        strokeWidth={2}
+                        absoluteStrokeWidth
+                      />
+                      <Settings
+                        className="size-6"
+                        strokeWidth={2}
+                        absoluteStrokeWidth
+                      />
+                      <Settings
+                        className="size-8"
+                        strokeWidth={2}
+                        absoluteStrokeWidth
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex gap-3 text-[10px] text-muted-foreground">
+                    <span>default</span>
+                    <span>absolute</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Navigation Icons</CardTitle>
             </CardHeader>
             <CardContent>
@@ -619,10 +740,13 @@ export default function TypographyPage() {
 
           <div className="rounded-lg border border-dashed p-4">
             <Text variant="muted">
-              To swap icon library: change only{" "}
+              Icons accept <Text variant="inline-code">size</Text>,{" "}
+              <Text variant="inline-code">color</Text> (via className),{" "}
+              <Text variant="inline-code">strokeWidth</Text>,{" "}
+              <Text variant="inline-code">absoluteStrokeWidth</Text>, and all
+              SVG props. To swap library: change only{" "}
               <Text variant="inline-code">packages/ui/src/lib/icons.ts</Text>.
-              44 UI components import from this file. App-level code imports
-              directly from lucide-react for app-specific icons.
+              44 UI components import from this file.
             </Text>
           </div>
         </div>

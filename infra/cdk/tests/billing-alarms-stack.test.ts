@@ -8,11 +8,11 @@ describe("BillingAlarmsStack", () => {
 
   it("has $40 warning and $80 critical alarms", () => {
     template.hasResourceProperties("AWS::CloudWatch::Alarm", {
-      AlarmName: "windhoek-test-billing-warning-40usd",
+      AlarmName: "monorepo-test-billing-warning-40usd",
       Threshold: 40,
     })
     template.hasResourceProperties("AWS::CloudWatch::Alarm", {
-      AlarmName: "windhoek-test-billing-critical-80usd",
+      AlarmName: "monorepo-test-billing-critical-80usd",
       Threshold: 80,
     })
   })

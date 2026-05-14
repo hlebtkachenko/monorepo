@@ -15,12 +15,12 @@ describe("ObservabilityStack", () => {
 
   it("has the 6 attack-vector alarms", () => {
     const expectedNames = [
-      "windhoek-test-fargate-network-out-high",
-      "windhoek-test-rds-network-out-high",
-      "windhoek-test-s3-put-rate-high",
-      "windhoek-test-s3-bucket-size-high",
-      "windhoek-test-cwlogs-ingest-high",
-      "windhoek-test-ecr-pull-anomaly",
+      "monorepo-test-fargate-network-out-high",
+      "monorepo-test-rds-network-out-high",
+      "monorepo-test-s3-put-rate-high",
+      "monorepo-test-s3-bucket-size-high",
+      "monorepo-test-cwlogs-ingest-high",
+      "monorepo-test-ecr-pull-anomaly",
     ]
     for (const name of expectedNames) {
       template.hasResourceProperties("AWS::CloudWatch::Alarm", {
@@ -34,12 +34,12 @@ describe("ObservabilityStack", () => {
     const cpu = Object.values(alarms).find(
       (a) =>
         (a as { Properties?: { AlarmName?: string } }).Properties?.AlarmName ===
-        "windhoek-test-fargate-cpu-critical",
+        "monorepo-test-fargate-cpu-critical",
     ) as { Properties?: { AlarmActions?: unknown[] } } | undefined
     const mem = Object.values(alarms).find(
       (a) =>
         (a as { Properties?: { AlarmName?: string } }).Properties?.AlarmName ===
-        "windhoek-test-fargate-memory-critical",
+        "monorepo-test-fargate-memory-critical",
     ) as { Properties?: { AlarmActions?: unknown[] } } | undefined
 
     expect(cpu?.Properties?.AlarmActions?.length).toBe(2)

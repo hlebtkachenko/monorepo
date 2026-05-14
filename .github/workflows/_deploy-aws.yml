@@ -168,7 +168,7 @@ jobs:
           file: apps/web/Dockerfile
           platforms: linux/arm64
           push: true
-          tags: ${{ steps.ecr.outputs.registry }}/windhoek-${{ inputs.environment }}-web:${{ env.IMAGE_TAG }}
+          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-web:${{ env.IMAGE_TAG }}
           provenance: false
           sbom: false
           cache-from: type=gha,scope=web-${{ inputs.environment }}
@@ -186,7 +186,7 @@ jobs:
           file: apps/api/Dockerfile
           platforms: linux/arm64
           push: true
-          tags: ${{ steps.ecr.outputs.registry }}/windhoek-${{ inputs.environment }}-api:${{ env.IMAGE_TAG }}
+          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-api:${{ env.IMAGE_TAG }}
           provenance: false
           sbom: false
           cache-from: type=gha,scope=api-${{ inputs.environment }}
@@ -206,7 +206,7 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$TUNNEL_TOKEN"
-          SECRET_NAME="windhoek-${ENV_NAME}-cloudflare-tunnel-token"
+          SECRET_NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
           if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             aws secretsmanager put-secret-value \
               --secret-id "$SECRET_NAME" \
@@ -217,7 +217,7 @@ jobs:
             aws secretsmanager create-secret \
               --name "$SECRET_NAME" \
               --secret-string "$TUNNEL_TOKEN" \
-              --description "Cloudflare Tunnel connector token for cloudflared sidecar (windhoek ${ENV_NAME})" \
+              --description "Cloudflare Tunnel connector token for cloudflared sidecar (monorepo ${ENV_NAME})" \
               --region "$AWS_REGION" \
               >/dev/null
           fi

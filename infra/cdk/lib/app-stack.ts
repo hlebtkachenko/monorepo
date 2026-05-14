@@ -80,12 +80,12 @@ export class AppStack extends Stack {
     this.tunnelTokenSecret = Secret.fromSecretNameV2(
       this,
       "TunnelTokenSecret",
-      `windhoek-${props.envName}-cloudflare-tunnel-token`,
+      `monorepo-${props.envName}-cloudflare-tunnel-token`,
     )
 
     this.cluster = new Cluster(this, "Cluster", {
       vpc: props.vpc,
-      clusterName: `windhoek-${props.envName}`,
+      clusterName: `monorepo-${props.envName}`,
       containerInsightsV2: ContainerInsights.ENABLED,
     })
 
@@ -137,15 +137,15 @@ export class AppStack extends Stack {
     }
 
     this.webLogGroup = new LogGroup(this, "WebLogs", {
-      logGroupName: `/ecs/windhoek-${props.envName}/web`,
+      logGroupName: `/ecs/monorepo-${props.envName}/web`,
       retention: RetentionDays.ONE_WEEK,
     })
     this.apiLogGroup = new LogGroup(this, "ApiLogs", {
-      logGroupName: `/ecs/windhoek-${props.envName}/api`,
+      logGroupName: `/ecs/monorepo-${props.envName}/api`,
       retention: RetentionDays.ONE_WEEK,
     })
     this.tunnelLogGroup = new LogGroup(this, "TunnelLogs", {
-      logGroupName: `/ecs/windhoek-${props.envName}/cloudflared`,
+      logGroupName: `/ecs/monorepo-${props.envName}/cloudflared`,
       retention: RetentionDays.ONE_WEEK,
     })
 
@@ -193,7 +193,7 @@ export class AppStack extends Stack {
         HOST: "0.0.0.0",
         DATABASE_HOST: props.database.dbInstanceEndpointAddress,
         DATABASE_PORT: props.database.dbInstanceEndpointPort,
-        DATABASE_NAME: "windhoek",
+        DATABASE_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
         APP_DOMAIN: props.domain,
       },

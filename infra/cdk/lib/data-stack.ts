@@ -50,7 +50,7 @@ export class DataStack extends Stack {
     super(scope, id, props)
 
     this.webRepository = new Repository(this, "WebRepo", {
-      repositoryName: `windhoek-${props.envName}-web`,
+      repositoryName: `monorepo-${props.envName}-web`,
       imageTagMutability: TagMutability.IMMUTABLE,
       imageScanOnPush: true,
       lifecycleRules: [
@@ -74,7 +74,7 @@ export class DataStack extends Stack {
     })
 
     this.apiRepository = new Repository(this, "ApiRepo", {
-      repositoryName: `windhoek-${props.envName}-api`,
+      repositoryName: `monorepo-${props.envName}-api`,
       imageTagMutability: TagMutability.IMMUTABLE,
       imageScanOnPush: true,
       lifecycleRules: [
@@ -112,7 +112,7 @@ export class DataStack extends Stack {
     this.databaseSecret = new Secret(this, "DbSecret", {
       description: `${props.envName} RDS Postgres master credentials`,
       generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: "windhoek" }),
+        secretStringTemplate: JSON.stringify({ username: "app_owner" }),
         generateStringKey: "password",
         excludePunctuation: true,
         passwordLength: 32,
@@ -144,14 +144,14 @@ export class DataStack extends Stack {
         props.envName === "production"
           ? RemovalPolicy.RETAIN
           : RemovalPolicy.DESTROY,
-      databaseName: "windhoek",
+      databaseName: "monorepo",
       enablePerformanceInsights: false,
       autoMinorVersionUpgrade: true,
       copyTagsToSnapshot: true,
     })
 
     this.appBucket = new Bucket(this, "AppBucket", {
-      bucketName: `windhoek-${props.envName}-app-${this.account}`,
+      bucketName: `monorepo-${props.envName}-app-${this.account}`,
       encryption: BucketEncryption.S3_MANAGED,
       bucketKeyEnabled: true,
       versioned: true,

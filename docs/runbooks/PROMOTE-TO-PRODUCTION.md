@@ -4,7 +4,7 @@ How to move from "staging-only, internal access" to "production live at `app.aff
 
 Current state (before promotion):
 - `staging.afframe.com` is the only running environment (~$50/mo).
-- `production` exists only as CDK code + Cloudflare Tunnel `windhoek-production` (status `inactive`) + IAM role `windhoek-deploy-production` + secrets. No AWS resources running.
+- `production` exists only as CDK code + Cloudflare Tunnel `monorepo-production` (status `inactive`) + IAM role `monorepo-deploy-production` + secrets. No AWS resources running.
 - SES is in sandbox (200/day to verified addresses) unless production access already granted.
 
 After promotion:
@@ -47,7 +47,7 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/c
   | jq -r '.result | map({name, status})'
 ```
 
-Expected: `windhoek-production` entry, status `inactive` (means tunnel exists but no connector running — that's normal pre-deploy). After production deploy, status flips to `healthy`.
+Expected: `monorepo-production` entry, status `inactive` (means tunnel exists but no connector running — that's normal pre-deploy). After production deploy, status flips to `healthy`.
 
 DNS record check:
 ```bash
@@ -62,7 +62,7 @@ If staging stays running (Option "Keep staging"), the existing $50/mo hard-cap w
 
 ```bash
 aws budgets update-budget --account-id 637560253662 --new-budget '{
-  "BudgetName":"windhoek-hard-cap-50",
+  "BudgetName":"monorepo-hard-cap-50",
   "BudgetLimit":{"Amount":"120","Unit":"USD"},
   "TimeUnit":"MONTHLY",
   "BudgetType":"COST"
@@ -123,8 +123,8 @@ Expected duration: 15-25 minutes. RDS creation is the long pole (~10-12 min).
 
 **ECS service:**
 ```bash
-SVC=$(aws ecs list-services --cluster windhoek-production --region eu-central-1 --query 'serviceArns[0]' --output text | awk -F/ '{print $NF}')
-aws ecs describe-services --cluster windhoek-production --services "$SVC" --region eu-central-1 \
+SVC=$(aws ecs list-services --cluster monorepo-production --region eu-central-1 --query 'serviceArns[0]' --output text | awk -F/ '{print $NF}')
+aws ecs describe-services --cluster monorepo-production --services "$SVC" --region eu-central-1 \
   --query 'services[0].[serviceName,desiredCount,runningCount,deployments[0].rolloutState]' --output table
 ```
 
@@ -135,7 +135,7 @@ Expected: `desiredCount=1, runningCount=1, rolloutState=COMPLETED`.
 source _junk/cloudflare.env
 curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?is_deleted=false" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-  | jq -r '.result[] | select(.name=="windhoek-production") | .status'
+  | jq -r '.result[] | select(.name=="monorepo-production") | .status'
 ```
 
 Expected: `healthy`. Connector inside the production Fargate task is talking to Cloudflare edge.
@@ -193,7 +193,7 @@ Notes:
   ```bash
   source _junk/cloudflare.env
   ZONE_ID=$(cat _junk/cloudflare-zone-id.txt)
-  STAGING_TUNNEL_ID=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?name=windhoek-staging" \
+  STAGING_TUNNEL_ID=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?name=monorepo-staging" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id')
   curl -sS -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel/$STAGING_TUNNEL_ID" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq '.'
@@ -209,8 +209,8 @@ Notes:
 Keep CDK code + Cloudflare tunnel intact but stop the running compute:
 
 ```bash
-SVC=$(aws ecs list-services --cluster windhoek-staging --region eu-central-1 --query 'serviceArns[0]' --output text | awk -F/ '{print $NF}')
-aws ecs update-service --cluster windhoek-staging --service "$SVC" --desired-count 0 --region eu-central-1
+SVC=$(aws ecs list-services --cluster monorepo-staging --region eu-central-1 --query 'serviceArns[0]' --output text | awk -F/ '{print $NF}')
+aws ecs update-service --cluster monorepo-staging --service "$SVC" --desired-count 0 --region eu-central-1
 aws rds stop-db-instance --db-instance-identifier <staging-rds-id> --region eu-central-1
 ```
 
@@ -250,9 +250,9 @@ gh workflow run _deploy-aws.yml -f environment=production -f stack=app-only --re
 
 If a deploy somehow blew through the budget cap, the hard-cap fires automatically: RDS stops, ECS scales to 0, IAM deny applied. Recover by:
 1. Log into AWS Console as your personal IAM user (NOT `claude-cli`).
-2. Detach `windhoek-cap-deny` policy from `claude-cli`.
+2. Detach `monorepo-cap-deny` policy from `claude-cli`.
 3. `aws rds start-db-instance --db-instance-identifier <prod-rds-id>`.
-4. `aws ecs update-service --cluster windhoek-production --service <svc> --desired-count 1`.
+4. `aws ecs update-service --cluster monorepo-production --service <svc> --desired-count 1`.
 
 ---
 
@@ -260,7 +260,7 @@ If a deploy somehow blew through the budget cap, the hard-cap fires automaticall
 
 - **AWS Cost Explorer** — daily run-rate matches forecast. Click around the Service breakdown.
 - **AWS Budgets** — current spend vs the $120 (or $50) cap.
-- **CloudWatch alarms** — none in `ALARM` state. Check `windhoek-rds-cpu-high`, `windhoek-rds-connections-high`, `windhoek-rds-storage-low`, `windhoek-ecs-task-down`.
+- **CloudWatch alarms** — none in `ALARM` state. Check `monorepo-rds-cpu-high`, `monorepo-rds-connections-high`, `monorepo-rds-storage-low`, `monorepo-ecs-task-down`.
 - **Cloudflare Tunnel** — production tunnel still `healthy`, no flapping in connector logs.
 - **Cost Anomaly Detection** — no anomaly alerts fired.
 - **Sentry** — no surge in error volume.

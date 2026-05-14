@@ -52,7 +52,7 @@ Chosen: **network = Option 4 (Cloudflare Tunnel), email = Option C (Cloudflare R
 One Fargate task per env, three containers:
 
 ```
-windhoek-staging task (0.5 vCPU / 2 GB Graviton):
+monorepo-staging task (0.5 vCPU / 2 GB Graviton):
   ├── web      Next.js, listens on 3000
   ├── api      NestJS, listens on 3001
   └── cloudflared (cloudflare/cloudflared:latest image)

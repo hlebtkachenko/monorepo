@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const { send } = vi.hoisted(() => {
-  process.env.CLUSTER_NAME = "windhoek-test"
-  process.env.SERVICE_NAME = "windhoek-test-svc"
+  process.env.CLUSTER_NAME = "monorepo-test"
+  process.env.SERVICE_NAME = "monorepo-test-svc"
   return { send: vi.fn() }
 })
 
@@ -41,7 +41,7 @@ describe("killswitch handler", () => {
 
   it("stops ECS on a CloudWatch alarm JSON with NewStateValue=ALARM", async () => {
     const message = JSON.stringify({
-      AlarmName: "windhoek-test-fargate-network-out-high",
+      AlarmName: "monorepo-test-fargate-network-out-high",
       NewStateValue: "ALARM",
     })
     const result = (await handler({
@@ -57,7 +57,7 @@ describe("killswitch handler", () => {
 
   it("skips alarm in OK / INSUFFICIENT_DATA state", async () => {
     const message = JSON.stringify({
-      AlarmName: "windhoek-test-fargate-network-out-high",
+      AlarmName: "monorepo-test-fargate-network-out-high",
       NewStateValue: "OK",
     })
     const result = (await handler({
@@ -89,7 +89,7 @@ describe("killswitch handler", () => {
     const result = (await handler({
       Records: [
         snsRecord(
-          "AWS Budgets Notification: actual spend exceeded 100% of windhoek-test-monthlytotal.",
+          "AWS Budgets Notification: actual spend exceeded 100% of monorepo-test-monthlytotal.",
         ),
       ],
     })) as HandlerResult
@@ -111,7 +111,7 @@ describe("killswitch handler", () => {
     })
 
     const message = JSON.stringify({
-      AlarmName: "windhoek-test-fargate-cpu-critical",
+      AlarmName: "monorepo-test-fargate-cpu-critical",
       NewStateValue: "ALARM",
     })
     const result = (await handler({

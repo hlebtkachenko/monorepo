@@ -91,11 +91,11 @@ cat > /tmp/trust-staging.json <<JSON
 JSON
 
 aws iam create-role \
-  --role-name windhoek-deploy-staging \
+  --role-name monorepo-deploy-staging \
   --assume-role-policy-document file:///tmp/trust-staging.json
 
 aws iam attach-role-policy \
-  --role-name windhoek-deploy-staging \
+  --role-name monorepo-deploy-staging \
   --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 ```
 
@@ -105,8 +105,8 @@ Repeat the trust JSON + role for `production` (substitute `staging` → `product
 
 ```bash
 gh secret set AWS_ACCOUNT_ID --body "${AWS_ACCOUNT_ID}" --repo hlebtkachenko/monorepo
-gh secret set AWS_DEPLOY_ROLE_ARN_STAGING --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/windhoek-deploy-staging" --repo hlebtkachenko/monorepo
-gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/windhoek-deploy-production" --repo hlebtkachenko/monorepo
+gh secret set AWS_DEPLOY_ROLE_ARN_STAGING --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/monorepo-deploy-staging" --repo hlebtkachenko/monorepo
+gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/monorepo-deploy-production" --repo hlebtkachenko/monorepo
 
 gh variable set AWS_REGION --body eu-central-1 --repo hlebtkachenko/monorepo
 gh variable set APP_DOMAIN_STAGING --body staging.afframe.com --repo hlebtkachenko/monorepo
@@ -181,7 +181,7 @@ Until approved, SES is sandboxed (200/day to verified addresses only). Resend co
 Per env:
 
 1. In Cloudflare → Zero Trust → Access → Tunnels → Create a tunnel
-2. Name it `windhoek-staging` (then later `windhoek-production`)
+2. Name it `monorepo-staging` (then later `monorepo-production`)
 3. Cloudflare emits a connector token. Copy it.
 4. Store as repo secret:
    ```bash
@@ -190,7 +190,7 @@ Per env:
 5. In the tunnel's Public Hostnames tab, add:
    - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
    - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (leave blank for catch-all), **Service** `HTTP localhost:3000`
-6. Repeat for `windhoek-production` with `app.afframe.com`
+6. Repeat for `monorepo-production` with `app.afframe.com`
 
 The tunnel connector starts running inside the Fargate task on first deploy. Until then it'll show "inactive" in Cloudflare dashboard.
 
@@ -313,8 +313,8 @@ Both should return 200 with JSON.
 ## Monitoring after first deploy
 
 Watch for 24h:
-- **CloudWatch** → `/ecs/windhoek-staging/{web,api,cloudflared}` log groups for errors
-- **CloudWatch** → ECS Cluster `windhoek-staging` → task count steady at 1
+- **CloudWatch** → `/ecs/monorepo-staging/{web,api,cloudflared}` log groups for errors
+- **CloudWatch** → ECS Cluster `monorepo-staging` → task count steady at 1
 - **Cloudflare dashboard** → Zero Trust → Tunnels → connector status "Healthy"
 - **Cost Explorer** → AWS daily spend tracks against ~$1.50/day target
 

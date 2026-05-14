@@ -40,7 +40,7 @@ ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
 
-LABEL org.opencontainers.image.title="windhoek-web" \
+LABEL org.opencontainers.image.title="monorepo-web" \
       org.opencontainers.image.source="https://github.com/hlebtkachenko/monorepo" \
       org.opencontainers.image.revision="$BUILD_SHA" \
       org.opencontainers.image.created="$BUILD_TIME" \

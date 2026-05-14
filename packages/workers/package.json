@@ -5,20 +5,24 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./boot": "./src/boot.ts",
+    "./lanes/*": "./src/lanes/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "bullmq": "^5.67.2",
-    "ioredis": "^5.7.0"
+    "pg-boss": "^12.18.2"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "@types/node": "^25.6.0",
     "eslint": "^9.39.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
   }
 }

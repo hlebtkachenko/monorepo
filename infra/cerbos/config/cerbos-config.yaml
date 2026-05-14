@@ -9,9 +9,20 @@
 #   :3592 — HTTP (admin + healthcheck only)
 #   :3593 — gRPC (the api container's CerbosService calls this on localhost)
 #
-# Audit log goes to stdout in JSON; the Fargate awslogs driver forwards to
-# CloudWatch where the structured fields are searchable. No file-based
-# audit log => no need for a writable rootfs.
+# Logs: Cerbos uses zap logger and writes server/access logs to stdout as
+# structured JSON. The Fargate awslogs driver forwards to the CloudWatch
+# group declared in app-stack.ts (see CerbosLogs LogGroup).
+#
+# Per-decision audit is intentionally DISABLED for now:
+#   - `backend: local` would write a BadgerDB to disk; with our /tmp
+#     ephemeral volume, those records are lost on every task replacement,
+#     and there's no in-task reader (adminAPI is disabled).
+#   - DORA Article 8 per-decision audit needs an external sink (Kafka,
+#     ES, or app-side capture from the gRPC response) — wire that in a
+#     follow-up when the persistence target exists.
+# Server logs to stdout still capture every check call's principal +
+# resource + action shape, which is sufficient for MVP ops + incident
+# triage.
 server:
   httpListenAddr: ":3592"
   grpcListenAddr: ":3593"
@@ -22,21 +33,15 @@ storage:
   driver: disk
   disk:
     directory: /policies
-    # watchForChanges: container restart pulls fresh policies via a new image
-    # tag (DockerImageAsset rehashes on policy edit). Watch is redundant + a
-    # small mtime-poll cost we don't need.
-    watchForChanges: false
+    # Enabled so local dev (compose bind-mounts policies) hot-reloads on
+    # edit. In prod the policies are baked into the image and never change
+    # inside a running container (a policy edit triggers a new image tag,
+    # which restarts the container anyway), so the mtime poll is a no-op
+    # cost we accept for dev parity.
+    watchForChanges: true
 
 audit:
-  enabled: true
-  backend: local
-  local:
-    storagePath: /tmp/cerbos/audit
-    retentionPeriod: 168h  # 7 days
-    advanced:
-      bufferSize: 16
-      maxBatchSize: 32
-      flushInterval: 30s
+  enabled: false
 
 schema:
   enforcement: reject

@@ -30,6 +30,16 @@ resources:
     kind: invoice
     attr:
       locked: false
+  inv-locked:
+    id: inv-locked
+    kind: invoice
+    attr:
+      locked: true
+  je-posted:
+    id: je-posted
+    kind: journal_entry
+    attr:
+      posted: true
   vat-std:
     id: vat-std
     kind: vat_rate
@@ -108,3 +118,31 @@ tests:
         resource: inv-003
         actions:
           edit: EFFECT_ALLOW
+
+  - name: agent denied edit on locked invoice (resource policy condition)
+    input:
+      principals:
+        - agent-001
+      resources:
+        - inv-locked
+      actions:
+        - edit
+    expected:
+      - principal: agent-001
+        resource: inv-locked
+        actions:
+          edit: EFFECT_DENY
+
+  - name: agent denied edit on posted journal entry (resource policy condition)
+    input:
+      principals:
+        - agent-001
+      resources:
+        - je-posted
+      actions:
+        - edit
+    expected:
+      - principal: agent-001
+        resource: je-posted
+        actions:
+          edit: EFFECT_DENY

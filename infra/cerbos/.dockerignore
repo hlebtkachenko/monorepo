@@ -1,0 +1,11 @@
+# Keep the DockerImageAsset build context minimal so policy-only edits
+# rotate the image tag (good), but test/doc edits don't (cheap).
+#
+# DockerImageAsset content-hashes the entire build context. Including
+# .cerbos-tests means every test edit triggers a fresh image push to
+# the asset ECR repo + Fargate task rotation. The tests only matter at
+# CI time (cerbos compile --tests), not at runtime.
+.cerbos-tests/
+README.md
+build.sh
+*.md

@@ -1,19 +1,20 @@
 // SNS-triggered cost kill-switch.
 //
-// Receives a CloudWatch alarm notification fanned out via SNS, parses the
-// alarm name, and dispatches one action: stop the ECS service
-// (desiredCount=0). Triggered alarms:
+// Subscribed to one SNS topic (KillSwitchTopic). Two message shapes arrive:
 //
-//   - fargate-network-out-high
-//   - cwlogs-ingest-high
-//   - s3-put-rate-high
-//   - *-cpu-critical / *-memory-critical
+//   1. CloudWatch alarm JSON envelope (AlarmName + NewStateValue). Stops
+//      ECS only when NewStateValue === "ALARM" AND the alarm name matches
+//      a known trigger (fargate-network-out-high, cwlogs-ingest-high,
+//      s3-put-rate-high, *-cpu-critical, *-memory-critical).
 //
-// RDS-network-out-high never triggers the kill-switch (aborting an in-flight
-// DB transaction risks state corruption) - SNS email-only.
+//   2. AWS Budgets notification (plain text, NOT JSON). The 100%-threshold
+//      notification is the only path that publishes to KillSwitchTopic
+//      (80% is email-only) so any non-JSON message is treated as a budget
+//      breach -> stop ECS.
 //
-// All actions are idempotent. Repeated SNS retries detect desiredCount=0 and
-// no-op.
+// RDS-network-out-high never reaches this Lambda (alarm-only, mid-query
+// stop risks DB corruption). Repeated SNS retries detect desiredCount=0
+// and no-op so the action is idempotent.
 //
 // Required env vars:
 //   CLUSTER_NAME    ECS cluster name
@@ -65,36 +66,42 @@ async function stopEcsService(reason) {
   return { action: "stop-ecs", reason }
 }
 
-function shouldStop(alarmName) {
+function isKnownAlarm(alarmName) {
   if (!alarmName) return false
   return (
     alarmName.includes("fargate-network-out-high") ||
     alarmName.includes("cwlogs-ingest-high") ||
     alarmName.includes("s3-put-rate-high") ||
     alarmName.includes("cpu-critical") ||
-    alarmName.includes("memory-critical") ||
-    alarmName.includes("budget-")
+    alarmName.includes("memory-critical")
   )
 }
 
 export const handler = async (event) => {
   const results = []
   for (const record of event.Records ?? []) {
-    let message
+    const raw = record.Sns?.Message ?? ""
+    let parsed
     try {
-      message = JSON.parse(record.Sns.Message)
+      parsed = JSON.parse(raw)
     } catch {
-      log("unparseable-sns-message", { messageId: record.Sns.MessageId })
+      // Non-JSON payload on KillSwitchTopic = AWS Budgets plain-text
+      // notification at the 100% threshold. Stop the service.
+      log("budget-notification", { messageId: record.Sns?.MessageId })
+      results.push({
+        source: "budget",
+        ...(await stopEcsService("budget-breach")),
+      })
       continue
     }
-    const alarmName = message.AlarmName ?? message.budgetName
-    const newState = message.NewStateValue
+    const alarmName = parsed.AlarmName
+    const newState = parsed.NewStateValue
     log("received", { alarmName, newState })
     if (newState && newState !== "ALARM") {
       results.push({ alarmName, action: "skip", reason: "not-in-alarm-state" })
       continue
     }
-    if (shouldStop(alarmName)) {
+    if (isKnownAlarm(alarmName)) {
       results.push({ alarmName, ...(await stopEcsService(alarmName)) })
     } else {
       log("unknown-alarm", { alarmName })

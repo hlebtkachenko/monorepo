@@ -4,12 +4,7 @@ import { CfnBudget } from "aws-cdk-lib/aws-budgets"
 import { ReadWriteType, Trail } from "aws-cdk-lib/aws-cloudtrail"
 import { Rule } from "aws-cdk-lib/aws-events"
 import { LambdaFunction as LambdaTarget } from "aws-cdk-lib/aws-events-targets"
-import {
-  AnyPrincipal,
-  Effect,
-  PolicyStatement,
-  ServicePrincipal,
-} from "aws-cdk-lib/aws-iam"
+import { Effect, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam"
 import {
   Code,
   Function as LambdaFunction,
@@ -105,10 +100,17 @@ export class SecurityStack extends Stack {
       new LambdaSubscription(this.killSwitchFn),
     )
 
-    // Allow AWS Budgets to publish breach notifications to the kill-switch
-    // topic. budgets.amazonaws.com is the service principal that signs
-    // these publishes. The Lambda subscription then converts a breach into
-    // ecs:UpdateService(desiredCount=0).
+    // Allow AWS Budgets in this account to publish breach notifications to
+    // the kill-switch topic. Scoped with aws:SourceAccount so a different
+    // account's Budget service cannot publish here. CloudWatch alarm
+    // SnsAction grants are added automatically by CDK when alarms subscribe.
+    //
+    // Earlier revisions added a DenyExternalPublish statement keyed on
+    // aws:PrincipalAccount. That key is not populated for service
+    // principals, so the Deny fired against legit CloudWatch + Budgets
+    // publishes (missing-key + StringNotEquals = condition true => deny).
+    // Default SNS topic policy already requires explicit Allow grants
+    // for non-owner principals, so the Deny was redundant.
     this.killSwitchTopic.addToResourcePolicy(
       new PolicyStatement({
         sid: "AllowBudgetsToPublish",
@@ -116,22 +118,9 @@ export class SecurityStack extends Stack {
         principals: [new ServicePrincipal("budgets.amazonaws.com")],
         actions: ["sns:Publish"],
         resources: [this.killSwitchTopic.topicArn],
-      }),
-    )
-    // Block all non-Budget non-CloudWatch non-AWS-internal publishes. The
-    // service principals for CloudWatch alarms (cloudwatch.amazonaws.com)
-    // are auto-added by CDK when alarms subscribe; we add Budgets above.
-    // Deny everything else by default.
-    this.killSwitchTopic.addToResourcePolicy(
-      new PolicyStatement({
-        sid: "DenyExternalPublish",
-        effect: Effect.DENY,
-        principals: [new AnyPrincipal()],
-        actions: ["sns:Publish"],
-        resources: [this.killSwitchTopic.topicArn],
         conditions: {
-          StringNotEquals: {
-            "aws:PrincipalAccount": this.account,
+          StringEquals: {
+            "aws:SourceAccount": this.account,
           },
         },
       }),

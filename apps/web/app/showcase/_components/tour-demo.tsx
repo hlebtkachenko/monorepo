@@ -14,7 +14,6 @@ import {
   TourPrev,
   TourProgress,
   TourSpotlight,
-  TourSpotlightRing,
   TourStep,
   TourTitle,
   TourTooltip,
@@ -50,9 +49,14 @@ export function TourDemo() {
       </div>
 
       <Tour open={open} onOpenChange={setOpen}>
+        {open && (
+          <div
+            aria-hidden
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+          />
+        )}
         <TourPortal>
           <TourSpotlight />
-          <TourSpotlightRing />
 
           <TourStep target="#tour-demo-target-1">
             <TourClose />

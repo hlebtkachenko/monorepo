@@ -25,6 +25,9 @@ interface InputSegmentedContextValue {
   disabled: boolean
   invalid: boolean
   required: boolean
+  autoAdvance: boolean
+  setItemRef: (index: number, el: HTMLInputElement | null) => void
+  focusItem: (index: number) => void
 }
 
 const InputSegmentedContext =
@@ -46,6 +49,7 @@ interface InputSegmentedProps extends React.ComponentProps<"div"> {
   disabled?: boolean
   invalid?: boolean
   required?: boolean
+  autoAdvance?: boolean
 }
 
 function InputSegmented(props: InputSegmentedProps) {
@@ -59,10 +63,27 @@ function InputSegmented(props: InputSegmentedProps) {
     disabled = false,
     invalid = false,
     required = false,
+    autoAdvance = false,
     ...rootProps
   } = props
 
   const dir = DirectionPrimitive.useDirection(dirProp)
+  const itemRefs = React.useRef<Array<HTMLInputElement | null>>([])
+
+  const setItemRef = React.useCallback(
+    (index: number, el: HTMLInputElement | null) => {
+      itemRefs.current[index] = el
+    },
+    [],
+  )
+
+  const focusItem = React.useCallback((index: number) => {
+    const el = itemRefs.current[index]
+    if (el) {
+      el.focus()
+      el.select?.()
+    }
+  }, [])
 
   const contextValue = React.useMemo<InputSegmentedContextValue>(
     () => ({
@@ -72,18 +93,29 @@ function InputSegmented(props: InputSegmentedProps) {
       disabled,
       invalid,
       required,
+      autoAdvance,
+      setItemRef,
+      focusItem,
     }),
-    [dir, orientation, size, disabled, invalid, required],
+    [
+      dir,
+      orientation,
+      size,
+      disabled,
+      invalid,
+      required,
+      autoAdvance,
+      setItemRef,
+      focusItem,
+    ],
   )
 
-  const childrenArray = React.Children.toArray(children)
-  const childrenCount = childrenArray.length
+  const childrenCount = React.Children.count(children)
 
   const inputSegmentedItems = React.Children.map(children, (child, index) => {
     if (React.isValidElement<InputSegmentedItemProps>(child)) {
-      if (!child.props.position) {
-        let position: Position
-
+      let position: Position | undefined = child.props.position ?? undefined
+      if (!position) {
         if (childrenCount === 1) {
           position = "isolated"
         } else if (index === 0) {
@@ -93,9 +125,13 @@ function InputSegmented(props: InputSegmentedProps) {
         } else {
           position = "middle"
         }
-
-        return React.cloneElement(child, { position })
       }
+
+      return React.cloneElement(child, {
+        position,
+        __segmentedIndex: index,
+        __segmentedTotal: childrenCount,
+      } as Partial<InputSegmentedItemProps>)
     }
     return child
   })
@@ -173,15 +209,78 @@ interface InputSegmentedItemProps
     React.ComponentProps<"input">,
     Omit<VariantProps<typeof inputSegmentedItemVariants>, "size"> {
   asChild?: boolean
+  /** Injected by `InputSegmented` parent. Do not set manually. */
+  __segmentedIndex?: number
+  /** Injected by `InputSegmented` parent. Do not set manually. */
+  __segmentedTotal?: number
 }
 
 function InputSegmentedItem(props: InputSegmentedItemProps) {
-  const { asChild, className, position, disabled, required, ...inputProps } =
-    props
+  const {
+    asChild,
+    className,
+    position,
+    disabled,
+    required,
+    __segmentedIndex,
+    __segmentedTotal,
+    onInput,
+    onKeyDown,
+    ref: refProp,
+    ...inputProps
+  } = props
   const context = useInputSegmentedContext(ITEM_NAME)
 
   const isDisabled = disabled ?? context.disabled
   const isRequired = required ?? context.required
+
+  const index = __segmentedIndex ?? -1
+  const total = __segmentedTotal ?? 0
+
+  const composedRef = React.useCallback(
+    (node: HTMLInputElement | null) => {
+      if (index >= 0) context.setItemRef(index, node)
+      if (typeof refProp === "function") {
+        refProp(node)
+      } else if (refProp && typeof refProp === "object") {
+        ;(refProp as React.MutableRefObject<HTMLInputElement | null>).current =
+          node
+      }
+    },
+    [context, index, refProp],
+  )
+
+  const handleInput = React.useCallback<
+    React.FormEventHandler<HTMLInputElement>
+  >(
+    (event) => {
+      onInput?.(event as React.InputEvent<HTMLInputElement>)
+      if (!context.autoAdvance) return
+      const target = event.currentTarget
+      const maxLength = target.maxLength
+      if (maxLength > 0 && target.value.length >= maxLength) {
+        if (index >= 0 && index < total - 1) {
+          context.focusItem(index + 1)
+        }
+      }
+    },
+    [context, index, onInput, total],
+  )
+
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      onKeyDown?.(event)
+      if (event.defaultPrevented) return
+      if (!context.autoAdvance) return
+      if (event.key === "Backspace" && event.currentTarget.value === "") {
+        if (index > 0) {
+          event.preventDefault()
+          context.focusItem(index - 1)
+        }
+      }
+    },
+    [context, index, onKeyDown],
+  )
 
   const ItemPrimitive = asChild ? SlotPrimitive.Slot : Input
 
@@ -198,6 +297,9 @@ function InputSegmentedItem(props: InputSegmentedItemProps) {
       disabled={isDisabled}
       required={isRequired}
       {...inputProps}
+      ref={composedRef}
+      onInput={handleInput}
+      onKeyDown={handleKeyDown}
       className={cn(
         inputSegmentedItemVariants({
           position,

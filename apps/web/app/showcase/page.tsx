@@ -1,12 +1,7 @@
 import { ThemeToggle } from "@/components/theme-toggle"
 import { ScrollToTop } from "./_components/scroll-to-top"
-import { AlertCircle, Inbox, Search } from "lucide-react"
+import { Inbox, Search } from "lucide-react"
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@workspace/ui/components/alert"
 import { AspectRatio } from "@workspace/ui/components/aspect-ratio"
 import {
   Avatar,
@@ -41,7 +36,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
-import { Kbd, KbdGroup } from "@workspace/ui/components/kbd"
 import { Label } from "@workspace/ui/components/label"
 import {
   Pagination,
@@ -54,7 +48,6 @@ import {
 } from "@workspace/ui/components/pagination"
 import { Progress } from "@workspace/ui/components/progress"
 import { Separator } from "@workspace/ui/components/separator"
-import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
   Table,
@@ -113,12 +106,6 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@workspace/ui/components/tabs"
-import {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "@workspace/ui/components/accordion"
 import {
   NavigationMenu,
   NavigationMenuList,
@@ -221,6 +208,10 @@ import { PdfViewerDemo } from "./_components/pdf-viewer-demo"
 import { PromptLibraryDemo } from "./_components/prompt-library-demo"
 import { TourDemo } from "./_components/tour-demo"
 import { SidebarDemo } from "./_components/sidebar-demo"
+import { AccordionDemo } from "./_components/accordion-demo"
+import { AlertDemo } from "./_components/alert-demo"
+import { KbdDemo } from "./_components/kbd-demo"
+import { SkeletonDemo } from "./_components/skeleton-demo"
 
 export default function ShowcasePage() {
   return (
@@ -236,31 +227,9 @@ export default function ShowcasePage() {
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              FAQ style
+              Single collapsible and multiple open
             </h3>
-            <Accordion type="single" collapsible className="max-w-md">
-              <AccordionItem value="item-1">
-                <AccordionTrigger>How does billing work?</AccordionTrigger>
-                <AccordionContent>
-                  Billing is monthly and based on your selected plan. You can
-                  upgrade or downgrade at any time.
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="item-2">
-                <AccordionTrigger>Can I cancel anytime?</AccordionTrigger>
-                <AccordionContent>
-                  Yes, you can cancel your subscription at any time. Your access
-                  continues until the end of the billing period.
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="item-3">
-                <AccordionTrigger>Is there a free trial?</AccordionTrigger>
-                <AccordionContent>
-                  We offer a 14-day free trial with full access to all features.
-                  No credit card required.
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+            <AccordionDemo />
           </div>
         </div>
       </section>
@@ -284,24 +253,9 @@ export default function ShowcasePage() {
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Variants
+              Variants and action
             </h3>
-            <div className="flex flex-col gap-3">
-              <Alert variant="default">
-                <AlertTitle>Heads up</AlertTitle>
-                <AlertDescription>
-                  Your subscription renews in 3 days. Update your payment method
-                  if needed.
-                </AlertDescription>
-              </Alert>
-              <Alert variant="destructive">
-                <AlertCircle />
-                <AlertTitle>Deployment failed</AlertTitle>
-                <AlertDescription>
-                  Build error on step 4. Check the logs for details and retry.
-                </AlertDescription>
-              </Alert>
-            </div>
+            <AlertDemo />
           </div>
         </div>
       </section>
@@ -1440,37 +1394,9 @@ export default function ShowcasePage() {
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Single Keys
+              Keyboard shortcut display
             </h3>
-            <div className="flex flex-wrap gap-3">
-              <Kbd>⌘</Kbd>
-              <Kbd>⇧</Kbd>
-              <Kbd>⌥</Kbd>
-              <Kbd>⌃</Kbd>
-              <Kbd>Enter</Kbd>
-              <Kbd>Esc</Kbd>
-              <Kbd>Tab</Kbd>
-            </div>
-          </div>
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Combinations
-            </h3>
-            <div className="flex flex-wrap gap-3">
-              <KbdGroup>
-                <Kbd>⌘</Kbd>
-                <Kbd>C</Kbd>
-              </KbdGroup>
-              <KbdGroup>
-                <Kbd>⌘</Kbd>
-                <Kbd>⇧</Kbd>
-                <Kbd>P</Kbd>
-              </KbdGroup>
-              <KbdGroup>
-                <Kbd>Ctrl</Kbd>
-                <Kbd>K</Kbd>
-              </KbdGroup>
-            </div>
+            <KbdDemo />
           </div>
         </div>
       </section>
@@ -2025,17 +1951,9 @@ export default function ShowcasePage() {
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-              Shapes
+              Loading placeholders
             </h3>
-            <div className="flex flex-wrap items-center gap-4">
-              <Skeleton className="h-16 w-24 rounded-lg" />
-              <Skeleton className="size-12 rounded-full" />
-              <div className="flex flex-col gap-2">
-                <Skeleton className="h-4 w-48" />
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-4 w-52" />
-              </div>
-            </div>
+            <SkeletonDemo />
           </div>
         </div>
       </section>

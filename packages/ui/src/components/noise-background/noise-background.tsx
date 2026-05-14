@@ -62,7 +62,7 @@ function NoiseBackground({
   className,
   containerClassName,
   gradientColors = DEFAULT_GRADIENT_COLORS,
-  noiseIntensity = 0.2,
+  noiseIntensity = 0.35,
   speed = 0.1,
   backdropBlur = false,
   animating = true,
@@ -160,7 +160,7 @@ function NoiseBackground({
       ref={containerRef}
       data-slot="noise-background"
       className={cn(
-        "group relative overflow-hidden rounded-2xl bg-muted p-2 shadow-sm backdrop-blur-sm",
+        "group relative overflow-hidden rounded-2xl bg-background p-2 shadow-sm backdrop-blur-sm",
         backdropBlur &&
           "after:absolute after:inset-0 after:h-full after:w-full after:backdrop-blur-lg after:content-['']",
         containerClassName,
@@ -209,8 +209,8 @@ function NoiseBackground({
         <filter id={NOISE_FILTER_ID}>
           <feTurbulence
             type="fractalNoise"
-            baseFrequency="0.9"
-            numOctaves="2"
+            baseFrequency="1.2"
+            numOctaves="3"
             stitchTiles="stitch"
           />
           <feColorMatrix type="saturate" values="0" />

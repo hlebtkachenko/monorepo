@@ -4,6 +4,7 @@ import * as React from "react"
 import { Check, Upload, X } from "lucide-react"
 
 import { cn } from "@workspace/ui/lib/utils"
+import { formatNumber, parseNumber } from "@workspace/ui/lib/format-number"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Calendar } from "@workspace/ui/components/calendar"
@@ -228,7 +229,7 @@ export function NumberCell<TData>(props: DataGridCellProps<TData>) {
   }, [isEditing])
 
   const commit = React.useCallback(() => {
-    const num = value === "" ? null : Number(value)
+    const num = value === "" ? null : parseNumber(value)
     if (!readOnly && num !== initialValue) {
       tableMeta?.onDataUpdate?.({ rowIndex, columnId, value: num })
     }
@@ -249,7 +250,8 @@ export function NumberCell<TData>(props: DataGridCellProps<TData>) {
       {isEditing ? (
         <input
           ref={inputRef}
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={value}
           min={numberOpts?.min}
           max={numberOpts?.max}
@@ -269,7 +271,14 @@ export function NumberCell<TData>(props: DataGridCellProps<TData>) {
           }}
         />
       ) : (
-        <span data-slot="data-grid-cell-content">{value}</span>
+        <span data-slot="data-grid-cell-content">
+          {initialValue == null
+            ? ""
+            : formatNumber(initialValue, {
+                minimumFractionDigits: numberOpts?.decimals,
+                maximumFractionDigits: numberOpts?.decimals,
+              })}
+        </span>
       )}
     </DataGridCellWrapper>
   )

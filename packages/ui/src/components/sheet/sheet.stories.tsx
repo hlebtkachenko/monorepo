@@ -79,3 +79,39 @@ export const FromLeft: Story = {
     </Sheet>
   ),
 }
+
+export const FromTop: Story = {
+  render: () => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <button>Open Top Sheet</button>
+      </SheetTrigger>
+      <SheetContent side="top">
+        <SheetHeader>
+          <SheetTitle>Sheet from top</SheetTitle>
+          <SheetDescription>
+            This sheet slides down from the top edge.
+          </SheetDescription>
+        </SheetHeader>
+      </SheetContent>
+    </Sheet>
+  ),
+}
+
+export const FromBottom: Story = {
+  render: () => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <button>Open Bottom Sheet</button>
+      </SheetTrigger>
+      <SheetContent side="bottom">
+        <SheetHeader>
+          <SheetTitle>Sheet from bottom</SheetTitle>
+          <SheetDescription>
+            This sheet slides up from the bottom edge.
+          </SheetDescription>
+        </SheetHeader>
+      </SheetContent>
+    </Sheet>
+  ),
+}

@@ -1,15 +1,17 @@
 # Monthly backup-restore drill.
 #
 # On the 2nd of each month at 03:00 UTC:
-#   1. Trigger a fresh backup via ECS RunTask (writes to S3).
-#   2. Run the restore-drill inside the same backup image: download latest
-#      from S3, restore into a scratch container, assert org-scoped table
-#      row counts.
+#   1. Trigger a fresh backup via ECS RunTask (writes a dated dump to S3).
+#   2. Run the restore drill ON THE GHA RUNNER (docker available there).
+#      The same restore-drill.sh script that the BackupStack task could
+#      not execute (distroless Fargate has no docker daemon) pulls the
+#      latest dump from S3, boots a scratch postgres:18 container, runs
+#      pg_restore --exit-on-error, and asserts row counts > 0 across the
+#      seven org-scoped tables.
 #
-# Step 2 runs on the GitHub runner (Docker available); step 1 runs on AWS
-# inside the cluster the BackupStack provisioned. The schedule overlaps the
-# daily 03:00 UTC EventBridge schedule by design - the daily backup is the
-# write side, this workflow is the read-back validation.
+# The schedule overlaps the daily 03:00 UTC EventBridge schedule by
+# design — the daily backup is the write side, this workflow is the
+# read-back validation.
 #
 # Advisory until the first green run (continue-on-error true).
 
@@ -39,7 +41,7 @@ jobs:
   drill:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true # ADVISORY - flip to required after first green run
+    continue-on-error: true # ADVISORY — flip to required after first green run
     environment: ${{ inputs.environment || 'staging' }}
     permissions:
       id-token: write
@@ -76,19 +78,31 @@ jobs:
           role-session-name: backup-restore-${{ github.run_id }}
           audience: sts.amazonaws.com
 
-      - name: Resolve cluster + task definition + networking
+      - name: Resolve cluster + task definition + bucket via CFN exports
         id: ecs
         run: |
           set -euo pipefail
-          CLUSTER="monorepo-${ENV_NAME}"
-          TASK_DEF=$(aws ecs list-task-definitions \
-            --family-prefix "BackupStack${ENV_NAME^}BackupTaskDef" \
-            --sort DESC --max-items 1 \
-            --region "$AWS_REGION" \
-            --query 'taskDefinitionArns[0]' \
-            --output text)
+          STACK="Backup-${ENV_NAME}"
+          cfn_export() {
+            local name="$1"
+            aws cloudformation list-exports \
+              --region "$AWS_REGION" \
+              --query "Exports[?Name=='${name}'].Value" \
+              --output text
+          }
+          CLUSTER=$(cfn_export "Backup-${ENV_NAME}-ClusterName")
+          TASK_DEF=$(cfn_export "Backup-${ENV_NAME}-TaskDefinitionArn")
+          BUCKET=$(cfn_export "Backup-${ENV_NAME}-BucketName")
+          if [ -z "$CLUSTER" ] || [ "$CLUSTER" = "None" ]; then
+            echo "::error::Stack ${STACK} did not export Backup-${ENV_NAME}-ClusterName"
+            exit 1
+          fi
           if [ -z "$TASK_DEF" ] || [ "$TASK_DEF" = "None" ]; then
-            echo "::error::No backup task definition found in cluster $CLUSTER"
+            echo "::error::Stack ${STACK} did not export Backup-${ENV_NAME}-TaskDefinitionArn"
+            exit 1
+          fi
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
+            echo "::error::Stack ${STACK} did not export Backup-${ENV_NAME}-BucketName"
             exit 1
           fi
           SUBNETS=$(aws ec2 describe-subnets \
@@ -96,19 +110,41 @@ jobs:
             --filters "Name=tag:aws-cdk:subnet-name,Values=public" \
             --query 'Subnets[].SubnetId' \
             --output text)
+          # SG: filter by the cluster's VPC + the CDK stack-name tag the
+          # BackupStack inherits onto every nested resource. AppSg construct
+          # mangles to AppSgABC123 in CFN logical id, so we can't filter on
+          # logical id directly.
+          # describe-subnets accepts space-separated subnet ids — split the
+          # SUBNETS string deliberately. shellcheck SC2086 disabled inline.
+          # shellcheck disable=SC2086
+          VPC=$(aws ec2 describe-subnets \
+            --region "$AWS_REGION" \
+            --subnet-ids $SUBNETS \
+            --query 'Subnets[0].VpcId' \
+            --output text)
+          # JMESPath uses backticks for literals; the surrounding single
+          # quotes prevent bash from expanding them. shellcheck SC2016
+          # disabled inline.
+          # shellcheck disable=SC2016
           SG=$(aws ec2 describe-security-groups \
             --region "$AWS_REGION" \
-            --filters "Name=tag:aws:cloudformation:logical-id,Values=AppSecurityGroup" \
-            --query 'SecurityGroups[0].GroupId' \
+            --filters "Name=vpc-id,Values=${VPC}" \
+                      "Name=tag:aws:cloudformation:stack-name,Values=Network-${ENV_NAME}" \
+            --query 'SecurityGroups[?contains(GroupName, `AppSg`)].GroupId | [0]' \
             --output text)
+          if [ -z "$SG" ] || [ "$SG" = "None" ]; then
+            echo "::error::Could not resolve AppSg security group in VPC ${VPC}"
+            exit 1
+          fi
           {
             echo "cluster=$CLUSTER"
             echo "task_def=$TASK_DEF"
+            echo "bucket=$BUCKET"
             echo "subnets=${SUBNETS// /,}"
             echo "security_group=$SG"
           } >> "$GITHUB_OUTPUT"
 
-      - name: RunTask backup (write side)
+      - name: RunTask backup (write side, ECS Fargate)
         id: backup
         env:
           CLUSTER: ${{ steps.ecs.outputs.cluster }}
@@ -142,56 +178,20 @@ jobs:
             exit 1
           fi
 
-      - name: RunTask restore-drill (read side, scratch container)
+      - name: Restore drill (runner-side, docker is available here)
         env:
-          CLUSTER: ${{ steps.ecs.outputs.cluster }}
-          TASK_DEF: ${{ steps.ecs.outputs.task_def }}
-          SUBNETS: ${{ steps.ecs.outputs.subnets }}
-          SECURITY_GROUP: ${{ steps.ecs.outputs.security_group }}
+          APP_S3_BUCKET: ${{ steps.ecs.outputs.bucket }}
+          APP_S3_REGION: ${{ env.AWS_REGION }}
         run: |
           set -euo pipefail
           DATE_UTC=$(date -u +%Y-%m-%d)
-          # Override the entrypoint to invoke the restore-drill against the
-          # latest prefix produced by the backup step above.
-          OVERRIDES=$(cat <<JSON
-          {
-            "containerOverrides": [
-              {
-                "name": "backup",
-                "command": [
-                  "/usr/local/bin/restore-drill"
-                ],
-                "environment": [
-                  { "name": "APP_S3_PREFIX", "value": "backups/${DATE_UTC}" }
-                ]
-              }
-            ]
-          }
-          JSON
-          )
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "$CLUSTER" \
-            --task-definition "$TASK_DEF" \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUP}],assignPublicIp=ENABLED}" \
-            --overrides "$OVERRIDES" \
-            --region "$AWS_REGION" \
-            --query 'tasks[0].taskArn' \
-            --output text)
-          aws ecs wait tasks-stopped \
-            --cluster "$CLUSTER" \
-            --tasks "$TASK_ARN" \
-            --region "$AWS_REGION"
-          EXIT=$(aws ecs describe-tasks \
-            --cluster "$CLUSTER" \
-            --tasks "$TASK_ARN" \
-            --region "$AWS_REGION" \
-            --query 'tasks[0].containers[0].exitCode' \
-            --output text)
-          if [ "$EXIT" != "0" ]; then
-            echo "::error::Restore drill task exited $EXIT - backups did not round-trip"
-            exit 1
-          fi
+          export APP_S3_PREFIX="backups/${DATE_UTC}"
+          # The script boots a scratch postgres:18 container, pg_restores
+          # the latest dump, and exit 1's on any row-count mismatch across
+          # the seven org-scoped tables (audit_event auth_invite
+          # impersonation organization organization_membership
+          # resource_grant tool_call_log).
+          bash infra/scripts/restore-drill.sh
 
       - name: Alarm on failure
         if: failure()

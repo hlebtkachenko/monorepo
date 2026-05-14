@@ -29,6 +29,15 @@ RUN chmod +x \
     /usr/local/bin/wal-archive \
     /usr/local/bin/restore-drill
 
-# Default to the nightly backup. The Scheduled Task overrides command via
-# container overrides for the restore-drill invocation.
+# Defense in depth: capDrop ALL + readonlyRootFilesystem at the task level
+# already block most attack paths, but running as a non-root UID
+# additionally protects from any escalation if a CVE in postgres-client
+# or aws-cli is later exploited. UID 65532 (Chainguard "nobody") is the
+# common non-zero default and doesn't collide with the postgres user the
+# upstream image creates.
+USER 65532:65532
+
+# Default to the nightly backup. The monthly drill workflow runs
+# restore-drill on the GHA runner (docker daemon available there);
+# Fargate distroless cannot exec a script that needs docker.
 ENTRYPOINT ["/usr/local/bin/pg-dump-nightly"]

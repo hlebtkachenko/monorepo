@@ -22,8 +22,13 @@ IFS=$'\n\t'
 #   SCRATCH_IMAGE         docker image (default postgres:18-alpine)
 #   SCRATCH_DB_NAME       db name created in scratch (default monorepo)
 #   SCRATCH_PORT          host port to bind (default 55432)
-#   EXPECT_EMPTY_TABLES   space-separated list to allow zero rows for; useful in
-#                         clean-bootstrap drills
+#   EXPECT_EMPTY_TABLES   space-separated list to allow zero rows for. ONLY
+#                         honored when RESTORE_DRILL_MODE=bootstrap is also
+#                         set — otherwise a misconfigured env var could mask
+#                         a corrupted backup in production. The monthly
+#                         workflow does NOT set bootstrap mode.
+#   RESTORE_DRILL_MODE    "bootstrap" enables the EXPECT_EMPTY_TABLES allow
+#                         list above. Default (unset) = strict mode.
 #
 # Returns 0 only if every required org-scoped table has rows. Otherwise 1.
 
@@ -168,21 +173,29 @@ main() {
     --exit-on-error \
     "$dump_path"
 
-  local fail=0
-  local empty_allow="${EXPECT_EMPTY_TABLES:-}"
+  # Empty-table allowance is only honored when RESTORE_DRILL_MODE=bootstrap
+  # is explicitly set. In strict mode (the default + what CI uses) an empty
+  # org-scoped table FAILS the drill, even if EXPECT_EMPTY_TABLES lists it.
+  local strict_mode=1
+  local empty_allow=""
+  if [ "${RESTORE_DRILL_MODE:-strict}" = "bootstrap" ]; then
+    strict_mode=0
+    empty_allow="${EXPECT_EMPTY_TABLES:-}"
+    warn "RESTORE_DRILL_MODE=bootstrap — EXPECT_EMPTY_TABLES allow list is in effect: ${empty_allow}"
+  fi
+
   for table in "${ORG_SCOPED_TABLES[@]}"; do
     local count
     count=$(psql "$url" -At -v ON_ERROR_STOP=1 \
       -c "SELECT COUNT(*) FROM ${table}")
     if [ "$count" = "0" ]; then
-      if [[ " $empty_allow " == *" $table "* ]]; then
-        warn "$table is empty (allowed via EXPECT_EMPTY_TABLES)"
+      if [ "$strict_mode" -eq 0 ] && [[ " $empty_allow " == *" $table "* ]]; then
+        warn "$table is empty (allowed via bootstrap-mode allow list)"
         continue
       fi
       err "row count assertion FAILED for $table (got 0)"
     fi
     info "$table OK ($count rows)"
-    if [ "$fail" -ne 0 ]; then fail=1; fi
   done
 
   info "restore drill OK"

@@ -87,26 +87,97 @@ describe("BackupStack", () => {
     expect(foundPut).toBe(true)
   })
 
-  it("backup task container hardening: capDrop ALL + readonlyRootFilesystem", () => {
+  it("backup task container hardening: capDrop ALL + readonlyRootFilesystem + /tmp mount", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const defs = Object.values(taskDefs) as Array<{
-      Properties?: { ContainerDefinitions?: unknown[] }
+      Properties?: {
+        ContainerDefinitions?: unknown[]
+        Volumes?: Array<{ Name?: string }>
+      }
     }>
     expect(defs.length).toBeGreaterThan(0)
     let hardened = false
     for (const def of defs) {
+      const volumes = def.Properties?.Volumes ?? []
+      expect(volumes.some((v) => v.Name === "tmp")).toBe(true)
       for (const container of def.Properties?.ContainerDefinitions ?? []) {
         const c = container as {
           Name?: string
           ReadonlyRootFilesystem?: boolean
           LinuxParameters?: { Capabilities?: { Drop?: string[] } }
+          MountPoints?: Array<{
+            ContainerPath?: string
+            SourceVolume?: string
+            ReadOnly?: boolean
+          }>
         }
         if (c.Name !== "backup") continue
         expect(c.ReadonlyRootFilesystem).toBe(true)
         expect(c.LinuxParameters?.Capabilities?.Drop).toEqual(["ALL"])
+        const tmpMount = c.MountPoints?.find((m) => m.ContainerPath === "/tmp")
+        expect(tmpMount).toBeDefined()
+        expect(tmpMount?.SourceVolume).toBe("tmp")
         hardened = true
       }
     }
     expect(hardened).toBe(true)
+  })
+
+  it("backup bucket has SSE + enforceSSL applied", () => {
+    template.hasResourceProperties("AWS::S3::Bucket", {
+      BucketEncryption: Match.objectLike({
+        ServerSideEncryptionConfiguration: Match.arrayWith([
+          Match.objectLike({
+            ServerSideEncryptionByDefault: Match.objectLike({
+              SSEAlgorithm: "AES256",
+            }),
+          }),
+        ]),
+      }),
+    })
+    // enforceSSL renders as a bucket policy with a deny statement on
+    // aws:SecureTransport=false. Assert by inspecting bucket policies.
+    const policies = template.findResources("AWS::S3::BucketPolicy")
+    const denied = Object.values(policies).some((policy) => {
+      const stmts =
+        (
+          policy as {
+            Properties?: { PolicyDocument?: { Statement?: unknown[] } }
+          }
+        ).Properties?.PolicyDocument?.Statement ?? []
+      return (stmts as Array<{ Effect?: string; Condition?: unknown }>).some(
+        (s) =>
+          s.Effect === "Deny" &&
+          JSON.stringify(s.Condition ?? {}).includes("aws:SecureTransport"),
+      )
+    })
+    expect(denied).toBe(true)
+  })
+
+  it("task role policy contains no s3:DeleteObject* (audit retention)", () => {
+    const policies = template.findResources("AWS::IAM::Policy")
+    for (const policy of Object.values(policies) as Array<{
+      Properties?: { PolicyDocument?: { Statement?: unknown[] } }
+    }>) {
+      const stmts = policy.Properties?.PolicyDocument?.Statement ?? []
+      for (const stmt of stmts as Array<{ Action?: string | string[] }>) {
+        const actions = Array.isArray(stmt.Action)
+          ? stmt.Action
+          : stmt.Action
+            ? [stmt.Action]
+            : []
+        for (const action of actions) {
+          // No statement on the task role should grant Delete on S3.
+          // The lifecycle policy is the only path that removes objects.
+          expect(action).not.toMatch(/^s3:DeleteObject/i)
+        }
+      }
+    }
+  })
+
+  it("publishes stack outputs for the monthly drill workflow", () => {
+    template.hasOutput("BackupTaskDefinitionArn", {})
+    template.hasOutput("BackupClusterName", {})
+    template.hasOutput("BackupBucketName", {})
   })
 })

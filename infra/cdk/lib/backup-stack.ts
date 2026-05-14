@@ -1,5 +1,11 @@
 import * as path from "node:path"
-import { Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib"
+import {
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  Stack,
+  type StackProps,
+} from "aws-cdk-lib"
 import { DockerImageAsset, Platform } from "aws-cdk-lib/aws-ecr-assets"
 import { Schedule } from "aws-cdk-lib/aws-applicationautoscaling"
 import {
@@ -43,7 +49,7 @@ export interface BackupStackProps extends StackProps {
 /**
  * Daily Postgres backup pipeline (ADR-0015 / E.5).
  *
- *   EventBridge cron (03:00 UTC) -> ECS Scheduled Task (Fargate Spot)
+ *   EventBridge cron (03:00 UTC) -> ECS Scheduled Task (Fargate on-demand)
  *     -> pg_dumpall globals + pg_dump -Fc + per-org NDJSON
  *     -> s3://monorepo-{env}-backups (versioned, lifecycle to Glacier
  *        Deep Archive at 365d, no auto-expire)
@@ -56,8 +62,14 @@ export interface BackupStackProps extends StackProps {
  * Container is hardened per PR #77 / ADR-0011: capDrop ALL +
  * readonlyRootFilesystem + /tmp ephemeral mount.
  *
+ * Stack outputs (so backup-restore-monthly.yml + restore-drill can find
+ * the live identifiers without grep-by-prefix guessing):
+ *   - BackupTaskDefinitionArn — pin the active task definition revision
+ *   - BackupClusterName       — cluster the EventBridge target runs in
+ *   - BackupBucketName        — S3 bucket the restore drill pulls from
+ *
  * Budget: lifecycle drops to DeepArchive at 365d (~$0.99/TB/mo);
- * Fargate Spot ~5 min/day * 0.5 vCPU = ~$0.30/mo. Total < $5/mo.
+ * Fargate on-demand ~5 min/day * 0.5 vCPU ≈ $0.10/mo. Total < $2/mo.
  */
 export class BackupStack extends Stack {
   readonly backupBucket: Bucket
@@ -133,11 +145,18 @@ export class BackupStack extends Stack {
       assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
       description: "Runtime role for the nightly backup task",
     })
-    // S3 PUT (PutObject + multipart). grantWrite includes the actions the
-    // aws-cli uses for chunked uploads. We deliberately do NOT grant Delete
-    // - the lifecycle policy is the only path that removes objects.
-    this.backupBucket.grantWrite(taskRole)
-    props.dataStack.databaseSecret.grantRead(taskRole)
+    // S3 PUT only (PutObject + multipart Abort). grantPut emits exactly
+    // s3:PutObject* + s3:Abort* — what aws-cli needs for chunked uploads
+    // and nothing more. grantWrite would also include s3:DeleteObject*
+    // which contradicts the audit-retention design: the lifecycle policy
+    // is the only path that removes objects. (Versioning means a Delete
+    // would only write a delete marker, but excluding it is defense in
+    // depth.) Negative-assertion test guards against future regressions.
+    this.backupBucket.grantPut(taskRole)
+    // RDS secret is wired below via container `secrets:`. The ECS task
+    // execution role (taskExecutionRole) already has secretsmanager:Get
+    // for that secret; the task role does NOT need it (the secret is
+    // injected as env at task start, not read by app code).
 
     this.taskDefinition = new FargateTaskDefinition(this, "BackupTaskDef", {
       cpu: 512,
@@ -231,5 +250,25 @@ export class BackupStack extends Stack {
         taskCount: 1,
       }),
     )
+
+    // Outputs consumed by .github/workflows/backup-restore-monthly.yml.
+    // The workflow used to derive these via family-prefix grep + tag
+    // filter; both were brittle (CDK logical-id mangling). Stack outputs
+    // give the workflow a stable contract.
+    new CfnOutput(this, "BackupTaskDefinitionArn", {
+      value: this.taskDefinition.taskDefinitionArn,
+      description: "Active task definition ARN for the nightly backup task",
+      exportName: `Backup-${props.envName}-TaskDefinitionArn`,
+    })
+    new CfnOutput(this, "BackupClusterName", {
+      value: props.appStack.cluster.clusterName,
+      description: "ECS cluster name the backup schedule targets",
+      exportName: `Backup-${props.envName}-ClusterName`,
+    })
+    new CfnOutput(this, "BackupBucketName", {
+      value: this.backupBucket.bucketName,
+      description: "S3 bucket holding nightly Postgres dumps",
+      exportName: `Backup-${props.envName}-BucketName`,
+    })
   }
 }

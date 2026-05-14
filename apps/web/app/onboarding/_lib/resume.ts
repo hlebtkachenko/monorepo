@@ -1,5 +1,5 @@
 import "server-only"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
 import { app_user, workspace, workspace_membership } from "@workspace/db/schema"
 
@@ -80,7 +80,13 @@ export async function resolveNextStep(userId: string | null): Promise<StepKey> {
           workspace_membership,
           eq(workspace_membership.workspace_id, workspace.id),
         )
-        .where(eq(workspace_membership.user_id, userId))
+        .where(
+          and(
+            eq(workspace_membership.user_id, userId),
+            eq(workspace_membership.role, "owner"),
+            eq(workspace_membership.active, true),
+          ),
+        )
         .orderBy(workspace.created_at)
         .limit(1)
     )[0]
@@ -94,7 +100,12 @@ export async function resolveNextStep(userId: string | null): Promise<StepKey> {
   })
 }
 
-/** Looks up the owner workspace id for the given user. */
+/**
+ * Looks up the owner workspace id for the given user. Filters strictly
+ * by role='owner' + active=true so an invited member who has joined
+ * another workspace doesn't shadow their own onboarding-in-progress
+ * workspace.
+ */
 export async function findOwnerWorkspaceId(
   userId: string,
 ): Promise<string | null> {
@@ -103,7 +114,13 @@ export async function findOwnerWorkspaceId(
       await db
         .select({ workspaceId: workspace_membership.workspace_id })
         .from(workspace_membership)
-        .where(eq(workspace_membership.user_id, userId))
+        .where(
+          and(
+            eq(workspace_membership.user_id, userId),
+            eq(workspace_membership.role, "owner"),
+            eq(workspace_membership.active, true),
+          ),
+        )
         .limit(1)
     )[0]
     return row?.workspaceId ?? null

@@ -94,6 +94,7 @@
     },
     "errors": {
       "no-workspace-access": "You are signed in but no workspace is linked to this account. Ask support for an invitation.",
+      "signup-email-mismatch": "Your signup invitation is for a different email than the account you're signed in as. Sign out and re-open the invite link.",
       "signup-session-expired": "Your signup link expired. Ask support for a new invitation.",
       "invite-session-expired": "Your invite link expired. Ask the inviter to resend it.",
       "missing-signup-token": "The signup link is missing its token.",

@@ -1,6 +1,5 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { auth } from "@workspace/auth/server"
 import { getTranslations } from "@workspace/i18n/server"
 import {
@@ -19,6 +18,7 @@ import {
 } from "@workspace/ui/components/auth-aside"
 
 import { readInviteClaims } from "../../onboarding/member/_lib/invite-cookie"
+import { signOutForInviteAction } from "./actions"
 import { InviteWelcomeActions } from "./invite-welcome-actions"
 
 export async function generateMetadata() {
@@ -85,12 +85,14 @@ export default async function InviteWelcomePage() {
                     sessionEmail: session!.user.email!,
                   })}
                 </p>
-                <Link
-                  href="/auth/login?next=/auth/invite"
-                  className="text-sm underline-offset-4 hover:text-foreground hover:underline"
-                >
-                  {t("signOut")}
-                </Link>
+                <form action={signOutForInviteAction}>
+                  <button
+                    type="submit"
+                    className="text-sm underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    {t("signOut")}
+                  </button>
+                </form>
               </div>
             ) : (
               <InviteWelcomeActions alreadySignedIn={matchesSession} />

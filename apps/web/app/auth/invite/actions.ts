@@ -1,6 +1,7 @@
 "use server"
 
 import { cookies, headers } from "next/headers"
+import { redirect } from "next/navigation"
 import { eq, and } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { verifyInviteToken, TokenError } from "@workspace/auth/tokens"
@@ -13,6 +14,22 @@ import {
 } from "@workspace/db/schema"
 
 const INVITE_TOKEN_COOKIE = "app-invite-token"
+
+/**
+ * Server action invoked when a signed-in user lands on /auth/invite with
+ * a session whose email does not match the invite token. Calls Better
+ * Auth `signOut` to clear the auth_session cookie, then redirects back
+ * to /auth/invite so the welcome card re-renders as anonymous.
+ */
+export async function signOutForInviteAction(): Promise<void> {
+  try {
+    await auth.api.signOut({ headers: await headers() })
+  } catch {
+    // even if signOut fails, fall through so the user sees the page
+    // re-render with whatever session state is left.
+  }
+  redirect("/auth/invite")
+}
 
 export interface InviteResult {
   ok: boolean

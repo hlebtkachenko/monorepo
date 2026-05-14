@@ -44,6 +44,11 @@ export default async function SignupWelcomePage() {
 
   const session = await auth.api.getSession({ headers: await headers() })
   if (session?.user) {
+    // Defense-in-depth: a stray signup-token cookie cannot route an
+    // unrelated signed-in user into a different person's onboarding.
+    if (session.user.email.toLowerCase() !== claims.email.toLowerCase()) {
+      redirect("/auth/login?error=signup-email-mismatch")
+    }
     const next = await resolveNextStep(session.user.id)
     redirect(stepPath(next))
   }

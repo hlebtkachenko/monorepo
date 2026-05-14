@@ -32,6 +32,8 @@ Audit trail of changes: git history of this file.
 | ECS-WEB-PRD | web (production) | ECS Fargate service | `<TBD>` | Critical | Customer | Tier 1 | AWS | `<TBD>` |
 | ECS-WEB-STG | web (staging) | ECS Fargate service | `<TBD>` | Medium | Internal | Tier 3 | AWS | `<TBD>` |
 | LAMBDA-ROT-PRD | secret rotation | Lambda | `<TBD>` | High | Internal | Tier 2 | AWS | `<TBD>` |
+| LAMBDA-KILLSWITCH | cost kill-switch (SecurityStack) | Lambda | Hleb | High | Internal | Tier 2 | AWS | `<TBD>` |
+| LAMBDA-RDSWATCH | RDS auto-restart watcher (SecurityStack) | Lambda | Hleb | Medium | Internal | Tier 3 | AWS | `<TBD>` |
 
 ## 3. Data stores
 
@@ -40,8 +42,11 @@ Audit trail of changes: git history of this file.
 | RDS-PRD-OLTP | primary OLTP | RDS Postgres Multi-AZ | `<TBD>` | Critical | Customer + Financial | Tier 1 | AWS | `<TBD>` |
 | RDS-STG-OLTP | staging OLTP | RDS Postgres single-AZ | `<TBD>` | Medium | Internal | Tier 3 | AWS | `<TBD>` |
 | S3-AUDIT | audit log archive | S3 (Object Lock COMPLIANCE) | Hleb | Critical | Audit | Tier 1 | AWS | `<TBD>` |
+| S3-CT-AUDIT | CloudTrail management-events archive | S3 | Hleb | High | Audit | Tier 2 | AWS | `<TBD>` |
 | S3-ASSETS-PRD | static assets (production) | S3 | `<TBD>` | High | None | Tier 2 | AWS | `<TBD>` |
 | SECRETS-PRD | runtime secrets | Secrets Manager | `<TBD>` | Critical | Customer + Financial | Tier 1 | AWS | `<TBD>` |
+| CT-MGMT | CloudTrail management-events trail | CloudTrail | Hleb | High | Audit | Tier 2 | AWS | `<TBD>` |
+| BUDGETS-COST | 5 AWS Budgets (cost-runaway protection) | AWS Budgets | Hleb | High | Internal | Tier 2 | AWS | `<TBD>` |
 
 ## 4. Networking
 

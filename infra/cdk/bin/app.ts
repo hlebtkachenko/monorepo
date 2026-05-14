@@ -4,6 +4,8 @@ import { NetworkStack } from "../lib/network-stack.js"
 import { DataStack } from "../lib/data-stack.js"
 import { AppStack } from "../lib/app-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
+import { BillingAlarmsStack } from "../lib/billing-alarms-stack.js"
+import { SecurityStack } from "../lib/security-stack.js"
 
 const app = new App()
 
@@ -36,6 +38,8 @@ if (!domain) {
   )
 }
 
+const alertEmail = process.env.ALERT_EMAIL ?? "g1053015@icloud.com"
+
 const network = new NetworkStack(app, `Network-${env}`, {
   env: stackEnv,
   envName: env,
@@ -63,11 +67,27 @@ const appStack = new AppStack(app, `App-${env}`, {
   domain,
 })
 
+const security = new SecurityStack(app, `Security-${env}`, {
+  env: stackEnv,
+  envName: env,
+  appStack,
+  dataStack: data,
+  alertEmail,
+})
+
 new ObservabilityStack(app, `Observability-${env}`, {
   env: stackEnv,
   envName: env,
   appStack,
   dataStack: data,
+  alertEmail,
+  killSwitchTopic: security.killSwitchTopic,
+})
+
+new BillingAlarmsStack(app, `BillingAlarms-${env}`, {
+  env: { account, region: "us-east-1" },
+  envName: env,
+  alertEmail,
 })
 
 Tags.of(app).add("Environment", env)

@@ -12,9 +12,9 @@
  *
  * Public API:
  *   - boot(connectionString)        -> Boss instance, lanes registered
- *   - registerLane(name, handler)   -> add a lane to the registry
- *   - getLane(name)                 -> retrieve a registered lane
- *   - createQueue / createWorker    -> thin wrappers over pg-boss
+ *   - registerLane(lane)            -> add a lane to the registry
+ *   - getLane(name)                 -> retrieve a registered lane by name
+ *   - hasLane(name) / laneNames()   -> registry introspection
  *
  * See also:
  *   - ADR-0017 (workers/pg-boss only)

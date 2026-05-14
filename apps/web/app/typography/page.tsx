@@ -486,7 +486,7 @@ export default function TypographyPage() {
               <CardTitle>Mono</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-lg">Roobert Mono</p>
+              <p className="font-mono text-lg">Roobert SemiMono</p>
               <Text variant="muted">--font-mono</Text>
               <p className="mt-3 font-mono text-sm">
                 ABCDEFGHIJKLMNOPQRSTUVWXYZ
@@ -530,7 +530,7 @@ export default function TypographyPage() {
                         Roobert (heading)
                       </th>
                       <th className="pb-2 font-medium text-muted-foreground">
-                        Roobert Mono
+                        Roobert SemiMono
                       </th>
                     </tr>
                   </thead>
@@ -628,7 +628,7 @@ export default function TypographyPage() {
                   </div>
                 </div>
                 <div>
-                  <Text variant="overline">Roobert Mono</Text>
+                  <Text variant="overline">Roobert SemiMono</Text>
                   <div className="mt-2 space-y-0.5 font-mono text-sm">
                     <p className="text-right">1,234.56</p>
                     <p className="text-right">789.00</p>
@@ -672,7 +672,7 @@ export default function TypographyPage() {
                   </div>
                 </div>
                 <div>
-                  <Text variant="overline">Roobert Mono</Text>
+                  <Text variant="overline">Roobert SemiMono</Text>
                   <div className="mt-2 space-y-1 font-mono">
                     <p className="font-light">300: 1,250,000.00 Kc</p>
                     <p className="font-normal">400: 1,250,000.00 Kc</p>
@@ -760,7 +760,7 @@ export default function TypographyPage() {
               </div>
               <Text variant="caption" className="mt-3">
                 Invoice numbers and client names in body font (Geist), amounts
-                in mono font (Roobert Mono) with tabular-nums for column
+                in mono font (Roobert SemiMono) with tabular-nums for column
                 alignment.
               </Text>
             </CardContent>

@@ -87,16 +87,19 @@ jobs:
 
       - name: Dump schema after first pass
         env:
+          PATH: /usr/lib/postgresql/18/bin:${{ env.PATH }}
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: app_owner
           PGPASSWORD: dev_owner
+          PGDATABASE: postgres
         run: |
-          # Use full path to v18 pg_dump; the runner's default pg_dump is older
-          # and refuses to dump from a v18 server ("server version mismatch").
-          /usr/lib/postgresql/18/bin/pg_dump \
-            --schema-only \
-            --no-owner \
-            --no-privileges \
-            "postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres" \
-            > /tmp/first.sql
+          # Route through scripts/db-schema-snapshot.sh which already strips
+          # pg_dump's random \restrict / \unrestrict tokens (PG18) — without
+          # this filter two consecutive dumps differ by their session tokens
+          # even when the schema is identical.
+          chmod +x scripts/db-schema-snapshot.sh
+          scripts/db-schema-snapshot.sh > /tmp/first.sql
 
       - name: Apply migrations (second pass — should be no-op)
         env:
@@ -106,14 +109,14 @@ jobs:
 
       - name: Dump schema after second pass
         env:
+          PATH: /usr/lib/postgresql/18/bin:${{ env.PATH }}
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: app_owner
           PGPASSWORD: dev_owner
+          PGDATABASE: postgres
         run: |
-          /usr/lib/postgresql/18/bin/pg_dump \
-            --schema-only \
-            --no-owner \
-            --no-privileges \
-            "postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres" \
-            > /tmp/second.sql
+          scripts/db-schema-snapshot.sh > /tmp/second.sql
 
       - name: Diff schemas (any diff = non-idempotent migration)
         run: |

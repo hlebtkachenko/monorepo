@@ -55,3 +55,10 @@ export const COLOR_THEMES = [
 ] as const
 
 export type ColorThemeValue = (typeof COLOR_THEMES)[number]["value"]
+
+export const DENSITY_OPTIONS = [
+  { name: "Default", value: "" },
+  { name: "Compact", value: "compact" },
+] as const
+
+export type DensityValue = (typeof DENSITY_OPTIONS)[number]["value"]

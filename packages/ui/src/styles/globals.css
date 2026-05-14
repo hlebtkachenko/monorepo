@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant compact (&:is([data-density="compact"] *));
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../../../components/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
@@ -267,16 +268,16 @@
     @apply bg-background text-foreground;
     }
   h1 {
-    @apply scroll-m-20 mt-10 text-4xl font-heading font-bold tracking-tight first:mt-0 lg:text-5xl;
+    @apply scroll-m-20 mt-10 text-4xl font-heading font-bold tracking-tight first:mt-0 lg:text-5xl compact:mt-6 compact:text-2xl compact:font-semibold;
     }
   h2 {
-    @apply scroll-m-20 mt-8 text-3xl font-heading font-semibold tracking-tight first:mt-0;
+    @apply scroll-m-20 mt-8 text-3xl font-heading font-semibold tracking-tight first:mt-0 compact:mt-4 compact:text-xl;
     }
   h3 {
-    @apply scroll-m-20 mt-6 text-2xl font-heading font-semibold tracking-tight first:mt-0;
+    @apply scroll-m-20 mt-6 text-2xl font-heading font-semibold tracking-tight first:mt-0 compact:mt-3 compact:text-lg;
     }
   h4 {
-    @apply scroll-m-20 mt-4 text-xl font-heading font-semibold tracking-tight first:mt-0;
+    @apply scroll-m-20 mt-4 text-xl font-heading font-semibold tracking-tight first:mt-0 compact:mt-2 compact:text-base;
     }
 }
 

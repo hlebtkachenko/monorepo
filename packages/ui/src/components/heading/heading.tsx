@@ -9,10 +9,10 @@ const headingVariants = cva(
   {
     variants: {
       level: {
-        1: "mt-10 text-4xl font-bold lg:text-5xl",
-        2: "mt-8 text-3xl font-semibold",
-        3: "mt-6 text-2xl font-semibold",
-        4: "mt-4 text-xl font-semibold",
+        1: "mt-10 text-4xl font-bold lg:text-5xl compact:mt-6 compact:text-2xl compact:font-semibold",
+        2: "mt-8 text-3xl font-semibold compact:mt-4 compact:text-xl",
+        3: "mt-6 text-2xl font-semibold compact:mt-3 compact:text-lg",
+        4: "mt-4 text-xl font-semibold compact:mt-2 compact:text-base",
       },
     },
     defaultVariants: {

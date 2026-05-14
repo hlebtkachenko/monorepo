@@ -8,15 +8,10 @@ export async function generateMetadata() {
   return { title: t("metaTitle") }
 }
 
-export default async function MemberDonePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ slug?: string }>
-}) {
-  const { slug } = await searchParams
+export default async function MemberDonePage() {
   return (
     <MemberOnboardingShell step="done">
-      <MemberDoneCard orgSlug={slug ?? ""} />
+      <MemberDoneCard />
     </MemberOnboardingShell>
   )
 }

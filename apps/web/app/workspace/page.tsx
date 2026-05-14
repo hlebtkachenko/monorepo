@@ -61,11 +61,6 @@ export default async function WorkspaceChooserPage() {
     )
   }
 
-  const onlyWorkspace = workspaces.length === 1 ? workspaces[0] : null
-  if (onlyWorkspace && onlyWorkspace.organizations.length === 1) {
-    redirect(`/${onlyWorkspace.organizations[0]!.slug}`)
-  }
-
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-12">
       <header className="flex items-start justify-between gap-4">
@@ -77,6 +72,20 @@ export default async function WorkspaceChooserPage() {
         </div>
         <AccountMenu email={session.user.email} />
       </header>
+      <nav className="flex flex-wrap gap-2 text-sm">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/workspace/inbox">Inbox</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/workspace/profile">Profile</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/workspace/settings">Workspace settings</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/workspace/billing">Billing</Link>
+        </Button>
+      </nav>
       <div className="grid gap-4">
         {workspaces.map((ws) => (
           <Card key={ws.id}>

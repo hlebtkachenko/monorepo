@@ -9,13 +9,9 @@ import { Button } from "@workspace/ui/components/button"
 
 import { completeMemberOnboardingAction } from "../actions"
 
-interface Props {
-  orgSlug: string
-}
-
 const TIMELINE_KEYS = ["step1", "step2", "step3", "step7"] as const
 
-export function MemberDoneCard({ orgSlug }: Props) {
+export function MemberDoneCard() {
   const router = useRouter()
   const t = useTranslations("onboarding.done")
   const tBrand = useTranslations("brand")
@@ -24,7 +20,10 @@ export function MemberDoneCard({ orgSlug }: Props) {
   async function onOpen() {
     setSubmitting(true)
     await completeMemberOnboardingAction()
-    router.push(orgSlug ? `/${orgSlug}` : "/workspace")
+    // Always land on /workspace — the canonical top-level chooser above
+    // orgs. The member can switch into the org they just joined (or any
+    // other) from there.
+    router.push("/workspace")
   }
 
   return (

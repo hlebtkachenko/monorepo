@@ -95,7 +95,7 @@ Every call to `writeAuthorizationModel` returns a new `authorization_model_id`. 
 - Local: `OPENFGA_MODEL_ID` in `.env.local`
 - Staging/Prod: SSM at `/monorepo/{env}/openfga/model-id`
 
-Re-running `bootstrap.mjs` is safe — it reuses the existing store and writes a new model version. Old tuples remain valid (OpenFGA preserves tuple compatibility across model versions for additive changes).
+Re-running `bootstrap.mjs` is store-safe: the existing store is reused (found by name). But every run writes a fresh authorization model, producing a new `authorization_model_id` and overwriting the SSM `/monorepo/{env}/openfga/model-id` parameter. Old tuples remain valid (OpenFGA preserves tuple compatibility across model versions for additive changes), but **the api must read `OPENFGA_MODEL_ID` from SSM at boot** rather than cache it across deploys — otherwise it will pin to a stale model ID. Commit 9's OpenFGA module follows this contract.
 
 ## Production Bootstrap
 

@@ -40,11 +40,13 @@ services:
       OPENFGA_DATASTORE_ENGINE: postgres
       OPENFGA_DATASTORE_URI: "postgres://app_owner:dev_owner@postgres:5432/app_dev?search_path=openfga"
       OPENFGA_HTTP_ADDR: "0.0.0.0:8080"
-      OPENFGA_GRPC_ADDR: ""  # gRPC disabled — HTTP only for local dev simplicity
       OPENFGA_LOG_FORMAT: json
       OPENFGA_LOG_LEVEL: info
     ports:
-      - "8080:8080"  # HTTP API only (no gRPC, no Playground port conflict)
+      - "8080:8080"  # HTTP API. gRPC (:8081) intentionally not published —
+                     # the container still binds it internally (v1.15.1 has
+                     # no --grpc-enabled toggle), but it's unreachable from
+                     # the host so dev tools default to HTTP cleanly.
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
       interval: 10s

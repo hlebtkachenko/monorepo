@@ -46,6 +46,7 @@ function parseArgs(argv) {
 
 const { env: envArg } = parseArgs(process.argv)
 const MONOREPO_ENV = envArg ?? process.env.MONOREPO_ENV ?? "dev"
+const ALLOWED_ENVS = new Set(["dev", "staging", "prod"])
 const OPENFGA_API_URL = process.env.OPENFGA_API_URL ?? "http://localhost:8080"
 const STORE_NAME = `monorepo-${MONOREPO_ENV}`
 
@@ -59,12 +60,21 @@ function log(level, message, extra = {}) {
 
 // ─── OpenFGA SDK import ──────────────────────────────────────────────────────
 
-let OpenFgaClient, CredentialsMethod
+// pnpm workspace hoisting puts @openfga/* into apps/api/node_modules, not
+// repo-root node_modules. Resolve from there explicitly so this script runs
+// the same way regardless of cwd.
+let OpenFgaClient, CredentialsMethod, transformer
 try {
-  const require = createRequire(import.meta.url)
+  const require = createRequire(join(__dirname, "..", "..", "apps", "api", "package.json"))
   ;({ OpenFgaClient, CredentialsMethod } = require("@openfga/sdk"))
-} catch {
-  log("error", "Cannot import @openfga/sdk. Run: pnpm add @openfga/sdk in apps/api or install globally.")
+  ;({ transformer } = require("@openfga/syntax-transformer"))
+} catch (err) {
+  log(
+    "error",
+    "Cannot import @openfga/sdk + @openfga/syntax-transformer from apps/api. " +
+      "Run: pnpm install (from repo root) first.",
+    { error: String(err) },
+  )
   process.exit(1)
 }
 
@@ -109,10 +119,13 @@ async function writeModel(storeId, modelDsl) {
     storeId,
   })
 
-  // The SDK accepts DSL string via transformDSLToJSON + writeAuthorizationModel,
-  // or the model JSON directly. Use the JSON transformer approach.
-  const { transformDSLToJSON } = await import("@openfga/syntax-transformer")
-  const modelJson = transformDSLToJSON(modelDsl)
+  // @openfga/syntax-transformer exports `transformer.transformDSLToJSONObject`
+  // (NOT a top-level transformDSLToJSON). The Object variant returns a parsed
+  // object — required by writeAuthorizationModel; the String variant returns
+  // a serialized JSON string the SDK would reject.
+  // `transformer` is required at the top of this file via createRequire so the
+  // workspace-resolved package surfaces a clear error early.
+  const modelJson = transformer.transformDSLToJSONObject(modelDsl)
 
   const result = await clientWithStore.writeAuthorizationModel(modelJson)
   const modelId = result.authorization_model_id
@@ -161,6 +174,14 @@ async function writeToSSM(env, storeId, modelId) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
+  if (!ALLOWED_ENVS.has(MONOREPO_ENV)) {
+    log("error", "Invalid --env value", {
+      env: MONOREPO_ENV,
+      allowed: [...ALLOWED_ENVS],
+    })
+    process.exit(1)
+  }
+
   log("info", "Starting OpenFGA bootstrap", {
     api_url: OPENFGA_API_URL,
     store_name: STORE_NAME,

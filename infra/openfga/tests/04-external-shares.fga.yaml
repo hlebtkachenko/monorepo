@@ -1,0 +1,154 @@
+# OpenFGA assertion suite: ad-hoc viewer grants (invoice + file)
+# Verifies:
+#   - granting viewer on a single invoice grants can_view for that user only
+#   - viewer does NOT cascade to other invoices in the same org
+#   - viewer does NOT grant can_edit or can_delete
+#   - same semantics apply to file.viewer
+#   - guest org-level role still cannot view resources (cascade blocker)
+# Run: fga model test --tests infra/openfga/tests/04-external-shares.fga.yaml
+name: external-shares
+
+model_file: ../model.fga
+
+tuples:
+  # Org setup (no workspace needed for resource-level tests)
+  - user: user:org-admin
+    relation: admin
+    object: organization:org1
+  - user: user:org-member
+    relation: member
+    object: organization:org1
+  - user: user:org-guest
+    relation: guest
+    object: organization:org1
+
+  # Invoices parented to org1
+  - user: organization:org1
+    relation: parent_organization
+    object: invoice:inv-shared
+  - user: organization:org1
+    relation: parent_organization
+    object: invoice:inv-private
+
+  # Ad-hoc viewer grant on inv-shared only
+  - user: user:external-auditor
+    relation: viewer
+    object: invoice:inv-shared
+
+  # Files parented to org1
+  - user: organization:org1
+    relation: parent_organization
+    object: file:file-shared
+  - user: organization:org1
+    relation: parent_organization
+    object: file:file-private
+
+  # Ad-hoc viewer grant on file-shared only
+  - user: user:external-auditor
+    relation: viewer
+    object: file:file-shared
+
+tests:
+  - name: external-auditor — can_view the specific invoice they were granted viewer on
+    check:
+      - user: user:external-auditor
+        object: invoice:inv-shared
+        assertions:
+          can_view: true
+
+  - name: external-auditor — viewer on invoice does NOT grant edit or delete
+    check:
+      - user: user:external-auditor
+        object: invoice:inv-shared
+        assertions:
+          can_edit: false
+          can_delete: false
+          can_share: false
+
+  - name: external-auditor — viewer does NOT cascade to other invoices in same org
+    check:
+      - user: user:external-auditor
+        object: invoice:inv-private
+        assertions:
+          can_view: false
+          can_edit: false
+
+  - name: external-auditor — viewer on invoice does NOT grant org-level permissions
+    check:
+      - user: user:external-auditor
+        object: organization:org1
+        assertions:
+          can_view: false
+          can_view_dashboard: false
+          can_edit: false
+
+  - name: external-auditor — can_view the specific file they were granted viewer on
+    check:
+      - user: user:external-auditor
+        object: file:file-shared
+        assertions:
+          can_view: true
+
+  - name: external-auditor — viewer on file does NOT grant edit or delete
+    check:
+      - user: user:external-auditor
+        object: file:file-shared
+        assertions:
+          can_edit: false
+          can_delete: false
+          can_share: false
+
+  - name: external-auditor — viewer does NOT cascade to other files in same org
+    check:
+      - user: user:external-auditor
+        object: file:file-private
+        assertions:
+          can_view: false
+
+  - name: guest — can_view_dashboard on org (explicit org-level guest grant)
+    check:
+      - user: user:org-guest
+        object: organization:org1
+        assertions:
+          can_view_dashboard: true
+
+  - name: guest — cascade blocker prevents can_view on org and resources
+    check:
+      - user: user:org-guest
+        object: organization:org1
+        assertions:
+          can_view: false
+      - user: user:org-guest
+        object: invoice:inv-shared
+        assertions:
+          can_view: false
+      - user: user:org-guest
+        object: invoice:inv-private
+        assertions:
+          can_view: false
+      - user: user:org-guest
+        object: file:file-private
+        assertions:
+          can_view: false
+
+  - name: org-member — can_view both invoices via org membership
+    check:
+      - user: user:org-member
+        object: invoice:inv-shared
+        assertions:
+          can_view: true
+      - user: user:org-member
+        object: invoice:inv-private
+        assertions:
+          can_view: true
+
+  - name: second-auditor — no spill from first external-auditor grant
+    check:
+      - user: user:second-auditor
+        object: invoice:inv-shared
+        assertions:
+          can_view: false
+      - user: user:second-auditor
+        object: file:file-shared
+        assertions:
+          can_view: false

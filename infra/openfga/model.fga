@@ -1,0 +1,206 @@
+model
+  schema 1.1
+
+# Monorepo OpenFGA Authorization Model
+# Version: v1 (Commit 8, 2026-05-14)
+# ADR-0018: Three-layer authz — L2 = OpenFGA ReBAC graph
+#
+# Tier structure:
+#   workspace (3 roles: owner, admin, member)
+#     └─ organization (5 roles: owner, admin, member, agent, guest)
+#          └─ resources (account, journal_entry, ledger_entry, invoice,
+#                        counterparty, bank_account, vat_rate,
+#                        numerical_series, project, file)
+#
+# Inheritance rule: child resources delegate all access checks upward to
+# their parent organization via "can_X from organization". Membership
+# tuples are written once (org-level), not per-resource.
+#
+# Sync: PG organization_membership rows -> permissions_outbox -> FGA Write API.
+# Tuple shape: user:<uuid> -> <role> -> organization:<uuid>
+#              organization:<uuid> -> parent_organization -> <resource_type>:<uuid>
+#              workspace:<uuid> -> parent_workspace -> organization:<uuid>
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IDENTITY
+# ─────────────────────────────────────────────────────────────────────────────
+
+type user
+  # No relations on user itself.
+
+type agent
+  # AI principal type — distinct from user.
+  # Enables type-safe "agent never gets admin" assertions.
+  # Tuples written as: agent:<service-id> -> member -> organization:<uuid>
+  # No relations on agent itself.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WORKSPACE TIER
+# workspace_role enum: owner | admin | member
+# ─────────────────────────────────────────────────────────────────────────────
+
+type workspace
+  relations
+    # Direct-assignment relations (type-bound, written via outbox on workspace_membership change)
+    define owner: [user]
+    define admin: [user] or owner
+    define member: [user] or admin
+
+    # Computed permissions at workspace tier
+    define can_view_dashboard: member
+    define can_administer: admin
+    define can_manage_members: admin
+    define can_create_organization: admin
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ORGANIZATION TIER
+# organization_role enum: owner | admin | member | agent | guest
+# ─────────────────────────────────────────────────────────────────────────────
+
+type organization
+  relations
+    # Parent pointer: written once on organization creation
+    define parent_workspace: [workspace]
+
+    # Direct-assignment membership relations
+    # Written by permissions_outbox drain on organization_membership INSERT/UPDATE
+    define owner: [user]
+    define admin: [user] or owner
+    # member includes the admin chain (owner and admin satisfy member checks)
+    define member: [user] or admin
+
+    # agent: AI/automated principal. Included in can_view + can_edit but NOT admin actions.
+    # Not part of the member chain: agents cannot escalate to admin via the role ladder.
+    # Type: [agent] to enforce the distinct AI principal type.
+    define agent: [agent]
+
+    # guest: view-only. Explicit-grant-only; not part of member chain.
+    # CRITICAL: guest is NOT in can_view (cascade blocker per ADR-0018).
+    # Guest gets can_view_dashboard only. Child resource access requires
+    # explicit ad-hoc viewer tuples per resource (invoice.viewer, file.viewer).
+    define guest: [user]
+
+    # Computed permissions at organization tier
+    # Workspace admins inherit can_view + can_edit downward (the accountant owns the
+    # workspace and must be able to access all client org data without being an
+    # explicit org member).
+    # Workspace admin DOES NOT get can_delete (safety: deletion requires explicit
+    # org-tier admin role).
+    define can_view_dashboard: member or agent or guest or admin from parent_workspace
+    define can_view: member or agent or admin from parent_workspace
+    define can_edit: member or agent or admin from parent_workspace
+    define can_delete: admin
+
+    # can_administer: dedicated relation for high-risk org-level operations.
+    # Used by vat_rate + numerical_series to gate edits more restrictively.
+    define can_administer: admin
+
+    # can_manage_members: gates org membership management specifically.
+    define can_manage_members: admin
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RESOURCE TYPES
+# All resources carry a single "parent_organization" parent pointer.
+# Access is fully inherited from the parent organization.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Chart-of-accounts entry
+type account
+  relations
+    define parent_organization: [organization]
+    define can_view: can_view from parent_organization
+    define can_edit: can_edit from parent_organization
+    define can_delete: can_delete from parent_organization
+
+# Journal entry (accounting record, append-only by PG trigger)
+# can_delete is intentionally absent: journal entries are immutable.
+# FGA models the intent at model layer; PG trigger enforces at DB layer.
+type journal_entry
+  relations
+    define parent_organization: [organization]
+    define can_view: can_view from parent_organization
+    define can_edit: can_edit from parent_organization
+
+# Ledger entry (debit/credit line item within a journal entry, append-only)
+# Same as journal_entry: no can_delete by model design.
+type ledger_entry
+  relations
+    define parent_organization: [organization]
+    define can_view: can_view from parent_organization
+    define can_edit: can_edit from parent_organization
+
+# Invoice document
+# viewer slot: ad-hoc per-user grant for external auditor shares.
+# viewer does NOT cascade from org membership; it is a direct tuple on this invoice.
+type invoice
+  relations
+    define parent_organization: [organization]
+    define viewer: [user]                          # ad-hoc grant slot (external auditor shares)
+    define can_view: viewer or can_view from parent_organization
+    define can_edit: can_edit from parent_organization
+    define can_delete: can_delete from parent_organization
+    define can_share: can_administer from parent_organization
+
+# Counterparty (supplier / customer)
+type counterparty
+  relations
+    define parent_organization: [organization]
+    define can_view: can_view from parent_organization
+    define can_edit: can_edit from parent_organization
+    define can_delete: can_delete from parent_organization
+
+# Bank account
+type bank_account
+  relations
+    define parent_organization: [organization]
+    define can_view: can_view from parent_organization
+    define can_edit: can_edit from parent_organization
+    define can_delete: can_delete from parent_organization
+
+# VAT rate record
+# can_edit gated at admin+ via can_administer (not plain member-level can_edit).
+# Rationale: tax codes must not be casually modified per CZ accounting rules.
+type vat_rate
+  relations
+    define parent_organization: [organization]
+    define can_view: can_view from parent_organization
+    # Only org admin+ may edit VAT rates (can_administer requires admin)
+    define can_edit: can_administer from parent_organization
+    define can_delete: can_delete from parent_organization
+
+# Numerical series (gapless counter, high-risk reset)
+# can_edit gated at admin+ via can_administer.
+# Rationale: resetting a numerical series breaks gapless guarantees and is an
+# auditable, admin-only operation per CZ accounting rules.
+type numerical_series
+  relations
+    define parent_organization: [organization]
+    define can_view: can_view from parent_organization
+    # Only org admin+ may edit (reset) a numerical series
+    define can_edit: can_administer from parent_organization
+    define can_delete: can_delete from parent_organization
+
+# Project (org-scoped)
+# lead gets can_edit in addition to member-chain inheritance.
+# collaborator is the ad-hoc per-resource viewer slot.
+type project
+  relations
+    define parent_organization: [organization]
+    define lead: [user]            # ad-hoc direct assignment on a specific project
+    define collaborator: [user]    # ad-hoc per-user viewer slot
+    define can_view: collaborator or can_view from parent_organization
+    define can_edit: lead or can_edit from parent_organization
+    define can_delete: can_delete from parent_organization
+    define can_manage: lead or can_manage_members from parent_organization
+
+# File (bundle exports, document attachments)
+# viewer slot: ad-hoc per-user grant for external auditor shares.
+# viewer does NOT cascade from org membership.
+type file
+  relations
+    define parent_organization: [organization]
+    define viewer: [user]          # ad-hoc grant slot (external auditor shares)
+    define can_view: viewer or can_view from parent_organization
+    define can_edit: can_edit from parent_organization
+    define can_delete: can_delete from parent_organization
+    define can_share: can_administer from parent_organization

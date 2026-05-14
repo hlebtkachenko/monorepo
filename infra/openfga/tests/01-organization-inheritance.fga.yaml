@@ -1,0 +1,159 @@
+# OpenFGA assertion suite: workspace -> organization cascade semantics
+# Verifies:
+#   - workspace admin gets can_view + can_edit on child org resources but NOT can_delete
+#   - workspace owner follows same cascade (inherits admin role)
+#   - org admin does NOT have workspace-level permissions (downward only)
+#   - guest gets can_view_dashboard only (cascade blocker — not in can_view)
+# Run: fga model test --tests infra/openfga/tests/01-organization-inheritance.fga.yaml
+name: organization-inheritance
+
+model_file: ../model.fga
+
+tuples:
+  # Workspace w1
+  - user: user:ws-owner
+    relation: owner
+    object: workspace:w1
+  - user: user:ws-admin
+    relation: admin
+    object: workspace:w1
+  - user: user:ws-member
+    relation: member
+    object: workspace:w1
+
+  # Org1 is a child of workspace w1
+  - user: workspace:w1
+    relation: parent_workspace
+    object: organization:org1
+
+  # Org1 own roles
+  - user: user:org-owner
+    relation: owner
+    object: organization:org1
+  - user: user:org-admin
+    relation: admin
+    object: organization:org1
+  - user: user:org-member
+    relation: member
+    object: organization:org1
+  - user: user:org-guest
+    relation: guest
+    object: organization:org1
+  - user: agent:ai-service
+    relation: agent
+    object: organization:org1
+
+  # Org1 resources
+  - user: organization:org1
+    relation: parent_organization
+    object: invoice:inv1
+  - user: organization:org1
+    relation: parent_organization
+    object: account:acc1
+  - user: organization:org1
+    relation: parent_organization
+    object: journal_entry:je1
+
+  # Org2 — sibling org in same workspace, for cross-org isolation
+  - user: workspace:w1
+    relation: parent_workspace
+    object: organization:org2
+  - user: user:org2-admin
+    relation: admin
+    object: organization:org2
+
+tests:
+  - name: workspace admin cascades view + edit to child org (NOT delete)
+    check:
+      - user: user:ws-admin
+        object: organization:org1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+          can_administer: false
+          can_manage_members: false
+
+  - name: workspace admin cascades view + edit to child org invoice (NOT delete)
+    check:
+      - user: user:ws-admin
+        object: invoice:inv1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+
+  - name: workspace admin cascades view + edit to child org account (NOT delete)
+    check:
+      - user: user:ws-admin
+        object: account:acc1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+
+  - name: workspace owner cascades same as admin (not org admin, so no delete)
+    check:
+      - user: user:ws-owner
+        object: organization:org1
+        assertions:
+          can_view: true
+          can_edit: true
+          can_delete: false
+
+  - name: workspace member does NOT cascade to child org (member is not ws-admin)
+    check:
+      - user: user:ws-member
+        object: organization:org1
+        assertions:
+          can_view: false
+          can_edit: false
+
+  - name: org admin does NOT have workspace-level permissions (downward only)
+    check:
+      - user: user:org-admin
+        object: workspace:w1
+        assertions:
+          can_administer: false
+          can_manage_members: false
+          can_view_dashboard: false
+
+  - name: guest has can_view_dashboard only — cascade blocker prevents can_view
+    check:
+      - user: user:org-guest
+        object: organization:org1
+        assertions:
+          can_view_dashboard: true
+          can_view: false
+          can_edit: false
+          can_delete: false
+
+  - name: guest cascade blocker — no can_view on child invoice
+    check:
+      - user: user:org-guest
+        object: invoice:inv1
+        assertions:
+          can_view: false
+
+  - name: cross-org isolation — org2 admin has no permissions on org1
+    check:
+      - user: user:org2-admin
+        object: organization:org1
+        assertions:
+          can_view: false
+          can_edit: false
+      - user: user:org2-admin
+        object: invoice:inv1
+        assertions:
+          can_view: false
+
+  - name: org member does NOT have can_delete
+    check:
+      - user: user:org-member
+        object: organization:org1
+        assertions:
+          can_delete: false
+      - user: user:org-member
+        object: account:acc1
+        assertions:
+          can_delete: false

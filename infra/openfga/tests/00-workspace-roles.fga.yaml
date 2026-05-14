@@ -1,0 +1,71 @@
+# OpenFGA assertion suite: workspace tier role coverage
+# Verifies owner/admin/member permissions and correct denials.
+# Run: fga model test --tests infra/openfga/tests/00-workspace-roles.fga.yaml
+name: workspace-roles
+
+model_file: ../model.fga
+
+tuples:
+  - user: user:ws-owner
+    relation: owner
+    object: workspace:w1
+  - user: user:ws-admin
+    relation: admin
+    object: workspace:w1
+  - user: user:ws-member
+    relation: member
+    object: workspace:w1
+  # Workspace w2 — isolated to verify no cross-workspace leak
+  - user: user:ws-owner-2
+    relation: owner
+    object: workspace:w2
+
+tests:
+  - name: workspace owner has all capabilities
+    check:
+      - user: user:ws-owner
+        object: workspace:w1
+        assertions:
+          can_administer: true
+          can_manage_members: true
+          can_view_dashboard: true
+          can_create_organization: true
+
+  - name: workspace admin has admin capabilities
+    check:
+      - user: user:ws-admin
+        object: workspace:w1
+        assertions:
+          can_administer: true
+          can_manage_members: true
+          can_create_organization: true
+          can_view_dashboard: true
+
+  - name: workspace member can view but not administer
+    check:
+      - user: user:ws-member
+        object: workspace:w1
+        assertions:
+          can_view_dashboard: true
+          can_administer: false
+          can_manage_members: false
+          can_create_organization: false
+
+  - name: cross-workspace isolation — w2 owner has no w1 permissions
+    check:
+      - user: user:ws-owner-2
+        object: workspace:w1
+        assertions:
+          can_administer: false
+          can_view_dashboard: false
+          can_manage_members: false
+
+  - name: complete stranger has no workspace permissions
+    check:
+      - user: user:stranger
+        object: workspace:w1
+        assertions:
+          can_view_dashboard: false
+          can_administer: false
+          can_manage_members: false
+          can_create_organization: false

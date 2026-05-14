@@ -1,7 +1,7 @@
 # 12. Local Postgres development infrastructure
 
-- Status: Proposed
-- Date: 2026-05-11
+- Status: Accepted
+- Date: 2026-05-11 (Accepted 2026-05-14)
 - Deciders: Hleb Tkachenko
 
 ## Context and Problem Statement
@@ -183,3 +183,18 @@ Follow-up work required:
 - ADR-0010 — multi-tenant RLS, GUC contract, `set_config(name, value, true)` pattern
 - ADR-0011 — audit log append-only design (requires `pgaudit` extension)
 - ADR-0013 — Money and FX representation
+
+## Amendment — 2026-05-14 (sidecar pgBouncer; RDS Proxy eliminated)
+
+The Context section's reference to "RDS Proxy in pgBouncer transaction mode" is superseded
+by E.2 of the infra-rebuild plan (`.context/decision-pgbouncer-prod.md`, 2026-05-12).
+Production pooling is a sidecar pgBouncer container co-located in the api Fargate task on
+`localhost:6432`. RDS Proxy is eliminated: AWS RDS Proxy intercepts `SET LOCAL` and
+rewrites it to session-scope, breaking the GUC contract
+(`set_config(name, value, true)`).
+
+The two-URL contract (`DATABASE_URL` → pgBouncer :6432, `DATABASE_DIRECT_URL` → RDS :5432)
+is unchanged. Only the network topology to the pool changes: Proxy → sidecar container.
+
+See `infra/cdk/lib/app-stack.ts` pgBouncer container definition (added in the infra
+rebuild PR).

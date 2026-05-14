@@ -330,6 +330,29 @@ APP_DOMAIN=staging.afframe.com \
 pnpm --filter @workspace/cdk exec cdk destroy App-staging --context env=staging
 ```
 
+## Follow-up: per-tenant role split
+
+Today the api + pgbouncer sidecar both authenticate against RDS using the
+RDS master credentials (`app_owner`). ADR-0010 specifies a separate
+`app_user` role for runtime queries, with FORCE RLS enforced through GUCs
+(`set_config('app.organization_id', ..., true)`).
+
+The role split is deferred until `app_user` exists in the database. Once
+the role + grants migration has run:
+
+1. Add a second Secrets Manager entry `monorepo-{env}-rds-app-user`
+   containing `app_user` credentials (workflow needs to populate it before
+   `cdk deploy` the same way the cloudflared tunnel token works today).
+2. In `infra/cdk/lib/app-stack.ts` switch the api container's `DB_USER` +
+   `DB_PASSWORD` secrets refs to point at the new secret (pgbouncer keeps
+   `app_owner` so it can connect to RDS as the privileged role).
+3. The api will then connect as `app_user` through pgbouncer, and the
+   GUC contract enforces RLS isolation.
+
+This is a follow-up because (a) bootstrap requires `app_owner` for
+`CREATE SCHEMA openfga` + `openfga migrate`, and (b) the first deploy
+of this branch is from a clean RDS where `app_user` does not yet exist.
+
 ## What this runbook deliberately does NOT cover
 
 Trip-wired for later (see ADR 0008 trip-wire section):

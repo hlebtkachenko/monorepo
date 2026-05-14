@@ -10,6 +10,7 @@ import {
 import {
   Capability,
   Cluster,
+  ContainerDependencyCondition,
   ContainerImage,
   ContainerInsights,
   CpuArchitecture,
@@ -204,6 +205,13 @@ export class AppStack extends Stack {
     // The URL is composed at container start by /bin/sh from DB_USER /
     // DB_PASSWORD (secrets) + DB_HOST / DB_PORT / DB_NAME (env). This avoids
     // a second Secrets Manager entry or a wrapper image just to inject one URL.
+    //
+    // SAFETY: DB_PASSWORD is shell-interpolated into the URL string without
+    // URL-encoding. That is safe ONLY because data-stack.ts's RDS secret uses
+    // `excludePunctuation: true`, so the password is alphanumeric — none of
+    // the URL-reserved chars (@, :, /, ?, #, %) can appear. If that setting
+    // changes, this expression must wrap the password in a urlencode call
+    // (e.g., via `printf %s "$DB_PASSWORD" | jq -sRr @uri`).
     const apiContainer = taskDef.addContainer("api", {
       containerName: "api",
       image: ContainerImage.fromEcrRepository(props.apiRepository, imageTag),
@@ -285,7 +293,13 @@ export class AppStack extends Stack {
         LISTEN_ADDR: "127.0.0.1",
         LISTEN_PORT: "6432",
         POOL_MODE: "transaction",
-        SERVER_RESET_QUERY: "",
+        // SERVER_RESET_QUERY intentionally not set. The edoburu entrypoint
+        // uses ${SERVER_RESET_QUERY:+...} parameter expansion: empty/unset
+        // OMITS the line, so pgBouncer falls back to its default DISCARD ALL.
+        // That's fine: GUCs are scoped with SET LOCAL (per-transaction), so
+        // they go out of scope at COMMIT/ROLLBACK before reset_query fires.
+        // The ADR-0012 amendment GUC contract is preserved by transaction
+        // pool_mode + SET LOCAL, not by suppressing reset_query.
         MAX_CLIENT_CONN: "100",
         DEFAULT_POOL_SIZE: "20",
         AUTH_TYPE: "scram-sha-256",
@@ -304,6 +318,15 @@ export class AppStack extends Stack {
       command: [
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && exec /entrypoint.sh /usr/bin/pgbouncer /etc/pgbouncer/pgbouncer.ini',
       ],
+      // Simple TCP probe — `nc` is on edoburu/pgbouncer (alpine busybox).
+      // Drives apiContainer's addContainerDependencies HEALTHY gate below.
+      healthCheck: {
+        command: ["CMD-SHELL", "nc -z 127.0.0.1 6432 || exit 1"],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(5),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 64,
       readonlyRootFilesystem: true,
       linuxParameters: linuxParams("PgBouncerLinuxParams"),
@@ -319,6 +342,13 @@ export class AppStack extends Stack {
       containerPath: "/etc/pgbouncer",
       sourceVolume: "pgbouncerEtc",
       readOnly: false,
+    })
+    // api waits for pgbouncer healthcheck before starting. Without this,
+    // api gets ECONNREFUSED for ~10-15 s at task boot until pgbouncer's
+    // listener is up.
+    apiContainer.addContainerDependencies({
+      container: pgbouncerContainer,
+      condition: ContainerDependencyCondition.HEALTHY,
     })
 
     // Cerbos PDP sidecar (ADR-0018 amendment 2026-05-14): L3 action-gate

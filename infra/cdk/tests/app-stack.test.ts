@@ -101,9 +101,14 @@ describe("AppStack Fargate hardening", () => {
     const envByName = Object.fromEntries(
       (pg?.Environment ?? []).map((e) => [e.Name, e.Value]),
     )
-    // These three settings break tenant isolation if regressed (ADR-0012 amendment).
+    // These settings preserve the GUC contract (ADR-0012 amendment).
+    // transaction pool_mode keeps SET LOCAL bindings attached for the full
+    // transaction. SERVER_RESET_QUERY is intentionally absent (empty value
+    // is OMITTED by the edoburu entrypoint's ${VAR:+...} expansion); the
+    // pgBouncer default DISCARD ALL is fine because SET LOCAL is already
+    // out of scope at COMMIT.
     expect(envByName["POOL_MODE"]).toBe("transaction")
-    expect(envByName["SERVER_RESET_QUERY"]).toBe("")
+    expect(envByName["SERVER_RESET_QUERY"]).toBeUndefined()
     expect(envByName["AUTH_TYPE"]).toBe("scram-sha-256")
     // Listening on :6432 (not the image default :5432) + loopback only.
     expect(envByName["LISTEN_PORT"]).toBe("6432")
@@ -114,12 +119,16 @@ describe("AppStack Fargate hardening", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | {
-          Properties?: { ContainerDefinitions?: unknown[] }
-          Volumes?: Array<{ Name?: string }>
+          Properties?: {
+            ContainerDefinitions?: unknown[]
+            Volumes?: Array<{ Name?: string }>
+          }
         }
       | undefined
     const volumes = taskDef?.Properties?.Volumes ?? []
-    expect(volumes.some((v) => v.Name === "pgbouncerEtc")).toBe(true)
+    expect(
+      volumes.some((v: { Name?: string }) => v.Name === "pgbouncerEtc"),
+    ).toBe(true)
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string

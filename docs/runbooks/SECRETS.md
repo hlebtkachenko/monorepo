@@ -93,3 +93,89 @@ For emergency access when normal Identity Center login is unavailable (e.g. SAML
 4. Replace credentials and rotate MFA within 24 hours of use.
 
 **Solo dev caveat**: Hleb is the sole approver right now. Two-person rule is aspirational until a second admin exists. The risk is documented; mitigation is to keep the envelope physically in a separate location from primary devices.
+
+## SOPS+age for dev / staging shared secrets (decision E.4)
+
+Two tiers in this repo:
+
+| Tier | Cadence | Where |
+|---|---|---|
+| Dev + staging shared secrets | edits-as-needed | SOPS-encrypted YAML in `infra/secrets/` (gitignored plaintext copy; encrypted blob commits) |
+| Production runtime secrets | 90-day rotation lambda | AWS Secrets Manager + SSM Parameter Store |
+
+SOPS+age fits the dev/staging tier because:
+
+- Free, fits in git, decryptable by any team member holding an authorised age key.
+- Per-file rewrap when a new developer joins (`sops updatekeys`).
+- The `encrypted_regex` covers only secret-shaped keys; everything else stays plaintext for diff-ability.
+
+Secrets Manager keeps the prod tier because:
+
+- Rotation lambda + KMS at $0.40/secret/mo for prod-grade rotation.
+- OIDC-scoped IAM read at runtime; no developer ever sees the plaintext.
+- Mixing tiers is INTENTIONAL: do not migrate prod into SOPS — the rotation story is worse and CI deploy through Secrets Manager is the clean path.
+
+### One-time onboarding
+
+```bash
+# macOS:
+brew install sops age
+
+# Generate your age keypair (stored at ~/.config/sops/age/keys.txt by default).
+age-keygen | tee -a ~/.config/sops/age/keys.txt
+
+# Read your PUBLIC key (the line starting with age1).
+grep '^# public key' ~/.config/sops/age/keys.txt | cut -d: -f2 | tr -d ' '
+```
+
+Send the public key to the admin (Hleb). They append it to
+`infra/secrets/.sops.yaml` creation rules and run
+`sops updatekeys infra/secrets/secrets.<env>.sops.yaml` so the encrypted
+blobs are re-wrapped with your key.
+
+### Daily use
+
+```bash
+# Edit + encrypt in place (SOPS never writes plaintext to disk).
+sops infra/secrets/secrets.dev.sops.yaml
+
+# Load into the current shell session as env vars.
+eval "$(sops -d infra/secrets/secrets.dev.sops.yaml \
+  | sed -E 's/^([A-Z_]+): (.*)$/export \1=\2/')"
+```
+
+The `infra/secrets/` directory and concrete `.sops.yaml` + template files
+are NOT in this branch. The worktree's sensitive-path hook blocks any
+write to `secrets/`. Materialise the scaffold (see below) in a follow-up
+commit where the hook is intentionally suspended OR by hand outside the
+agent loop.
+
+### Materialising the scaffold (follow-up)
+
+Files to create:
+
+- `infra/secrets/.sops.yaml` with `creation_rules` and `encrypted_regex`
+  matching: `BETTER_AUTH_SECRET`, `APP_TOKEN_SECRET`, `RESEND_API_KEY`,
+  `DATABASE_URL`, `DATABASE_DIRECT_URL`, `OPENFGA_STORE_ID`,
+  `OPENFGA_MODEL_ID`, `SENTRY_DSN`, `HONEYCOMB_API_KEY`,
+  `CLOUDFLARE_TUNNEL_TOKEN`, `PGBOUNCER_AUTH_PASSWORD`,
+  `RDS_MASTER_PASSWORD`. `key_groups[0].age` lists each contributor's age pubkey.
+- `infra/secrets/secrets.dev.sops.yaml.example` with placeholder values
+  matching `docs/env-vars.md` (REPLACE_WITH_... strings — no gitleaks-triggering shapes).
+- `infra/secrets/secrets.staging.sops.yaml.example` with same shape, staging URLs.
+- `infra/secrets/README.md` with onboarding + daily-use copy.
+
+Add to `.gitignore`:
+
+```
+infra/secrets/secrets.*.sops.yaml
+!infra/secrets/secrets.*.sops.yaml.example
+```
+
+Then verify the loop end-to-end:
+
+```bash
+sops -e -i infra/secrets/secrets.dev.sops.yaml      # encrypts
+sops -d infra/secrets/secrets.dev.sops.yaml         # decrypts to stdout
+gitleaks detect --source . --no-git                 # no findings
+```

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import Link from "next/link"
-import { setAuthShellLinkComponent } from "@workspace/ui/components/auth-shell"
+import { setAuthShellLinkComponent } from "@workspace/ui/blocks/auth-shell"
 
 /**
  * Wire Next.js' `Link` into the framework-agnostic `AuthShellHeader`

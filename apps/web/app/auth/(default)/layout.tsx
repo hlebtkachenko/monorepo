@@ -16,16 +16,22 @@ import {
 } from "@workspace/ui/blocks/auth-aside"
 
 /**
- * Member onboarding chrome — tone aside, 4-step variant.
+ * Default auth chrome — photo aside.
  *
- * Sits as a sibling of `(owner)/layout.tsx` under `app/onboarding/`. The
- * parent `onboarding/layout.tsx` is a passthrough so this layout owns
- * its own AuthShell composition without inheriting owner chrome.
+ * Wraps login, signup welcome, forgot-password, reset-password. Composes
+ * AuthShell + photo AuthAside once so every page in this route group
+ * renders only its form column into `children`. Pages stay free of
+ * chrome wiring.
  *
- * Outstanding pieces same as owner layout (tracked in
- * docs/plans/AUTH-OUTSTANDING.md).
+ * Outstanding pieces (tracked in docs/plans/AUTH-OUTSTANDING.md) blocked
+ * on typography work:
+ *   - Real brand SVG mark + horizontal header row (Return-to-afframe.com
+ *     CTA on the right, currently absent)
+ *   - Footer legal links (Privacy / Terms / Status) + language picker
+ *   - Aside dual radial scrim, top/bottom-anchored content layout,
+ *     text-logo marquee, bg-left alignment
  */
-export default async function MemberOnboardingLayout({
+export default async function AuthDefaultLayout({
   children,
 }: {
   children: ReactNode
@@ -51,7 +57,7 @@ export default async function MemberOnboardingLayout({
         </AuthShellFooter>
       </AuthShellLeft>
       <AuthShellAside>
-        <AuthAside variant="tone">
+        <AuthAside variant="photo" image="/auth/aside-bg.jpg">
           <AuthAsideHeadline>{tAside("headline")}</AuthAsideHeadline>
           <AuthAsideSubtitle>{tAside("subtitle")}</AuthAsideSubtitle>
           <AuthAsideQuote

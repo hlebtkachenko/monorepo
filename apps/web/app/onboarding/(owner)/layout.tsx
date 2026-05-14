@@ -16,16 +16,19 @@ import {
 } from "@workspace/ui/blocks/auth-aside"
 
 /**
- * Member onboarding chrome — tone aside, 4-step variant.
+ * Owner onboarding chrome — tone aside.
  *
- * Sits as a sibling of `(owner)/layout.tsx` under `app/onboarding/`. The
- * parent `onboarding/layout.tsx` is a passthrough so this layout owns
- * its own AuthShell composition without inheriting owner chrome.
+ * Wraps the 7-step owner wizard (profile, experience, password,
+ * workspace, plan, team, done). Each step page renders `<WizardProgress
+ * current=N total=7 />` plus its own form-column body; this layout owns
+ * the brand mark, footer, and aside.
  *
- * Outstanding pieces same as owner layout (tracked in
- * docs/plans/AUTH-OUTSTANDING.md).
+ * Outstanding (docs/plans/AUTH-OUTSTANDING.md): real brand SVG, header
+ * horizontal row with secondary CTA, language picker + legal links in
+ * footer, design-faithful aside (dual scrim, text-logo marquee,
+ * bg-left alignment).
  */
-export default async function MemberOnboardingLayout({
+export default async function OwnerOnboardingLayout({
   children,
 }: {
   children: ReactNode

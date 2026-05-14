@@ -1,6 +1,6 @@
 import { getTranslations } from "@workspace/i18n/server"
 
-import { MemberOnboardingShell } from "../_components/member-shell"
+import { WizardProgress } from "../../_components/wizard-progress"
 import { MemberDoneCard } from "./member-done-card"
 
 export async function generateMetadata() {
@@ -10,8 +10,9 @@ export async function generateMetadata() {
 
 export default async function MemberDonePage() {
   return (
-    <MemberOnboardingShell step="done">
+    <div className="flex flex-col gap-8">
+      <WizardProgress current={4} total={4} />
       <MemberDoneCard />
-    </MemberOnboardingShell>
+    </div>
   )
 }

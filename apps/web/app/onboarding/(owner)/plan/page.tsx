@@ -1,37 +1,37 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 import { ChevronLeft } from "lucide-react"
+import { auth } from "@workspace/auth/server"
 import { getTranslations } from "@workspace/i18n/server"
 
 import { WizardProgress } from "../../_components/wizard-progress"
-import { readOnboardingState } from "../../_lib/state-cookie"
-import { readInviteClaims } from "../_lib/invite-cookie"
-import { MemberExperienceForm } from "./member-experience-form"
+import { assertOwnerOnStep } from "../../_lib/resume"
+import { PlanForm } from "./plan-form"
 
 export async function generateMetadata() {
-  const t = await getTranslations("onboarding.experience")
+  const t = await getTranslations("onboarding.plan")
   return { title: t("metaTitle") }
 }
 
-export default async function MemberExperiencePage() {
-  const claims = await readInviteClaims()
-  if (!claims) {
-    redirect("/auth/login?error=invite-session-expired")
+export default async function PlanPage() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) {
+    redirect("/onboarding/password")
   }
-  const state = await readOnboardingState()
-  if (!state.profile) redirect("/onboarding/member/profile")
+  await assertOwnerOnStep(session.user.id, "plan")
   const tCommon = await getTranslations("common")
   return (
     <div className="flex flex-col gap-8">
-      <WizardProgress current={2} total={4} />
+      <WizardProgress current={5} total={7} />
       <Link
-        href="/onboarding/member/profile"
+        href="/onboarding/workspace"
         className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronLeft className="size-4" aria-hidden="true" />
         {tCommon("back")}
       </Link>
-      <MemberExperienceForm initial={state.experience} />
+      <PlanForm />
     </div>
   )
 }

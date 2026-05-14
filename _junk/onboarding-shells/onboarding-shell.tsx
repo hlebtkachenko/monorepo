@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { getTranslations } from "@workspace/i18n/server"
+
 import {
   AuthShell,
   AuthShellAside,
@@ -14,39 +15,56 @@ import {
   AuthAsideQuote,
   AuthAsideSubtitle,
 } from "@workspace/ui/blocks/auth-aside"
+import { Progress } from "@workspace/ui/components/progress"
 
-/**
- * Member onboarding chrome — tone aside, 4-step variant.
- *
- * Sits as a sibling of `(owner)/layout.tsx` under `app/onboarding/`. The
- * parent `onboarding/layout.tsx` is a passthrough so this layout owns
- * its own AuthShell composition without inheriting owner chrome.
- *
- * Outstanding pieces same as owner layout (tracked in
- * docs/plans/AUTH-OUTSTANDING.md).
- */
-export default async function MemberOnboardingLayout({
-  children,
-}: {
+import { TOTAL_STEPS, type StepKey, stepIndex } from "../_lib/resume"
+
+interface Props {
+  step: StepKey
   children: ReactNode
-}) {
+  backHref?: string
+  backLabel?: string
+}
+
+export async function OnboardingShell({
+  step,
+  children,
+  backHref,
+  backLabel,
+}: Props) {
   const tBrand = await getTranslations("brand")
+  const tShell = await getTranslations("onboarding.shell")
   const tAside = await getTranslations("auth.aside")
-  const brand = tBrand("name")
-  const year = new Date().getFullYear()
+
+  const current = stepIndex(step)
+  const percent = Math.round((current / TOTAL_STEPS) * 100)
+  const brandName = tBrand("name")
 
   return (
     <AuthShell>
       <AuthShellLeft>
-        <AuthShellHeader>
-          <span className="text-base font-semibold tracking-tight">
-            {brand}
-          </span>
+        <AuthShellHeader backHref={backHref} backLabel={backLabel}>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-base font-semibold tracking-tight">
+              {brandName}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {tShell("stepIndicator", {
+                current: String(current),
+                total: String(TOTAL_STEPS),
+              })}
+            </span>
+          </div>
+          <Progress
+            value={percent}
+            className="h-1"
+            aria-label={tShell("progressLabel")}
+          />
         </AuthShellHeader>
         <AuthShellBody>{children}</AuthShellBody>
         <AuthShellFooter>
           <span>
-            © {year} {brand}
+            © {new Date().getFullYear()} {brandName}
           </span>
         </AuthShellFooter>
       </AuthShellLeft>

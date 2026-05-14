@@ -12,19 +12,19 @@ type ComponentMeta = {
 
 export const registry: Record<string, ComponentMeta> = {
   "auth-shell": {
-    source: "custom",
+    source: "src/blocks/auth-shell",
     sourceType: "custom",
     description:
-      "Split-grid layout used by every auth + onboarding screen — 2fr form column + 3fr aside column, with header/body/footer sub-slots",
-    categories: ["layout", "auth"],
+      "Block — split-grid layout used by every auth + onboarding screen — 2fr form column + 3fr aside column, with header/body/footer sub-slots. Composes Button, Link slot.",
+    categories: ["block", "layout", "auth"],
     dependencies: ["button"],
   },
   "auth-aside": {
-    source: "custom",
+    source: "src/blocks/auth-aside",
     sourceType: "custom",
     description:
-      "Right-panel decorative aside with photo / dark / tone variants, headline + subtitle + quote + animated logo marquee slots, prefers-reduced-data fallback",
-    categories: ["layout", "auth"],
+      "Block — right-panel decorative aside with photo / dark / tone variants, headline + subtitle + quote + animated logo marquee slots, prefers-reduced-data fallback. Composes Marquee.",
+    categories: ["block", "layout", "auth"],
     dependencies: ["marquee"],
   },
   "password-input": {

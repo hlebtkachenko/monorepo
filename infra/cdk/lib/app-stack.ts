@@ -26,6 +26,7 @@ import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import type { DatabaseInstance } from "aws-cdk-lib/aws-rds"
 import type { Bucket } from "aws-cdk-lib/aws-s3"
 import { Secret, type ISecret } from "aws-cdk-lib/aws-secretsmanager"
+import { StringParameter } from "aws-cdk-lib/aws-ssm"
 import type { Repository } from "aws-cdk-lib/aws-ecr"
 import type { Construct } from "constructs"
 
@@ -45,16 +46,22 @@ export interface AppStackProps extends StackProps {
 /**
  * Cloudflare-Tunnel-fronted ECS Fargate task (ADR 0008).
  *
- * One task per environment, five containers sharing a network namespace:
+ * One task per environment, six containers sharing a network namespace:
  *   - web         : Next.js, port 3000
  *   - api         : NestJS, port 3001 (talks to localhost:6432 for db,
  *                   localhost:3593 for Cerbos L3, localhost:8080 for
- *                   OpenFGA L2 once Commit 9 lands)
+ *                   OpenFGA L2; also hosts the pg-boss worker pool
+ *                   which connects to RDS direct :5432 for advisory
+ *                   locks + LISTEN/NOTIFY)
  *   - pgbouncer   : connection pool, listens on 127.0.0.1:6432, forwards
  *                   to RDS :5432 (ADR-0012 amendment 2026-05-14, E.2)
  *   - cerbos      : PDP sidecar, listens on 127.0.0.1:3593 gRPC. Policies
  *                   baked into the image via infra/cerbos/Dockerfile +
  *                   DockerImageAsset (ADR-0018 amendment 2026-05-14)
+ *   - openfga     : ReBAC graph sidecar, listens on 127.0.0.1:8080 HTTP.
+ *                   Datastore is the same RDS under `openfga` schema
+ *                   (ADR-0018). store_id + model_id come from SSM,
+ *                   populated by infra/openfga/bootstrap.mjs.
  *   - cloudflared : sidecar establishing outbound tunnel to Cloudflare edge
  *
  * Task lives in public subnet with assignPublicIp=true (one public IPv4 per
@@ -78,6 +85,7 @@ export class AppStack extends Stack {
   readonly tunnelLogGroup: LogGroup
   readonly pgbouncerLogGroup: LogGroup
   readonly cerbosLogGroup: LogGroup
+  readonly openfgaLogGroup: LogGroup
 
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props)
@@ -168,6 +176,27 @@ export class AppStack extends Stack {
       logGroupName: `/ecs/monorepo-${props.envName}/cerbos`,
       retention: RetentionDays.ONE_WEEK,
     })
+    this.openfgaLogGroup = new LogGroup(this, "OpenfgaLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/openfga`,
+      retention: RetentionDays.ONE_WEEK,
+    })
+
+    // OpenFGA store_id + model_id are identifiers, not secrets — kept in SSM
+    // Parameter Store Standard tier (free). The operator populates them via
+    // infra/openfga/bootstrap.mjs BEFORE the first cdk deploy of App-{env}.
+    // CDK references existing parameters; it does NOT manage their values
+    // (declarative ownership would clobber bootstrap-time writes on every
+    // deploy).
+    const openfgaStoreIdParam = StringParameter.fromStringParameterName(
+      this,
+      "OpenfgaStoreIdParam",
+      `/monorepo/${props.envName}/openfga/store-id`,
+    )
+    const openfgaModelIdParam = StringParameter.fromStringParameterName(
+      this,
+      "OpenfgaModelIdParam",
+      `/monorepo/${props.envName}/openfga/model-id`,
+    )
 
     // Next.js standalone server writes to /app/.next/cache, which a readonly
     // rootfs blocks. Until a custom cacheHandler + Dockerfile copy is in
@@ -226,11 +255,19 @@ export class AppStack extends Stack {
         APP_ENV: props.envName,
         PORT: "3001",
         HOST: "0.0.0.0",
+        // pgbouncer-routed connection for app queries (RLS + GUC contract).
         DB_HOST: "localhost",
         DB_PORT: "6432",
+        // Direct RDS for the pg-boss worker pool. pg-boss uses advisory
+        // locks + LISTEN/NOTIFY which pgbouncer transaction mode breaks;
+        // the worker MUST bypass pgbouncer.
+        DB_DIRECT_HOST: props.database.dbInstanceEndpointAddress,
+        DB_DIRECT_PORT: props.database.dbInstanceEndpointPort,
         DB_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
         APP_DOMAIN: props.domain,
+        // L2 OpenFGA sidecar (HTTP). API URL is loopback inside the task.
+        OPENFGA_API_URL: "http://localhost:8080",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
@@ -238,10 +275,18 @@ export class AppStack extends Stack {
           props.databaseSecret,
           "password",
         ),
+        // Identifiers from SSM populated by bootstrap.mjs. CDK fails at
+        // synth/deploy time if the parameters don't exist — the operator
+        // runbook (docs/runbooks/AWS-DEPLOY.md) creates them before the
+        // first App-{env} deploy.
+        OPENFGA_STORE_ID: EcsSecret.fromSsmParameter(openfgaStoreIdParam),
+        OPENFGA_MODEL_ID: EcsSecret.fromSsmParameter(openfgaModelIdParam),
       },
       entryPoint: ["/bin/sh", "-c"],
       command: [
-        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && exec node dist/main.js',
+        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
+          'export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_DIRECT_HOST}:${DB_DIRECT_PORT}/${DB_NAME}" && ' +
+          "exec node dist/main.js",
       ],
       memoryReservationMiB: 512,
       readonlyRootFilesystem: true,
@@ -389,6 +434,76 @@ export class AppStack extends Stack {
       containerPath: "/tmp",
       sourceVolume: "tmp",
       readOnly: false,
+    })
+
+    // OpenFGA sidecar (ADR-0018 L2): ReBAC graph engine.
+    //
+    // Datastore = the same RDS, under schema `openfga`. Connects DIRECT
+    // (port 5432, not via pgbouncer) because OpenFGA opens many concurrent
+    // sessions and the pool semantics there don't apply. The bootstrap
+    // step `CREATE SCHEMA openfga` + `openfga migrate` runs once before
+    // first cdk deploy (see docs/runbooks/AWS-DEPLOY.md).
+    //
+    // OPENFGA_DATASTORE_URI is composed at container start from the same
+    // secret pgbouncer uses — the entrypoint shell builds the URL so the
+    // password stays in Secrets Manager, not env.
+    //
+    // Hardening: capDrop ALL + readonlyRootFilesystem + /tmp ephemeral
+    // mount (PR #77 pattern).
+    const openfgaContainer = taskDef.addContainer("openfga", {
+      containerName: "openfga",
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.15.1"),
+      essential: true,
+      logging: LogDriver.awsLogs({
+        streamPrefix: "openfga",
+        logGroup: this.openfgaLogGroup,
+      }),
+      environment: {
+        OPENFGA_DATASTORE_ENGINE: "postgres",
+        OPENFGA_HTTP_ADDR: "127.0.0.1:8080",
+        OPENFGA_LOG_FORMAT: "json",
+        OPENFGA_LOG_LEVEL: "info",
+        DB_DIRECT_HOST: props.database.dbInstanceEndpointAddress,
+        DB_DIRECT_PORT: props.database.dbInstanceEndpointPort,
+        DB_NAME: "monorepo",
+      },
+      secrets: {
+        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        DB_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      entryPoint: ["/bin/sh", "-c"],
+      command: [
+        'export OPENFGA_DATASTORE_URI="postgres://${DB_USER}:${DB_PASSWORD}@${DB_DIRECT_HOST}:${DB_DIRECT_PORT}/${DB_NAME}?search_path=openfga" && ' +
+          "exec /openfga run",
+      ],
+      healthCheck: {
+        // openfga ships /healthz at the HTTP listener.
+        command: [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/healthz || exit 1",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(5),
+        retries: 3,
+        startPeriod: Duration.seconds(20),
+      },
+      memoryReservationMiB: 200,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("OpenfgaLinuxParams"),
+    })
+    openfgaContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+    // api waits for openfga to be healthy too — the permissions-drain lane
+    // and the L2 AuthGuard layer both fail fast if the sidecar isn't ready.
+    apiContainer.addContainerDependencies({
+      container: openfgaContainer,
+      condition: ContainerDependencyCondition.HEALTHY,
     })
 
     const tunnelContainer = taskDef.addContainer("cloudflared", {

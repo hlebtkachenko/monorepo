@@ -15,6 +15,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@openfga/sdk": "^0.9.6",
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "pg-boss": "^12.18.2"
   },
   "devDependencies": {

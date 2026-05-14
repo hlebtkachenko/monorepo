@@ -753,6 +753,15 @@ importers:
 
   packages/workers:
     dependencies:
+      '@openfga/sdk':
+        specifier: ^0.9.6
+        version: 0.9.6
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
       pg-boss:
         specifier: ^12.18.2
         version: 12.18.2

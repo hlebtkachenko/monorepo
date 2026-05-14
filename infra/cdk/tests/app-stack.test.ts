@@ -12,13 +12,13 @@ describe("AppStack Fargate hardening", () => {
     })
   })
 
-  it("all 5 containers drop ALL Linux capabilities", () => {
+  it("all 6 containers drop ALL Linux capabilities", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
       | undefined
     const containers = taskDef?.Properties?.ContainerDefinitions ?? []
-    expect(containers.length).toBe(5)
+    expect(containers.length).toBe(6)
     for (const container of containers as Array<{
       LinuxParameters?: { Capabilities?: { Drop?: string[] } }
       Name?: string
@@ -28,7 +28,7 @@ describe("AppStack Fargate hardening", () => {
     }
   })
 
-  it("api + cloudflared + pgbouncer + cerbos have readonlyRootFilesystem=true", () => {
+  it("api + cloudflared + pgbouncer + cerbos + openfga have readonlyRootFilesystem=true", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -43,6 +43,50 @@ describe("AppStack Fargate hardening", () => {
     expect(byName["cloudflared"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["pgbouncer"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["cerbos"]?.ReadonlyRootFilesystem).toBe(true)
+    expect(byName["openfga"]?.ReadonlyRootFilesystem).toBe(true)
+  })
+
+  it("openfga sidecar is present with postgres datastore + HTTP loopback bind", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+      Image?: string
+    }>
+    const fga = containers.find((c) => c.Name === "openfga")
+    expect(fga).toBeDefined()
+    expect(fga?.Image).toContain("openfga/openfga:v1.15.1")
+    const envByName = Object.fromEntries(
+      (fga?.Environment ?? []).map((e) => [e.Name, e.Value]),
+    )
+    expect(envByName["OPENFGA_DATASTORE_ENGINE"]).toBe("postgres")
+    // Bind to loopback only — defense-in-depth.
+    expect(envByName["OPENFGA_HTTP_ADDR"]).toBe("127.0.0.1:8080")
+  })
+
+  it("api receives OPENFGA_API_URL + SSM-backed store/model ids", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+      Secrets?: Array<{ Name?: string; ValueFrom?: unknown }>
+    }>
+    const api = containers.find((c) => c.Name === "api")
+    const envByName = Object.fromEntries(
+      (api?.Environment ?? []).map((e) => [e.Name, e.Value]),
+    )
+    expect(envByName["OPENFGA_API_URL"]).toBe("http://localhost:8080")
+    const secretNames = (api?.Secrets ?? []).map((s) => s.Name)
+    expect(secretNames).toContain("OPENFGA_STORE_ID")
+    expect(secretNames).toContain("OPENFGA_MODEL_ID")
   })
 
   it("cerbos sidecar is present with telemetry disabled", () => {
@@ -159,7 +203,7 @@ describe("AppStack Fargate hardening", () => {
         SourceVolume?: string
       }>
     }>
-    expect(containers.length).toBe(5)
+    expect(containers.length).toBe(6)
     for (const container of containers) {
       const tmpMount = container.MountPoints?.find(
         (m) => m.ContainerPath === "/tmp",

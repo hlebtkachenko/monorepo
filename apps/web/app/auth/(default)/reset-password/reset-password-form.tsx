@@ -164,7 +164,6 @@ export function ResetPasswordForm() {
               }
               onGenerate={(pw) => {
                 form.setValue("confirm", pw, { shouldValidate: false })
-                setVisible(true)
               }}
             />
             {form.formState.errors.password && (

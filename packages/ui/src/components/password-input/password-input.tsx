@@ -135,11 +135,6 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
       const pw = generatePassword()
       onGenerate?.(pw)
       onValueChange?.(pw)
-      if (isControlled) {
-        onVisibleChange?.(true)
-      } else {
-        setInternalVisible(true)
-      }
     }
 
     return (

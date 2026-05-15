@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
+import { getBetterAuthUrl } from "@workspace/auth/env"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
 import {
   app_user,
@@ -428,7 +429,7 @@ export async function submitTeamAction(
   })
   if (!defaultOrgId) return { ok: false, errorKey: "noActiveWorkspace" }
 
-  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
+  const baseUrl = getBetterAuthUrl()
   const brandName = await loadBrandName()
 
   const failures: Array<{ email: string; reason: string }> = []

@@ -31,6 +31,51 @@ import {
  * fields will require this list to be extended; the BA migrate command
  * surfaces missing mappings explicitly.
  */
+const IS_PROD = process.env.NODE_ENV === "production"
+const MIN_BA_SECRET_BYTES = 32
+
+function readBetterAuthSecret(): string {
+  const raw = process.env.BETTER_AUTH_SECRET
+  if (!raw) {
+    if (IS_PROD) {
+      throw new Error(
+        "BETTER_AUTH_SECRET is required in production. Set a 32+ byte random secret.",
+      )
+    }
+    // Dev fallback: still require at least a non-empty value so we never
+    // fall through to Better Auth's hard-coded development default.
+    throw new Error(
+      "BETTER_AUTH_SECRET is not set. Provide a 32+ byte random secret even in development.",
+    )
+  }
+  if (new TextEncoder().encode(raw).byteLength < MIN_BA_SECRET_BYTES) {
+    throw new Error(
+      `BETTER_AUTH_SECRET must be at least ${MIN_BA_SECRET_BYTES} bytes.`,
+    )
+  }
+  return raw
+}
+
+function readBetterAuthBaseUrl(): string | undefined {
+  const raw = process.env.BETTER_AUTH_URL?.trim()
+  if (raw) return raw
+  if (IS_PROD) {
+    throw new Error(
+      "BETTER_AUTH_URL is required in production (used for absolute reset/verification links).",
+    )
+  }
+  return undefined
+}
+
+function readTrustedOrigins(): string[] {
+  const raw = process.env.BETTER_AUTH_TRUSTED_ORIGINS
+  if (!raw) return []
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -43,9 +88,9 @@ export const auth = betterAuth({
       twoFactor: schema.two_factor,
     },
   }),
-  secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BETTER_AUTH_URL,
-  trustedOrigins: process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",") ?? [],
+  secret: readBetterAuthSecret(),
+  baseURL: readBetterAuthBaseUrl(),
+  trustedOrigins: readTrustedOrigins(),
   user: {
     modelName: "app_user",
     fields: {

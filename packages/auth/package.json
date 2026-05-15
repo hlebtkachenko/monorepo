@@ -8,7 +8,8 @@
     "./server": "./src/server.ts",
     "./client": "./src/client.ts",
     "./tokens": "./src/tokens/index.ts",
-    "./invite-issuer": "./src/invite-issuer.ts"
+    "./invite-issuer": "./src/invite-issuer.ts",
+    "./env": "./src/env.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

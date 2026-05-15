@@ -10,6 +10,7 @@ import {
   type OnboardingPasswordInput,
 } from "@workspace/shared/auth"
 
+import { isEmailAlreadyRegistered } from "../../auth/_lib/email-error"
 import { materializeInvite } from "../../auth/_lib/materialize-invite"
 import { readOnboardingState, clearOnboardingState } from "../_lib/state-cookie"
 import {
@@ -64,6 +65,20 @@ export async function submitMemberPasswordAction(
   // Idempotency guard (CR-2). If a session is already active, the BA
   // user was created in a previous attempt — skip signUpEmail.
   const session = await auth.api.getSession({ headers: await headers() })
+
+  // Cross-tenant defence: an already-authenticated user must not be able
+  // to redeem an invite addressed to a different email. The invite-start
+  // cookie is signed but the claim is the recipient's email — without
+  // this check, a logged-in attacker who obtains an invite URL could
+  // attach the membership to their own account.
+  if (session?.user?.email) {
+    const sessionEmail = session.user.email.trim().toLowerCase()
+    const claimEmail = claims.email.trim().toLowerCase()
+    if (sessionEmail !== claimEmail) {
+      return { ok: false, errorKey: "inviteEmailMismatch" }
+    }
+  }
+
   let userId: string | null = session?.user?.id ?? null
 
   if (!userId) {
@@ -136,11 +151,4 @@ export async function submitMemberPasswordAction(
 export async function completeMemberOnboardingAction(): Promise<void> {
   await clearOnboardingState()
   await clearInviteCookie()
-}
-
-function isEmailAlreadyRegistered(err: unknown): boolean {
-  if (!(err instanceof Error)) return false
-  return /already.*exist|already.*registered|user.*exist|duplicate/i.test(
-    err.message,
-  )
 }

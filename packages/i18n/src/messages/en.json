@@ -358,7 +358,8 @@
       "saveTeamFailed": "Could not save your invitations.",
       "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue.",
       "acceptInviteFailed": "Could not accept the invitation.",
-      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead."
+      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead.",
+      "inviteEmailMismatch": "This invitation is addressed to a different email. Sign out and open the link again with the invited address."
     }
   }
 }

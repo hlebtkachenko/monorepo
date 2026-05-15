@@ -28,6 +28,7 @@ import {
   type WorkspaceInput,
 } from "@workspace/shared/auth"
 
+import { isEmailAlreadyRegistered } from "../auth/_lib/email-error"
 import { issueInvite, revokePendingInvites } from "../auth/_lib/issue-invite"
 import { setActiveWorkspaceCookie } from "./_lib/active-workspace-cookie"
 import { findOwnerWorkspaceId } from "./_lib/resume"
@@ -216,13 +217,6 @@ export async function submitPasswordAction(
 
   await clearOnboardingState()
   return { ok: true }
-}
-
-function isEmailAlreadyRegistered(err: unknown): boolean {
-  if (!(err instanceof Error)) return false
-  return /already.*exist|already.*registered|user.*exist|duplicate/i.test(
-    err.message,
-  )
 }
 
 // ---------------------------------------------------------------------------

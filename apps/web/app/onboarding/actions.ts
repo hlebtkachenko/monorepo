@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { getBetterAuthUrl } from "@workspace/auth/env"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
@@ -276,7 +276,7 @@ export async function submitWorkspaceAction(
       // it. Slug = first available {base, base-2, base-3, ...}; legal
       // name mirrors the workspace display_name for now (editable later
       // from /[orgSlug]/settings).
-      const slug = await pickUniqueSlug(db, slugify(ws.display_name))
+      const slug = await pickUniqueSlug(db, ws.id, slugify(ws.display_name))
       // organization_id is NOT NULL on insert (no default); the trigger
       // app_organization_self_id ensures organization_id = id after the
       // row exists. We pass a fresh uuid here, then UPDATE to match.
@@ -323,25 +323,40 @@ export async function submitWorkspaceAction(
 
 /** Lowercase, replace non-alnum with `-`, collapse runs, trim. */
 function slugify(input: string): string {
-  return (
-    input
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48) || "workspace"
-  )
+  const slug = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+  // Slug column has a CHECK enforcing length >= 2; pad single-char or
+  // empty results so the INSERT does not fail with a CHECK violation
+  // for short workspace names like "A".
+  if (slug.length < 2) return "workspace"
+  return slug
 }
+
+const MAX_SLUG_ATTEMPTS = 50
 
 async function pickUniqueSlug(
   db: import("@workspace/db").AdminBypassDb,
+  workspaceId: string,
   base: string,
 ): Promise<string> {
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < MAX_SLUG_ATTEMPTS; i++) {
     const candidate = i === 0 ? base : `${base}-${i + 1}`
+    // Slug uniqueness is per (workspace_id, slug). Two workspaces with
+    // display_name "Acme" should both be able to land slug "acme" inside
+    // their own workspace; without this filter the second workspace
+    // ratchets to "acme-2", "acme-3", etc.
     const [row] = await db
       .select({ id: organization.id })
       .from(organization)
-      .where(eq(organization.slug, candidate))
+      .where(
+        and(
+          eq(organization.workspace_id, workspaceId),
+          eq(organization.slug, candidate),
+        ),
+      )
       .limit(1)
     if (!row) return candidate
   }
@@ -453,18 +468,28 @@ export async function submitTeamAction(
     }
   }
 
-  try {
-    await withWorkspace(workspaceId, userId, async (db) => {
-      await db
-        .update(workspace)
-        .set({
-          step_3_completed_at: new Date(),
-          updated_at: new Date(),
-        })
-        .where(eq(workspace.id, workspaceId))
-    })
-  } catch {
-    return { ok: false, errorKey: "saveTeamFailed" }
+  // Mark step 3 complete only when the action made forward progress:
+  // at least one invite was sent, OR the user explicitly submitted an
+  // empty list ("Skip for now"). If every invite failed, leave the step
+  // open so the user can retry.
+  const requestedCount = parsed.data.invites.filter((r) => r.email).length
+  if (sent > 0 || requestedCount === 0) {
+    try {
+      await withWorkspace(workspaceId, userId, async (db) => {
+        await db
+          .update(workspace)
+          .set({
+            step_3_completed_at: new Date(),
+            updated_at: new Date(),
+          })
+          .where(eq(workspace.id, workspaceId))
+      })
+    } catch {
+      return { ok: false, errorKey: "saveTeamFailed" }
+    }
+  } else {
+    // Every invite failed — surface the failures so the user retries.
+    return { ok: false, errorKey: "saveTeamFailed", failures }
   }
 
   return { ok: true, invitesSent: sent, failures }

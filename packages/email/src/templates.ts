@@ -74,3 +74,38 @@ export function verifyEmailEmail(input: {
   const text = `Confirm your email: ${input.url}`
   return { to: input.to, subject, html, text }
 }
+
+export function inviteEmail(input: {
+  to: string
+  url: string
+  brandName: string
+  workspaceName: string
+  inviterName: string | null
+  role: string
+  expiresAt: Date
+}): EmailMessage {
+  const subject = `You've been invited to ${input.workspaceName} on ${input.brandName}`
+  const expiresHuman = input.expiresAt.toUTCString()
+  const inviterLine = input.inviterName
+    ? `<strong>${escapeHtml(input.inviterName)}</strong> invited you to`
+    : "You've been invited to"
+  const html = wrap(
+    subject,
+    `
+    <h2>${escapeHtml(`Join ${input.workspaceName}`)}</h2>
+    <p>${inviterLine} <strong>${escapeHtml(input.workspaceName)}</strong> on
+       <strong>${escapeHtml(input.brandName)}</strong> as
+       <strong>${escapeHtml(input.role)}</strong>.</p>
+    <p>Click the button below to accept. The link expires
+       ${escapeHtml(expiresHuman)} and can be used only once.</p>
+    <p><a class="button" href="${escapeHtml(input.url)}">Accept invitation</a></p>
+    <p class="muted">If the button doesn't work, paste this link into your browser:</p>
+    <p class="muted"><a href="${escapeHtml(input.url)}">${escapeHtml(input.url)}</a></p>
+    `,
+  )
+  const text =
+    `${input.inviterName ? `${input.inviterName} invited you` : "You've been invited"} to ${input.workspaceName} on ${input.brandName} as ${input.role}.\n\n` +
+    `Accept the invitation: ${input.url}\n\n` +
+    `The link expires ${expiresHuman} and can be used only once.`
+  return { to: input.to, subject, html, text }
+}

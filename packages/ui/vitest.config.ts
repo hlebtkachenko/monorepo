@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@workspace/ui": path.resolve(__dirname, "./src"),
+      "@workspace/shared": path.resolve(__dirname, "../shared/src"),
     },
   },
   test: {

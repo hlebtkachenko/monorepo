@@ -4,14 +4,23 @@ import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2"
 /**
  * Outbound email transport.
  *
- * Picks the live backend at module load:
- *   - RESEND_API_KEY set        -> Resend
- *   - AWS_REGION set + no Resend -> SES v2 (assumes task IAM grants ses:SendEmail)
- *   - neither                    -> ConsoleTransport (logs payload, never delivers)
+ * Picks the live backend at module load. Order:
+ *   1. `EMAIL_TRANSPORT=console|resend|ses` — explicit override, wins
+ *      over auto-detection (useful for forcing console in CI tests
+ *      even when keys leak from the shell).
+ *   2. RESEND_API_KEY set                   -> Resend
+ *   3. AWS_REGION set                       -> SES v2 (assumes task IAM
+ *      grants ses:SendEmail; works in dev too if local AWS creds exist)
+ *   4. neither                              -> ConsoleTransport (logs
+ *      payload, never delivers)
  *
- * `EMAIL_FROM` is the From address. If absent, the transport falls back to
- * `no-reply@localhost`, which is fine for the console transport but breaks
- * delivery against Resend/SES — those reject unverified domains.
+ * `EMAIL_FROM` is the From address. If absent, the transport falls back
+ * to `no-reply@localhost`, which is fine for the console transport but
+ * breaks delivery against Resend/SES — those reject unverified domains.
+ *
+ * In dev, every sent message is also pushed into a small in-memory
+ * outbox (see `recordOutbox` below) so the dev API route can surface
+ * password-reset / invite URLs without scraping stdout.
  */
 
 export interface EmailMessage {
@@ -28,16 +37,65 @@ export interface EmailTransport {
 
 const FROM_FALLBACK = "no-reply@localhost"
 
+export interface OutboxEntry {
+  at: string
+  from: string
+  to: string
+  subject: string
+  text?: string
+  /** First http(s) URL extracted from the plain-text body, if any. */
+  url?: string
+}
+
+const MAX_OUTBOX = 50
+
+// Stash the ring buffer on globalThis so every Next.js bundle (server
+// actions, route handlers, RSC) that imports @workspace/email points at
+// the same array. Without this, Turbopack ships a fresh copy of the
+// module per bundle group and sends recorded by the server-action bundle
+// never reach the route-handler bundle's readDevOutbox().
+const OUTBOX: OutboxEntry[] = ((
+  globalThis as unknown as { __APP_EMAIL_OUTBOX?: OutboxEntry[] }
+).__APP_EMAIL_OUTBOX ??= [])
+
+function extractUrl(text?: string): string | undefined {
+  if (!text) return undefined
+  const m = text.match(/https?:\/\/\S+/)
+  return m?.[0]
+}
+
+function recordOutbox(entry: OutboxEntry): void {
+  OUTBOX.push(entry)
+  if (OUTBOX.length > MAX_OUTBOX) OUTBOX.shift()
+}
+
+/** Read the dev outbox (most recent first). Empty in production. */
+export function readDevOutbox(): OutboxEntry[] {
+  return OUTBOX.slice().reverse()
+}
+
 class ConsoleTransport implements EmailTransport {
   readonly kind = "console" as const
   async send(message: EmailMessage): Promise<void> {
-    // eslint-disable-next-line no-console
-    console.log("[email:console]", {
-      from: process.env.EMAIL_FROM ?? FROM_FALLBACK,
+    const from = process.env.EMAIL_FROM ?? FROM_FALLBACK
+    const url = extractUrl(message.text)
+    recordOutbox({
+      at: new Date().toISOString(),
+      from,
       to: message.to,
       subject: message.subject,
       text: message.text,
+      url,
     })
+    // eslint-disable-next-line no-console
+    console.log(
+      `\n┌─ email:console ───────────────────────────────────────────\n` +
+        `│ to:      ${message.to}\n` +
+        `│ from:    ${from}\n` +
+        `│ subject: ${message.subject}\n` +
+        (url ? `│ link:    ${url}\n` : "") +
+        `└───────────────────────────────────────────────────────────\n`,
+    )
   }
 }
 
@@ -89,14 +147,34 @@ class SesTransport implements EmailTransport {
 }
 
 function pickTransport(): EmailTransport {
-  const resendKey = process.env.RESEND_API_KEY
-  if (resendKey) {
-    return new ResendTransport(resendKey)
+  const override = process.env.EMAIL_TRANSPORT?.toLowerCase()
+  if (override === "console") return new ConsoleTransport()
+  if (override === "resend") {
+    const key = process.env.RESEND_API_KEY
+    if (!key) {
+      throw new Error("EMAIL_TRANSPORT=resend but RESEND_API_KEY is not set")
+    }
+    return new ResendTransport(key)
   }
-  const region = process.env.AWS_REGION
-  if (region && process.env.APP_ENV === "production") {
+  if (override === "ses") {
+    const region = process.env.AWS_REGION
+    if (!region) {
+      throw new Error("EMAIL_TRANSPORT=ses but AWS_REGION is not set")
+    }
     return new SesTransport(region)
   }
+  // No explicit override. In dev (NODE_ENV !== 'production') always
+  // default to the console transport — local AWS creds / RESEND_API_KEY
+  // leaking from the shell shouldn't accidentally fire real email from
+  // a developer's laptop, and the dev outbox at /api/dev/outbox is the
+  // intended observability surface. Set EMAIL_TRANSPORT=ses|resend to
+  // exercise a real backend locally when you actually want delivery.
+  if (process.env.NODE_ENV !== "production") return new ConsoleTransport()
+
+  const resendKey = process.env.RESEND_API_KEY
+  if (resendKey) return new ResendTransport(resendKey)
+  const region = process.env.AWS_REGION
+  if (region) return new SesTransport(region)
   return new ConsoleTransport()
 }
 
@@ -105,6 +183,8 @@ let _transport: EmailTransport | null = null
 export function getTransport(): EmailTransport {
   if (!_transport) {
     _transport = pickTransport()
+    // eslint-disable-next-line no-console
+    console.log(`[email] transport=${_transport.kind}`)
   }
   return _transport
 }

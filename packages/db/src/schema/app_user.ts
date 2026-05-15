@@ -7,6 +7,7 @@
 import { boolean, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core"
 import { pgTable } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+import { appUserExperience } from "./_enums"
 
 export const app_user = pgTable("app_user", {
   id: uuid("id")
@@ -29,6 +30,8 @@ export const app_user = pgTable("app_user", {
   locale: varchar("locale", { length: 10 }).notNull().default("en"),
   timezone: text("timezone").notNull().default("UTC"),
   job_title: text("job_title"),
+  // Onboarding experience level — added in migration 0012_onboarding_extensions.sql
+  experience: appUserExperience("experience"),
   profile_completed_at: timestamp("profile_completed_at", {
     withTimezone: true,
   }),

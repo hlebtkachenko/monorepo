@@ -26,3 +26,7 @@ export const Disabled: Story = {
 export const WithType: Story = {
   render: () => <Input type="email" placeholder="you@example.com" />,
 }
+
+export const ExtraLarge: Story = {
+  render: () => <Input inputSize="xl" placeholder="Larger field" />,
+}

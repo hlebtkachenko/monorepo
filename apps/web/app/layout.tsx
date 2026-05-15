@@ -8,6 +8,8 @@ import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { InstallNextLinkInUi } from "./_install-link"
+
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontHeading = localFont({
@@ -162,6 +164,7 @@ export default async function RootLayout({
     >
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
+          <InstallNextLinkInUi />
           <ThemeProvider>{children}</ThemeProvider>
           <Toaster />
         </NextIntlClientProvider>

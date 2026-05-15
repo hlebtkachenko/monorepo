@@ -21,6 +21,7 @@ export const workspace_billing = pgTable("workspace_billing", {
   address_zip: varchar("address_zip", { length: 20 }).notNull(),
   country: varchar("country", { length: 2 }).notNull(),
   billing_email: text("billing_email"),
+  // Plan choice lives on workspace.plan (see migration 0013).
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
     "./client": "./src/client.ts",
-    "./tokens": "./src/tokens/index.ts"
+    "./tokens": "./src/tokens/index.ts",
+    "./invite-issuer": "./src/invite-issuer.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -19,6 +20,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",
     "better-auth": "^1.6.10",
+    "drizzle-orm": "^0.45.2",
     "jose": "^6.0.12"
   },
   "devDependencies": {
@@ -27,6 +29,7 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
+    "postgres": "^3.4.7",
     "react": "^19.2.5",
     "typescript": "^6.0.3",
     "vitest": "^3.2.4"

@@ -1,7 +1,10 @@
 /**
- * two_factor — per-user TOTP/backup-codes (FORCE RLS on app.user_id).
+ * two_factor — per-user TOTP/backup-codes.
  *
  * Mirrors: packages/db/migrations/0002_auth.sql (CREATE TABLE two_factor)
+ * + 0014_two_factor_relax_rls.sql (drops FORCE RLS — Better Auth owns
+ * access via its signed session cookie, same posture as app_user /
+ * auth_account / auth_session / auth_verification).
  */
 import { boolean, text, timestamp, uuid } from "drizzle-orm/pg-core"
 import { pgTable } from "drizzle-orm/pg-core"

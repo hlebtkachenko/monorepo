@@ -87,14 +87,20 @@ jobs:
 
       - name: Dump schema after first pass
         env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: app_owner
           PGPASSWORD: dev_owner
+          PGDATABASE: postgres
         run: |
-          pg_dump \
-            --schema-only \
-            --no-owner \
-            --no-privileges \
-            "postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres" \
-            > /tmp/first.sql
+          # Route through scripts/db-schema-snapshot.sh which already strips
+          # pg_dump's random \restrict / \unrestrict tokens (PG18) — without
+          # this filter two consecutive dumps differ by their session tokens
+          # even when the schema is identical.
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/18/bin:$PATH"
+          chmod +x scripts/db-schema-snapshot.sh
+          scripts/db-schema-snapshot.sh > /tmp/first.sql
 
       - name: Apply migrations (second pass — should be no-op)
         env:
@@ -104,14 +110,15 @@ jobs:
 
       - name: Dump schema after second pass
         env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: app_owner
           PGPASSWORD: dev_owner
+          PGDATABASE: postgres
         run: |
-          pg_dump \
-            --schema-only \
-            --no-owner \
-            --no-privileges \
-            "postgresql://app_owner:dev_owner@127.0.0.1:5432/postgres" \
-            > /tmp/second.sql
+          set -euo pipefail
+          export PATH="/usr/lib/postgresql/18/bin:$PATH"
+          scripts/db-schema-snapshot.sh > /tmp/second.sql
 
       - name: Diff schemas (any diff = non-idempotent migration)
         run: |

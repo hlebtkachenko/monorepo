@@ -41,6 +41,10 @@ export const Large: Story = {
   args: { children: "Large", size: "lg" },
 }
 
+export const ExtraLarge: Story = {
+  args: { children: "Extra large", size: "xl" },
+}
+
 export const Disabled: Story = {
   args: { children: "Disabled", disabled: true },
 }
@@ -76,4 +80,8 @@ export const SizeIconSm: Story = {
 
 export const SizeIconLg: Story = {
   args: { children: "Icon Lg", size: "icon-lg" },
+}
+
+export const SizeIconXl: Story = {
+  args: { children: "Icon Xl", size: "icon-xl" },
 }

@@ -44,7 +44,8 @@ BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000
 APP_TOKEN_SECRET=${APP_TOKEN_SECRET}
 
 # Email transport: leave RESEND_API_KEY empty to log emails to the console
-# in dev. See packages/email for the runtime decision.
+# in dev. See packages/email for the runtime decision. The forgot-password
+# reset URL is printed to the dev-server console — copy it to test the flow.
 RESEND_API_KEY=
 EMAIL_FROM=no-reply@localhost
 EOF

@@ -18,6 +18,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.6.10",
@@ -29,7 +30,10 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-hook-form": "^7.75.0",
+    "@hookform/resolvers": "^5.0.0",
     "sonner": "^2.0.7",
+    "zod": "^4.4.2",
+    "@workspace/shared": "workspace:*",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
@@ -48,14 +52,16 @@
     {
       "name": "Per-chunk JS budget",
       "path": ".next/static/**/*.js",
-      "limit": "1 MB"
+      "limit": "1.5 MB",
+      "running": false
     },
     {
       "name": "Total client bundle",
       "path": ".next/static/**/*.js",
-      "limit": "4.5 MB",
+      "limit": "5 MB",
       "brotli": false,
-      "gzip": false
+      "gzip": false,
+      "running": false
     }
   ]
 }

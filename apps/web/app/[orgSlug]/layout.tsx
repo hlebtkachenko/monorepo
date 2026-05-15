@@ -7,6 +7,8 @@ import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
 import { organization, organization_membership } from "@workspace/db/schema"
 
+import { AccountMenu } from "../auth/_components/account-menu"
+
 /**
  * Organization-scoped layout.
  *
@@ -43,16 +45,15 @@ export default async function OrgLayout({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="w-60 shrink-0 border-r bg-card p-4">
+      <aside className="flex w-60 shrink-0 flex-col border-r bg-card p-4">
         <div className="mb-6">
           <p className="text-xs tracking-wide text-muted-foreground uppercase">
             Organization
           </p>
           <p className="text-sm font-medium">{membership.legalName}</p>
         </div>
-        <nav className="space-y-1 text-sm">
+        <nav className="flex-1 space-y-1 text-sm">
           <NavItem href={`/${orgSlug}`} label="Dashboard" />
-          <NavItem href={`/${orgSlug}/inbox`} label="Inbox" />
           <NavItem href={`/${orgSlug}/documents`} label="Documents" />
           <NavItem href={`/${orgSlug}/transactions`} label="Transactions" />
           <NavItem href={`/${orgSlug}/accounting`} label="Accounting" />
@@ -65,6 +66,9 @@ export default async function OrgLayout({
           <NavItem href={`/${orgSlug}/reports`} label="Reports" />
           <NavItem href={`/${orgSlug}/settings`} label="Settings" />
         </nav>
+        <div className="mt-4 border-t pt-4">
+          <AccountMenu email={session.user.email} />
+        </div>
       </aside>
       <main className="flex-1">{children}</main>
     </div>

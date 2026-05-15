@@ -40,3 +40,30 @@ export const inviteStatus = pgEnum("invite_status", [
   "revoked",
   "expired",
 ])
+
+// Mirrors: packages/db/migrations/0012_onboarding_extensions.sql — CREATE TYPE app_user_experience AS ENUM
+export const appUserExperience = pgEnum("app_user_experience", [
+  "new",
+  "some",
+  "bookkeeper",
+  "accountant",
+])
+
+// Mirrors: packages/db/migrations/0012_onboarding_extensions.sql — CREATE TYPE workspace_use_case AS ENUM
+export const workspaceUseCase = pgEnum("workspace_use_case", ["firm", "biz"])
+
+// Mirrors: packages/db/migrations/0012_onboarding_extensions.sql — CREATE TYPE workspace_team_size AS ENUM
+export const workspaceTeamSize = pgEnum("workspace_team_size", [
+  "solo",
+  "sm",
+  "md",
+  "lg",
+  "xl",
+])
+
+// Mirrors: packages/db/migrations/0012_onboarding_extensions.sql — CREATE TYPE billing_plan AS ENUM
+export const billingPlan = pgEnum("billing_plan", [
+  "starter",
+  "growth",
+  "scale",
+])

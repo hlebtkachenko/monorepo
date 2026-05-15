@@ -11,6 +11,63 @@ type ComponentMeta = {
 }
 
 export const registry: Record<string, ComponentMeta> = {
+  "auth-shell": {
+    source: "src/blocks/auth-shell",
+    sourceType: "custom",
+    description:
+      "Block — split-grid layout used by every auth + onboarding screen — 2fr form column + 3fr aside column, with header/body/footer sub-slots. Composes Button, Link slot.",
+    categories: ["block", "layout", "auth"],
+    dependencies: ["button"],
+  },
+  "auth-aside": {
+    source: "src/blocks/auth-aside",
+    sourceType: "custom",
+    description:
+      "Block — right-panel decorative aside with photo / dark / tone variants, headline + subtitle + quote + animated logo marquee slots, prefers-reduced-data fallback. Composes Marquee.",
+    categories: ["block", "layout", "auth"],
+    dependencies: ["marquee"],
+  },
+  "password-input": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Password input with show/hide toggle and optional generate button (16-char crypto-random charset). Uncontrolled toggle, controlled value, forwardRef-compatible with react-hook-form",
+    categories: ["auth", "forms"],
+    dependencies: ["input", "input-group", "tooltip"],
+  },
+  "password-checklist": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Live password validation widget — 2-column grid, evaluates against PASSWORD_RULES from @workspace/shared/auth, aria-live polite announcements",
+    categories: ["auth", "forms"],
+    dependencies: [],
+    packages: ["@workspace/shared"],
+  },
+  "choice-card": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Selectable card with icon + title + description + checkmark, used inside RadioGroup for experience / use-case picker steps. Includes ChoiceCardGrid layout helper",
+    categories: ["forms", "auth"],
+    dependencies: ["radio-group"],
+  },
+  "plan-card": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Pricing tier row with radio + name + optional badge + features list + price block, used inside RadioGroup for billing plan picker",
+    categories: ["forms", "auth"],
+    dependencies: ["badge", "radio-group"],
+  },
+  "invite-row": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Dynamic-list row: email input + role select + remove icon button. Includes InviteRowAddButton for appending. Stack on mobile",
+    categories: ["forms", "auth"],
+    dependencies: ["button", "input", "select"],
+  },
   accordion: {
     source: "shadcn",
     sourceType: "vanilla",

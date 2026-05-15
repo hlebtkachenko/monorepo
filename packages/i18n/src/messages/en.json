@@ -1,17 +1,111 @@
 {
+  "brand": {
+    "name": "Afframe",
+    "tagline": "A calmer place to manage accounting. Now with agents.",
+    "returnLinkLabel": "Return to afframe.com",
+    "returnLinkHref": "https://afframe.com"
+  },
+  "layout": {
+    "footer": {
+      "privacy": "Privacy",
+      "terms": "Terms",
+      "status": "Status"
+    }
+  },
+  "common": {
+    "back": "Back",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "submitting": "Working…",
+    "comingSoon": "Coming soon",
+    "skipForNow": "Skip for now",
+    "step": "Step {current} of {total}"
+  },
   "auth": {
+    "aside": {
+      "headline": "A calmer place to manage accounting. Now with agents.",
+      "subtitle": "{brand} brings documents, postings, and reports into one workspace where accountants and AI agents can work together.",
+      "quote": {
+        "text": "Afframe replaced five tools and gave us back our Friday nights. Our team finally has time to advise clients, not chase receipts.",
+        "author": "Lukáš Krejčí",
+        "role": "Managing Partner, Krejčí & Partneři"
+      }
+    },
     "login": {
       "metaTitle": "Sign in",
-      "title": "Sign in",
-      "description": "Use your email and password to access your workspace.",
-      "email": "Email",
-      "password": "Password",
-      "forgotPassword": "Forgot password?",
-      "submit": "Sign in",
-      "submitting": "Signing in…"
+      "email": {
+        "title": "Sign in to {brand}",
+        "description": "Enter your work email to continue.",
+        "label": "Work email",
+        "placeholder": "you@company.com",
+        "submit": "Continue",
+        "submitting": "Continuing…",
+        "noAccount": "Don't have an account?",
+        "contactSupport": "Contact support",
+        "contactSalesPrompt": "Looking to get started with {brand} for your business?",
+        "contactSalesCta": "Contact sales"
+      },
+      "password": {
+        "title": "Enter your password",
+        "description": "Signing in as {email}.",
+        "label": "Password",
+        "rememberMe": "Remember me on this device",
+        "forgotPassword": "Forgot password?",
+        "submit": "Sign in",
+        "submitting": "Signing in…",
+        "useDifferentEmail": "Use a different email"
+      },
+      "mfa": {
+        "title": "Two-factor verification",
+        "description": "Enter the 6-digit code from your authenticator app.",
+        "label": "Authentication code",
+        "submit": "Verify",
+        "submitting": "Verifying…",
+        "useRecoveryCode": "Use a recovery code",
+        "tryAnotherMethod": "Try another method"
+      },
+      "sso": {
+        "label": "Continue with SSO",
+        "tooltip": "Coming soon"
+      },
+      "magicLink": {
+        "label": "Sign in with a magic link",
+        "tooltip": "Coming soon"
+      },
+      "divider": "or"
+    },
+    "forgot": {
+      "metaTitle": "Forgot password",
+      "title": "Forgot your password?",
+      "description": "We'll send a reset link to your email if an account exists.",
+      "label": "Work email",
+      "placeholder": "you@company.com",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "backToLogin": "Back to sign in",
+      "sent": {
+        "title": "Check your email",
+        "description": "If an account exists for {email}, a password-reset link is on the way."
+      }
+    },
+    "reset": {
+      "metaTitle": "Reset password",
+      "title": "Set a new password",
+      "description": "Choose a strong password of at least 12 characters.",
+      "newPasswordLabel": "New password",
+      "confirmPasswordLabel": "Confirm password",
+      "submit": "Reset password",
+      "submitting": "Saving…",
+      "backToLogin": "Back to sign in",
+      "invalidLink": {
+        "title": "Invalid link",
+        "description": "This reset link is missing its token. Request a new one from the forgot-password page."
+      }
     },
     "errors": {
       "no-workspace-access": "You are signed in but no workspace is linked to this account. Ask support for an invitation.",
+      "signup-email-mismatch": "Your signup invitation is for a different email than the account you're signed in as. Sign out and re-open the invite link.",
       "signup-session-expired": "Your signup link expired. Ask support for a new invitation.",
       "invite-session-expired": "Your invite link expired. Ask the inviter to resend it.",
       "missing-signup-token": "The signup link is missing its token.",
@@ -20,7 +114,251 @@
       "invalid": "Your link is invalid or has been tampered with.",
       "wrong_kind": "Your link is the wrong type for this flow.",
       "disabled": "This flow is currently disabled. Contact support.",
-      "signInFailed": "Sign-in failed"
+      "signInFailed": "Sign-in failed",
+      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead.",
+      "invalidCredentials": "Email or password is incorrect.",
+      "invalidCode": "That code didn't match. Try again.",
+      "loginSessionExpired": "Your sign-in session expired. Please start over.",
+      "resetFailed": "Could not reset password.",
+      "resetSent": "If an account exists, a reset link is on the way.",
+      "couldNotSendReset": "Could not send the reset email. Try again in a moment."
+    },
+    "validation": {
+      "email": {
+        "required": "Enter your email address.",
+        "invalid": "Enter a valid email address."
+      },
+      "password": {
+        "required": "Enter your password.",
+        "mismatch": "Passwords do not match.",
+        "length": "At least 12 characters",
+        "number": "Contains a number",
+        "symbol": "Contains a symbol",
+        "mixedCase": "Mixed upper and lower case"
+      },
+      "otp": {
+        "format": "Enter the 6-digit code."
+      },
+      "token": {
+        "required": "Reset token is missing."
+      },
+      "name": {
+        "required": "Enter your name.",
+        "tooLong": "Name is too long."
+      },
+      "phone": {
+        "tooLong": "Phone number is too long.",
+        "format": "Enter a valid phone number."
+      },
+      "workspace": {
+        "required": "Enter a workspace name.",
+        "tooLong": "Workspace name is too long."
+      },
+      "invites": {
+        "tooMany": "You can invite up to 50 people at once."
+      }
+    },
+    "signup": {
+      "metaTitle": "Welcome",
+      "welcome": {
+        "title": "Welcome to {brand}",
+        "description": "You've been invited to set up a workspace. Continue to create your account.",
+        "issuedTo": "Issued to",
+        "role": "Role",
+        "ownerRole": "Workspace owner",
+        "validity": "Valid for 7 days from issue",
+        "continue": "Continue",
+        "alreadyHave": "Already have an account?",
+        "signIn": "Sign in"
+      }
+    },
+    "invite": {
+      "metaTitle": "Invitation",
+      "welcome": {
+        "title": "You've been invited",
+        "description": "Join the team on {brand} and pick up where everyone else left off.",
+        "issuedTo": "Issued to",
+        "role": "Role",
+        "validity": "Valid for 7 days from issue",
+        "continueExisting": "Accept and continue",
+        "continueNew": "Create my account",
+        "submittingExisting": "Joining…",
+        "wrongEmail": "This invite is for {email}, but you're signed in as {sessionEmail}. Sign out to accept it.",
+        "signOut": "Sign out"
+      }
+    }
+  },
+  "onboarding": {
+    "shell": {
+      "progressLabel": "Onboarding progress",
+      "stepIndicator": "Step {current} of {total}"
+    },
+    "profile": {
+      "metaTitle": "Your profile",
+      "title": "Tell us who you are",
+      "description": "We use this to personalize {brand} and how teammates see you.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "phone": "Phone (optional)",
+      "phonePlaceholder": "+420123456789",
+      "locale": "Language",
+      "timezone": "Time zone",
+      "submit": "Continue",
+      "submitting": "Saving…"
+    },
+    "experience": {
+      "metaTitle": "Your experience",
+      "title": "How familiar are you with accounting?",
+      "description": "We'll tune the experience to your level. You can change this later.",
+      "submit": "Continue",
+      "submitting": "Saving…",
+      "options": {
+        "new": {
+          "title": "New to accounting",
+          "description": "I'm just getting started."
+        },
+        "some": {
+          "title": "Some experience",
+          "description": "I've done bookkeeping casually."
+        },
+        "bookkeeper": {
+          "title": "Bookkeeper",
+          "description": "I work with books day to day."
+        },
+        "accountant": {
+          "title": "Accountant",
+          "description": "I'm a certified accountant."
+        }
+      }
+    },
+    "password": {
+      "metaTitle": "Choose a password",
+      "title": "Choose a password",
+      "description": "Pick a strong password of at least 12 characters. You'll use this with {email} to sign in.",
+      "newPasswordLabel": "Password",
+      "confirmPasswordLabel": "Confirm password",
+      "submit": "Create account",
+      "submitting": "Creating account…"
+    },
+    "workspace": {
+      "metaTitle": "Your workspace",
+      "title": "Set up your workspace",
+      "description": "A workspace is the home for your team and clients in {brand}.",
+      "displayName": "Workspace name",
+      "displayNamePlaceholder": "e.g. Krejčí & Partneři",
+      "useCase": "How will you use {brand}?",
+      "useCaseOptions": {
+        "firm": {
+          "title": "For my firm",
+          "description": "We serve multiple client books."
+        },
+        "biz": {
+          "title": "For my business",
+          "description": "We manage our own books."
+        }
+      },
+      "teamSize": "Team size",
+      "teamSizeOptions": {
+        "solo": "Just me",
+        "sm": "2 – 5",
+        "md": "6 – 20",
+        "lg": "21 – 50",
+        "xl": "50+"
+      },
+      "submit": "Continue",
+      "submitting": "Saving…"
+    },
+    "plan": {
+      "metaTitle": "Pick a plan",
+      "title": "Pick a plan",
+      "description": "You can change plans anytime. No card required during beta.",
+      "submit": "Continue",
+      "submitting": "Saving…",
+      "perMonth": "/mo",
+      "plans": {
+        "starter": {
+          "name": "Starter",
+          "price": "Free",
+          "description": "Solo bookkeepers getting started.",
+          "features": {
+            "f1": "Up to 1 organization",
+            "f2": "Up to 2 users",
+            "f3": "Core ledger + reports"
+          }
+        },
+        "growth": {
+          "name": "Growth",
+          "price": "$29",
+          "description": "Growing firms with multiple clients.",
+          "badge": "Most popular",
+          "features": {
+            "f1": "Up to 10 organizations",
+            "f2": "Up to 20 users",
+            "f3": "Agents + automations",
+            "f4": "Priority support"
+          }
+        },
+        "scale": {
+          "name": "Scale",
+          "price": "$99",
+          "description": "Established firms with deep operations.",
+          "features": {
+            "f1": "Unlimited organizations",
+            "f2": "Unlimited users",
+            "f3": "Custom agents + SSO",
+            "f4": "Dedicated success manager"
+          }
+        }
+      }
+    },
+    "team": {
+      "metaTitle": "Invite your team",
+      "title": "Invite your team",
+      "description": "Add people who'll work with you. You can always invite more later.",
+      "addAnother": "Add another",
+      "emailPlaceholder": "teammate@company.com",
+      "roleLabel": "Role",
+      "submit": "Send invites",
+      "submitting": "Saving…",
+      "skip": "Skip for now",
+      "note": "Invites are saved as drafts and sent when you first add an organization."
+    },
+    "done": {
+      "metaTitle": "You're all set",
+      "title": "You're all set",
+      "description": "Your workspace is ready. Here's what's next.",
+      "open": "Open {brand}",
+      "timelineLabel": "Onboarding timeline",
+      "timeline": {
+        "step1": "Profile",
+        "step2": "Experience",
+        "step3": "Account",
+        "step4": "Workspace",
+        "step5": "Plan",
+        "step6": "Team",
+        "step7": "Ready"
+      },
+      "nextSteps": {
+        "title": "Next steps",
+        "addOrg": "Add your first organization",
+        "addOrgDescription": "Set up a client book or your own business.",
+        "inviteMore": "Invite more teammates",
+        "inviteMoreDescription": "From workspace settings.",
+        "exploreAgents": "Explore AI agents",
+        "exploreAgentsDescription": "See how agents can take routine work off your plate."
+      }
+    },
+    "errors": {
+      "sessionExpired": "Your onboarding session expired. Sign in to continue.",
+      "createAccountFailed": "Could not create your account.",
+      "createWorkspaceFailed": "Could not create your workspace.",
+      "savePlanFailed": "Could not save your plan choice.",
+      "saveProfileFailed": "Could not save your profile.",
+      "saveExperienceFailed": "Could not save your experience.",
+      "saveTeamFailed": "Could not save your invitations.",
+      "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue.",
+      "acceptInviteFailed": "Could not accept the invitation.",
+      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead."
     }
   }
 }

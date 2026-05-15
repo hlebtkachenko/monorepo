@@ -20,31 +20,23 @@ describe("jwt token helpers", () => {
     expect(claims.workspace).toBe("Acme")
   })
 
-  it("signs and verifies an invite token round-trip", async () => {
+  it("generates and hashes an invite token deterministically", async () => {
     vi.resetModules()
-    const { signInviteToken, verifyInviteToken } = await import("./invite")
-    const token = await signInviteToken({
-      email: "member@example.com",
-      organizationId: "00000000-0000-0000-0000-000000000001",
-      role: "member",
-    })
-    const claims = await verifyInviteToken(token)
-    expect(claims.kind).toBe("invite")
-    expect(claims.email).toBe("member@example.com")
-    expect(claims.organizationId).toBe("00000000-0000-0000-0000-000000000001")
-    expect(claims.role).toBe("member")
-  })
-
-  it("rejects a signup token verified as an invite (wrong kind)", async () => {
-    vi.resetModules()
-    const { signSignupToken } = await import("./signup")
-    const { verifyInviteToken } = await import("./invite")
-    const { TokenError } = await import("./jwt")
-    const token = await signSignupToken({
-      email: "x@example.com",
-      workspace: "Y",
-    })
-    await expect(verifyInviteToken(token)).rejects.toBeInstanceOf(TokenError)
+    const { generateRawInviteToken, hashInviteToken, INVITE_TOKEN_BYTES } =
+      await import("./invite")
+    const raw = generateRawInviteToken()
+    // base64url of 32 bytes = 43 chars, no padding
+    expect(raw.length).toBeGreaterThanOrEqual(42)
+    expect(raw).toMatch(/^[A-Za-z0-9_-]+$/)
+    expect(INVITE_TOKEN_BYTES).toBe(32)
+    // Same input always produces the same hash; different inputs produce
+    // different hashes (constant-time sha256 is suitable here because
+    // tokens are 256-bit random — equality is the only check).
+    const hash1 = hashInviteToken(raw)
+    const hash2 = hashInviteToken(raw)
+    expect(hash1).toBe(hash2)
+    expect(hash1).toHaveLength(64)
+    expect(hashInviteToken("different")).not.toBe(hash1)
   })
 
   it("rejects an expired token", async () => {

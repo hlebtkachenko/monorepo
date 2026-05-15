@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { nextCookies } from "better-auth/next-js"
 import { admin, twoFactor } from "better-auth/plugins"
 import { db } from "@workspace/db/client"
 import * as schema from "@workspace/db/schema"
@@ -85,7 +86,14 @@ export const auth = betterAuth({
     },
     expiresIn: 60 * 60 * 24 * 30, // 30 days
     updateAge: 60 * 60 * 24, // 1 day rolling
-    cookieCache: { enabled: true, maxAge: 60 * 5 },
+    // cookieCache disabled: BA's session-cookie-cache refresh triggers a
+    // cookies().set() during `getSession()` reads. Server Components
+    // (e.g. /onboarding/* page files) cannot write cookies — that throws
+    // "Cookies can only be modified in a Server Action or Route Handler".
+    // Tradeoff: one extra DB roundtrip per session read. Re-enable only
+    // if every getSession() call site moves into actions / route
+    // handlers, or if BA gains a "skip refresh in RSC" knob.
+    cookieCache: { enabled: false },
   },
   account: {
     modelName: "auth_account",
@@ -112,7 +120,14 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    autoSignIn: false,
+    // autoSignIn issues a session on signUpEmail and (via the nextCookies
+    // plugin below) pipes the Set-Cookie through Next's cookies() store
+    // automatically. The onboarding password action used to call
+    // signInEmail manually after signUpEmail — that path didn't forward
+    // the cookie reliably in server actions and was the cause of HI-6
+    // in PHASE_REVIEW.md (infinite redirect from /onboarding/workspace
+    // back to /onboarding/password because the session cookie was lost).
+    autoSignIn: true,
     minPasswordLength: 12,
     maxPasswordLength: 128,
     sendResetPassword: async ({ user, url }) => {
@@ -154,6 +169,12 @@ export const auth = betterAuth({
         },
       },
     }),
+    // MUST be last in the plugin chain (per Better Auth docs). nextCookies
+    // hooks into outgoing responses and forwards the Set-Cookie BA emits
+    // through Next's cookies() store, so server actions that call
+    // signUpEmail / signInEmail establish the session on the browser
+    // without manual cookie plumbing.
+    nextCookies(),
   ],
 })
 

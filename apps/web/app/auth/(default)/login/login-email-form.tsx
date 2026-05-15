@@ -27,6 +27,7 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { ArrowUpRight, KeyRound } from "@workspace/ui/lib/icons"
 
+import { safeNext } from "../../../../lib/safe-next"
 import { identifyEmailAction } from "./actions"
 
 const KNOWN_ERROR_CODES = [
@@ -51,7 +52,7 @@ function isKnownErrorCode(
 export function LoginEmailForm() {
   const router = useRouter()
   const search = useSearchParams()
-  const next = search.get("next") ?? "/workspace"
+  const next = safeNext(search.get("next"), "/workspace")
   const errorCode = search.get("error")
 
   const tBrand = useTranslations("brand")

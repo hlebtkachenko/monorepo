@@ -24,6 +24,7 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { PasswordInput } from "@workspace/ui/components/password-input"
 
+import { safeNext } from "../../../../../lib/safe-next"
 import { clearLoginEmailAction } from "../actions"
 
 interface Props {
@@ -33,7 +34,7 @@ interface Props {
 export function LoginPasswordForm({ email }: Props) {
   const router = useRouter()
   const search = useSearchParams()
-  const next = search.get("next") ?? "/workspace"
+  const next = safeNext(search.get("next"), "/workspace")
 
   const t = useTranslations("auth.login.password")
   const tEmailStep = useTranslations("auth.login.email")

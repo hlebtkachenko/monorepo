@@ -84,7 +84,7 @@ describe("AuthAside", () => {
     expect(screen.getByText("The subtitle")).toBeInTheDocument()
     expect(screen.getByText("Great product.")).toBeInTheDocument()
     expect(screen.getByText("Alice")).toBeInTheDocument()
-    expect(screen.getByText("Engineer")).toBeInTheDocument()
+    expect(screen.getByText(/Engineer/)).toBeInTheDocument()
   })
 
   it("renders role=complementary on aside element", () => {

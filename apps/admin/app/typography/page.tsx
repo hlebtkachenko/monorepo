@@ -1091,6 +1091,81 @@ export default function TypographyPage() {
 
       <Separator className="mb-16" />
 
+      {/* ==================== DENSITY ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Density Mode</h2>
+        <Text variant="muted" className="mb-8">
+          Toggle compact mode using the{" "}
+          <Text variant="inline-code">Minimize2</Text> button in the toolbar.
+          Compact mode reduces heading sizes, tightens spacing, and shrinks text
+          for data-dense views like dashboards and tables. Uses{" "}
+          <Text variant="inline-code">data-density=&quot;compact&quot;</Text>{" "}
+          attribute and the <Text variant="inline-code">compact:</Text> Tailwind
+          variant.
+        </Text>
+
+        <div className="grid gap-8 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Default Density</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border bg-muted/30 p-6">
+                <Heading level={1}>Page Title</Heading>
+                <Text variant="lead">
+                  Introduction paragraph with lead styling.
+                </Text>
+                <Heading level={2}>Section</Heading>
+                <Text>
+                  Body text with default spacing between elements. Designed for
+                  content-focused pages.
+                </Text>
+                <Heading level={3}>Subsection</Heading>
+                <Text variant="muted">Supporting detail text.</Text>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Compact Density</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div
+                className="rounded-lg border bg-muted/30 p-6"
+                data-density="compact"
+              >
+                <Heading level={1}>Page Title</Heading>
+                <Text variant="lead">
+                  Introduction paragraph with lead styling.
+                </Text>
+                <Heading level={2}>Section</Heading>
+                <Text>
+                  Body text with default spacing between elements. Designed for
+                  content-focused pages.
+                </Text>
+                <Heading level={3}>Subsection</Heading>
+                <Text variant="muted">Supporting detail text.</Text>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-6 rounded-lg border border-dashed p-4">
+          <Text variant="muted">
+            Apply to any container:{" "}
+            <Text variant="inline-code">
+              {'<div data-density="compact">...</div>'}
+            </Text>
+            . Use <Text variant="inline-code">compact:</Text> prefix in Tailwind
+            classes for custom density-aware styles:{" "}
+            <Text variant="inline-code">compact:text-sm compact:p-2</Text>.
+          </Text>
+        </div>
+      </section>
+
+      <Separator className="mb-16" />
+
       {/* ==================== WEIGHT & SIZE MATRIX ==================== */}
       <section className="mb-16">
         <h2 className="mb-6">Weight &amp; Size Matrix</h2>

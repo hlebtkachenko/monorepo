@@ -6,6 +6,6 @@ describe("ThemeToggle", () => {
   it("renders toggle buttons", () => {
     render(<ThemeToggle />)
     const buttons = screen.getAllByRole("button")
-    expect(buttons.length).toBe(2)
+    expect(buttons.length).toBe(3)
   })
 })

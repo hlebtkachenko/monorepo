@@ -44,6 +44,19 @@ updates:
       prefix: "chore"
       include: scope
 
+  # Docker base image used by apps/api Dockerfile (the NestJS runtime)
+  - package-ecosystem: docker
+    directory: /apps/api
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      apps-api-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
   # Docker base image used by infra/Dockerfile.backup (ECS Scheduled Task in
   # BackupStack). Pinned per ADR-0015; bumped via Dependabot.
   - package-ecosystem: docker

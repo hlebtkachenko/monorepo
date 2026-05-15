@@ -26,9 +26,15 @@ function ThemeProvider({
 function ColorThemeRestorer() {
   React.useEffect(() => {
     const saved = localStorage.getItem("color-theme") ?? ""
-    if (!saved) return
-    const match = COLOR_THEMES.find((t) => t.value === saved)
-    if (match?.cssClass) document.documentElement.classList.add(match.cssClass)
+    if (saved) {
+      const match = COLOR_THEMES.find((t) => t.value === saved)
+      if (match?.cssClass)
+        document.documentElement.classList.add(match.cssClass)
+    }
+    const density = localStorage.getItem("density") ?? ""
+    if (density) {
+      document.documentElement.setAttribute("data-density", density)
+    }
   }, [])
   return null
 }

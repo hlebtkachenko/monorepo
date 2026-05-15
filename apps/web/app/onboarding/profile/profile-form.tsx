@@ -1,21 +1,32 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
+import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { useTranslations } from "@workspace/i18n/client"
 import { ProfileSchema, type ProfileInput } from "@workspace/shared/auth"
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
 import { Input } from "@workspace/ui/components/input"
+import {
+  PhoneInput,
+  PhoneInputCountry,
+  PhoneInputField,
+} from "@workspace/ui/components/input-phone"
 import {
   Select,
   SelectContent,
@@ -24,6 +35,7 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { Text } from "@workspace/ui/components/text"
+import { UploadIcon, UserIcon } from "@workspace/ui/lib/icons"
 
 import { submitProfileAction } from "../actions"
 
@@ -32,6 +44,8 @@ const SUPPORTED_LOCALES: ReadonlyArray<{
   value: SupportedLocale
   label: string
 }> = [{ value: "en", label: "English" }]
+
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024 // 2 MB — matches design hint
 
 function detectTimezone(): string {
   try {
@@ -79,6 +93,16 @@ export function ProfileForm({ initial }: Props) {
   })
 
   const [serverError, setServerError] = useState<string | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Revoke object URLs on unmount to avoid memory leaks.
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+    }
+  }, [avatarPreview])
 
   function translate(msg: string | undefined): string | undefined {
     if (!msg) return undefined
@@ -90,6 +114,31 @@ export function ProfileForm({ initial }: Props) {
       return tValidation(msg)
     }
     return msg
+  }
+
+  function handleAvatarPick() {
+    fileInputRef.current?.click()
+  }
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarError(null)
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarError(t("avatarTooLarge"))
+      return
+    }
+    if (!/^image\/(png|jpeg)$/.test(file.type)) {
+      setAvatarError(t("avatarWrongType"))
+      return
+    }
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+    setAvatarPreview(URL.createObjectURL(file))
+    // Avatar upload backend is not wired yet (see ProfileSchema comment
+    // "Avatar uploaded separately"). For now the preview is local-only —
+    // submitting the form does not persist the image. The control is
+    // here so the design intent is visible and ready to wire to a future
+    // multipart endpoint.
   }
 
   async function onSubmit(values: ProfileInput) {
@@ -118,6 +167,39 @@ export function ProfileForm({ initial }: Props) {
         className="flex flex-col gap-5"
         noValidate
       >
+        <div className="flex items-center gap-4">
+          <Avatar size="lg" className="size-14">
+            {avatarPreview ? (
+              <AvatarImage src={avatarPreview} alt={t("avatarLabel")} />
+            ) : null}
+            <AvatarFallback>
+              <UserIcon className="size-5" aria-hidden="true" />
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAvatarPick}
+            >
+              <UploadIcon className="size-3.5" aria-hidden="true" />
+              {t("avatarUpload")}
+            </Button>
+            <Text variant="small" className="text-muted-foreground">
+              {avatarError ?? t("avatarHint")}
+            </Text>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              className="hidden"
+              aria-label={t("avatarLabel")}
+              onChange={handleAvatarChange}
+            />
+          </div>
+        </div>
+
         <FieldGroup>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
@@ -163,15 +245,29 @@ export function ProfileForm({ initial }: Props) {
             data-invalid={form.formState.errors.phone ? "true" : undefined}
           >
             <FieldLabel htmlFor="phone">{t("phone")}</FieldLabel>
-            <Input
-              id="phone"
-              type="tel"
-              inputSize="xl"
-              autoComplete="tel"
-              placeholder={t("phonePlaceholder")}
-              {...form.register("phone")}
-              aria-invalid={!!form.formState.errors.phone}
+            <Controller
+              name="phone"
+              control={form.control}
+              render={({ field }) => (
+                <PhoneInput
+                  id="phone"
+                  defaultCountry="CZ"
+                  value={field.value ?? ""}
+                  onValueChange={(v) => field.onChange(v)}
+                  invalid={!!form.formState.errors.phone}
+                  className="h-11"
+                >
+                  <PhoneInputCountry />
+                  <PhoneInputField
+                    autoComplete="tel"
+                    placeholder={t("phonePlaceholder")}
+                    onBlur={field.onBlur}
+                    aria-invalid={!!form.formState.errors.phone}
+                  />
+                </PhoneInput>
+              )}
             />
+            <FieldDescription>{t("phoneHint")}</FieldDescription>
             {form.formState.errors.phone && (
               <FieldError>
                 {translate(form.formState.errors.phone.message)}

@@ -99,7 +99,25 @@ function isBudgetNotification(raw) {
 }
 
 export const handler = async (event) => {
+  // Boot-time invariants: missing env = misconfigured deployment. Throw
+  // so the CloudWatch Lambda Errors metric increments and the
+  // KillSwitchErrorsAlarm fires.
+  if (!EXPECTED_TOPIC_ARN) {
+    throw new Error(
+      "killswitch: EXPECTED_TOPIC_ARN env var is required (set by CDK security-stack).",
+    )
+  }
+  if (ALLOWED_ALARM_NAMES.size === 0) {
+    throw new Error(
+      "killswitch: KILL_SWITCH_ALARM_NAMES env var must list at least one alarm name.",
+    )
+  }
+
   const results = []
+  // Collect ECS errors per record but rethrow at the end. Per-record
+  // logging gives ops a complete batch result; the final throw makes
+  // the Lambda Errors metric tick so KillSwitchErrorsAlarm fires.
+  const ecsErrors = []
   for (const record of event.Records ?? []) {
     // Source verification: only accept records routed by SNS from our
     // expected topic ARN. Defends against the Lambda being invoked
@@ -110,7 +128,7 @@ export const handler = async (event) => {
       results.push({ action: "skip", reason: "wrong-event-source" })
       continue
     }
-    if (EXPECTED_TOPIC_ARN && record.Sns?.TopicArn !== EXPECTED_TOPIC_ARN) {
+    if (record.Sns?.TopicArn !== EXPECTED_TOPIC_ARN) {
       log("rejected-topic-arn", { topicArn: record.Sns?.TopicArn })
       results.push({ action: "skip", reason: "wrong-topic-arn" })
       continue
@@ -145,6 +163,7 @@ export const handler = async (event) => {
           action: "error",
           reason: String(err),
         })
+        ecsErrors.push(err)
       }
       continue
     }
@@ -161,11 +180,23 @@ export const handler = async (event) => {
       } catch (err) {
         log("ecs-stop-threw", { alarmName, err: String(err) })
         results.push({ alarmName, action: "error", reason: String(err) })
+        ecsErrors.push(err)
       }
     } else {
       log("unknown-alarm", { alarmName })
       results.push({ alarmName, action: "skip", reason: "unknown-alarm" })
     }
+  }
+  if (ecsErrors.length > 0) {
+    // Re-raise after the batch so the Lambda Errors metric increments
+    // (which KillSwitchErrorsAlarm watches). The per-record results are
+    // already logged for ops to triage.
+    const err = new Error(
+      `killswitch: ${ecsErrors.length} ECS action(s) failed; see ecs-stop-threw logs.`,
+    )
+    err.cause = ecsErrors
+    err.results = results
+    throw err
   }
   return { results }
 }

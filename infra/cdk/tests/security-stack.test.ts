@@ -6,8 +6,10 @@ describe("SecurityStack", () => {
   const { security } = buildTestApp()
   const template = Template.fromStack(security)
 
-  it("creates the kill-switch SNS topic", () => {
-    template.resourceCountIs("AWS::SNS::Topic", 1)
+  it("creates the kill-switch SNS topic + ops topic", () => {
+    // 1 = KillSwitchTopic (Lambda subscriber)
+    // 2 = KillSwitchOpsTopic (email subscriber for Errors alarm)
+    template.resourceCountIs("AWS::SNS::Topic", 2)
   })
 
   it("creates the kill-switch Lambda with correct runtime + handler", () => {

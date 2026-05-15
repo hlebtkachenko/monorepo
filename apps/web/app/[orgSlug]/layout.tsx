@@ -9,7 +9,15 @@ import { organization, organization_membership } from "@workspace/db/schema"
 
 import { AccountMenu } from "../auth/_components/account-menu"
 
-const SLUG_RE = /^[a-z][a-z0-9-]{1,62}[a-z0-9]$/
+// Mirrors the DB CHECK constraint on organization.slug:
+//   slug ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+//   length(slug) BETWEEN 2 AND 63
+// First character may be a letter OR a digit (DB allows both). The
+// length-1 single-char form is also permitted by the regex but DB length
+// CHECK rejects it; we still accept here so the redirect surface matches
+// the storage rule exactly, and a wrong-length slug is treated the same
+// as a non-existent org (resolveMembership returns null).
+const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 const RESERVED_SLUGS = new Set([
   "admin",
   "api",

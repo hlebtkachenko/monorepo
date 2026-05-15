@@ -195,25 +195,25 @@ describe("killswitch handler", () => {
     expect(result.results[0]?.reason).toBe("wrong-topic-arn")
   })
 
-  it("surfaces an error result when ECS throws (no crash)", async () => {
+  it("rethrows after the batch when ECS errors so Lambda Errors metric ticks", async () => {
     send.mockImplementation(async (cmd: { __type: string }) => {
       if (cmd.__type === "Describe") {
         throw new Error("DescribeServices network failure")
       }
       return {}
     })
-    const result = (await handler({
-      Records: [
-        snsRecord(
-          JSON.stringify({
-            AlarmName: "monorepo-test-fargate-network-out-high",
-            NewStateValue: "ALARM",
-          }),
-        ),
-      ],
-    })) as HandlerResult
-
-    expect(result.results[0]?.action).toBe("error")
+    await expect(
+      handler({
+        Records: [
+          snsRecord(
+            JSON.stringify({
+              AlarmName: "monorepo-test-fargate-network-out-high",
+              NewStateValue: "ALARM",
+            }),
+          ),
+        ],
+      }),
+    ).rejects.toThrow(/ECS action\(s\) failed/)
   })
 
   it("skips ECS when desiredCount is missing on the response", async () => {

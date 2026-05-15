@@ -20,7 +20,10 @@ import {
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
-import { LambdaSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
+import {
+  EmailSubscription,
+  LambdaSubscription,
+} from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
@@ -141,9 +144,23 @@ export class SecurityStack extends Stack {
       }),
     )
 
+    // Dedicated ops topic for kill-switch-handler-failure notifications.
+    // Routing the Errors alarm into killSwitchTopic itself would not
+    // notify anyone — that topic's only subscriber is the Lambda, and
+    // the Lambda's allowlist rejects unrecognized alarm names so the
+    // notification gets logged as "unknown-alarm" and dropped.
+    // killSwitchOpsTopic is subscribed directly by the operator email
+    // so a Lambda failure pages the operator. Kept separate from the
+    // primary kill-switch path so it is never accidentally treated as
+    // a trigger source.
+    const killSwitchOpsTopic = new Topic(this, "KillSwitchOpsTopic", {
+      displayName: `monorepo-${props.envName} cost kill-switch failures`,
+    })
+    killSwitchOpsTopic.addSubscription(new EmailSubscription(props.alertEmail))
+
     // Errors alarm on the killswitch Lambda itself. If the killswitch
-    // throws or times out, this surfaces a separate notification on
-    // BillingTopic so an operator notices instead of the alarm fire
+    // throws or times out, the operator gets paged on the ops topic
+    // (which has an email subscriber) instead of the alarm fire
     // disappearing silently.
     const killSwitchErrorsAlarm = new Alarm(this, "KillSwitchErrorsAlarm", {
       alarmName: `monorepo-${props.envName}-cost-killswitch-errors`,
@@ -163,10 +180,7 @@ export class SecurityStack extends Stack {
       comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       treatMissingData: TreatMissingData.NOT_BREACHING,
     })
-    // Reuse the same SNS topic the killswitch subscribes to so the
-    // operator email gets pinged. This is intentional: the killswitch
-    // Lambda already de-duplicates idempotent alarm fires.
-    killSwitchErrorsAlarm.addAlarmAction(new SnsAction(this.killSwitchTopic))
+    killSwitchErrorsAlarm.addAlarmAction(new SnsAction(killSwitchOpsTopic))
 
     // Allow AWS Budgets in this account to publish breach notifications to
     // the kill-switch topic. Scoped with aws:SourceAccount so a different

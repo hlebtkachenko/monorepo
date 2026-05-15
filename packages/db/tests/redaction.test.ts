@@ -71,13 +71,18 @@ describe("_resetForTests", () => {
     expect(getToolRedactions("tool_to_clear")).toEqual([])
   })
 
-  it("throws in production NODE_ENV", () => {
-    const original = process.env["NODE_ENV"]
+  it("throws when NODE_ENV is not 'test' (and VITEST unset)", () => {
+    const originalNode = process.env["NODE_ENV"]
+    const originalVitest = process.env["VITEST"]
     try {
       process.env["NODE_ENV"] = "production"
-      expect(() => _resetForTests()).toThrow(/production/)
+      delete process.env["VITEST"]
+      expect(() => _resetForTests()).toThrow(/test/)
     } finally {
-      process.env["NODE_ENV"] = original
+      process.env["NODE_ENV"] = originalNode
+      if (originalVitest !== undefined) {
+        process.env["VITEST"] = originalVitest
+      }
     }
   })
 })

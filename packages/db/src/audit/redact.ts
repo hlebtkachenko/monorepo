@@ -47,18 +47,23 @@ function redactPath(node: unknown, segments: string[], index: number): void {
   const isLast = index === segments.length - 1
 
   if (head === "*") {
+    // Trailing '*' is rejected at registration; treat any survivor as
+    // a no-op here.
+    if (isLast) return
     if (Array.isArray(node)) {
       for (const el of node) {
-        if (isLast) {
-          // '*' at the tail is a no-op: paths like `lines.*` without a
-          // trailing key would redact the whole element; reject silently so
-          // callers declare the exact field.
-          continue
-        }
         redactPath(el, segments, index + 1)
       }
+      return
     }
-    // Wildcards on non-arrays are ignored.
+    // Walk object values too so a wildcard on a record-style payload
+    // (e.g. `lines.*.iban` where `lines` is `{0: {...}, 1: {...}}`)
+    // redacts every leaf, not just array elements.
+    if (typeof node === "object") {
+      for (const value of Object.values(node as Record<string, unknown>)) {
+        redactPath(value, segments, index + 1)
+      }
+    }
     return
   }
 

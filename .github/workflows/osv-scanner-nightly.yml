@@ -19,7 +19,7 @@ jobs:
       security-events: write # SARIF upload to the Security tab
     # Reusable workflow — invoked at the job level via `uses:`, NOT as a step.
     # Reusable workflow refs cannot be SHA-pinned by GitHub policy; pin to the semantic tag.
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.5
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
     with:
       # osv-scanner exits non-zero on any vulnerability finding by default,
       # which fails the workflow run. SARIF upload to the Security tab still

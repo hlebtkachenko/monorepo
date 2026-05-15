@@ -3,7 +3,7 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { eq, sql } from "drizzle-orm"
-import { auth } from "@workspace/auth/server"
+import { auth, resolveBaseURL } from "@workspace/auth/server"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
 import {
   app_user,
@@ -448,7 +448,11 @@ export async function submitTeamAction(
   })
   if (!defaultOrgId) return { ok: false, errorKey: "noActiveWorkspace" }
 
-  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
+  // Use the shared resolver so dev (no BETTER_AUTH_URL) falls back to
+  // localhost:${PORT} and prod throws if the env var is missing. Avoids
+  // shipping a magic-link / invite email pointing at `http://localhost:3000`
+  // because someone forgot to wire BETTER_AUTH_URL in the task definition.
+  const baseUrl = resolveBaseURL()
   const brandName = await loadBrandName()
 
   const failures: Array<{ email: string; reason: string }> = []

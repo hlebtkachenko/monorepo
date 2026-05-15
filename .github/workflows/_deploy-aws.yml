@@ -229,6 +229,38 @@ jobs:
               >/dev/null
           fi
 
+      - name: Ensure Resend API key secret exists in Secrets Manager [stack=all|app-only]
+        if: env.STACK_SCOPE != 'infra-only'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          # AppStack references monorepo-${ENV_NAME}-resend-api-key by name
+          # (Secret.fromSecretNameV2), so the secret must exist before the
+          # `cdk deploy App-*` step runs — otherwise ECS task start fails
+          # with SecretsManager:ResourceNotFoundException. Same pattern as
+          # the Cloudflare Tunnel token above. The web container reads this
+          # at runtime; packages/email's pickTransport() selects Resend.
+          if [ -z "$RESEND_API_KEY" ]; then
+            echo "::error::RESEND_API_KEY repo secret is not set. Create the Resend account + key (docs/runbooks/AWS-DEPLOY.md step 7)."
+            exit 1
+          fi
+          echo "::add-mask::$RESEND_API_KEY"
+          SECRET_NAME="monorepo-${ENV_NAME}-resend-api-key"
+          if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            aws secretsmanager put-secret-value \
+              --secret-id "$SECRET_NAME" \
+              --secret-string "$RESEND_API_KEY" \
+              --region "$AWS_REGION" \
+              >/dev/null
+          else
+            aws secretsmanager create-secret \
+              --name "$SECRET_NAME" \
+              --secret-string "$RESEND_API_KEY" \
+              --description "Resend API key for transactional email (monorepo ${ENV_NAME})" \
+              --region "$AWS_REGION" \
+              >/dev/null
+          fi
+
       - name: Deploy app stack with new image tag [stack=all|app-only]
         if: env.STACK_SCOPE != 'infra-only'
         env:

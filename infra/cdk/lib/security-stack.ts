@@ -64,6 +64,19 @@ export class SecurityStack extends Stack {
       retention: RetentionDays.ONE_MONTH,
     })
 
+    // Allowlist of CW alarm names that may trigger ECS stop. Mirrors the
+    // alarmName fields in observability-stack.ts; keep this list in sync
+    // when adding or renaming alarms. Substring matching used to be the
+    // handler default — exact-match via env-injected allowlist closes a
+    // name-collision risk.
+    const killSwitchAlarmNames = [
+      `monorepo-${props.envName}-fargate-cpu-critical`,
+      `monorepo-${props.envName}-fargate-memory-critical`,
+      `monorepo-${props.envName}-fargate-network-out-high`,
+      `monorepo-${props.envName}-s3-put-rate-high`,
+      `monorepo-${props.envName}-cwlogs-ingest-high`,
+    ]
+
     this.killSwitchFn = new LambdaFunction(this, "KillSwitchFn", {
       functionName: `monorepo-${props.envName}-cost-killswitch`,
       runtime: Runtime.NODEJS_20_X,
@@ -71,10 +84,18 @@ export class SecurityStack extends Stack {
       code: Code.fromAsset(path.join(__dirname, "lambda", "killswitch")),
       timeout: Duration.seconds(30),
       memorySize: 256,
+      // Pin concurrency to 1 so a flapping alarm + concurrent Budget
+      // notification cannot race on UpdateService and re-spawn between
+      // invocations. The handler is also idempotent (desiredCount=0
+      // returns "noop"), but reservedConcurrency makes the invariant
+      // load-bearing instead of best-effort.
+      reservedConcurrentExecutions: 1,
       logGroup: killSwitchLogGroup,
       environment: {
         CLUSTER_NAME: props.appStack.cluster.clusterName,
         SERVICE_NAME: props.appStack.service.serviceName,
+        EXPECTED_TOPIC_ARN: this.killSwitchTopic.topicArn,
+        KILL_SWITCH_ALARM_NAMES: killSwitchAlarmNames.join(","),
       },
       description:
         "Sets ECS desiredCount=0 on receipt of an alarm or budget action SNS message",

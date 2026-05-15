@@ -32,6 +32,12 @@ export function resolveBaseURL(): string {
   const explicit = process.env.BETTER_AUTH_URL
   const port = process.env.PORT
   if (!explicit) {
+    // Next.js build phase needs a value for static analysis but won't
+    // actually emit URLs — return a placeholder. The runtime guard below
+    // catches real production requests with no BETTER_AUTH_URL.
+    if (process.env.NEXT_PHASE === "phase-production-build") {
+      return "http://build-time-placeholder.invalid"
+    }
     if (process.env.NODE_ENV === "production") {
       throw new Error(
         "BETTER_AUTH_URL must be set in production. " +

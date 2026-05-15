@@ -1,6 +1,13 @@
 import * as path from "node:path"
 import { Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib"
 import { CfnBudget } from "aws-cdk-lib/aws-budgets"
+import {
+  Alarm,
+  ComparisonOperator,
+  Metric,
+  TreatMissingData,
+} from "aws-cdk-lib/aws-cloudwatch"
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
 import { ReadWriteType, Trail } from "aws-cdk-lib/aws-cloudtrail"
 import { Rule } from "aws-cdk-lib/aws-events"
 import { LambdaFunction as LambdaTarget } from "aws-cdk-lib/aws-events-targets"
@@ -14,6 +21,7 @@ import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
 import { LambdaSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
+import { Queue } from "aws-cdk-lib/aws-sqs"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
 import type { DataStack } from "./data-stack.js"
@@ -117,9 +125,48 @@ export class SecurityStack extends Stack {
       }),
     )
 
+    // Dead-letter queue for messages the Lambda fails to process even
+    // after retries. Without a DLQ a failing handler silently drops
+    // alarms, which is exactly the alarm-on-the-alarm-handler bug we
+    // need to avoid for cost runaway.
+    const killSwitchDlq = new Queue(this, "KillSwitchDlq", {
+      queueName: `monorepo-${props.envName}-cost-killswitch-dlq`,
+      retentionPeriod: Duration.days(14),
+      enforceSSL: true,
+    })
+
     this.killSwitchTopic.addSubscription(
-      new LambdaSubscription(this.killSwitchFn),
+      new LambdaSubscription(this.killSwitchFn, {
+        deadLetterQueue: killSwitchDlq,
+      }),
     )
+
+    // Errors alarm on the killswitch Lambda itself. If the killswitch
+    // throws or times out, this surfaces a separate notification on
+    // BillingTopic so an operator notices instead of the alarm fire
+    // disappearing silently.
+    const killSwitchErrorsAlarm = new Alarm(this, "KillSwitchErrorsAlarm", {
+      alarmName: `monorepo-${props.envName}-cost-killswitch-errors`,
+      alarmDescription:
+        "Cost kill-switch Lambda failed; manual ECS stop may be required.",
+      metric: new Metric({
+        namespace: "AWS/Lambda",
+        metricName: "Errors",
+        dimensionsMap: {
+          FunctionName: this.killSwitchFn.functionName,
+        },
+        period: Duration.minutes(5),
+        statistic: "Sum",
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    // Reuse the same SNS topic the killswitch subscribes to so the
+    // operator email gets pinged. This is intentional: the killswitch
+    // Lambda already de-duplicates idempotent alarm fires.
+    killSwitchErrorsAlarm.addAlarmAction(new SnsAction(this.killSwitchTopic))
 
     // Allow AWS Budgets in this account to publish breach notifications to
     // the kill-switch topic. Scoped with aws:SourceAccount so a different

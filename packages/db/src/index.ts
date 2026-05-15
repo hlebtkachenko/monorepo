@@ -19,7 +19,6 @@ export {
 export type {
   OrganizationBoundDb,
   WorkspaceBoundDb,
-  AdminBypassBound,
   AdminBypassDb,
 } from "./tenancy"
 

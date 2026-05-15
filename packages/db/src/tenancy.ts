@@ -100,15 +100,29 @@ async function restorePriorGucs(
     workspaceId: string | null
   },
 ): Promise<void> {
-  await tx.execute(
-    sql`SELECT set_config('app.organization_id', ${prior.orgId ?? ""}, true)`,
-  )
-  await tx.execute(
-    sql`SELECT set_config('app.user_id', ${prior.userId ?? ""}, true)`,
-  )
-  await tx.execute(
-    sql`SELECT set_config('app.workspace_id', ${prior.workspaceId ?? ""}, true)`,
-  )
+  // Each restore is independent: if one fails, the others should still attempt
+  // so the outer transaction isn't left with a partially-cleared GUC set. We
+  // collect failures and rethrow as AggregateError so the caller's `finally`
+  // can roll back the outer transaction with the original cause preserved.
+  const failures: unknown[] = []
+  const restores: Array<{ name: string; value: string }> = [
+    { name: "app.organization_id", value: prior.orgId ?? "" },
+    { name: "app.user_id", value: prior.userId ?? "" },
+    { name: "app.workspace_id", value: prior.workspaceId ?? "" },
+  ]
+  for (const r of restores) {
+    try {
+      await tx.execute(sql`SELECT set_config(${r.name}, ${r.value}, true)`)
+    } catch (err) {
+      failures.push(err)
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      "restorePriorGucs: one or more GUC restores failed; outer transaction must be aborted to avoid GUC leak.",
+    )
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +169,10 @@ export async function withOrganization<T>(
       )
       if (userId) {
         await tx.execute(sql`SELECT set_config('app.user_id', ${userId}, true)`)
+      } else if (composed) {
+        // Clear outer-scope app.user_id so a userId=null call doesn't silently
+        // inherit the prior user's identity for audit/RLS purposes.
+        await tx.execute(sql`SELECT set_config('app.user_id', '', true)`)
       }
 
       // Derive parent workspace_id from the organization row so workspace-tier
@@ -173,6 +191,10 @@ export async function withOrganization<T>(
         await tx.execute(
           sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`,
         )
+      } else if (composed) {
+        // Org row has no workspace_id (legacy data). Clear outer-scope
+        // app.workspace_id to avoid inheriting an unrelated workspace.
+        await tx.execute(sql`SELECT set_config('app.workspace_id', '', true)`)
       }
 
       return await fn(tx as unknown as OrganizationBoundDb)
@@ -312,13 +334,36 @@ export async function withAdminBypass<T>(
         )[0]?.current_user ?? null)
       : null
 
+    let fnError: unknown = null
     try {
       await tx.execute(sql`SET LOCAL ROLE app_admin`)
       return await fn(tx as unknown as AdminBypassDb)
+    } catch (err) {
+      fnError = err
+      throw err
     } finally {
       if (priorRole) {
-        assertSafeRoleName(priorRole)
-        await tx.execute(sql`SET LOCAL ROLE ${sql.raw(priorRole)}`)
+        try {
+          assertSafeRoleName(priorRole)
+          await tx.execute(sql`SET LOCAL ROLE ${sql.raw(priorRole)}`)
+        } catch (restoreErr) {
+          // Role restore failed: outer transaction still has elevated
+          // app_admin. Force outer rollback by throwing AggregateError so the
+          // pool returns a clean connection on next checkout.
+          if (fnError) {
+            // Preserve the original fn error as the leading cause.
+            // eslint-disable-next-line no-unsafe-finally
+            throw new AggregateError(
+              [fnError, restoreErr],
+              "withAdminBypass: SET LOCAL ROLE restore failed; outer transaction must be aborted.",
+            )
+          }
+          // eslint-disable-next-line no-unsafe-finally
+          throw new AggregateError(
+            [restoreErr],
+            "withAdminBypass: SET LOCAL ROLE restore failed; outer transaction must be aborted.",
+          )
+        }
       }
     }
   })

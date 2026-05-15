@@ -10,11 +10,21 @@ vi.mock("@aws-sdk/client-ecs", () => {
   class ECSClient {
     send = send
   }
-  return {
-    ECSClient,
-    DescribeServicesCommand: vi.fn((input) => ({ __type: "Describe", input })),
-    UpdateServiceCommand: vi.fn((input) => ({ __type: "Update", input })),
+  class DescribeServicesCommand {
+    __type = "Describe"
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
   }
+  class UpdateServiceCommand {
+    __type = "Update"
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
+  return { ECSClient, DescribeServicesCommand, UpdateServiceCommand }
 })
 
 // @ts-expect-error - .mjs handler ships without declaration types

@@ -33,10 +33,21 @@ import {
  */
 const IS_PROD = process.env.NODE_ENV === "production"
 const MIN_BA_SECRET_BYTES = 32
+// Next.js sets NEXT_PHASE to phase-production-build while pre-rendering
+// pages and collecting page data. Module evaluation runs in that phase
+// with NODE_ENV=production but BETTER_AUTH_SECRET unavailable. The
+// deployed container re-evaluates this module at boot with the real env
+// set, where the strict checks below fire.
+const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build"
+// Long, clearly-fake placeholder used only during next build. If this
+// value ever leaks into a runtime auth flow, Better Auth signature
+// checks will fail uniformly — failure-open is impossible.
+const BUILD_PLACEHOLDER_SECRET = "build-time-placeholder-" + "x".repeat(40)
 
 function readBetterAuthSecret(): string {
   const raw = process.env.BETTER_AUTH_SECRET
   if (!raw) {
+    if (IS_BUILD) return BUILD_PLACEHOLDER_SECRET
     if (IS_PROD) {
       throw new Error(
         "BETTER_AUTH_SECRET is required in production. Set a 32+ byte random secret.",
@@ -59,6 +70,7 @@ function readBetterAuthSecret(): string {
 function readBetterAuthBaseUrl(): string | undefined {
   const raw = process.env.BETTER_AUTH_URL?.trim()
   if (raw) return raw
+  if (IS_BUILD) return undefined
   if (IS_PROD) {
     throw new Error(
       "BETTER_AUTH_URL is required in production (used for absolute reset/verification links).",

@@ -1,9 +1,10 @@
 #!/usr/bin/env tsx
 /**
  * Dev CLI — issue an invite and email it. Mirrors the path the
- * onboarding team-step uses: sign the JWT, INSERT the auth_invite row
- * at status='pending', send the invite email via the configured
- * transport (Resend / SES / Console).
+ * onboarding team-step uses: mint an opaque random token, INSERT the
+ * auth_invite row at status='pending' (storing only its SHA-256 hash),
+ * send the invite email via the configured transport (Resend / SES /
+ * Console).
  *
  * Usage:
  *   pnpm tsx packages/auth/scripts/issue-invite-token.ts \
@@ -23,19 +24,19 @@ import {
   revokePendingInvites,
   findOrganizationOwner,
 } from "../src/invite-issuer"
-import type { InviteClaims } from "../src/tokens/invite"
+import type { InviteRecord } from "../src/tokens/invite"
 
 interface Args {
   email: string
   organizationId: string
-  role: InviteClaims["role"]
+  role: InviteRecord["role"]
   issuerUserId: string | null
   brandName: string
   baseUrl: string
   ttlSeconds: number
 }
 
-const VALID_ROLES: ReadonlyArray<InviteClaims["role"]> = [
+const VALID_ROLES: ReadonlyArray<InviteRecord["role"]> = [
   "owner",
   "admin",
   "member",
@@ -51,7 +52,7 @@ function parseArgs(argv: string[]): Args {
 
   const email = get("--email")
   const organizationId = get("--org")
-  const roleArg = (get("--role") ?? "member") as InviteClaims["role"]
+  const roleArg = (get("--role") ?? "member") as InviteRecord["role"]
   const issuerUserId = get("--issuer") ?? null
   const brandName = get("--brand") ?? "Afframe"
   const baseUrl = get("--base-url") ?? "http://localhost:3000"

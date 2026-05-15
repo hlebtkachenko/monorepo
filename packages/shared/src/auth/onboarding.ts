@@ -65,11 +65,14 @@ export type PlanInput = z.infer<typeof PlanSchema>
 
 /** Step 6 — invite team. Empty list allowed (Skip for now). */
 export const InviteRowSchema = z.object({
+  // Normalise email at the validation boundary: trim + lowercase so the
+  // (organization, email) uniqueness in auth_invite resolves
+  // case-insensitively without relying solely on the DB trigger.
   email: z
     .string()
-    .email({ error: "email.invalid" })
     .max(320)
-    .or(z.literal("")),
+    .transform((s) => s.trim().toLowerCase())
+    .pipe(z.string().email({ error: "email.invalid" }).or(z.literal(""))),
   role: z.enum(["admin", "member"]),
 })
 export type InviteRowInput = z.infer<typeof InviteRowSchema>

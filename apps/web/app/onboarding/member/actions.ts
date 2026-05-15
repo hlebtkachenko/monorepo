@@ -128,11 +128,8 @@ export async function submitMemberPasswordAction(
   let orgSlug: string
   try {
     orgSlug = await materializeInvite({
-      organizationId: claims.organizationId,
-      role: claims.role,
       userId,
       inviteRawToken: rawInviteToken,
-      email: claims.email,
     })
   } catch (err) {
     console.error("[onboarding/member/password] materializeInvite failed", err)

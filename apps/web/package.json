@@ -10,9 +10,13 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "size": "size-limit"
+    "size": "size-limit",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.0.0",
     "@sentry/nextjs": "^10.52.0",
     "@tanstack/react-query": "^5.100.9",
     "@tanstack/react-table": "^8.21.3",
@@ -20,6 +24,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
+    "@workspace/shared": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.6.10",
     "drizzle-orm": "^0.45.2",
@@ -30,13 +35,12 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-hook-form": "^7.75.0",
-    "@hookform/resolvers": "^5.0.0",
     "sonner": "^2.0.7",
     "zod": "^4.4.2",
-    "@workspace/shared": "workspace:*",
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@size-limit/preset-app": "^12.1.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^25.6.0",

@@ -28,6 +28,9 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          # Full history so `turbo --affected` can diff against the PR base.
+          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       - name: Typecheck
@@ -57,7 +60,13 @@ jobs:
         run: pnpm turbo test --filter=!@workspace/db --ui=stream --continue
 
       - name: Test Coverage
-        run: pnpm turbo test:coverage --filter=@workspace/ui --ui=stream
+        # Advisory step — scope to packages affected vs the PR base.
+        # build-storybook below stays full-graph: the interaction test
+        # consumes its storybook-static output, and the turbo cache
+        # already restores that output on an unchanged run.
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        run: pnpm turbo test:coverage --filter=@workspace/ui --affected --ui=stream
 
       - name: Build Storybook
         run: pnpm turbo build-storybook --filter=@workspace/ui --ui=stream

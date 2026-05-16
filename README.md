@@ -4,8 +4,8 @@ Next.js + shadcn/ui monorepo with Turborepo, pnpm workspaces, Storybook, and Vit
 
 ## Prerequisites
 
-- Node.js >= 20
-- pnpm 9.x (`corepack enable`)
+- Node.js >= 22
+- pnpm 11.x (`corepack enable`)
 
 ## Getting Started
 
@@ -19,10 +19,23 @@ pnpm dev          # Next.js dev server (port 3000)
 ```
 apps/
   web/              # Next.js 16 app (Turbopack)
+  admin/            # admin app
+  api/              # NestJS backend API
 packages/
-  ui/               # shadcn/ui component library (55 components)
+  ui/               # shadcn/ui component library (105 components)
+  auth/             # Better Auth + session binding + RLS GUC
+  config/           # shared configuration
+  db/               # Drizzle schema + RLS + migrations
+  email/            # React Email templates + transport
   eslint-config/    # shared ESLint flat configs
+  i18n/             # internationalization
+  observability/    # pino + OpenTelemetry helpers
+  pdf/              # PDF/A-3 generation + QR Platba
+  shared/           # shared utilities, Zod schemas
+  storage/          # org-scoped storage
+  testcontainers/   # integration test containers
   typescript-config/ # shared tsconfig presets
+  workers/          # pg-boss background job handlers
 docs/
   runbooks/         # agent instruction documents
 ```

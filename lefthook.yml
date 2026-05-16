@@ -1,0 +1,11 @@
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+
+pre-commit:
+  commands:
+    prettier:
+      glob: "*.{ts,tsx,js,jsx,mjs,json,jsonc,md,yml,yaml,css}"
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true

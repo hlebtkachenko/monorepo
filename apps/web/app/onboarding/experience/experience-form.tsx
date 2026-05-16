@@ -4,7 +4,6 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { GraduationCap, Sparkles, BookOpen, Award } from "lucide-react"
 
 import { useTranslations } from "@workspace/i18n/client"
 import { ExperienceSchema, type ExperienceInput } from "@workspace/shared/auth"
@@ -17,7 +16,13 @@ import { FieldError } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
 import { RadioGroup } from "@workspace/ui/components/radio-group"
 import { Text } from "@workspace/ui/components/text"
-import { ArrowLeft } from "@workspace/ui/lib/icons"
+import {
+  ArrowLeft,
+  Award,
+  BookOpen,
+  GraduationCap,
+  Sparkles,
+} from "@workspace/ui/lib/icons"
 
 import { AuthHeaderLinkOverride } from "../../auth/(default)/_components/auth-header-link"
 import { submitExperienceAction } from "../actions"

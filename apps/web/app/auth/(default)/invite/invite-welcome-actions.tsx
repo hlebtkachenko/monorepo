@@ -15,7 +15,7 @@ import {
 import { Heading } from "@workspace/ui/components/heading"
 import { Input } from "@workspace/ui/components/input"
 import { Text } from "@workspace/ui/components/text"
-import { ArrowLeft, Shield } from "@workspace/ui/lib/icons"
+import { ArrowLeft, ArrowRightIcon, Shield } from "@workspace/ui/lib/icons"
 
 import { AuthHeaderLinkOverride } from "../_components/auth-header-link"
 import { acceptInviteAction, signOutForInviteAction } from "./actions"
@@ -37,6 +37,7 @@ export function InviteWelcomeActions({
 }: Props) {
   const router = useRouter()
   const t = useTranslations("auth.invite.welcome")
+  const tMismatch = useTranslations("auth.invite.mismatch")
   const tBrand = useTranslations("brand")
   const brand = tBrand("name")
 
@@ -61,6 +62,43 @@ export function InviteWelcomeActions({
   }
 
   const wrongEmail = isSignedIn && !matchesSession
+
+  // A different account is signed in (e.g. a stale session from prior
+  // testing). Don't bounce to login — that's a dead end. Render an
+  // in-place screen with a working "sign out" action so the user can
+  // clear the wrong session and continue with this invite link.
+  if (wrongEmail) {
+    return (
+      <div className="flex flex-col gap-8">
+        <AuthHeaderLinkOverride
+          href="/auth/login"
+          label={t("decline")}
+          icon={backIcon}
+        />
+
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {tMismatch("title")}
+          </Heading>
+          <Text variant="muted">
+            {tMismatch("description", {
+              sessionEmail: sessionEmail ?? "",
+              claimEmail: email,
+            })}
+          </Text>
+        </header>
+
+        <Text variant="muted">{tMismatch("instruction")}</Text>
+
+        <form action={signOutForInviteAction}>
+          <Button type="submit" size="xl" className="w-full">
+            {tMismatch("signOut")}
+            <ArrowRightIcon className="size-4" aria-hidden="true" />
+          </Button>
+        </form>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -103,58 +141,40 @@ export function InviteWelcomeActions({
         </Field>
       </FieldGroup>
 
-      {wrongEmail && (
-        <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-5">
+        {error && (
           <Text variant="small" className="text-destructive" role="alert">
-            {t("wrongEmail", {
-              email,
-              sessionEmail: sessionEmail ?? "",
-            })}
+            {error}
           </Text>
-          <form action={signOutForInviteAction}>
-            <Button type="submit" size="xl" className="w-full">
-              {t("signOut")}
-            </Button>
-          </form>
-        </div>
-      )}
+        )}
 
-      {!wrongEmail && (
-        <div className="flex flex-col gap-5">
-          {error && (
-            <Text variant="small" className="text-destructive" role="alert">
-              {error}
-            </Text>
-          )}
+        {matchesSession ? (
+          <Button
+            type="button"
+            size="xl"
+            onClick={onAccept}
+            disabled={submitting}
+          >
+            {submitting ? t("submittingExisting") : t("continueExisting")}
+          </Button>
+        ) : (
+          <Button asChild size="xl">
+            <Link href="/onboarding/profile">{t("continueNew")}</Link>
+          </Button>
+        )}
 
-          {matchesSession ? (
-            <Button
-              type="button"
-              size="xl"
-              onClick={onAccept}
-              disabled={submitting}
-            >
-              {submitting ? t("submittingExisting") : t("continueExisting")}
+        {!isSignedIn && (
+          <>
+            <FieldSeparator>{t("divider")}</FieldSeparator>
+            <Button asChild variant="outline" size="xl" className="w-full">
+              <Link href="/auth/login">
+                <Shield className="size-4" aria-hidden="true" />
+                {t("signInExisting")}
+              </Link>
             </Button>
-          ) : (
-            <Button asChild size="xl">
-              <Link href="/onboarding/profile">{t("continueNew")}</Link>
-            </Button>
-          )}
-
-          {!isSignedIn && (
-            <>
-              <FieldSeparator>{t("divider")}</FieldSeparator>
-              <Button asChild variant="outline" size="xl" className="w-full">
-                <Link href="/auth/login">
-                  <Shield className="size-4" aria-hidden="true" />
-                  {t("signInExisting")}
-                </Link>
-              </Button>
-            </>
-          )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       <Text variant="muted" className="text-xs">
         {t("footnote", { brand })}

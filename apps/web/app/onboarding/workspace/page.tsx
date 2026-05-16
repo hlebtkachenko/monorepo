@@ -3,6 +3,8 @@ import { headers } from "next/headers"
 import { auth } from "@workspace/auth/server"
 import { getTranslations } from "@workspace/i18n/server"
 
+import { isDevPreview } from "@/lib/dev-preview"
+
 import { assertOnStep } from "../_lib/resume"
 import { detectOnboardingRole } from "../_lib/role"
 import { WorkspaceForm } from "./workspace-form"
@@ -15,6 +17,12 @@ export async function generateMetadata() {
 export default async function WorkspacePage() {
   const ctx = await detectOnboardingRole()
   if (!ctx) redirect("/auth/login?error=onboarding-session-expired")
+
+  // Dev-preview renders the screen for design inspection without a
+  // session or persisted step state.
+  if (await isDevPreview()) {
+    return <WorkspaceForm />
+  }
 
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {

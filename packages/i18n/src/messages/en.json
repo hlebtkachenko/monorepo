@@ -222,6 +222,12 @@
         "contactSupport": "Contact {brand} support",
         "alreadyHave": "Already have an account?",
         "signIn": "Sign in"
+      },
+      "mismatch": {
+        "title": "You're signed in as someone else",
+        "description": "You're signed in as {sessionEmail}. This signup link was issued for {claimEmail}.",
+        "instruction": "Sign out to continue with this signup link.",
+        "signOut": "Sign out and continue"
       }
     },
     "invite": {
@@ -237,9 +243,13 @@
         "submittingExisting": "Joining…",
         "divider": "or",
         "signInExisting": "Sign in to an existing account",
-        "wrongEmail": "This invite is for {email}, but you're signed in as {sessionEmail}.",
-        "signOut": "Sign out and continue",
         "footnote": "By accepting, you agree to {brand}'s Terms and Privacy Policy. Invitation expires in 7 days."
+      },
+      "mismatch": {
+        "title": "You're signed in as someone else",
+        "description": "You're signed in as {sessionEmail}. This invite link was issued for {claimEmail}.",
+        "instruction": "Sign out to continue with this invite link.",
+        "signOut": "Sign out and continue"
       }
     }
   },
@@ -383,7 +393,13 @@
       "submit": "Send invites",
       "submitting": "Saving…",
       "skip": "Skip for now",
-      "note": "Invites are saved as drafts and sent when you first add an organization."
+      "note": "Invites are saved as drafts and sent when you first add an organization.",
+      "toast": {
+        "sentTitle": "{count, plural, one {# invite sent} other {# invites sent}}",
+        "sentDescription": "If you don't see the email, the dev console transport prints links to your terminal — or visit /api/dev/outbox.",
+        "failedTitle": "{count, plural, one {# invite failed} other {# invites failed}}",
+        "failedDescription": "Check the dev-server log for the underlying error."
+      }
     },
     "done": {
       "metaTitle": "You're all set",

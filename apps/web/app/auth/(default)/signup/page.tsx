@@ -11,8 +11,11 @@ import { Input } from "@workspace/ui/components/input"
 import { Text } from "@workspace/ui/components/text"
 import { ArrowRightIcon, ArrowUpRight } from "@workspace/ui/lib/icons"
 
+import { isDevPreview } from "@/lib/dev-preview"
+
 import { readSignupClaims } from "../../../onboarding/_lib/signup-cookie"
 import { resolveNextStep, stepPath } from "../../../onboarding/_lib/resume"
+import { signOutForSignupAction } from "./actions"
 
 export async function generateMetadata() {
   const t = await getTranslations("auth.signup")
@@ -29,6 +32,15 @@ export default async function SignupWelcomePage() {
     }
     throw err
   }
+  // Dev-preview renders the welcome card for design inspection even
+  // without a real signup token.
+  if (!claims && (await isDevPreview())) {
+    claims = {
+      kind: "signup" as const,
+      email: "preview@example.com",
+      workspace: "Preview Workspace",
+    }
+  }
   if (!claims) {
     redirect("/auth/login?error=missing-signup-token")
   }
@@ -36,7 +48,35 @@ export default async function SignupWelcomePage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (session?.user) {
     if (session.user.email.toLowerCase() !== claims.email.toLowerCase()) {
-      redirect("/auth/login?error=signup-email-mismatch")
+      // A different account is signed in (e.g. a stale session from prior
+      // testing). Don't bounce to login — that's a dead end. Render an
+      // in-place screen with a working "sign out" action so the user can
+      // clear the wrong session and continue with this signup link.
+      const tMismatch = await getTranslations("auth.signup.mismatch")
+      return (
+        <div className="flex flex-col gap-8">
+          <header className="flex flex-col gap-2">
+            <Heading level={2} className="mt-0">
+              {tMismatch("title")}
+            </Heading>
+            <Text variant="muted">
+              {tMismatch("description", {
+                sessionEmail: session.user.email,
+                claimEmail: claims.email,
+              })}
+            </Text>
+          </header>
+
+          <Text variant="muted">{tMismatch("instruction")}</Text>
+
+          <form action={signOutForSignupAction}>
+            <Button type="submit" size="xl" className="w-full">
+              {tMismatch("signOut")}
+              <ArrowRightIcon className="size-4" aria-hidden="true" />
+            </Button>
+          </form>
+        </div>
+      )
     }
     const next = await resolveNextStep(session.user.id)
     redirect(stepPath(next))

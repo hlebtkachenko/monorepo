@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Building2, Briefcase } from "lucide-react"
 
 import { useTranslations } from "@workspace/i18n/client"
 import { WorkspaceSchema, type WorkspaceInput } from "@workspace/shared/auth"
@@ -30,6 +29,7 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { Text } from "@workspace/ui/components/text"
+import { Briefcase, Building2 } from "@workspace/ui/lib/icons"
 
 import { submitWorkspaceAction } from "../actions"
 

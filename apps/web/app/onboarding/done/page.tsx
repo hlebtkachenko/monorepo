@@ -6,6 +6,8 @@ import { withAdminBypass } from "@workspace/db"
 import { workspace } from "@workspace/db/schema"
 import { getTranslations } from "@workspace/i18n/server"
 
+import { isDevPreview } from "@/lib/dev-preview"
+
 import { assertOnStep, findOwnerWorkspaceId } from "../_lib/resume"
 import { detectOnboardingRole } from "../_lib/role"
 import { DoneCard } from "./done-card"
@@ -18,6 +20,12 @@ export async function generateMetadata() {
 export default async function DonePage() {
   const ctx = await detectOnboardingRole()
   if (!ctx) redirect("/auth/login?error=onboarding-session-expired")
+
+  // Dev-preview renders the success card for design inspection without
+  // a session or the completion-marker DB write.
+  if (await isDevPreview()) {
+    return <DoneCard role={ctx.role} />
+  }
 
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) {

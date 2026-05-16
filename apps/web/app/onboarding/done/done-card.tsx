@@ -2,13 +2,18 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircle2, Building2, UserPlus, Sparkles } from "lucide-react"
 
 import { useTranslations } from "@workspace/i18n/client"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent } from "@workspace/ui/components/card"
 import { Heading } from "@workspace/ui/components/heading"
 import { Text } from "@workspace/ui/components/text"
+import {
+  Building2,
+  CheckCircle2,
+  Sparkles,
+  UserPlus,
+} from "@workspace/ui/lib/icons"
 
 import { completeOnboardingAction } from "../actions"
 import type { OnboardingRole } from "../_lib/role-types"

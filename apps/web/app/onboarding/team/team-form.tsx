@@ -51,18 +51,14 @@ export function TeamForm() {
 
   function announceResult(invitesSent: number, failures: number) {
     if (invitesSent > 0) {
-      toast.success(
-        `${invitesSent} invite${invitesSent === 1 ? "" : "s"} sent`,
-        {
-          description:
-            "If you don't see the email, the dev console transport prints links to your `pnpm dev` terminal — or visit /api/dev/outbox.",
-          duration: 8000,
-        },
-      )
+      toast.success(t("toast.sentTitle", { count: invitesSent }), {
+        description: t("toast.sentDescription"),
+        duration: 8000,
+      })
     }
     if (failures > 0) {
-      toast.error(`${failures} invite${failures === 1 ? "" : "s"} failed`, {
-        description: "Check the dev-server log for the underlying error.",
+      toast.error(t("toast.failedTitle", { count: failures }), {
+        description: t("toast.failedDescription"),
         duration: 8000,
       })
     }

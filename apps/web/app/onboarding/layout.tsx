@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { getTranslations } from "@workspace/i18n/server"
+import { AUTH_ASIDE_LOGOS } from "@workspace/shared"
 import {
   AuthShell,
   AuthShellAside,
@@ -12,10 +13,15 @@ import {
 } from "@workspace/ui/blocks/auth-shell"
 import {
   AuthAside,
+  AuthAsideBottom,
   AuthAsideHeadline,
   AuthAsideQuote,
   AuthAsideSubtitle,
+  AuthAsideTop,
 } from "@workspace/ui/blocks/auth-aside"
+import { Marquee } from "@workspace/ui/components/marquee"
+
+import { isDevPreview } from "@/lib/dev-preview"
 
 import { LanguagePicker } from "../_components/language-picker"
 import { AuthHeaderLinkProvider } from "../auth/(default)/_components/auth-header-link"
@@ -52,7 +58,11 @@ export default async function OnboardingLayout({
   children: ReactNode
 }) {
   const ctx = await detectOnboardingRole()
-  if (!ctx) {
+  const preview = await isDevPreview()
+  const resolvedCtx =
+    ctx ??
+    (preview ? { role: "owner" as const, email: "preview@example.com" } : null)
+  if (!resolvedCtx) {
     // Neither signup-cookie nor invite-cookie present — kick to login.
     // Without one of these, the BA user can't be created at step 3, so
     // there's no path forward through the wizard.
@@ -67,7 +77,7 @@ export default async function OnboardingLayout({
 
   return (
     <AuthHeaderLinkProvider>
-      <OnboardingRoleProvider role={ctx.role}>
+      <OnboardingRoleProvider role={resolvedCtx.role}>
         <AuthShell>
           <AuthShellLeft>
             <AuthShellHeader>
@@ -117,17 +127,42 @@ export default async function OnboardingLayout({
             </AuthShellFooter>
           </AuthShellLeft>
           <AuthShellAside>
-            <AuthAside variant="tone">
-              <AuthAsideHeadline>{tAside("headline")}</AuthAsideHeadline>
-              <AuthAsideSubtitle>
-                {tAside("subtitle", { brand })}
-              </AuthAsideSubtitle>
-              <AuthAsideQuote
-                author={tAside("quote.author")}
-                role={tAside("quote.role")}
-              >
-                {tAside("quote.text")}
-              </AuthAsideQuote>
+            <AuthAside
+              variant="photo"
+              image="/auth/aside-bg.jpg"
+              bgAlign="left"
+            >
+              <AuthAsideTop>
+                <AuthAsideHeadline>{tAside("headline")}</AuthAsideHeadline>
+                <AuthAsideSubtitle>
+                  {tAside("subtitle", { brand })}
+                </AuthAsideSubtitle>
+              </AuthAsideTop>
+              <AuthAsideBottom>
+                <AuthAsideQuote
+                  author={tAside("quote.author")}
+                  role={tAside("quote.role")}
+                >
+                  {tAside("quote.text")}
+                </AuthAsideQuote>
+                <div className="w-full overflow-hidden [mask-image:linear-gradient(90deg,transparent,black_8%,black_92%,transparent)]">
+                  <Marquee
+                    pauseOnHover
+                    repeat={3}
+                    className="mt-2 [--duration:32s] [--gap:2.25rem]"
+                    aria-label="Companies using Afframe"
+                  >
+                    {AUTH_ASIDE_LOGOS.map((name) => (
+                      <span
+                        key={name}
+                        className="font-heading text-sm font-semibold tracking-tight opacity-70"
+                      >
+                        {name}
+                      </span>
+                    ))}
+                  </Marquee>
+                </div>
+              </AuthAsideBottom>
             </AuthAside>
           </AuthShellAside>
         </AuthShell>

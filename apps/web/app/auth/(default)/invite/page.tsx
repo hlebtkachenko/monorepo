@@ -2,6 +2,9 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
 import { getTranslations } from "@workspace/i18n/server"
+import type { InviteRecord } from "@workspace/auth/tokens"
+
+import { isDevPreview } from "@/lib/dev-preview"
 
 import { readInviteClaims } from "../../../onboarding/_lib/invite-cookie"
 import { InviteWelcomeActions } from "./invite-welcome-actions"
@@ -12,7 +15,20 @@ export async function generateMetadata() {
 }
 
 export default async function InviteWelcomePage() {
-  const claims = await readInviteClaims()
+  let claims = await readInviteClaims()
+  // Dev-preview renders the invite card for design inspection even
+  // without a real invite token.
+  if (!claims && (await isDevPreview())) {
+    claims = {
+      id: "preview",
+      email: "preview@example.com",
+      organizationId: "preview",
+      workspaceId: "preview",
+      role: "member",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    } satisfies InviteRecord
+  }
   if (!claims) {
     redirect("/auth/login?error=missing-invite-token")
   }

@@ -1,6 +1,6 @@
 # Showcase Runbook — Agent Instructions
 
-Add component demos to `apps/web/app/showcase/page.tsx`. This is a single-page showcase of ALL shadcn/ui components in the monorepo.
+Add component demos to `apps/admin/app/showcase/page.tsx`. This is a single-page showcase of ALL shadcn/ui components in the monorepo.
 
 ## Reference Example
 
@@ -31,11 +31,11 @@ Button section is already implemented. Use it as the template for all other comp
 4. Use realistic but short placeholder text (e.g., "Project Settings" not "Lorem ipsum")
 5. For interactive components (Dialog, Sheet, Drawer, etc.), wrap content in a trigger button
 6. DO NOT add `"use client"` unless the component requires client-side state (useState, useEffect)
-7. If client state is needed, extract that component demo into a separate client component file at `apps/web/app/showcase/_components/{name}-demo.tsx` and import it into the main page
+7. If client state is needed, extract that component demo into a separate client component file at `apps/admin/app/showcase/_components/{name}-demo.tsx` and import it into the main page
 
 ### Verification Checkpoints
 After adding EACH component section:
-1. Run `cd /Users/hleb/Desktop/workspace/monorepo && pnpm build` — must pass with zero errors
+1. Run `pnpm build` from the repo root — must pass with zero errors
 2. If build fails, read the error, fix immediately before moving to next component
 3. Never skip a failed build — fix it before proceeding
 
@@ -43,7 +43,7 @@ After adding EACH component section:
 Some components need interactivity. When `useState` is required:
 
 ```tsx
-// apps/web/app/showcase/_components/slider-demo.tsx
+// apps/admin/app/showcase/_components/slider-demo.tsx
 "use client"
 import { useState } from "react"
 import { Slider } from "@workspace/ui/components/slider"
@@ -136,7 +136,7 @@ These are NOT standalone demo-able or are layout-level wrappers:
 
 After ALL components are added:
 1. `pnpm build` — zero errors
-2. `pnpm dev` — open http://localhost:3000/showcase in browser
+2. `pnpm --filter admin dev` — open http://localhost:3100/showcase in browser
 3. Verify page renders without blank sections or errors
 4. Every `<h2>` section must have visible content beneath it
 5. No TypeScript errors, no missing imports

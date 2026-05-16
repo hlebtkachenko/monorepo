@@ -7,6 +7,7 @@ description = "Repo-wide allowlist for known-safe matches"
 paths = [
   '''(^|/)pnpm-lock\.yaml$''',
   '''(^|/)\.context/''',
+  '''(^|/)_junk/''',
   '''(^|/)docs/plans/''',
   '''(^|/)docs/runbooks/AWS-BOOTSTRAP\.md$''',
 ]

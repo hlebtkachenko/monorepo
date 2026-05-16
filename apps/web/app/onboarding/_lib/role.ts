@@ -1,5 +1,7 @@
 import "server-only"
 
+import { isDevPreview } from "@/lib/dev-preview"
+
 import { readInviteClaims } from "./invite-cookie"
 import { readSignupClaims } from "./signup-cookie"
 import type { OnboardingRole } from "./role-types"
@@ -32,5 +34,8 @@ export async function detectOnboardingRole(): Promise<OnboardingRoleContext | nu
   if (invite) return { role: "member", email: invite.email }
   const signup = await readSignupClaims()
   if (signup) return { role: "owner", email: signup.email }
+  if (await isDevPreview()) {
+    return { role: "owner", email: "preview@example.com" }
+  }
   return null
 }

@@ -8,12 +8,9 @@ import type { KnipConfig } from "knip"
  * repo-specific ignores; it does not try to silence findings.
  */
 const config: KnipConfig = {
-  ignore: ["**/*.stories.tsx"],
-  ignoreDependencies: [
-    // tooling consumed only via config files / CLI, not imported
-    "prettier-plugin-tailwindcss",
-  ],
-  ignoreBinaries: ["turbo"],
+  // `next` is referenced as a TS plugin in packages/typescript-config/nextjs.json,
+  // a shared preset whose `next` dependency is resolved by the consuming apps.
+  ignoreUnresolved: ["next"],
   workspaces: {
     ".": {
       entry: ["scripts/*.mjs"],

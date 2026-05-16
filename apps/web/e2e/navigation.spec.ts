@@ -10,18 +10,24 @@ test.describe("Page navigation", () => {
 
   test("forgot-password navigable from login flow", async ({ page }) => {
     await page.goto("/auth/login")
-    await page.locator("input#email").fill("test@example.com")
-    await page.locator('button[type="submit"]').click()
+    await page
+      .getByRole("textbox", { name: "Work email" })
+      .fill("test@example.com")
+    await page.getByRole("button", { name: "Continue", exact: true }).click()
     await page.waitForURL("**/auth/login/password**")
     await page.locator('a[href="/auth/forgot-password"]').click()
     await page.waitForURL("**/auth/forgot-password")
-    await expect(page.locator("input#email")).toBeVisible()
+    await expect(
+      page.getByRole("textbox", { name: "Work email" }),
+    ).toBeVisible()
   })
 
   test("back to login from forgot-password", async ({ page }) => {
     await page.goto("/auth/forgot-password")
     await page.locator('a[href="/auth/login"]').first().click()
     await page.waitForURL("**/auth/login")
-    await expect(page.locator("input#email")).toBeVisible()
+    await expect(
+      page.getByRole("textbox", { name: "Work email" }),
+    ).toBeVisible()
   })
 })

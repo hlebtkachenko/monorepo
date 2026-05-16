@@ -18,7 +18,9 @@
     "lint": {
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"]
     },
-    "format": {},
+    "format": {
+      "cache": false
+    },
     "typecheck": {
       "dependsOn": ["^typecheck"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
@@ -27,6 +29,29 @@
     "test": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"]
+    },
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "outputs": ["coverage/**"]
+    },
+    "build-storybook": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "outputs": ["storybook-static/**"]
+    },
+    "test-storybook": {
+      "dependsOn": ["build-storybook"],
+      "cache": false
+    },
+    "size": {
+      "dependsOn": ["build"],
+      "outputs": []
+    },
+    "synth": {
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "outputs": ["cdk.out/**"],
+      "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN"]
     },
     "dev": {
       "cache": false,

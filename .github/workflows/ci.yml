@@ -34,10 +34,10 @@ jobs:
         env:
           AWS_ACCOUNT_ID: "000000000000"
           APP_DOMAIN: example.com
-        run: pnpm turbo typecheck
+        run: pnpm turbo typecheck --ui=stream --continue
 
       - name: Lint
-        run: pnpm turbo lint
+        run: pnpm turbo lint --ui=stream --continue
 
       - name: CDK Synth
         # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
@@ -45,7 +45,7 @@ jobs:
         env:
           AWS_ACCOUNT_ID: "000000000000"
           APP_DOMAIN: example.com
-        run: pnpm --filter @workspace/cdk synth
+        run: pnpm turbo synth --ui=stream
 
       - name: Test
         # @workspace/db tests require a Postgres 18 testcontainer or service.
@@ -54,13 +54,13 @@ jobs:
         env:
           AWS_ACCOUNT_ID: "123456789012"
           APP_DOMAIN: test.example.com
-        run: pnpm turbo test --filter=!@workspace/db
+        run: pnpm turbo test --filter=!@workspace/db --ui=stream --continue
 
       - name: Test Coverage
-        run: pnpm --filter @workspace/ui test:coverage
+        run: pnpm turbo test:coverage --filter=@workspace/ui --ui=stream
 
       - name: Build Storybook
-        run: pnpm --filter @workspace/ui build-storybook
+        run: pnpm turbo build-storybook --filter=@workspace/ui --ui=stream
 
       - name: Install Playwright
         # Run inside @workspace/ui where playwright is a devDependency.
@@ -78,7 +78,7 @@ jobs:
             "pnpm dlx wait-on tcp:127.0.0.1:6006 && pnpm --filter @workspace/ui test-storybook --url http://127.0.0.1:6006"
 
       - name: Build
-        run: pnpm turbo build
+        run: pnpm turbo build --ui=stream
 
   gitleaks:
     runs-on: ubuntu-latest

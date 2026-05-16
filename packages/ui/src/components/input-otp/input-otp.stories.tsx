@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react"
 import { expect, userEvent, within } from "storybook/test"
 import {
+  INPUT_OTP_PATTERNS,
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
@@ -47,6 +48,45 @@ export const FourDigit: Story = {
         <InputOTPSlot index={1} />
         <InputOTPSlot index={2} />
         <InputOTPSlot index={3} />
+      </InputOTPGroup>
+    </InputOTP>
+  ),
+}
+
+export const NumericOnly: Story = {
+  render: () => (
+    <InputOTP
+      maxLength={6}
+      pattern={INPUT_OTP_PATTERNS.numeric}
+      inputMode="numeric"
+    >
+      <InputOTPGroup>
+        <InputOTPSlot index={0} />
+        <InputOTPSlot index={1} />
+        <InputOTPSlot index={2} />
+        <InputOTPSlot index={3} />
+        <InputOTPSlot index={4} />
+        <InputOTPSlot index={5} />
+      </InputOTPGroup>
+    </InputOTP>
+  ),
+}
+
+export const LargeNumeric: Story = {
+  render: () => (
+    <InputOTP
+      maxLength={6}
+      pattern={INPUT_OTP_PATTERNS.numeric}
+      inputMode="numeric"
+      containerClassName="w-full"
+    >
+      <InputOTPGroup size="xl">
+        <InputOTPSlot index={0} />
+        <InputOTPSlot index={1} />
+        <InputOTPSlot index={2} />
+        <InputOTPSlot index={3} />
+        <InputOTPSlot index={4} />
+        <InputOTPSlot index={5} />
       </InputOTPGroup>
     </InputOTP>
   ),

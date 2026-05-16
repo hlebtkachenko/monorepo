@@ -1,0 +1,31 @@
+name: Knip
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: knip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  knip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # ADVISORY: day-1 findings on a never-checked 101k LOC repo are noisy.
+      # This step is warn-only and never fails the PR.
+      - name: Run knip
+        continue-on-error: true
+        run: pnpm knip

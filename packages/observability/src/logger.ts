@@ -15,10 +15,7 @@ import { BASELINE_REDACT_PATHS } from "./redact-baseline"
  * `tool_call_log.input_json` / `output_json`.
  */
 
-export {
-  BASELINE_REDACT_PATHS,
-  BASELINE_PINO_REDACT_PATHS,
-} from "./redact-baseline"
+export { BASELINE_REDACT_PATHS } from "./redact-baseline"
 
 const isProduction = process.env["NODE_ENV"] === "production"
 // Skip pino-pretty in test env — it is not a dependency and tests don't need

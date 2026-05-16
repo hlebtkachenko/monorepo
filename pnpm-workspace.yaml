@@ -22,6 +22,10 @@ allowBuilds:
   core-js-pure: false
   cpu-features: true
   esbuild: true
+  # Git-hook install is driven by the root `prepare` script (`lefthook install`).
+  # The package's own postinstall is redundant and fails inside git worktrees
+  # where core.hooksPath is set.
+  lefthook: false
   msgpackr-extract: true
   msw: false
   protobufjs: true

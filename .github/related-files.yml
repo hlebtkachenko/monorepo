@@ -1,0 +1,22 @@
+# Paired-file rules for the paired-files CI check.
+#
+# Each entry under `pairs` declares a relationship: when a PR changes a file
+# matching `when_changed`, the same PR is expected to also change at least one
+# file matching `require_one_of`. The check is run by
+# `.github/scripts/check-paired-files.sh` from `.github/workflows/paired-files.yml`.
+#
+# Fields:
+#   id             - stable identifier for the rule (used in log output).
+#   when_changed   - glob; if any changed file matches, the rule is evaluated.
+#   require_one_of - glob; at least one changed file must match it.
+#   severity       - `warn` (advisory, exit 0) or `block` (fails the check).
+#   reason         - human-readable explanation shown on violation.
+#
+# Globs are matched with shell pattern matching (`**` spans directories).
+
+pairs:
+  - id: schema-needs-migration
+    when_changed: "packages/db/src/schema/**"
+    require_one_of: "packages/db/migrations/**"
+    severity: block
+    reason: "Drizzle schema changes must ship with a SQL migration (ADR-0009). The handwritten SQL files in packages/db/migrations/ are the schema source of truth; the TypeScript schema in packages/db/src/schema/ only provides runtime types and must track those migrations."

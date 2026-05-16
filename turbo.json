@@ -26,8 +26,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
-      "cache": false
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"]
     },
     "dev": {
       "cache": false,

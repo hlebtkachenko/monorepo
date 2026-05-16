@@ -2,6 +2,10 @@
 
 Instructions for AI agents (Claude Code, Codex, Cursor) working in this monorepo.
 
+## Issue Tracking
+
+Issues and planning live in **Linear** — team Afframe (key `AFF`). Agents reach it through the `linear` MCP server (`mcp__linear__*` tools): list, search, read, create, and update issues in-session. Conductor can also open a workspace directly from a Linear issue. When work spans sessions, the Linear issue is the source of truth — read it before starting, update it as you go. Current branch-recovery and merge work is grouped under the Linear **Cleanup** project.
+
 ## Architecture
 
 - **Monorepo**: Turborepo + pnpm workspaces

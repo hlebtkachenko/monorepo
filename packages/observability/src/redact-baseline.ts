@@ -59,8 +59,3 @@ export const BASELINE_REDACT_PATHS: readonly string[] = Object.freeze([
   "*.rodneCislo",
   "*.phoneNumber",
 ])
-
-/**
- * Backwards-compatible alias for the prior export name.
- */
-export const BASELINE_PINO_REDACT_PATHS = BASELINE_REDACT_PATHS

@@ -13,11 +13,12 @@ import {
  * instance (`./server`) owns the actual auth state; this client speaks to
  * the catchall route at `/api/auth/[...all]`.
  *
- * `baseURL` is optional in same-origin browser contexts (Better Auth
- * resolves to `window.location.origin`), but explicit makes intent clear.
+ * baseURL is intentionally omitted so Better Auth defaults to
+ * `window.location.origin` — every `pnpm dev --port N` instance and every
+ * deployed origin gets the right URL without an extra env var to drift
+ * from PORT. Same-origin only; no cross-origin auth surface today.
  */
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
   plugins: [adminClient(), magicLinkClient(), twoFactorClient()],
 })
 

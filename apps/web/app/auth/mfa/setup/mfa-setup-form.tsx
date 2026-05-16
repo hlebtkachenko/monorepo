@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -18,15 +17,17 @@ import {
 } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
 import {
+  INPUT_OTP_PATTERNS,
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
 import { PasswordInput } from "@workspace/ui/components/password-input"
+import { QRCode, QRCodeSvg } from "@workspace/ui/components/qr-code"
 import { Text } from "@workspace/ui/components/text"
-import { ArrowLeft, Copy, Check } from "@workspace/ui/lib/icons"
+import { Copy, Check } from "@workspace/ui/lib/icons"
 
-type Stage = "password" | "verify"
+type Stage = "password" | "qr" | "totp"
 
 interface EnrollState {
   totpURI: string
@@ -36,6 +37,7 @@ interface EnrollState {
 export function MfaSetupForm() {
   const router = useRouter()
   const t = useTranslations("auth.mfa.setup")
+  const tBrand = useTranslations("brand")
   const tValidation = useTranslations("auth.validation")
 
   const [stage, setStage] = useState<Stage>("password")
@@ -71,7 +73,7 @@ export function MfaSetupForm() {
         return
       }
       setEnroll({ totpURI, secret: extractSecret(totpURI) })
-      setStage("verify")
+      setStage("qr")
     } catch (err) {
       setPasswordError((err as Error).message ?? t("password.errorGeneric"))
     } finally {
@@ -114,14 +116,6 @@ export function MfaSetupForm() {
   if (stage === "password") {
     return (
       <div className="flex flex-col gap-8">
-        <Link
-          href="/workspace/profile"
-          className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          {t("backToProfile")}
-        </Link>
-
         <header className="flex flex-col gap-2">
           <Heading level={2} className="mt-0">
             {t("password.title")}
@@ -171,84 +165,88 @@ export function MfaSetupForm() {
     )
   }
 
-  return (
-    <div className="flex flex-col gap-8">
-      <button
-        type="button"
-        onClick={() => {
-          setStage("password")
-          setEnroll(null)
-          otpForm.reset({ code: "" })
-          setOtpServerError(null)
-        }}
-        className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" aria-hidden="true" />
-        {t("backToProfile")}
-      </button>
+  if (stage === "qr") {
+    return (
+      <div className="flex flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("verify.step1")}
+          </Heading>
+          <Text variant="muted">{t("verify.step1Description")}</Text>
+        </header>
 
-      <header className="flex flex-col gap-2">
-        <Heading level={2} className="mt-0">
-          {t("verify.title")}
-        </Heading>
-        <Text variant="muted">{t("verify.description")}</Text>
-      </header>
-
-      {enroll && (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">{t("verify.uriLabel")}</span>
-            <div className="flex items-stretch gap-2">
-              <code className="flex-1 rounded-lg border border-input bg-muted/40 p-3 text-xs break-all">
-                {enroll.totpURI}
-              </code>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => copyValue(enroll.totpURI, "uri")}
-                aria-label={t("verify.copy")}
-              >
+        {enroll && (
+          <section className="flex flex-col gap-4">
+            <button
+              type="button"
+              onClick={() => copyValue(enroll.totpURI, "uri")}
+              aria-label={t("verify.copy")}
+              className="group relative mx-auto rounded-xl border border-input bg-white p-4 transition-colors hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <QRCode value={enroll.totpURI} size={192} level="M">
+                <QRCodeSvg />
+              </QRCode>
+              <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/95 px-2 py-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                 {copied === "uri" ? (
-                  <Check className="size-4" aria-hidden="true" />
+                  <Check className="size-3" aria-hidden="true" />
                 ) : (
-                  <Copy className="size-4" aria-hidden="true" />
+                  <Copy className="size-3" aria-hidden="true" />
                 )}
                 {copied === "uri" ? t("verify.copied") : t("verify.copy")}
-              </Button>
-            </div>
-          </div>
+              </span>
+            </button>
 
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">
-              {t("verify.secretLabel")}
-            </span>
-            <div className="flex items-stretch gap-2">
-              <code className="flex-1 rounded-lg border border-input bg-muted/40 p-3 text-xs break-all">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">
+                  {t("verify.secretLabel")}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyValue(enroll.secret, "secret")}
+                  aria-label={t("verify.copy")}
+                >
+                  {copied === "secret" ? (
+                    <Check className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Copy className="size-4" aria-hidden="true" />
+                  )}
+                  {copied === "secret" ? t("verify.copied") : t("verify.copy")}
+                </Button>
+              </div>
+              <code className="block w-full rounded-lg border border-input bg-muted/40 p-3 text-xs break-all">
                 {enroll.secret}
               </code>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => copyValue(enroll.secret, "secret")}
-                aria-label={t("verify.copy")}
-              >
-                {copied === "secret" ? (
-                  <Check className="size-4" aria-hidden="true" />
-                ) : (
-                  <Copy className="size-4" aria-hidden="true" />
-                )}
-                {copied === "secret" ? t("verify.copied") : t("verify.copy")}
-              </Button>
+              <Text variant="small" className="text-muted-foreground">
+                {t("verify.secretHint")}
+              </Text>
             </div>
-          </div>
-        </div>
-      )}
+          </section>
+        )}
+
+        <Button type="button" size="xl" onClick={() => setStage("totp")}>
+          {t("verify.continue")}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-2">
+        <Heading level={2} className="mt-0">
+          {t("verify.step2")}
+        </Heading>
+        <Text variant="muted">
+          {t("verify.step2Description", { brand: tBrand("name") })}
+        </Text>
+      </header>
 
       <form
         onSubmit={otpForm.handleSubmit(onSubmitVerify)}
-        className="flex flex-col gap-5"
+        className="flex flex-col gap-4"
         noValidate
       >
         <FieldGroup>
@@ -259,13 +257,16 @@ export function MfaSetupForm() {
             <InputOTP
               id="mfa-otp"
               maxLength={6}
+              pattern={INPUT_OTP_PATTERNS.numeric}
+              inputMode="numeric"
               value={code}
               onChange={(v) =>
                 otpForm.setValue("code", v, { shouldValidate: false })
               }
+              containerClassName="w-full"
               autoFocus
             >
-              <InputOTPGroup>
+              <InputOTPGroup size="xl">
                 <InputOTPSlot index={0} />
                 <InputOTPSlot index={1} />
                 <InputOTPSlot index={2} />
@@ -296,6 +297,20 @@ export function MfaSetupForm() {
           {otpForm.formState.isSubmitting
             ? t("verify.submitting")
             : t("verify.submit")}
+        </Button>
+
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto self-start p-0 text-muted-foreground"
+          onClick={() => {
+            setStage("qr")
+            otpForm.reset({ code: "" })
+            setOtpServerError(null)
+          }}
+        >
+          {t("verify.backToScan")}
         </Button>
       </form>
     </div>

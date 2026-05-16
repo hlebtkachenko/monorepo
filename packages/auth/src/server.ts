@@ -193,6 +193,9 @@ export const auth = betterAuth({
   plugins: [
     admin(),
     twoFactor({
+      // Issuer surfaced in the authenticator app row (e.g. "Afframe
+      // (alice@hapd.cz)"). Without this BA defaults to "Better Auth".
+      issuer: "Afframe",
       // BA plugin core treats field names as camelCase (backupCodes, userId).
       // Our Drizzle table exposes snake_case JS keys (backup_codes, user_id)
       // matching the SQL columns. Remap so the adapter's `schema[fieldName]`

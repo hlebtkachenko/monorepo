@@ -25,8 +25,11 @@ import {
 import { Marquee } from "@workspace/ui/components/marquee"
 import { WalletMinimal } from "@workspace/ui/lib/icons"
 
+import { ArrowLeft } from "@workspace/ui/lib/icons"
+
+import { isDevPreview } from "@/lib/dev-preview"
+
 import { LanguagePicker } from "../../_components/language-picker"
-import { AccountMenu } from "../_components/account-menu"
 
 /**
  * Layout for signed-in MFA flows (currently just `/auth/mfa/setup`).
@@ -45,13 +48,15 @@ export default async function AuthMfaLayout({
   children: ReactNode
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) {
+  const preview = await isDevPreview()
+  if (!session && !preview) {
     redirect("/auth/login")
   }
 
   const tBrand = await getTranslations("brand")
   const tLayout = await getTranslations("layout.footer")
   const tAside = await getTranslations("auth.aside")
+  const tMfa = await getTranslations("auth.mfa.setup")
   const brand = tBrand("name")
   const year = new Date().getFullYear()
 
@@ -67,7 +72,13 @@ export default async function AuthMfaLayout({
               />
               {brand}
             </span>
-            <AccountMenu email={session.user.email} />
+            <Link
+              href="/workspace/profile"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              {tMfa("backToProfile")}
+            </Link>
           </div>
         </AuthShellHeader>
         <AuthShellBody>{children}</AuthShellBody>

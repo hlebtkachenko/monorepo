@@ -46,6 +46,21 @@ diff <(jq -S . .github/rulesets/main.json) <(jq -S . /tmp/live.json)
 gh api --method DELETE /repos/hlebtkachenko/monorepo/rulesets/16205433
 ```
 
+## Tag protection (`tags.json`)
+
+Separate ruleset protecting `v*` release tags (`release.yml` triggers on
+`push: tags v*`). Not yet applied — POST it to create, then record the
+returned `id` here like the main ruleset above.
+
+```bash
+gh api --method POST -H "Accept: application/vnd.github+json" \
+  /repos/hlebtkachenko/monorepo/rulesets --input .github/rulesets/tags.json
+```
+
+Rules: `creation` (only the admin bypass actor cuts release tags),
+`update` + `non_fast_forward` (tags are immutable once pushed),
+`deletion` (no tag deletes).
+
 ## Notes
 
 - `target: branch` + `ref_name.include: refs/heads/main`. Default branch is `main`.

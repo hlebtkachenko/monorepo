@@ -1,25 +1,38 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "futureFlags": {
+    "affectedUsingTaskInputs": true,
+    "pruneIncludesGlobalFiles": true
+  },
+  "globalDependencies": ["tsconfig.json", "eslint.config.js", "pnpm-workspace.yaml", ".npmrc"],
+  "globalEnv": ["CI", "NODE_ENV"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["BUILD_SHA", "BUILD_TIME", "BUILD_VERSION", "NODE_ENV"]
+      "env": ["BUILD_SHA", "BUILD_TIME", "BUILD_VERSION", "NODE_ENV"],
+      "outputLogs": "new-only"
     },
-    "lint": {},
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"]
+    },
     "format": {},
     "typecheck": {
-      "dependsOn": ["^typecheck"]
+      "dependsOn": ["^typecheck"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN"]
     },
     "test": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "cache": false
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "interruptible": true
     }
   }
 }

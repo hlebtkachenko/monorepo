@@ -25,6 +25,7 @@ jobs:
       APP_DOMAIN: example.com
       BETTER_AUTH_URL: "http://localhost:3010"
       BETTER_AUTH_SECRET: "e2e-test-secret-not-real-0123456789ab"
+      APP_TOKEN_SECRET: "e2e-app-token-secret-not-real-0123456789ab"
     steps:
       - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:

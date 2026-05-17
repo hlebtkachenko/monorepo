@@ -1,9 +1,10 @@
 # NOTE on path-filtering: required-status-check rules + paths-ignore on a
 # workflow trigger create stuck PRs (skipped checks read as "missing" to the
 # rule engine). We intentionally do NOT path-filter this workflow at the
-# trigger level. The `ci` aggregation shim job now exists (see bottom of this
-# file) and satisfies the single required `ci` status check; path-filtering at
-# the trigger level is still deliberately not enabled for the reason above.
+# trigger level. The `ci` aggregation shim job (bottom of file) satisfies
+# the single required `ci` status check, and the `changes` job below uses
+# `dorny/paths-filter` to skip expensive downstream jobs WITHIN this
+# workflow — `ci` still posts on every run so branch protection is happy.
 
 name: CI
 
@@ -20,6 +21,37 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Upstream paths-filter so downstream jobs can skip when their inputs
+  # didn't change. Wall-time impact: skipping `storybook` drops ~220s
+  # from PRs that don't touch packages/ui/**. The `ci` aggregator at
+  # the bottom of this file treats `skipped` as non-failure, so skipped
+  # jobs do not break the required `ci` status check.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ui: ${{ steps.filter.outputs.ui }}
+      infra: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            ui:
+              - 'packages/ui/**'
+            infra:
+              - 'infra/cdk/**'
+              - 'apps/*/package.json'
+              - 'pnpm-lock.yaml'
+
   lint-typecheck:
     runs-on: ubuntu-latest
     permissions:
@@ -35,18 +67,38 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
 
+      - id: filter
+        # In-job paths-filter for the CDK Synth step gate below. Keeps
+        # lint-typecheck from serializing behind the `changes` job — the
+        # cdk gate is only one step, not the whole job.
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            infra:
+              - 'infra/cdk/**'
+              - 'apps/*/package.json'
+              - 'pnpm-lock.yaml'
+
       - name: Typecheck
+        # --affected scopes to packages touched vs the PR base. Empty diff
+        # = no-op. Full graph still runs on push to main (HEAD^ base).
         env:
           AWS_ACCOUNT_ID: "000000000000"
           APP_DOMAIN: example.com
-        run: pnpm turbo typecheck --ui=stream --continue
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        run: pnpm turbo typecheck --affected --ui=stream --continue
 
       - name: Lint
-        run: pnpm turbo lint --ui=stream --continue
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        run: pnpm turbo lint --affected --ui=stream --continue
 
       - name: CDK Synth
         # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
         # Real account ID + domains come from repo secrets at deploy time.
+        # Gated on infra/** changes — saves ~20-40s on PRs that don't
+        # touch CDK or dependency surfaces it reads.
+        if: steps.filter.outputs.infra == 'true'
         env:
           AWS_ACCOUNT_ID: "000000000000"
           APP_DOMAIN: example.com
@@ -72,10 +124,15 @@ jobs:
         # @workspace/db tests require a Postgres 18 testcontainer or service.
         # They run in the dedicated db-tests.yml workflow. Excluding here
         # avoids Docker overhead + double execution.
+        # --affected scopes to packages touched vs the PR base. Full graph
+        # still runs on push to main (HEAD^ base = previous commit only,
+        # so on main the affected scope is one-commit delta, which is the
+        # right scope for main).
         env:
           AWS_ACCOUNT_ID: "123456789012"
           APP_DOMAIN: test.example.com
-        run: pnpm turbo test --filter=!@workspace/db --ui=stream --continue
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        run: pnpm turbo test --filter=!@workspace/db --affected --ui=stream --continue
 
       - name: Test Coverage
         # Advisory step — scope to packages affected vs the PR base.
@@ -87,6 +144,13 @@ jobs:
         run: pnpm turbo test:coverage --filter=@workspace/ui --affected --ui=stream
 
   storybook:
+    # Skipped when no `packages/ui/**` change — Storybook build + interaction
+    # + a11y tests are ~220-240s on every UI PR. Skipping saves the full
+    # wall on non-UI PRs. The `ci` aggregator below treats `skipped` as
+    # non-failure (only `failure|cancelled` red it), so the required `ci`
+    # status check still posts green when this job skips.
+    needs: [changes]
+    if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -96,8 +160,9 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
-          # Full history so `turbo --affected` can diff against the PR base.
-          fetch-depth: 0
+          # No `--affected` here — full graph for storybook build is fine
+          # (turbo task cache already restores unchanged output) and
+          # fetch-depth: 0 is unnecessary cost.
           persist-credentials: false
       - uses: ./.github/actions/setup
 
@@ -147,8 +212,10 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
-          # Full history so `turbo --affected` can diff against the PR base.
-          fetch-depth: 0
+          # Build stays full-graph — deploy/release path consumes the full
+          # build artifact set (apps/web/.next/standalone, apps/api/dist,
+          # apps/admin/.next). Partial build = poisoned release. So no
+          # --affected here, and no need for fetch-depth: 0 either.
           persist-credentials: false
       - uses: ./.github/actions/setup
 
@@ -167,8 +234,12 @@ jobs:
   # keeps reporting a single `ci` context that is green only when every real
   # job succeeded. `if: always()` ensures it runs even when a dependency
   # fails, so a failure is reported instead of the context going missing.
+  # `changes` is in needs so a paths-filter failure surfaces here too.
+  # `skipped` is treated as non-failure (only `failure|cancelled` red the
+  # aggregator) — that's how the storybook skip works without breaking
+  # the required `ci` check.
   ci:
-    needs: [lint-typecheck, unit-test, storybook, build]
+    needs: [changes, lint-typecheck, unit-test, storybook, build]
     if: always()
     runs-on: ubuntu-latest
     permissions: {}

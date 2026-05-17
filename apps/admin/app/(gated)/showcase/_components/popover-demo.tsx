@@ -21,7 +21,9 @@ export function PopoverDemo() {
       <PopoverContent>
         <PopoverHeader>
           <PopoverTitle>Filter</PopoverTitle>
-          <PopoverDescription>Narrow down results by date range.</PopoverDescription>
+          <PopoverDescription>
+            Narrow down results by date range.
+          </PopoverDescription>
         </PopoverHeader>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">

@@ -16,7 +16,7 @@ export function HoverCardDemo() {
       </HoverCardTrigger>
       <HoverCardContent>
         <div className="flex gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-sm">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
             HT
           </div>
           <div className="flex flex-col gap-0.5">

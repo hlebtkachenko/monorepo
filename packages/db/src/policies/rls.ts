@@ -22,11 +22,13 @@
  *   - 0002_auth.sql       — auth_invite
  *   - 0003_rls_force.sql  — organization
  *   - 0004_audit.sql      — tool_call_log
+ *   - 0015_api_key.sql    — api_key
  *
  * If you add an organization-scoped table, add it here AND to a migration
  * that creates the `organization_isolation` policy with the NULLIF guard.
  */
 export const ORGANIZATION_SCOPED_TABLES = [
+  "api_key",
   "auth_invite",
   "organization",
   "tool_call_log",

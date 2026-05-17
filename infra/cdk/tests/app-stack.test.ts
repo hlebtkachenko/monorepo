@@ -12,13 +12,13 @@ describe("AppStack Fargate hardening", () => {
     })
   })
 
-  it("all 6 containers drop ALL Linux capabilities", () => {
+  it("all 7 containers drop ALL Linux capabilities", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
       | undefined
     const containers = taskDef?.Properties?.ContainerDefinitions ?? []
-    expect(containers.length).toBe(6)
+    expect(containers.length).toBe(7)
     for (const container of containers as Array<{
       LinuxParameters?: { Capabilities?: { Drop?: string[] } }
       Name?: string
@@ -261,7 +261,7 @@ describe("AppStack Fargate hardening", () => {
         SourceVolume?: string
       }>
     }>
-    expect(containers.length).toBe(6)
+    expect(containers.length).toBe(7)
     for (const container of containers) {
       const tmpMount = container.MountPoints?.find(
         (m) => m.ContainerPath === "/tmp",

@@ -188,21 +188,48 @@ Until approved, SES is sandboxed (200/day to verified addresses only). Resend co
 
 ### 9. Cloudflare Tunnels
 
-Per env:
+The two tunnels already exist (Zero Trust → Networks → Connectors):
+`monorepo-staging` and `monorepo-production`. Their connector tokens are in
+the repo secrets `CLOUDFLARE_TUNNEL_TOKEN_STAGING` / `_PRODUCTION`; the deploy
+workflow copies each into Secrets Manager as
+`monorepo-{env}-cloudflare-tunnel-token`.
 
-1. In Cloudflare → Zero Trust → Access → Tunnels → Create a tunnel
-2. Name it `monorepo-staging` (then later `monorepo-production`)
-3. Cloudflare emits a connector token. Copy it.
-4. Store as repo secret:
-   ```bash
-   gh secret set CLOUDFLARE_TUNNEL_TOKEN_STAGING --body "<token>" --repo hlebtkachenko/monorepo
-   ```
-5. In the tunnel's Public Hostnames tab, add:
-   - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
-   - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (leave blank for catch-all), **Service** `HTTP localhost:3000`
-6. Repeat for `monorepo-production` with `app.afframe.com`
+> One-time: the `windhoek`→`monorepo` codename rename never reached the
+> Cloudflare dashboard — if the tunnels still show as `windhoek-staging` /
+> `windhoek-production`, rename them to `monorepo-*` (Connectors → tunnel →
+> ⋯ → Rename). Cosmetic only — the tunnel id + connector token are unchanged.
 
-The tunnel connector starts running inside the Fargate task on first deploy. Until then it'll show "inactive" in Cloudflare dashboard.
+Per env, open the tunnel (Connectors → click `monorepo-{env}` → Edit →
+**Published application routes** / Public Hostname) and add — `monorepo-staging`
+shown, substitute the production hosts for `monorepo-production`:
+
+- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
+- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000`
+- **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
+- **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK derives as `admin.<env-domain>`.
+
+Production: same on `monorepo-production` with `app.afframe.com`,
+`api.afframe.com`, `admin.app.afframe.com`.
+
+**No Cloudflare Access on `admin.*` or `api.*`.** Cloudflare Access can only
+filter by Cloudflare-visible identity (email, email domain, IdP groups) — it
+has no knowledge of afframe `workspace_membership`, so it cannot express
+"member of an allowlisted staff workspace." Staff are intentionally
+cross-domain, so an email/domain Access policy would wrongly exclude valid
+staff, and an allow-everyone policy is just a useless second login. Admin
+access is controlled solely by the in-app workspace-allowlist gate
+(`apps/admin/app/(gated)/layout.tsx` + `ADMIN_WORKSPACE_ALLOWLIST`); `api.*`
+solely by API keys. (If bot-walling the admin surface is wanted later, use
+Cloudflare WAF rate-limit rules — not Access.)
+
+The tunnel connector runs as the `cloudflared` container inside the Fargate
+task — a tunnel shows "DOWN"/"INACTIVE" in Cloudflare until that task is
+running and its token matches.
+
+> **Admin allowlist** — set the `ADMIN_WORKSPACE_ALLOWLIST` GitHub Actions
+> variable (per environment) to a comma-separated list of `workspace` ids whose
+> members may sign into admin. Unset ⇒ the gate denies everyone. Changing it is
+> a redeploy. Staff workspaces are created manually; there is no admin role.
 
 ### 10. Flip the bootstrap flag
 

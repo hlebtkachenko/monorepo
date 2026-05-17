@@ -12,8 +12,9 @@ describe("HealthController (smoke)", () => {
       controllers: [HealthController],
     }).compile()
 
+    // HealthController itself declares `@Controller({ path: "api", … })`,
+    // so the route resolves to `/api/health` without an extra global prefix.
     app = module.createNestApplication()
-    app.setGlobalPrefix("api")
     await app.init()
   })
 

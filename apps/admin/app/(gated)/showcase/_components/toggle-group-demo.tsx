@@ -1,7 +1,10 @@
 "use client"
 
 import { AlignLeft, AlignCenter, AlignRight } from "lucide-react"
-import { ToggleGroup, ToggleGroupItem } from "@workspace/ui/components/toggle-group"
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@workspace/ui/components/toggle-group"
 
 export function ToggleGroupDemo() {
   return (

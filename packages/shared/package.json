@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./auth": "./src/auth/index.ts"
+    "./auth": "./src/auth/index.ts",
+    "./api": "./src/api/index.ts",
+    "./errors": "./src/errors.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

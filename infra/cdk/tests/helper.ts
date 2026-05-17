@@ -58,6 +58,7 @@ export function buildTestApp(): BuiltApp {
     appBucket: data.appBucket,
     webRepository: data.webRepository,
     apiRepository: data.apiRepository,
+    adminRepository: data.adminRepository,
     domain: TEST_DOMAIN,
   })
 

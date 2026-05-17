@@ -16,6 +16,13 @@ export {
   type InviteRecord,
 } from "./invite"
 export {
+  generateRawApiKey,
+  hashApiKey,
+  API_KEY_TOKEN_BYTES,
+  API_KEY_PREFIX,
+  type GeneratedApiKey,
+} from "./api-key"
+export {
   signActiveWorkspaceToken,
   verifyActiveWorkspaceToken,
   type ActiveWorkspaceClaims,

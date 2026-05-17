@@ -32,6 +32,15 @@ Build-time identity (set by Dockerfile ARG; empty in local dev is fine):
 | `BUILD_TIME`    | image build                          |
 | `BUILD_VERSION` | image build (used as Sentry release) |
 
+## Admin (apps/admin, NestJS-free Next.js staff surface)
+
+`apps/admin` runs its own Better Auth wiring under the admin origin and reuses
+the Better Auth / Database / Email vars below. `PORT` defaults to `3100`.
+
+| Var                         | Required | Notes                                                                                                                                                                                                                                                                      |
+| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ADMIN_WORKSPACE_ALLOWLIST` | no       | Comma-separated `workspace` ids whose members may sign into admin. Empty/unset → the gate denies everyone (fail closed). In prod it comes from the `ADMIN_WORKSPACE_ALLOWLIST` GitHub Actions variable, surfaced into the admin container by `infra/cdk/lib/app-stack.ts`. |
+
 ## Database (packages/db + drizzle migrations + workers)
 
 | Var                   | Path                 | Notes                                                                                                  |

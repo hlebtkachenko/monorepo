@@ -1,0 +1,71 @@
+# OpenAPI spec drift + lint for the public API (apps/api).
+#
+# Two gates:
+#   1. Drift — re-emit apps/api/openapi/v1.json from the code and fail on any
+#      diff. The committed spec must always match the controllers (same idea
+#      as db-schema-drift.yml). Regenerate with `pnpm --filter api emit:openapi`.
+#   2. Lint — Spectral validates the spec against apps/api/.spectral.yaml.
+#
+# Advisory until the first green PR cycle (see docs/conventions/CI-POLICY.md).
+
+name: OpenAPI lint
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/src/**"
+      - "apps/api/scripts/emit-openapi.ts"
+      - "apps/api/openapi/**"
+      - "apps/api/.spectral.yaml"
+      - "packages/shared/src/api/**"
+      - ".github/workflows/openapi-lint.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/openapi/**"
+
+permissions: {}
+
+concurrency:
+  group: openapi-lint-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  openapi:
+    name: Emit drift + Spectral lint
+    runs-on: ubuntu-latest
+    continue-on-error: true # ADVISORY — flip to required after first green run
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: ./.github/actions/setup
+
+      - name: Re-emit OpenAPI spec
+        run: pnpm --filter api emit:openapi
+
+      - name: Drift gate
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- apps/api/openapi/v1.json; then
+            echo "::error::OpenAPI spec drift. The committed apps/api/openapi/v1.json"
+            echo "does not match the code. Regenerate and commit:"
+            echo "  pnpm --filter api emit:openapi"
+            exit 1
+          fi
+          echo "OpenAPI spec matches the code"
+
+      - name: Spectral lint
+        run: pnpm exec spectral lint apps/api/openapi/v1.json --ruleset apps/api/.spectral.yaml
+
+      - name: Upload current spec as artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: openapi-v1-spec
+          path: apps/api/openapi/v1.json
+          retention-days: 7

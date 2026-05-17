@@ -1,8 +1,14 @@
-import { Controller, Get } from "@nestjs/common"
+import { Controller, Get, VERSION_NEUTRAL } from "@nestjs/common"
 
-@Controller("health")
+/**
+ * Version-neutral health endpoint at `/api/health`. The Fargate container
+ * healthcheck (apps/api/Dockerfile) and the ECS `essential` api container
+ * both depend on this exact path — it must stay `/api/health` regardless of
+ * the URI versioning applied to the public `/v1/*` surface.
+ */
+@Controller({ path: "api", version: VERSION_NEUTRAL })
 export class HealthController {
-  @Get()
+  @Get("health")
   check() {
     return {
       status: "ok",

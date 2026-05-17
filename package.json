@@ -17,6 +17,7 @@
     "@commitlint/cli": "^21.0.1",
     "@commitlint/config-conventional": "^21.0.1",
     "@faker-js/faker": "^10.4.0",
+    "@stoplight/spectral-cli": "^6.15.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",

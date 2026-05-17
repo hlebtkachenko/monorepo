@@ -528,6 +528,28 @@ $$;
 SET default_table_access_method = heap;
 
 --
+-- Name: api_key; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.api_key (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    name text NOT NULL,
+    prefix character varying(20) NOT NULL,
+    key_hash text NOT NULL,
+    scopes text[] DEFAULT '{}'::text[] NOT NULL,
+    created_by_user_id uuid,
+    last_used_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    revoked_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.api_key FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: app_user; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -920,6 +942,20 @@ CREATE TABLE public.workspace_membership (
 ALTER TABLE ONLY public.workspace_membership FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: api_key api_key_key_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_key
+    ADD CONSTRAINT api_key_key_hash_key UNIQUE (key_hash);
+
+--
+-- Name: api_key api_key_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_key
+    ADD CONSTRAINT api_key_pkey PRIMARY KEY (id);
+
+--
 -- Name: app_user app_user_email_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1093,6 +1129,18 @@ ALTER TABLE ONLY public.workspace_membership
 
 ALTER TABLE ONLY public.workspace
     ADD CONSTRAINT workspace_pkey PRIMARY KEY (id);
+
+--
+-- Name: api_key_key_hash_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_key_key_hash_idx ON public.api_key USING btree (key_hash);
+
+--
+-- Name: api_key_organization_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_key_organization_idx ON public.api_key USING btree (organization_id);
 
 --
 -- Name: app_user_phone_idx; Type: INDEX; Schema: public; Owner: -
@@ -1461,6 +1509,27 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
 
 --
+-- Name: api_key api_key_created_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_key
+    ADD CONSTRAINT api_key_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES public.app_user(id);
+
+--
+-- Name: api_key api_key_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_key
+    ADD CONSTRAINT api_key_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id) ON DELETE CASCADE;
+
+--
+-- Name: api_key api_key_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.api_key
+    ADD CONSTRAINT api_key_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
+
+--
 -- Name: audit_event audit_event_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1692,6 +1761,12 @@ ALTER TABLE ONLY public.workspace_membership
     ADD CONSTRAINT workspace_membership_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
+-- Name: api_key; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.api_key ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: workspace_billing app_workspace_billing_owner_admin; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -1774,6 +1849,12 @@ CREATE POLICY org_membership_ws_admin_write ON public.organization_membership US
 --
 
 ALTER TABLE public.organization ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: api_key organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.api_key USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: auth_invite organization_isolation; Type: POLICY; Schema: public; Owner: -

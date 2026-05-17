@@ -98,22 +98,26 @@ jobs:
           if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
           if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
 
-      - name: Resolve role ARN + domain for environment
+      - name: Resolve role ARN + domains for environment
         id: env
         env:
           STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
           PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
           STAGING_DOMAIN: ${{ vars.APP_DOMAIN_STAGING }}
           PRODUCTION_DOMAIN: ${{ vars.APP_DOMAIN_PRODUCTION }}
+          STAGING_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_STAGING }}
+          PRODUCTION_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_PRODUCTION }}
         run: |
           case "$ENV_NAME" in
             staging)
               echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT"
               echo "domain=$STAGING_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "admin_domain=$STAGING_ADMIN_DOMAIN" >> "$GITHUB_OUTPUT"
               ;;
             production)
               echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT"
               echo "domain=$PRODUCTION_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "admin_domain=$PRODUCTION_ADMIN_DOMAIN" >> "$GITHUB_OUTPUT"
               ;;
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
@@ -275,6 +279,10 @@ jobs:
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           APP_DOMAIN: ${{ steps.env.outputs.domain }}
+          # Admin public host — its own per-env value, NOT a subdomain of
+          # APP_DOMAIN (production admin is admin.afframe.com, web is
+          # app.afframe.com). bin/app.ts requires it.
+          ADMIN_DOMAIN: ${{ steps.env.outputs.admin_domain }}
           # Comma-separated workspace ids allowed into admin.afframe.com.
           # Empty when the variable is unset — the admin gate then fails
           # closed (nobody authorized). Set vars.ADMIN_WORKSPACE_ALLOWLIST

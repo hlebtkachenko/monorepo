@@ -112,6 +112,8 @@ gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION --body "arn:aws:iam::${AWS_ACCOUNT_
 gh variable set AWS_REGION --body eu-central-1 --repo hlebtkachenko/monorepo
 gh variable set APP_DOMAIN_STAGING --body staging.afframe.com --repo hlebtkachenko/monorepo
 gh variable set APP_DOMAIN_PRODUCTION --body app.afframe.com --repo hlebtkachenko/monorepo
+gh variable set ADMIN_DOMAIN_STAGING --body admin.staging.afframe.com --repo hlebtkachenko/monorepo
+gh variable set ADMIN_DOMAIN_PRODUCTION --body admin.afframe.com --repo hlebtkachenko/monorepo
 gh variable set AWS_BOOTSTRAPPED --body false --repo hlebtkachenko/monorepo
 ```
 
@@ -121,6 +123,7 @@ gh variable set AWS_BOOTSTRAPPED --body false --repo hlebtkachenko/monorepo
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export AWS_REGION=eu-central-1
 export APP_DOMAIN=placeholder.local   # cdk bootstrap doesn't synth app stacks but bin/app.ts requires this
+export ADMIN_DOMAIN=placeholder.local # same — bin/app.ts requires it even though bootstrap skips app stacks
 cd infra
 make bootstrap-cdk REGION=eu-central-1
 ```
@@ -206,10 +209,12 @@ shown, substitute the production hosts for `monorepo-production`:
 - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
 - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000`
 - **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
-- **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK derives as `admin.<env-domain>`.
+- **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK reads from the `ADMIN_DOMAIN` variable (`admin.staging.afframe.com` for staging).
 
 Production: same on `monorepo-production` with `app.afframe.com`,
-`api.afframe.com`, `admin.app.afframe.com`.
+`api.afframe.com`, and **`admin.afframe.com`** — note the production admin host
+is `admin.afframe.com`, NOT `admin.app.afframe.com`. Admin is a distinct host,
+not a subdomain of the web domain (`ADMIN_DOMAIN_PRODUCTION`).
 
 **No Cloudflare Access on `admin.*` or `api.*`.** Cloudflare Access can only
 filter by Cloudflare-visible identity (email, email domain, IdP groups) — it

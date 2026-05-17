@@ -64,7 +64,7 @@
     "synth": {
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": ["cdk.out/**"],
-      "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN"]
+      "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN", "ADMIN_DOMAIN"]
     },
     "dev": {
       "cache": false,

@@ -42,6 +42,7 @@ export interface AppStackProps extends StackProps {
   readonly apiRepository: Repository
   readonly adminRepository: Repository
   readonly domain: string
+  readonly adminDomain: string
 }
 
 /**
@@ -416,13 +417,14 @@ export class AppStack extends Stack {
     // It runs its own Better Auth wiring under the admin origin, so the
     // session cookie is host-scoped — admin login is independent of web.
     // Same shared signing secrets as web (sessions/tokens must verify across
-    // both). Access is gated in-app by the ADMIN_WORKSPACE_ALLOWLIST check
-    // (apps/admin/app/(gated)/layout.tsx); Cloudflare Access is the edge
-    // layer (docs/runbooks/AWS-DEPLOY.md).
+    // both). Access is gated solely in-app by the ADMIN_WORKSPACE_ALLOWLIST
+    // check (apps/admin/app/(gated)/layout.tsx) — no Cloudflare Access.
     //
-    // adminOrigin derives from props.domain (admin.<env-domain>): the
-    // operator points the matching Cloudflare Tunnel hostname at :3100.
-    const adminOrigin = `https://admin.${props.domain}`
+    // adminOrigin is an explicit per-env host (ADMIN_DOMAIN), NOT derived
+    // from props.domain: production admin is admin.afframe.com while web is
+    // app.afframe.com, so the two domains do not share a stem. The operator
+    // points the matching Cloudflare Tunnel hostname at :3100.
+    const adminOrigin = `https://${props.adminDomain}`
     const adminContainer = taskDef.addContainer("admin", {
       containerName: "admin",
       image: ContainerImage.fromEcrRepository(props.adminRepository, imageTag),

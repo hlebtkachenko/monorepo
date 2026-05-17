@@ -125,7 +125,10 @@ Two new Cloudflare Tunnel public hostnames route into the same task — $0
 infra, no CDK change, configured manually (see `docs/runbooks/AWS-DEPLOY.md`):
 
 - `api.afframe.com` → `http://localhost:3001` (the existing NestJS container)
-- `admin.<env-domain>` → `http://localhost:3100` (the new admin container).
+- `admin.afframe.com` → `http://localhost:3100` (the new admin container). The
+  admin host is its own per-env value (`ADMIN_DOMAIN`), not a subdomain of the
+  web domain: production web is `app.afframe.com`, production admin is
+  `admin.afframe.com`. Staging is `admin.staging.afframe.com`.
 
 Neither host uses Cloudflare Access. Access filters only by Cloudflare-visible
 identity (email / domain / IdP groups) and has no knowledge of afframe

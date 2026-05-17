@@ -45,10 +45,11 @@ jobs:
 
       - name: CDK Synth
         # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
-        # Real account ID + domain come from repo secrets at deploy time.
+        # Real account ID + domains come from repo secrets at deploy time.
         env:
           AWS_ACCOUNT_ID: "000000000000"
           APP_DOMAIN: example.com
+          ADMIN_DOMAIN: admin.example.com
         run: pnpm turbo synth --ui=stream
 
   unit-test:

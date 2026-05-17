@@ -6,7 +6,7 @@
  * (tsc) cannot compile them. Webpack inlines those sources into one
  * `dist/main.js`; everything in `node_modules` (NestJS, drizzle, native
  * modules like `@cerbos/grpc` / `@openfga/sdk`) stays external and ships in
- * the pruned runner image's `node_modules`. See ADR-0019.
+ * the pruned runner image's `node_modules`. See ADR-0020.
  *
  * NestJS calls this module with its default config + the webpack ref.
  */

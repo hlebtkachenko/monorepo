@@ -58,7 +58,7 @@ RUN pnpm --filter api build
 # transitive deps (drizzle-orm, better-auth, postgres, ...) as bare requires
 # from dist/main.js. pnpm's default isolated layout nests those under
 # .pnpm/@workspace+*; a hoisted (flat) node_modules makes them resolvable.
-# See ADR-0019.
+# See ADR-0020.
 RUN pnpm --filter api --config.node-linker=hoisted deploy --prod --legacy /prod
 
 # ---------- runner ----------

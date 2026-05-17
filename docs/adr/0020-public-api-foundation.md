@@ -1,4 +1,4 @@
-# 19. Public API foundation: NestJS-native contracts on a webpack bundle
+# 20. Public API foundation: NestJS-native contracts on a webpack bundle
 
 - Status: Accepted
 - Date: 2026-05-17

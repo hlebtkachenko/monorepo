@@ -133,7 +133,7 @@ New trip-wire: the non-essential `admin` container fails quietly — a
 crash-loop neither fails the task nor is loud. Consider a CloudWatch alarm on
 the admin container's exit count.
 
-See ADR [0019](0019-public-api-foundation.md) for the public API foundation
+See ADR [0020](0020-public-api-foundation.md) for the public API foundation
 behind `api.afframe.com`.
 
 ## References

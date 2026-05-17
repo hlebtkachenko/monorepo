@@ -15,7 +15,10 @@ Operator runbook for the Turborepo Remote Cache deployed on Cloudflare Workers +
 Pre-flight (one-time):
 
 1. Cloudflare dashboard → enable R2 (requires payment method even for free-tier use)
-2. Create API token with scopes: `Account Workers Scripts:Edit` + `Account R2 Storage:Edit`. Optionally `Zone DNS:Edit` (only needed if adding custom domain later).
+2. Create API token with scopes:
+   - `Account Workers Scripts:Edit`
+   - `Account R2 Storage:Edit`
+   - `Zone DNS:Edit` scoped to `afframe.com` — REQUIRED for the custom-domain route (`cache.afframe.com`) declared in `infra/cloudflare/wrangler.jsonc`. Wrangler auto-manages the DNS record on every deploy.
 3. GitHub repo Secrets:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`

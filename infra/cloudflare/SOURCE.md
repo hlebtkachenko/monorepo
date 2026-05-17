@@ -16,13 +16,13 @@ deployment path per the upstream README.
 
 ## What was vendored
 
-| Path                 | Source                      | Modified?                                                                                          |
-| -------------------- | --------------------------- | -------------------------------------------------------------------------------------------------- |
-| `src/` (entire tree) | upstream `src/`             | No — verbatim copy from v4.0.0                                                                     |
-| `LICENSE`            | upstream `LICENSE`          | No                                                                                                 |
-| `tsconfig.json`      | NEW — slimmed               | Yes — dropped vitest types + jsx config                                                            |
-| `package.json`       | NEW — slimmed               | Yes — kept only runtime + minimal build deps; no vite, no vitepress, no upstream lint/test tooling |
-| `wrangler.jsonc`     | NEW — written for this repo | Yes — `*.workers.dev` route, 14d cache TTL, `turbo-cache-prod` bucket name                         |
+| Path                 | Source                      | Modified?                                                                                                                 |
+| -------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `src/` (entire tree) | upstream `src/`             | No — verbatim copy from v4.0.0                                                                                            |
+| `LICENSE`            | upstream `LICENSE`          | No                                                                                                                        |
+| `tsconfig.json`      | NEW — slimmed               | Yes — dropped vitest types + jsx config                                                                                   |
+| `package.json`       | NEW — slimmed               | Yes — kept only runtime + minimal build deps; no vite, no vitepress, no upstream lint/test tooling                        |
+| `wrangler.jsonc`     | NEW — written for this repo | Yes — `cache.afframe.com` custom-domain route (auto-DNS via Zone DNS:Edit), 14d cache TTL, `turbo-cache-prod` bucket name |
 
 ## Upgrade path
 

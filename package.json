@@ -11,6 +11,7 @@
     "test": "turbo test",
     "knip": "knip",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
+    "check:pr-title": "node scripts/check-pr-title.mjs",
     "prepare": "lefthook install --force || true"
   },
   "devDependencies": {

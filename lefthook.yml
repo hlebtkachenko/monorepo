@@ -35,3 +35,17 @@ pre-commit:
         else
           echo "[lefthook gitleaks] not installed — skipping. brew install gitleaks to enable local secret scan."
         fi
+
+pre-push:
+  commands:
+    pr-title:
+      # Lints HEAD commit subject against the same Conventional Commits
+      # rules as .github/workflows/pr-title.yml (conv-title check).
+      # squash-merge ships ONLY the PR title to main, and `gh pr create`
+      # defaults the title to the latest commit subject — so a bad subject
+      # here will become a bad PR title and fail conv-title in CI.
+      # Catches it before the push and the CI roundtrip.
+      # `glob: "*"` forces the command to run on every push (default
+      # behaviour skips when push has no file changes).
+      glob: "*"
+      run: node scripts/check-pr-title.mjs "$(git log -1 --format='%s')"

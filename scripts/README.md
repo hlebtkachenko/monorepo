@@ -2,13 +2,14 @@
 
 Repo-wide utility scripts. Plain Node.js / bash, no workspace package.
 
-| Script | Purpose | Run |
-|---|---|---|
-| `_TEMPLATE.sh` | Scaffold for new bash scripts (set -euo pipefail, info/warn/err helpers, usage block) | `cp _TEMPLATE.sh new-script.sh` |
-| `safe-pull.sh` | git fast-forward pull with untracked-collision + dirty-tree guards | `bash scripts/safe-pull.sh` |
-| `check-client-secrets.mjs` | Scan `apps/web/.next/static/**/*.js` for server env leaks, inlined secret values (api keys, db URLs with creds, JWTs, age keys), and shipped source maps | `pnpm check:client-secrets` (skips gracefully if no build) |
-| `license-check.mjs` | License compliance scan | (see file header) |
-| `sbom-diff.mjs` | SBOM diff between commits | (see file header) |
+| Script                     | Purpose                                                                                                                                                                                                                                                          | Run                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `_TEMPLATE.sh`             | Scaffold for new bash scripts (set -euo pipefail, info/warn/err helpers, usage block)                                                                                                                                                                            | `cp _TEMPLATE.sh new-script.sh`                            |
+| `safe-pull.sh`             | git fast-forward pull with untracked-collision + dirty-tree guards                                                                                                                                                                                               | `bash scripts/safe-pull.sh`                                |
+| `check-client-secrets.mjs` | Scan `apps/web/.next/static/**/*.js` for server env leaks, inlined secret values (api keys, db URLs with creds, JWTs, age keys), and shipped source maps                                                                                                         | `pnpm check:client-secrets` (skips gracefully if no build) |
+| `check-pr-title.mjs`       | Lint a PR title against `.github/workflows/pr-title.yml` rules (types + scopes + lowercase-first subject + 100-char max). Wired to lefthook `pre-push` against the latest commit subject — catches a bad title before it becomes a red `conv-title` check on CI. | `pnpm check:pr-title "<title>"`                            |
+| `license-check.mjs`        | License compliance scan                                                                                                                                                                                                                                          | (see file header)                                          |
+| `sbom-diff.mjs`            | SBOM diff between commits                                                                                                                                                                                                                                        | (see file header)                                          |
 
 ## Conventions
 

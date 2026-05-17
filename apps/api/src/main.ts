@@ -48,4 +48,4 @@ async function bootstrap() {
   await app.listen(port, host)
 }
 
-bootstrap()
+void bootstrap()

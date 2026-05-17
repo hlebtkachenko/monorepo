@@ -29,7 +29,9 @@ export function resolveThrottleKey(
 /** Throttler guard that rate-limits per API key (see {@link resolveThrottleKey}). */
 @Injectable()
 export class ApiKeyThrottlerGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, unknown>): Promise<string> {
+  protected override async getTracker(
+    req: Record<string, unknown>,
+  ): Promise<string> {
     const request = req as unknown as Request
     return resolveThrottleKey(request.headers?.authorization, request.ip)
   }

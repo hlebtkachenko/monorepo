@@ -161,7 +161,7 @@ export function MfaSetupForm() {
         </header>
 
         <form
-          onSubmit={onSubmitPassword}
+          onSubmit={(e) => void onSubmitPassword(e)}
           className="flex flex-col gap-5"
           noValidate
         >
@@ -216,7 +216,7 @@ export function MfaSetupForm() {
           <section className="flex flex-col gap-4">
             <button
               type="button"
-              onClick={() => copyValue(enroll.totpURI, "uri")}
+              onClick={() => void copyValue(enroll.totpURI, "uri")}
               aria-label={t("verify.copy")}
               className="group relative mx-auto rounded-xl border border-input bg-white p-4 transition-colors hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
@@ -242,7 +242,7 @@ export function MfaSetupForm() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => copyValue(enroll.secret, "secret")}
+                  onClick={() => void copyValue(enroll.secret, "secret")}
                   aria-label={t("verify.copy")}
                 >
                   {copied === "secret" ? (
@@ -292,7 +292,9 @@ export function MfaSetupForm() {
               variant="outline"
               size="sm"
               className="self-start"
-              onClick={() => copyValue(enroll.backupCodes.join("\n"), "backup")}
+              onClick={() =>
+                void copyValue(enroll.backupCodes.join("\n"), "backup")
+              }
             >
               {copied === "backup" ? (
                 <Check className="size-4" aria-hidden="true" />
@@ -344,7 +346,7 @@ export function MfaSetupForm() {
       </header>
 
       <form
-        onSubmit={otpForm.handleSubmit(onSubmitVerify)}
+        onSubmit={(e) => void otpForm.handleSubmit(onSubmitVerify)(e)}
         className="flex flex-col gap-4"
         noValidate
       >

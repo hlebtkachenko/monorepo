@@ -156,3 +156,15 @@ function CustomCreateLabel() {
 export const WithCustomCreateLabel: Story = {
   render: () => <CustomCreateLabel />,
 }
+
+export const CreateOptionPositionFirst: Story = {
+  args: { children: "First", createOptionPosition: "first" },
+}
+
+export const CreateOptionPositionLast: Story = {
+  args: { children: "Last", createOptionPosition: "last" },
+}
+
+export const Disabled: Story = {
+  args: { children: "Disabled", disabled: true },
+}

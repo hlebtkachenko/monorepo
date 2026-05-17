@@ -27,4 +27,14 @@ export const config = [
       "react/prop-types": "off",
     },
   },
+  // Story files use Storybook's `render` function pattern which triggers false
+  // positives from react-hooks/rules-of-hooks (the function is named "render"
+  // but is not a React component or custom hook). Relax hooks rules for stories.
+  {
+    files: ["**/*.stories.tsx", "**/*.stories.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+      "react-hooks/exhaustive-deps": "off",
+    },
+  },
 ]

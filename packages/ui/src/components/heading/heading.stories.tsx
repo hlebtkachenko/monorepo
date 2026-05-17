@@ -76,3 +76,19 @@ export const CustomClassName: Story = {
     className: "text-primary",
   },
 }
+
+export const Level1: Story = {
+  args: { children: "Heading Level 1", level: 1 },
+}
+
+export const Level2: Story = {
+  args: { children: "Heading Level 2", level: 2 },
+}
+
+export const Level3: Story = {
+  args: { children: "Heading Level 3", level: 3 },
+}
+
+export const Level4: Story = {
+  args: { children: "Heading Level 4", level: 4 },
+}

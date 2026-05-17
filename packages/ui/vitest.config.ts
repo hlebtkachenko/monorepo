@@ -14,11 +14,22 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
+    // CI runners run these jsdom + userEvent tests alongside Docker-backed
+    // test tasks; 5s is too tight under that load. 20s absorbs the jitter.
+    testTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       include: ["src/components/**/*.tsx"],
       exclude: ["**/*.stories.tsx", "**/*.test.tsx"],
+      thresholds: {
+        // Floor locked to measured coverage (2026-05-17) — prevents silent regression to zero.
+        // Raise these intentionally as test coverage improves.
+        statements: 54,
+        branches: 42,
+        functions: 57,
+        lines: 56,
+      },
     },
   },
 })

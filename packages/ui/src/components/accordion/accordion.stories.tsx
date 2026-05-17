@@ -81,3 +81,18 @@ export const DefaultOpen: Story = {
     </Accordion>
   ),
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <Accordion type="single" collapsible className="w-64">
+      <AccordionItem value="item-1">
+        <AccordionTrigger disabled>Disabled item</AccordionTrigger>
+        <AccordionContent>This content cannot be toggled.</AccordionContent>
+      </AccordionItem>
+      <AccordionItem value="item-2">
+        <AccordionTrigger>Enabled item</AccordionTrigger>
+        <AccordionContent>This content can be toggled.</AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  ),
+}

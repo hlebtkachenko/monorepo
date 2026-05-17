@@ -1,0 +1,140 @@
+name: OpenFGA + pgbouncer version check
+
+# Checks the openfga/openfga and edoburu/pgbouncer image versions pinned as
+# TypeScript string literals in infra/cdk/lib/app-stack.ts against their
+# upstream GitHub release tags. Dependabot Docker only scans Dockerfile FROM
+# lines, so these registry pins are invisible to it — this workflow fills the
+# gap per the CLAUDE.md Dependency Update Coverage Rule.
+#
+# Upstream sources:
+#   openfga/openfga    — https://github.com/openfga/openfga/releases
+#   edoburu/pgbouncer  — https://github.com/edoburu/docker-pgbouncer/releases
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: openfga-version-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+
+      - name: Check openfga/openfga version
+        id: openfga
+        run: |
+          CURRENT=$(grep -oP 'openfga/openfga:v\K[0-9]+\.[0-9]+\.[0-9]+' infra/cdk/lib/app-stack.ts | head -1)
+          LATEST=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/openfga/openfga/releases/latest \
+            | jq -r '.tag_name | ltrimstr("v")')
+          echo "current=$CURRENT"
+          echo "latest=$LATEST"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check edoburu/pgbouncer version
+        id: pgbouncer
+        run: |
+          # edoburu/pgbouncer tags follow the pattern vX.Y.Z-pN where X.Y.Z is
+          # the upstream pgbouncer version and -pN is the patch suffix. The
+          # edoburu/docker-pgbouncer GitHub repo releases track these tags.
+          CURRENT=$(grep -oP 'edoburu/pgbouncer:v\K[0-9]+\.[0-9]+\.[0-9]+-p[0-9]+' infra/cdk/lib/app-stack.ts | head -1)
+          LATEST=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/edoburu/docker-pgbouncer/releases/latest \
+            | jq -r '.tag_name | ltrimstr("v")')
+          echo "current=$CURRENT"
+          echo "latest=$LATEST"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for existing OpenFGA issue
+        if: steps.openfga.outputs.has_updates == 'true'
+        id: existing-openfga
+        run: |
+          COUNT=$(gh issue list --label openfga-update --state open --json number --jq length)
+          echo "exists=$COUNT" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create OpenFGA issue
+        if: steps.openfga.outputs.has_updates == 'true' && steps.existing-openfga.outputs.exists == '0'
+        run: |
+          gh issue create \
+            --title "chore: openfga/openfga update available (v${{ steps.openfga.outputs.latest }})" \
+            --label openfga-update \
+            --body "$(cat <<'BODY'
+          New **openfga/openfga** release detected.
+
+          | | Version |
+          |---|---|
+          | Current pin | \`v${{ steps.openfga.outputs.current }}\` |
+          | Latest release | \`v${{ steps.openfga.outputs.latest }}\` |
+
+          **File to update:** \`infra/cdk/lib/app-stack.ts\`
+          Search for \`ContainerImage.fromRegistry("openfga/openfga:\` and bump the tag.
+
+          Verify the release notes at https://github.com/openfga/openfga/releases before updating.
+          BODY
+          )"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for existing pgbouncer issue
+        if: steps.pgbouncer.outputs.has_updates == 'true'
+        id: existing-pgbouncer
+        run: |
+          COUNT=$(gh issue list --label pgbouncer-update --state open --json number --jq length)
+          echo "exists=$COUNT" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create pgbouncer issue
+        if: steps.pgbouncer.outputs.has_updates == 'true' && steps.existing-pgbouncer.outputs.exists == '0'
+        run: |
+          gh issue create \
+            --title "chore: edoburu/pgbouncer update available (v${{ steps.pgbouncer.outputs.latest }})" \
+            --label pgbouncer-update \
+            --body "$(cat <<'BODY'
+          New **edoburu/pgbouncer** release detected.
+
+          | | Version |
+          |---|---|
+          | Current pin | \`v${{ steps.pgbouncer.outputs.current }}\` |
+          | Latest release | \`v${{ steps.pgbouncer.outputs.latest }}\` |
+
+          **File to update:** \`infra/cdk/lib/app-stack.ts\`
+          Search for \`ContainerImage.fromRegistry("edoburu/pgbouncer:\` and bump the tag.
+
+          Verify the release notes at https://github.com/edoburu/docker-pgbouncer/releases before updating.
+          BODY
+          )"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

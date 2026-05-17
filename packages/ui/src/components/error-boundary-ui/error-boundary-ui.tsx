@@ -149,7 +149,7 @@ function ErrorBoundaryUi({
         <Button
           variant="outline"
           size="sm"
-          onClick={handleCopy}
+          onClick={() => void handleCopy()}
           aria-label={copied ? "Copied to clipboard" : "Copy error details"}
         >
           <Copy />

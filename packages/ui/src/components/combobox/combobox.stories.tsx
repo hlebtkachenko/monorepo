@@ -18,6 +18,24 @@ type Story = StoryObj<typeof Combobox>
 
 const fruits = ["Apple", "Banana", "Blueberry", "Mango", "Orange", "Peach"]
 
+export const Disabled: Story = {
+  render: () => (
+    <Combobox>
+      <ComboboxInput disabled placeholder="Search fruit..." />
+      <ComboboxContent>
+        <ComboboxList>
+          <ComboboxEmpty>No fruit found.</ComboboxEmpty>
+          {fruits.map((fruit) => (
+            <ComboboxItem key={fruit} value={fruit}>
+              {fruit}
+            </ComboboxItem>
+          ))}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  ),
+}
+
 export const Default: Story = {
   render: () => (
     <Combobox>

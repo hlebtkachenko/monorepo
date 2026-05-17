@@ -176,7 +176,7 @@ export function DoneCard({ role }: Props) {
           </Text>
         )}
 
-        <Button size="xl" onClick={onOpen} disabled={submitting}>
+        <Button size="xl" onClick={() => void onOpen()} disabled={submitting}>
           {t("open", { brand: tBrand("name") })}
         </Button>
       </div>

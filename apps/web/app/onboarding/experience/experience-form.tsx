@@ -87,7 +87,7 @@ export function ExperienceForm({ initial }: Props) {
       </header>
 
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
         className="flex flex-col gap-5"
         noValidate
       >

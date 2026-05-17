@@ -13,7 +13,10 @@ import { DEV_PREVIEW_COOKIE } from "@/lib/dev-preview"
  * so the prod path is statically dead-coded.
  */
 export async function GET(req: Request) {
-  if (process.env.NODE_ENV === "production") {
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.ENABLE_DEV_PREVIEW !== "1"
+  ) {
     return new NextResponse("Not found", { status: 404 })
   }
 

@@ -352,7 +352,6 @@ function RelativeTime({
 function AuthorAvatar({ author }: { author: CommitAuthor }) {
   if (author.avatarUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={author.avatarUrl}
         alt=""

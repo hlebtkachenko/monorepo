@@ -27,3 +27,17 @@ export const Required: Story = {
     </div>
   ),
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor="disabled-input">Disabled field</Label>
+      <input
+        id="disabled-input"
+        type="text"
+        disabled
+        placeholder="Cannot edit"
+      />
+    </div>
+  ),
+}

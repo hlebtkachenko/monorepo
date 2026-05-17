@@ -33,7 +33,7 @@ export function formatNumber(
  */
 export function parseNumber(input: string): number | null {
   if (!input) return null
-  const normalized = input.replace(/[\s  ]/g, "").replace(",", ".")
+  const normalized = input.replace(/[\s\u00A0\u202F]/g, "").replace(",", ".")
   const value = Number(normalized)
   return Number.isFinite(value) ? value : null
 }

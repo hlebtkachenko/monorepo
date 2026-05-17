@@ -94,3 +94,18 @@ export const All3Stacked: Story = {
     )
   },
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <RadioGroup defaultValue="starter">
+      <PlanCard
+        value="starter"
+        name="Starter"
+        description="This plan is currently unavailable."
+        features={["1 company", "Up to 3 seats"]}
+        price={{ amount: "$0", period: "/mo" }}
+        disabled
+      />
+    </RadioGroup>
+  ),
+}

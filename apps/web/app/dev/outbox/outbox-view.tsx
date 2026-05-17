@@ -41,9 +41,9 @@ export function OutboxView() {
   }, [])
 
   useEffect(() => {
-    refresh()
+    void refresh()
     if (!autoRefresh) return
-    const id = setInterval(refresh, 5000)
+    const id = setInterval(() => void refresh(), 5000)
     return () => clearInterval(id)
   }, [refresh, autoRefresh])
 
@@ -61,7 +61,7 @@ export function OutboxView() {
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={refresh} variant="outline" size="sm">
+        <Button onClick={() => void refresh()} variant="outline" size="sm">
           {loading ? "Refreshing…" : "Refresh"}
         </Button>
         <Button
@@ -140,10 +140,12 @@ function OutboxItem({ message }: { message: OutboxMessage }) {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(message.url!)
-                    setCopied(true)
-                    setTimeout(() => setCopied(false), 1500)
+                  onClick={() => {
+                    void (async () => {
+                      await navigator.clipboard.writeText(message.url!)
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 1500)
+                    })()
                   }}
                 >
                   {copied ? "Copied" : "Copy"}

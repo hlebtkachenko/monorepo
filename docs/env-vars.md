@@ -120,6 +120,16 @@ L3 — Cerbos sidecar at `localhost:3593` gRPC.
 | ----------------- | ---------------------------------------------- |
 | `CERBOS_ENDPOINT` | override for non-default endpoint (none today) |
 
+## Dev-only HTTP endpoints (apps/web)
+
+Second gate alongside `NODE_ENV !== 'production'`. Both routes return 404 unless their flag is `1`.
+Default `1` in `apps/web/.env.example` and `scripts/generate-env.sh`; must be absent or `0` in staging/production env.
+
+| Var                  | Notes                                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ENABLE_DEV_OUTBOX`  | Enables `GET /api/dev/outbox` (in-memory email list — contains password-reset and invite-token links). |
+| `ENABLE_DEV_PREVIEW` | Enables `GET /api/dev/preview` (sets/clears the auth-guard bypass cookie).                             |
+
 ## Test containers (vitest integration tests)
 
 | Var                           | Notes                                                                 |

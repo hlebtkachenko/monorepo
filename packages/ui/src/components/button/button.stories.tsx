@@ -85,3 +85,7 @@ export const SizeIconLg: Story = {
 export const SizeIconXl: Story = {
   args: { children: "Icon Xl", size: "icon-xl" },
 }
+
+export const SizeXl: Story = {
+  args: { children: "Xl", size: "xl" },
+}

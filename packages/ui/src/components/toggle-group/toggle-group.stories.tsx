@@ -56,3 +56,23 @@ export const Outline: Story = {
     </ToggleGroup>
   ),
 }
+
+export const OrientationHorizontal: Story = {
+  render: () => (
+    <ToggleGroup type="single" orientation="horizontal">
+      <ToggleGroupItem value="left">Left</ToggleGroupItem>
+      <ToggleGroupItem value="center">Center</ToggleGroupItem>
+      <ToggleGroupItem value="right">Right</ToggleGroupItem>
+    </ToggleGroup>
+  ),
+}
+
+export const OrientationVertical: Story = {
+  render: () => (
+    <ToggleGroup type="single" orientation="vertical">
+      <ToggleGroupItem value="top">Top</ToggleGroupItem>
+      <ToggleGroupItem value="middle">Middle</ToggleGroupItem>
+      <ToggleGroupItem value="bottom">Bottom</ToggleGroupItem>
+    </ToggleGroup>
+  ),
+}

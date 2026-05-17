@@ -70,3 +70,57 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+
+  # Cerbos PDP sidecar image (ghcr.io/cerbos/cerbos) baked into the CDK
+  # asset via infra/cerbos/Dockerfile. The non-recursive /infra entry above
+  # does not descend into subdirectories, so this separate entry is required.
+  - package-ecosystem: docker
+    directory: /infra/cerbos
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      infra-cerbos-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
+  # Postgres base image used by the local-dev compose stack.
+  - package-ecosystem: docker
+    directory: /infra/compose/postgres
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      infra-compose-postgres-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
+  # Postgres base image used by the pgTap test container.
+  - package-ecosystem: docker
+    directory: /infra/compose/pgtap
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      infra-compose-pgtap-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
+  # Ubuntu base image used by the devcontainer.
+  - package-ecosystem: docker
+    directory: /.devcontainer
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      devcontainer-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope

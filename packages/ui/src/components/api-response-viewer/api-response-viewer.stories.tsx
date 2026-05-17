@@ -73,3 +73,15 @@ export const HeadersTabDefault: Story = {
 export const TimingTabDefault: Story = {
   args: { response: fullResponse, defaultTab: "timing" },
 }
+
+export const DefaultTabBody: Story = {
+  args: { response: fullResponse, defaultTab: "body" },
+}
+
+export const DefaultTabHeaders: Story = {
+  args: { response: fullResponse, defaultTab: "headers" },
+}
+
+export const DefaultTabTiming: Story = {
+  args: { response: fullResponse, defaultTab: "timing" },
+}

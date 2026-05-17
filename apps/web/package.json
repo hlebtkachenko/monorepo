@@ -10,6 +10,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "size": "size-limit",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
@@ -25,6 +27,7 @@
     "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
+    "@workspace/storage": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.6.10",
     "drizzle-orm": "^0.45.2",
@@ -44,14 +47,19 @@
     "@playwright/test": "^1.60.0",
     "@size-limit/preset-app": "^12.1.0",
     "@tailwindcss/postcss": "^4.2.4",
+    "@testcontainers/postgresql": "^11.14.0",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
+    "@workspace/auth": "workspace:*",
     "@workspace/eslint-config": "workspace:*",
+    "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
+    "postgres": "^3.4.7",
     "size-limit": "^12.1.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
   "size-limit": [
     {

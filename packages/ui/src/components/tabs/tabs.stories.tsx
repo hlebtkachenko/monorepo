@@ -55,3 +55,33 @@ export const Vertical: Story = {
     </Tabs>
   ),
 }
+
+export const Line: Story = {
+  render: () => (
+    <Tabs defaultValue="overview">
+      <TabsList variant="line">
+        <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
+      </TabsList>
+      <TabsContent value="overview">Overview content.</TabsContent>
+      <TabsContent value="analytics">Analytics content.</TabsContent>
+      <TabsContent value="settings">Settings content.</TabsContent>
+    </Tabs>
+  ),
+}
+
+export const Disabled: Story = {
+  render: () => (
+    <Tabs defaultValue="account">
+      <TabsList>
+        <TabsTrigger value="account" disabled>
+          Account
+        </TabsTrigger>
+        <TabsTrigger value="password">Password</TabsTrigger>
+      </TabsList>
+      <TabsContent value="account">Account settings.</TabsContent>
+      <TabsContent value="password">Password settings.</TabsContent>
+    </Tabs>
+  ),
+}

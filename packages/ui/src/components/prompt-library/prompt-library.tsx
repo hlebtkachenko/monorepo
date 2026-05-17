@@ -110,13 +110,10 @@ function PromptLibrary({
   )
 
   const selectPrompt = React.useCallback(
-    async (prompt: Prompt) => {
+    (prompt: Prompt) => {
       setLastSelectedId(prompt.id)
-      try {
-        await navigator.clipboard.writeText(prompt.prompt)
-      } catch {
-        // Clipboard may be unavailable
-      }
+      // Clipboard may be unavailable; copy is best-effort and non-blocking.
+      void navigator.clipboard.writeText(prompt.prompt).catch(() => {})
       setOpen(false)
       onSelect?.(prompt)
     },

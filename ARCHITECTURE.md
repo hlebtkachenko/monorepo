@@ -31,7 +31,7 @@ packages/
   eslint-config/                   Shared ESLint flat configs
   typescript-config/               Shared TypeScript presets
 infra/
-  cdk/                             AWS CDK v2 app stacks (network, data, app, security, observability, billing alarms, backup)
+  cdk/                             AWS CDK v2 app stacks (network, data, app, security, observability, backup)
   cerbos/                          L3 authz policies + tests + DockerImageAsset (ADR-0018)
   openfga/                         L2 authz model + tests + SSM bootstrap (ADR-0018)
   compose/                         Local Docker Compose (Postgres 18 + pgBouncer + pgTap + auth + observability profiles)

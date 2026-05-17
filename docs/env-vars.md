@@ -69,7 +69,7 @@ production guard fires uniformly.
 | Var | Notes |
 |---|---|
 | `AWS_REGION` | `eu-central-1` |
-| `ALERT_EMAIL` | cost-runaway alerts destination (BillingAlarmsStack — PR #77) |
+| `ALERT_EMAIL` | cost-runaway alerts destination (SecurityStack budgets + ObservabilityStack alarms) |
 | `APP_BUCKET` | S3 app bucket; empty in dev = no uploads |
 | `APP_S3_REGION` | consumed by backup scripts (`infra/scripts/pg-dump-nightly.sh`) |
 

@@ -1,7 +1,6 @@
 import { App } from "aws-cdk-lib"
 import { AppStack } from "../lib/app-stack.js"
 import { BackupStack } from "../lib/backup-stack.js"
-import { BillingAlarmsStack } from "../lib/billing-alarms-stack.js"
 import { DataStack } from "../lib/data-stack.js"
 import { NetworkStack } from "../lib/network-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
@@ -20,7 +19,6 @@ interface BuiltApp {
   readonly appStack: AppStack
   readonly security: SecurityStack
   readonly observability: ObservabilityStack
-  readonly billingAlarms: BillingAlarmsStack
   readonly backup: BackupStack
 }
 
@@ -30,10 +28,6 @@ export function buildTestApp(): BuiltApp {
       [`availability-zones:account=${TEST_ACCOUNT}:region=${TEST_REGION}`]: [
         "eu-central-1a",
         "eu-central-1b",
-      ],
-      [`availability-zones:account=${TEST_ACCOUNT}:region=us-east-1`]: [
-        "us-east-1a",
-        "us-east-1b",
       ],
     },
   })
@@ -88,16 +82,6 @@ export function buildTestApp(): BuiltApp {
     },
   )
 
-  const billingAlarms = new BillingAlarmsStack(
-    app,
-    `BillingAlarms-${TEST_ENV_NAME}`,
-    {
-      env: { account: TEST_ACCOUNT, region: "us-east-1" },
-      envName: TEST_ENV_NAME,
-      alertEmail: TEST_ALERT_EMAIL,
-    },
-  )
-
   const backup = new BackupStack(app, `Backup-${TEST_ENV_NAME}`, {
     env: stackEnv,
     envName: TEST_ENV_NAME,
@@ -113,7 +97,6 @@ export function buildTestApp(): BuiltApp {
     appStack,
     security,
     observability,
-    billingAlarms,
     backup,
   }
 }

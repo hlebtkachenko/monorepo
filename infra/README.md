@@ -12,8 +12,8 @@ infra/
   package.json              # scripts (no workspace member)
   README.md
   cdk/                      # AWS CDK v2 app stacks (see cdk/README.md)
-    bin/app.ts              # stack registration (7 stacks)
-    lib/                    # network, data, app, security, observability, billing-alarms, backup
+    bin/app.ts              # stack registration (6 stacks)
+    lib/                    # network, data, app, security, observability, backup
     tests/                  # vitest CDK template assertions
     cdk.json
     cdk.context.json        # committed AZ data for reproducible synth

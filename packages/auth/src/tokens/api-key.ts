@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto"
  *             is shown to the caller exactly once and never persisted.
  *   verify  → hash the presented key, look up api_key by key_hash, reject if
  *             revoked_at IS NOT NULL or expires_at < now(). See
- *             `verifyApiKey` in `@workspace/domain`.
+ *             `verifyApiKey` in `@workspace/auth/api-key-verifier`.
  *
  * Format: `affk_live_<43 base64url chars>` — the `affk_live_` prefix makes
  * keys greppable in logs/secret-scanners and `live` leaves room for a future

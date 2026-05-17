@@ -1,1 +1,0 @@
-export { verifyApiKey } from "./verify"

@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-/** Public-API view of an organization. camelCase JSON; the domain layer maps from the snake_case row. */
+/** Public-API view of an organization. camelCase JSON; the api maps from the snake_case row. */
 export const OrganizationSummarySchema = z.object({
   id: z.uuid(),
   slug: z.string(),
@@ -9,10 +9,10 @@ export const OrganizationSummarySchema = z.object({
 })
 export type OrganizationSummary = z.infer<typeof OrganizationSummarySchema>
 
-/** `GET /v1/organizations` response. */
-export const ListOrganizationsResponseSchema = z.object({
-  organizations: z.array(OrganizationSummarySchema),
+/** `GET /v1/organization` response — the API key's own organization. */
+export const GetOrganizationResponseSchema = z.object({
+  organization: OrganizationSummarySchema,
 })
-export type ListOrganizationsResponse = z.infer<
-  typeof ListOrganizationsResponseSchema
+export type GetOrganizationResponse = z.infer<
+  typeof GetOrganizationResponseSchema
 >

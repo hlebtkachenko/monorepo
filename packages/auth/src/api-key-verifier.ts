@@ -1,24 +1,40 @@
 import { eq } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
 import { api_key } from "@workspace/db/schema"
-import { API_KEY_PREFIX, hashApiKey } from "@workspace/auth/tokens"
-import type { OrgPrincipal } from "../principal"
+
+import { API_KEY_PREFIX, hashApiKey } from "./tokens/api-key"
 
 /**
- * Resolve a raw API key into an {@link OrgPrincipal}, or `null` if the key is
- * unknown, revoked, or expired.
+ * Caller identity resolved from an API key. Organization-scoped: an API key
+ * is always bound to exactly one organization (and its parent workspace).
+ *
+ * The api's ApiKeyGuard resolves this before any controller runs; the
+ * controller passes `organizationId` straight into `withOrganization`.
+ */
+export interface ApiKeyPrincipal {
+  /** app_user.id of the key's creator. Null when the key has no creating user. */
+  readonly userId: string | null
+  readonly organizationId: string
+  readonly workspaceId: string
+  /** Coarse capability scopes carried by the key (api_key.scopes). */
+  readonly scopes: readonly string[]
+}
+
+/**
+ * Resolve a raw API key into an {@link ApiKeyPrincipal}, or `null` if the key
+ * is unknown, revoked, or expired.
  *
  * Lookup is by `sha256(rawKey)` across all organizations, so it runs under
  * `withAdminBypass` — the same cross-organization pattern the invite-consume
- * path uses (see tenancy.ts). `last_used_at` is touched best-effort inside the
- * same transaction.
+ * path uses (see invite-issuer.ts). `last_used_at` is touched best-effort
+ * inside the same transaction.
  *
  * This function is the single seam for API-key verification. Swapping the
  * local table for an external provider (Unkey) later changes only this body.
  */
 export async function verifyApiKey(
   rawKey: string,
-): Promise<OrgPrincipal | null> {
+): Promise<ApiKeyPrincipal | null> {
   if (!rawKey.startsWith(API_KEY_PREFIX)) return null
   const keyHash = hashApiKey(rawKey)
 

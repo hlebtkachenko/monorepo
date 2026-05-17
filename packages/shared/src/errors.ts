@@ -5,6 +5,8 @@
  *
  * `code` is a stable, machine-readable string that appears verbatim in the
  * public API error envelope.
+ *
+ * Reachable as `@workspace/shared/errors`.
  */
 export class DomainError extends Error {
   readonly code: string

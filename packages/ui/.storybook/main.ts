@@ -9,6 +9,7 @@ const baseAddons = [
   "@storybook/addon-docs",
   "@storybook/addon-themes",
   "@storybook/addon-links",
+  "@storybook/addon-designs",
 ]
 
 const heavyAddons = [

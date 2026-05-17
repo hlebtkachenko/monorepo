@@ -9,6 +9,9 @@ import { SecurityStack } from "../lib/security-stack.js"
 export const TEST_ACCOUNT = "123456789012"
 export const TEST_REGION = "eu-central-1"
 export const TEST_DOMAIN = "test.example.com"
+// Deliberately NOT a subdomain of TEST_DOMAIN — proves adminDomain is an
+// independent value, not derived from the web domain.
+export const TEST_ADMIN_DOMAIN = "admin-console.example.net"
 export const TEST_ALERT_EMAIL = "test@example.com"
 export const TEST_ENV_NAME = "test"
 
@@ -60,6 +63,7 @@ export function buildTestApp(): BuiltApp {
     apiRepository: data.apiRepository,
     adminRepository: data.adminRepository,
     domain: TEST_DOMAIN,
+    adminDomain: TEST_ADMIN_DOMAIN,
   })
 
   const security = new SecurityStack(app, `Security-${TEST_ENV_NAME}`, {

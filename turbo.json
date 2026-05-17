@@ -5,7 +5,12 @@
     "affectedUsingTaskInputs": true,
     "pruneIncludesGlobalFiles": true
   },
-  "globalDependencies": ["tsconfig.json", "eslint.config.js", "pnpm-workspace.yaml", ".npmrc"],
+  "globalDependencies": [
+    "tsconfig.json",
+    "eslint.config.js",
+    "pnpm-workspace.yaml",
+    ".npmrc"
+  ],
   "globalEnv": ["CI", "NODE_ENV", "TESTCONTAINERS_REUSE_ENABLE"],
   "tasks": {
     "build": {
@@ -50,7 +55,7 @@
     "synth": {
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "outputs": ["cdk.out/**"],
-      "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN"]
+      "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN", "ADMIN_DOMAIN"]
     },
     "dev": {
       "cache": false,

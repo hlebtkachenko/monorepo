@@ -38,6 +38,16 @@ if (!domain) {
   )
 }
 
+// Admin is a distinct host, not a subdomain of the web domain: production
+// admin is admin.afframe.com while web is app.afframe.com. Sourced from its
+// own per-env variable so the two domains stay independent.
+const adminDomain = process.env.ADMIN_DOMAIN
+if (!adminDomain) {
+  throw new Error(
+    `ADMIN_DOMAIN env var is required for env=${env}. In CI it comes from the ADMIN_DOMAIN_${env.toUpperCase()} repo variable.`,
+  )
+}
+
 const alertEmail = process.env.ALERT_EMAIL ?? "g1053015@icloud.com"
 
 const network = new NetworkStack(app, `Network-${env}`, {
@@ -66,6 +76,7 @@ const appStack = new AppStack(app, `App-${env}`, {
   apiRepository: data.apiRepository,
   adminRepository: data.adminRepository,
   domain,
+  adminDomain,
 })
 
 const security = new SecurityStack(app, `Security-${env}`, {

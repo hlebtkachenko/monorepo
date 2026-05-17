@@ -150,6 +150,36 @@ describe("AppStack Fargate hardening", () => {
     expect(secretNames).toContain("DB_PASSWORD")
   })
 
+  it("admin container BETTER_AUTH_URL is the explicit adminDomain, not derived from the web domain", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+    }>
+    const admin = containers.find((c) => c.Name === "admin")
+    expect(admin).toBeDefined()
+    const envByName = Object.fromEntries(
+      (admin?.Environment ?? []).map((e) => [e.Name, e.Value]),
+    )
+    // adminDomain is its own per-env value (ADMIN_DOMAIN), independent of
+    // the web domain — production admin is admin.afframe.com while web is
+    // app.afframe.com. The admin host-scoped session cookie + every
+    // forgot/reset email link derive from this exact origin.
+    expect(envByName["BETTER_AUTH_URL"]).toBe(
+      "https://admin-console.example.net",
+    )
+    expect(envByName["BETTER_AUTH_TRUSTED_ORIGINS"]).toBe(
+      "https://admin-console.example.net",
+    )
+    // Must NOT contain the web domain — guards against a regression to the
+    // old `admin.${props.domain}` derivation.
+    expect(envByName["BETTER_AUTH_URL"]).not.toContain("test.example.com")
+  })
+
   it("creates CDK-generated Better Auth + app token secrets", () => {
     // Two CDK-managed Secrets live in the AppStack itself:
     //   - monorepo-{env}-better-auth-secret (BetterAuthSecret construct)

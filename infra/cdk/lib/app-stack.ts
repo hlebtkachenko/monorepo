@@ -40,14 +40,17 @@ export interface AppStackProps extends StackProps {
   readonly appBucket: Bucket
   readonly webRepository: Repository
   readonly apiRepository: Repository
+  readonly adminRepository: Repository
   readonly domain: string
 }
 
 /**
  * Cloudflare-Tunnel-fronted ECS Fargate task (ADR 0008).
  *
- * One task per environment, six containers sharing a network namespace:
+ * One task per environment, seven containers sharing a network namespace:
  *   - web         : Next.js, port 3000
+ *   - admin       : Next.js staff surface, port 3100, essential:false — a
+ *                   crash-looping admin must not take down the task
  *   - api         : NestJS, port 3001 (talks to localhost:6432 for db,
  *                   localhost:3593 for Cerbos L3, localhost:8080 for
  *                   OpenFGA L2; also hosts the pg-boss worker pool
@@ -81,6 +84,7 @@ export class AppStack extends Stack {
   readonly service: FargateService
   readonly tunnelTokenSecret: ISecret
   readonly webLogGroup: LogGroup
+  readonly adminLogGroup: LogGroup
   readonly apiLogGroup: LogGroup
   readonly tunnelLogGroup: LogGroup
   readonly pgbouncerLogGroup: LogGroup
@@ -133,7 +137,10 @@ export class AppStack extends Stack {
 
     const taskDef = new FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
-      memoryLimitMiB: 2048,
+      // 3072 (was 2048): the admin container adds a 7th process. CPU stays
+      // 512 — memory headroom is comfortable (~1736 MiB reserved); CPU is
+      // the watch item (see ADR-0008 amendment).
+      memoryLimitMiB: 3072,
       runtimePlatform: {
         cpuArchitecture: CpuArchitecture.ARM64,
         operatingSystemFamily: OperatingSystemFamily.LINUX,
@@ -158,6 +165,10 @@ export class AppStack extends Stack {
 
     this.webLogGroup = new LogGroup(this, "WebLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/web`,
+      retention: RetentionDays.ONE_WEEK,
+    })
+    this.adminLogGroup = new LogGroup(this, "AdminLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/admin`,
       retention: RetentionDays.ONE_WEEK,
     })
     this.apiLogGroup = new LogGroup(this, "ApiLogs", {
@@ -398,6 +409,74 @@ export class AppStack extends Stack {
       readOnly: false,
     })
 
+    // admin container — the staff/dev surface (apps/admin), a separate
+    // Next.js standalone server on port 3100. essential:false so a
+    // crash-looping admin does NOT fail the whole task (web + api stay up).
+    //
+    // It runs its own Better Auth wiring under the admin origin, so the
+    // session cookie is host-scoped — admin login is independent of web.
+    // Same shared signing secrets as web (sessions/tokens must verify across
+    // both). Access is gated in-app by the ADMIN_WORKSPACE_ALLOWLIST check
+    // (apps/admin/app/(gated)/layout.tsx); Cloudflare Access is the edge
+    // layer (docs/runbooks/AWS-DEPLOY.md).
+    //
+    // adminOrigin derives from props.domain (admin.<env-domain>): the
+    // operator points the matching Cloudflare Tunnel hostname at :3100.
+    const adminOrigin = `https://admin.${props.domain}`
+    const adminContainer = taskDef.addContainer("admin", {
+      containerName: "admin",
+      image: ContainerImage.fromEcrRepository(props.adminRepository, imageTag),
+      portMappings: [{ containerPort: 3100 }],
+      essential: false,
+      logging: LogDriver.awsLogs({
+        streamPrefix: "admin",
+        logGroup: this.adminLogGroup,
+      }),
+      environment: {
+        NODE_ENV: "production",
+        APP_ENV: props.envName,
+        PORT: "3100",
+        BETTER_AUTH_URL: adminOrigin,
+        BETTER_AUTH_TRUSTED_ORIGINS: adminOrigin,
+        // Comma-separated workspace ids whose members may sign into admin.
+        // Empty => nobody is authorized (the gate fails closed). Changing
+        // staff access is a redeploy. Sourced from the deploy environment.
+        ADMIN_WORKSPACE_ALLOWLIST: process.env.ADMIN_WORKSPACE_ALLOWLIST ?? "",
+        DB_HOST: "localhost",
+        DB_PORT: "6432",
+        DB_NAME: "monorepo",
+        EMAIL_FROM: `no-reply@${props.domain}`,
+        EMAIL_TRANSPORT: "resend",
+      },
+      secrets: {
+        // Shared with web: sessions + tokens must verify across both apps.
+        BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
+        APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
+        // forgot/reset-password send mail via Resend.
+        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
+        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        DB_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      // Same DATABASE_URL shell-compose + forced HOSTNAME as the web
+      // container — see that block for the safety note on the unencoded
+      // password (RDS secret uses excludePunctuation: true).
+      entryPoint: ["/bin/sh", "-c"],
+      command: [
+        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
+          "HOSTNAME=0.0.0.0 exec node apps/admin/server.js",
+      ],
+      memoryReservationMiB: 384,
+      linuxParameters: linuxParams("AdminLinuxParams"),
+    })
+    adminContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
     // pgBouncer sidecar (ADR-0012 amendment 2026-05-14, decision E.2):
     // in-task connection pool in transaction mode. api connects to
     // 127.0.0.1:6432; pgBouncer forwards to RDS on :5432 using master
@@ -494,6 +573,12 @@ export class AppStack extends Stack {
     // api gets ECONNREFUSED for ~10-15 s at task boot until pgbouncer's
     // listener is up.
     apiContainer.addContainerDependencies({
+      container: pgbouncerContainer,
+      condition: ContainerDependencyCondition.HEALTHY,
+    })
+    // admin reaches the DB through pgbouncer too (the workspace-allowlist
+    // gate query) — wait for the pool to be healthy before it starts.
+    adminContainer.addContainerDependencies({
       container: pgbouncerContainer,
       condition: ContainerDependencyCondition.HEALTHY,
     })

@@ -45,6 +45,7 @@ export class DataStack extends Stack {
   readonly appBucket: Bucket
   readonly webRepository: Repository
   readonly apiRepository: Repository
+  readonly adminRepository: Repository
 
   constructor(scope: Construct, id: string, props: DataStackProps) {
     super(scope, id, props)
@@ -75,6 +76,30 @@ export class DataStack extends Stack {
 
     this.apiRepository = new Repository(this, "ApiRepo", {
       repositoryName: `monorepo-${props.envName}-api`,
+      imageTagMutability: TagMutability.IMMUTABLE,
+      imageScanOnPush: true,
+      lifecycleRules: [
+        {
+          description:
+            "Expire untagged images after 1 day (catches dangling build cache)",
+          tagStatus: TagStatus.UNTAGGED,
+          maxImageAge: Duration.days(1),
+        },
+        {
+          description: "Retain last 10 tagged images",
+          tagStatus: TagStatus.ANY,
+          maxImageCount: 10,
+        },
+      ],
+      removalPolicy:
+        props.envName === "production"
+          ? RemovalPolicy.RETAIN
+          : RemovalPolicy.DESTROY,
+      emptyOnDelete: props.envName !== "production",
+    })
+
+    this.adminRepository = new Repository(this, "AdminRepo", {
+      repositoryName: `monorepo-${props.envName}-admin`,
       imageTagMutability: TagMutability.IMMUTABLE,
       imageScanOnPush: true,
       lifecycleRules: [

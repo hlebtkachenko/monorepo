@@ -65,6 +65,7 @@ const appStack = new AppStack(app, `App-${env}`, {
   appBucket: data.appBucket,
   webRepository: data.webRepository,
   apiRepository: data.apiRepository,
+  adminRepository: data.adminRepository,
   domain,
 })
 

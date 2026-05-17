@@ -203,6 +203,24 @@ jobs:
             BUILD_TIME=${{ github.event.repository.updated_at }}
             BUILD_VERSION=${{ env.IMAGE_TAG }}
 
+      - name: Build + push admin image [stack=all|app-only]
+        if: env.STACK_SCOPE != 'infra-only'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-admin:${{ env.IMAGE_TAG }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=admin-${{ inputs.environment }}
+          cache-to: type=gha,scope=admin-${{ inputs.environment }},mode=max
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            BUILD_VERSION=${{ env.IMAGE_TAG }}
+
       - name: Ensure Cloudflare Tunnel token secret exists in Secrets Manager [stack=all|app-only]
         if: env.STACK_SCOPE != 'infra-only'
         env:
@@ -266,6 +284,11 @@ jobs:
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           APP_DOMAIN: ${{ steps.env.outputs.domain }}
+          # Comma-separated workspace ids allowed into admin.afframe.com.
+          # Empty when the variable is unset — the admin gate then fails
+          # closed (nobody authorized). Set vars.ADMIN_WORKSPACE_ALLOWLIST
+          # to grant staff access; changing it is a redeploy.
+          ADMIN_WORKSPACE_ALLOWLIST: ${{ vars.ADMIN_WORKSPACE_ALLOWLIST }}
         run: |
           pnpm --filter @workspace/cdk exec cdk deploy \
             "App-${ENV_NAME}" \

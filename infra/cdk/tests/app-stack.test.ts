@@ -28,7 +28,7 @@ describe("AppStack Fargate hardening", () => {
     }
   })
 
-  it("api + cloudflared + pgbouncer + cerbos + openfga have readonlyRootFilesystem=true", () => {
+  it("api + cloudflared + cerbos + openfga have readonlyRootFilesystem=true (pgbouncer excluded by design)", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -41,9 +41,14 @@ describe("AppStack Fargate hardening", () => {
     const byName = Object.fromEntries(containers.map((c) => [c.Name, c]))
     expect(byName["api"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["cloudflared"]?.ReadonlyRootFilesystem).toBe(true)
-    expect(byName["pgbouncer"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["cerbos"]?.ReadonlyRootFilesystem).toBe(true)
     expect(byName["openfga"]?.ReadonlyRootFilesystem).toBe(true)
+    // pgbouncer's edoburu entrypoint writes pgbouncer.ini + userlist.txt to
+    // /etc/pgbouncer at boot; the image owns that dir and a Fargate-locked
+    // capDrop ALL + non-root user keep the container hardened without a
+    // read-only rootfs. See the long note in app-stack.ts above the
+    // pgbouncer container block for the full history.
+    expect(byName["pgbouncer"]?.ReadonlyRootFilesystem).toBeFalsy()
   })
 
   it("openfga sidecar is present with postgres datastore + HTTP loopback bind", () => {
@@ -247,7 +252,7 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["LISTEN_ADDR"]).toBe("127.0.0.1")
   })
 
-  it("pgbouncer has writable /etc/pgbouncer volume for generated config", () => {
+  it("pgbouncer relies on image-owned /etc/pgbouncer (no scratch volume, no /etc mount)", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | {
@@ -258,9 +263,15 @@ describe("AppStack Fargate hardening", () => {
         }
       | undefined
     const volumes = taskDef?.Properties?.Volumes ?? []
+    // The previous design mounted an empty ECS scratch volume named
+    // "pgbouncerEtc" over /etc/pgbouncer; that re-owned the dir to root,
+    // which forced user:"0" on the container, which then required CAP_SETGID
+    // for pgbouncer's drop-privilege step — and Fargate refuses any
+    // cap-add. The volume is now gone; the image's own /etc/pgbouncer
+    // (postgres-owned) is used directly.
     expect(
       volumes.some((v: { Name?: string }) => v.Name === "pgbouncerEtc"),
-    ).toBe(true)
+    ).toBe(false)
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -274,8 +285,7 @@ describe("AppStack Fargate hardening", () => {
     const etcMount = pg?.MountPoints?.find(
       (m) => m.ContainerPath === "/etc/pgbouncer",
     )
-    expect(etcMount).toBeDefined()
-    expect(etcMount?.SourceVolume).toBe("pgbouncerEtc")
+    expect(etcMount).toBeUndefined()
   })
 
   it("every container mounts the shared tmp volume at /tmp", () => {

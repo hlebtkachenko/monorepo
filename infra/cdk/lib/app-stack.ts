@@ -157,20 +157,14 @@ export class AppStack extends Stack {
     taskDef.addVolume({ name: "tmp" })
 
     // Drop ALL Linux capabilities. Removes NET_ADMIN/SYS_ADMIN/etc. that
-    // most cryptominer payloads need to operate.
-    //
-    // `keepCaps` is for the narrow case of a container that starts as root and
-    // then drops to its own user (pgbouncer does this via the `user =` line in
-    // pgbouncer.ini). `setgroups(2)` requires CAP_SETGID and `setuid(2)`
-    // requires CAP_SETUID; without them pgbouncer FATALs at boot with
-    // "failed to reset groups: Operation not permitted". The two caps are
-    // moot once pgbouncer is running as the non-root postgres user.
-    const linuxParams = (id: string, keepCaps?: Capability[]) => {
+    // most cryptominer payloads need to operate. Fargate forbids
+    // `addCapabilities` entirely (it rejected SETGID with "Invalid request:
+    // SETGID is not allowed on Fargate"), so the only privilege model
+    // available is "drop only" — every container here runs unprivileged with
+    // ZERO capabilities, period.
+    const linuxParams = (id: string) => {
       const params = new LinuxParameters(this, id)
       params.dropCapabilities(Capability.ALL)
-      if (keepCaps && keepCaps.length > 0) {
-        params.addCapabilities(...keepCaps)
-      }
       return params
     }
 
@@ -506,13 +500,26 @@ export class AppStack extends Stack {
     // fires AFTER release — SET LOCAL has already cleared. See the env
     // block below for the deeper note on why we don't override the default.
     //
-    // Volume `pgbouncerEtc` is a writable scratch over /etc/pgbouncer so
-    // the entrypoint can materialize its generated config (required when
-    // readonlyRootFilesystem=true blocks all other writes).
-    //
     // Per-tenant role separation (ADR-0010 app_user) is a follow-up;
     // see docs/runbooks/AWS-DEPLOY.md "Follow-up: per-tenant role split".
-    taskDef.addVolume({ name: "pgbouncerEtc" })
+    //
+    // pgbouncer container hardening note (2026-05-17): readonlyRootFilesystem
+    // is intentionally OFF and the previous /etc/pgbouncer scratch volume is
+    // removed. The chain of prior attempts was:
+    //   1. readonlyRootFilesystem=true + scratch volume @ /etc/pgbouncer →
+    //      entrypoint as the image's non-root postgres user couldn't write
+    //      userlist.txt because the empty ECS scratch volume mounted as
+    //      root:root.
+    //   2. user:"0" added (PR #102) → entrypoint could write, but pgbouncer
+    //      reads `user = postgres` from its own auto-generated ini and tries
+    //      to setgroups(2)+setuid(2) to drop privileges → FATAL.
+    //   3. linuxParameters.addCapabilities([SETGID, SETUID]) (PR #114) →
+    //      Fargate refuses any cap-add: "Invalid request: SETGID is not
+    //      allowed on Fargate".
+    // The platform-correct unwind is: trust the image's own hardening
+    // (non-root postgres user + capDrop ALL still in place + appSecurityGroup
+    // denies all ingress except loopback). Writable rootfs is a small price
+    // and only this one sidecar pays it.
 
     // pgBouncer SCRAM hash is built by its entrypoint from the plaintext
     // password — the userlist.txt write itself doesn't depend on alpine
@@ -520,10 +527,9 @@ export class AppStack extends Stack {
     const pgbouncerContainer = taskDef.addContainer("pgbouncer", {
       containerName: "pgbouncer",
       image: ContainerImage.fromRegistry("edoburu/pgbouncer:v1.25.1-p0"),
-      // Run as root: the edoburu entrypoint writes pgbouncer.ini + userlist.txt
-      // into /etc/pgbouncer, a root-owned ECS scratch volume. The image's
-      // default non-root user cannot ("touch: Permission denied").
-      user: "0",
+      // Runs as the image's default user (postgres). Privilege-drop happens
+      // inside the container before pgbouncer starts; no Linux capabilities
+      // are required because no caller starts as root in our task.
       essential: true,
       logging: LogDriver.awsLogs({
         streamPrefix: "pgbouncer",
@@ -574,27 +580,16 @@ export class AppStack extends Stack {
         startPeriod: Duration.seconds(15),
       },
       memoryReservationMiB: 64,
-      readonlyRootFilesystem: true,
-      // edoburu/pgbouncer entrypoint generates pgbouncer.ini with `user =
-      // postgres`. pgbouncer then calls setgroups(2) + setuid(2) to drop from
-      // root to the postgres user — both require CAP_SETGID + CAP_SETUID.
-      // Without them pgbouncer FATALs at boot. After the drop, the running
-      // process is unprivileged regardless.
-      linuxParameters: linuxParams("PgBouncerLinuxParams", [
-        Capability.SETGID,
-        Capability.SETUID,
-      ]),
+      // readonlyRootFilesystem intentionally NOT set (defaults to false). See
+      // the long note above the container block for why this one sidecar
+      // diverges from the others. The image owns /etc/pgbouncer (postgres-
+      // owned) and the entrypoint needs to write pgbouncer.ini + userlist.txt
+      // there at boot.
+      linuxParameters: linuxParams("PgBouncerLinuxParams"),
     })
     pgbouncerContainer.addMountPoints({
       containerPath: "/tmp",
       sourceVolume: "tmp",
-      readOnly: false,
-    })
-    // Writable scratch over /etc/pgbouncer — edoburu entrypoint writes
-    // pgbouncer.ini + userlist.txt here at boot. Fargate ephemeral storage.
-    pgbouncerContainer.addMountPoints({
-      containerPath: "/etc/pgbouncer",
-      sourceVolume: "pgbouncerEtc",
       readOnly: false,
     })
     // api waits for pgbouncer healthcheck before starting. Without this,

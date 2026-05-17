@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: "all"
+      image_tag_override:
+        description: "Existing image tag to deploy (e.g. sha-abcdef). When set, skips image build + push and the secret-ensure steps; the CDK step uses this tag. The three images (web, api, admin) must already exist in ECR for the target env."
+        required: false
+        type: string
+        default: ""
     outputs:
       deployed:
         description: "Whether the deploy step actually ran"
@@ -34,6 +39,11 @@ on:
           - all
           - infra-only
           - app-only
+      image_tag_override:
+        description: "Existing image tag to deploy (e.g. sha-abcdef). Empty = build+push images for the current commit. Set this to reuse images already in ECR and skip the 12-15 min image build phase — useful for CDK-only retries."
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -78,7 +88,13 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
       STACK_SCOPE: ${{ inputs.stack }}
-      IMAGE_TAG: sha-${{ github.sha }}
+      # When image_tag_override is set, use it verbatim and skip the build/push
+      # steps below; CDK consumes IMAGE_TAG and pulls the existing ECR images.
+      IMAGE_TAG: ${{ inputs.image_tag_override != '' && inputs.image_tag_override || format('sha-{0}', github.sha) }}
+      # Used as the `if:` condition on every image-build + secret-ensure step.
+      # Truthy when either: (a) infra-only deploy (no app containers at all),
+      # or (b) the operator passed image_tag_override (images already in ECR).
+      SKIP_IMAGE_BUILD: ${{ (inputs.stack == 'infra-only' || inputs.image_tag_override != '') && 'true' || 'false' }}
     steps:
       - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:
@@ -145,20 +161,20 @@ jobs:
       # and Backup arm64 DockerImageAssets. Skipped for infra-only — Network
       # and Data have no Docker assets.
       - name: Docker QEMU (arm64 cross-build on amd64 runners)
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Docker Buildx (enables gha cache + multi-arch)
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: ECR login [stack=all|app-only]
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
         id: ecr
 
       - name: Build + push web image [stack=all|app-only]
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -176,7 +192,7 @@ jobs:
             BUILD_VERSION=${{ env.IMAGE_TAG }}
 
       - name: Build + push api image [stack=all|app-only]
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -194,7 +210,7 @@ jobs:
             BUILD_VERSION=${{ env.IMAGE_TAG }}
 
       - name: Build + push admin image [stack=all|app-only]
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -212,7 +228,7 @@ jobs:
             BUILD_VERSION=${{ env.IMAGE_TAG }}
 
       - name: Ensure Cloudflare Tunnel token secret exists in Secrets Manager [stack=all|app-only]
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         env:
           TUNNEL_TOKEN: ${{ secrets[format('CLOUDFLARE_TUNNEL_TOKEN_{0}', inputs.environment)] }}
         run: |
@@ -238,7 +254,7 @@ jobs:
           fi
 
       - name: Ensure Resend API key secret exists in Secrets Manager [stack=all|app-only]
-        if: env.STACK_SCOPE != 'infra-only'
+        if: env.SKIP_IMAGE_BUILD != 'true'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
@@ -267,6 +283,33 @@ jobs:
               --description "Resend API key for transactional email (monorepo ${ENV_NAME})" \
               --region "$AWS_REGION" \
               >/dev/null
+          fi
+
+      # Sanity check: when image_tag_override is set the operator is asking
+      # CDK to reuse images that should already be in ECR. Fail fast if any
+      # of the three (web, api, admin) is missing — otherwise the App stack
+      # will deploy and ECS will start crash-looping on `ImagePullFailure`
+      # ~5 min from now.
+      - name: Verify override images exist in ECR
+        if: inputs.image_tag_override != '' && env.STACK_SCOPE != 'infra-only'
+        run: |
+          set -euo pipefail
+          missing=0
+          for svc in web api admin; do
+            repo="monorepo-${ENV_NAME}-${svc}"
+            if aws ecr describe-images \
+                --repository-name "$repo" \
+                --image-ids imageTag="$IMAGE_TAG" \
+                --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "OK   ${repo}:${IMAGE_TAG}"
+            else
+              echo "::error::MISSING ${repo}:${IMAGE_TAG} — image_tag_override points at a non-existent image"
+              missing=$((missing + 1))
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            echo "::error::${missing} image(s) missing in ECR for tag ${IMAGE_TAG}. Re-run with image_tag_override='' to build fresh."
+            exit 1
           fi
 
       # Single cdk deploy, AFTER images + secrets exist. App and the stacks

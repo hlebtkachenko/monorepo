@@ -1,7 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { RadioGroup, RadioGroupItem } from "@workspace/ui/components/radio-group"
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@workspace/ui/components/radio-group"
 import { Label } from "@workspace/ui/components/label"
 
 export function RadioGroupDemo() {

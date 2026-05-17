@@ -25,6 +25,7 @@ Decisions worth recording: the ones a future contributor (human or agent) would 
 | [0017](0017-workers-pgboss-only.md)               | Workers backed by pg-boss only (drop BullMQ + ioredis)                | Accepted |
 | [0018](0018-three-layer-authz.md)                 | Three-layer authorization (RLS + OpenFGA + Cerbos)                    | Accepted |
 | [0019](0019-status-page-and-uptime-monitoring.md) | Status page + uptime monitoring (OpenStatus self-hosted on OVH)       | Accepted |
+| [0020](0020-public-api-foundation.md)             | Public API foundation: NestJS-native contracts on a webpack bundle    | Accepted |
 
 Append in commit order, never reshuffled. Numbers are immutable after merge.
 

@@ -6,3 +6,8 @@ coverage/
 pnpm-lock.yaml
 .pnpm-store/
 storybook-static/
+
+# Generated OpenAPI spec — emitted by `pnpm --filter api emit:openapi`
+# (JSON.stringify format). Prettier must not reformat it or the CI drift
+# gate (openapi-lint.yml) would never match the emitter's output.
+apps/api/openapi/v1.json

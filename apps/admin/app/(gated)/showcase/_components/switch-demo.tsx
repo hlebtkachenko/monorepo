@@ -11,19 +11,11 @@ export function SwitchDemo() {
   return (
     <div className="flex flex-wrap gap-6">
       <div className="flex items-center gap-2">
-        <Switch
-          id="sw-on"
-          checked={on}
-          onCheckedChange={setOn}
-        />
+        <Switch id="sw-on" checked={on} onCheckedChange={setOn} />
         <Label htmlFor="sw-on">On</Label>
       </div>
       <div className="flex items-center gap-2">
-        <Switch
-          id="sw-off"
-          checked={off}
-          onCheckedChange={setOff}
-        />
+        <Switch id="sw-off" checked={off} onCheckedChange={setOff} />
         <Label htmlFor="sw-off">Off</Label>
       </div>
       <div className="flex items-center gap-2">

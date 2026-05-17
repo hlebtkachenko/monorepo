@@ -60,6 +60,7 @@ monorepo-staging task (0.5 vCPU / 2 GB Graviton):
 ```
 
 Cloudflare Tunnel routes:
+
 - `staging.afframe.com/api/*` → `http://localhost:3001`
 - `staging.afframe.com/*` → `http://localhost:3000`
 
@@ -83,6 +84,7 @@ Same shape for production. Web + api scale together in one task; trip-wire to sp
 ## Consequences
 
 Positive:
+
 - MVP idle cost ~$49/mo instead of ~$140/mo
 - Single Cloudflare account handles DNS + Tunnel + Email Routing + DDoS + WAF + CDN - fewer surfaces to manage
 - AWS-side surface shrinks to just the AppStack + DataStack + NetworkStack - no ALB, no NAT, no endpoints to worry about
@@ -90,6 +92,7 @@ Positive:
 - Email deliverability uses industry-grade SES/Resend, not unknown shared-hosting mail
 
 Negative:
+
 - Cloudflare becomes load-bearing for inbound + email. Cloudflare outage = site down + mail down.
 - Tunnel adds one container to the task (cloudflared ~50MB RAM)
 - Public IPv4 on Fargate task ($3.65/mo) - same cost as before through NAT-GW's one IP, but the security model needs SG diligence (deny all public ingress)
@@ -102,6 +105,41 @@ Negative:
 - `curl https://staging.afframe.com/api/health` returns 200 from Cloudflare edge
 - Inbound mail to `test@afframe.com` arrives at `EMAIL_FORWARD_TO` within seconds
 - Resend / SES sends a transactional email successfully signed by DKIM on `afframe.com`
+
+## Amendment 2026-05-17 — admin container + api/admin tunnel hostnames
+
+The single Fargate task gains a 7th container. The "Task topology" section
+above showed 3 containers (web, api, cloudflared); ADRs 0012 and 0018 since
+added pgbouncer, cerbos, and openfga. This amendment adds `admin`:
+
+- **`admin`** — the `apps/admin` Next.js staff surface, port 3100,
+  **`essential: false`**. A crash-looping admin must not fail the task — web
+  and api stay up. `memoryReservationMiB: 384`.
+- Task `memoryLimitMiB` rises **2048 → 3072**. CPU stays 512. Reserved memory
+  is ≈1736 MiB across the 7 containers; memory headroom is comfortable, CPU
+  (0.5 vCPU shared, now across two Next.js apps) is the watch item.
+- Cost delta: the admin container adds ≈$3/mo of task memory. `api` reuses the
+  existing `:3001` container at $0.
+
+Two new Cloudflare Tunnel public hostnames route into the same task — $0
+infra, no CDK change, configured manually (see `docs/runbooks/AWS-DEPLOY.md`):
+
+- `api.afframe.com` → `http://localhost:3001` (the existing NestJS container)
+- `admin.<env-domain>` → `http://localhost:3100` (the new admin container).
+
+Neither host uses Cloudflare Access. Access filters only by Cloudflare-visible
+identity (email / domain / IdP groups) and has no knowledge of afframe
+`workspace_membership` — it cannot model "member of an allowlisted staff
+workspace," and staff are intentionally cross-domain. `admin` is gated solely
+by the in-app workspace-allowlist (`ADMIN_WORKSPACE_ALLOWLIST`), `api` solely
+by API keys.
+
+New trip-wire: the non-essential `admin` container fails quietly — a
+crash-loop neither fails the task nor is loud. Consider a CloudWatch alarm on
+the admin container's exit count.
+
+See ADR [0020](0020-public-api-foundation.md) for the public API foundation
+behind `api.afframe.com`.
 
 ## References
 

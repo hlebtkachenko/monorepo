@@ -1,0 +1,49 @@
+{
+  // Turborepo Remote Cache Worker — Cloudflare Workers + R2.
+  // Vendored from AdiRishi/turborepo-remote-cache-cloudflare v4.0.0 — see SOURCE.md.
+  //
+  // Deployed via .github/workflows/_deploy-cloudflare.yml.
+  // Consumed by .github/actions/setup/action.yml which sets TURBO_API to
+  // https://<worker_name>.<account>.workers.dev (workers_dev: true below).
+  // Custom domain (cache.afframe.com) deferred to follow-up — saves a DNS
+  // step and the parking-page failure mode when the Worker isn't deployed yet.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "turbo-cache",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+
+  // R2 binding consumed by src/storage/r2-storage.ts.
+  // Bucket created idempotently in the deploy workflow before `wrangler deploy`.
+  "r2_buckets": [
+    {
+      "binding": "R2_STORE",
+      "bucket_name": "turbo-cache-prod",
+      "preview_bucket_name": "turbo-cache-preview",
+    },
+  ],
+
+  // Non-secret env vars. TURBO_TOKEN is set via `wrangler secret put` post-deploy.
+  // BUCKET_OBJECT_EXPIRATION_HOURS=336h (14 days): aggressive vs upstream default
+  // 720h (30 days) — solo-dev cache is small + hits are fresh; cap R2 storage
+  // growth well inside the 10 GB free tier.
+  "vars": {
+    "ENVIRONMENT": "production",
+    "BUCKET_OBJECT_EXPIRATION_HOURS": "336",
+  },
+
+  // Daily cleanup cron — invokes the scheduled handler in src/index.ts which
+  // calls src/crons/deleteOldCache.ts. Prunes R2 objects older than
+  // BUCKET_OBJECT_EXPIRATION_HOURS.
+  "triggers": {
+    "crons": ["0 3 * * *"],
+  },
+
+  // Workers Logs (built-in observability).
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+}

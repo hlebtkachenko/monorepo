@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "infra/cdk"
+  - "infra/cloudflare"
 overrides:
   # Force >=5.3.1: 4 CVEs in transitive 5.0.5 (path traversal, CRLF injection, 2x DoS)
   basic-ftp: ">=5.3.1"
@@ -12,13 +13,13 @@ overrides:
   # Pin v9.x: eslint v10 breaks eslint-plugin-react@7.37.5 'react/display-name'
   eslint: "^9.39.2"
 allowBuilds:
-  '@nestjs/core': true
+  "@nestjs/core": true
   # @parcel/watcher pulled in transitively by next-intl message loader.
   # Native postinstall is optional; pnpm falls back to FS polling.
-  '@parcel/watcher': false
-  '@scarf/scarf': false
-  '@sentry/cli': true
-  '@swc/core': true
+  "@parcel/watcher": false
+  "@scarf/scarf": false
+  "@sentry/cli": true
+  "@swc/core": true
   core-js-pure: false
   cpu-features: true
   esbuild: true
@@ -35,3 +36,7 @@ allowBuilds:
   # (napi-postinstall can't resolve its own package.json). JS fallback is
   # transparent; only build-time resolution is marginally slower.
   unrs-resolver: false
+  # Cloudflare's official Worker runtime. Used by wrangler dev for local
+  # iteration; CI deploys don't depend on the native binary so the build
+  # script could be 'false' here, but local dev breaks without it.
+  workerd: true

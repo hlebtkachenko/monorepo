@@ -1,0 +1,25 @@
+{
+  "name": "@workspace/cloudflare-turbo-cache",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Workers + R2 backend for Turborepo Remote Cache. Vendored from AdiRishi/turborepo-remote-cache-cloudflare v4.0.0 — see SOURCE.md.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/valibot-validator": "^0.6.1",
+    "hono": "^4.11.4",
+    "valibot": "^1.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260118.0",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.59.2"
+  }
+}

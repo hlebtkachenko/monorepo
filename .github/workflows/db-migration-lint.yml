@@ -23,7 +23,7 @@ jobs:
   squawk:
     name: squawk migration lint
     runs-on: ubuntu-latest
-    continue-on-error: true  # ADVISORY
+    continue-on-error: true # ADVISORY
     permissions:
       contents: read
     steps:
@@ -31,6 +31,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
 
       - name: Install squawk via cargo
         run: |

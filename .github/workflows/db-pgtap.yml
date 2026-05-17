@@ -31,7 +31,7 @@ jobs:
   pgtap:
     name: pgTap suite
     runs-on: ubuntu-latest
-    continue-on-error: true  # ADVISORY — flip after first green run
+    continue-on-error: true # ADVISORY — flip after first green run
     permissions:
       contents: read
     services:
@@ -53,6 +53,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
 
       - name: Install pg_prove on the runner host

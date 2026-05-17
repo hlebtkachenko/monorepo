@@ -143,12 +143,16 @@ jobs:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
         run: pnpm turbo test:coverage --filter=@workspace/ui --affected --ui=stream
 
-  storybook:
-    # Skipped when no `packages/ui/**` change — Storybook build + interaction
-    # + a11y tests are ~220-240s on every UI PR. Skipping saves the full
-    # wall on non-UI PRs. The `ci` aggregator below treats `skipped` as
-    # non-failure (only `failure|cancelled` red it), so the required `ci`
-    # status check still posts green when this job skips.
+  # Storybook split into build + 2-shard test matrix.
+  # WAS: single 220-240s job (build ~70s + Playwright install ~30s +
+  # interaction/a11y test ~120s sequential).
+  # NOW: build once (~70s), test phase parallel across 2 matrix shards
+  # (~60s each) via `@storybook/test-runner --shard=N/2`.
+  # Net UI-PR storybook wall: ~70s + max(test shard) ≈ ~130-140s.
+  # Both jobs gated on `needs.changes.outputs.ui == 'true'` so non-UI
+  # PRs still skip the whole storybook pipeline. Aggregator's
+  # `skipped` = non-failure semantics still apply.
+  storybook-build:
     needs: [changes]
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
@@ -160,14 +164,47 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
-          # No `--affected` here — full graph for storybook build is fine
-          # (turbo task cache already restores unchanged output) and
-          # fetch-depth: 0 is unnecessary cost.
           persist-credentials: false
       - uses: ./.github/actions/setup
 
       - name: Build Storybook
         run: pnpm turbo build-storybook --filter=@workspace/ui --ui=stream
+
+      - name: Upload storybook-static artifact
+        # Consumed by every storybook-test matrix shard below. 1-day
+        # retention keeps storage minimal — artifacts only need to live
+        # for the duration of this workflow run.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: storybook-static
+          path: packages/ui/storybook-static
+          retention-days: 1
+          if-no-files-found: error
+
+  storybook-test:
+    needs: [changes, storybook-build]
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Download storybook-static artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: storybook-static
+          path: packages/ui/storybook-static
 
       - name: Resolve Playwright version
         id: pw-version
@@ -181,26 +218,21 @@ jobs:
           key: pw-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
 
       - name: Install Playwright (browsers + system deps)
-        # Run inside @workspace/ui where playwright is a devDependency.
-        # `pnpm exec` from repo root cannot find the binary because the
-        # package isn't a root dep. Include chromium-headless-shell:
-        # @storybook/test-runner launches that variant explicitly and
-        # GitHub runner image updates stopped pre-caching it.
-        # `--with-deps` installs the apt dependencies too.
         if: steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @workspace/ui exec playwright install --with-deps chromium chromium-headless-shell webkit
 
       - name: Install Playwright system deps (cache hit)
-        # Browser binaries are restored from cache; the apt system deps are
-        # not cached by ~/.cache/ms-playwright, so install just those.
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @workspace/ui exec playwright install-deps chromium webkit
 
-      - name: Storybook Interaction & A11y Tests
+      - name: Storybook Interaction & A11y Tests (shard ${{ matrix.shard }}/2)
+        # `--shard N/M` is native to @storybook/test-runner (>= 0.16).
+        # packages/ui/package.json pins ^0.24.3. Each shard runs ~half
+        # the stories independently — no cross-shard state.
         run: |
           pnpm dlx concurrently -k -s first -n "SB,TEST" \
             "pnpm dlx http-server packages/ui/storybook-static --port 6006 --silent" \
-            "pnpm dlx wait-on tcp:127.0.0.1:6006 && pnpm --filter @workspace/ui test-storybook --url http://127.0.0.1:6006"
+            "pnpm dlx wait-on tcp:127.0.0.1:6006 && pnpm --filter @workspace/ui test-storybook --url http://127.0.0.1:6006 --shard ${{ matrix.shard }}/2"
 
   build:
     runs-on: ubuntu-latest
@@ -239,7 +271,15 @@ jobs:
   # aggregator) — that's how the storybook skip works without breaking
   # the required `ci` check.
   ci:
-    needs: [changes, lint-typecheck, unit-test, storybook, build]
+    needs:
+      [
+        changes,
+        lint-typecheck,
+        unit-test,
+        storybook-build,
+        storybook-test,
+        build,
+      ]
     if: always()
     runs-on: ubuntu-latest
     permissions: {}

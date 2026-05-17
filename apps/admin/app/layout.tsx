@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { Geist } from "next/font/google"
 import localFont from "next/font/local"
+import { NextIntlClientProvider } from "next-intl"
+import { getLocale, getMessages } from "next-intl/server"
 
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
@@ -146,14 +148,16 @@ const fontMono = localFont({
   ],
 })
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const locale = await getLocale()
+  const messages = await getMessages()
   return (
     <html
-      lang="en"
+      lang={locale}
       suppressHydrationWarning
       className={cn(
         "font-sans antialiased",
@@ -163,8 +167,10 @@ export default function RootLayout({
       )}
     >
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
-        <Toaster />
+        <NextIntlClientProvider messages={messages}>
+          <ThemeProvider>{children}</ThemeProvider>
+          <Toaster />
+        </NextIntlClientProvider>
       </body>
     </html>
   )

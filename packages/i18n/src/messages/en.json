@@ -453,5 +453,23 @@
       "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead.",
       "inviteEmailMismatch": "This invitation is addressed to a different email. Sign out and open the link again with the invited address."
     }
+  },
+  "admin": {
+    "wordmark": "Admin",
+    "auth": {
+      "returnLinkLabel": "Back to Afframe app",
+      "returnLinkHref": "https://app-staging.afframe.com",
+      "statusLabel": "Status",
+      "statusHref": "https://status.afframe.com",
+      "aside": {
+        "headline": "Welcome back, accountant whisperer.",
+        "subtitle": "{brand} Admin: where the buttons are unstyled, the policies are FORCE RLS, and the only audit trail you read is your own.",
+        "quote": {
+          "text": "It works on my machine ergo it works on staging ergo it works in production. QED.",
+          "author": "An optimist, moments before deploy",
+          "role": "Source: trust me bro"
+        }
+      }
+    }
   }
 }

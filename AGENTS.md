@@ -105,6 +105,44 @@ All reads/writes go through `withWorkspace`, `withOrganization`, or `withAdminBy
 - Setup file mocks: ResizeObserver, IntersectionObserver, matchMedia, scrollIntoView, hasPointerCapture
 - Run: `pnpm test` (all) or `pnpm --filter @workspace/ui test:watch` (watch mode)
 
+### Vitest runners per package
+
+| Package / App | Config | Environment | Covers |
+|---|---|---|---|
+| `packages/ui` | `packages/ui/vitest.config.ts` | jsdom | React components, hooks, utils |
+| `packages/auth` | `packages/auth/vitest.config.ts` | node | JWT sign/verify, token helpers |
+| `packages/shared` | `packages/shared/vitest.config.ts` | node | `PasswordSchema` boundary rules |
+| `packages/email` | `packages/email/vitest.config.ts` | node | `pickTransport()` selection logic |
+| `apps/web` | `apps/web/vitest.config.ts` | node | Server-side DB integration tests |
+
+Run a single package/app: `pnpm --filter @workspace/shared test` / `pnpm --filter web test`.
+
+### apps/web integration test runner (AFF-119)
+
+- Config: `apps/web/vitest.config.ts` (node environment, globalSetup boots Postgres 18 testcontainer)
+- Test files: co-located alongside source under `apps/web/app/**/*.test.ts`
+- Global setup: `apps/web/tests/global-setup.ts` — mirrors `packages/db/tests/global-setup.ts`
+- `server-only` alias: the vitest config maps `server-only` to its `empty.js` stub so server-component
+  modules (which begin with `import "server-only"`) import cleanly in the Node test runner.
+- All db/auth module imports inside test files are dynamic (`await import(...)`) to ensure
+  `DATABASE_URL` is set by globalSetup before the singletons bind.
+- Run: `pnpm --filter web test` or `pnpm --filter web test:watch`
+- Covered (AFF-119 / E7b):
+  - `app/auth/_lib/materialize-invite.ts` — `materializeInvite` happy path, idempotent
+    workspace_membership, already-accepted conflict, expiry, unknown token, email-mismatch
+    defense, workspace cross-check (F7)
+  - `app/[orgSlug]/resolve-membership.test.ts` — DB membership resolution query (mirrors the
+    private `resolveMembership` in layout.tsx), slug regex validation, reserved-slug list
+  - `app/onboarding/actions.test.ts` — `slugify` contract, `pickUniqueSlug` collision resolution,
+    workspace creation DB sequence
+
+### apps/api test runner
+
+- Framework: Vitest (node environment) + `@nestjs/testing` + supertest
+- Config: `apps/api/vitest.config.ts` — includes `src/**/*.spec.ts`
+- Run: `pnpm --filter api test` or `pnpm --filter api test:watch`
+- Spec files live alongside source (`src/**/*.spec.ts`). The `HealthController` smoke test (`src/health/health.controller.spec.ts`) boots a minimal Nest testing module (no live gRPC sidecars) and asserts `GET /api/health` returns 200 with `{ status: "ok" }`.
+
 ### Integration + E2E databases
 
 - DB integration tests and the web E2E suite both boot a disposable Postgres 18

@@ -1,11 +1,21 @@
 # API Specifications
 
-Placeholder.
+OpenAPI 3.1 specifications and Zod schemas for the public API surface.
 
-When backend APIs land, OpenAPI 3.1 specifications and Zod schemas live here:
-- `*.openapi.yaml` — one file per service surface.
-- `*.zod.ts` — Zod schemas, source of truth for runtime validation. OpenAPI generated from Zod via `zod-to-openapi`.
+## Current State
 
-`apps/api` (NestJS) is scaffolded but has no domain endpoints yet — only a health-check controller (`apps/api/src/health/health.controller.ts`) plus authz module wiring (Cerbos, OpenFGA). `apps/web` exposes `app/api/version/route.ts`, which returns build metadata for the container healthcheck. Neither has a contract worth versioning yet, so no spec files live here.
+`apps/api` (NestJS) has a versioned REST foundation (see [ADR-0020](../adr/0020-public-api-foundation.md)):
 
-This directory is created early so the convention is set before the first API ships.
+- **`/api/health`** — version-neutral health endpoint (Fargate + ECS healthcheck target)
+- **`/v1/organization`** — returns the authenticated API key's organization. Exercises the full stack: API-key auth, RLS tenancy (`withOrganization`), typed Zod-validated response, OpenAPI spec generation
+- **`/v1/ping`** — lightweight authenticated ping
+
+Auth: Bearer token via `ApiKeyGuard` + per-key rate limiting (`ApiKeyThrottlerGuard`). Domain errors handled by `DomainExceptionFilter`.
+
+`apps/web` exposes `app/api/version/route.ts` for its container healthcheck.
+
+## Conventions
+
+- `*.openapi.yaml` — one file per service surface (generated from NestJS `@nestjs/swagger` decorators)
+- Zod schemas in `@workspace/shared/api` — source of truth for request/response validation
+- OpenAPI document emitted at build time via `apps/api/src/openapi.ts`

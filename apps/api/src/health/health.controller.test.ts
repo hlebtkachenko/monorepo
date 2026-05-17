@@ -2,7 +2,7 @@ import { Test } from "@nestjs/testing"
 import { INestApplication } from "@nestjs/common"
 import supertest from "supertest"
 import { describe, it, beforeAll, afterAll, expect } from "vitest"
-import { HealthController } from "./health.controller.js"
+import { HealthController } from "./health.controller"
 
 describe("HealthController (smoke)", () => {
   let app: INestApplication

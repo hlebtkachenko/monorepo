@@ -114,6 +114,8 @@ All reads/writes go through `withWorkspace`, `withOrganization`, or `withAdminBy
 | `packages/shared` | `packages/shared/vitest.config.ts` | node | `PasswordSchema` boundary rules |
 | `packages/email` | `packages/email/vitest.config.ts` | node | `pickTransport()` selection logic |
 | `apps/web` | `apps/web/vitest.config.ts` | node | Server-side DB integration tests |
+| `apps/api` | `apps/api/vitest.config.ts` | node | NestJS controllers, guards, filters |
+| `apps/admin` | `apps/admin/vitest.config.ts` | node | Admin app allowlist, server logic |
 
 Run a single package/app: `pnpm --filter @workspace/shared test` / `pnpm --filter web test`.
 
@@ -139,9 +141,9 @@ Run a single package/app: `pnpm --filter @workspace/shared test` / `pnpm --filte
 ### apps/api test runner
 
 - Framework: Vitest (node environment) + `@nestjs/testing` + supertest
-- Config: `apps/api/vitest.config.ts` — includes `src/**/*.spec.ts`
+- Config: `apps/api/vitest.config.ts` — includes `src/**/*.test.ts`, `reflect-metadata` setup file
 - Run: `pnpm --filter api test` or `pnpm --filter api test:watch`
-- Spec files live alongside source (`src/**/*.spec.ts`). The `HealthController` smoke test (`src/health/health.controller.spec.ts`) boots a minimal Nest testing module (no live gRPC sidecars) and asserts `GET /api/health` returns 200 with `{ status: "ok" }`.
+- Test files live alongside source (`src/**/*.test.ts`): `HealthController` smoke test, `ApiKeyGuard`, `ApiKeyThrottlerGuard` (+ `resolveThrottleKey` unit), `DomainExceptionFilter`. Each boots a minimal Nest testing module via `@nestjs/testing` + supertest.
 
 ### Integration + E2E databases
 

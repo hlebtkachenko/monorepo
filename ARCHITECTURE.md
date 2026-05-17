@@ -13,8 +13,8 @@ pnpm workspaces + Turborepo.
 ```
 apps/
   web/                             Next.js 16 App Router, React 19
-  admin/                           Next.js 16 admin app
-  api/                             NestJS backend API
+  admin/                           Next.js 16 staff admin surface (workspace-allowlisted)
+  api/                             NestJS versioned REST API (API-key auth, rate limiting, OpenAPI)
 packages/
   ui/                              shadcn/ui component library (105 components, Storybook, Vitest)
   db/                              Drizzle schema + RLS + migrations

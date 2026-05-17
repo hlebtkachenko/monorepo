@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { Text } from "@workspace/ui/components/text"
-import { UploadIcon, UserIcon } from "@workspace/ui/lib/icons"
+import { Pencil, UploadIcon, UserIcon } from "@workspace/ui/lib/icons"
 
 import { submitProfileAction } from "../actions"
 
@@ -97,6 +97,9 @@ export function ProfileForm({ initial }: Props) {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const [cropFile, setCropFile] = useState<File | null>(null)
+  // Original picked file, kept after cropping so the user can re-crop
+  // via the edit-on-hover control without re-uploading.
+  const [sourceFile, setSourceFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Revoke object URLs on unmount to avoid memory leaks.
@@ -136,8 +139,9 @@ export function ProfileForm({ initial }: Props) {
       setAvatarError(t("avatarWrongType"))
       return
     }
-    // Hand the file to the cropper; the cropped Blob becomes the preview
-    // once the user saves.
+    // Keep the original file so the user can re-crop later via the
+    // edit-on-hover control; hand it to the cropper now.
+    setSourceFile(file)
     setCropFile(file)
   }
 
@@ -177,14 +181,26 @@ export function ProfileForm({ initial }: Props) {
         noValidate
       >
         <div className="flex items-center gap-4">
-          <Avatar className="size-21">
-            {avatarPreview ? (
-              <AvatarImage src={avatarPreview} alt={t("avatarLabel")} />
-            ) : null}
-            <AvatarFallback>
-              <UserIcon className="size-12" aria-hidden="true" />
-            </AvatarFallback>
-          </Avatar>
+          <div className="group relative size-16 shrink-0">
+            <Avatar className="size-16">
+              {avatarPreview ? (
+                <AvatarImage src={avatarPreview} alt={t("avatarLabel")} />
+              ) : null}
+              <AvatarFallback>
+                <UserIcon className="size-9" aria-hidden="true" />
+              </AvatarFallback>
+            </Avatar>
+            {avatarPreview && sourceFile && (
+              <button
+                type="button"
+                onClick={() => setCropFile(sourceFile)}
+                aria-label={t("avatarEdit")}
+                className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+              </button>
+            )}
+          </div>
           <div className="flex flex-col gap-1.5">
             <Button
               type="button"

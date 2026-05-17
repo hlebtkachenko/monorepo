@@ -82,6 +82,7 @@ export {
   OctagonXIcon,
   Palette,
   PanelLeftIcon,
+  Pencil,
   Plus,
   PlusCircle,
   PlusIcon,

@@ -274,6 +274,7 @@
       "description": "We use this to personalize {brand} and how teammates see you.",
       "avatarLabel": "Profile photo",
       "avatarUpload": "Upload photo",
+      "avatarEdit": "Edit photo",
       "avatarHint": "PNG or JPG.",
       "avatarTooLarge": "This image is too large.",
       "avatarWrongType": "Use a PNG or JPG image.",

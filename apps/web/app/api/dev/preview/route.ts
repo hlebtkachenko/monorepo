@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
 import { DEV_PREVIEW_COOKIE } from "@/lib/dev-preview"
+import { publicOrigin } from "@/lib/request-origin"
 
 /**
  * Dev-only route to toggle the auth-guard bypass cookie.
@@ -36,5 +37,5 @@ export async function GET(req: Request) {
       maxAge: 60 * 60 * 24,
     })
   }
-  return NextResponse.redirect(new URL(target, req.url))
+  return NextResponse.redirect(new URL(target, publicOrigin(req)))
 }

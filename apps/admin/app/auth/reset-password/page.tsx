@@ -1,15 +1,17 @@
-import type { Metadata } from "next"
+import { Suspense } from "react"
+import { getTranslations } from "@workspace/i18n/server"
+
 import { ResetPasswordForm } from "./reset-password-form"
 
-export const metadata: Metadata = {
-  title: "Set a new password — Admin",
+export async function generateMetadata() {
+  const t = await getTranslations("auth.reset")
+  return { title: t("metaTitle") }
 }
 
-export default async function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>
-}) {
-  const { token } = await searchParams
-  return <ResetPasswordForm token={token ?? ""} />
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
+  )
 }

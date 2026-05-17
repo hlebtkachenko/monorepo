@@ -181,7 +181,8 @@
       "loginSessionExpired": "Your sign-in session expired. Please start over.",
       "resetFailed": "Could not reset password.",
       "resetSent": "If an account exists, a reset link is on the way.",
-      "couldNotSendReset": "Could not send the reset email. Try again in a moment."
+      "couldNotSendReset": "Could not send the reset email. Try again in a moment.",
+      "notAllowlisted": "Your workspace is not authorized for admin access. Contact a workspace administrator."
     },
     "validation": {
       "email": {
@@ -462,8 +463,6 @@
       "statusLabel": "Status",
       "statusHref": "https://status.afframe.com",
       "aside": {
-        "headline": "Welcome back, accountant whisperer.",
-        "subtitle": "{brand} Admin: where the buttons are unstyled, the policies are FORCE RLS, and the only audit trail you read is your own.",
         "quote": {
           "text": "It works on my machine ergo it works on staging ergo it works in production. QED.",
           "author": "An optimist, moments before deploy",

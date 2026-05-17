@@ -156,16 +156,18 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # QEMU + Buildx: needed before any Docker build. The web/api images are
-      # cross-built to arm64 here; `cdk deploy` also builds the Cerbos (App)
-      # and Backup arm64 DockerImageAssets. Skipped for infra-only — Network
-      # and Data have no Docker assets.
+      # QEMU + Buildx: needed before any Docker build. The web/api/admin
+      # images are cross-built to arm64 here; `cdk deploy` ALSO builds the
+      # Cerbos (App) and Backup arm64 DockerImageAssets inline, so QEMU +
+      # Buildx must be present even when image_tag_override skips our own
+      # build steps. Only skipped for `stack=infra-only` (Network + Data
+      # have no Docker assets at all).
       - name: Docker QEMU (arm64 cross-build on amd64 runners)
-        if: env.SKIP_IMAGE_BUILD != 'true'
+        if: env.STACK_SCOPE != 'infra-only'
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Docker Buildx (enables gha cache + multi-arch)
-        if: env.SKIP_IMAGE_BUILD != 'true'
+        if: env.STACK_SCOPE != 'infra-only'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: ECR login [stack=all|app-only]

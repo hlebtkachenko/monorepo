@@ -4,20 +4,27 @@
 # Deployed on the OVH VPS, NOT AWS. See ./README.md and
 # docs/adr/0019-status-page-and-uptime-monitoring.md.
 #
-# Apply (from the VPS, OPENSTATUS_API_TOKEN exported):
-#   openstatus monitors apply -c infra/openstatus/openstatus.yaml --dry-run
-#   openstatus monitors apply -c infra/openstatus/openstatus.yaml
-# Full procedure: docs/runbooks/STATUS-PAGE.md.
+# This file is operator-authored INTENT. The upstream `openstatus` CLI
+# (`internal/api/client.go`) hardcodes `https://api.openstatus.dev/v1` and
+# does NOT support self-host — see STATUS-PAGE.md "CLI does not target
+# self-host". On self-host, monitors are applied via the dashboard UI;
+# this YAML is the source-of-truth for what was configured, not a file
+# any tool currently consumes.
 #
-# `regions` references the self-hosted private-location probe slug registered on the
-# VPS (STATUS-PAGE.md). `ovh-eu` is the slug this repo assumes; reconcile any
-# environment-bound value with `--dry-run` before applying.
+# `regions` references the private-location probe registered on the VPS.
+# In the dashboard the location is named "OVH EU"; reconcile any internal
+# slug at apply time.
+#
+# Production monitors carry `active: false` until production is deployed
+# (`app.afframe.com`, `api.afframe.com`, `admin.afframe.com` are prepared
+# but not yet live). Flip to `active: true` after the first production
+# deploy.
 
 web-app-prod:
-  name: "Web app (production)"
+  name: "App (production)"
   description: "afframe.com web app reachability — app.afframe.com/api/version"
   frequency: "1m"
-  active: true
+  active: false # PROD NOT DEPLOYED YET — flip after first production deploy
   regions:
     - ovh-eu
   retry: 3
@@ -34,15 +41,15 @@ web-app-prod:
 
 api-prod:
   name: "API (production)"
-  description: "afframe.com API health — app.afframe.com/api/health, body must report ok"
+  description: "afframe.com API health — api.afframe.com/api/health, body must report ok"
   frequency: "1m"
-  active: true
+  active: false # PROD NOT DEPLOYED YET
   regions:
     - ovh-eu
   retry: 3
   kind: http
   request:
-    url: https://app.afframe.com/api/health
+    url: https://api.afframe.com/api/health
     method: GET
     headers:
       User-Agent: openstatus-afframe
@@ -54,6 +61,28 @@ api-prod:
       compare: contains
       target: '"status":"ok"'
 
+admin-prod:
+  name: "Admin (production)"
+  description: "afframe.com admin app reachability — admin.afframe.com/api/health"
+  frequency: "1m"
+  active: false # PROD NOT DEPLOYED YET
+  regions:
+    - ovh-eu
+  retry: 3
+  kind: http
+  request:
+    url: https://admin.afframe.com/api/health
+    method: GET
+    headers:
+      User-Agent: openstatus-afframe
+  assertions:
+    - kind: statusCode
+      compare: eq
+      target: 200
+    - kind: textBody
+      compare: contains
+      target: '"ok":true'
+
 dns-afframe:
   name: "DNS (afframe.com)"
   description: "afframe.com apex DNS resolution"
@@ -62,18 +91,20 @@ dns-afframe:
   regions:
     - ovh-eu
   retry: 3
-  # DNS monitor. OpenStatus documents monitors-as-code for `http` in detail; confirm the
-  # `dns` request/assertion shape with `openstatus monitors apply --dry-run` before applying.
   kind: dns
   request:
     url: afframe.com
   assertions:
+    # The self-host dashboard requires a target value for DNS assertions —
+    # `Not Equal 0.0.0.0` passes for any real IP returned (Cloudflare proxy
+    # returns 104.x / 172.67.x ranges). Effectively asserts "DNS resolves".
     - kind: dnsRecord
       key: A
-      compare: not_empty
+      compare: not_eq
+      target: "0.0.0.0"
 
 staging-web:
-  name: "Web app (staging)"
+  name: "App (staging)"
   description: "staging.afframe.com web app — private, kept off the public status page"
   frequency: "5m"
   active: true
@@ -93,7 +124,7 @@ staging-web:
 
 staging-api:
   name: "API (staging)"
-  description: "staging.afframe.com API health — private, kept off the public status page"
+  description: "api.staging.afframe.com API health — private, kept off the public status page"
   frequency: "5m"
   active: true
   regions:
@@ -101,7 +132,7 @@ staging-api:
   retry: 3
   kind: http
   request:
-    url: https://staging.afframe.com/api/health
+    url: https://api.staging.afframe.com/api/health
     method: GET
     headers:
       User-Agent: openstatus-afframe
@@ -109,3 +140,28 @@ staging-api:
     - kind: statusCode
       compare: eq
       target: 200
+    - kind: textBody
+      compare: contains
+      target: '"status":"ok"'
+
+staging-admin:
+  name: "Admin (staging)"
+  description: "admin.staging.afframe.com admin app — private, kept off the public status page"
+  frequency: "5m"
+  active: true
+  regions:
+    - ovh-eu
+  retry: 3
+  kind: http
+  request:
+    url: https://admin.staging.afframe.com/api/health
+    method: GET
+    headers:
+      User-Agent: openstatus-afframe
+  assertions:
+    - kind: statusCode
+      compare: eq
+      target: 200
+    - kind: textBody
+      compare: contains
+      target: '"ok":true'

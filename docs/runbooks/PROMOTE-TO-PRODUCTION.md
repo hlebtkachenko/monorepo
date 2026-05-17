@@ -3,11 +3,13 @@
 How to move from "staging-only, internal access" to "production live at `app.afframe.com`, public access."
 
 Current state (before promotion):
+
 - `staging.afframe.com` is the only running environment (~$50/mo).
 - `production` exists only as CDK code + Cloudflare Tunnel `monorepo-production` (status `inactive`) + IAM role `monorepo-deploy-production` + secrets. No AWS resources running.
 - SES is in sandbox (200/day to verified addresses) unless production access already granted.
 
 After promotion:
+
 - `app.afframe.com` is the public production URL.
 - `staging.afframe.com` either stays as a preview env (cost +~$45/mo) or gets torn down ($0).
 - Total cost: ~$50/mo (prod only) or ~$95/mo (both envs).
@@ -16,11 +18,11 @@ After promotion:
 
 ## Decision matrix: what to do with staging after promotion
 
-| Option | Cost/mo | When it fits |
-|---|---|---|
-| **Keep staging running** | ~$95 | Need a sandbox for testing risky changes against real-like infra without touching prod. Raises hard-cap to $120. |
-| **Tear down staging** | ~$50 | Solo dev. Tests run locally + on PR CI. Production IS the only env. Saves money. Recommended unless you specifically want a staging env. |
-| **Staging on demand** | ~$50 + ad-hoc | Staging stack stays in CDK but RDS is stopped + ECS desiredCount=0 by default. Spin up when needed via a script. |
+| Option                   | Cost/mo       | When it fits                                                                                                                             |
+| ------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Keep staging running** | ~$95          | Need a sandbox for testing risky changes against real-like infra without touching prod. Raises hard-cap to $120.                         |
+| **Tear down staging**    | ~$50          | Solo dev. Tests run locally + on PR CI. Production IS the only env. Saves money. Recommended unless you specifically want a staging env. |
+| **Staging on demand**    | ~$50 + ad-hoc | Staging stack stays in CDK but RDS is stopped + ECS desiredCount=0 by default. Spin up when needed via a script.                         |
 
 Pick before starting.
 
@@ -50,6 +52,7 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/c
 Expected: `monorepo-production` entry, status `inactive` (means tunnel exists but no connector running — that's normal pre-deploy). After production deploy, status flips to `healthy`.
 
 DNS record check:
+
 ```bash
 dig +short app.afframe.com
 ```
@@ -75,10 +78,10 @@ Skip this step if tearing down staging.
 
 ```bash
 gh secret list --repo hlebtkachenko/monorepo | grep -E 'AWS_ACCOUNT_ID|AWS_DEPLOY_ROLE_ARN_PRODUCTION|CLOUDFLARE_TUNNEL_TOKEN_PRODUCTION|RESEND_API_KEY|EMAIL_FORWARD_TO'
-gh variable list --repo hlebtkachenko/monorepo | grep -E 'AWS_REGION|AWS_BOOTSTRAPPED|APP_DOMAIN_PRODUCTION'
+gh variable list --repo hlebtkachenko/monorepo | grep -E 'AWS_REGION|AWS_BOOTSTRAPPED|APP_DOMAIN_PRODUCTION|ADMIN_DOMAIN_PRODUCTION|ADMIN_WORKSPACE_ALLOWLIST'
 ```
 
-All listed values must exist. `AWS_BOOTSTRAPPED` must be `true`. `APP_DOMAIN_PRODUCTION` must be `app.afframe.com`.
+All listed values must exist. `AWS_BOOTSTRAPPED` must be `true`. `APP_DOMAIN_PRODUCTION` must be `app.afframe.com`. `ADMIN_DOMAIN_PRODUCTION` must be `admin.afframe.com`.
 
 ### 5. Confirm latest main builds clean
 
@@ -107,12 +110,14 @@ gh workflow run _deploy-aws.yml \
 ```
 
 Capture the run ID:
+
 ```bash
 RUN_ID=$(gh run list --workflow=_deploy-aws.yml --repo hlebtkachenko/monorepo --limit 1 --json databaseId --jq '.[0].databaseId')
 echo "RUN_ID=$RUN_ID"
 ```
 
 Watch in real time:
+
 ```bash
 gh run watch "$RUN_ID" --repo hlebtkachenko/monorepo
 ```
@@ -122,6 +127,7 @@ Expected duration: 15-25 minutes. RDS creation is the long pole (~10-12 min).
 ### Step 2: Verify each layer after the run completes
 
 **ECS service:**
+
 ```bash
 SVC=$(aws ecs list-services --cluster monorepo-production --region eu-central-1 --query 'serviceArns[0]' --output text | awk -F/ '{print $NF}')
 aws ecs describe-services --cluster monorepo-production --services "$SVC" --region eu-central-1 \
@@ -131,6 +137,7 @@ aws ecs describe-services --cluster monorepo-production --services "$SVC" --regi
 Expected: `desiredCount=1, runningCount=1, rolloutState=COMPLETED`.
 
 **Cloudflare production tunnel:**
+
 ```bash
 source _junk/cloudflare.env
 curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel?is_deleted=false" \
@@ -141,12 +148,15 @@ curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/c
 Expected: `healthy`. Connector inside the production Fargate task is talking to Cloudflare edge.
 
 **End-to-end HTTP:**
+
 ```bash
 curl -sw 'HTTP %{http_code} in %{time_total}s\n' -o /dev/null https://app.afframe.com/
 curl -s https://app.afframe.com/api/health | jq '.'
+curl -sw 'HTTP %{http_code}\n' -o /dev/null https://api.afframe.com/v1/ping
+curl -sw 'HTTP %{http_code}\n' -o /dev/null https://admin.afframe.com/api/health
 ```
 
-Expected: web returns 200, api returns `{status: "ok", buildSha, buildVersion, uptimeSeconds}`.
+Expected: web 200, api health `{status: "ok", ...}`, public API ping 200 (needs a seeded api_key), admin health 200.
 
 **RDS reachability from production task:**
 The api `/api/health` doesn't currently exercise the DB. When you add a real DB-touching endpoint, hit it and verify 200 + correct payload.
@@ -162,8 +172,9 @@ If SES still pending, keep using Resend. App will work; cap is 3K/mo. Switch whe
 The site is live at `https://app.afframe.com`. Anyone with the URL can access. There's no auth wall on the marketing pages yet.
 
 If launch-readiness includes:
+
 - A signup wall → confirm auth is wired before publicizing the URL.
-- A waitlist / closed beta → set Cloudflare Access policy on the tunnel hostname to require email allowlist (free Cloudflare Zero Trust feature).
+- A waitlist / closed beta → set Cloudflare Access policy on `app.afframe.com` to require email allowlist (free Cloudflare Zero Trust feature). **Do NOT use Access on `admin.afframe.com` or `api.afframe.com`** — Access cannot model workspace membership and was explicitly dropped from the admin/api design (see ADR-0008 amendment, `AWS-DEPLOY.md` step 9).
 
 ---
 
@@ -181,12 +192,14 @@ Destroy the staging stacks to drop cost back to ~$50/mo:
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export AWS_REGION=eu-central-1
 export APP_DOMAIN=staging.afframe.com
+export ADMIN_DOMAIN=admin.staging.afframe.com
 
 cd infra/cdk
 pnpm exec cdk destroy App-staging Data-staging Network-staging --context env=staging --force
 ```
 
 Notes:
+
 - CDK asks for confirmation per stack unless `--force` is passed. Read carefully before confirming — destroy is irreversible without snapshot.
 - `Data-staging` deletion behavior follows the CDK `removalPolicy`. For staging it's `DESTROY` + `autoDeleteObjects: true` on S3, so the bucket and its contents go too. RDS will snapshot first if `deletionProtection` is on (it isn't for staging in CDK).
 - Delete the Cloudflare staging tunnel + DNS:
@@ -202,7 +215,7 @@ Notes:
   curl -sS -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$STAGING_DNS_ID" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq '.'
   ```
-- Delete `CLOUDFLARE_TUNNEL_TOKEN_STAGING` secret + `AWS_DEPLOY_ROLE_ARN_STAGING` secret + `APP_DOMAIN_STAGING` variable. Optional: keeps the credentials available if you ever want to spin staging back up.
+- Delete `CLOUDFLARE_TUNNEL_TOKEN_STAGING` secret + `AWS_DEPLOY_ROLE_ARN_STAGING` secret + `APP_DOMAIN_STAGING` + `ADMIN_DOMAIN_STAGING` variables. Optional: keeps the credentials available if you ever want to spin staging back up.
 
 ### Option C — staging on demand
 
@@ -249,6 +262,7 @@ gh workflow run _deploy-aws.yml -f environment=production -f stack=app-only --re
 ### Nuclear: hard-cap kill switch
 
 If a deploy somehow blew through the budget cap, the hard-cap fires automatically: RDS stops, ECS scales to 0, IAM deny applied. Recover by:
+
 1. Log into AWS Console as your personal IAM user (NOT `claude-cli`).
 2. Detach `monorepo-cap-deny` policy from `claude-cli`.
 3. `aws rds start-db-instance --db-instance-identifier <prod-rds-id>`.
@@ -274,15 +288,15 @@ If everything looks clean after 7 days, mark the launch successful in `.context/
 
 Items deliberately deferred from MVP that might matter once you have users:
 
-| Item | Trigger to enable | Cost |
-|---|---|---|
-| RDS Multi-AZ | First paying customer with SLA | +$16/mo |
-| GuardDuty Foundational | First paying customer or attack signal | +$5-15/mo (30-day free trial available) |
-| AWS WAF on Cloudflare path | Skip — Cloudflare WAF already free | $0 |
-| Drizzle migration ECS task | `packages/db` ships a schema | $0 |
-| RDS snapshot copy to second region (DR) | DORA / SOC 2 audit | +$1-3/mo |
-| CloudWatch Logs Infrequent Access tier | App log ingest > 5 GB/mo | -50% of log cost |
-| Cloudflare Access on `app.afframe.com` | Closed beta launch | $0 free tier |
+| Item                                                             | Trigger to enable                      | Cost                                    |
+| ---------------------------------------------------------------- | -------------------------------------- | --------------------------------------- |
+| RDS Multi-AZ                                                     | First paying customer with SLA         | +$16/mo                                 |
+| GuardDuty Foundational                                           | First paying customer or attack signal | +$5-15/mo (30-day free trial available) |
+| AWS WAF on Cloudflare path                                       | Skip — Cloudflare WAF already free     | $0                                      |
+| Drizzle migration ECS task                                       | `packages/db` ships a schema           | $0                                      |
+| RDS snapshot copy to second region (DR)                          | DORA / SOC 2 audit                     | +$1-3/mo                                |
+| CloudWatch Logs Infrequent Access tier                           | App log ingest > 5 GB/mo               | -50% of log cost                        |
+| Cloudflare Access on `app.afframe.com` (web only, NOT admin/api) | Closed beta launch                     | $0 free tier                            |
 
 Don't enable preemptively. Each adds ops surface or cost.
 

@@ -194,10 +194,9 @@ the repo secrets `CLOUDFLARE_TUNNEL_TOKEN_STAGING` / `_PRODUCTION`; the deploy
 workflow copies each into Secrets Manager as
 `monorepo-{env}-cloudflare-tunnel-token`.
 
-> One-time: the `windhoek`→`monorepo` codename rename never reached the
-> Cloudflare dashboard — if the tunnels still show as `windhoek-staging` /
-> `windhoek-production`, rename them to `monorepo-*` (Connectors → tunnel →
-> ⋯ → Rename). Cosmetic only — the tunnel id + connector token are unchanged.
+> ~~One-time: the `windhoek`→`monorepo` codename rename~~ — done 2026-05-17.
+> Both tunnels now show as `monorepo-staging` and `monorepo-production` in
+> the Cloudflare dashboard. Tunnel IDs and connector tokens are unchanged.
 
 Per env, open the tunnel (Connectors → click `monorepo-{env}` → Edit →
 **Published application routes** / Public Hostname) and add — `monorepo-staging`

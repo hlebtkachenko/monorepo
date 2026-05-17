@@ -202,7 +202,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## CI / CD
 
-- Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E).
+- Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E), `openapi-lint` (OpenAPI spec drift + Spectral lint).
 - All new workflows ship as ADVISORY. Hleb flips required-status manually after a green PR cycle.
 - Branch protection / PR-required rules are managed manually by Hleb (see `docs/conventions/CI-POLICY.md`).
 - Hardening conventions: default-deny `permissions: {}`, per-job least privilege, SHA-pinned actions with trailing version comment, `step-security/harden-runner` (audit), concurrency cancellation on PRs.
@@ -212,7 +212,17 @@ When importing from upstream, rewrite anything that violates these rules. The up
 ## Infrastructure
 
 - Single-account AWS CDK v2 (`infra/cdk/`), single region eu-central-1. Stacks: network, data, app, security, observability, backup. See ADR-0007.
-- AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Staging is deployed at `staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed. Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
+- AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
+- Domain scheme (Cloudflare Tunnel → Fargate task, one task per env, 7 containers):
+
+  | Host | Staging | Production | Container port |
+  |------|---------|------------|----------------|
+  | Web | `staging.afframe.com` | `app.afframe.com` | 3000 |
+  | Public API | `api.staging.afframe.com` | `api.afframe.com` | 3001 |
+  | Admin | `admin.staging.afframe.com` | `admin.afframe.com` | 3100 |
+  | Status page | — | `status.afframe.com` | OVH VPS (not AWS) |
+
+  Admin host is its own per-env variable `ADMIN_DOMAIN` (not a subdomain of `APP_DOMAIN`). See `docs/env-vars.md` and ADR-0008.
 - See `docs/adr/` for the architectural decisions backing this layout.
 - `infra/openstatus/` (the `status.afframe.com` status page) is **not AWS**: it runs OpenStatus self-hosted on the OVH VPS and is never deployed by CDK / `make deploy-cdk` / `_deploy-aws.yml`. It lives in the monorepo as monitors-as-code only. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md) and `docs/runbooks/STATUS-PAGE.md`.
 
@@ -225,7 +235,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 ## Documentation Layout
 
 - `docs/adr/` — Architecture Decision Records (MADR format)
-- `docs/api/` — OpenAPI/Zod schemas (placeholder)
+- `docs/api/` — API architecture guide + OpenAPI specs
 - `docs/conventions/` — commit + CI conventions
 - `docs/plans/` — strategic execution plans
 - `docs/runbooks/` — operational runbooks

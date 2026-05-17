@@ -30,6 +30,12 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `provenance` (SLSA L2)                    | advisory                 | required                    |
 | `cosign sign` (push only)                 | required                 | required                    |
 | `cosign verify-attestation` (deploy gate) | n/a (no deploy)          | required                    |
+| `openapi-lint` (spec drift + Spectral)    | advisory                 | required                    |
+| `db-schema-drift` (migration vs snapshot) | required                 | required                    |
+| `squawk` (migration lint)                 | required                 | required                    |
+| `db-tests` (Postgres 18 testcontainer)    | required                 | required                    |
+| `conv-title` (PR title lint)              | advisory                 | required                    |
+| `size-cap` (PR size limit)                | advisory                 | required                    |
 | Mutation testing (Stryker)                | advisory, nightly        | advisory, nightly           |
 
 [^1]: `knip` is a REQUIRED status check on the `main` ruleset (the job must run and be visible on every PR), but `.github/workflows/knip.yml` uses `continue-on-error: true` on the run step, making it warn-only today. This is intentional: knip found day-1 findings across 101k LOC that require a dedicated owner decision and cleanup pass — silently failing PRs that don't touch dead code would be noise, not signal. Once a dedicated dead-code cleanup issue lands and knip is clean, remove `continue-on-error: true` to make the gate real.

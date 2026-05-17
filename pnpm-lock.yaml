@@ -29,6 +29,9 @@ importers:
       '@workspace/typescript-config':
         specifier: workspace:*
         version: link:packages/typescript-config
+      eslint:
+        specifier: ^9.39.2
+        version: 9.39.4(jiti@2.7.0)
       knip:
         specifier: ^6.14.1
         version: 6.14.1(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
@@ -232,6 +235,9 @@ importers:
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@workspace/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@workspace/ui':
         specifier: workspace:*
         version: link:../../packages/ui

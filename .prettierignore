@@ -6,3 +6,8 @@ coverage/
 pnpm-lock.yaml
 .pnpm-store/
 storybook-static/
+
+# Agent instruction files contain literal snake_case / acc_ prefix tokens that
+# prettier's markdown emphasis parser mangles (snake_case -> snake*case).
+AGENTS.md
+CLAUDE.md

@@ -139,3 +139,17 @@ export const NonDismissible: Story = {
     </Banner>
   ),
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <Banner dismissible={false}>
+      <BannerContent>
+        <BannerTitle>System maintenance</BannerTitle>
+        <BannerDescription>This banner cannot be dismissed.</BannerDescription>
+      </BannerContent>
+      <BannerActions>
+        <BannerClose disabled />
+      </BannerActions>
+    </Banner>
+  ),
+}

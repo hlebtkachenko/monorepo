@@ -39,3 +39,23 @@ export const Mixed: Story = {
     </ButtonGroup>
   ),
 }
+
+export const OrientationHorizontal: Story = {
+  render: () => (
+    <ButtonGroup orientation="horizontal">
+      <Button variant="outline">Left</Button>
+      <Button variant="outline">Center</Button>
+      <Button variant="outline">Right</Button>
+    </ButtonGroup>
+  ),
+}
+
+export const OrientationVertical: Story = {
+  render: () => (
+    <ButtonGroup orientation="vertical">
+      <Button variant="outline">Top</Button>
+      <Button variant="outline">Middle</Button>
+      <Button variant="outline">Bottom</Button>
+    </ButtonGroup>
+  ),
+}

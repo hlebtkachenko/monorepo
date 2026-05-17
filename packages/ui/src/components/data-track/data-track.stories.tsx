@@ -91,3 +91,27 @@ export const TrackerHoverEffect: Story = {
     </div>
   ),
 }
+
+export const SortOrderAscending: Story = {
+  render: () => (
+    <div className="w-96">
+      <DataTrack variant="list" data={listData} sortOrder="ascending" />
+    </div>
+  ),
+}
+
+export const SortOrderDescending: Story = {
+  render: () => (
+    <div className="w-96">
+      <DataTrack variant="list" data={listData} sortOrder="descending" />
+    </div>
+  ),
+}
+
+export const SortOrderNone: Story = {
+  render: () => (
+    <div className="w-96">
+      <DataTrack variant="list" data={listData} sortOrder="none" />
+    </div>
+  ),
+}

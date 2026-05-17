@@ -30,3 +30,7 @@ export const WithType: Story = {
 export const ExtraLarge: Story = {
   render: () => <Input inputSize="xl" placeholder="Larger field" />,
 }
+
+export const InputSizeXl: Story = {
+  args: { children: "Xl", inputSize: "xl" },
+}

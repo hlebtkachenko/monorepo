@@ -126,3 +126,30 @@ export const ActiveItem: Story = {
     </Frame>
   ),
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <Frame>
+      <NavigationBottomMobile defaultValue="home">
+        <NavigationBottomMobileList className="absolute right-0 bottom-0 left-0">
+          <NavigationBottomMobileItem value="home">
+            <NavigationBottomMobileItemIcon>
+              <HomeIcon />
+            </NavigationBottomMobileItemIcon>
+            <NavigationBottomMobileItemLabel>
+              Home
+            </NavigationBottomMobileItemLabel>
+          </NavigationBottomMobileItem>
+          <NavigationBottomMobileItem value="search" disabled>
+            <NavigationBottomMobileItemIcon>
+              <SearchIcon />
+            </NavigationBottomMobileItemIcon>
+            <NavigationBottomMobileItemLabel>
+              Search
+            </NavigationBottomMobileItemLabel>
+          </NavigationBottomMobileItem>
+        </NavigationBottomMobileList>
+      </NavigationBottomMobile>
+    </Frame>
+  ),
+}

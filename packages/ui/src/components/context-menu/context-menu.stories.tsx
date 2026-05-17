@@ -48,3 +48,19 @@ export const Default: Story = {
     await expect(within(menu).getByText("New Tab")).toBeInTheDocument()
   },
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <ContextMenu>
+      <ContextMenuTrigger className="flex h-24 w-64 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+        Right-click here
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem disabled>New Tab</ContextMenuItem>
+        <ContextMenuItem disabled>New Window</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive">Delete</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  ),
+}

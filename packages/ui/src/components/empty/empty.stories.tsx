@@ -56,3 +56,17 @@ export const WithMedia: Story = {
     </Empty>
   ),
 }
+
+export const Icon: Story = {
+  render: () => (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon" />
+        <EmptyTitle>No results found</EmptyTitle>
+        <EmptyDescription>
+          Try adjusting your search or filters.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  ),
+}

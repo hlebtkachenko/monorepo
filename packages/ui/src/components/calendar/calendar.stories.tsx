@@ -41,3 +41,7 @@ export const DropdownCaption: Story = {
     />
   ),
 }
+
+export const Disabled: Story = {
+  render: () => <Calendar mode="single" disabled />,
+}

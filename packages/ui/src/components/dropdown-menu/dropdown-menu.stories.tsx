@@ -56,3 +56,19 @@ export const Default: Story = {
     await expect(within(menu).getByText("Profile")).toBeInTheDocument()
   },
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="rounded-md border px-4 py-2 text-sm">
+        Open Menu
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem disabled>Profile</DropdownMenuItem>
+        <DropdownMenuItem disabled>Settings</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive">Log out</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ),
+}

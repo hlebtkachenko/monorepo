@@ -1,73 +1,96 @@
 # Rulesets
 
-Branch protection as code. Apply via `gh api`.
+Repository rulesets as code. Each JSON file mirrors a live GitHub ruleset and is
+applied via `gh api`. Keeping them in the repo makes enforcement auditable,
+version-controlled, and drift-detectable.
 
-**Live ruleset ID: `16205433`** (deployed 2026-05-11).
+## Live rulesets
+
+| File | Ruleset | ID | Target |
+|------|---------|----|--------|
+| `main.json` | `main` | `16193807` | `branch` (default branch) |
+| `release-tags.json` | `release-tags` | `16199683` | `tag` (`refs/tags/v*`) |
+
+Both are `active`. The JSON files are stored in apply-input shape — the live
+API responses additionally carry `id`, `source_type`, and `source`, which are
+server-side metadata and intentionally absent here.
+
+## `main.json` — default-branch protection
+
+Rules: `deletion`, `non_fast_forward`, `required_linear_history`,
+`code_scanning` (CodeQL, medium-or-higher security alerts), `code_quality`
+(warnings), `pull_request` (PR required, 0 approvals), and
+`required_status_checks` — 9 contexts that must pass before merge:
+
+`ci`, `gitleaks`, `lint`, `Analyze (javascript-typescript)`, `review`,
+`scan-pr / osv-scan`, `knip`, `check`, `boundaries`.
+
+`bypass_actors`: repository Admin role (`actor_id: 5`), bypass `always`.
+
+## `release-tags.json` — release-tag protection
+
+Protects `v*` tags (`release.yml` triggers on `push: tags v*`).
+Rules: `deletion` (no tag deletes), `non_fast_forward` (tags immutable once
+pushed), `required_signatures` (release tags must be signed).
+No bypass actors.
 
 ## Apply (first time)
 
 ```bash
-gh api \
-  --method POST \
-  -H "Accept: application/vnd.github+json" \
-  /repos/hlebtkachenko/monorepo/rulesets \
-  --input .github/rulesets/main.json
+gh api --method POST -H "Accept: application/vnd.github+json" \
+  /repos/hlebtkachenko/monorepo/rulesets --input .github/rulesets/main.json
 ```
 
-The response includes `id`. Save it for subsequent updates.
+The response includes `id`; record it in the table above.
 
 ## Update existing
 
 ```bash
-gh api \
-  --method PUT \
-  -H "Accept: application/vnd.github+json" \
-  /repos/hlebtkachenko/monorepo/rulesets/16205433 \
-  --input .github/rulesets/main.json
+# main ruleset
+gh api --method PUT -H "Accept: application/vnd.github+json" \
+  /repos/hlebtkachenko/monorepo/rulesets/16193807 --input .github/rulesets/main.json
+
+# release-tags ruleset
+gh api --method PUT -H "Accept: application/vnd.github+json" \
+  /repos/hlebtkachenko/monorepo/rulesets/16199683 --input .github/rulesets/release-tags.json
 ```
 
 ## List + verify
 
 ```bash
 gh api /repos/hlebtkachenko/monorepo/rulesets
-gh api /repos/hlebtkachenko/monorepo/rulesets/16205433 | jq .
+gh api /repos/hlebtkachenko/monorepo/rulesets/16193807 | jq .
+gh api /repos/hlebtkachenko/monorepo/rulesets/16199683 | jq .
 ```
 
 ## Drift detection
 
 ```bash
-gh api /repos/hlebtkachenko/monorepo/rulesets/16205433 > /tmp/live.json
-diff <(jq -S . .github/rulesets/main.json) <(jq -S . /tmp/live.json)
+gh api /repos/hlebtkachenko/monorepo/rulesets/16193807 > /tmp/live-main.json
+diff <(jq -S 'del(.id,.source_type,.source,.created_at,.updated_at,._links,.current_user_can_bypass,.node_id)' /tmp/live-main.json) \
+     <(jq -S . .github/rulesets/main.json)
 ```
+
+The `jq del(...)` strips server-side metadata so only real policy drift shows.
 
 ## Rollback
 
 ```bash
-gh api --method DELETE /repos/hlebtkachenko/monorepo/rulesets/16205433
+gh api --method DELETE /repos/hlebtkachenko/monorepo/rulesets/16193807
+gh api --method DELETE /repos/hlebtkachenko/monorepo/rulesets/16199683
 ```
-
-## Tag protection (`tags.json`)
-
-Separate ruleset protecting `v*` release tags (`release.yml` triggers on
-`push: tags v*`). Not yet applied — POST it to create, then record the
-returned `id` here like the main ruleset above.
-
-```bash
-gh api --method POST -H "Accept: application/vnd.github+json" \
-  /repos/hlebtkachenko/monorepo/rulesets --input .github/rulesets/tags.json
-```
-
-Rules: `creation` (only the admin bypass actor cuts release tags),
-`update` + `non_fast_forward` (tags are immutable once pushed),
-`deletion` (no tag deletes).
 
 ## Notes
 
-- `target: branch` + `ref_name.include: refs/heads/main`. Default branch is `main`.
-- `required_status_checks` references the **per-job context strings** (GitHub Rulesets resolution rule), not workflow names. The 10 listed match what runs on every PR (verified via `gh pr view <n> --json statusCheckRollup`). Excluded: `CodeQL` and `osv-scanner` advisory app status (no PR-time workflow attribution; can disappear).
-- `file_path_restriction` is NOT included: requires GitHub Pro/Enterprise tier (returns 422 on free). Secret-file leak guard handled by `gitleaks` workflow + `.gitignore` + `scripts/check-client-secrets.mjs` instead.
-- `bypass_actors: []` — no exceptions. Owner can bypass via repo admin if needed in emergency.
-
-## Why JSON in repo
-
-Manual UI clicks for branch protection lose track of what's enforced as advisory checks queue for promotion. JSON in repo + `gh api` deploy = drift detectable, auditable, version-controlled.
+- `main.json` targets `~DEFAULT_BRANCH` (resolves to `main`).
+- `required_status_checks` lists per-job **context strings**, not workflow
+  names (GitHub Rulesets resolution rule). Each is pinned to the GitHub Actions
+  app via `integration_id: 15368`. CodeQL is enforced both as the
+  `Analyze (javascript-typescript)` status check and the `code_scanning` rule.
+- `osv-scanner` standalone app status and other advisory checks are not
+  required — they have no reliable PR-time workflow attribution.
+- `file_path_restriction` is not used: it needs GitHub Pro/Enterprise (422 on
+  free tier). Secret-leak protection is handled by the `gitleaks` workflow,
+  `.gitignore`, and `scripts/check-client-secrets.mjs`.
+- Advisory CI workflows are promoted to required by adding their context to
+  `main.json` `required_status_checks` and re-applying with the PUT command.

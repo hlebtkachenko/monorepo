@@ -14,60 +14,63 @@ an independent failure domain and a true external vantage point. Full rationale:
 
 ## What is in this directory
 
-| File              | Role                                                                                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `openstatus.yaml` | Monitors-as-code: the 5 uptime monitors (3 public, 2 private), version-controlled and PR-reviewable. Single source of truth for monitor configuration. |
-| `README.md`       | This file.                                                                                                                                             |
+| File              | Role                                                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openstatus.yaml` | Monitors-as-code: the 7 uptime monitors (4 public, 3 private staging), version-controlled and PR-reviewable. Source-of-truth for what's configured. |
+| `README.md`       | This file.                                                                                                                                          |
 
 ## How monitors map to OpenStatus
 
-`openstatus.yaml` is the OpenStatus CLI's monitoring-as-code format — each top-level key is
-one monitor. The CLI diffs the file against the live workspace and applies the delta:
+**The upstream `openstatus` CLI does not target self-host** — `internal/api/client.go`
+hardcodes `https://api.openstatus.dev/v1` with no env override. On self-host, monitors are
+created via the dashboard UI. This YAML is therefore **operator-authored intent / record
+of what was configured**, not a file consumed by any tool. PRs to this file map 1:1 to
+dashboard changes that an operator applies manually.
 
-```bash
-# From the VPS, with OPENSTATUS_API_TOKEN exported (see STATUS-PAGE.md):
-openstatus monitors apply -c infra/openstatus/openstatus.yaml --dry-run   # preview
-openstatus monitors apply -c infra/openstatus/openstatus.yaml             # apply
-```
-
-The file is operator-authored intent. Environment-bound values — the private-location
-`regions` slug, and the `dns` monitor's request/assertion shape — are reconciled with
-`--dry-run` against the live self-hosted instance before applying; no tool validates this
-file at PR time.
+If the upstream CLI gains self-host support (or a fork ships), the file already follows
+the documented YAML schema (`# yaml-language-server: $schema=https://www.openstatus.dev/schema.json`)
+and could be applied as-is — `regions` slug + the `dns` assertion shape would need a
+`--dry-run` reconciliation against the live instance.
 
 ## Monitors
 
-| Monitor (key)  | Target                            | Check                                   | Public page?                         |
-| -------------- | --------------------------------- | --------------------------------------- | ------------------------------------ |
-| `web-app-prod` | `app.afframe.com/api/version`     | HTTP 200                                | ✅ Public — group "Web App"          |
-| `api-prod`     | `app.afframe.com/api/health`      | HTTP 200, body contains `"status":"ok"` | ✅ Public — group "API"              |
-| `dns-afframe`  | `afframe.com` apex                | DNS A record present                    | ✅ Public                            |
-| `staging-web`  | `staging.afframe.com/api/version` | HTTP 200                                | ❌ Private — dashboard + alerts only |
-| `staging-api`  | `staging.afframe.com/api/health`  | HTTP 200                                | ❌ Private — dashboard + alerts only |
+| Key             | Target                                 | Check                                           | Public page?                         | Active?                       |
+| --------------- | -------------------------------------- | ----------------------------------------------- | ------------------------------------ | ----------------------------- |
+| `web-app-prod`  | `app.afframe.com/api/version`          | HTTP 200                                        | ✅ Public — group "Web App"          | ❌ paused (prod not deployed) |
+| `api-prod`      | `api.afframe.com/api/health`           | HTTP 200, body contains `"status":"ok"`         | ✅ Public — group "API"              | ❌ paused                     |
+| `admin-prod`    | `admin.afframe.com/api/health`         | HTTP 200, body contains `"ok":true`             | ✅ Public — group "Admin"            | ❌ paused                     |
+| `dns-afframe`   | `afframe.com` apex (A record)          | A `Not Equal` `0.0.0.0` (effectively non-empty) | ✅ Public                            | ✅                            |
+| `staging-web`   | `staging.afframe.com/api/version`      | HTTP 200                                        | ❌ Private — dashboard + alerts only | ✅                            |
+| `staging-api`   | `api.staging.afframe.com/api/health`   | HTTP 200, body contains `"status":"ok"`         | ❌ Private                           | ✅                            |
+| `staging-admin` | `admin.staging.afframe.com/api/health` | HTTP 200, body contains `"ok":true`             | ❌ Private                           | ✅                            |
+
+Production monitors are **paused** until production deploys to `app.afframe.com` /
+`api.afframe.com` / `admin.afframe.com`. Activating them before deploy would show "DOWN"
+on the public page. Flip them to active after the first production deploy.
 
 ## Public status page composition
 
-The public page at `status.afframe.com` attaches the three production monitors only,
-grouped "Web App" and "API". Staging monitors stay off the public page. The page itself
-is configured in the OpenStatus dashboard — OpenStatus has no config-as-code for status
-pages yet, so page layout is not tracked here; see `STATUS-PAGE.md`.
+The public page at `status.afframe.com` attaches the four public monitors, grouped
+"Web App" / "API" / "Admin" (+ DNS ungrouped). Staging monitors stay off the public page.
+The page itself is configured in the OpenStatus dashboard — OpenStatus has no config-as-code
+for status pages; see `STATUS-PAGE.md`.
 
 ## Adding a monitor
 
-1. Add a new top-level key to `openstatus.yaml` in the schema above.
-2. `openstatus monitors apply -c infra/openstatus/openstatus.yaml --dry-run` on the VPS.
-3. Apply, then attach to the public page in the dashboard if it should be public.
+1. Add a new top-level key to `openstatus.yaml` matching the existing schema.
+2. Create the same monitor in the dashboard UI (Private Location: `OVH EU`).
+3. Attach to the public page in the dashboard if it should be public.
 4. Commit the YAML change as a normal PR.
 
 ## Not a versioned dependency
 
 `openstatus.yaml` pins no image tag and no version. The OpenStatus app version lives on
 the VPS, not in this repo. So `infra/openstatus/` adds no versioned dependency and needs
-no Dependabot entry or update-check workflow under the CLAUDE.md "Dependency Update
+no Dependabot entry or update-check workflow under the AGENTS.md "Dependency Update
 Coverage Rule" — this is intentional, not a gap.
 
 ## See also
 
 - [ADR-0019](../../docs/adr/0019-status-page-and-uptime-monitoring.md) — why OpenStatus, why off-AWS
-- [`docs/runbooks/STATUS-PAGE.md`](../../docs/runbooks/STATUS-PAGE.md) — deploy + day-2 operations
+- [`docs/runbooks/STATUS-PAGE.md`](../../docs/runbooks/STATUS-PAGE.md) — deploy + day-2 operations (+ all the self-host workarounds)
 - [ADR-0008](../../docs/adr/0008-cloudflare-tunnel-and-email.md) — the Cloudflare Tunnel pattern this reuses

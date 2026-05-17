@@ -1,8 +1,10 @@
-import type { Metadata } from "next"
+import { getTranslations } from "@workspace/i18n/server"
+
 import { ForgotPasswordForm } from "./forgot-password-form"
 
-export const metadata: Metadata = {
-  title: "Reset password — Admin",
+export async function generateMetadata() {
+  const t = await getTranslations("auth.forgot")
+  return { title: t("metaTitle") }
 }
 
 export default function ForgotPasswordPage() {

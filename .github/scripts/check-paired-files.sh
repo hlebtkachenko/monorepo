@@ -26,8 +26,14 @@ if [[ ! -f "${RULES_FILE}" ]]; then
   exit 1
 fi
 
-# Collect the PR's changed files, one path per line.
-changed_files="$(gh pr diff --name-only)"
+# Collect the PR's changed files, one path per line. In CI, actions/checkout
+# leaves a detached HEAD, so `gh pr diff` cannot infer the PR from the branch
+# — the workflow passes the PR number explicitly via PR_NUMBER.
+if [[ -n "${PR_NUMBER:-}" ]]; then
+  changed_files="$(gh pr diff "${PR_NUMBER}" --name-only)"
+else
+  changed_files="$(gh pr diff --name-only)"
+fi
 
 if [[ -z "${changed_files}" ]]; then
   echo "No changed files detected in this PR; nothing to check."

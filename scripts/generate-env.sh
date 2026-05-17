@@ -48,6 +48,11 @@ APP_TOKEN_SECRET=${APP_TOKEN_SECRET}
 # reset URL is printed to the dev-server console — copy it to test the flow.
 RESEND_API_KEY=
 EMAIL_FROM=no-reply@localhost
+
+# Dev-only HTTP endpoints (second gate alongside NODE_ENV check).
+# Set to 0 or remove to disable the endpoint even in dev.
+ENABLE_DEV_OUTBOX=1
+ENABLE_DEV_PREVIEW=1
 EOF
 
 chmod 600 "$TARGET"

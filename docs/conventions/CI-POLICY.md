@@ -6,27 +6,33 @@ Which checks must pass before a PR can merge, and which are advisory.
 
 While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must run on every PR but a failure does not block merge. _Required_ means: failure blocks merge. The matrix changes when the repo turns private + revenue-generating.
 
-| Check                                     | Today             | Future (production)         |
-| ----------------------------------------- | ----------------- | --------------------------- |
-| `typecheck`                               | required          | required                    |
-| `lint`                                    | required          | required                    |
-| `test`                                    | required          | required                    |
-| `build`                                   | required          | required                    |
-| `e2e` (Playwright auth flows)             | advisory          | required                    |
-| `commitlint`                              | advisory          | required                    |
-| `actionlint`                              | advisory          | required                    |
-| `zizmor` (workflow lint)                  | advisory          | required                    |
-| `codeql`                                  | advisory          | required                    |
-| `dependency-review`                       | advisory          | required                    |
-| `gitleaks`                                | required          | required                    |
-| `osv-scanner` (lib CVEs)                  | advisory          | required (fail on Critical) |
-| `license-check`                           | advisory          | required                    |
-| `size-limit` (bundle)                     | advisory          | required                    |
-| `sbom` (CycloneDX)                        | advisory          | required                    |
-| `provenance` (SLSA L2)                    | advisory          | required                    |
-| `cosign sign` (push only)                 | required          | required                    |
-| `cosign verify-attestation` (deploy gate) | n/a (no deploy)   | required                    |
-| Mutation testing (Stryker)                | advisory, nightly | advisory, nightly           |
+| Check                                     | Today                    | Future (production)         |
+| ----------------------------------------- | ------------------------ | --------------------------- |
+| `typecheck`                               | required                 | required                    |
+| `lint`                                    | required                 | required                    |
+| `test`                                    | required                 | required                    |
+| `build`                                   | required                 | required                    |
+| `ci` (aggregation shim)                   | required                 | required                    |
+| `knip` (dead-code)                        | required, warn-only [^1] | required                    |
+| `check` (paired-files)                    | required                 | required                    |
+| `boundaries` (import boundaries)          | required                 | required                    |
+| `e2e` (Playwright auth flows)             | advisory                 | required                    |
+| `commitlint`                              | advisory                 | required                    |
+| `actionlint`                              | advisory                 | required                    |
+| `zizmor` (workflow lint)                  | advisory                 | required                    |
+| `codeql`                                  | advisory                 | required                    |
+| `dependency-review`                       | advisory                 | required                    |
+| `gitleaks`                                | required                 | required                    |
+| `osv-scanner` (lib CVEs)                  | advisory                 | required (fail on Critical) |
+| `license-check`                           | advisory                 | required                    |
+| `size-limit` (bundle)                     | advisory                 | required                    |
+| `sbom` (CycloneDX)                        | advisory                 | required                    |
+| `provenance` (SLSA L2)                    | advisory                 | required                    |
+| `cosign sign` (push only)                 | required                 | required                    |
+| `cosign verify-attestation` (deploy gate) | n/a (no deploy)          | required                    |
+| Mutation testing (Stryker)                | advisory, nightly        | advisory, nightly           |
+
+[^1]: `knip` is a REQUIRED status check on the `main` ruleset (the job must run and be visible on every PR), but `.github/workflows/knip.yml` uses `continue-on-error: true` on the run step, making it warn-only today. This is intentional: knip found day-1 findings across 101k LOC that require a dedicated owner decision and cleanup pass — silently failing PRs that don't touch dead code would be noise, not signal. Once a dedicated dead-code cleanup issue lands and knip is clean, remove `continue-on-error: true` to make the gate real.
 
 A check moves from advisory to required by:
 

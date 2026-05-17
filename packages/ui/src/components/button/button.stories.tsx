@@ -1,3 +1,7 @@
+// Smoke-test edit: this comment touches `packages/ui/**` to verify that
+// .github/workflows/ci.yml's `changes` paths-filter triggers the storybook
+// job. Remove if you stumble across it after PR #113 merges — it has no
+// behavioural effect.
 import type { Meta, StoryObj } from "@storybook/react"
 import { Button } from "./button"
 

@@ -177,12 +177,12 @@ export function ProfileForm({ initial }: Props) {
         noValidate
       >
         <div className="flex items-center gap-4">
-          <Avatar size="lg" className="size-21">
+          <Avatar className="size-21">
             {avatarPreview ? (
               <AvatarImage src={avatarPreview} alt={t("avatarLabel")} />
             ) : null}
             <AvatarFallback>
-              <UserIcon className="size-8" aria-hidden="true" />
+              <UserIcon className="size-12" aria-hidden="true" />
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col gap-1.5">

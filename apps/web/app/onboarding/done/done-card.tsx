@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { useTranslations } from "@workspace/i18n/client"
+import { BorderBeam } from "@workspace/ui/components/border-beam"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -32,8 +33,7 @@ import {
 import { completeOnboardingAction } from "../actions"
 import type { OnboardingRole } from "../_lib/role-types"
 
-// Owner: full 7-step timeline. Member: profile, experience, password,
-// and the terminal "ready" step (step7) so the user sees they're done.
+// Owner: six-step recap timeline. Member: profile, experience, password.
 const OWNER_TIMELINE_KEYS = [
   "step1",
   "step2",
@@ -41,9 +41,8 @@ const OWNER_TIMELINE_KEYS = [
   "step4",
   "step5",
   "step6",
-  "step7",
 ] as const
-const MEMBER_TIMELINE_KEYS = ["step1", "step2", "step3", "step7"] as const
+const MEMBER_TIMELINE_KEYS = ["step1", "step2", "step3"] as const
 
 interface Props {
   role: OnboardingRole
@@ -150,20 +149,22 @@ export function DoneCard({ role }: Props) {
                     </ItemDescription>
                   </ItemContent>
                 </Item>
-                <Item variant="muted">
-                  <ItemMedia variant="icon">
-                    <Sparkles
-                      className="text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>{t("nextSteps.exploreAgents")}</ItemTitle>
-                    <ItemDescription>
-                      {t("nextSteps.exploreAgentsDescription")}
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
+                <BorderBeam borderRadius={8}>
+                  <Item variant="muted">
+                    <ItemMedia variant="icon">
+                      <Sparkles
+                        className="text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>{t("nextSteps.exploreAgents")}</ItemTitle>
+                      <ItemDescription>
+                        {t("nextSteps.exploreAgentsDescription")}
+                      </ItemDescription>
+                    </ItemContent>
+                  </Item>
+                </BorderBeam>
               </ItemGroup>
             </CardContent>
           </Card>

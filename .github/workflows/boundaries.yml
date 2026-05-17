@@ -20,6 +20,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Turbo boundaries
         run: pnpm turbo boundaries

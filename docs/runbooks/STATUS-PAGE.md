@@ -645,6 +645,23 @@ All pre-flight items are also gotchas; the ones that bite during operation:
 - Monitor traffic (~1 request/minute per active monitor) is negligible and will not trip
   the [ADR-0016](../adr/0016-cost-runaway-protection.md) cost alarms.
 
+## Backlog — deferred follow-ups (with triggers)
+
+Three known limitations have backlog issues with explicit "when to pick this up" triggers. Each
+is operationally fine to leave alone today; pick up only when the trigger fires.
+
+- [AFF-151](https://linear.app/hapddev/issue/AFF-151) — **rebuild `workflows` + `server` images**
+  to fix the monitor-alert `from:` (Bun ELF binaries; in-place sed can't reach them).
+  Trigger: production monitors activated (any alert send is then load-bearing), or staging
+  email-alert delivery becomes a team workflow.
+- [AFF-152](https://linear.app/hapddev/issue/AFF-152) — **deploy Tinybird local pipes** to
+  populate the dashboard uptime charts. Trigger: customer-facing SLA reporting (TOS / sales
+  deck), DORA Article 8 audit, or a one-shot self-host deploy script ships upstream.
+- [AFF-153](https://linear.app/hapddev/issue/AFF-153) — **drop the Caddy reverse-proxy +
+  URL-template sed** once upstream custom-domain fix ships. Trigger: OpenStatus
+  [PR #2029](https://github.com/openstatusHQ/openstatus/pull/2029) (or equivalent) merges
+  and ships in `ghcr.io/openstatushq/openstatus-status-page:latest`.
+
 ## See also
 
 - [ADR-0019](../adr/0019-status-page-and-uptime-monitoring.md) — why OpenStatus, why off-AWS

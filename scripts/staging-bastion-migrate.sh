@@ -81,9 +81,15 @@ trap cleanup EXIT INT TERM
 
 echo "== 1. Discover infrastructure (env=$ENV_NAME, region=$REGION) =="
 
+# CDK output keys interleave a per-resource hash between words, so the
+# Postgres endpoint key looks like
+# ExportsOutputFnGetAttPostgres9DC8BB04EndpointAddress36F9722A — the
+# substring "PostgresEndpointAddress" never appears. Match on the
+# unambiguous tail "EndpointAddress" instead; the only sibling key with
+# "Endpoint" in it is "EndpointPort", which this filter excludes.
 RDS_ENDPOINT=$(aws cloudformation describe-stacks \
   --stack-name "Data-${ENV_NAME}" --region "$REGION" \
-  --query "Stacks[0].Outputs[?contains(OutputKey,'PostgresEndpointAddress')].OutputValue | [0]" \
+  --query "Stacks[0].Outputs[?contains(OutputKey,'EndpointAddress')].OutputValue | [0]" \
   --output text)
 [ -n "$RDS_ENDPOINT" ] && [ "$RDS_ENDPOINT" != "None" ] || { echo "ERR: RDS endpoint not found in Data-${ENV_NAME} outputs"; exit 1; }
 echo "  rds endpoint  : $RDS_ENDPOINT"

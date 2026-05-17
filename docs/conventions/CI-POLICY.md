@@ -64,13 +64,43 @@ The override is gated OFF under lefthook (detected via the `LEFTHOOK` env var) s
 
 Path filters skip checks that are demonstrably orthogonal to the changed paths. Use sparingly.
 
-| Path changed                | Skip                                                              |
-| --------------------------- | ----------------------------------------------------------------- |
-| Only `docs/**`, `*.md`      | typecheck, test, build, mutation                                  |
-| Only `.github/workflows/**` | typecheck, lint, test, build (but actionlint and zizmor MUST run) |
-| Only `apps/web/**`          | mutation testing for `packages/**`                                |
+### Workflow-trigger filters
 
-Any check that is part of _required_ status above cannot be skipped by path filter on PRs targeting `main`.
+Workflow-level `paths:` filters on the trigger block create stuck PRs when the workflow is a required status check (the skipped run reads as "missing" to branch protection). They are used ONLY on advisory workflows whose check name is not in `.github/rulesets/main.json` required list — currently `container-scan.yml`, `osv-scanner-pr.yml`, `db-migration-lint.yml`, `db-pgtap.yml`, `db-migration-idempotency.yml`, `db-schema-drift.yml`, `openapi-lint.yml`. **Do not add workflow-trigger `paths:` to required workflows like `ci.yml` or `gitleaks`.**
+
+### In-workflow job/step skip via `changes` upstream
+
+`ci.yml` runs `dorny/paths-filter` in a `changes` job and downstream jobs key off `needs.changes.outputs.<name>`. The `ci` aggregator at the bottom of `ci.yml` treats `skipped` as non-failure (only `failure|cancelled` red the aggregator), so skipped jobs do not break the required `ci` status check.
+
+| Job / Step                          | Gated on                                                | What skipping saves                                        |
+| ----------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------- |
+| `storybook` (entire job)            | `packages/ui/**`                                        | ~220s on non-UI PRs                                        |
+| `lint-typecheck` → `CDK Synth` step | `infra/cdk/**`, `apps/*/package.json`, `pnpm-lock.yaml` | ~20-40s on PRs that don't touch CDK or dependency surfaces |
+
+### `--affected` policy
+
+`turbo --affected` scopes graph tasks to packages touched vs the PR base (or `HEAD^` on push to main). Applied selectively:
+
+| Task                    | `--affected`? | Why                                                                                                                                                              |
+| ----------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `typecheck`             | Yes           | Type errors are local to changed package + downstream consumers; turbo's inputs hashing catches them.                                                            |
+| `lint`                  | Yes           | Same reasoning.                                                                                                                                                  |
+| `test` (vitest, non-db) | Yes           | Same. `test:coverage` also uses `--affected`.                                                                                                                    |
+| `build`                 | **No**        | Deploy/release path consumes the FULL build artifact set (`apps/web/.next/standalone`, `apps/api/dist`, `apps/admin/.next`). A partial build = poisoned release. |
+| `build-storybook`       | No            | Job already skipped when no UI change; full graph is fine when running.                                                                                          |
+| `synth` (CDK)           | No            | Only runs at all when `infra/**` changed (path-filtered above).                                                                                                  |
+
+`TURBO_SCM_BASE` is set to `${{ github.event.pull_request.base.sha || 'HEAD^' }}` — the existing pattern from `ci.yml`'s `test:coverage` step. Full-graph fallback works on push to main and on the first commit of a new branch.
+
+### `fetch-depth` policy
+
+| Job                         | `fetch-depth` | Reason                                                                            |
+| --------------------------- | ------------- | --------------------------------------------------------------------------------- |
+| `gitleaks`                  | `0`           | Full-history secret scan.                                                         |
+| `lint-typecheck`            | `0`           | `turbo --affected` needs base ref reachable.                                      |
+| `unit-test`                 | `0`           | Same.                                                                             |
+| `storybook`, `build`, `e2e` | default (`1`) | No `--affected` here; full history is dead weight.                                |
+| `changes` (paths-filter)    | default (`1`) | `dorny/paths-filter` reads the PR diff via the GitHub API, not local git history. |
 
 ## Concurrency
 

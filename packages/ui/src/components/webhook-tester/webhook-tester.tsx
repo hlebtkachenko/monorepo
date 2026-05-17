@@ -152,7 +152,7 @@ function WebhookTester({
           />
           <Button
             type="button"
-            onClick={handleSend}
+            onClick={() => void handleSend()}
             disabled={loading || !url}
             aria-label={loading ? "Sending request" : "Send request"}
           >

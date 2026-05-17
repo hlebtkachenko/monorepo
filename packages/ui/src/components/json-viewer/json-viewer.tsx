@@ -175,7 +175,7 @@ function JsonNode({
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={handleCopyPath}
+            onClick={() => void handleCopyPath()}
             aria-label={`Copy path ${path}`}
             className="ml-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
           >
@@ -244,7 +244,7 @@ function JsonNode({
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={handleCopyPath}
+            onClick={() => void handleCopyPath()}
             aria-label={`Copy path ${path}`}
             className="ml-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
           >

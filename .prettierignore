@@ -7,6 +7,11 @@ pnpm-lock.yaml
 .pnpm-store/
 storybook-static/
 
+# Agent instruction files contain literal snake_case / acc_ prefix tokens that
+# prettier's markdown emphasis parser mangles (snake_case -> snake*case).
+AGENTS.md
+CLAUDE.md
+
 # Generated OpenAPI spec — emitted by `pnpm --filter api emit:openapi`
 # (JSON.stringify format). Prettier must not reformat it or the CI drift
 # gate (openapi-lint.yml) would never match the emitter's output.

@@ -45,3 +45,12 @@ export const Small: Story = {
     </NativeSelect>
   ),
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <NativeSelect disabled defaultValue="apple">
+      <NativeSelectOption value="apple">Apple</NativeSelectOption>
+      <NativeSelectOption value="banana">Banana</NativeSelectOption>
+    </NativeSelect>
+  ),
+}

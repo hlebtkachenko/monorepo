@@ -320,7 +320,7 @@ function InviteTokenSection() {
   }, [organizationId])
 
   useEffect(() => {
-    loadOrgs()
+    void loadOrgs()
   }, [loadOrgs])
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -380,7 +380,7 @@ function InviteTokenSection() {
                   type="button"
                   variant="outline"
                   size="xl"
-                  onClick={loadOrgs}
+                  onClick={() => void loadOrgs()}
                   disabled={orgsLoading}
                 >
                   {orgsLoading ? "Loading…" : "Refresh"}
@@ -474,10 +474,12 @@ function TokenResult({ label, url }: { label: string; url: string }) {
             type="button"
             variant="outline"
             size="sm"
-            onClick={async () => {
-              await navigator.clipboard.writeText(url)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1500)
+            onClick={() => {
+              void (async () => {
+                await navigator.clipboard.writeText(url)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1500)
+              })()
             }}
           >
             {copied ? "Copied" : "Copy"}
@@ -504,8 +506,8 @@ function OutboxSection({ webBaseUrl }: { webBaseUrl: string }) {
   }, [])
 
   useEffect(() => {
-    refresh()
-    const id = setInterval(refresh, 5000)
+    void refresh()
+    const id = setInterval(() => void refresh(), 5000)
     return () => clearInterval(id)
   }, [refresh])
 
@@ -515,7 +517,7 @@ function OutboxSection({ webBaseUrl }: { webBaseUrl: string }) {
         <div className="flex items-center justify-between gap-3">
           <CardTitle>Email outbox</CardTitle>
           <div className="flex items-center gap-2">
-            <Button onClick={refresh} variant="outline" size="sm">
+            <Button onClick={() => void refresh()} variant="outline" size="sm">
               {loading ? "Refreshing…" : "Refresh"}
             </Button>
             <Button asChild variant="outline" size="sm">
@@ -593,8 +595,8 @@ function OutboxItem({ message }: { message: OutboxMessage }) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(message.url!)
+                onClick={() => {
+                  void navigator.clipboard.writeText(message.url!)
                 }}
               >
                 Copy URL

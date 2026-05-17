@@ -152,7 +152,7 @@ export function InviteWelcomeActions({
           <Button
             type="button"
             size="xl"
-            onClick={onAccept}
+            onClick={() => void onAccept()}
             disabled={submitting}
           >
             {submitting ? t("submittingExisting") : t("continueExisting")}

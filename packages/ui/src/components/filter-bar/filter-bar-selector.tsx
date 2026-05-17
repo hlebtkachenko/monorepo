@@ -165,10 +165,10 @@ export function FilterableColumn<TData, TType extends ColumnDataType, TVal>({
   const itemRef = React.useRef<HTMLDivElement>(null)
 
   const prefetch = React.useCallback(() => {
-    column.prefetchOptions()
-    column.prefetchValues()
-    column.prefetchFacetedUniqueValues()
-    column.prefetchFacetedMinMaxValues()
+    void column.prefetchOptions()
+    void column.prefetchValues()
+    void column.prefetchFacetedUniqueValues()
+    void column.prefetchFacetedMinMaxValues()
   }, [column])
 
   React.useEffect(() => {

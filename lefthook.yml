@@ -9,10 +9,17 @@ pre-commit:
       glob: "*.{ts,tsx,js,jsx,mjs,json,jsonc,md,yml,yaml,css}"
       run: pnpm exec prettier --write {staged_files}
       stage_fixed: true
+    eslint:
+      glob: "*.{ts,tsx,js,jsx,mjs}"
+      run: pnpm exec eslint --flag v10_config_lookup_from_file --fix {staged_files}
+      stage_fixed: true
     no-drizzle-kit-generate:
       glob: "*.{json,jsonc,yml,yaml,sh,ts,mjs,cjs}"
       run: |
-        if grep -nE 'drizzle-kit[[:space:]]+(generate|push)' {staged_files} | grep -v 'is forbidden'; then
+        # Exclude lines that also say "forbidden": those are this repo's own
+        # guard messages / anti-drizzle-kit scripts (lefthook.yml, packages/db
+        # package.json), not real command invocations.
+        if grep -nE 'drizzle-kit[[:space:]]+(generate|push)' {staged_files} | grep -v forbidden; then
           echo "ADR-0009: 'drizzle-kit generate' / 'drizzle-kit push' are forbidden — migrations are handwritten SQL in packages/db/migrations/."
           exit 1
         fi

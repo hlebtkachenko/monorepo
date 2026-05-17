@@ -67,3 +67,37 @@ export const SizeSm: Story = {
 export const SizeXs: Story = {
   args: { children: "Xs", size: "xs" },
 }
+
+export const Icon: Story = {
+  render: () => (
+    <Item>
+      <ItemMedia variant="icon">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>Icon item</ItemTitle>
+      </ItemContent>
+    </Item>
+  ),
+}
+
+export const Image: Story = {
+  render: () => (
+    <Item>
+      <ItemMedia variant="image">
+        <img src="https://placehold.co/40x40" alt="Preview" />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>Image item</ItemTitle>
+      </ItemContent>
+    </Item>
+  ),
+}

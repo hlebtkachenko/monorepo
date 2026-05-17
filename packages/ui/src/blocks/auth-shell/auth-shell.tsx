@@ -19,6 +19,14 @@ type LinkComponentProps = AnchorProps & {
 type LinkComponent = React.ComponentType<LinkComponentProps>
 let LINK_COMPONENT: LinkComponent | null = null
 
+function FallbackAnchor({ href, children, ...rest }: LinkComponentProps) {
+  return (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  )
+}
+
 /**
  * Set the router-aware link component used by every `AuthShellHeader`
  * instance in the current React tree. Call once at app boot (e.g. from
@@ -65,13 +73,7 @@ function AuthShellHeader({
   backLabel = "Back",
   ...props
 }: AuthShellHeaderProps) {
-  const LinkOrAnchor: LinkComponent =
-    LINK_COMPONENT ??
-    (({ href, children, ...rest }) => (
-      <a href={href} {...rest}>
-        {children}
-      </a>
-    ))
+  const LinkOrAnchor: LinkComponent = LINK_COMPONENT ?? FallbackAnchor
 
   return (
     <header

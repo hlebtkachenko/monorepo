@@ -11,9 +11,9 @@
 #   - The image is content-hashed by CDK, so a policy edit triggers a new
 #     image push automatically. No manual tag bumps.
 #
-# Upstream cerbos pin: ghcr.io/cerbos/cerbos:0.53.0. Dependabot Docker
-# ecosystem covers this; the SHA digest is whatever upstream publishes.
-# Re-pin via .github/dependabot.yml updates.
+# Upstream cerbos pin: ghcr.io/cerbos/cerbos:0.53.0. Tracked by Dependabot
+# Docker ecosystem via the /infra/cerbos directory entry in
+# .github/dependabot.yml. Re-pin via Dependabot PRs.
 FROM ghcr.io/cerbos/cerbos:0.53.0
 COPY policies /policies
 COPY config/cerbos-config.yaml /etc/cerbos/config.yaml

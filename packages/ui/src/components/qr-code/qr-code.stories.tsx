@@ -86,3 +86,31 @@ export const HighErrorCorrection: Story = {
     </QRCode>
   ),
 }
+
+export const FormatPng: Story = {
+  args: { value: "https://example.com" },
+  render: (args) => (
+    <QRCode {...args}>
+      <QRCodeCanvas />
+      <QRCodeDownload asChild format="png">
+        <Button size="sm" variant="outline">
+          Download PNG
+        </Button>
+      </QRCodeDownload>
+    </QRCode>
+  ),
+}
+
+export const FormatSvg: Story = {
+  args: { value: "https://example.com" },
+  render: (args) => (
+    <QRCode {...args}>
+      <QRCodeCanvas />
+      <QRCodeDownload asChild format="svg">
+        <Button size="sm" variant="outline">
+          Download SVG
+        </Button>
+      </QRCodeDownload>
+    </QRCode>
+  ),
+}

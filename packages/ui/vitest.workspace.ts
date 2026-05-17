@@ -10,7 +10,7 @@ export default [
       browser: {
         enabled: true,
         headless: true,
-        provider: "playwright" as any,
+        provider: "playwright" as "playwright" | "webdriverio",
         instances: [{ browser: "chromium" }, { browser: "webkit" }],
       },
       setupFiles: ["./vitest.setup.ts"],

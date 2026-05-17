@@ -1,6 +1,6 @@
 "use client"
 
-import type { CSSProperties, ReactNode } from "react"
+import type { ReactNode } from "react"
 import * as React from "react"
 import {
   BorderBeam as NpmBorderBeam,

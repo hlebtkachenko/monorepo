@@ -42,7 +42,7 @@ Negative / trade-offs:
 - Slow to iterate: every "add column" is hand-written SQL instead of `pnpm db:generate`. Discipline tax on contributors.
 - No automatic down-migrations. Rolling back a schema change means writing a new forward migration that undoes it (matches production reality; production never runs `migrate down`).
 - Junior contributors will write unsafe DDL. Mitigated by `squawk` lint (planned for CI gates phase) flagging unsafe patterns (`ALTER TABLE` without lock, `DROP COLUMN` without warning, etc.).
-- drizzle-orm schema files in `src/schema/*.ts` (Section 2 of port plan) must be hand-kept in sync with migration DDL. No automatic verification. Drift is caught only when a query fails at runtime or in tests.
+- drizzle-orm schema files in `src/schema/*.ts` (Section 2 of port plan) must be hand-kept in sync with migration DDL. No automatic verification. Drift is caught only when a query fails at runtime or in tests. As a corollary, Drizzle schema files declare **no indexes**; all index DDL lives exclusively in migration files — so any model↔migration index divergence is invisible to the schema-drift CI workflow (documented in `.github/workflows/db-schema-drift.yml`).
 
 Follow-up work required:
 

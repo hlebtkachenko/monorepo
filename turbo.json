@@ -1,6 +1,15 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "boundaries": {
+    "tags": {
+      "ui": {
+        "dependencies": {
+          "deny": ["data"]
+        }
+      }
+    }
+  },
   "futureFlags": {
     "affectedUsingTaskInputs": true,
     "pruneIncludesGlobalFiles": true

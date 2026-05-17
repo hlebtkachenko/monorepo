@@ -11,7 +11,8 @@ const nextConfig = {
     "@workspace/db",
     "@workspace/i18n",
     "@workspace/observability",
-    "@workspace/testcontainers",
+    "@workspace/shared",
+    "@workspace/email",
   ],
   output: "standalone",
 }

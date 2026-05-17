@@ -25,6 +25,7 @@ import { ArrowLeft } from "@workspace/ui/lib/icons"
 
 import { AuthHeaderLinkOverride } from "../../auth/(default)/_components/auth-header-link"
 import { submitPasswordAction } from "../actions"
+import { uploadCarriedAvatar } from "../_lib/avatar-carry"
 import type { OnboardingRole } from "../_lib/role-types"
 
 interface Props {
@@ -74,6 +75,14 @@ export function PasswordForm({ email, role }: Props) {
       setServerError(tErrors(result.errorKey ?? "createAccountFailed"))
       return
     }
+
+    // The account + session now exist. If the profile step carried a cropped
+    // avatar (fresh onboarding 401s the upload route at that point), upload it
+    // now — for both owner and member, both pass through this step. Non-fatal
+    // by contract: failure is logged inside the helper and the carry key is
+    // always cleared, so onboarding never breaks because of the avatar.
+    await uploadCarriedAvatar()
+
     // Owner → workspace step; Member → done (then redirect to their
     // org via the done card). The action reuses the same cookie-based
     // role detection internally.
@@ -99,7 +108,7 @@ export function PasswordForm({ email, role }: Props) {
       </header>
 
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
         className="flex flex-col gap-5"
         noValidate
       >

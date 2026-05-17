@@ -26,6 +26,17 @@ jobs:
       BETTER_AUTH_URL: "http://localhost:3010"
       BETTER_AUTH_SECRET: "e2e-test-secret-not-real-0123456789ab"
       APP_TOKEN_SECRET: "e2e-app-token-secret-not-real-0123456789ab"
+      # Build-time placeholders. The real database for the E2E run is the
+      # disposable Postgres 18 testcontainer booted by apps/web/e2e/db-setup.ts
+      # during Playwright config evaluation — it boots the container, runs
+      # migrations + the loginable-owner seed, and spreads the ephemeral
+      # connection URLs into the Playwright webServer env so the spawned
+      # Next.js server picks them up. These two values exist only so
+      # `next build` and any module that reads them at build time have a
+      # non-empty, syntactically valid URL; db-setup.ts overrides both before
+      # the web server starts.
+      DATABASE_URL: "postgres://app_user:dev_user@127.0.0.1:5432/app_dev"
+      DATABASE_DIRECT_URL: "postgres://app_owner:dev_owner@127.0.0.1:5432/app_dev"
     steps:
       - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         with:

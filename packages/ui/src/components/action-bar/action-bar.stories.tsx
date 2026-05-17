@@ -97,3 +97,127 @@ export const TopAligned: Story = {
     )
   },
 }
+
+export const AlignStart: Story = {
+  render: () => {
+    const [open, setOpen] = useState(true)
+    return (
+      <div className="relative h-40">
+        <button onClick={() => setOpen(true)} className="text-sm underline">
+          Show action bar
+        </button>
+        <ActionBar open={open} onOpenChange={setOpen} align="start">
+          <ActionBarGroup>
+            <ActionBarItem onSelect={() => setOpen(false)}>Copy</ActionBarItem>
+            <ActionBarItem onSelect={() => setOpen(false)}>Edit</ActionBarItem>
+            <ActionBarClose>✕</ActionBarClose>
+          </ActionBarGroup>
+        </ActionBar>
+      </div>
+    )
+  },
+}
+
+export const AlignCenter: Story = {
+  render: () => {
+    const [open, setOpen] = useState(true)
+    return (
+      <div className="relative h-40">
+        <button onClick={() => setOpen(true)} className="text-sm underline">
+          Show action bar
+        </button>
+        <ActionBar open={open} onOpenChange={setOpen} align="center">
+          <ActionBarGroup>
+            <ActionBarItem onSelect={() => setOpen(false)}>Copy</ActionBarItem>
+            <ActionBarItem onSelect={() => setOpen(false)}>Edit</ActionBarItem>
+            <ActionBarClose>✕</ActionBarClose>
+          </ActionBarGroup>
+        </ActionBar>
+      </div>
+    )
+  },
+}
+
+export const AlignEnd: Story = {
+  render: () => {
+    const [open, setOpen] = useState(true)
+    return (
+      <div className="relative h-40">
+        <button onClick={() => setOpen(true)} className="text-sm underline">
+          Show action bar
+        </button>
+        <ActionBar open={open} onOpenChange={setOpen} align="end">
+          <ActionBarGroup>
+            <ActionBarItem onSelect={() => setOpen(false)}>Copy</ActionBarItem>
+            <ActionBarItem onSelect={() => setOpen(false)}>Edit</ActionBarItem>
+            <ActionBarClose>✕</ActionBarClose>
+          </ActionBarGroup>
+        </ActionBar>
+      </div>
+    )
+  },
+}
+
+export const SideTop: Story = {
+  render: () => {
+    const [open, setOpen] = useState(true)
+    return (
+      <div className="relative h-40">
+        <button onClick={() => setOpen(true)} className="text-sm underline">
+          Show action bar
+        </button>
+        <ActionBar open={open} onOpenChange={setOpen} side="top">
+          <ActionBarGroup>
+            <ActionBarItem onSelect={() => setOpen(false)}>Copy</ActionBarItem>
+            <ActionBarItem onSelect={() => setOpen(false)}>Edit</ActionBarItem>
+            <ActionBarClose>✕</ActionBarClose>
+          </ActionBarGroup>
+        </ActionBar>
+      </div>
+    )
+  },
+}
+
+export const SideBottom: Story = {
+  render: () => {
+    const [open, setOpen] = useState(true)
+    return (
+      <div className="relative h-40">
+        <button onClick={() => setOpen(true)} className="text-sm underline">
+          Show action bar
+        </button>
+        <ActionBar open={open} onOpenChange={setOpen} side="bottom">
+          <ActionBarGroup>
+            <ActionBarItem onSelect={() => setOpen(false)}>Copy</ActionBarItem>
+            <ActionBarItem onSelect={() => setOpen(false)}>Edit</ActionBarItem>
+            <ActionBarClose>✕</ActionBarClose>
+          </ActionBarGroup>
+        </ActionBar>
+      </div>
+    )
+  },
+}
+
+export const Disabled: Story = {
+  render: () => {
+    const [open, setOpen] = useState(true)
+    return (
+      <div className="relative h-40">
+        <button onClick={() => setOpen(true)} className="text-sm underline">
+          Show action bar
+        </button>
+        <ActionBar open={open} onOpenChange={setOpen}>
+          <ActionBarGroup>
+            <ActionBarItem disabled onSelect={() => setOpen(false)}>
+              Copy
+            </ActionBarItem>
+            <ActionBarItem disabled onSelect={() => setOpen(false)}>
+              Edit
+            </ActionBarItem>
+            <ActionBarClose>✕</ActionBarClose>
+          </ActionBarGroup>
+        </ActionBar>
+      </div>
+    )
+  },
+}

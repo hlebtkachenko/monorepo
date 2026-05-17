@@ -168,3 +168,118 @@ export const ItemWithCustomDelete: Story = {
     )
   },
 }
+
+export const OrientationHorizontal: Story = {
+  render: () => (
+    <div className="w-full max-w-2xl">
+      <FileUpload multiple>
+        <FileUploadDropzone>
+          <div className="flex flex-col items-center gap-1">
+            <UploadIcon className="size-6 text-muted-foreground" />
+            <p className="text-sm font-medium">Drag and drop files</p>
+          </div>
+        </FileUploadDropzone>
+        <FileUploadList orientation="horizontal" />
+      </FileUpload>
+    </div>
+  ),
+}
+
+export const OrientationVertical: Story = {
+  render: () => (
+    <div className="w-full max-w-md">
+      <FileUpload multiple>
+        <FileUploadDropzone>
+          <div className="flex flex-col items-center gap-1">
+            <UploadIcon className="size-6 text-muted-foreground" />
+            <p className="text-sm font-medium">Drag and drop files</p>
+          </div>
+        </FileUploadDropzone>
+        <FileUploadList orientation="vertical" />
+      </FileUpload>
+    </div>
+  ),
+}
+
+export const SizeSm: Story = {
+  render: () => {
+    const fakeFile = new File(["hello"], "document.pdf", {
+      type: "application/pdf",
+    })
+    return (
+      <div className="w-full max-w-md">
+        <FileUpload defaultValue={[fakeFile]}>
+          <FileUploadList>
+            <FileUploadItem value={fakeFile}>
+              <FileUploadItemPreview />
+              <FileUploadItemMetadata size="sm" />
+            </FileUploadItem>
+          </FileUploadList>
+        </FileUpload>
+      </div>
+    )
+  },
+}
+
+export const Linear: Story = {
+  render: () => {
+    const fakeFile = new File(["hello"], "upload.pdf", {
+      type: "application/pdf",
+    })
+    return (
+      <div className="w-full max-w-md">
+        <FileUpload defaultValue={[fakeFile]}>
+          <FileUploadList>
+            <FileUploadItem value={fakeFile}>
+              <FileUploadItemPreview />
+              <FileUploadItemMetadata />
+              <FileUploadItemProgress variant="linear" />
+            </FileUploadItem>
+          </FileUploadList>
+        </FileUpload>
+      </div>
+    )
+  },
+}
+
+export const Circular: Story = {
+  render: () => {
+    const fakeFile = new File(["hello"], "upload.pdf", {
+      type: "application/pdf",
+    })
+    return (
+      <div className="w-full max-w-md">
+        <FileUpload defaultValue={[fakeFile]}>
+          <FileUploadList>
+            <FileUploadItem value={fakeFile}>
+              <FileUploadItemPreview />
+              <FileUploadItemMetadata />
+              <FileUploadItemProgress variant="circular" />
+            </FileUploadItem>
+          </FileUploadList>
+        </FileUpload>
+      </div>
+    )
+  },
+}
+
+export const Fill: Story = {
+  render: () => {
+    const fakeFile = new File(["hello"], "upload.pdf", {
+      type: "application/pdf",
+    })
+    return (
+      <div className="w-full max-w-md">
+        <FileUpload defaultValue={[fakeFile]}>
+          <FileUploadList>
+            <FileUploadItem value={fakeFile}>
+              <FileUploadItemPreview />
+              <FileUploadItemMetadata />
+              <FileUploadItemProgress variant="fill" />
+            </FileUploadItem>
+          </FileUploadList>
+        </FileUpload>
+      </div>
+    )
+  },
+}

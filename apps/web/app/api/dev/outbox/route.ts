@@ -12,7 +12,10 @@ import { readDevOutbox } from "@workspace/email"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  if (process.env.NODE_ENV === "production") {
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.ENABLE_DEV_OUTBOX !== "1"
+  ) {
     return new NextResponse("Not Found", { status: 404 })
   }
   return NextResponse.json({ messages: readDevOutbox() })

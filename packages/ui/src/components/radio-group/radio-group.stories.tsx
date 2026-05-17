@@ -51,3 +51,18 @@ export const Horizontal: Story = {
     </RadioGroup>
   ),
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <RadioGroup defaultValue="option-1" disabled>
+      <div className="flex items-center gap-2">
+        <RadioGroupItem value="option-1" id="disabled-1" />
+        <label htmlFor="disabled-1">Option 1</label>
+      </div>
+      <div className="flex items-center gap-2">
+        <RadioGroupItem value="option-2" id="disabled-2" />
+        <label htmlFor="disabled-2">Option 2</label>
+      </div>
+    </RadioGroup>
+  ),
+}

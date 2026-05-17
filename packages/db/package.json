@@ -11,7 +11,8 @@
     "./columns": "./src/columns.ts",
     "./tenancy": "./src/tenancy.ts",
     "./policies": "./src/policies/rls.ts",
-    "./audit": "./src/audit/index.ts"
+    "./audit": "./src/audit/index.ts",
+    "./tests/fixtures": "./tests/fixtures.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

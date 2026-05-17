@@ -6,21 +6,22 @@ Strict-mode TypeScript across every package. Rules are enforceable: lint catches
 
 Active `tsconfig` flags (set in `packages/typescript-config/base.json`, inherited by every workspace):
 
-| Flag | Value | Why |
-|---|---|---|
-| `strict` | `true` | Umbrella for the standard strict family. |
-| `noUncheckedIndexedAccess` | `true` | `arr[i]` is `T \| undefined`, not `T`. Catches off-by-one and missing-key bugs at the type level. |
-| `isolatedModules` | `true` | Every file compiles independently (matches Turbopack/esbuild semantics). |
-| `target` | `ES2022` | Matches Node 22+ and modern browsers. |
+| Flag                         | Value    | Why                                                                                               |
+| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `strict`                     | `true`   | Umbrella for the standard strict family.                                                          |
+| `noFallthroughCasesInSwitch` | `true`   | A `case` that falls through without `break`/`return`/`throw` is a compile error.                  |
+| `noImplicitOverride`         | `true`   | Methods overriding a base-class method must carry the `override` keyword.                         |
+| `noUncheckedIndexedAccess`   | `true`   | `arr[i]` is `T \| undefined`, not `T`. Catches off-by-one and missing-key bugs at the type level. |
+| `isolatedModules`            | `true`   | Every file compiles independently (matches Turbopack/esbuild semantics).                          |
+| `target`                     | `ES2022` | Matches Node 22+ and modern browsers.                                                             |
 
 Recommended additions (planned, not yet in `base.json`):
 
-| Flag | Why deferred |
-|---|---|
-| `exactOptionalPropertyTypes` | Codebase passes today without it; flip after first audit. |
-| `noImplicitOverride` | No class hierarchies in production code yet; turn on with first OOP package. |
-| `verbatimModuleSyntax` | Bundler already strips type-only imports; flip when a runtime regression makes the case. |
-| `forceConsistentCasingInFileNames` | Catch-all for cross-platform case mismatches; flip after first CI run on Linux exposes a miss. |
+| Flag                               | Why deferred                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `exactOptionalPropertyTypes`       | Surfaces a large error count across Next 16 + Drizzle + Zod; deferred until a dedicated audit pass. |
+| `verbatimModuleSyntax`             | Bundler already strips type-only imports; flip when a runtime regression makes the case.            |
+| `forceConsistentCasingInFileNames` | Catch-all for cross-platform case mismatches; flip after first CI run on Linux exposes a miss.      |
 
 ## Type vs interface
 
@@ -51,9 +52,12 @@ function assertNever(x: never): never {
 }
 
 switch (kind) {
-  case "a": return handleA()
-  case "b": return handleB()
-  default: return assertNever(kind)
+  case "a":
+    return handleA()
+  case "b":
+    return handleB()
+  default:
+    return assertNever(kind)
 }
 ```
 

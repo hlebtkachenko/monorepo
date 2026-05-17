@@ -62,6 +62,7 @@ Before adding a new versioned dependency, verify which category it falls into. I
 Current custom checks:
 
 - `shadcn-check.yml` — shadcn/ui source-copied components
+- `openfga-version-check.yml` — OpenFGA + pgbouncer pinned image versions
 
 ## Code Standards
 
@@ -70,6 +71,13 @@ Current custom checks:
 - No premature abstractions
 - Validate at system boundaries only
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
+
+## Linting
+
+- `pnpm lint` runs ESLint per package. The shared config (`packages/eslint-config/base.js`) is mostly syntactic, with one scoped type-aware override: `@typescript-eslint/no-floating-promises` and `@typescript-eslint/no-misused-promises`, both `error`.
+- These two rules use `projectService` — ESLint must build the TypeScript project graph to evaluate them, so every linted package needs a parseable `tsconfig.json` whose `include` covers the source being linted. Files outside any tsconfig (`*.config.ts`, `.storybook/**`, `tests/` helpers, `*.d.ts`) are excluded from the override; test/spec/stories/scripts/migrations are excluded too.
+- Fire-and-forget promises: prefix with the `void` operator. Async React handlers passed to a `() => void` prop: wrap inline (`onClick={() => void handler()}`, `onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}`).
+- The type-checked override is gated OFF under lefthook (the `LEFTHOOK` env var). The pre-commit ESLint hook stays fast and syntactic; the full type-aware rules run only in CI's `pnpm lint`.
 
 ## Domain Rules
 
@@ -96,6 +104,65 @@ All reads/writes go through `withWorkspace`, `withOrganization`, or `withAdminBy
 - Config: `packages/ui/vitest.config.ts`
 - Setup file mocks: ResizeObserver, IntersectionObserver, matchMedia, scrollIntoView, hasPointerCapture
 - Run: `pnpm test` (all) or `pnpm --filter @workspace/ui test:watch` (watch mode)
+
+### Vitest runners per package
+
+| Package / App | Config | Environment | Covers |
+|---|---|---|---|
+| `packages/ui` | `packages/ui/vitest.config.ts` | jsdom | React components, hooks, utils |
+| `packages/auth` | `packages/auth/vitest.config.ts` | node | JWT sign/verify, token helpers |
+| `packages/shared` | `packages/shared/vitest.config.ts` | node | `PasswordSchema` boundary rules |
+| `packages/email` | `packages/email/vitest.config.ts` | node | `pickTransport()` selection logic |
+| `apps/web` | `apps/web/vitest.config.ts` | node | Server-side DB integration tests |
+
+Run a single package/app: `pnpm --filter @workspace/shared test` / `pnpm --filter web test`.
+
+### apps/web integration test runner (AFF-119)
+
+- Config: `apps/web/vitest.config.ts` (node environment, globalSetup boots Postgres 18 testcontainer)
+- Test files: co-located alongside source under `apps/web/app/**/*.test.ts`
+- Global setup: `apps/web/tests/global-setup.ts` — mirrors `packages/db/tests/global-setup.ts`
+- `server-only` alias: the vitest config maps `server-only` to its `empty.js` stub so server-component
+  modules (which begin with `import "server-only"`) import cleanly in the Node test runner.
+- All db/auth module imports inside test files are dynamic (`await import(...)`) to ensure
+  `DATABASE_URL` is set by globalSetup before the singletons bind.
+- Run: `pnpm --filter web test` or `pnpm --filter web test:watch`
+- Covered (AFF-119 / E7b):
+  - `app/auth/_lib/materialize-invite.ts` — `materializeInvite` happy path, idempotent
+    workspace_membership, already-accepted conflict, expiry, unknown token, email-mismatch
+    defense, workspace cross-check (F7)
+  - `app/[orgSlug]/resolve-membership.test.ts` — DB membership resolution query (mirrors the
+    private `resolveMembership` in layout.tsx), slug regex validation, reserved-slug list
+  - `app/onboarding/actions.test.ts` — `slugify` contract, `pickUniqueSlug` collision resolution,
+    workspace creation DB sequence
+
+### apps/api test runner
+
+- Framework: Vitest (node environment) + `@nestjs/testing` + supertest
+- Config: `apps/api/vitest.config.ts` — includes `src/**/*.spec.ts`
+- Run: `pnpm --filter api test` or `pnpm --filter api test:watch`
+- Spec files live alongside source (`src/**/*.spec.ts`). The `HealthController` smoke test (`src/health/health.controller.spec.ts`) boots a minimal Nest testing module (no live gRPC sidecars) and asserts `GET /api/health` returns 200 with `{ status: "ok" }`.
+
+### Integration + E2E databases
+
+- DB integration tests and the web E2E suite both boot a disposable Postgres 18
+  testcontainer via `@workspace/testcontainers` `bootPostgres18()` — one shared
+  helper, no forked `docker-compose.test.yml`, so migrations + role bootstrap
+  stay single-source.
+- Loginable-user seed: `seedWorkspaceWithOwner()` in `packages/db/tests/fixtures.ts`
+  seeds a genuine Better Auth credential (driven through `auth.api.signUpEmail`,
+  not a hand-hashed password) plus the workspace + organization + owner
+  memberships. It takes an injected `signUp` callback so `@workspace/db` never
+  imports `@workspace/auth` (that would invert the dependency). The canonical
+  callback is `betterAuthSignUp` from `@workspace/auth/test-support`.
+- Web E2E: `apps/web/playwright.config.ts` boots + seeds via `e2e/db-setup.ts`
+  at config-evaluation time and passes the ephemeral DB URLs into
+  `webServer.env`. `e2e/global-teardown.ts` stops the container. The seeded
+  owner's credentials are written to `e2e/.auth/seed.json` (gitignored) for
+  specs to consume.
+- CI: `.github/workflows/e2e.yml` runs the testcontainer in-job (no service
+  container); its `DATABASE_URL` / `DATABASE_DIRECT_URL` env values are
+  build-time placeholders that `db-setup.ts` overrides at runtime.
 
 ## Storybook
 

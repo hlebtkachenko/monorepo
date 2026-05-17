@@ -657,7 +657,7 @@ export function DataGrid<TData>({
       <DataGridPasteDialog
         pasteDialog={pasteDialog}
         onOpenChange={onPasteDialogOpenChange}
-        onConfirm={onPasteRequest}
+        onConfirm={(expand) => void onPasteRequest(expand)}
       />
       <div
         role="grid"

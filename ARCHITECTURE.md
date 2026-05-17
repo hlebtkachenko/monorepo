@@ -65,7 +65,7 @@ All app reads and writes go through one of:
 - `withOrganization(organizationId, userId, fn)` binds `app.organization_id` (and re-derives `app.workspace_id` from `organization.workspace_id` in the same transaction).
 - `withAdminBypass()` takes `SET LOCAL ROLE lac_admin` (BYPASSRLS) for backfill, admin tooling, and cross-tenant lookups.
 
-The helpers are not nestable. Each opens its own top-level transaction; `set_config(..., true)` is transaction-scoped and not visible across the boundary under pgBouncer transaction pooling.
+The helpers are nestable via SAVEPOINT. Pass `outerTx` to nest inside an existing transaction; Drizzle opens a SAVEPOINT rather than a new top-level transaction. Prior GUCs (`app.organization_id`, `app.user_id`, `app.workspace_id`) are snapshot-and-restored in `finally` because `set_config(..., true)` is transaction-scoped, not SAVEPOINT-scoped — `ROLLBACK TO SAVEPOINT` does not undo `set_config`. The save/restore pair is load-bearing. `withWorkspace` additionally clears `app.organization_id` in nested calls to prevent workspace-tier reads from inheriting an org GUC from an outer scope.
 
 ## Request Flow
 
@@ -78,6 +78,8 @@ The helpers are not nestable. Each opens its own top-level transaction; `set_con
 AI requests flow through SSE endpoint, the agent loop, and dispatch to the same domain tool handlers.
 
 ## AI Safety Layer
+
+> **Status: Planned — not yet implemented.**
 
 Five primitives:
 
@@ -92,6 +94,8 @@ Five primitives:
 5. **Confidence gate on mutations.** Executor self-reports confidence score per tool_use; agent loop escalates to `user_task` when score < 95 on `approval: confidence` tools. Organization id is never carried in tool input.
 
 ## Idempotency Contract
+
+> **Status: Planned — not yet implemented.**
 
 Every mutation that crosses a trust boundary (HTTP API edge, AI tool dispatch, scheduled-task trigger, inbound webhook) is idempotent on a server-side composite key.
 
@@ -209,4 +213,4 @@ Incident response: [docs/runbooks/COST-INCIDENT-RESPONSE.md](docs/runbooks/COST-
 - pg-boss for background jobs (7 explicit lanes)
 - Tailwind v4 + shadcn/ui + Storybook 10
 - Vitest 4.x + Playwright + React Testing Library
-- pino to OpenTelemetry Collector to Grafana Cloud
+- pino to OpenTelemetry Collector to Honeycomb

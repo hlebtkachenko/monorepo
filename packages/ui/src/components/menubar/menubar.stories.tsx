@@ -63,3 +63,19 @@ export const Default: Story = {
     await expect(within(menu).getByText("New Tab")).toBeInTheDocument()
   },
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <Menubar>
+      <MenubarMenu>
+        <MenubarTrigger>File</MenubarTrigger>
+        <MenubarContent>
+          <MenubarItem disabled>New Tab</MenubarItem>
+          <MenubarItem disabled>New Window</MenubarItem>
+          <MenubarSeparator />
+          <MenubarItem>Close</MenubarItem>
+        </MenubarContent>
+      </MenubarMenu>
+    </Menubar>
+  ),
+}

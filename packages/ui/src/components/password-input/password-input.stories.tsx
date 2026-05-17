@@ -57,3 +57,15 @@ export const Invalid: Story = {
     )
   },
 }
+
+export const AutoCompleteNewPassword: Story = {
+  args: { autoComplete: "new-password" },
+}
+
+export const AutoCompleteCurrentPassword: Story = {
+  args: { autoComplete: "current-password" },
+}
+
+export const InputSizeXl: Story = {
+  args: { inputSize: "xl" },
+}

@@ -2,8 +2,10 @@ import type { StorybookConfig } from "@storybook/react-vite"
 
 // Heavy addons (a11y, vitest, chromatic) load only when SB_FULL=1 or building.
 // In dev, lighter set keeps RAM/CPU down. CI sets SB_FULL=1 to enable all.
-const isFullMode =
-  process.env.SB_FULL === "1" || process.env.NODE_ENV === "production"
+// SB_FULL is a runtime override, not a build-cache input — intentionally absent from turbo.json.
+// eslint-disable-next-line turbo/no-undeclared-env-vars
+const sbFull = process.env.SB_FULL
+const isFullMode = sbFull === "1" || process.env.NODE_ENV === "production"
 
 const baseAddons = [
   "@storybook/addon-docs",

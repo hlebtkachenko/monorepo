@@ -39,6 +39,7 @@ import { Text } from "@workspace/ui/components/text"
 import { Pencil, UploadIcon, UserIcon } from "@workspace/ui/lib/icons"
 
 import { submitProfileAction } from "../actions"
+import { clearCarriedAvatar, storeCarriedAvatar } from "../_lib/avatar-carry"
 
 type SupportedLocale = "en"
 const SUPPORTED_LOCALES: ReadonlyArray<{
@@ -69,9 +70,15 @@ function listTimezones(): string[] {
 
 interface Props {
   initial?: Partial<ProfileInput>
+  /**
+   * Presigned GET URL for an avatar the user already uploaded (resolved
+   * server-side from the stored S3 key). Shown until the user crops a new
+   * image this session.
+   */
+  initialAvatarUrl?: string | null
 }
 
-export function ProfileForm({ initial }: Props) {
+export function ProfileForm({ initial, initialAvatarUrl }: Props) {
   const router = useRouter()
   const t = useTranslations("onboarding.profile")
   const tBrand = useTranslations("brand")
@@ -100,6 +107,8 @@ export function ProfileForm({ initial }: Props) {
   // Original picked file, kept after cropping so the user can re-crop
   // via the edit-on-hover control without re-uploading.
   const [sourceFile, setSourceFile] = useState<File | null>(null)
+  // Cropped image bytes — this is what gets uploaded on submit.
+  const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Revoke object URLs on unmount to avoid memory leaks.
@@ -108,6 +117,10 @@ export function ProfileForm({ initial }: Props) {
       if (avatarPreview) URL.revokeObjectURL(avatarPreview)
     }
   }, [avatarPreview])
+
+  // The freshly-cropped local blob wins; otherwise fall back to the avatar
+  // already stored for this user (presigned URL passed from the server).
+  const displayedAvatarUrl = avatarPreview ?? initialAvatarUrl ?? null
 
   function translate(msg: string | undefined): string | undefined {
     if (!msg) return undefined
@@ -146,11 +159,10 @@ export function ProfileForm({ initial }: Props) {
   }
 
   function handleCropComplete(blob: Blob) {
-    // Avatar upload backend is not wired yet (see ProfileSchema comment
-    // "Avatar uploaded separately"). For now the cropped preview is
-    // local-only — submitting the form does not persist the image.
     if (avatarPreview) URL.revokeObjectURL(avatarPreview)
     setAvatarPreview(URL.createObjectURL(blob))
+    // Hold the cropped bytes so onSubmit can upload them.
+    setCroppedBlob(blob)
     setCropFile(null)
   }
 
@@ -161,6 +173,40 @@ export function ProfileForm({ initial }: Props) {
       setServerError(tErrors(result.errorKey ?? "saveProfileFailed"))
       return
     }
+
+    // Persist the avatar after the profile saved. During fresh onboarding the
+    // Better Auth account does not exist until the password step, so the
+    // authenticated upload route 401s here — carry the cropped image in
+    // sessionStorage and let the password step upload it once the account
+    // exists. When a session already exists (resume / authenticated edit) the
+    // immediate upload below succeeds and the carried copy is dropped.
+    if (croppedBlob) {
+      await storeCarriedAvatar(croppedBlob)
+      const ext = croppedBlob.type === "image/png" ? "png" : "jpg"
+      const body = new FormData()
+      body.append("file", croppedBlob, `avatar.${ext}`)
+      try {
+        const res = await fetch("/api/upload/avatar", {
+          method: "POST",
+          body,
+        })
+        if (res.ok) {
+          // Uploaded now (session present) — drop the carry so the password
+          // step does not re-upload it.
+          clearCarriedAvatar()
+        } else if (res.status !== 401) {
+          // 401 is expected during fresh onboarding (no session yet); the
+          // sessionStorage copy carries it forward. Any other status is a
+          // real failure worth surfacing.
+          setServerError(tErrors("uploadAvatarFailed"))
+          return
+        }
+      } catch {
+        setServerError(tErrors("uploadAvatarFailed"))
+        return
+      }
+    }
+
     router.push("/onboarding/experience")
   }
 
@@ -176,15 +222,15 @@ export function ProfileForm({ initial }: Props) {
       </header>
 
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
         className="flex flex-col gap-5"
         noValidate
       >
         <div className="flex items-center gap-4">
           <div className="group relative size-16 shrink-0">
             <Avatar className="size-16">
-              {avatarPreview ? (
-                <AvatarImage src={avatarPreview} alt={t("avatarLabel")} />
+              {displayedAvatarUrl ? (
+                <AvatarImage src={displayedAvatarUrl} alt={t("avatarLabel")} />
               ) : null}
               <AvatarFallback>
                 <UserIcon className="size-9" aria-hidden="true" />

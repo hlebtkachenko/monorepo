@@ -24,8 +24,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      # ADVISORY: day-1 findings on a never-checked 101k LOC repo are noisy.
-      # This step is warn-only and never fails the PR.
       - name: Run knip
+        # continue-on-error is intentional: knip has day-1 findings that require
+        # a dedicated dead-code cleanup pass (owner decision). The required status
+        # check on the main ruleset ensures the job runs and is visible on every
+        # PR, but the gate stays non-blocking until the cleanup is done.
+        # See docs/conventions/CI-POLICY.md for the full rationale (knip footnote).
         continue-on-error: true
         run: pnpm knip

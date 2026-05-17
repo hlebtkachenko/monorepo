@@ -49,3 +49,17 @@ export const Default: Story = {
     await expect(canvas.getByText("Calendar")).toBeVisible()
   },
 }
+
+export const Disabled: Story = {
+  render: () => (
+    <Command className="w-80 rounded-lg border shadow-md">
+      <CommandInput placeholder="Type a command or search..." />
+      <CommandList>
+        <CommandGroup heading="Suggestions">
+          <CommandItem disabled>Calendar</CommandItem>
+          <CommandItem disabled>Search</CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  ),
+}

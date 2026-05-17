@@ -38,7 +38,7 @@
     "@types/papaparse": "^5.3.15",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^9.39.4",
+    "eslint": "^10.3.0",
     "typescript": "^6.0.3"
   }
 }

@@ -55,6 +55,12 @@ export async function issueInvite(
 ): Promise<IssueInviteResult> {
   const ttlSeconds = input.ttlSeconds ?? DEFAULT_INVITE_TTL_SECONDS
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000)
+  // Normalise email at the write boundary so the (org, email) uniqueness
+  // and the revoke lookup below resolve case-insensitively. The DB trigger
+  // also lowercases, but normalising in code keeps the in-memory `email`
+  // consistent with what we email and what we later compare to a session
+  // user's email.
+  const normalizedEmail = input.email.trim().toLowerCase()
 
   // Mint a fresh random token and hash it once. The raw token is
   // returned in the URL + cookie + email body. Only the hash is
@@ -97,7 +103,7 @@ export async function issueInvite(
           organization_id: org.id,
           workspace_id: org.workspace_id,
           token_hash: tokenHash,
-          email: input.email,
+          email: normalizedEmail,
           role: input.role,
           status: "pending",
           issued_by_user_id: input.issuedByUserId,
@@ -119,7 +125,7 @@ export async function issueInvite(
 
   await sendEmail(
     inviteEmail({
-      to: input.email,
+      to: normalizedEmail,
       url,
       brandName: input.brandName,
       workspaceName,
@@ -196,6 +202,9 @@ export async function revokePendingInvites(input: {
   organizationId: string
   email: string
 }): Promise<number> {
+  // Mirror the same normalisation as issueInvite so revoking by
+  // "Foo@Bar.com" still hits rows the trigger lowercased on INSERT.
+  const normalizedEmail = input.email.trim().toLowerCase()
   const rows = await withAdminBypass(async (db) => {
     return await db
       .update(auth_invite)
@@ -203,7 +212,7 @@ export async function revokePendingInvites(input: {
       .where(
         and(
           eq(auth_invite.organization_id, input.organizationId),
-          eq(auth_invite.email, input.email),
+          eq(auth_invite.email, normalizedEmail),
           eq(auth_invite.status, "pending"),
         ),
       )

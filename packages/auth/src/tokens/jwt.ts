@@ -11,29 +11,37 @@ import { SignJWT, jwtVerify, errors } from "jose"
  * verifiers can refuse a token issued for a different flow even if the
  * shape matches.
  */
-const secret = (() => {
-  const raw = process.env.APP_TOKEN_SECRET
-  if (!raw) {
-    return null
-  }
-  if (raw.length < 32) {
-    throw new Error(
-      "APP_TOKEN_SECRET must be at least 32 bytes (got " + raw.length + ").",
-    )
-  }
-  return new TextEncoder().encode(raw)
-})()
+
+const ISSUER = "app"
+const MIN_SECRET_BYTES = 32
+const CLOCK_TOLERANCE_SECONDS = 30
+
+let cachedSecret: Uint8Array | null = null
+let cachedSecretSource: string | undefined
 
 function requireSecret(): Uint8Array {
-  if (!secret) {
+  const raw = process.env.APP_TOKEN_SECRET
+  if (!raw) {
     throw new Error(
       "APP_TOKEN_SECRET is not set. Token signing/verification is disabled.",
     )
   }
-  return secret
+  // Reset cache if env changes between calls (test reset, secret rotation).
+  if (cachedSecretSource !== raw) {
+    const encoded = new TextEncoder().encode(raw)
+    if (encoded.byteLength < MIN_SECRET_BYTES) {
+      throw new Error(
+        `APP_TOKEN_SECRET must be at least ${MIN_SECRET_BYTES} bytes (got ${encoded.byteLength}).`,
+      )
+    }
+    cachedSecret = encoded
+    cachedSecretSource = raw
+  }
+  if (!cachedSecret) {
+    throw new Error("APP_TOKEN_SECRET cache invariant violated.")
+  }
+  return cachedSecret
 }
-
-const ISSUER = "app"
 
 export interface BaseClaims {
   kind: string
@@ -48,14 +56,14 @@ export async function signToken<TClaims extends BaseClaims>(
     .setIssuer(ISSUER)
     .setAudience(claims.kind)
     .setIssuedAt()
-    .setExpirationTime(Math.floor(Date.now() / 1000) + ttlSeconds)
+    .setExpirationTime(`${ttlSeconds}s`)
     .sign(requireSecret())
 }
 
 export class TokenError extends Error {
   constructor(
     message: string,
-    public readonly code: "INVALID" | "EXPIRED" | "WRONG_KIND" | "DISABLED",
+    public readonly code: "INVALID" | "EXPIRED" | "WRONG_KIND",
   ) {
     super(message)
     this.name = "TokenError"
@@ -68,8 +76,10 @@ export async function verifyToken<TClaims extends BaseClaims>(
 ): Promise<TClaims> {
   try {
     const { payload } = await jwtVerify(token, requireSecret(), {
+      algorithms: ["HS256"],
       issuer: ISSUER,
       audience: expectedKind,
+      clockTolerance: CLOCK_TOLERANCE_SECONDS,
     })
     if (payload.kind !== expectedKind) {
       throw new TokenError(
@@ -85,16 +95,8 @@ export async function verifyToken<TClaims extends BaseClaims>(
     if (err instanceof errors.JWTExpired) {
       throw new TokenError("Token expired", "EXPIRED")
     }
-    if (
-      err instanceof errors.JWTInvalid ||
-      err instanceof errors.JWTClaimValidationFailed ||
-      err instanceof errors.JWSSignatureVerificationFailed
-    ) {
-      throw new TokenError("Invalid token", "INVALID")
-    }
-    throw new TokenError(
-      (err as Error).message ?? "Unknown token error",
-      "INVALID",
-    )
+    // Treat every other jose error as a generic invalid token. Specific
+    // jose error messages may leak useful information to attackers.
+    throw new TokenError("Invalid token", "INVALID")
   }
 }

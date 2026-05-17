@@ -12,7 +12,7 @@
     "check:client-secrets": "node scripts/check-client-secrets.mjs"
   },
   "devDependencies": {
-    "@faker-js/faker": "^9.8.0",
+    "@faker-js/faker": "^10.4.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "msw": "^2.9.1",

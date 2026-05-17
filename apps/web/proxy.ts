@@ -1,30 +1,37 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
 
+import { safeNext } from "./lib/safe-next"
+
 /**
  * Edge-runtime proxy (Next.js 16 — formerly `middleware.ts`).
  *
  * Performs an OPTIMISTIC cookie-presence check on protected routes only.
- * It does NOT validate the session against the database — that happens in
- * route layouts (`(app)/workspace/layout.tsx`,
- * `(app)/[orgSlug]/layout.tsx`) which run in the Node runtime and can hit
- * Postgres.
+ * It does NOT validate the session against the database — that happens
+ * in route layouts (e.g. `app/workspace/layout.tsx`,
+ * `app/[orgSlug]/layout.tsx`) which run in the Node runtime and can
+ * hit Postgres.
  *
- * The optimistic check is the right shape for two reasons:
- *   1. Edge runtime cannot use `postgres-js` / `pg`. Calling the DB here
- *      would force `runtime = 'nodejs'` and slow every request.
- *   2. Better Auth signs the session cookie; an attacker cannot forge one
- *      without `BETTER_AUTH_SECRET`. Cookie presence is a strong signal,
- *      not a strong proof.
+ * IMPORTANT: cookie presence is a check, not a proof. Better Auth signs
+ * the session cookie, but `getSessionCookie` here only confirms the
+ * cookie exists — it does NOT verify the signature. Real authorization
+ * (workspace + organization membership, onboarding completion, MFA
+ * state) MUST be enforced in layouts where the data lives.
  *
- * Real authorization (workspace + organization membership, onboarding
- * completion, MFA state) is checked in layouts where the data lives.
+ * The optimistic check is the right shape because edge runtime cannot
+ * use postgres-js / pg — calling the DB here would force runtime =
+ * 'nodejs' and slow every request.
  */
 export function proxy(request: NextRequest): NextResponse {
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
     const loginUrl = new URL("/auth/login", request.url)
-    const intended = request.nextUrl.pathname + request.nextUrl.search
+    // Pass ONLY the pathname through `safeNext`. We deliberately drop
+    // the original query string so a sensitive deep link
+    // (`/auth/reset-password?token=…`) never round-trips through the
+    // login URL as `?next=`. Sanitization defends the consumer side
+    // even though the matcher excludes `/auth/*`.
+    const intended = safeNext(request.nextUrl.pathname, "/")
     if (intended !== "/") {
       loginUrl.searchParams.set("next", intended)
     }

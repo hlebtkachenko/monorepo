@@ -8,7 +8,8 @@
     "./server": "./src/server.ts",
     "./client": "./src/client.ts",
     "./tokens": "./src/tokens/index.ts",
-    "./invite-issuer": "./src/invite-issuer.ts"
+    "./invite-issuer": "./src/invite-issuer.ts",
+    "./env": "./src/env.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -28,11 +29,11 @@
     "@types/react": "^19.2.10",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^9.39.2",
+    "eslint": "^10.3.0",
     "postgres": "^3.4.7",
     "react": "^19.2.5",
     "typescript": "^6.0.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.5"
   },
   "peerDependencies": {
     "react": "^19.2.5"

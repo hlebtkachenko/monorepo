@@ -25,6 +25,21 @@ export function registerToolRedactions(
   toolName: string,
   paths: readonly string[],
 ): void {
+  // Reject paths whose final segment is "*". A trailing wildcard would
+  // redact the entire array/object element, which is never what the
+  // caller wants (use the explicit field instead). Catching at
+  // registration time surfaces the bug as a boot error instead of
+  // silently no-oping at write time.
+  for (const path of paths) {
+    if (!path) continue
+    const segments = path.split(".").filter((s) => s.length > 0)
+    if (segments.length === 0) continue
+    if (segments[segments.length - 1] === "*") {
+      throw new Error(
+        `redaction-registry: tool '${toolName}' path '${path}' ends in '*'; declare the exact field instead`,
+      )
+    }
+  }
   const existing = registry.get(toolName)
   if (existing) {
     const a = new Set(existing)
@@ -57,12 +72,16 @@ export function getAllRedactions(): Record<string, readonly string[]> {
 }
 
 /**
- * Reset the registry to an empty state. Only available outside production.
- * Tests that need a clean registry call this in their `beforeEach`.
+ * Reset the registry to an empty state. Only available when explicitly
+ * running tests (NODE_ENV=test or VITEST set). Inverting the env compare
+ * is intentional: defaulting to "allow unless prod" lets a misconfigured
+ * NODE_ENV in staging clear the registry at runtime.
  */
 export function _resetForTests(): void {
-  if (process.env["NODE_ENV"] === "production") {
-    throw new Error("_resetForTests must not be called in production")
+  const isTest =
+    process.env["NODE_ENV"] === "test" || process.env["VITEST"] === "true"
+  if (!isTest) {
+    throw new Error("_resetForTests is only callable in NODE_ENV=test")
   }
   registry.clear()
 }

@@ -4,7 +4,7 @@ System-wide architecture reference. Concise overview only; deep design documents
 
 ## Product Shape
 
-AI-native Czech accounting platform. A single accountant runs many client organizations; every operation is both human-usable (UI) and machine-operable (AI agent calling the same tool registry). Multi-tenant isolation is load-bearing: CZ 10-year retention liability makes tenant-leak cost high.
+Agent-native Czech accounting platform. A single accountant runs many client organizations; every operation is both human-usable (UI) and machine-operable (AI agent calling the same tool registry). Multi-tenant isolation is load-bearing: CZ 10-year retention liability makes tenant-leak cost high.
 
 ## Monorepo Layout
 

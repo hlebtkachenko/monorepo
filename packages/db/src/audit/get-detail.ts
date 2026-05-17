@@ -6,13 +6,25 @@
  * the values stored here are already-masked payloads. The drawer renders as-is.
  *
  * RLS scopes the row to the organization via the bound transaction; the
- * `organizationId` predicate is defence-in-depth.
+ * `organizationId` predicate is defence-in-depth. The `callerRole` argument
+ * is checked at the function boundary: only `owner` / `admin` may read the
+ * detailed payload. Members may still see the timeline summary via
+ * `listAuditTimeline`, which excludes input_json / output_json.
  */
 import { and, eq } from "drizzle-orm"
 import type { OrganizationBoundDb } from "../tenancy"
 import { app_user } from "../schema/app_user"
 import { tool_call_log } from "../schema/tool_call_log"
 import type { ActorKind } from "./types"
+
+export type AuditDetailRole = "owner" | "admin" | "member" | "agent" | "guest"
+
+export class AuditAuthorizationError extends Error {
+  constructor(role: string) {
+    super(`getAuditDetail: role '${role}' not authorised to read audit detail`)
+    this.name = "AuditAuthorizationError"
+  }
+}
 
 export interface AuditDetail {
   id: string
@@ -31,8 +43,19 @@ export interface AuditDetail {
 
 export async function getAuditDetail(
   tx: OrganizationBoundDb,
-  input: { organizationId: string; id: string },
+  input: {
+    organizationId: string
+    id: string
+    /**
+     * Role of the caller making this request. Only `owner` and `admin`
+     * may read audit detail; anything else throws AuditAuthorizationError.
+     */
+    callerRole: AuditDetailRole
+  },
 ): Promise<AuditDetail | null> {
+  if (input.callerRole !== "owner" && input.callerRole !== "admin") {
+    throw new AuditAuthorizationError(input.callerRole)
+  }
   const rows = await tx
     .select({
       id: tool_call_log.id,

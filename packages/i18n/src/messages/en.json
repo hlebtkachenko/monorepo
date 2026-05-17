@@ -95,7 +95,8 @@
           "submit": "Continue",
           "submitting": "Starting…",
           "errorGeneric": "Could not start enrollment.",
-          "errorMissingUri": "Server did not return a TOTP URI. Try again."
+          "errorMissingUri": "Server did not return a TOTP URI. Try again.",
+          "errorMissingBackup": "The server did not return backup codes. Two-factor cannot be enabled without recovery codes."
         },
         "verify": {
           "title": "Scan with your authenticator app",
@@ -114,6 +115,15 @@
           "submit": "Confirm and enable",
           "submitting": "Verifying…",
           "errorGeneric": "Invalid code. Try again."
+        },
+        "backup": {
+          "title": "Save your backup codes",
+          "description": "These codes let you sign in if you lose your authenticator app. Each one works once. Store them in a password manager or print them — they will not be shown again.",
+          "copy": "Copy codes",
+          "copied": "Copied",
+          "acknowledge": "I have saved these backup codes somewhere safe. I understand they will not be shown again.",
+          "submit": "Continue",
+          "errorNotAcknowledged": "Confirm you saved your backup codes before continuing."
         }
       }
     },
@@ -438,7 +448,8 @@
       "saveTeamFailed": "Could not save your invitations.",
       "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue.",
       "acceptInviteFailed": "Could not accept the invitation.",
-      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead."
+      "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead.",
+      "inviteEmailMismatch": "This invitation is addressed to a different email. Sign out and open the link again with the invited address."
     }
   }
 }

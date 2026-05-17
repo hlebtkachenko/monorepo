@@ -9,6 +9,7 @@ import { authClient } from "@workspace/auth/client"
 import { useTranslations } from "@workspace/i18n/client"
 import { OTPSchema, type OTPInput } from "@workspace/shared/auth"
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
   Field,
   FieldError,
@@ -27,12 +28,24 @@ import { QRCode, QRCodeSvg } from "@workspace/ui/components/qr-code"
 import { Text } from "@workspace/ui/components/text"
 import { Copy, Check } from "@workspace/ui/lib/icons"
 
-type Stage = "password" | "qr" | "totp"
+// Enrollment is a 4-stage wizard: confirm password, scan the QR, save the
+// backup codes, then enter a TOTP code to finish. The backup-codes stage
+// is mandatory — without recovery codes a lost authenticator locks the
+// user out permanently.
+type Stage = "password" | "qr" | "backup" | "totp"
 
 interface EnrollState {
   totpURI: string
   secret: string
+  backupCodes: string[]
 }
+
+interface TwoFactorEnableResult {
+  totpURI?: string
+  backupCodes?: string[]
+}
+
+const OTP_RE = /^\d{6}$/
 
 export function MfaSetupForm() {
   const router = useRouter()
@@ -45,7 +58,9 @@ export function MfaSetupForm() {
   const [enroll, setEnroll] = useState<EnrollState | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSubmitting, setPasswordSubmitting] = useState(false)
-  const [copied, setCopied] = useState<"uri" | "secret" | null>(null)
+  const [copied, setCopied] = useState<"uri" | "secret" | "backup" | null>(null)
+  const [backupAck, setBackupAck] = useState(false)
+  const [backupError, setBackupError] = useState<string | null>(null)
 
   const otpForm = useForm<OTPInput>({
     resolver: zodResolver(OTPSchema),
@@ -63,22 +78,37 @@ export function MfaSetupForm() {
       const result = await authClient.twoFactor.enable({ password })
       if (result.error) {
         setPasswordError(result.error.message ?? t("password.errorGeneric"))
-        setPasswordSubmitting(false)
         return
       }
-      const totpURI = (result.data as { totpURI?: string } | null)?.totpURI
+      const data = result.data as TwoFactorEnableResult | null
+      const totpURI = data?.totpURI
       if (!totpURI) {
         setPasswordError(t("password.errorMissingUri"))
-        setPasswordSubmitting(false)
         return
       }
-      setEnroll({ totpURI, secret: extractSecret(totpURI) })
+      const backupCodes = data?.backupCodes ?? []
+      if (backupCodes.length === 0) {
+        // Without backup codes the user can be permanently locked out
+        // if they lose their authenticator. Refuse to advance.
+        setPasswordError(t("password.errorMissingBackup"))
+        return
+      }
+      setEnroll({ totpURI, secret: extractSecret(totpURI), backupCodes })
       setStage("qr")
     } catch (err) {
       setPasswordError((err as Error).message ?? t("password.errorGeneric"))
     } finally {
       setPasswordSubmitting(false)
     }
+  }
+
+  function onAcknowledgeBackup() {
+    if (!backupAck) {
+      setBackupError(t("backup.errorNotAcknowledged"))
+      return
+    }
+    setBackupError(null)
+    setStage("totp")
   }
 
   function translateOtpValidation(msg: string | undefined): string | undefined {
@@ -97,13 +127,20 @@ export function MfaSetupForm() {
         setOtpServerError(result.error.message ?? t("verify.errorGeneric"))
         return
       }
+      // Scrub sensitive state from memory before navigating away. The
+      // TOTP secret + backup codes only ever lived in this component;
+      // clearing them shrinks the window where DevTools or a hot-reload
+      // could expose them.
+      setEnroll(null)
+      otpForm.reset({ code: "" })
+      setPassword("")
       router.push("/workspace/profile?mfa=enabled")
     } catch (err) {
       setOtpServerError((err as Error).message ?? t("verify.errorGeneric"))
     }
   }
 
-  async function copyValue(value: string, which: "uri" | "secret") {
+  async function copyValue(value: string, which: "uri" | "secret" | "backup") {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(which)
@@ -226,8 +263,70 @@ export function MfaSetupForm() {
           </section>
         )}
 
-        <Button type="button" size="xl" onClick={() => setStage("totp")}>
+        <Button type="button" size="xl" onClick={() => setStage("backup")}>
           {t("verify.continue")}
+        </Button>
+      </div>
+    )
+  }
+
+  if (stage === "backup") {
+    return (
+      <div className="flex flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("backup.title")}
+          </Heading>
+          <Text variant="muted">{t("backup.description")}</Text>
+        </header>
+
+        {enroll && (
+          <section className="flex flex-col gap-4">
+            <ul className="grid grid-cols-2 gap-2 rounded-lg border border-input bg-muted/40 p-4 font-mono text-sm">
+              {enroll.backupCodes.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => copyValue(enroll.backupCodes.join("\n"), "backup")}
+            >
+              {copied === "backup" ? (
+                <Check className="size-4" aria-hidden="true" />
+              ) : (
+                <Copy className="size-4" aria-hidden="true" />
+              )}
+              {copied === "backup" ? t("backup.copied") : t("backup.copy")}
+            </Button>
+            <label className="flex items-start gap-2.5 text-sm">
+              <Checkbox
+                checked={backupAck}
+                onCheckedChange={(v) => setBackupAck(v === true)}
+                className="mt-0.5"
+              />
+              <span className="text-muted-foreground">
+                {t("backup.acknowledge")}
+              </span>
+            </label>
+          </section>
+        )}
+
+        {backupError && (
+          <Text variant="small" className="text-destructive" role="alert">
+            {backupError}
+          </Text>
+        )}
+
+        <Button
+          type="button"
+          size="xl"
+          onClick={onAcknowledgeBackup}
+          disabled={!backupAck}
+        >
+          {t("backup.submit")}
         </Button>
       </div>
     )
@@ -292,7 +391,7 @@ export function MfaSetupForm() {
         <Button
           type="submit"
           size="xl"
-          disabled={otpForm.formState.isSubmitting || code.length !== 6}
+          disabled={otpForm.formState.isSubmitting || !OTP_RE.test(code)}
         >
           {otpForm.formState.isSubmitting
             ? t("verify.submitting")

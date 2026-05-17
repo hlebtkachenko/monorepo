@@ -27,6 +27,7 @@ import { PasswordInput } from "@workspace/ui/components/password-input"
 import { Text } from "@workspace/ui/components/text"
 import { ArrowLeft, Mail } from "@workspace/ui/lib/icons"
 
+import { safeNext } from "../../../../../lib/safe-next"
 import { AuthHeaderLinkOverride } from "../../_components/auth-header-link"
 import { clearLoginEmailAction, sendMagicLinkAction } from "../actions"
 
@@ -39,7 +40,7 @@ interface Props {
 export function LoginPasswordForm({ email }: Props) {
   const router = useRouter()
   const search = useSearchParams()
-  const next = search.get("next") ?? "/workspace"
+  const next = safeNext(search.get("next"), "/workspace")
 
   const tBrand = useTranslations("brand")
   const t = useTranslations("auth.login.password")

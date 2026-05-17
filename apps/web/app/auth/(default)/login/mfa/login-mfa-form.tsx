@@ -25,6 +25,7 @@ import {
 } from "@workspace/ui/components/input-otp"
 import { Text } from "@workspace/ui/components/text"
 
+import { safeNext } from "../../../../../lib/safe-next"
 import { clearLoginEmailAction } from "../actions"
 
 type Mode = "totp" | "recovery"
@@ -36,7 +37,7 @@ interface Props {
 export function LoginMfaForm({ email }: Props) {
   const router = useRouter()
   const search = useSearchParams()
-  const next = search.get("next") ?? "/workspace"
+  const next = safeNext(search.get("next"), "/workspace")
 
   const t = useTranslations("auth.login.mfa")
   const tValidation = useTranslations("auth.validation")

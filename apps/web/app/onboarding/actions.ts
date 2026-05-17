@@ -2,8 +2,9 @@
 
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { eq, sql } from "drizzle-orm"
-import { auth, resolveBaseURL } from "@workspace/auth/server"
+import { and, eq, sql } from "drizzle-orm"
+import { auth } from "@workspace/auth/server"
+import { getBetterAuthUrl } from "@workspace/auth/env"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
 import {
   app_user,
@@ -27,6 +28,7 @@ import {
   type WorkspaceInput,
 } from "@workspace/shared/auth"
 
+import { isEmailAlreadyRegistered } from "../auth/_lib/email-error"
 import { issueInvite, revokePendingInvites } from "../auth/_lib/issue-invite"
 import { materializeInvite } from "../auth/_lib/materialize-invite"
 import { setActiveWorkspaceCookie } from "./_lib/active-workspace-cookie"
@@ -67,13 +69,6 @@ async function getActiveUserId(): Promise<string | null> {
 
 function firstErrorKey(zodIssues: Array<{ message: string }>): string {
   return zodIssues[0]?.message ?? "invalid"
-}
-
-function isEmailAlreadyRegistered(err: unknown): boolean {
-  if (!(err instanceof Error)) return false
-  return /already.*exist|already.*registered|user.*exist|duplicate/i.test(
-    err.message,
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -189,9 +184,22 @@ export async function submitPasswordAction(
     return { ok: false, errorKey: "sessionExpired" }
   }
 
-  // Idempotency guard: if a session already exists for this email,
-  // the BA user was already created by an earlier attempt.
-  let userId: string | null = await getActiveUserId()
+  // Idempotency guard: if a session already exists, the BA user was
+  // created by an earlier attempt — skip re-creating it below.
+  const session = await auth.api.getSession({ headers: await headers() })
+
+  // Cross-tenant defence: an already-authenticated user must not redeem
+  // an invite addressed to a different email. Without this check a
+  // logged-in attacker who obtains an invite URL could attach the
+  // membership to their own account.
+  if (invite && session?.user?.email) {
+    const sessionEmail = session.user.email.trim().toLowerCase()
+    if (sessionEmail !== invite.email.trim().toLowerCase()) {
+      return { ok: false, errorKey: "inviteEmailMismatch" }
+    }
+  }
+
+  let userId: string | null = session?.user?.id ?? null
 
   if (!userId) {
     try {
@@ -243,11 +251,8 @@ export async function submitPasswordAction(
     let orgSlug: string
     try {
       orgSlug = await materializeInvite({
-        organizationId: invite.organizationId,
-        role: invite.role,
         userId,
         inviteRawToken: rawInviteToken,
-        email: invite.email,
       })
     } catch (err) {
       console.error("[onboarding/password] materializeInvite failed", err)
@@ -316,7 +321,14 @@ export async function submitWorkspaceAction(
         throw new Error("workspace_membership insert returned no row")
       }
 
-      const slug = await pickUniqueSlug(db, slugify(ws.display_name))
+      // Default organization seeded so step 6 (team invites) can target
+      // it. Slug = first available {base, base-2, base-3, ...}; legal
+      // name mirrors the workspace display_name for now (editable later
+      // from /[orgSlug]/settings).
+      const slug = await pickUniqueSlug(db, ws.id, slugify(ws.display_name))
+      // organization_id is NOT NULL on insert (no default); the trigger
+      // app_organization_self_id ensures organization_id = id after the
+      // row exists. We pass a fresh uuid here, then UPDATE to match.
       const [org] = await db
         .insert(organization)
         .values({
@@ -355,25 +367,40 @@ export async function submitWorkspaceAction(
 }
 
 function slugify(input: string): string {
-  return (
-    input
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48) || "workspace"
-  )
+  const slug = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+  // Slug column has a CHECK enforcing length >= 2; pad single-char or
+  // empty results so the INSERT does not fail with a CHECK violation
+  // for short workspace names like "A".
+  if (slug.length < 2) return "workspace"
+  return slug
 }
+
+const MAX_SLUG_ATTEMPTS = 50
 
 async function pickUniqueSlug(
   db: import("@workspace/db").AdminBypassDb,
+  workspaceId: string,
   base: string,
 ): Promise<string> {
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < MAX_SLUG_ATTEMPTS; i++) {
     const candidate = i === 0 ? base : `${base}-${i + 1}`
+    // Slug uniqueness is per (workspace_id, slug). Two workspaces with
+    // display_name "Acme" should both be able to land slug "acme" inside
+    // their own workspace; without this filter the second workspace
+    // ratchets to "acme-2", "acme-3", etc.
     const [row] = await db
       .select({ id: organization.id })
       .from(organization)
-      .where(eq(organization.slug, candidate))
+      .where(
+        and(
+          eq(organization.workspace_id, workspaceId),
+          eq(organization.slug, candidate),
+        ),
+      )
       .limit(1)
     if (!row) return candidate
   }
@@ -448,11 +475,7 @@ export async function submitTeamAction(
   })
   if (!defaultOrgId) return { ok: false, errorKey: "noActiveWorkspace" }
 
-  // Use the shared resolver so dev (no BETTER_AUTH_URL) falls back to
-  // localhost:${PORT} and prod throws if the env var is missing. Avoids
-  // shipping a magic-link / invite email pointing at `http://localhost:3000`
-  // because someone forgot to wire BETTER_AUTH_URL in the task definition.
-  const baseUrl = resolveBaseURL()
+  const baseUrl = getBetterAuthUrl()
   const brandName = await loadBrandName()
 
   const failures: Array<{ email: string; reason: string }> = []
@@ -482,18 +505,28 @@ export async function submitTeamAction(
     }
   }
 
-  try {
-    await withWorkspace(workspaceId, userId, async (db) => {
-      await db
-        .update(workspace)
-        .set({
-          step_3_completed_at: new Date(),
-          updated_at: new Date(),
-        })
-        .where(eq(workspace.id, workspaceId))
-    })
-  } catch {
-    return { ok: false, errorKey: "saveTeamFailed" }
+  // Mark step 3 complete only when the action made forward progress:
+  // at least one invite was sent, OR the user explicitly submitted an
+  // empty list ("Skip for now"). If every invite failed, leave the step
+  // open so the user can retry.
+  const requestedCount = parsed.data.invites.filter((r) => r.email).length
+  if (sent > 0 || requestedCount === 0) {
+    try {
+      await withWorkspace(workspaceId, userId, async (db) => {
+        await db
+          .update(workspace)
+          .set({
+            step_3_completed_at: new Date(),
+            updated_at: new Date(),
+          })
+          .where(eq(workspace.id, workspaceId))
+      })
+    } catch {
+      return { ok: false, errorKey: "saveTeamFailed" }
+    }
+  } else {
+    // Every invite failed — surface the failures so the user retries.
+    return { ok: false, errorKey: "saveTeamFailed", failures }
   }
 
   return { ok: true, invitesSent: sent, failures }

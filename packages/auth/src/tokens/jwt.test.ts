@@ -43,9 +43,11 @@ describe("jwt token helpers", () => {
     vi.resetModules()
     const { signSignupToken, verifySignupToken } = await import("./signup")
     const { TokenError } = await import("./jwt")
+    // TTL more than the 30s clock-tolerance window so jose treats it as
+    // expired despite the configured skew.
     const token = await signSignupToken(
       { email: "expired@example.com", workspace: "W" },
-      -1,
+      -120,
     )
     await expect(verifySignupToken(token)).rejects.toMatchObject({
       name: "TokenError",
@@ -74,5 +76,50 @@ describe("jwt token helpers", () => {
     await expect(verifySignupToken("not.a.token")).rejects.toBeInstanceOf(
       TokenError,
     )
+  })
+
+  it("rejects a non-HS256 token (alg confusion defence)", async () => {
+    vi.resetModules()
+    const { SignJWT } = await import("jose")
+    const { verifyToken, TokenError } = await import("./jwt")
+    // Forge a token with alg HS512 (not in our allowlist) but still signed
+    // with the same secret so the signature would otherwise verify.
+    const secret = new TextEncoder().encode(TEST_SECRET)
+    const token = await new SignJWT({ kind: "signup", email: "x@y.z" })
+      .setProtectedHeader({ alg: "HS512" })
+      .setIssuer("app")
+      .setAudience("signup")
+      .setIssuedAt()
+      .setExpirationTime("60s")
+      .sign(secret)
+    await expect(verifyToken(token, "signup")).rejects.toBeInstanceOf(
+      TokenError,
+    )
+  })
+
+  it("rejects a too-short secret on first use", async () => {
+    vi.resetModules()
+    const prior = process.env.APP_TOKEN_SECRET
+    process.env.APP_TOKEN_SECRET = "too-short"
+    try {
+      const { signSignupToken } = await import("./signup")
+      await expect(
+        signSignupToken({ email: "x@y.z", workspace: "W" }),
+      ).rejects.toThrow(/at least 32 bytes/)
+    } finally {
+      process.env.APP_TOKEN_SECRET = prior
+    }
+  })
+
+  it("accepts a slightly-stale token within clock tolerance", async () => {
+    vi.resetModules()
+    const { signSignupToken, verifySignupToken } = await import("./signup")
+    // 10s in the past — inside the 30s tolerance window.
+    const token = await signSignupToken(
+      { email: "fresh@example.com", workspace: "W" },
+      -10,
+    )
+    const claims = await verifySignupToken(token)
+    expect(claims.email).toBe("fresh@example.com")
   })
 })

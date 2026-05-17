@@ -76,19 +76,20 @@ export async function acceptInviteAction(): Promise<InviteResult> {
 
   try {
     const slug = await materializeInvite({
-      organizationId: record.organizationId,
-      role: record.role,
       userId: session.user.id,
       inviteRawToken: rawToken,
-      email: record.email,
     })
     cookieStore.delete(INVITE_TOKEN_COOKIE)
     return { ok: true, orgSlug: slug }
   } catch (err) {
+    // Log the original InviteAcceptError code server-side for ops, but
+    // never return the distinguishing message to the client — different
+    // codes (revoked / accepted / expired / not-found) let a caller probe
+    // for known token hashes.
     console.error("[auth/invite] acceptInviteAction failed", err)
     return {
       ok: false,
-      error: (err as Error).message ?? "Could not accept invitation.",
+      error: "Could not accept invitation.",
     }
   }
 }

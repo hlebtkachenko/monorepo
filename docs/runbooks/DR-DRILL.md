@@ -3,6 +3,7 @@
 DORA expects quarterly evidence of disaster-recovery capability. This drill produces that evidence.
 
 Objectives:
+
 - RTO ≤ 4 hours (time to restored service).
 - RPO ≤ 15 minutes (acceptable data loss).
 - All telemetry and observability green on the restored stack.
@@ -41,11 +42,12 @@ Objectives:
 
 - Wall-clock time from `_dr-restore` start to all checks green: < 4 hours.
 - RPO measured by comparing restored DB latest write timestamp vs production latest write at workflow start: ≤ 15 minutes.
-- All synthetic checks green within 5 minutes of restore complete.
+- All synthetic checks green within 5 minutes of restore complete (`https://status.afframe.com`).
 
 ## Failure handling
 
 A failed drill is treated as a SEV1 against the DR system itself:
+
 - Open SEV1 incident on the DR surface.
 - Postmortem within 5 business days.
 - Action items tracked; next drill cannot be marked passing until previous failures have remediation merged.

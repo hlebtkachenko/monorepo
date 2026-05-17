@@ -278,3 +278,38 @@ export const ChartRadarLines = () => (
     />
   </Box>
 )
+
+// Category bar
+export const ChartCategoryBarDemo = () => (
+  <Chart
+    type="category-bar"
+    values={[40, 25, 20, 15]}
+    marker={{ value: 62, tooltip: "Current: 62" }}
+  />
+)
+
+// Spark variants
+export const ChartSparkAreaDemo = () => (
+  <Chart
+    type="spark-area"
+    data={seriesData}
+    index="month"
+    categories={["revenue"]}
+  />
+)
+export const ChartSparkLineDemo = () => (
+  <Chart
+    type="spark-line"
+    data={seriesData}
+    index="month"
+    categories={["revenue"]}
+  />
+)
+export const ChartSparkBarDemo = () => (
+  <Chart
+    type="spark-bar"
+    data={seriesData}
+    index="month"
+    categories={["revenue"]}
+  />
+)

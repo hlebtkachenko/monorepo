@@ -11,6 +11,8 @@ import {
 } from "@workspace/shared/auth"
 
 import { readActiveWorkspaceCookie } from "./active-workspace-cookie"
+import type { OnboardingRole } from "./role-types"
+import { projectStepForRole, stepsForRole } from "./steps"
 import { readOnboardingState } from "./state-cookie"
 
 export {
@@ -30,16 +32,17 @@ export {
  *   - the app_user row (profile_completed_at, experience)
  *   - the user's owner workspace row (step_*_completed_at)
  *
- * The owner workspace lookup is preceded by a check of the
- * `app-active-workspace` cookie. The cookie is set after step 4
- * succeeds, so once it's present, the resolver targets THAT workspace
- * directly instead of "first owner workspace ordered by created_at"
- * (which is wrong for multi-workspace owners).
+ * Owner flow uses the full 7-step decision. Member flow ignores
+ * workspace-level state (they never own one) — once the BA user is
+ * created + profile/experience are persisted, they land on "done".
  */
-export async function resolveNextStep(userId: string | null): Promise<StepKey> {
+export async function resolveNextStep(
+  userId: string | null,
+  role: OnboardingRole = "owner",
+): Promise<StepKey> {
   if (!userId) {
     const state = await readOnboardingState()
-    return decideNextStep({
+    const next = decideNextStep({
       hasSession: false,
       cookieHasProfile: !!state.profile,
       cookieHasExperience: !!state.experience,
@@ -51,6 +54,7 @@ export async function resolveNextStep(userId: string | null): Promise<StepKey> {
       step3CompletedAt: null,
       step4CompletedAt: null,
     })
+    return projectStepForRole(role, next)
   }
 
   const activeWorkspaceId = await readActiveWorkspaceCookie()
@@ -66,6 +70,27 @@ export async function resolveNextStep(userId: string | null): Promise<StepKey> {
         .where(eq(app_user.id, userId))
         .limit(1)
     )[0]
+
+    // Members don't own workspaces — short-circuit. After profile +
+    // experience are persisted on the BA user, the member's flow is
+    // complete.
+    if (role === "member") {
+      const next = decideNextStep({
+        hasSession: true,
+        cookieHasProfile: false,
+        cookieHasExperience: false,
+        profileCompletedAt: userRow?.profileCompletedAt ?? null,
+        experience: userRow?.experience ?? null,
+        // Force workspace-tier checks to "satisfied" so the resolver
+        // doesn't try to route the member through workspace/plan/team.
+        workspaceExists: true,
+        step1CompletedAt: new Date(0),
+        step2CompletedAt: new Date(0),
+        step3CompletedAt: new Date(0),
+        step4CompletedAt: new Date(0),
+      })
+      return projectStepForRole("member", next)
+    }
 
     let wsRow:
       | {
@@ -145,20 +170,30 @@ export async function resolveNextStep(userId: string | null): Promise<StepKey> {
 }
 
 /**
- * Server-side guard for owner-onboarding step pages 4-7. Lets the user
- * visit any step at-or-before their next-incomplete step, but blocks
- * forward-skipping. This is what enables the "Back" link in the shell —
- * navigating back to /onboarding/plan from /onboarding/team must NOT
- * redirect forward to /team again. Done-page can opt out of the
- * "redirect if next==done" guard with `allowOnDone: true`.
+ * Server-side guard for step pages. Lets the user visit any step
+ * at-or-before their next-incomplete step (revisiting completed steps
+ * is allowed), but blocks forward-skipping. Members trying to visit
+ * an owner-only step are redirected to their next valid step.
+ *
+ * `allowOnDone` lets the /done page render even when next == done.
  */
-export async function assertOwnerOnStep(
-  userId: string,
+export async function assertOnStep(
+  userId: string | null,
+  role: OnboardingRole,
   expected: StepKey,
   options: { allowOnDone?: boolean } = {},
 ): Promise<void> {
   const { redirect } = await import("next/navigation")
-  const next = await resolveNextStep(userId)
+
+  // Members trying to visit workspace/plan/team — redirect immediately
+  // without a DB round-trip. These steps don't apply to invitees.
+  const allowed = stepsForRole(role)
+  if (!allowed.includes(expected)) {
+    const next = await resolveNextStep(userId, role)
+    redirect(stepPath(next))
+  }
+
+  const next = await resolveNextStep(userId, role)
   if (next === expected) return
   if (options.allowOnDone && next === "done") return
   const expectedIdx = STEP_ORDER.indexOf(expected)

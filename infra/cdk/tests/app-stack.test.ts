@@ -107,6 +107,64 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["CERBOS_NO_TELEMETRY"]).toBe("1")
   })
 
+  it("web container has BETTER_AUTH_URL + trusted origins matching public domain", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+      Secrets?: Array<{ Name?: string; ValueFrom?: unknown }>
+    }>
+    const web = containers.find((c) => c.Name === "web")
+    expect(web).toBeDefined()
+    const envByName = Object.fromEntries(
+      (web?.Environment ?? []).map((e) => [e.Name, e.Value]),
+    )
+    // BETTER_AUTH_URL must be the HTTPS origin matching props.domain so the
+    // resolveBaseURL() guard in packages/auth/src/server.ts is happy and
+    // every magic-link / password-reset / invite email points at the
+    // real public hostname (not localhost or the Fargate task IP).
+    expect(envByName["BETTER_AUTH_URL"]).toBe("https://test.example.com")
+    expect(envByName["NEXT_PUBLIC_BETTER_AUTH_URL"]).toBe(
+      "https://test.example.com",
+    )
+    expect(envByName["BETTER_AUTH_TRUSTED_ORIGINS"]).toContain(
+      "https://test.example.com",
+    )
+    expect(envByName["EMAIL_FROM"]).toBe("no-reply@test.example.com")
+    expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
+    // Hard-coded loopback path to the pgBouncer sidecar — same pattern as api.
+    expect(envByName["DB_HOST"]).toBe("localhost")
+    expect(envByName["DB_PORT"]).toBe("6432")
+    expect(envByName["DB_NAME"]).toBe("monorepo")
+    // Secrets reach the container via Secrets Manager; the names match
+    // what packages/auth + packages/email read.
+    const secretNames = (web?.Secrets ?? []).map((s) => s.Name)
+    expect(secretNames).toContain("BETTER_AUTH_SECRET")
+    expect(secretNames).toContain("APP_TOKEN_SECRET")
+    expect(secretNames).toContain("RESEND_API_KEY")
+    expect(secretNames).toContain("DB_USER")
+    expect(secretNames).toContain("DB_PASSWORD")
+  })
+
+  it("creates CDK-generated Better Auth + app token secrets", () => {
+    // Two CDK-managed Secrets live in the AppStack itself:
+    //   - monorepo-{env}-better-auth-secret (BetterAuthSecret construct)
+    //   - monorepo-{env}-app-token-secret   (AppTokenSecret construct)
+    // The Cloudflare Tunnel + Resend secrets are fromSecretNameV2 imports;
+    // they don't materialize as CDK resources in this template.
+    template.resourceCountIs("AWS::SecretsManager::Secret", 2)
+    template.hasResourceProperties("AWS::SecretsManager::Secret", {
+      Name: "monorepo-test-better-auth-secret",
+    })
+    template.hasResourceProperties("AWS::SecretsManager::Secret", {
+      Name: "monorepo-test-app-token-secret",
+    })
+  })
+
   it("api connects to pgbouncer sidecar on localhost:6432", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as

@@ -402,6 +402,18 @@ import { ChartLine, type ChartLineProps } from "./chart-line"
 import { ChartComposed, type ChartComposedProps } from "./chart-composed"
 import { ChartPie, type ChartPieProps } from "./chart-pie"
 import { ChartRadar, type ChartRadarProps } from "./chart-radar"
+import {
+  ChartCategoryBar,
+  type ChartCategoryBarProps,
+} from "./chart-category-bar"
+import {
+  ChartSparkArea,
+  type ChartSparkAreaProps,
+  ChartSparkBar,
+  type ChartSparkBarProps,
+  ChartSparkLine,
+  type ChartSparkLineProps,
+} from "./chart-spark"
 
 type ChartTypeProps<TData extends Record<string, unknown>> =
   | ({ type: "area" } & ChartAreaProps<TData>)
@@ -410,8 +422,12 @@ type ChartTypeProps<TData extends Record<string, unknown>> =
   | ({ type: "composed" } & ChartComposedProps<TData>)
   | ({ type: "pie" } & ChartPieProps<TData>)
   | ({ type: "radar" } & ChartRadarProps<TData>)
+  | ({ type: "category-bar" } & ChartCategoryBarProps)
+  | ({ type: "spark-area" } & ChartSparkAreaProps)
+  | ({ type: "spark-line" } & ChartSparkLineProps)
+  | ({ type: "spark-bar" } & ChartSparkBarProps)
 
-function Chart<TData extends Record<string, unknown>>(
+function Chart<TData extends Record<string, unknown> = Record<string, unknown>>(
   props: ChartTypeProps<TData>,
 ) {
   if (props.type === "area") {
@@ -437,6 +453,22 @@ function Chart<TData extends Record<string, unknown>>(
   if (props.type === "radar") {
     const { type: _type, ...rest } = props
     return <ChartRadar {...rest} />
+  }
+  if (props.type === "category-bar") {
+    const { type: _type, ...rest } = props
+    return <ChartCategoryBar {...rest} />
+  }
+  if (props.type === "spark-area") {
+    const { type: _type, ...rest } = props
+    return <ChartSparkArea {...rest} />
+  }
+  if (props.type === "spark-line") {
+    const { type: _type, ...rest } = props
+    return <ChartSparkLine {...rest} />
+  }
+  if (props.type === "spark-bar") {
+    const { type: _type, ...rest } = props
+    return <ChartSparkBar {...rest} />
   }
   return null
 }

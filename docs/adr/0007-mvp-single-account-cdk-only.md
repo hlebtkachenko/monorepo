@@ -59,7 +59,7 @@ Negative:
 ## Validation
 
 - `pnpm --filter @workspace/cdk synth` works locally with `AWS_ACCOUNT_ID` env var.
-- `_deploy-aws.yml` smoke run succeeds in staging once `AWS_BOOTSTRAPPED=true`.
+- AWS bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). The `_deploy-aws.yml` smoke run succeeds in staging, deployed at `staging.afframe.com`. Production (`app.afframe.com`) is prepared but not yet deployed.
 
 ## References
 

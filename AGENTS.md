@@ -129,17 +129,17 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## CI / CD
 
-- Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release).
+- Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E).
 - All new workflows ship as ADVISORY. Hleb flips required-status manually after a green PR cycle.
 - Branch protection / PR-required rules are managed manually by Hleb (see `docs/conventions/CI-POLICY.md`).
 - Hardening conventions: default-deny `permissions: {}`, per-job least privilege, SHA-pinned actions with trailing version comment, `step-security/harden-runner` (audit), concurrency cancellation on PRs.
-- Reusable workflows under `.github/workflows/_*.yml`: `_supply-chain.yml`, `_build-image.yml`, `_deploy-aws.yml` (AWS deploy is GUARDED — short-circuits until `vars.AWS_BOOTSTRAPPED=true`).
+- Reusable workflows under `.github/workflows/_*.yml`: `_supply-chain.yml`, `_build-image.yml`, `_deploy-aws.yml` (the `guard` job requires `vars.AWS_BOOTSTRAPPED=true`, now set — staging deploys run; production stays gated by the `production` GitHub environment).
 - Composite bootstrap: `./.github/actions/setup` (pnpm + Node 24 + frozen install).
 
 ## Infrastructure
 
 - Single-account AWS CDK v2 (`infra/cdk/`). Stacks: network, data, app, security, observability, billing alarms. See ADR-0007.
-- All AWS-specific values are `<TBD>` placeholders today. AWS account is NOT yet connected. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
+- AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Staging is deployed at `staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed. Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
 - See `docs/adr/` for the architectural decisions backing this layout.
 
 ### Budgets & Cost-Runaway Protection

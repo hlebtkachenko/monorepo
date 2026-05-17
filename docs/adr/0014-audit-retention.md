@@ -76,8 +76,8 @@ Follow-up work required:
   warning metric when either crosses 10 million rows.
 - Evaluate pg_partman range partitioning by month on `created_at` at the first compliance
   audit (or earlier if the soft-cap warning fires).
-- Evaluate streaming old rows to S3 Parquet via pg_partman detach + COPY once the AWS layer
-  (ADR-0007) is bootstrapped.
+- Evaluate streaming old rows to S3 Parquet via pg_partman detach + COPY. The AWS layer
+  (ADR-0007) is bootstrapped, so this is unblocked.
 - Formalize the hard-delete ceremony in a runbook under `docs/runbooks/`.
 
 ## Alternatives considered
@@ -87,9 +87,10 @@ Follow-up work required:
 - **Automatic hard cutoff by date.** Rejected: automatic purge of accounting records
   without per-row review violates the compliance intent. Even after the statutory minimum
   has elapsed, a row may still be relevant to an ongoing dispute or audit.
-- **Stream to S3 archival immediately.** Deferred: AWS is not yet bootstrapped (ADR-0007
-  guard). Adding S3 archival before the platform layer is stable introduces more failure
-  modes than it solves. Revisit in Section 5 or when AWS_BOOTSTRAPPED=true.
+- **Stream to S3 archival immediately.** Deferred: adding S3 archival before audit volume
+  justifies it introduces more failure modes than it solves. The AWS layer (ADR-0007) is
+  bootstrapped, so this is now unblocked — revisit in Section 5 or at the first soft-cap
+  warning.
 - **pg_partman by month, drop old partitions.** Deferred: partition DDL changes require
   careful migration sequencing and testing. Premature for v1; the schema is not yet under
   production load. Revisit at first compliance audit or soft-cap warning.

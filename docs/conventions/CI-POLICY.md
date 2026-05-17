@@ -12,6 +12,7 @@ While the repo is pre-revenue and Hleb is solo, *advisory* means: the check must
 | `lint` | required | required |
 | `test` | required | required |
 | `build` | required | required |
+| `e2e` (Playwright auth flows) | advisory | required |
 | `commitlint` | advisory | required |
 | `actionlint` | advisory | required |
 | `zizmor` (workflow lint) | advisory | required |

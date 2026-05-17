@@ -15,6 +15,7 @@
 **/test-results/
 **/playwright-report/
 **/storybook-static/
+**/out/
 **/.cache/
 **/*.log
 **/*.tsbuildinfo

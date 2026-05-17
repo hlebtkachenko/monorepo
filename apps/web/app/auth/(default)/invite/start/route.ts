@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    // Path "/" so the cookie survives the handoff into /onboarding/member/*
+    // Path "/" so the cookie survives the handoff into /onboarding/*
     // for new-account members. Random opaque token; carries no claims.
     path: "/",
     maxAge: 60 * 60 * 24,

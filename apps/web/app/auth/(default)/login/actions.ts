@@ -1,6 +1,7 @@
 "use server"
 
 import { cookies } from "next/headers"
+import { auth } from "@workspace/auth/server"
 import {
   signLoginEmailToken,
   verifyLoginEmailToken,
@@ -78,4 +79,21 @@ export async function readLoginEmail(): Promise<string | null> {
 export async function clearLoginEmailAction(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete({ name: LOGIN_EMAIL_COOKIE, path: COOKIE_PATH })
+}
+
+export async function sendMagicLinkAction(
+  email: string,
+  callbackURL: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { headers } = await import("next/headers")
+    const h = await headers()
+    await auth.api.signInMagicLink({
+      body: { email, callbackURL },
+      headers: h,
+    })
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
 }

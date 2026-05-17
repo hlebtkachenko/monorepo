@@ -151,6 +151,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["feedback"],
     dependencies: ["button"],
   },
+  "border-beam": {
+    source: "border-beam",
+    sourceType: "import",
+    upstream: "https://www.npmjs.com/package/border-beam",
+    description:
+      "Generic wrapper that traces an animated beam border around its children, with size, color variant, theme, and timing controls",
+    categories: ["effects"],
+    packages: ["border-beam"],
+  },
   breadcrumb: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -249,7 +258,7 @@ export const registry: Record<string, ComponentMeta> = {
     sourceType: "custom",
     upstream: "https://ui.shadcn.com/docs/components/chart",
     description:
-      "Unified chart component with area, bar/column, line, composed, pie, donut, and radar types. ChartContainer/Tooltip/Legend exported for custom recharts compositions.",
+      "Unified chart component dispatched by type: area, bar/column, line, composed, pie, donut, radar, category-bar, and spark-area/spark-line/spark-bar (axis-less mini charts). ChartContainer/Tooltip/Legend exported for custom recharts compositions.",
     categories: ["data"],
     packages: ["recharts"],
   },
@@ -326,6 +335,15 @@ export const registry: Record<string, ComponentMeta> = {
       "Combobox extension with autocomplete + dynamic item creation, built on our Combobox primitive",
     categories: ["forms"],
     dependencies: ["combobox"],
+  },
+  "data-track": {
+    source: "tremor",
+    sourceType: "custom",
+    upstream: "https://www.tremor.so/docs/visualizations/bar-list",
+    description:
+      "Compact data visualization with two variants: list (ranked labelled bars) and tracker (status-block timeline)",
+    categories: ["data"],
+    dependencies: ["tooltip"],
   },
   "data-grid": {
     source: "diceui",
@@ -614,6 +632,15 @@ export const registry: Record<string, ComponentMeta> = {
       "Full-screen overlay that cycles through ordered loading states with check animations",
     categories: ["feedback", "effects"],
     packages: ["motion"],
+  },
+  "image-cropper": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Avatar crop modal — circular or rectangular 1:1 crop overlay with zoom slider, Reset / Cancel / Save actions, outputs a square cropped image as a Blob via canvas. Composes Dialog, Slider, Button",
+    categories: ["forms", "overlay"],
+    dependencies: ["dialog", "slider", "button"],
+    packages: ["react-easy-crop"],
   },
   "noise-background": {
     source: "aceternity",

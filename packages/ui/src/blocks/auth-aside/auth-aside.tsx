@@ -11,8 +11,11 @@ const authAsideVariants = cva(
   {
     variants: {
       variant: {
-        photo: "bg-foreground text-background",
-        dark: "bg-foreground text-background",
+        // photo + dark: a permanently-dark surface (photo sits under a
+        // hardcoded-black scrim). Text is fixed light, never theme-flipped —
+        // text-background would turn near-black in dark mode and vanish.
+        photo: "bg-neutral-950 text-white",
+        dark: "bg-neutral-950 text-white",
         tone: "bg-muted text-foreground",
       },
     },
@@ -102,6 +105,12 @@ function AuthAside({
           <span
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_55%_35%_at_28%_18%,rgba(0,0,0,0.55)_0%,rgba(0,0,0,0.35)_35%,rgba(0,0,0,0.15)_65%,rgba(0,0,0,0.05)_85%,transparent_100%),radial-gradient(ellipse_55%_30%_at_25%_82%,rgba(0,0,0,0.55)_0%,rgba(0,0,0,0.35)_35%,rgba(0,0,0,0.15)_65%,rgba(0,0,0,0.05)_85%,transparent_100%)] [@media(prefers-reduced-data:reduce)]:hidden"
+          />
+          {/* Dark-mode-only dim layer — deepens the photo so it sits
+              quieter behind the app's dark theme. No-op in light mode. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 hidden bg-black/25 dark:block [@media(prefers-reduced-data:reduce)]:!hidden"
           />
         </>
       )}

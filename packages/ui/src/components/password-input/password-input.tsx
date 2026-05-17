@@ -89,6 +89,9 @@ export interface PasswordInputProps extends Omit<
   showGenerate?: boolean
   onGenerate?: (pw: string) => void
   autoComplete?: "new-password" | "current-password"
+  inputSize?: "default" | "xl"
+  visible?: boolean
+  onVisibleChange?: (visible: boolean) => void
 }
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
@@ -104,18 +107,28 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
       required,
       disabled,
       autoComplete = "current-password",
+      inputSize,
+      visible: controlledVisible,
+      onVisibleChange,
       ...props
     },
     ref,
   ) => {
-    const [visible, setVisible] = React.useState(false)
+    const [internalVisible, setInternalVisible] = React.useState(false)
+    const isControlled = controlledVisible !== undefined
+    const visible = isControlled ? controlledVisible : internalVisible
 
     function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
       onValueChange?.(e.target.value)
     }
 
     function handleToggleVisibility() {
-      setVisible((v) => !v)
+      const next = !visible
+      if (isControlled) {
+        onVisibleChange?.(next)
+      } else {
+        setInternalVisible(next)
+      }
     }
 
     function handleGenerate() {
@@ -126,7 +139,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
 
     return (
       <TooltipProvider>
-        <InputGroup className={cn(className)}>
+        <InputGroup className={cn(inputSize === "xl" && "h-11", className)}>
           <InputGroupInput
             ref={ref}
             id={id}
@@ -137,6 +150,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
             required={required}
             disabled={disabled}
             autoComplete={autoComplete}
+            inputSize={inputSize}
             {...props}
           />
 

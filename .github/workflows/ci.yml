@@ -28,16 +28,19 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          # Full history so `turbo --affected` can diff against the PR base.
+          fetch-depth: 0
       - uses: ./.github/actions/setup
 
       - name: Typecheck
         env:
           AWS_ACCOUNT_ID: "000000000000"
           APP_DOMAIN: example.com
-        run: pnpm turbo typecheck
+        run: pnpm turbo typecheck --ui=stream --continue
 
       - name: Lint
-        run: pnpm turbo lint
+        run: pnpm turbo lint --ui=stream --continue
 
       - name: CDK Synth
         # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
@@ -45,7 +48,7 @@ jobs:
         env:
           AWS_ACCOUNT_ID: "000000000000"
           APP_DOMAIN: example.com
-        run: pnpm --filter @workspace/cdk synth
+        run: pnpm turbo synth --ui=stream
 
       - name: Test
         # @workspace/db tests require a Postgres 18 testcontainer or service.
@@ -54,13 +57,19 @@ jobs:
         env:
           AWS_ACCOUNT_ID: "123456789012"
           APP_DOMAIN: test.example.com
-        run: pnpm turbo test --filter=!@workspace/db
+        run: pnpm turbo test --filter=!@workspace/db --ui=stream --continue
 
       - name: Test Coverage
-        run: pnpm --filter @workspace/ui test:coverage
+        # Advisory step — scope to packages affected vs the PR base.
+        # build-storybook below stays full-graph: the interaction test
+        # consumes its storybook-static output, and the turbo cache
+        # already restores that output on an unchanged run.
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        run: pnpm turbo test:coverage --filter=@workspace/ui --affected --ui=stream
 
       - name: Build Storybook
-        run: pnpm --filter @workspace/ui build-storybook
+        run: pnpm turbo build-storybook --filter=@workspace/ui --ui=stream
 
       - name: Install Playwright
         # Run inside @workspace/ui where playwright is a devDependency.
@@ -78,7 +87,7 @@ jobs:
             "pnpm dlx wait-on tcp:127.0.0.1:6006 && pnpm --filter @workspace/ui test-storybook --url http://127.0.0.1:6006"
 
       - name: Build
-        run: pnpm turbo build
+        run: pnpm turbo build --ui=stream
 
   gitleaks:
     runs-on: ubuntu-latest

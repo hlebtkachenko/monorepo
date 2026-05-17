@@ -1,6 +1,6 @@
 # Deploy
 
-Active once `vars.AWS_BOOTSTRAPPED=true`. Until then this runbook is a forward reference.
+Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` runs. Staging deploys are live; production deploys additionally require approval in the `production` GitHub environment and have not been run yet.
 
 ## Trigger matrix
 

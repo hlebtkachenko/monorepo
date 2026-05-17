@@ -38,13 +38,11 @@ App task topology (one Fargate task per env): 6 containers
 
 ## Bootstrap state
 
-This directory is **dormant** until the deploy workflow's bootstrap flag flips:
+Bootstrap is **complete** (2026-05-11). The GitHub OIDC provider + deploy role exist, `cdk bootstrap` has run, and repo variable `AWS_BOOTSTRAPPED=true` is set — so `_deploy-aws.yml` and the Make targets below are live. Staging is deployed at `staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed.
 
-1. Owner completes `docs/runbooks/AWS-DEPLOY.md` setup section (creates GitHub OIDC provider + deploy role; runs `cdk bootstrap` per environment).
-2. Owner sets repo variable `AWS_BOOTSTRAPPED=true`.
-3. Then the Make targets here become real (until then, env-var checks abort the run).
+To re-verify the flag: `gh variable list` should show `AWS_BOOTSTRAPPED  true`. The one-time bootstrap procedure is in `docs/runbooks/AWS-DEPLOY.md`.
 
-## Quickstart (post-bootstrap)
+## Quickstart
 
 ```bash
 make synth-cdk ENV=staging          # cdk synth --context env=staging

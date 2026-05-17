@@ -3,6 +3,17 @@
 ARG NODE_VERSION=24
 ARG PNPM_VERSION=11.0.9
 
+# ---------- pruner ----------
+# turbo prune emits a minimal subtree: out/json (manifests + lockfile, for a
+# stable install layer) and out/full (source of api + its workspace deps
+# only). node_modules is excluded from the build context by .dockerignore,
+# so the pruned tree is clean. Keep turbo pinned to the root devDependency.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY . .
+RUN pnpm dlx turbo@2.9.12 prune api --docker
+
 # ---------- deps ----------
 # Debian-slim (glibc) chosen over alpine to avoid musl-binding compatibility
 # issues with native modules (unrs-resolver, ssh2, etc).
@@ -12,9 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
-COPY apps/api/package.json apps/api/
-COPY packages packages
+COPY --from=pruner /repo/out/json/ ./
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm fetch --frozen-lockfile && \
     pnpm install --frozen-lockfile --filter=api...
@@ -30,7 +39,7 @@ ENV BUILD_SHA=$BUILD_SHA \
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY --from=deps /repo /repo
-COPY . .
+COPY --from=pruner /repo/out/full/ ./
 
 # Cerbos L3 runs as a sidecar (ghcr.io/cerbos/cerbos with policies baked in),
 # NOT embedded. The api container talks to it over localhost:3593 gRPC.

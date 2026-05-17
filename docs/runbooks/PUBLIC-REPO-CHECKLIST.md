@@ -280,11 +280,11 @@ gh api -X PUT /repos/hlebtkachenko/monorepo/environments/production \
 
 **Open**: <https://github.com/hlebtkachenko/monorepo/settings/variables/actions>
 
-Add (leave blank until AWS bootstrap is complete; the `guard` job in `_deploy-aws.yml` short-circuits when `AWS_BOOTSTRAPPED != "true"`):
+Set (the `guard` job in `_deploy-aws.yml` short-circuits when `AWS_BOOTSTRAPPED != "true"`; account-ID and ARN values stay as `<TBD>` placeholders in this doc — the real values live only in GitHub, never committed):
 
-| Variable | Scope | Value (eventual) |
+| Variable | Scope | Value |
 |---|---|---|
-| `AWS_BOOTSTRAPPED` | Repository | `false` (today) → `true` after AWS-BOOTSTRAP runbook complete |
+| `AWS_BOOTSTRAPPED` | Repository | `true` (set 2026-05-11 after the AWS-DEPLOY runbook) |
 | `AWS_REGION` | Repository | `eu-central-1` |
 | `AWS_ACCOUNT_ID_MGMT` | Repository | `<TBD>` |
 | `AWS_ACCOUNT_ID_LOG` | Repository | `<TBD>` |
@@ -295,11 +295,19 @@ Add (leave blank until AWS bootstrap is complete; the `guard` job in `_deploy-aw
 | `AWS_DEPLOY_ROLE_ARN_STAGING` | Environment: staging | `arn:aws:iam::<TBD>:role/gh-actions-deploy-staging` |
 | `AWS_DEPLOY_ROLE_ARN_PRODUCTION` | Environment: production | `arn:aws:iam::<TBD>:role/gh-actions-deploy-production` |
 
-gh CLI (today, with placeholders):
+**How to check the current state:**
 ```sh
-gh variable set AWS_BOOTSTRAPPED --body "false"
+gh variable list
+# AWS_BOOTSTRAPPED  true            <- expected
+# AWS_REGION        eu-central-1
+```
+
+**What to set:** `AWS_BOOTSTRAPPED=true` enables AWS deploys; both values are already set.
+```sh
+gh variable set AWS_BOOTSTRAPPED --body "true"
 gh variable set AWS_REGION --body "eu-central-1"
 ```
+Setting `AWS_BOOTSTRAPPED=false` re-gates every AWS-touching workflow — it doubles as a deploy kill-switch.
 
 ---
 

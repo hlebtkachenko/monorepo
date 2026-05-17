@@ -9,12 +9,18 @@
     "format": "turbo format",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "check:client-secrets": "node scripts/check-client-secrets.mjs"
+    "knip": "knip",
+    "check:client-secrets": "node scripts/check-client-secrets.mjs",
+    "prepare": "lefthook install || true"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
     "@faker-js/faker": "^10.4.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
+    "knip": "^6.14.1",
+    "lefthook": "^2.1.6",
     "msw": "^2.9.1",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",

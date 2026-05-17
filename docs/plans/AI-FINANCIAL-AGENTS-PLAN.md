@@ -401,6 +401,29 @@ AI agents inherit existing RLS model:
 | Model (reader/writer) | `claude-sonnet-4-6` | Fast extraction/formatting, cheaper |
 | Amount handling | `Money<Currency>` (TypeScript) / `numeric(19,4)` (Postgres) | Existing domain rule. AI never computes amounts. |
 | Prompt storage | Markdown files in `packages/shared/src/ai-prompts/` | Versionable, cacheable, same pattern as reference repo |
+| Document OCR / invoice extraction | **AWS Textract (`AnalyzeExpense`) + Amazon Bedrock (Claude)** — deferred, not needed yet | AWS-native, zero new infra. See 8.1. |
+
+### 8.1 Document OCR — preferred approach (deferred)
+
+Not needed now; no agent in this plan requires OCR yet (the KYC screener in §4 and future invoice ingestion will). Recording the preferred approach so the decision is not re-litigated later.
+
+**Preferred: AWS Textract `AnalyzeExpense` + Amazon Bedrock (Claude) post-processing.**
+
+Why:
+
+- **AWS-native, zero new infrastructure.** This is an AWS project (ADR-0007). Textract is a managed API in `eu-central-1`; it reads documents straight from S3 by reference, authenticates via the existing Fargate IAM task role, and is covered by the existing AWS DPA. No new service, no GPU, no new vendor contract.
+- **Purpose-built for invoices/receipts.** `AnalyzeExpense` returns normalized summary fields (vendor, invoice number, dates, tax, totals) plus line items with per-field confidence scores.
+- **Czech handled via a second step.** Textract's `AnalyzeExpense` field-label classification is English-only, but its raw OCR reads Czech text fine (Latin alphabet). A Bedrock Claude call then normalizes the extracted Czech text into the structured invoice DTO (IČO, DIČ, VAT, totals, line items) — the documented AWS intelligent-document-processing pattern.
+- **Cost fits.** ≈ $80/mo at ~4k pages/mo (Textract ~$0.01/page + Bedrock ~$0.01/page), within the ~$140/mo infra budget.
+
+Rejected:
+
+- **chandra-ocr (Datalab).** Self-hosting needs an 8–12 GB-VRAM GPU; Fargate is CPU-only and a GPU instance alone meets or exceeds the whole infra budget. Its hosted API has no confirmed EU data residency — a GDPR / Czech-AML risk for regulated accounting documents.
+- **Mindee.** Good invoice API with EU residency, but the Pro tier (€179/mo) is ~128% of the current infra budget. Revisit only if volume exceeds ~10k pages/mo and Textract+Bedrock accuracy proves insufficient.
+
+ISDOC invoices embed XML — parse the XML directly, no OCR. Textract is the fallback for scanned / image PDFs only.
+
+When this work is scoped, promote this into its own ADR (`docs/adr/00NN-document-ocr.md`).
 
 ---
 

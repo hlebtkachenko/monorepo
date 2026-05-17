@@ -75,6 +75,24 @@ export function verifyEmailEmail(input: {
   return { to: input.to, subject, html, text }
 }
 
+export function magicLinkEmail(input: {
+  to: string
+  url: string
+}): EmailMessage {
+  const subject = "Your sign-in link"
+  const html = wrap(
+    subject,
+    `
+    <h2>Sign in to your account</h2>
+    <p>Click the button below to sign in. The link expires in 10 minutes.</p>
+    <p><a class="button" href="${escapeHtml(input.url)}">Sign in</a></p>
+    <p class="muted">If you did not request this, you can ignore the message.</p>
+    `,
+  )
+  const text = `Sign in to your account: ${input.url}\n\nThe link expires in 10 minutes. If you did not request this, ignore the message.`
+  return { to: input.to, subject, html, text }
+}
+
 export function inviteEmail(input: {
   to: string
   url: string

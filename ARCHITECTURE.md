@@ -13,16 +13,21 @@ pnpm workspaces + Turborepo.
 ```
 apps/
   web/                             Next.js 16 App Router, React 19
+  admin/                           Next.js 16 admin app
   api/                             NestJS backend API
 packages/
-  ui/                              shadcn/ui component library (55 components, Storybook, Vitest)
+  ui/                              shadcn/ui component library (105 components, Storybook, Vitest)
   db/                              Drizzle schema + RLS + migrations
   auth/                            Better Auth + session binding + RLS GUC
-  shared/                          Shared utilities, i18n, Zod schemas
+  shared/                          Shared utilities, Zod schemas
+  i18n/                            Internationalization (next-intl)
+  config/                          Runtime config loader (AWS Secrets Manager / SSM)
   workers/                         pg-boss background job handlers
   observability/                   pino + OpenTelemetry helpers
   email/                           React Email templates + transport
   pdf/                             PDF/A-3 generation + QR Platba
+  storage/                         Org-scoped object storage
+  testcontainers/                  Integration test containers
   eslint-config/                   Shared ESLint flat configs
   typescript-config/               Shared TypeScript presets
 infra/
@@ -174,7 +179,8 @@ Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> De
 ## Deployment Targets
 
 - **Dev:** macOS local Docker (Postgres 18 + pgBouncer).
-- **Prod:** AWS eu-central-1 (ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, ALB + ACM, CloudWatch + OTel Collector sidecar).
+- **Staging:** AWS eu-central-1, deployed and live at `staging.afframe.com`.
+- **Production:** AWS eu-central-1 at `app.afframe.com` — prepared, not yet deployed. Stack: ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, ALB + ACM, CloudWatch + OTel Collector sidecar.
 
 ## Cost Protection
 

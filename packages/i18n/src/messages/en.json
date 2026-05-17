@@ -48,22 +48,31 @@
       },
       "password": {
         "title": "Enter your password",
-        "description": "Signing in as {email}.",
+        "description": "Enter your password to continue to {brand}.",
         "label": "Password",
         "rememberMe": "Remember me on this device",
-        "forgotPassword": "Forgot password?",
+        "forgot": "Forgot?",
         "submit": "Sign in",
         "submitting": "Signing in…",
-        "useDifferentEmail": "Use a different email"
+        "useDifferentEmail": "Use a different email",
+        "emailMeLink": "Email me a sign-in link",
+        "magicLinkSentTitle": "Check your email",
+        "magicLinkSentDescription": "We sent a sign-in link to {email}. Open it on this device to continue.",
+        "magicLinkResend": "Resend the link",
+        "magicLinkResendIn": "Resend in {seconds}s"
       },
       "mfa": {
         "title": "Two-factor verification",
-        "description": "Enter the 6-digit code from your authenticator app.",
-        "label": "Authentication code",
-        "submit": "Verify",
+        "description": "Enter the 6-digit code from your authenticator app for {email}.",
+        "label": "Verification code",
+        "submit": "Verify and continue",
         "submitting": "Verifying…",
         "useRecoveryCode": "Use a recovery code",
-        "tryAnotherMethod": "Try another method"
+        "useAuthenticator": "Use authenticator code",
+        "recoveryTitle": "Enter a recovery code",
+        "recoveryDescription": "Enter one of the recovery codes you saved when you turned on two-factor for {email}.",
+        "recoveryLabel": "Recovery code",
+        "recoveryPlaceholder": "abcde-12345"
       },
       "sso": {
         "label": "Continue with SSO",
@@ -74,6 +83,49 @@
         "tooltip": "Coming soon"
       },
       "divider": "or"
+    },
+    "mfa": {
+      "setup": {
+        "metaTitle": "Set up two-factor",
+        "backToProfile": "Back to profile",
+        "password": {
+          "title": "Set up two-factor authentication",
+          "description": "Confirm your password to begin enrolling an authenticator app.",
+          "label": "Current password",
+          "submit": "Continue",
+          "submitting": "Starting…",
+          "errorGeneric": "Could not start enrollment.",
+          "errorMissingUri": "Server did not return a TOTP URI. Try again.",
+          "errorMissingBackup": "The server did not return backup codes. Two-factor cannot be enabled without recovery codes."
+        },
+        "verify": {
+          "title": "Scan with your authenticator app",
+          "description": "Use Google Authenticator, 1Password, Authy, or any TOTP app to scan the code, then enter the 6-digit code it generates.",
+          "step1": "Step 1 — Scan the QR code",
+          "step1Description": "Scan with your authenticator app, or tap the code to copy the setup URI to your clipboard.",
+          "continue": "I've scanned it — continue",
+          "backToScan": "Back to scan",
+          "step2": "Step 2 — Enter the 6-digit code",
+          "step2Description": "Open your authenticator app and enter the 6-digit code it shows for {brand}.",
+          "secretLabel": "Secret (manual entry)",
+          "secretHint": "Can't scan? Add this secret to your authenticator app manually.",
+          "copy": "Copy",
+          "copied": "Copied",
+          "label": "6-digit code",
+          "submit": "Confirm and enable",
+          "submitting": "Verifying…",
+          "errorGeneric": "Invalid code. Try again."
+        },
+        "backup": {
+          "title": "Save your backup codes",
+          "description": "These codes let you sign in if you lose your authenticator app. Each one works once. Store them in a password manager or print them — they will not be shown again.",
+          "copy": "Copy codes",
+          "copied": "Copied",
+          "acknowledge": "I have saved these backup codes somewhere safe. I understand they will not be shown again.",
+          "submit": "Continue",
+          "errorNotAcknowledged": "Confirm you saved your backup codes before continuing."
+        }
+      }
     },
     "forgot": {
       "metaTitle": "Forgot password",
@@ -86,7 +138,9 @@
       "backToLogin": "Back to sign in",
       "sent": {
         "title": "Check your email",
-        "description": "If an account exists for {email}, a password-reset link is on the way."
+        "description": "If an account exists for {email}, a password-reset link is on the way.",
+        "resend": "Resend the link",
+        "resendIn": "Resend in {seconds}s"
       }
     },
     "reset": {
@@ -100,7 +154,13 @@
       "backToLogin": "Back to sign in",
       "invalidLink": {
         "title": "Invalid link",
-        "description": "This reset link is missing its token. Request a new one from the forgot-password page."
+        "description": "This reset link is missing its token. Request a new one from the forgot-password page.",
+        "requestNew": "Request a new link"
+      },
+      "success": {
+        "title": "Password updated",
+        "description": "Your password has been reset. You can now sign in with your new password.",
+        "signIn": "Sign in"
       }
     },
     "errors": {
@@ -161,15 +221,23 @@
     "signup": {
       "metaTitle": "Welcome",
       "welcome": {
-        "title": "Welcome to {brand}",
-        "description": "You've been invited to set up a workspace. Continue to create your account.",
+        "title": "You're in. Let's get to work.",
+        "description": "Confirm your invitation, issued by {brand} support and valid for 7 days.",
         "issuedTo": "Issued to",
         "role": "Role",
         "ownerRole": "Workspace owner",
         "validity": "Valid for 7 days from issue",
-        "continue": "Continue",
+        "continue": "Begin setup",
+        "wrongInvite": "Wrong invitation?",
+        "contactSupport": "Contact {brand} support",
         "alreadyHave": "Already have an account?",
         "signIn": "Sign in"
+      },
+      "mismatch": {
+        "title": "You're signed in as someone else",
+        "description": "You're signed in as {sessionEmail}. This signup link was issued for {claimEmail}.",
+        "instruction": "Sign out to continue with this signup link.",
+        "signOut": "Sign out and continue"
       }
     },
     "invite": {
@@ -177,14 +245,21 @@
       "welcome": {
         "title": "You've been invited",
         "description": "Join the team on {brand} and pick up where everyone else left off.",
-        "issuedTo": "Issued to",
-        "role": "Role",
-        "validity": "Valid for 7 days from issue",
-        "continueExisting": "Accept and continue",
-        "continueNew": "Create my account",
+        "decline": "Decline invitation",
+        "emailLabel": "Email",
+        "roleLabel": "Role",
+        "continueExisting": "Accept invitation",
+        "continueNew": "Accept invitation",
         "submittingExisting": "Joining…",
-        "wrongEmail": "This invite is for {email}, but you're signed in as {sessionEmail}. Sign out to accept it.",
-        "signOut": "Sign out"
+        "divider": "or",
+        "signInExisting": "Sign in to an existing account",
+        "footnote": "By accepting, you agree to {brand}'s Terms and Privacy Policy. Invitation expires in 7 days."
+      },
+      "mismatch": {
+        "title": "You're signed in as someone else",
+        "description": "You're signed in as {sessionEmail}. This invite link was issued for {claimEmail}.",
+        "instruction": "Sign out to continue with this invite link.",
+        "signOut": "Sign out and continue"
       }
     }
   },
@@ -197,9 +272,17 @@
       "metaTitle": "Your profile",
       "title": "Tell us who you are",
       "description": "We use this to personalize {brand} and how teammates see you.",
+      "avatarLabel": "Profile photo",
+      "avatarUpload": "Upload photo",
+      "avatarHint": "PNG or JPG.",
+      "avatarTooLarge": "This image is too large.",
+      "avatarWrongType": "Use a PNG or JPG image.",
       "firstName": "First name",
+      "firstNamePlaceholder": "Jamie",
       "lastName": "Last name",
-      "phone": "Phone (optional)",
+      "lastNamePlaceholder": "Park",
+      "phone": "Phone",
+      "phoneHint": "Used for account recovery and security alerts.",
       "phonePlaceholder": "+420123456789",
       "locale": "Language",
       "timezone": "Time zone",
@@ -235,6 +318,7 @@
       "metaTitle": "Choose a password",
       "title": "Choose a password",
       "description": "Pick a strong password of at least 12 characters. You'll use this with {email} to sign in.",
+      "emailLabel": "Email",
       "newPasswordLabel": "Password",
       "confirmPasswordLabel": "Confirm password",
       "submit": "Create account",
@@ -249,7 +333,7 @@
       "useCase": "How will you use {brand}?",
       "useCaseOptions": {
         "firm": {
-          "title": "For my firm",
+          "title": "For accounting firm",
           "description": "We serve multiple client books."
         },
         "biz": {
@@ -321,7 +405,13 @@
       "submit": "Send invites",
       "submitting": "Saving…",
       "skip": "Skip for now",
-      "note": "Invites are saved as drafts and sent when you first add an organization."
+      "note": "Invites are saved as drafts and sent when you first add an organization.",
+      "toast": {
+        "sentTitle": "{count, plural, one {# invite sent} other {# invites sent}}",
+        "sentDescription": "If you don't see the email, the dev console transport prints links to your terminal — or visit /api/dev/outbox.",
+        "failedTitle": "{count, plural, one {# invite failed} other {# invites failed}}",
+        "failedDescription": "Check the dev-server log for the underlying error."
+      }
     },
     "done": {
       "metaTitle": "You're all set",

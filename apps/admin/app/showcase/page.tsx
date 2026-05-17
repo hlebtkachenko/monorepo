@@ -142,6 +142,11 @@ import { CommandDemo } from "./_components/command-demo"
 import { CalendarDemo } from "./_components/calendar-demo"
 import { CarouselDemo } from "./_components/carousel-demo"
 import {
+  DataTrackListFormatted,
+  DataTrackListLinks,
+  DataTrackTrackerDemo,
+} from "./_components/data-track-demo"
+import {
   ChartAreaGradient,
   ChartAreaSolid,
   ChartAreaStacked,
@@ -160,6 +165,10 @@ import {
   ChartDonut,
   ChartRadarFilled,
   ChartRadarLines,
+  ChartCategoryBarDemo,
+  ChartSparkAreaDemo,
+  ChartSparkLineDemo,
+  ChartSparkBarDemo,
 } from "./_components/chart-demo"
 import { ToggleDemo } from "./_components/toggle-demo"
 import { ToggleGroupDemo } from "./_components/toggle-group-demo"
@@ -262,9 +271,7 @@ export default function ShowcasePage() {
 
       {/* ==================== ALERTDIALOG ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          AlertDialog
-        </h2>
+        <h2 className="mb-6">AlertDialog</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -279,9 +286,7 @@ export default function ShowcasePage() {
 
       {/* ==================== APIRESPONSEVIEWER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ApiResponseViewer
-        </h2>
+        <h2 className="mb-6">ApiResponseViewer</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -294,9 +299,7 @@ export default function ShowcasePage() {
 
       {/* ==================== ASPECTRATIO ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          AspectRatio
-        </h2>
+        <h2 className="mb-6">AspectRatio</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -327,9 +330,7 @@ export default function ShowcasePage() {
 
       {/* ==================== AUTOCOMPLETE ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          Autocomplete
-        </h2>
+        <h2 className="mb-6">Autocomplete</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -432,11 +433,36 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== DATATRACK ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">DataTrack</h2>
+        <div className="flex flex-col gap-8">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div>
+              <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+                List variant — formatted values
+              </h3>
+              <DataTrackListFormatted />
+            </div>
+            <div>
+              <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+                List variant — with links
+              </h3>
+              <DataTrackListLinks />
+            </div>
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Tracker variant — 30-day uptime
+            </h3>
+            <DataTrackTrackerDemo />
+          </div>
+        </div>
+      </section>
+
       {/* ==================== BREADCRUMB ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          Breadcrumb
-        </h2>
+        <h2 className="mb-6">Breadcrumb</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -463,9 +489,7 @@ export default function ShowcasePage() {
 
       {/* ==================== NAVIGATIONBOTTOMMOBILE ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          NavigationBottomMobile
-        </h2>
+        <h2 className="mb-6">NavigationBottomMobile</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -491,9 +515,7 @@ export default function ShowcasePage() {
 
       {/* ==================== BUTTONBORDERBEAM ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ButtonBorderBeam
-        </h2>
+        <h2 className="mb-6">ButtonBorderBeam</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -571,9 +593,7 @@ export default function ShowcasePage() {
 
       {/* ==================== BUTTONGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ButtonGroup
-        </h2>
+        <h2 className="mb-6">ButtonGroup</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -677,9 +697,7 @@ export default function ShowcasePage() {
 
       {/* ==================== CARDEXTENDED ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          CardExtended
-        </h2>
+        <h2 className="mb-6">CardExtended</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -815,14 +833,36 @@ export default function ShowcasePage() {
             </h3>
             <ChartRadarLines />
           </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Category bar
+            </h3>
+            <ChartCategoryBarDemo />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Spark — Area
+            </h3>
+            <ChartSparkAreaDemo />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Spark — Line
+            </h3>
+            <ChartSparkLineDemo />
+          </div>
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Spark — Bar
+            </h3>
+            <ChartSparkBarDemo />
+          </div>
         </div>
       </section>
 
       {/* ==================== CIRCULARPROGRESS ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          CircularProgress
-        </h2>
+        <h2 className="mb-6">CircularProgress</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -848,9 +888,7 @@ export default function ShowcasePage() {
 
       {/* ==================== COLLAPSIBLE ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          Collapsible
-        </h2>
+        <h2 className="mb-6">Collapsible</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -863,9 +901,7 @@ export default function ShowcasePage() {
 
       {/* ==================== COLORPICKER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ColorPicker
-        </h2>
+        <h2 className="mb-6">ColorPicker</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -878,9 +914,7 @@ export default function ShowcasePage() {
 
       {/* ==================== COLORSWATCH ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ColorSwatch
-        </h2>
+        <h2 className="mb-6">ColorSwatch</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -942,9 +976,7 @@ export default function ShowcasePage() {
 
       {/* ==================== COMMITGRAPH ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          CommitGraph
-        </h2>
+        <h2 className="mb-6">CommitGraph</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -957,9 +989,7 @@ export default function ShowcasePage() {
 
       {/* ==================== CONTEXTMENU ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ContextMenu
-        </h2>
+        <h2 className="mb-6">ContextMenu</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -974,9 +1004,7 @@ export default function ShowcasePage() {
 
       {/* ==================== CREATABLECOMBOBOX ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          CreatableCombobox
-        </h2>
+        <h2 className="mb-6">CreatableCombobox</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1002,9 +1030,7 @@ export default function ShowcasePage() {
 
       {/* ==================== DATATABLE ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          Data Table
-        </h2>
+        <h2 className="mb-6">Data Table</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1060,9 +1086,7 @@ export default function ShowcasePage() {
 
       {/* ==================== DROPDOWNMENU ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          DropdownMenu
-        </h2>
+        <h2 className="mb-6">DropdownMenu</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1116,9 +1140,7 @@ export default function ShowcasePage() {
 
       {/* ==================== ERRORBOUNDARYUI ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ErrorBoundaryUi
-        </h2>
+        <h2 className="mb-6">ErrorBoundaryUi</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1169,9 +1191,7 @@ export default function ShowcasePage() {
 
       {/* ==================== FILEUPLOAD ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          FileUpload
-        </h2>
+        <h2 className="mb-6">FileUpload</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1184,9 +1204,7 @@ export default function ShowcasePage() {
 
       {/* ==================== FLOATINGPANEL ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          Floating Panel
-        </h2>
+        <h2 className="mb-6">Floating Panel</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1259,9 +1277,7 @@ export default function ShowcasePage() {
 
       {/* ==================== INPUTGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          InputGroup
-        </h2>
+        <h2 className="mb-6">InputGroup</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1300,9 +1316,7 @@ export default function ShowcasePage() {
 
       {/* ==================== INPUTPHONE ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          InputPhone
-        </h2>
+        <h2 className="mb-6">InputPhone</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1375,9 +1389,7 @@ export default function ShowcasePage() {
 
       {/* ==================== JSONVIEWER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          JsonViewer
-        </h2>
+        <h2 className="mb-6">JsonViewer</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1433,9 +1445,7 @@ export default function ShowcasePage() {
 
       {/* ==================== BUTTONLIQUIDMETAL ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ButtonLiquidMetal
-        </h2>
+        <h2 className="mb-6">ButtonLiquidMetal</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1534,9 +1544,7 @@ export default function ShowcasePage() {
 
       {/* ==================== MULTISTEPLOADER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          MultiStepLoader
-        </h2>
+        <h2 className="mb-6">MultiStepLoader</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1549,9 +1557,7 @@ export default function ShowcasePage() {
 
       {/* ==================== NATIVESELECT ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          NativeSelect
-        </h2>
+        <h2 className="mb-6">NativeSelect</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1578,9 +1584,7 @@ export default function ShowcasePage() {
 
       {/* ==================== NAVIGATIONMENU ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          NavigationMenu
-        </h2>
+        <h2 className="mb-6">NavigationMenu</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1624,9 +1628,7 @@ export default function ShowcasePage() {
 
       {/* ==================== NOISEBACKGROUND ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          NoiseBackground
-        </h2>
+        <h2 className="mb-6">NoiseBackground</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1639,9 +1641,7 @@ export default function ShowcasePage() {
 
       {/* ==================== PAGINATION ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          Pagination
-        </h2>
+        <h2 className="mb-6">Pagination</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1677,9 +1677,7 @@ export default function ShowcasePage() {
 
       {/* ==================== PDFVIEWER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          PDF Viewer
-        </h2>
+        <h2 className="mb-6">PDF Viewer</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1737,9 +1735,7 @@ export default function ShowcasePage() {
 
       {/* ==================== PROMPTLIBRARY ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          Prompt Library
-        </h2>
+        <h2 className="mb-6">Prompt Library</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1765,9 +1761,7 @@ export default function ShowcasePage() {
 
       {/* ==================== RADIOGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          RadioGroup
-        </h2>
+        <h2 className="mb-6">RadioGroup</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1793,9 +1787,7 @@ export default function ShowcasePage() {
 
       {/* ==================== RINGLOADER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          RingLoader
-        </h2>
+        <h2 className="mb-6">RingLoader</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1808,9 +1800,7 @@ export default function ShowcasePage() {
 
       {/* ==================== SCROLLAREA ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ScrollArea
-        </h2>
+        <h2 className="mb-6">ScrollArea</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1845,9 +1835,7 @@ export default function ShowcasePage() {
 
       {/* ==================== INPUTSEGMENTED ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          InputSegmented
-        </h2>
+        <h2 className="mb-6">InputSegmented</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1919,9 +1907,7 @@ export default function ShowcasePage() {
 
       {/* ==================== SIGNATUREPAD ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          SignaturePad
-        </h2>
+        <h2 className="mb-6">SignaturePad</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -1973,9 +1959,7 @@ export default function ShowcasePage() {
 
       {/* ==================== SNAILTIMER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          SnailTimer
-        </h2>
+        <h2 className="mb-6">SnailTimer</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -2019,9 +2003,7 @@ export default function ShowcasePage() {
 
       {/* ==================== STATEFULBUTTON ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          StatefulButton
-        </h2>
+        <h2 className="mb-6">StatefulButton</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -2297,9 +2279,7 @@ export default function ShowcasePage() {
 
       {/* ==================== TOGGLEGROUP ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          ToggleGroup
-        </h2>
+        <h2 className="mb-6">ToggleGroup</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -2340,9 +2320,7 @@ export default function ShowcasePage() {
 
       {/* ==================== WEBHOOKTESTER ==================== */}
       <section className="mb-16">
-        <h2 className="mb-6">
-          WebhookTester
-        </h2>
+        <h2 className="mb-6">WebhookTester</h2>
         <div className="flex flex-col gap-6">
           <div>
             <h3 className="mb-3 text-sm font-medium text-muted-foreground">

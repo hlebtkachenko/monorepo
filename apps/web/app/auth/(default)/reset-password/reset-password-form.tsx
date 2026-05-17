@@ -1,13 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ChevronLeft } from "lucide-react"
 
-import { authClient } from "@workspace/auth/client"
 import { useTranslations } from "@workspace/i18n/client"
 import {
   ResetPasswordSchema,
@@ -20,8 +18,14 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@workspace/ui/components/field"
+import { Heading } from "@workspace/ui/components/heading"
 import { PasswordChecklist } from "@workspace/ui/components/password-checklist"
 import { PasswordInput } from "@workspace/ui/components/password-input"
+import { Text } from "@workspace/ui/components/text"
+import { ArrowLeft } from "@workspace/ui/lib/icons"
+
+import { AuthHeaderLinkOverride } from "../_components/auth-header-link"
+import { resetPasswordAction } from "./actions"
 
 export function ResetPasswordForm() {
   const router = useRouter()
@@ -39,6 +43,8 @@ export function ResetPasswordForm() {
   })
 
   const [serverError, setServerError] = useState<string | null>(null)
+  const [visible, setVisible] = useState(false)
+  const [success, setSuccess] = useState(false)
   const password = form.watch("password")
   const confirm = form.watch("confirm")
 
@@ -59,69 +65,84 @@ export function ResetPasswordForm() {
 
   async function onSubmit(values: ResetPasswordInput) {
     setServerError(null)
-    try {
-      const result = await authClient.resetPassword({
-        token: values.token,
-        newPassword: values.password,
-      })
-      if (result.error) {
-        setServerError(result.error.message ?? tErrors("resetFailed"))
-        return
-      }
-      router.push("/auth/login")
-    } catch (err) {
-      setServerError((err as Error).message ?? tErrors("resetFailed"))
+    const result = await resetPasswordAction(values.token, values.password)
+    if (result.ok) {
+      setSuccess(true)
+    } else {
+      setServerError(result.error ?? tErrors("resetFailed"))
     }
   }
 
-  const invalidLink = !token
-  if (invalidLink) {
+  const headerIcon = useMemo(
+    () => <ArrowLeft className="size-4" aria-hidden="true" />,
+    [],
+  )
+
+  if (!token) {
     return (
-      <div className="flex flex-col gap-4">
-        <Link
+      <div className="flex flex-col gap-8">
+        <AuthHeaderLinkOverride
           href="/auth/login"
-          className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" aria-hidden="true" />
-          {t("backToLogin")}
-        </Link>
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">
-          {t("invalidLink.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("invalidLink.description")}
-        </p>
+          label={t("backToLogin")}
+          icon={headerIcon}
+        />
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("invalidLink.title")}
+          </Heading>
+          <Text variant="muted">{t("invalidLink.description")}</Text>
+        </header>
         <Link
           href="/auth/forgot-password"
-          className="text-sm underline-offset-4 hover:text-foreground hover:underline"
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
-          {t("backToLogin")}
+          {t("invalidLink.requestNew")}
         </Link>
+      </div>
+    )
+  }
+
+  if (success) {
+    return (
+      <div className="flex flex-col gap-8">
+        <AuthHeaderLinkOverride
+          href="/auth/login"
+          label={t("backToLogin")}
+          icon={headerIcon}
+        />
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("success.title")}
+          </Heading>
+          <Text variant="muted">{t("success.description")}</Text>
+        </header>
+        <Button size="xl" asChild>
+          <Link href="/auth/login">{t("success.signIn")}</Link>
+        </Button>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-8">
-      <Link
+      <AuthHeaderLinkOverride
         href="/auth/login"
-        className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="size-4" aria-hidden="true" />
-        {t("backToLogin")}
-      </Link>
+        label={t("backToLogin")}
+        icon={headerIcon}
+      />
 
       <header className="flex flex-col gap-2">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">
+        <Heading level={2} className="mt-0">
           {t("title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("description")}</p>
+        </Heading>
+        <Text variant="muted">{t("description")}</Text>
       </header>
 
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-5"
         noValidate
+        autoComplete="on"
       >
         <input type="hidden" {...form.register("token")} />
         <FieldGroup>
@@ -131,9 +152,12 @@ export function ResetPasswordForm() {
             <FieldLabel htmlFor="password">{t("newPasswordLabel")}</FieldLabel>
             <PasswordInput
               id="password"
+              inputSize="xl"
               autoComplete="new-password"
               showGenerate
               autoFocus
+              visible={visible}
+              onVisibleChange={setVisible}
               value={password}
               onValueChange={(v) =>
                 form.setValue("password", v, { shouldValidate: false })
@@ -159,7 +183,10 @@ export function ResetPasswordForm() {
             </FieldLabel>
             <PasswordInput
               id="confirm"
+              inputSize="xl"
               autoComplete="new-password"
+              visible={visible}
+              onVisibleChange={setVisible}
               value={confirm}
               onValueChange={(v) =>
                 form.setValue("confirm", v, { shouldValidate: false })
@@ -174,12 +201,12 @@ export function ResetPasswordForm() {
         </FieldGroup>
 
         {serverError && (
-          <p className="text-sm text-destructive" role="alert">
+          <Text variant="small" className="text-destructive" role="alert">
             {serverError}
-          </p>
+          </Text>
         )}
 
-        <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
+        <Button type="submit" size="xl" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? t("submitting") : t("submit")}
         </Button>
       </form>

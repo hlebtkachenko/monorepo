@@ -2,7 +2,7 @@
 
 > Maintained per DORA Article 8 ICT asset register requirement.
 
-Source of truth for material ICT assets. Updated when an asset is added, retired, or changes data classification. Once AWS lands, AWS Config aggregator becomes the machine-readable source of truth and this file becomes the human-readable index — both must agree on every asset.
+Source of truth for material ICT assets. Updated when an asset is added, retired, or changes data classification. AWS is connected; as the AWS Config aggregator is wired up it becomes the machine-readable source of truth and this file the human-readable index — both must agree on every asset.
 
 Audit trail of changes: git history of this file.
 

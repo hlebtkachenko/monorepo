@@ -38,4 +38,4 @@ pnpm install
 pnpm --filter @workspace/cdk exec cdk synth --context env=staging
 ```
 
-`bin/app.ts` warns when the configured account is `<TBD>` but proceeds with synth so type-checking and unit tests run pre-bootstrap.
+`bin/app.ts` warns when no AWS account is configured (`AWS_ACCOUNT_ID` unset) but proceeds with synth, so type-checking and unit tests run without AWS credentials.

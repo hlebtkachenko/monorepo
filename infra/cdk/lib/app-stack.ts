@@ -198,6 +198,57 @@ export class AppStack extends Stack {
       `/monorepo/${props.envName}/openfga/model-id`,
     )
 
+    // Better Auth + app token signing secrets. Each is a separate Secrets
+    // Manager secret because `generateSecretString` can only populate ONE
+    // field per Secret resource. Keeping them out of GitHub Actions
+    // secrets entirely — they exist only inside AWS and rotate by
+    // recreating the Secret (CDK + new stack version).
+    //
+    // SAFETY: do NOT enable destroy on prod removal policy — losing these
+    // secrets invalidates every active session and makes every pending
+    // invite / signup token unredeemable. Default RETAIN is correct.
+    const betterAuthSecret = new Secret(this, "BetterAuthSecret", {
+      secretName: `monorepo-${props.envName}-better-auth-secret`,
+      description: `${props.envName} Better Auth session-signing secret (32+ bytes)`,
+      generateSecretString: {
+        passwordLength: 44,
+        excludePunctuation: true,
+      },
+    })
+    const appTokenSecret = new Secret(this, "AppTokenSecret", {
+      secretName: `monorepo-${props.envName}-app-token-secret`,
+      description: `${props.envName} app signup/invite/login-email token signing secret`,
+      generateSecretString: {
+        passwordLength: 44,
+        excludePunctuation: true,
+      },
+    })
+
+    // Resend API key — populated out-of-band (gh repo secret + deploy
+    // workflow `secretsmanager put-secret-value`). CDK only references the
+    // secret by name so the value's lifecycle is decoupled from stack
+    // updates. The deploy workflow ensures the secret exists with a
+    // non-empty value before the App stack deploy step runs.
+    const resendApiKeySecret = Secret.fromSecretNameV2(
+      this,
+      "ResendApiKeySecret",
+      `monorepo-${props.envName}-resend-api-key`,
+    )
+
+    betterAuthSecret.grantRead(taskExecutionRole)
+    appTokenSecret.grantRead(taskExecutionRole)
+    resendApiKeySecret.grantRead(taskExecutionRole)
+
+    // The web container speaks to the public origin via Cloudflare Tunnel.
+    // `BETTER_AUTH_URL` MUST exactly match what users see in the browser —
+    // the cookie scope + magic-link / password-reset / email-verification
+    // URLs all derive from this value. Trusted origins includes both
+    // protocols of every host the client may post from (the apex + the
+    // tunnel hostname); add www / app aliases here if those are wired
+    // in Cloudflare later.
+    const publicOrigin = `https://${props.domain}`
+    const trustedOrigins = [publicOrigin].join(",")
+
     // Next.js standalone server writes to /app/.next/cache, which a readonly
     // rootfs blocks. Until a custom cacheHandler + Dockerfile copy is in
     // place, the web container keeps a writable root. capDrop ALL still
@@ -216,7 +267,56 @@ export class AppStack extends Stack {
         APP_ENV: props.envName,
         PORT: "3000",
         APP_DOMAIN: props.domain,
+        // Better Auth: cookie scope + email link composition. resolveBaseURL
+        // in packages/auth/src/server.ts throws in production if this is
+        // missing, so a misconfigured deploy fails fast instead of silently
+        // emitting localhost links into customer inboxes.
+        BETTER_AUTH_URL: publicOrigin,
+        // Same value, surfaced on the browser via NEXT_PUBLIC_*. The Better
+        // Auth React client reads this to build its base URL.
+        NEXT_PUBLIC_BETTER_AUTH_URL: publicOrigin,
+        // CSV of origins allowed to call /api/auth/*. Add www / aliases here.
+        BETTER_AUTH_TRUSTED_ORIGINS: trustedOrigins,
+        // Outbound email from-address. Must be on a Resend/SES-verified
+        // domain — otherwise the transport rejects the send.
+        EMAIL_FROM: `no-reply@${props.domain}`,
+        // Force the Resend transport. Without this, packages/email's
+        // pickTransport() would also accept SES via AWS_REGION; in MVP we
+        // want every deploy on the same provider until SES production
+        // access is approved (docs/runbooks/AWS-DEPLOY.md step 8).
+        EMAIL_TRANSPORT: "resend",
+        // pgbouncer-routed DB connection — same loopback path the api uses.
+        // packages/db reads only DATABASE_URL, composed by /bin/sh from
+        // DB_USER/DB_PASSWORD secrets + DB_HOST/DB_PORT/DB_NAME env.
+        DB_HOST: "localhost",
+        DB_PORT: "6432",
+        DB_NAME: "monorepo",
       },
+      secrets: {
+        BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
+        APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
+        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
+        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        DB_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      // Compose DATABASE_URL at container start (same pattern as api) so the
+      // password never lands in an env var. SAFETY: db secret uses
+      // `excludePunctuation: true` (data-stack.ts), so the password is
+      // alphanumeric — no URL-reserved chars require encoding.
+      //
+      // HOSTNAME=0.0.0.0 must stay forced here for the same reason as the
+      // Dockerfile CMD: Fargate/Docker runtime overrides ENV HOSTNAME with
+      // the container's auto-assigned hostname, and Next.js standalone
+      // server.js then binds to that non-loopback interface only — the
+      // cloudflared sidecar reaching localhost:3000 would get ECONNREFUSED.
+      entryPoint: ["/bin/sh", "-c"],
+      command: [
+        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
+          "HOSTNAME=0.0.0.0 exec node apps/web/server.js",
+      ],
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("WebLinuxParams"),
     })

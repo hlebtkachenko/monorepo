@@ -31,12 +31,13 @@
     "postgres": "^3.4.7"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^11.14.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^10.3.0",
+    "eslint": "^9.39.2",
     "tsx": "^4.19.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"

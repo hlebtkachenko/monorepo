@@ -324,3 +324,52 @@ export const RadarLines: Story = {
     </Box>
   ),
 }
+
+// ===== Category bar =====
+
+export const CategoryBarChart: Story = {
+  render: () => (
+    <div className="w-80">
+      <Chart
+        type="category-bar"
+        values={[40, 25, 20, 15]}
+        marker={{ value: 62, tooltip: "Current: 62" }}
+      />
+    </div>
+  ),
+}
+
+// ===== Spark (axis-less mini charts) =====
+
+export const SparkArea: Story = {
+  render: () => (
+    <Chart
+      type="spark-area"
+      data={seriesData}
+      index="month"
+      categories={["revenue"]}
+    />
+  ),
+}
+
+export const SparkLine: Story = {
+  render: () => (
+    <Chart
+      type="spark-line"
+      data={seriesData}
+      index="month"
+      categories={["revenue"]}
+    />
+  ),
+}
+
+export const SparkBar: Story = {
+  render: () => (
+    <Chart
+      type="spark-bar"
+      data={seriesData}
+      index="month"
+      categories={["revenue"]}
+    />
+  ),
+}

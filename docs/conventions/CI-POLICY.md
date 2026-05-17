@@ -72,10 +72,12 @@ Workflow-level `paths:` filters on the trigger block create stuck PRs when the w
 
 `ci.yml` runs `dorny/paths-filter` in a `changes` job and downstream jobs key off `needs.changes.outputs.<name>`. The `ci` aggregator at the bottom of `ci.yml` treats `skipped` as non-failure (only `failure|cancelled` red the aggregator), so skipped jobs do not break the required `ci` status check.
 
-| Job / Step                          | Gated on                                                | What skipping saves                                        |
-| ----------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------- |
-| `storybook` (entire job)            | `packages/ui/**`                                        | ~220s on non-UI PRs                                        |
-| `lint-typecheck` → `CDK Synth` step | `infra/cdk/**`, `apps/*/package.json`, `pnpm-lock.yaml` | ~20-40s on PRs that don't touch CDK or dependency surfaces |
+| Job / Step                                             | Gated on                                                | What skipping saves                                        |
+| ------------------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------- |
+| `storybook-build` + `storybook-test` (entire pipeline) | `packages/ui/**`                                        | ~220s on non-UI PRs                                        |
+| `lint-typecheck` → `CDK Synth` step                    | `infra/cdk/**`, `apps/*/package.json`, `pnpm-lock.yaml` | ~20-40s on PRs that don't touch CDK or dependency surfaces |
+
+`storybook-test` is a 2-shard matrix (`--shard=N/2` on `@storybook/test-runner`). `storybook-build` runs once and uploads `packages/ui/storybook-static` as a 1-day-retention artifact; both shards download it. Net storybook wall on UI PRs: ~220-240s (sequential) → ~130-140s (build + max(shard)).
 
 ### `--affected` policy
 

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
 
+import { publicOrigin } from "./lib/request-origin"
 import { safeNext } from "./lib/safe-next"
 
 /**
@@ -25,7 +26,7 @@ import { safeNext } from "./lib/safe-next"
 export function proxy(request: NextRequest): NextResponse {
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
-    const loginUrl = new URL("/auth/login", request.url)
+    const loginUrl = new URL("/auth/login", publicOrigin(request))
     // Pass ONLY the pathname through `safeNext`. We deliberately drop
     // the original query string so a sensitive deep link
     // (`/auth/reset-password?token=…`) never round-trips through the

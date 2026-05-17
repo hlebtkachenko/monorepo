@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { verifySignupToken, TokenError } from "@workspace/auth/tokens"
 
+import { publicOrigin } from "@/lib/request-origin"
+
 const SIGNUP_TOKEN_COOKIE = "app-signup-token"
 
 /**
@@ -13,10 +15,11 @@ const SIGNUP_TOKEN_COOKIE = "app-signup-token"
  * read-only for cookies, so the welcome page itself cannot do the write.
  */
 export async function GET(request: NextRequest) {
+  const base = publicOrigin(request)
   const token = request.nextUrl.searchParams.get("token")
   if (!token) {
     return NextResponse.redirect(
-      new URL("/auth/login?error=missing-signup-token", request.url),
+      new URL("/auth/login?error=missing-signup-token", base),
     )
   }
   try {
@@ -24,12 +27,12 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     if (err instanceof TokenError) {
       return NextResponse.redirect(
-        new URL(`/auth/login?error=${err.code.toLowerCase()}`, request.url),
+        new URL(`/auth/login?error=${err.code.toLowerCase()}`, base),
       )
     }
     throw err
   }
-  const res = NextResponse.redirect(new URL("/auth/signup", request.url))
+  const res = NextResponse.redirect(new URL("/auth/signup", base))
   res.cookies.set(SIGNUP_TOKEN_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

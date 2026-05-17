@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { readInviteByRawToken } from "@workspace/auth/invite-issuer"
 
+import { publicOrigin } from "@/lib/request-origin"
+
 const INVITE_TOKEN_COOKIE = "app-invite-token"
 
 /**
@@ -16,36 +18,31 @@ const INVITE_TOKEN_COOKIE = "app-invite-token"
  * the DB row.
  */
 export async function GET(request: NextRequest) {
+  const base = publicOrigin(request)
   const rawToken = request.nextUrl.searchParams.get("token")
   if (!rawToken) {
     return NextResponse.redirect(
-      new URL("/auth/login?error=missing-invite-token", request.url),
+      new URL("/auth/login?error=missing-invite-token", base),
     )
   }
 
   const record = await readInviteByRawToken(rawToken)
   if (!record) {
-    return NextResponse.redirect(
-      new URL("/auth/login?error=invalid", request.url),
-    )
+    return NextResponse.redirect(new URL("/auth/login?error=invalid", base))
   }
   if (record.status === "expired") {
-    return NextResponse.redirect(
-      new URL("/auth/login?error=expired", request.url),
-    )
+    return NextResponse.redirect(new URL("/auth/login?error=expired", base))
   }
   if (record.status === "revoked") {
-    return NextResponse.redirect(
-      new URL("/auth/login?error=disabled", request.url),
-    )
+    return NextResponse.redirect(new URL("/auth/login?error=disabled", base))
   }
   if (record.status === "accepted") {
     return NextResponse.redirect(
-      new URL("/auth/login?error=invite-already-accepted", request.url),
+      new URL("/auth/login?error=invite-already-accepted", base),
     )
   }
 
-  const res = NextResponse.redirect(new URL("/auth/invite", request.url))
+  const res = NextResponse.redirect(new URL("/auth/invite", base))
   res.cookies.set(INVITE_TOKEN_COOKIE, rawToken, {
     httpOnly: true,
     sameSite: "lax",

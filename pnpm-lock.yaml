@@ -302,6 +302,9 @@ importers:
       '@workspace/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@workspace/testcontainers':
+        specifier: workspace:*
+        version: link:../../packages/testcontainers
       '@workspace/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -376,6 +379,9 @@ importers:
       '@workspace/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@workspace/testcontainers':
+        specifier: workspace:*
+        version: link:../testcontainers
       '@workspace/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config

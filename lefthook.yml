@@ -16,7 +16,10 @@ pre-commit:
     no-drizzle-kit-generate:
       glob: "*.{json,jsonc,yml,yaml,sh,ts,mjs,cjs}"
       run: |
-        if grep -nE 'drizzle-kit[[:space:]]+(generate|push)' {staged_files} | grep -v 'lefthook.yml'; then
+        # Exclude lines that also say "forbidden": those are this repo's own
+        # guard messages / anti-drizzle-kit scripts (lefthook.yml, packages/db
+        # package.json), not real command invocations.
+        if grep -nE 'drizzle-kit[[:space:]]+(generate|push)' {staged_files} | grep -v forbidden; then
           echo "ADR-0009: 'drizzle-kit generate' / 'drizzle-kit push' are forbidden — migrations are handwritten SQL in packages/db/migrations/."
           exit 1
         fi

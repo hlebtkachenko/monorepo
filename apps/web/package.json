@@ -49,6 +49,7 @@
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
     "@workspace/eslint-config": "workspace:*",
+    "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
     "size-limit": "^12.1.0",

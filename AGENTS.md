@@ -105,6 +105,27 @@ All reads/writes go through `withWorkspace`, `withOrganization`, or `withAdminBy
 - Setup file mocks: ResizeObserver, IntersectionObserver, matchMedia, scrollIntoView, hasPointerCapture
 - Run: `pnpm test` (all) or `pnpm --filter @workspace/ui test:watch` (watch mode)
 
+### Integration + E2E databases
+
+- DB integration tests and the web E2E suite both boot a disposable Postgres 18
+  testcontainer via `@workspace/testcontainers` `bootPostgres18()` — one shared
+  helper, no forked `docker-compose.test.yml`, so migrations + role bootstrap
+  stay single-source.
+- Loginable-user seed: `seedWorkspaceWithOwner()` in `packages/db/tests/fixtures.ts`
+  seeds a genuine Better Auth credential (driven through `auth.api.signUpEmail`,
+  not a hand-hashed password) plus the workspace + organization + owner
+  memberships. It takes an injected `signUp` callback so `@workspace/db` never
+  imports `@workspace/auth` (that would invert the dependency). The canonical
+  callback is `betterAuthSignUp` from `@workspace/auth/test-support`.
+- Web E2E: `apps/web/playwright.config.ts` boots + seeds via `e2e/db-setup.ts`
+  at config-evaluation time and passes the ephemeral DB URLs into
+  `webServer.env`. `e2e/global-teardown.ts` stops the container. The seeded
+  owner's credentials are written to `e2e/.auth/seed.json` (gitignored) for
+  specs to consume.
+- CI: `.github/workflows/e2e.yml` runs the testcontainer in-job (no service
+  container); its `DATABASE_URL` / `DATABASE_DIRECT_URL` env values are
+  build-time placeholders that `db-setup.ts` overrides at runtime.
+
 ## Storybook
 
 - Framework: Storybook 10 + Vite

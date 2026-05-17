@@ -4,18 +4,18 @@ Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` r
 
 ## Trigger matrix
 
-| Trigger | Behaviour |
-|---------|-----------|
-| Tag a release `v0.x.x` | `release.yml` builds + signs the image, uploads SBOM, then calls `_deploy-aws.yml env=staging` |
-| Push to `main` | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags. |
-| Manual prod | `gh workflow run _deploy-aws.yml -f environment=production -f stack=App-production`, approve in GitHub environment |
+| Trigger                | Behaviour                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Tag a release `v0.x.x` | `release.yml` builds + signs the image, uploads SBOM, then calls `_deploy-aws.yml env=staging`                     |
+| Push to `main`         | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags.                           |
+| Manual prod            | `gh workflow run _deploy-aws.yml -f environment=production -f stack=App-production`, approve in GitHub environment |
 
 ## Pre-deploy checklist
 
 - [ ] PR risk fields filled (data sensitivity, blast radius, rollback plan, cost estimate).
 - [ ] Cosign attestation verified on the candidate image (`cosign verify-attestation`).
 - [ ] Smoke on staging: `/api/version` returns the expected `sha`, `version`, `time`.
-- [ ] Synthetic checks green for the last 24h on staging.
+- [ ] Synthetic checks green for the last 24h on staging (`https://status.afframe.com`).
 - [ ] No SEV1/SEV2 incident open against this surface.
 
 ## Cosign verify
@@ -41,6 +41,7 @@ Fail = stop. Do not proceed with an unverifiable image.
 3. 100%.
 
 Halt conditions (auto-rollback):
+
 - Error rate > baseline + 1pp.
 - p95 latency > baseline x 1.5.
 - 5xx rate > 0.1%.
@@ -49,13 +50,14 @@ Halt conditions (auto-rollback):
 ## Rollback triggers
 
 See `docs/runbooks/ROLLBACK.md`. Roll back if:
+
 - Canary halt condition fires.
-- Synthetic checks red for >5 min after promote.
+- Synthetic checks red for >5 min after promote (`https://status.afframe.com`).
 - New SEV1 / SEV2 against the deployed surface.
 - Customer-facing regression discovered within 1 hour.
 
 ## Post-deploy
 
 - [ ] Release notes auto-published from PR titles (release-please or equivalent — added later).
-- [ ] Status page updated if customer-visible change.
+- [ ] Status page `https://status.afframe.com` updated if customer-visible change — see [STATUS-PAGE.md](STATUS-PAGE.md).
 - [ ] Honeycomb dashboard sanity check.

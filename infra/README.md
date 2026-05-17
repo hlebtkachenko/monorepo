@@ -27,10 +27,16 @@ infra/
     pg_exporter/queries.yaml # pg-boss + outbox gauges (observability profile)
     pgtap/                  # pgtap test runner image
   observability/            # OTel + FireLens configs (UNWIRED in CDK; ADR-0002 trip-wire)
+  openstatus/               # status.afframe.com monitors-as-code (OVH VPS Docker Compose — NOT AWS/CDK; ADR-0019)
   scripts/                  # backup + restore + WAL archive scripts (Commit 11)
   Dockerfile.backup         # minimal image for the ECS Scheduled Task
   secrets/                  # SOPS+age scaffold per docs/runbooks/SECRETS.md
 ```
+
+`openstatus/` is the one infra directory that is **not** AWS: the `status.afframe.com`
+status page runs OpenStatus on the OVH VPS (Docker Compose + Cloudflare Tunnel). No CDK
+stack, no Makefile target, and no `_deploy-aws.yml` step touches it — see
+`docs/adr/0019-status-page-and-uptime-monitoring.md` and `docs/runbooks/STATUS-PAGE.md`.
 
 App task topology (one Fargate task per env): 6 containers
 `web + api + pgbouncer + cerbos + openfga + cloudflared`. See
@@ -54,14 +60,15 @@ make bootstrap-cdk REGION=eu-central-1  # one-time per fresh env
 
 ## State location
 
-| Item | Where |
-|------|-------|
-| CDK state | CloudFormation per stack in the same AWS account |
+| Item       | Where                                                      |
+| ---------- | ---------------------------------------------------------- |
+| CDK state  | CloudFormation per stack in the same AWS account           |
 | CDK assets | The `cdk-hnb659fds-*` S3 bucket created by `cdk bootstrap` |
 
 ## Required env vars
 
 CDK targets read from:
+
 - `AWS_REGION` (repo var: `AWS_REGION=eu-central-1`)
 - `AWS_PROFILE` (local only; deploys use the OIDC role)
 - `AWS_ACCOUNT_ID` (repo secret; never logged or committed)

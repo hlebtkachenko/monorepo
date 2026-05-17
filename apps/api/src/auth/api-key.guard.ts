@@ -5,16 +5,19 @@ import {
   UnauthorizedException,
 } from "@nestjs/common"
 import type { Request } from "express"
-import { verifyApiKey, type OrgPrincipal } from "@workspace/domain"
+import {
+  verifyApiKey,
+  type ApiKeyPrincipal,
+} from "@workspace/auth/api-key-verifier"
 
 /** Express request after a successful ApiKeyGuard pass. */
 export interface AuthedRequest extends Request {
-  principal?: OrgPrincipal
+  principal?: ApiKeyPrincipal
 }
 
 /**
  * Guards `/v1/*` routes. Resolves `Authorization: Bearer affk_...` into an
- * OrgPrincipal via the `verifyApiKey` domain function and attaches it to the
+ * ApiKeyPrincipal via `verifyApiKey` (@workspace/auth) and attaches it to the
  * request. Rejections surface as 401 through the DomainExceptionFilter.
  *
  * Applied per-controller (`@UseGuards(ApiKeyGuard)`) — never globally — so the

@@ -6,9 +6,9 @@ import {
 import { APP_GUARD, APP_PIPE } from "@nestjs/core"
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler"
 import { ZodValidationPipe } from "nestjs-zod"
-import { OrganizationsController } from "./organizations/organizations.controller.js"
-import { PingController } from "./ping/ping.controller.js"
-import { RequestIdMiddleware } from "./request-id.middleware.js"
+import { OrganizationController } from "./organization/organization.controller"
+import { PingController } from "./ping/ping.controller"
+import { RequestIdMiddleware } from "./request-id.middleware"
 
 /**
  * Public API surface — `api.afframe.com/v1/*`.
@@ -25,7 +25,7 @@ import { RequestIdMiddleware } from "./request-id.middleware.js"
  */
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }])],
-  controllers: [PingController, OrganizationsController],
+  controllers: [PingController, OrganizationController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_PIPE, useClass: ZodValidationPipe },
@@ -35,6 +35,6 @@ export class V1Module implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(RequestIdMiddleware)
-      .forRoutes(PingController, OrganizationsController)
+      .forRoutes(PingController, OrganizationController)
   }
 }

@@ -1,7 +1,7 @@
 import type { INestApplication } from "@nestjs/common"
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger"
 import { cleanupOpenApiDoc } from "nestjs-zod"
-import { V1Module } from "./v1/v1.module.js"
+import { V1Module } from "./v1/v1.module"
 
 /**
  * Build the OpenAPI 3.1 document for the public `/v1` surface.

@@ -1,6 +1,6 @@
 import { createZodDto } from "nestjs-zod"
 import {
-  ListOrganizationsResponseSchema,
+  GetOrganizationResponseSchema,
   PingResponseSchema,
 } from "@workspace/shared/api"
 
@@ -9,6 +9,6 @@ import {
  * OpenAPI component schemas for `@nestjs/swagger` (one schema, no duplication).
  */
 export class PingResponseDto extends createZodDto(PingResponseSchema) {}
-export class ListOrganizationsResponseDto extends createZodDto(
-  ListOrganizationsResponseSchema,
+export class GetOrganizationResponseDto extends createZodDto(
+  GetOrganizationResponseSchema,
 ) {}

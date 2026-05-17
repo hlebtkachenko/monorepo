@@ -3,8 +3,8 @@ import { NestFactory } from "@nestjs/core"
 import { SwaggerModule } from "@nestjs/swagger"
 import * as Sentry from "@sentry/node"
 import helmet from "helmet"
-import { AppModule } from "./app.module.js"
-import { buildOpenApiDocument } from "./openapi.js"
+import { AppModule } from "./app.module"
+import { buildOpenApiDocument } from "./openapi"
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,

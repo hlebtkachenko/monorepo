@@ -1,11 +1,10 @@
 {
   "name": "api",
   "version": "0.0.1",
-  "type": "module",
   "private": true,
   "scripts": {
     "dev": "nest start --watch",
-    "build": "nest build",
+    "build": "nest build --webpack",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint"
@@ -41,6 +40,7 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
+    "ts-loader": "^9.5.7",
     "typescript": "^6.0.3"
   }
 }

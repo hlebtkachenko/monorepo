@@ -7,8 +7,8 @@ import {
   Logger,
 } from "@nestjs/common"
 import type { Response } from "express"
-import { isDomainError } from "@workspace/domain"
-import type { RequestWithId } from "./request-id.middleware.js"
+import { isDomainError } from "@workspace/shared/errors"
+import type { RequestWithId } from "./request-id.middleware"
 
 /** DomainError.code -> HTTP status. Unmapped codes fall back to 400. */
 const DOMAIN_CODE_STATUS: Record<string, number> = {
@@ -44,7 +44,7 @@ function statusToCode(status: number): string {
  * Renders every `/v1` error as the standard envelope:
  *   { "error": { "code", "message", "requestId" } }
  *
- * Maps DomainError (from `@workspace/domain`) and NestJS HttpException; unknown
+ * Maps DomainError (`@workspace/shared/errors`) and NestJS HttpException; unknown
  * errors become a generic 500 with the real cause sent to Sentry. Applied
  * per-controller via `@UseFilters` — `/v1`-scoped, BFF/health responses are
  * untouched.

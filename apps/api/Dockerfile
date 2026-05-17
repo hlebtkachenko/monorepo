@@ -52,7 +52,14 @@ COPY --from=pruner /repo/out/full/ ./
 # into this image.
 
 RUN pnpm --filter api build
-RUN pnpm --filter api deploy --prod --legacy /prod
+
+# node-linker=hoisted: `nest build --webpack` bundles the source-first
+# @workspace/* packages into dist/main.js, so the bundle resolves their
+# transitive deps (drizzle-orm, better-auth, postgres, ...) as bare requires
+# from dist/main.js. pnpm's default isolated layout nests those under
+# .pnpm/@workspace+*; a hoisted (flat) node_modules makes them resolvable.
+# See ADR-0019.
+RUN pnpm --filter api --config.node-linker=hoisted deploy --prod --legacy /prod
 
 # ---------- runner ----------
 FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim AS runner

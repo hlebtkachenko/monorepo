@@ -429,6 +429,10 @@ export class AppStack extends Stack {
     const pgbouncerContainer = taskDef.addContainer("pgbouncer", {
       containerName: "pgbouncer",
       image: ContainerImage.fromRegistry("edoburu/pgbouncer:v1.25.1-p0"),
+      // Run as root: the edoburu entrypoint writes pgbouncer.ini + userlist.txt
+      // into /etc/pgbouncer, a root-owned ECS scratch volume. The image's
+      // default non-root user cannot ("touch: Permission denied").
+      user: "0",
       essential: true,
       logging: LogDriver.awsLogs({
         streamPrefix: "pgbouncer",
@@ -453,6 +457,10 @@ export class AppStack extends Stack {
         DB_HOST: props.database.dbInstanceEndpointAddress,
         DB_PORT: props.database.dbInstanceEndpointPort,
         DB_NAME: "monorepo",
+        // RDS forces SSL (rds.force_ssl). The pgBouncer server-side
+        // connection must use TLS or RDS rejects it ("no pg_hba.conf
+        // entry ... no encryption"). edoburu maps this to server_tls_sslmode.
+        SERVER_TLS_SSLMODE: "require",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
@@ -634,7 +642,9 @@ export class AppStack extends Stack {
     const tunnelContainer = taskDef.addContainer("cloudflared", {
       containerName: "cloudflared",
       image: ContainerImage.fromRegistry("cloudflare/cloudflared:2026.5.0"),
-      essential: true,
+      // Non-essential: a flapping tunnel connector must not cycle the whole
+      // task. ECS still restarts it; its exit will not kill web/api/db.
+      essential: false,
       command: ["tunnel", "--no-autoupdate", "run"],
       logging: LogDriver.awsLogs({
         streamPrefix: "cloudflared",
@@ -664,7 +674,10 @@ export class AppStack extends Stack {
       minHealthyPercent: 50,
       maxHealthyPercent: 200,
       circuitBreaker: { rollback: true },
-      healthCheckGracePeriod: Duration.seconds(90),
+      // 300s: a cold start pulls six images and chains api behind three
+      // sidecar HEALTHY gates — 90s could trip the circuit breaker before a
+      // legitimately slow first deploy stabilizes.
+      healthCheckGracePeriod: Duration.seconds(300),
     })
 
     new CfnOutput(this, "AppDomain", {

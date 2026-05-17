@@ -188,28 +188,35 @@ Until approved, SES is sandboxed (200/day to verified addresses only). Resend co
 
 ### 9. Cloudflare Tunnels
 
-Per env:
+The two tunnels already exist (Zero Trust → Networks → Connectors):
+`windhoek-staging` and `windhoek-production`. Their connector tokens are in
+the repo secrets `CLOUDFLARE_TUNNEL_TOKEN_STAGING` / `_PRODUCTION`; the deploy
+workflow copies each into Secrets Manager as
+`monorepo-{env}-cloudflare-tunnel-token` (the AWS secret name is independent
+of the Cloudflare tunnel name).
 
-1. In Cloudflare → Zero Trust → Access → Tunnels → Create a tunnel
-2. Name it `monorepo-staging` (then later `monorepo-production`)
-3. Cloudflare emits a connector token. Copy it.
-4. Store as repo secret:
-   ```bash
-   gh secret set CLOUDFLARE_TUNNEL_TOKEN_STAGING --body "<token>" --repo hlebtkachenko/monorepo
-   ```
-5. In the tunnel's Public Hostnames tab, add (staging shown — substitute the
-   production hosts for `monorepo-production`):
-   - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
-   - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (leave blank for catch-all), **Service** `HTTP localhost:3000`
-   - **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
-   - **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface (`admin.afframe.com` in production). This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK derives as `admin.<env-domain>`.
-6. Repeat for `monorepo-production` with `app.afframe.com`, `api.afframe.com`, `admin.app.afframe.com`.
-7. **Cloudflare Access for admin** — in Zero Trust → Access → Applications, add a
-   self-hosted app on the `admin.*` hostname with an Allow policy for staff
-   emails. This is an edge gate, defense in depth with the in-app workspace
-   allowlist (`apps/admin/app/(gated)/layout.tsx`).
+Per env, open the tunnel (Connectors → click `windhoek-{env}` → Edit →
+**Published application routes** / Public Hostname) and add — `windhoek-staging`
+shown, substitute the production hosts for `windhoek-production`:
 
-The tunnel connector starts running inside the Fargate task on first deploy. Until then it'll show "inactive" in Cloudflare dashboard.
+- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
+- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000`
+- **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
+- **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK derives as `admin.<env-domain>`.
+
+Production: same on `windhoek-production` with `app.afframe.com`,
+`api.afframe.com`, `admin.app.afframe.com`.
+
+**Cloudflare Access for admin** — Zero Trust → Access → Applications → Add an
+application. Protect the `admin.*` hostname with an Allow policy for staff
+emails. Edge gate, defense in depth with the in-app workspace allowlist
+(`apps/admin/app/(gated)/layout.tsx`). Do NOT put Access on `api.*` — a
+machine API caller cannot complete an Access login; `api.*` is gated by
+API keys only.
+
+The tunnel connector runs as the `cloudflared` container inside the Fargate
+task — a tunnel shows "DOWN"/"INACTIVE" in Cloudflare until that task is
+running and its token matches.
 
 > **Admin allowlist** — set the `ADMIN_WORKSPACE_ALLOWLIST` GitHub Actions
 > variable (per environment) to a comma-separated list of `workspace` ids whose

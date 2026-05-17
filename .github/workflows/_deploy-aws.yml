@@ -136,28 +136,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # QEMU + Buildx must be set up BEFORE the infra deploy. The Backup stack
-      # is an infra stack with an arm64 DockerImageAsset, so `cdk deploy` builds
-      # an arm64 image during the infra step. Needed for every stack scope
-      # (Backup for infra; web/api/Cerbos for app) — no scope guard.
+      # QEMU + Buildx: needed before any Docker build. The web/api images are
+      # cross-built to arm64 here; `cdk deploy` also builds the Cerbos (App)
+      # and Backup arm64 DockerImageAssets. Skipped for infra-only — Network
+      # and Data have no Docker assets.
       - name: Docker QEMU (arm64 cross-build on amd64 runners)
+        if: env.STACK_SCOPE != 'infra-only'
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Docker Buildx (enables gha cache + multi-arch)
+        if: env.STACK_SCOPE != 'infra-only'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Deploy infra stacks (Network, Data, Security, Observability, Backup) [stack=all|infra-only]
-        if: env.STACK_SCOPE != 'app-only'
-        env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          APP_DOMAIN: ${{ steps.env.outputs.domain }}
-        run: |
-          pnpm --filter @workspace/cdk exec cdk deploy \
-            "Network-${ENV_NAME}" "Data-${ENV_NAME}" \
-            "Security-${ENV_NAME}" "Observability-${ENV_NAME}" \
-            "Backup-${ENV_NAME}" \
-            --context "env=${ENV_NAME}" \
-            --require-approval=never
 
       - name: ECR login [stack=all|app-only]
         if: env.STACK_SCOPE != 'infra-only'
@@ -258,14 +247,24 @@ jobs:
               >/dev/null
           fi
 
-      - name: Deploy app stack with new image tag [stack=all|app-only]
-        if: env.STACK_SCOPE != 'infra-only'
+      # Single cdk deploy, AFTER images + secrets exist. App and the stacks
+      # that depend on it (Security, Observability, Backup) cannot deploy
+      # before the web/api images are in ECR and the tunnel/Resend secrets
+      # exist — so there is exactly one deploy, it runs last, and always
+      # passes imageTag. infra-only = Network + Data only (the App-independent
+      # foundation); Security/Observability/Backup depend on App.
+      - name: Deploy CDK stacks
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           APP_DOMAIN: ${{ steps.env.outputs.domain }}
         run: |
-          pnpm --filter @workspace/cdk exec cdk deploy \
-            "App-${ENV_NAME}" \
+          case "$STACK_SCOPE" in
+            all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;
+            infra-only) STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}") ;;
+            app-only)   STACKS=("App-${ENV_NAME}") ;;
+            *) echo "::error::Unknown stack scope: $STACK_SCOPE"; exit 1 ;;
+          esac
+          pnpm --filter @workspace/cdk exec cdk deploy "${STACKS[@]}" \
             --context "env=${ENV_NAME}" \
             --context "imageTag=${IMAGE_TAG}" \
             --require-approval=never

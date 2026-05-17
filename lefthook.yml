@@ -82,3 +82,84 @@ pre-push:
         - "pnpm-workspace.yaml"
         - "pnpm-lock.yaml"
       run: pnpm turbo boundaries
+    size-cap:
+      # Mirrors `.github/workflows/size-cap.yml`. Hard cap 2000 lines added
+      # (warn at 800) vs origin/main. Common review-burden gate. Excludes
+      # the same noise paths as the workflow (lockfile, migrations meta,
+      # binary assets). Sub-second.
+      glob: "*"
+      run: |
+        if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+          echo "[lefthook size-cap] origin/main not fetched — skipping. Run: git fetch origin main"
+          exit 0
+        fi
+        stat=$(git diff --shortstat origin/main...HEAD -- \
+          ':!pnpm-lock.yaml' \
+          ':!**/migrations/meta/**' \
+          ':!**/*.svg' \
+          ':!**/*.png' \
+          ':!**/*.ico' \
+          ':!**/*.woff' \
+          ':!**/*.woff2')
+        loc=$(echo "${stat}" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+        loc=${loc:-0}
+        if [ "${loc}" -gt 2000 ]; then
+          echo "[lefthook size-cap] FAIL: ${loc} lines added (cap 2000). Split the PR, or add label 'size-cap-override' on GitHub before pushing again."
+          exit 1
+        fi
+        if [ "${loc}" -gt 800 ]; then
+          echo "[lefthook size-cap] WARN: ${loc} lines added (warn at 800). Justify in PR description."
+        fi
+    osv-scanner:
+      # Mirrors `.github/workflows/osv-scanner-pr.yml` (scan-pr / osv-scan).
+      # Scans the pnpm lockfile for known CVEs. Only fires when the
+      # lockfile or a package.json changed in this push. ~5-15s, gracefully
+      # no-ops without local install (brew install osv-scanner).
+      glob:
+        - "pnpm-lock.yaml"
+        - "**/package.json"
+      run: |
+        if command -v osv-scanner >/dev/null 2>&1; then
+          osv-scanner --lockfile pnpm-lock.yaml
+        else
+          echo "[lefthook osv-scanner] not installed — skipping. brew install osv-scanner to enable local CVE scan."
+        fi
+    db-smoke:
+      # Mirrors `.github/workflows/db-tests.yml` smoke job:
+      #   - migration filenames match NNNN_<snake>.sql
+      #   - no lac_ prefix residue in db/observability source
+      #   - drizzle-kit journal absent or empty (ADR-0009)
+      # Only fires when db migrations or db/observability source changed.
+      # Sub-second.
+      glob:
+        - "packages/db/migrations/**"
+        - "packages/db/src/**"
+        - "packages/observability/src/**"
+      run: |
+        bad=()
+        for f in packages/db/migrations/*.sql; do
+          [ -e "$f" ] || continue
+          base=$(basename "$f")
+          if ! echo "$base" | grep -qE '^[0-9]{4}_[a-z][a-z0-9_]*\.sql$'; then
+            bad+=("$base")
+          fi
+        done
+        if [ ${#bad[@]} -gt 0 ]; then
+          echo "[lefthook db-smoke] FAIL: migration filenames must match NNNN_<snake>.sql:"
+          printf '  %s\n' "${bad[@]}"
+          exit 1
+        fi
+        matches=$(grep -rn 'lac_' packages/db/src/ packages/observability/src/ 2>/dev/null || true)
+        if [ -n "$matches" ]; then
+          echo "[lefthook db-smoke] FAIL: lac_ prefix residue in source:"
+          echo "$matches"
+          exit 1
+        fi
+        journal="packages/db/migrations/meta/_journal.json"
+        if [ -f "$journal" ]; then
+          entries=$(node -e "const j = JSON.parse(require('fs').readFileSync('$journal', 'utf8')); console.log((j.entries ?? []).length);")
+          if [ "$entries" -gt 0 ]; then
+            echo "[lefthook db-smoke] FAIL: $journal has $entries entries — drizzle-kit generate/push is forbidden (ADR-0009). Remove meta/ or wipe entries."
+            exit 1
+          fi
+        fi

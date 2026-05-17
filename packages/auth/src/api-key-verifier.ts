@@ -26,8 +26,9 @@ export interface ApiKeyPrincipal {
  *
  * Lookup is by `sha256(rawKey)` across all organizations, so it runs under
  * `withAdminBypass` — the same cross-organization pattern the invite-consume
- * path uses (see invite-issuer.ts). `last_used_at` is touched best-effort
- * inside the same transaction.
+ * path uses (see invite-issuer.ts). `last_used_at` is then touched in a
+ * separate, best-effort transaction: it is a non-critical audit timestamp,
+ * so a transient write failure must never reject an otherwise-valid key.
  *
  * This function is the single seam for API-key verification. Swapping the
  * local table for an external provider (Unkey) later changes only this body.
@@ -38,7 +39,7 @@ export async function verifyApiKey(
   if (!rawKey.startsWith(API_KEY_PREFIX)) return null
   const keyHash = hashApiKey(rawKey)
 
-  return await withAdminBypass(async (db) => {
+  const match = await withAdminBypass(async (db) => {
     const rows = await db
       .select({
         id: api_key.id,
@@ -59,17 +60,28 @@ export async function verifyApiKey(
     if (row.expiresAt !== null && row.expiresAt.getTime() <= Date.now()) {
       return null
     }
-
-    await db
-      .update(api_key)
-      .set({ last_used_at: new Date() })
-      .where(eq(api_key.id, row.id))
-
-    return {
-      userId: row.createdByUserId,
-      organizationId: row.organizationId,
-      workspaceId: row.workspaceId,
-      scopes: row.scopes,
-    }
+    return row
   })
+
+  if (!match) return null
+
+  // Best-effort: a failed `last_used_at` write must not fail a valid key.
+  // Runs in its own transaction so a failure here cannot abort the lookup.
+  try {
+    await withAdminBypass((db) =>
+      db
+        .update(api_key)
+        .set({ last_used_at: new Date() })
+        .where(eq(api_key.id, match.id)),
+    )
+  } catch {
+    // Swallowed by design — `last_used_at` is a non-critical audit field.
+  }
+
+  return {
+    userId: match.createdByUserId,
+    organizationId: match.organizationId,
+    workspaceId: match.workspaceId,
+    scopes: match.scopes,
+  }
 }

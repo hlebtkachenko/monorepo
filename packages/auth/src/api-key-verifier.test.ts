@@ -20,6 +20,7 @@ interface ApiKeyRow {
 }
 
 let mockRows: ApiKeyRow[] = []
+let updateShouldThrow = false
 const updateWhere = vi.fn()
 
 const fakeDb = {
@@ -34,6 +35,9 @@ const fakeDb = {
     set: () => ({
       where: (...args: unknown[]) => {
         updateWhere(...args)
+        if (updateShouldThrow) {
+          return Promise.reject(new Error("last_used_at write failed"))
+        }
         return Promise.resolve()
       },
     }),
@@ -68,6 +72,7 @@ function row(overrides: Partial<ApiKeyRow> = {}): ApiKeyRow {
 describe("verifyApiKey", () => {
   beforeEach(() => {
     mockRows = []
+    updateShouldThrow = false
     updateWhere.mockClear()
   })
 
@@ -102,6 +107,15 @@ describe("verifyApiKey", () => {
       workspaceId: "ws-1",
       scopes: ["read"],
     })
+    expect(updateWhere).toHaveBeenCalledTimes(1)
+  })
+
+  it("still resolves the principal when the last_used_at touch fails", async () => {
+    mockRows = [row()]
+    updateShouldThrow = true
+    const principal = await verifyApiKey(VALID_KEY)
+    // Best-effort: a failed audit-timestamp write must not reject a valid key.
+    expect(principal?.organizationId).toBe("org-1")
     expect(updateWhere).toHaveBeenCalledTimes(1)
   })
 

@@ -62,6 +62,7 @@ Before adding a new versioned dependency, verify which category it falls into. I
 Current custom checks:
 
 - `shadcn-check.yml` — shadcn/ui source-copied components
+- `openfga-version-check.yml` — OpenFGA + pgbouncer pinned image versions
 
 ## Code Standards
 

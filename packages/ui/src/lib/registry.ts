@@ -615,6 +615,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["feedback", "effects"],
     packages: ["motion"],
   },
+  "image-cropper": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Avatar crop modal — circular or rectangular 1:1 crop overlay with zoom slider, Reset / Cancel / Save actions, outputs a square cropped image as a Blob via canvas. Composes Dialog, Slider, Button",
+    categories: ["forms", "overlay"],
+    dependencies: ["dialog", "slider", "button"],
+    packages: ["react-easy-crop"],
+  },
   "noise-background": {
     source: "aceternity",
     sourceType: "import",

@@ -45,6 +45,7 @@
     "react": "^19.2.5",
     "react-day-picker": "^10.0.0",
     "react-dom": "^19.2.5",
+    "react-easy-crop": "^5.5.7",
     "react-pdf": "^10.4.1",
     "react-resizable-panels": "^4.11.0",
     "recharts": "3.8.1",

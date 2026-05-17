@@ -71,6 +71,7 @@ Current custom checks:
 - No premature abstractions
 - Validate at system boundaries only
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
+- Route handler / middleware redirects MUST build base URLs via `publicOrigin(request)` from `apps/web/lib/request-origin.ts` — never `request.url`. Behind Cloudflare Tunnel `request.url` is the container listener (`0.0.0.0:3000`) and emits `Location: https://0.0.0.0:3000/...`. See ADR-0008 "Amendment 2026-05-17 — redirect base URLs".
 
 ## Linting
 

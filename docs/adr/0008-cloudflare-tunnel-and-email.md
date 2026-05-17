@@ -148,6 +148,27 @@ the admin container's exit count.
 See ADR [0020](0020-public-api-foundation.md) for the public API foundation
 behind `api.afframe.com`.
 
+## Amendment 2026-05-17 — redirect base URLs
+
+Cloudflare Tunnel proxies every request into the Fargate task on
+`http://localhost:<port>`. The Next.js process therefore sees
+`request.url === "http://0.0.0.0:3000/..."` (its own listener), not the
+browser-visible origin. A redirect built with `new URL(path, request.url)`
+emits `Location: https://0.0.0.0:3000/...`, which the browser refuses
+(WebKitErrorDomain:103, "restricted port"). This bit signup + invite +
+auth-gate redirects after the dash-form staging hostname rename (PR #131).
+
+Resolution: `apps/web/lib/request-origin.ts` exports `publicOrigin(request)`
+which prefers `x-forwarded-host` + `x-forwarded-proto` (Cloudflare Tunnel
+sets both on every request), falls back to `BETTER_AUTH_URL`, then to
+`request.url` for local dev. Every route handler and middleware that builds
+a redirect (`proxy.ts`, `/auth/signup/start`, `/auth/invite/start`,
+`/api/dev/preview`) routes through this helper.
+
+Pattern: `new URL("/auth/login", publicOrigin(request))` — never
+`new URL("/auth/login", request.url)` inside the tunneled containers. The
+ESLint config does not enforce this; reviewers do.
+
 ## References
 
 - ADR 0007 (single-account CDK-only, parent decision)

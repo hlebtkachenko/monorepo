@@ -66,6 +66,16 @@ Server actions that build absolute URLs (invite + magic link emails) MUST call
 this helper instead of inlining `process.env.BETTER_AUTH_URL` so the
 production guard fires uniformly.
 
+Route handlers and middleware redirects use a different helper —
+`publicOrigin(request)` in `apps/web/lib/request-origin.ts`. Behind Cloudflare
+Tunnel → Fargate, `request.url` reflects the container listener
+(`http://0.0.0.0:3000`), not the user-visible origin, so
+`new URL(path, request.url)` emits `Location: https://0.0.0.0:3000/...` which
+browsers refuse (WebKitErrorDomain:103, "restricted port"). `publicOrigin`
+prefers `x-forwarded-host` + `x-forwarded-proto` (set by Cloudflare Tunnel on
+every request), falls back to `BETTER_AUTH_URL`, then `request.url`. See
+ADR-0008 "Amendment 2026-05-17 — redirect base URLs".
+
 ## Email (packages/email)
 
 | Var               | Notes                                                                                                                                                                                         |

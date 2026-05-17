@@ -5,8 +5,22 @@ import { useRouter } from "next/navigation"
 
 import { useTranslations } from "@workspace/i18n/client"
 import { Button } from "@workspace/ui/components/button"
-import { Card, CardContent } from "@workspace/ui/components/card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@workspace/ui/components/card"
 import { Heading } from "@workspace/ui/components/heading"
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@workspace/ui/components/item"
+import { MultiStepLoader } from "@workspace/ui/components/multi-step-loader"
 import { Text } from "@workspace/ui/components/text"
 import {
   Building2,
@@ -42,9 +56,16 @@ export function DoneCard({ role }: Props) {
   const tErrors = useTranslations("onboarding.errors")
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  // Celebratory loader rolls once when the page opens, then reveals
+  // the summary card underneath.
+  const [introPlaying, setIntroPlaying] = useState(true)
 
   const timelineKeys =
     role === "owner" ? OWNER_TIMELINE_KEYS : MEMBER_TIMELINE_KEYS
+
+  const loaderSteps = timelineKeys.map((key) => ({
+    text: t(`timeline.${key}`),
+  }))
 
   async function onOpen() {
     setSubmitting(true)
@@ -61,90 +82,103 @@ export function DoneCard({ role }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <Heading level={2} className="mt-0">
-          {t("title")}
-        </Heading>
-        <Text variant="muted">{t("description")}</Text>
-      </header>
+    <>
+      <MultiStepLoader
+        loading={introPlaying}
+        loop={false}
+        finalStatus="success"
+        duration={550}
+        loadingStates={loaderSteps}
+        onClose={() => setIntroPlaying(false)}
+      />
 
-      <ol className="flex flex-col gap-2" aria-label={t("timelineLabel")}>
-        {timelineKeys.map((key) => (
-          <li
-            key={key}
-            className="flex items-center gap-2 text-sm text-muted-foreground"
-          >
-            <CheckCircle2
-              className="size-4 shrink-0 text-primary"
-              aria-hidden="true"
-            />
-            <span>{t(`timeline.${key}`)}</span>
-          </li>
-        ))}
-      </ol>
+      <div className="flex flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("title")}
+          </Heading>
+          <Text variant="muted">{t("description")}</Text>
+        </header>
 
-      {role === "owner" && (
-        <Card>
-          <CardContent className="flex flex-col gap-4 p-5">
-            <Text variant="small" className="font-semibold">
-              {t("nextSteps.title")}
-            </Text>
-            <ul className="flex flex-col gap-3">
-              <li className="flex items-start gap-3 text-sm">
-                <Building2
-                  className="size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <div className="flex flex-col">
-                  <span className="font-medium">{t("nextSteps.addOrg")}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {t("nextSteps.addOrgDescription")}
-                  </span>
-                </div>
-              </li>
-              <li className="flex items-start gap-3 text-sm">
-                <UserPlus
-                  className="size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {t("nextSteps.inviteMore")}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {t("nextSteps.inviteMoreDescription")}
-                  </span>
-                </div>
-              </li>
-              <li className="flex items-start gap-3 text-sm">
-                <Sparkles
-                  className="size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <div className="flex flex-col">
-                  <span className="font-medium">
-                    {t("nextSteps.exploreAgents")}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {t("nextSteps.exploreAgentsDescription")}
-                  </span>
-                </div>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+        <ol className="flex flex-col gap-2" aria-label={t("timelineLabel")}>
+          {timelineKeys.map((key) => (
+            <li
+              key={key}
+              className="flex items-center gap-2 text-sm text-muted-foreground"
+            >
+              <CheckCircle2
+                className="size-4 shrink-0 text-success"
+                aria-hidden="true"
+              />
+              <span>{t(`timeline.${key}`)}</span>
+            </li>
+          ))}
+        </ol>
 
-      {serverError && (
-        <Text variant="small" className="text-destructive" role="alert">
-          {serverError}
-        </Text>
-      )}
+        {role === "owner" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("nextSteps.title")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ItemGroup>
+                <Item variant="muted">
+                  <ItemMedia variant="icon">
+                    <Building2
+                      className="text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>{t("nextSteps.addOrg")}</ItemTitle>
+                    <ItemDescription>
+                      {t("nextSteps.addOrgDescription")}
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
+                <Item variant="muted">
+                  <ItemMedia variant="icon">
+                    <UserPlus
+                      className="text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>{t("nextSteps.inviteMore")}</ItemTitle>
+                    <ItemDescription>
+                      {t("nextSteps.inviteMoreDescription")}
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
+                <Item variant="muted">
+                  <ItemMedia variant="icon">
+                    <Sparkles
+                      className="text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>{t("nextSteps.exploreAgents")}</ItemTitle>
+                    <ItemDescription>
+                      {t("nextSteps.exploreAgentsDescription")}
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
+              </ItemGroup>
+            </CardContent>
+          </Card>
+        )}
 
-      <Button size="xl" onClick={onOpen} disabled={submitting}>
-        {t("open", { brand: tBrand("name") })}
-      </Button>
-    </div>
+        {serverError && (
+          <Text variant="small" className="text-destructive" role="alert">
+            {serverError}
+          </Text>
+        )}
+
+        <Button size="xl" onClick={onOpen} disabled={submitting}>
+          {t("open", { brand: tBrand("name") })}
+        </Button>
+      </div>
+    </>
   )
 }

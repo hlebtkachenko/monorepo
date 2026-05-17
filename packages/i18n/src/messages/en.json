@@ -264,12 +264,14 @@
       "description": "We use this to personalize {brand} and how teammates see you.",
       "avatarLabel": "Profile photo",
       "avatarUpload": "Upload photo",
-      "avatarHint": "PNG or JPG, up to 2 MB.",
-      "avatarTooLarge": "File is larger than 2 MB.",
+      "avatarHint": "PNG or JPG.",
+      "avatarTooLarge": "This image is too large.",
       "avatarWrongType": "Use a PNG or JPG image.",
       "firstName": "First name",
+      "firstNamePlaceholder": "Jamie",
       "lastName": "Last name",
-      "phone": "Phone (optional)",
+      "lastNamePlaceholder": "Park",
+      "phone": "Phone",
       "phoneHint": "Used for account recovery and security alerts.",
       "phonePlaceholder": "+420123456789",
       "locale": "Language",
@@ -321,7 +323,7 @@
       "useCase": "How will you use {brand}?",
       "useCaseOptions": {
         "firm": {
-          "title": "For my firm",
+          "title": "For accounting firm",
           "description": "We serve multiple client books."
         },
         "biz": {

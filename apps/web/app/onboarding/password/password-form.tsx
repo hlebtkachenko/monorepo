@@ -18,7 +18,6 @@ import {
   FieldLabel,
 } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
-import { Input } from "@workspace/ui/components/input"
 import { PasswordChecklist } from "@workspace/ui/components/password-checklist"
 import { PasswordInput } from "@workspace/ui/components/password-input"
 import { Text } from "@workspace/ui/components/text"
@@ -105,19 +104,6 @@ export function PasswordForm({ email, role }: Props) {
         noValidate
       >
         <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="email-locked">{t("emailLabel")}</FieldLabel>
-            <Input
-              id="email-locked"
-              type="email"
-              inputSize="xl"
-              value={email}
-              readOnly
-              disabled
-              autoComplete="username"
-            />
-          </Field>
-
           <Field
             data-invalid={form.formState.errors.password ? "true" : undefined}
           >

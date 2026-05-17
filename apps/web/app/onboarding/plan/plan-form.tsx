@@ -20,6 +20,27 @@ import { submitPlanAction } from "../actions"
 type PlanKey = "starter" | "growth" | "scale"
 const PLAN_KEYS: readonly PlanKey[] = ["starter", "growth", "scale"] as const
 
+/**
+ * Signals from earlier onboarding steps that will shape the plan
+ * recommendation. Reserved — not consumed yet.
+ */
+interface PlanRecommendationContext {
+  useCase?: string
+  teamSize?: string
+  experience?: string
+}
+
+const RECOMMENDED_PLAN: PlanKey = "growth"
+
+/**
+ * Resolves the recommended plan. Pinned to RECOMMENDED_PLAN for now;
+ * a later revision will key the result off PlanRecommendationContext
+ * (workspace use-case, team size, experience).
+ */
+function recommendPlan(_context?: PlanRecommendationContext): PlanKey {
+  return RECOMMENDED_PLAN
+}
+
 export function PlanForm() {
   const router = useRouter()
   const t = useTranslations("onboarding.plan")
@@ -28,7 +49,7 @@ export function PlanForm() {
 
   const form = useForm<PlanInput>({
     resolver: zodResolver(PlanSchema),
-    defaultValues: { plan: "starter" },
+    defaultValues: { plan: recommendPlan() },
     mode: "onSubmit",
   })
 

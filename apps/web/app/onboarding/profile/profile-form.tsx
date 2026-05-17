@@ -21,6 +21,7 @@ import {
   FieldLabel,
 } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
+import { ImageCropper } from "@workspace/ui/components/image-cropper"
 import { Input } from "@workspace/ui/components/input"
 import {
   PhoneInput,
@@ -45,7 +46,7 @@ const SUPPORTED_LOCALES: ReadonlyArray<{
   label: string
 }> = [{ value: "en", label: "English" }]
 
-const AVATAR_MAX_BYTES = 2 * 1024 * 1024 // 2 MB — matches design hint
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024 // 5 MB cap, enforced silently (not surfaced in copy)
 
 function detectTimezone(): string {
   try {
@@ -95,6 +96,7 @@ export function ProfileForm({ initial }: Props) {
   const [serverError, setServerError] = useState<string | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarError, setAvatarError] = useState<string | null>(null)
+  const [cropFile, setCropFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Revoke object URLs on unmount to avoid memory leaks.
@@ -122,6 +124,8 @@ export function ProfileForm({ initial }: Props) {
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    // Reset the input so picking the same file again still fires onChange.
+    e.target.value = ""
     if (!file) return
     setAvatarError(null)
     if (file.size > AVATAR_MAX_BYTES) {
@@ -132,13 +136,18 @@ export function ProfileForm({ initial }: Props) {
       setAvatarError(t("avatarWrongType"))
       return
     }
-    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
-    setAvatarPreview(URL.createObjectURL(file))
+    // Hand the file to the cropper; the cropped Blob becomes the preview
+    // once the user saves.
+    setCropFile(file)
+  }
+
+  function handleCropComplete(blob: Blob) {
     // Avatar upload backend is not wired yet (see ProfileSchema comment
-    // "Avatar uploaded separately"). For now the preview is local-only —
-    // submitting the form does not persist the image. The control is
-    // here so the design intent is visible and ready to wire to a future
-    // multipart endpoint.
+    // "Avatar uploaded separately"). For now the cropped preview is
+    // local-only — submitting the form does not persist the image.
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+    setAvatarPreview(URL.createObjectURL(blob))
+    setCropFile(null)
   }
 
   async function onSubmit(values: ProfileInput) {
@@ -168,12 +177,12 @@ export function ProfileForm({ initial }: Props) {
         noValidate
       >
         <div className="flex items-center gap-4">
-          <Avatar size="lg" className="size-14">
+          <Avatar size="lg" className="size-21">
             {avatarPreview ? (
               <AvatarImage src={avatarPreview} alt={t("avatarLabel")} />
             ) : null}
             <AvatarFallback>
-              <UserIcon className="size-5" aria-hidden="true" />
+              <UserIcon className="size-8" aria-hidden="true" />
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col gap-1.5">
@@ -200,6 +209,14 @@ export function ProfileForm({ initial }: Props) {
           </div>
         </div>
 
+        <ImageCropper
+          open={cropFile !== null}
+          file={cropFile}
+          cropShape="round"
+          onCancel={() => setCropFile(null)}
+          onCropComplete={handleCropComplete}
+        />
+
         <FieldGroup>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
@@ -212,6 +229,7 @@ export function ProfileForm({ initial }: Props) {
                 id="firstName"
                 inputSize="xl"
                 autoComplete="given-name"
+                placeholder={t("firstNamePlaceholder")}
                 autoFocus
                 {...form.register("firstName")}
                 aria-invalid={!!form.formState.errors.firstName}
@@ -230,6 +248,7 @@ export function ProfileForm({ initial }: Props) {
                 id="lastName"
                 inputSize="xl"
                 autoComplete="family-name"
+                placeholder={t("lastNamePlaceholder")}
                 {...form.register("lastName")}
                 aria-invalid={!!form.formState.errors.lastName}
               />

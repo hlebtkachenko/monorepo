@@ -46,12 +46,14 @@ Any one of these flips this ADR back open and we revisit multi-account + OpenTof
 ## Consequences
 
 Positive:
+
 - One state system (CloudFormation).
 - One CI path in `_deploy-aws.yml`.
 - One tool to install + version-pin (CDK only).
 - Faster MVP-to-first-deploy: weeks instead of months.
 
 Negative:
+
 - Single account means staging + production share blast radius. Mitigated by tag-based IAM scoping + Environment=production protection on production stacks.
 - CloudFormation drift detection is slower than `terraform plan -detailed-exitcode`. Mitigated by `cdk diff` in PR CI.
 - Future multi-account migration becomes a forklift, not a rename. Accepted because YAGNI dominates.
@@ -59,7 +61,7 @@ Negative:
 ## Validation
 
 - `pnpm --filter @workspace/cdk synth` works locally with `AWS_ACCOUNT_ID` env var.
-- AWS bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). The `_deploy-aws.yml` smoke run succeeds in staging, deployed at `staging.afframe.com`. Production (`app.afframe.com`) is prepared but not yet deployed.
+- AWS bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). The `_deploy-aws.yml` smoke run succeeds in staging, deployed at `app-staging.afframe.com`. Production (`app.afframe.com`) is prepared but not yet deployed.
 
 ## References
 

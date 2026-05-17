@@ -44,7 +44,7 @@ App task topology (one Fargate task per env): 6 containers
 
 ## Bootstrap state
 
-Bootstrap is **complete** (2026-05-11). The GitHub OIDC provider + deploy role exist, `cdk bootstrap` has run, and repo variable `AWS_BOOTSTRAPPED=true` is set — so `_deploy-aws.yml` and the Make targets below are live. Staging is deployed at `staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed.
+Bootstrap is **complete** (2026-05-11). The GitHub OIDC provider + deploy role exist, `cdk bootstrap` has run, and repo variable `AWS_BOOTSTRAPPED=true` is set — so `_deploy-aws.yml` and the Make targets below are live. Staging is deployed at `app-staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed.
 
 To re-verify the flag: `gh variable list` should show `AWS_BOOTSTRAPPED  true`. The one-time bootstrap procedure is in `docs/runbooks/AWS-DEPLOY.md`.
 

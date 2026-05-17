@@ -4,14 +4,14 @@ How to move from "staging-only, internal access" to "production live at `app.aff
 
 Current state (before promotion):
 
-- `staging.afframe.com` is the only running environment (~$50/mo).
+- `app-staging.afframe.com` is the only running environment (~$50/mo).
 - `production` exists only as CDK code + Cloudflare Tunnel `monorepo-production` (status `inactive`) + IAM role `monorepo-deploy-production` + secrets. No AWS resources running.
 - SES is in sandbox (200/day to verified addresses) unless production access already granted.
 
 After promotion:
 
 - `app.afframe.com` is the public production URL.
-- `staging.afframe.com` either stays as a preview env (cost +~$45/mo) or gets torn down ($0).
+- `app-staging.afframe.com` either stays as a preview env (cost +~$45/mo) or gets torn down ($0).
 - Total cost: ~$50/mo (prod only) or ~$95/mo (both envs).
 
 ---
@@ -182,7 +182,7 @@ If launch-readiness includes:
 
 ### Option A — keep staging running
 
-No action. Both `staging.afframe.com` and `app.afframe.com` continue serving. Cost: ~$95/mo. Hard-cap should be at $120.
+No action. Both `app-staging.afframe.com` and `app.afframe.com` continue serving. Cost: ~$95/mo. Hard-cap should be at $120.
 
 ### Option B — tear down staging
 
@@ -191,8 +191,8 @@ Destroy the staging stacks to drop cost back to ~$50/mo:
 ```bash
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export AWS_REGION=eu-central-1
-export APP_DOMAIN=staging.afframe.com
-export ADMIN_DOMAIN=admin.staging.afframe.com
+export APP_DOMAIN=app-staging.afframe.com
+export ADMIN_DOMAIN=admin-staging.afframe.com
 
 cd infra/cdk
 pnpm exec cdk destroy App-staging Data-staging Network-staging --context env=staging --force
@@ -210,7 +210,7 @@ Notes:
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id')
   curl -sS -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/cfd_tunnel/$STAGING_TUNNEL_ID" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq '.'
-  STAGING_DNS_ID=$(curl -sS "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=staging.afframe.com" \
+  STAGING_DNS_ID=$(curl -sS "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=app-staging.afframe.com" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id')
   curl -sS -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$STAGING_DNS_ID" \
     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq '.'

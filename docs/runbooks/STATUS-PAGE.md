@@ -27,7 +27,7 @@ Customer ─▶ Cloudflare DNS/edge ─▶ status.afframe.com   (public page)
                                                               │ HTTPS probes
                                                               ▼
                                           app.afframe.com  · api.afframe.com  · admin.afframe.com
-                                          staging.afframe.com · api.staging.afframe.com · admin.staging.afframe.com
+                                          app-staging.afframe.com · api-staging.afframe.com · admin-staging.afframe.com
 ```
 
 **9 containers in the `openstatus` distro:** `libsql` (8080, remapped to host `18080`),

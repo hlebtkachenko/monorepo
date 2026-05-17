@@ -184,7 +184,7 @@ Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> De
 ## Deployment Targets
 
 - **Dev:** macOS local Docker (Postgres 18 + pgBouncer).
-- **Staging:** AWS eu-central-1, deployed and live at `staging.afframe.com`.
+- **Staging:** AWS eu-central-1, deployed and live at `app-staging.afframe.com`.
 - **Production:** AWS eu-central-1 at `app.afframe.com` — prepared, not yet deployed. Stack: ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, ALB + ACM, CloudWatch + OTel Collector sidecar.
 - **Status page:** `status.afframe.com` — OpenStatus self-hosted on the OVH VPS (Docker Compose + Cloudflare Tunnel), deliberately **off AWS** so it survives an AWS region outage. Monitors-as-code in `infra/openstatus/`; not deployed by CDK. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md).
 

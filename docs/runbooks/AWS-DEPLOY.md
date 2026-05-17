@@ -110,9 +110,9 @@ gh secret set AWS_DEPLOY_ROLE_ARN_STAGING --body "arn:aws:iam::${AWS_ACCOUNT_ID}
 gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION --body "arn:aws:iam::${AWS_ACCOUNT_ID}:role/monorepo-deploy-production" --repo hlebtkachenko/monorepo
 
 gh variable set AWS_REGION --body eu-central-1 --repo hlebtkachenko/monorepo
-gh variable set APP_DOMAIN_STAGING --body staging.afframe.com --repo hlebtkachenko/monorepo
+gh variable set APP_DOMAIN_STAGING --body app-staging.afframe.com --repo hlebtkachenko/monorepo
 gh variable set APP_DOMAIN_PRODUCTION --body app.afframe.com --repo hlebtkachenko/monorepo
-gh variable set ADMIN_DOMAIN_STAGING --body admin.staging.afframe.com --repo hlebtkachenko/monorepo
+gh variable set ADMIN_DOMAIN_STAGING --body admin-staging.afframe.com --repo hlebtkachenko/monorepo
 gh variable set ADMIN_DOMAIN_PRODUCTION --body admin.afframe.com --repo hlebtkachenko/monorepo
 gh variable set AWS_BOOTSTRAPPED --body false --repo hlebtkachenko/monorepo
 ```
@@ -208,7 +208,7 @@ shown, substitute the production hosts for `monorepo-production`:
 - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
 - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000`
 - **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
-- **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK reads from the `ADMIN_DOMAIN` variable (`admin.staging.afframe.com` for staging).
+- **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK reads from the `ADMIN_DOMAIN` variable (`admin-staging.afframe.com` for staging).
 
 Production: same on `monorepo-production` with `app.afframe.com`,
 `api.afframe.com`, and **`admin.afframe.com`** — note the production admin host
@@ -273,8 +273,8 @@ gh run view "$RUN_ID" --web --repo hlebtkachenko/monorepo
 Verify post-deploy:
 
 ```bash
-curl -s -o /dev/null -w "HTTP %{http_code}\n" https://staging.afframe.com/
-curl -s https://staging.afframe.com/api/health | jq '.'
+curl -s -o /dev/null -w "HTTP %{http_code}\n" https://app-staging.afframe.com/
+curl -s https://app-staging.afframe.com/api/health | jq '.'
 ```
 
 ### When to use which `stack` value
@@ -359,20 +359,20 @@ window before rotating.
 
 ## DNS - final wiring after first deploy
 
-The Cloudflare Tunnel handles `staging.afframe.com` and `app.afframe.com` end-to-end. No CNAME at adm.tools to set; Cloudflare's Tunnel hostname config auto-creates a DNS record at Cloudflare DNS.
+The Cloudflare Tunnel handles `app-staging.afframe.com` and `app.afframe.com` end-to-end. No CNAME at adm.tools to set; Cloudflare's Tunnel hostname config auto-creates a DNS record at Cloudflare DNS.
 
 Verify:
 
 ```bash
-dig +short staging.afframe.com
+dig +short app-staging.afframe.com
 # Should show Cloudflare's edge IPs (104.x or 172.67.x)
 ```
 
 ## Health check
 
 ```bash
-curl -i https://staging.afframe.com/api/version    # Next.js version endpoint
-curl -i https://staging.afframe.com/api/health     # NestJS health endpoint
+curl -i https://app-staging.afframe.com/api/version    # Next.js version endpoint
+curl -i https://app-staging.afframe.com/api/health     # NestJS health endpoint
 ```
 
 Both should return 200 with JSON.
@@ -394,7 +394,7 @@ Hard reset (delete app stack only, keep DB):
 
 ```bash
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text) \
-APP_DOMAIN=staging.afframe.com \
+APP_DOMAIN=app-staging.afframe.com \
 pnpm --filter @workspace/cdk exec cdk destroy App-staging --context env=staging
 ```
 

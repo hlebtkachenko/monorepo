@@ -217,9 +217,9 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
   | Host | Staging | Production | Container port |
   |------|---------|------------|----------------|
-  | Web | `staging.afframe.com` | `app.afframe.com` | 3000 |
-  | Public API | `api.staging.afframe.com` | `api.afframe.com` | 3001 |
-  | Admin | `admin.staging.afframe.com` | `admin.afframe.com` | 3100 |
+  | Web | `app-staging.afframe.com` | `app.afframe.com` | 3000 |
+  | Public API | `api-staging.afframe.com` | `api.afframe.com` | 3001 |
+  | Admin | `admin-staging.afframe.com` | `admin.afframe.com` | 3100 |
   | Status page | — | `status.afframe.com` | OVH VPS (not AWS) |
 
   Admin host is its own per-env variable `ADMIN_DOMAIN` (not a subdomain of `APP_DOMAIN`). See `docs/env-vars.md` and ADR-0008.

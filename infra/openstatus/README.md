@@ -40,9 +40,9 @@ and could be applied as-is — `regions` slug + the `dns` assertion shape would 
 | `api-prod`      | `api.afframe.com/api/health`           | HTTP 200, body contains `"status":"ok"`         | ✅ Public — group "API"              | ❌ paused                     |
 | `admin-prod`    | `admin.afframe.com/api/health`         | HTTP 200, body contains `"ok":true`             | ✅ Public — group "Admin"            | ❌ paused                     |
 | `dns-afframe`   | `afframe.com` apex (A record)          | A `Not Equal` `0.0.0.0` (effectively non-empty) | ✅ Public                            | ✅                            |
-| `staging-web`   | `staging.afframe.com/api/version`      | HTTP 200                                        | ❌ Private — dashboard + alerts only | ✅                            |
-| `staging-api`   | `api.staging.afframe.com/api/health`   | HTTP 200, body contains `"status":"ok"`         | ❌ Private                           | ✅                            |
-| `staging-admin` | `admin.staging.afframe.com/api/health` | HTTP 200, body contains `"ok":true`             | ❌ Private                           | ✅                            |
+| `staging-web`   | `app-staging.afframe.com/api/version`  | HTTP 200                                        | ❌ Private — dashboard + alerts only | ✅                            |
+| `staging-api`   | `api-staging.afframe.com/api/health`   | HTTP 200, body contains `"status":"ok"`         | ❌ Private                           | ✅                            |
+| `staging-admin` | `admin-staging.afframe.com/api/health` | HTTP 200, body contains `"ok":true`             | ❌ Private                           | ✅                            |
 
 Production monitors are **paused** until production deploys to `app.afframe.com` /
 `api.afframe.com` / `admin.afframe.com`. Activating them before deploy would show "DOWN"

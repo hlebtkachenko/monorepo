@@ -61,10 +61,14 @@ monorepo-staging task (0.5 vCPU / 2 GB Graviton):
 
 Cloudflare Tunnel routes:
 
-- `staging.afframe.com/api/*` → `http://localhost:3001`
-- `staging.afframe.com/*` → `http://localhost:3000`
+- `app-staging.afframe.com/api/*` → `http://localhost:3001`
+- `app-staging.afframe.com/*` → `http://localhost:3000`
+- `api-staging.afframe.com/*` → `http://localhost:3001`
+- `admin-staging.afframe.com/*` → `http://localhost:3100`
 
-Same shape for production. Web + api scale together in one task; trip-wire to split is when load on either dominates resource limits.
+Same shape for production: `app.afframe.com`, `api.afframe.com`, `admin.afframe.com`. Web + api + admin scale together in one task; trip-wire to split is when load on any tier dominates resource limits.
+
+**Why staging uses dash-form 1-level subdomains** (`app-staging`, `api-staging`, `admin-staging`) instead of the more readable `app.staging.afframe.com`, `api.staging.afframe.com`, `admin.staging.afframe.com`: Cloudflare Universal SSL on the Free plan only covers the zone apex + one level of subdomain (`afframe.com` + `*.afframe.com`). Two-level subdomains like `api.staging.afframe.com` fail TLS at the edge with `sslv3 alert handshake failure`. Production hosts are already 1-level (`api.afframe.com`, `admin.afframe.com`) and unaffected. Paying $10/mo for Advanced Certificate Manager to support 2-level wildcards on staging is a worse trade than the small URL asymmetry.
 
 ### Email layer
 
@@ -102,7 +106,7 @@ Negative:
 
 - `cdk synth --context env=staging` produces 3 stacks (Network, Data, App) with no ALB, no NAT, no interface endpoints
 - `cdk deploy` followed by tunnel connector activation within 2 minutes of Fargate task start
-- `curl https://staging.afframe.com/api/health` returns 200 from Cloudflare edge
+- `curl https://app-staging.afframe.com/api/health` returns 200 from Cloudflare edge
 - Inbound mail to `test@afframe.com` arrives at `EMAIL_FORWARD_TO` within seconds
 - Resend / SES sends a transactional email successfully signed by DKIM on `afframe.com`
 
@@ -128,7 +132,7 @@ infra, no CDK change, configured manually (see `docs/runbooks/AWS-DEPLOY.md`):
 - `admin.afframe.com` → `http://localhost:3100` (the new admin container). The
   admin host is its own per-env value (`ADMIN_DOMAIN`), not a subdomain of the
   web domain: production web is `app.afframe.com`, production admin is
-  `admin.afframe.com`. Staging is `admin.staging.afframe.com`.
+  `admin.afframe.com`. Staging is `admin-staging.afframe.com`.
 
 Neither host uses Cloudflare Access. Access filters only by Cloudflare-visible
 identity (email / domain / IdP groups) and has no knowledge of afframe

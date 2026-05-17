@@ -41,7 +41,7 @@ export function resolveBaseURL(): string {
     if (process.env.NODE_ENV === "production") {
       throw new Error(
         "BETTER_AUTH_URL must be set in production. " +
-          "Set it to the deployed origin (e.g. https://staging.afframe.com).",
+          "Set it to the deployed origin (e.g. https://app-staging.afframe.com).",
       )
     }
     return `http://localhost:${port ?? "3000"}`

@@ -105,7 +105,7 @@ dns-afframe:
 
 staging-web:
   name: "App (staging)"
-  description: "staging.afframe.com web app — private, kept off the public status page"
+  description: "app-staging.afframe.com web app — private, kept off the public status page"
   frequency: "5m"
   active: true
   regions:
@@ -113,7 +113,7 @@ staging-web:
   retry: 3
   kind: http
   request:
-    url: https://staging.afframe.com/api/version
+    url: https://app-staging.afframe.com/api/version
     method: GET
     headers:
       User-Agent: openstatus-afframe
@@ -124,7 +124,7 @@ staging-web:
 
 staging-api:
   name: "API (staging)"
-  description: "api.staging.afframe.com API health — private, kept off the public status page"
+  description: "api-staging.afframe.com API health — private, kept off the public status page"
   frequency: "5m"
   active: true
   regions:
@@ -132,7 +132,7 @@ staging-api:
   retry: 3
   kind: http
   request:
-    url: https://api.staging.afframe.com/api/health
+    url: https://api-staging.afframe.com/api/health
     method: GET
     headers:
       User-Agent: openstatus-afframe
@@ -146,7 +146,7 @@ staging-api:
 
 staging-admin:
   name: "Admin (staging)"
-  description: "admin.staging.afframe.com admin app — private, kept off the public status page"
+  description: "admin-staging.afframe.com admin app — private, kept off the public status page"
   frequency: "5m"
   active: true
   regions:
@@ -154,7 +154,7 @@ staging-admin:
   retry: 3
   kind: http
   request:
-    url: https://admin.staging.afframe.com/api/health
+    url: https://admin-staging.afframe.com/api/health
     method: GET
     headers:
       User-Agent: openstatus-afframe

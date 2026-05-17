@@ -54,4 +54,3 @@ This ADR is replaced (not extended) when that happens.
 ## References
 
 - `docs/conventions/CI-POLICY.md`
-- `docs/plans/CICD-PLAN.md`

@@ -58,4 +58,3 @@ Negative:
 ## References
 
 - `docs/conventions/CI-POLICY.md`
-- `docs/plans/CICD-PLAN.md`

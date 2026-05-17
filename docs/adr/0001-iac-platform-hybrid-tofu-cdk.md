@@ -60,4 +60,3 @@ Negative:
 
 - `infra/README.md`
 - `docs/runbooks/AWS-BOOTSTRAP.md`
-- `docs/plans/AWS-INTEGRATION-PLAN.md`

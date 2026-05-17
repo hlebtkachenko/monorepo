@@ -19,6 +19,14 @@ export default defineConfig({
       reporter: ["text", "html", "lcov"],
       include: ["src/components/**/*.tsx"],
       exclude: ["**/*.stories.tsx", "**/*.test.tsx"],
+      thresholds: {
+        // Floor locked to measured coverage (2026-05-17) — prevents silent regression to zero.
+        // Raise these intentionally as test coverage improves.
+        statements: 54,
+        branches: 42,
+        functions: 57,
+        lines: 56,
+      },
     },
   },
 })

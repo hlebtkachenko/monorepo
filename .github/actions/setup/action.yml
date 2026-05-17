@@ -18,9 +18,17 @@ runs:
     - run: pnpm install --frozen-lockfile
       shell: bash
     - name: Restore turbo cache
+      # Content-addressed primary key — same input hash on a different
+      # branch hits the cache (cross-branch sharing). Falls back through
+      # increasingly broad prefixes so a partial match still warms the
+      # `.turbo` directory rather than starting cold.
+      # Inputs that invalidate the cache: dependency graph (lockfile +
+      # package.json), turbo config (turbo.json, tsconfig.json),
+      # eslint config (lint task inputs).
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: .turbo
-        key: turbo-${{ runner.os }}-${{ github.sha }}
+        key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-${{ github.sha }}
         restore-keys: |
+          turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-
           turbo-${{ runner.os }}-

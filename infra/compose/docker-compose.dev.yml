@@ -51,8 +51,10 @@ services:
     ports:
       - "6432:6432"
     healthcheck:
-      # TCP probe: nc exits 0 if port is open.
-      test: ["CMD-SHELL", "nc -z localhost 6432 || exit 1"]
+      # TCP probe: nc exits 0 if port is open. Use 127.0.0.1, not localhost:
+      # the container resolves localhost to ::1 (IPv6) but pgbouncer listens
+      # IPv4-only on 0.0.0.0, so an IPv6 probe never connects.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 6432 || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10

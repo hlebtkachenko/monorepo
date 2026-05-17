@@ -72,6 +72,13 @@ Current custom checks:
 - Validate at system boundaries only
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`
 
+## Linting
+
+- `pnpm lint` runs ESLint per package. The shared config (`packages/eslint-config/base.js`) is mostly syntactic, with one scoped type-aware override: `@typescript-eslint/no-floating-promises` and `@typescript-eslint/no-misused-promises`, both `error`.
+- These two rules use `projectService` — ESLint must build the TypeScript project graph to evaluate them, so every linted package needs a parseable `tsconfig.json` whose `include` covers the source being linted. Files outside any tsconfig (`*.config.ts`, `.storybook/**`, `tests/` helpers, `*.d.ts`) are excluded from the override; test/spec/stories/scripts/migrations are excluded too.
+- Fire-and-forget promises: prefix with the `void` operator. Async React handlers passed to a `() => void` prop: wrap inline (`onClick={() => void handler()}`, `onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}`).
+- The type-checked override is gated OFF under lefthook (the `LEFTHOOK` env var). The pre-commit ESLint hook stays fast and syntactic; the full type-aware rules run only in CI's `pnpm lint`.
+
 ## Domain Rules
 
 - All amounts in CZK by default. Stored as `numeric(19, 4)` in Postgres and `bigint` minor units in TypeScript via `Money<Currency>`. Never use native `number` for money fields.

@@ -22,7 +22,10 @@ export function StatefulButtonDemo() {
 
   return (
     <div className="flex flex-wrap gap-4">
-      <Button onClick={success.handleClick} disabled={success.isLoading}>
+      <Button
+        onClick={() => void success.handleClick()}
+        disabled={success.isLoading}
+      >
         {success.isLoading && <Loader2 className="size-4 animate-spin" />}
         {success.isSuccess && <Check className="size-4" />}
         {success.isLoading
@@ -33,7 +36,7 @@ export function StatefulButtonDemo() {
       </Button>
       <Button
         variant="destructive"
-        onClick={error.handleClick}
+        onClick={() => void error.handleClick()}
         disabled={error.isLoading}
       >
         {error.isLoading && <Loader2 className="size-4 animate-spin" />}

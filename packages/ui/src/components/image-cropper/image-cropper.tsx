@@ -214,10 +214,7 @@ function ImageCropper({
           )}
         </div>
 
-        <div
-          data-slot="image-cropper-zoom"
-          className="flex items-center gap-3"
-        >
+        <div data-slot="image-cropper-zoom" className="flex items-center gap-3">
           <MinusIcon
             aria-hidden
             className="size-4 shrink-0 text-muted-foreground"
@@ -263,7 +260,7 @@ function ImageCropper({
             </Button>
             <Button
               type="button"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               disabled={!imageSrc || !croppedAreaPixels || saving}
             >
               Save

@@ -198,7 +198,6 @@ function Browser({
   const bookmarks = customBookmarks ?? DEFAULT_BOOKMARKS
   // Resolving Date.now() inside useMemo (not module scope) is intentional:
   // module-scope evaluation would drift between SSR and CSR.
-  // eslint-disable-next-line react-hooks/purity
   const defaultHistory = React.useMemo<HistoryItem[]>(() => {
     const now = Date.now()
     return DEFAULT_HISTORY_OFFSETS_MS.map((item) => ({

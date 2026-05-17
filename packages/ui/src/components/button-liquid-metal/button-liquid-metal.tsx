@@ -7,7 +7,7 @@ import { Button } from "@workspace/ui/components/button"
 
 type ButtonProps = React.ComponentProps<typeof Button>
 
-interface LiquidMetalButtonProps extends ButtonProps {}
+type LiquidMetalButtonProps = ButtonProps
 
 const LIQUID_METAL_STYLE_ID = "liquid-metal-shader-style"
 const LIQUID_METAL_STYLE_CONTENT =
@@ -80,7 +80,7 @@ function LiquidMetalButton({
       }
     }
 
-    loadShader()
+    void loadShader()
     return () => {
       aborted = true
       if (clickTimeoutRef.current !== null) {

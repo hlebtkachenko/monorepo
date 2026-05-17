@@ -142,7 +142,7 @@ export function LoginPasswordForm({ email }: Props) {
           size="sm"
           className="h-auto self-start p-0 text-muted-foreground"
           disabled={resendCooldown > 0 || magicLinkSending}
-          onClick={sendMagicLink}
+          onClick={() => void sendMagicLink()}
         >
           {resendCooldown > 0
             ? t("magicLinkResendIn", { seconds: String(resendCooldown) })
@@ -169,7 +169,7 @@ export function LoginPasswordForm({ email }: Props) {
       </header>
 
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
         className="flex flex-col gap-5"
         noValidate
       >
@@ -249,7 +249,7 @@ export function LoginPasswordForm({ email }: Props) {
         size="xl"
         className="w-full"
         disabled={magicLinkSending}
-        onClick={sendMagicLink}
+        onClick={() => void sendMagicLink()}
       >
         <Mail className="size-4" aria-hidden="true" />
         {magicLinkSending ? t("submitting") : t("emailMeLink")}

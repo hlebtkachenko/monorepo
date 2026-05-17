@@ -84,8 +84,8 @@ export type OptionColumnId<T> =
     ? TId
     : never
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type OptionColumnIds<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   T extends ReadonlyArray<ColumnConfig<any, any, any, any>>,
 > = {
   [K in keyof T]: OptionColumnId<T[K]>
@@ -96,8 +96,8 @@ export type NumberColumnId<T> =
     ? TId
     : never
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type NumberColumnIds<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   T extends ReadonlyArray<ColumnConfig<any, any, any, any>>,
 > = {
   [K in keyof T]: NumberColumnId<T[K]>
@@ -108,7 +108,7 @@ export type DataTableFilterConfig<TData> = {
   columns: ColumnConfig<TData>[]
 }
 
-export type ColumnProperties<TData, TVal> = {
+export type ColumnProperties<_TData, TVal> = {
   getOptions: () => ColumnOption[]
   getValues: () => ElementType<NonNullable<TVal>>[]
   getFacetedUniqueValues: () => Map<string, number> | undefined
@@ -119,7 +119,7 @@ export type ColumnProperties<TData, TVal> = {
   prefetchFacetedMinMaxValues: () => Promise<void>
 }
 
-export type ColumnPrivateProperties<TData, TVal> = {
+export type ColumnPrivateProperties<_TData, TVal> = {
   _prefetchedOptionsCache: ColumnOption[] | null
   _prefetchedValuesCache: ElementType<NonNullable<TVal>>[] | null
   _prefetchedFacetedUniqueValuesCache: Map<string, number> | null

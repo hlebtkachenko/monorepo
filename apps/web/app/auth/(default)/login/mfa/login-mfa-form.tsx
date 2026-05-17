@@ -112,7 +112,7 @@ export function LoginMfaForm({ email }: Props) {
         </header>
 
         <form
-          onSubmit={onSubmitRecovery}
+          onSubmit={(e) => void onSubmitRecovery(e)}
           className="flex flex-col gap-5"
           noValidate
         >
@@ -176,7 +176,7 @@ export function LoginMfaForm({ email }: Props) {
       </header>
 
       <form
-        onSubmit={totpForm.handleSubmit(onSubmitTotp)}
+        onSubmit={(e) => void totpForm.handleSubmit(onSubmitTotp)(e)}
         className="flex flex-col gap-5"
         noValidate
       >

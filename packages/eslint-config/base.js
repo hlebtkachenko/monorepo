@@ -30,6 +30,60 @@ const workspaceRlsPlugin = {
 }
 
 /**
+ * Type-checked override: enables the two promise-correctness rules that
+ * require TypeScript type information. Kept deliberately narrow — we do NOT
+ * flip on the full `recommendedTypeChecked` preset.
+ *
+ * `files` is `**\/*.{ts,tsx}` (not `apps\/**` / `packages\/**`): every
+ * consuming package runs `eslint` with its own directory as cwd, so a
+ * `apps\/**` prefix would never match — a linted file there resolves to
+ * `app\/page.tsx` relative to that cwd. A cwd-relative `**` glob is the only
+ * pattern that takes effect uniformly across packages.
+ *
+ * `projectService: true` makes typescript-eslint discover the nearest
+ * `tsconfig.json` for each linted file automatically; `tsconfigRootDir` is
+ * the fallback root and is set to the ESLint process cwd (the consuming
+ * package), since `base.js` itself lives in `packages/eslint-config/`.
+ *
+ * `ignores` also excludes files that are NOT part of any package's tsconfig
+ * `include` — config files (`*.config.ts`, `.storybook/**`, `vitest.*`) and
+ * `tests/` helper dirs. `projectService` raises a hard parsing error for any
+ * linted file the TS project graph does not own, so those must be excluded.
+ *
+ * Gated OFF under lefthook (the `LEFTHOOK` env var is set during hook runs):
+ * `projectService` must build the TS project graph before it can lint even a
+ * single staged file, which is too slow for a pre-commit hook. CI's
+ * `pnpm lint` runs without `LEFTHOOK` and therefore applies the full rules.
+ */
+const typeCheckedOverride = {
+  files: ["**/*.{ts,tsx}"],
+  ignores: [
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/*.stories.*",
+    "**/*.config.*",
+    "**/*.d.ts",
+    "**/.storybook/**",
+    "**/tests/**",
+    "**/scripts/**",
+    "**/migrations/**",
+    "**/vitest.setup.*",
+    "**/vitest.workspace.*",
+    "**/vitest-env.d.ts",
+  ],
+  languageOptions: {
+    parserOptions: {
+      projectService: true,
+      tsconfigRootDir: process.cwd(),
+    },
+  },
+  rules: {
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/no-misused-promises": "error",
+  },
+}
+
+/**
  * A shared ESLint configuration for the repository.
  *
  * @type {import("eslint").Linter.Config}
@@ -44,6 +98,24 @@ export const config = [
     },
     rules: {
       "turbo/no-undeclared-env-vars": "warn",
+    },
+  },
+  // Configure no-unused-vars to ignore underscore-prefixed identifiers.
+  // This covers: intentionally-unused destructured params (_index, _type,
+  // _props, _options), type-only module-augmentation generics (_TData, _TVal),
+  // and array placeholder destructures. Applied via both the TS and base rule
+  // so it works regardless of which config layer wins.
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   {
@@ -105,8 +177,7 @@ export const config = [
       "no-restricted-syntax": [
         "error",
         {
-          selector:
-            "ImportDeclaration[source.value=/^\\.\\.?\\/.*\\.js$/]",
+          selector: "ImportDeclaration[source.value=/^\\.\\.?\\/.*\\.js$/]",
           message:
             "Relative TS imports must omit the .js extension (ADR-0015 — Bundler resolution).",
         },
@@ -117,12 +188,14 @@ export const config = [
             "Relative TS re-exports must omit the .js extension (ADR-0015 — Bundler resolution).",
         },
         {
-          selector:
-            "ExportAllDeclaration[source.value=/^\\.\\.?\\/.*\\.js$/]",
+          selector: "ExportAllDeclaration[source.value=/^\\.\\.?\\/.*\\.js$/]",
           message:
             "Relative TS barrel re-exports must omit the .js extension (ADR-0015 — Bundler resolution).",
         },
       ],
     },
   },
+  // Type-checked promise-correctness rules. Excluded under lefthook to keep
+  // the pre-commit hook fast (see typeCheckedOverride doc comment above).
+  ...(process.env.LEFTHOOK ? [] : [typeCheckedOverride]),
 ]

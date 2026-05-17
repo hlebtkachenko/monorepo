@@ -13,6 +13,7 @@ import { V1Module } from "./v1/v1.module"
  */
 export function buildOpenApiDocument(app: INestApplication) {
   const config = new DocumentBuilder()
+    .setOpenAPIVersion("3.1.0")
     .setTitle("Afframe Public API")
     .setDescription(
       "Public API for the Afframe accounting platform. Authenticate with an " +
@@ -20,6 +21,8 @@ export function buildOpenApiDocument(app: INestApplication) {
     )
     .setVersion(process.env.BUILD_VERSION ?? "0.0.0")
     .addServer("https://api.afframe.com")
+    .addTag("Meta", "Service metadata and auth smoke tests")
+    .addTag("Organization", "The API key's own organization")
     .addBearerAuth({
       type: "http",
       scheme: "bearer",

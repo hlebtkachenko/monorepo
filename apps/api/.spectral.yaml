@@ -1,0 +1,27 @@
+# Spectral ruleset for the Afframe public API spec (apps/api/openapi/v1.json).
+#
+# Extends the standard OpenAPI ruleset with a few house rules. Run locally via
+#   pnpm exec spectral lint apps/api/openapi/v1.json --ruleset apps/api/.spectral.yaml
+# CI runs it from .github/workflows/openapi-lint.yml (advisory).
+extends: ["spectral:oas"]
+
+rules:
+  # House rule: every operation needs a stable operationId — public-API client
+  # codegen keys off it. nestjs-zod / @nestjs/swagger generate one per route.
+  afframe-operation-operationId:
+    description: Every operation must declare an operationId.
+    severity: error
+    given: $.paths[*][get,post,put,patch,delete,options,head]
+    then:
+      field: operationId
+      function: truthy
+
+  # House rule: every operation must be tagged so the docs group correctly.
+  operation-tags: error
+
+  # House rule: every operation must declare a description for the docs page.
+  operation-description: warn
+
+  # The spec describes a deployed public API: server + info must be present.
+  oas3-api-servers: error
+  info-description: warn

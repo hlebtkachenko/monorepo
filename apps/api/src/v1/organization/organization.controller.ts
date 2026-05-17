@@ -1,5 +1,10 @@
 import { Controller, Get, UseFilters, UseGuards } from "@nestjs/common"
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from "@nestjs/swagger"
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from "@nestjs/swagger"
 import type { GetOrganizationResponse } from "@workspace/shared/api"
 import { NotFoundError } from "@workspace/shared/errors"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
@@ -23,6 +28,11 @@ import { GetOrganizationResponseDto } from "../dto"
 @Controller({ path: "organization", version: "1" })
 export class OrganizationController {
   @Get()
+  @ApiOperation({
+    summary: "Get organization",
+    description:
+      "Returns the organization the authenticated API key belongs to.",
+  })
   @ApiOkResponse({ type: GetOrganizationResponseDto })
   async get(
     @CurrentPrincipal() principal: ApiKeyPrincipal,

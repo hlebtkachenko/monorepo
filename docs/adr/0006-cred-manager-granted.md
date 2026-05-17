@@ -10,7 +10,7 @@ Once AWS Identity Center lands (post-bootstrap), local CLI access to multiple ac
 
 ## Decision Drivers
 
-- AWS Identity Center is the source of truth (per AWS-INTEGRATION-PLAN).
+- AWS Identity Center is the source of truth.
 - Multi-account workflows: jumping between staging, production, log-archive, audit several times an hour.
 - Browser isolation per profile: avoid cross-account session bleed in tabs.
 - Profile registry that survives a re-install.

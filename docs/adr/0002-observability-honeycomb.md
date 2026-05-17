@@ -49,4 +49,3 @@ If event volume crosses ~100M/month and Honeycomb cost overtakes Datadog total c
 ## References
 
 - `infra/cdk/lib/observability-stack.ts` (sidecar collector wiring lands here post-bootstrap)
-- `docs/plans/AWS-INTEGRATION-PLAN.md` (Observability section)

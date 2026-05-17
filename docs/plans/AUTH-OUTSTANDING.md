@@ -1,5 +1,8 @@
 # Auth + Onboarding — Outstanding Work
 
+> **Tracked in Linear: [AFF-29](https://linear.app/hapddev/issue/AFF-29/auth-onboarding-outstanding-design-faithful-gaps).**
+> Delete this file when AFF-29 is closed. Planning is tracked in Linear, not here — see [`docs/plans/README.md`](./README.md).
+
 Tracks design-faithful gaps remaining after the auth layout implementation.
 For the full design contract, see [`docs/specs/AUTH-LAYOUT.md`](../specs/AUTH-LAYOUT.md).
 

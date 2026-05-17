@@ -6,6 +6,12 @@ on:
 
 permissions: {}
 
+# Turbo Remote Cache env. See note in ci.yml for full rationale.
+env:
+  TURBO_API: ${{ vars.TURBO_API }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
 concurrency:
   # Never cancel a signing/release run mid-flight — interrupted Sigstore flows
   # leave half-state on Rekor.

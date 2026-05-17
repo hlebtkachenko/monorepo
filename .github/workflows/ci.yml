@@ -16,6 +16,22 @@ on:
 
 permissions: {}
 
+# Turbo Remote Cache env. Workflow-level so every job inherits.
+# - `vars.TURBO_API` is a NON-SECRET GitHub repo variable holding the
+#   Cloudflare Worker URL (https://turbo-cache.<account>.workers.dev).
+#   Set manually after first Worker deploy — see
+#   `docs/runbooks/CI-TURBO-REMOTE-CACHE.md`.
+# - `secrets.TURBO_TOKEN` + `secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY`
+#   are repo secrets generated during PR-D pre-flight.
+# - When `vars.TURBO_API` is empty (e.g. fork PRs without access to
+#   variables, or before first deploy), the composite's "Configure
+#   Turbo Remote Cache defaults" step no-ops and turbo falls back to
+#   local .turbo cache only. No build break.
+env:
+  TURBO_API: ${{ vars.TURBO_API }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

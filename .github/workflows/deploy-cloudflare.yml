@@ -1,0 +1,31 @@
+# Trigger workflow for the Cloudflare Worker deploy.
+#
+# Push to main on `infra/cloudflare/**` → auto-deploy.
+# Manual `workflow_dispatch` → one-off deploys (e.g. secret rotation, rollback).
+
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/cloudflare/**"
+      - ".github/workflows/_deploy-cloudflare.yml"
+      - ".github/workflows/deploy-cloudflare.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target (currently production-only)"
+        type: choice
+        options:
+          - production
+        default: production
+
+permissions: {}
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy-cloudflare.yml
+    with:
+      environment: ${{ inputs.environment || 'production' }}
+    secrets: inherit

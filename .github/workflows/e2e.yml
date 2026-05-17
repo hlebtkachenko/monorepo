@@ -8,6 +8,12 @@ on:
 
 permissions: {}
 
+# Turbo Remote Cache env. See note in ci.yml for full rationale.
+env:
+  TURBO_API: ${{ vars.TURBO_API }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

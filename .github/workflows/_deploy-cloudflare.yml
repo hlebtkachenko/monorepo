@@ -1,0 +1,110 @@
+# Reusable Cloudflare Workers deploy workflow.
+#
+# Called by `.github/workflows/deploy-cloudflare.yml` on push to main when
+# `infra/cloudflare/**` changes, or manually via `workflow_dispatch`.
+#
+# What it does:
+#   1. Ensures R2 bucket exists (idempotent — `wrangler r2 bucket create` is
+#      a no-op if the bucket is already there).
+#   2. Deploys the Worker from `infra/cloudflare/`.
+#   3. Pushes `TURBO_TOKEN` as a Worker secret (stdin-piped, never logged).
+#
+# Cloudflare account/token via repo secrets `CLOUDFLARE_API_TOKEN` +
+# `CLOUDFLARE_ACCOUNT_ID`. Worker auth token via repo secret `TURBO_TOKEN`.
+
+name: _deploy-cloudflare
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Cloudflare deployment target (e.g. production, preview). Maps to wrangler --env."
+        required: false
+        type: string
+        default: "production"
+
+permissions: {}
+
+concurrency:
+  group: deploy-cloudflare-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Ensure R2 bucket exists
+        # Idempotent: `wrangler r2 bucket create` exits non-zero only on
+        # genuinely failed creates. The `|| true` swallows the
+        # "bucket already exists" error which is the expected steady-state.
+        working-directory: infra/cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler r2 bucket create turbo-cache-prod 2>&1 \
+            | tee /tmp/r2-create.log \
+            || grep -q "already exists\|bucket name is already taken" /tmp/r2-create.log
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: infra/cloudflare
+          wranglerVersion: "4.59.2"
+          command: deploy
+
+      - name: Push TURBO_TOKEN as Worker secret (stdin-piped)
+        # `wrangler secret put` reads value from stdin. Piped from env, never
+        # echoed. ::add-mask:: registers the value as a secret in this
+        # job's log scrubber as belt-and-suspenders.
+        working-directory: infra/cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+        run: |
+          echo "::add-mask::$TURBO_TOKEN"
+          printf '%s' "$TURBO_TOKEN" | pnpm exec wrangler secret put TURBO_TOKEN
+
+      - name: Resolve Worker URL
+        id: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: infra/cloudflare
+        run: |
+          # Cloudflare workers_dev subdomain is "<worker-name>.<account-subdomain>.workers.dev"
+          # The account subdomain is account-scoped (one per account), discoverable via API.
+          subdomain=$(curl -fsSL \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['subdomain'])")
+          url="https://turbo-cache.${subdomain}.workers.dev"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "Worker URL: ${url}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke check Worker is reachable
+        env:
+          URL: ${{ steps.worker.outputs.url }}
+        run: |
+          # Worker should respond on / even without auth (Hono default 404 or upstream's index route).
+          # We just want a non-5xx HTTP response to prove the Worker is deployed and routing.
+          http=$(curl -sSL -o /dev/null -w '%{http_code}' "${URL}")
+          if [ "${http}" -ge 500 ]; then
+            echo "::error::Worker URL ${URL} returned HTTP ${http}"
+            exit 1
+          fi
+          echo "Worker reachable: HTTP ${http}" >> "$GITHUB_STEP_SUMMARY"

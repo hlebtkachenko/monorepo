@@ -21,6 +21,9 @@
     ".npmrc"
   ],
   "globalEnv": ["CI", "NODE_ENV", "TESTCONTAINERS_REUSE_ENABLE"],
+  "remoteCache": {
+    "signature": true
+  },
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -17,6 +17,32 @@ runs:
         cache: pnpm
     - run: pnpm install --frozen-lockfile
       shell: bash
+
+    - name: Configure Turbo Remote Cache defaults
+      # If the caller workflow sets TURBO_API + TURBO_TOKEN at workflow or
+      # job env scope, add the team + timeout defaults so turbo CLI picks
+      # up a fully-configured remote cache automatically.
+      #
+      # When TURBO_API or TURBO_TOKEN is unset (e.g. the variable / secret
+      # is missing, or this is a fork PR that can't access secrets), this
+      # step no-ops and turbo falls back to the local .turbo cache only.
+      # That keeps fork PRs working without giving them write access to
+      # the cache.
+      #
+      # `continue-on-error: true` means a Cloudflare outage at this point
+      # cannot red the build — worst case is a colder cache.
+      shell: bash
+      continue-on-error: true
+      run: |
+        if [ -n "${TURBO_API:-}" ] && [ -n "${TURBO_TOKEN:-}" ]; then
+          echo "TURBO_TEAM=team_afframe" >> "$GITHUB_ENV"
+          echo "TURBO_REMOTE_CACHE_TIMEOUT=30" >> "$GITHUB_ENV"
+          echo "::add-mask::$TURBO_TOKEN"
+          echo "turbo remote cache: enabled (api=$TURBO_API)" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "turbo remote cache: disabled (TURBO_API or TURBO_TOKEN unset)" >> "$GITHUB_STEP_SUMMARY"
+        fi
+
     - name: Restore turbo cache
       # Content-addressed primary key — same input hash on a different
       # branch hits the cache (cross-branch sharing). Falls back through

@@ -92,4 +92,6 @@ Audit trail of changes: git history of this file.
 | INCIDENT-MGR-001 | on-call paging                                       | AWS Incident Manager + SNS  | Hleb    | High        | Internal   | Tier 2  | AWS           | `<TBD>`                              |
 | NTFY-001         | push notification fan-out                            | self-host or public ntfy.sh | Hleb    | Medium      | Internal   | Tier 3  | OSS / OVH VPS | `<TBD>`                              |
 | OPENSTATUS-001   | status page + uptime monitoring (status.afframe.com) | self-hosted OSS             | Hleb    | Medium      | None       | Tier 3  | OSS / OVH VPS | Planned                              |
+| CF-WORKER-TURBO  | Turborepo Remote Cache Worker (CI only)              | Cloudflare Worker           | Hleb    | Low         | None       | Tier 3  | Cloudflare    | Active                               |
+| CF-R2-TURBO      | turbo-cache-prod R2 bucket (CI artifacts, 14d TTL)   | Cloudflare R2 bucket        | Hleb    | Low         | None       | Tier 3  | Cloudflare    | Active                               |
 | PAYMENTS-001     | payment processor (deferred)                         | SaaS                        | `<TBD>` | n/a         | n/a        | n/a     | n/a           | Deferred until payments are in scope |

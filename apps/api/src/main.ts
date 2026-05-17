@@ -17,9 +17,20 @@ Sentry.init({
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
 
-  // contentSecurityPolicy disabled: the only HTML this process serves is the
-  // Swagger UI docs page (inline scripts/styles). Everything else is JSON.
-  app.use(helmet({ contentSecurityPolicy: false }))
+  // CSP stays enabled (helmet's strict defaults), with one relaxation:
+  // SwaggerModule injects an inline initializer <script> on /v1/docs and
+  // `script-src 'self'` would block it. helmet's default style-src already
+  // allows 'unsafe-inline' and img-src allows data:, which covers the rest
+  // of the Swagger UI assets. Everything else this process serves is JSON.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          "script-src": ["'self'", "'unsafe-inline'"],
+        },
+      },
+    }),
+  )
 
   // URI versioning: public controllers carry `version: "1"` -> `/v1/*`.
   // The health controller is VERSION_NEUTRAL and stays at `/api/health`.

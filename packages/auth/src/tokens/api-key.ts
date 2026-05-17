@@ -45,6 +45,13 @@ export function generateRawApiKey(): GeneratedApiKey {
   }
 }
 
+/**
+ * SHA-256 is the correct hash here, NOT bcrypt/argon2: an API key is a
+ * 256-bit random token (`randomBytes(32)`), not a low-entropy human
+ * password — it is not brute-forceable, so a slow KDF buys nothing and a
+ * deterministic hash is required for the by-`key_hash` lookup. Same scheme
+ * GitHub/Stripe use for API tokens.
+ */
 export function hashApiKey(rawKey: string): string {
   return createHash("sha256").update(rawKey).digest("hex")
 }

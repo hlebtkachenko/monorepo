@@ -189,22 +189,26 @@ Until approved, SES is sandboxed (200/day to verified addresses only). Resend co
 ### 9. Cloudflare Tunnels
 
 The two tunnels already exist (Zero Trust → Networks → Connectors):
-`windhoek-staging` and `windhoek-production`. Their connector tokens are in
+`monorepo-staging` and `monorepo-production`. Their connector tokens are in
 the repo secrets `CLOUDFLARE_TUNNEL_TOKEN_STAGING` / `_PRODUCTION`; the deploy
 workflow copies each into Secrets Manager as
-`monorepo-{env}-cloudflare-tunnel-token` (the AWS secret name is independent
-of the Cloudflare tunnel name).
+`monorepo-{env}-cloudflare-tunnel-token`.
 
-Per env, open the tunnel (Connectors → click `windhoek-{env}` → Edit →
-**Published application routes** / Public Hostname) and add — `windhoek-staging`
-shown, substitute the production hosts for `windhoek-production`:
+> One-time: the `windhoek`→`monorepo` codename rename never reached the
+> Cloudflare dashboard — if the tunnels still show as `windhoek-staging` /
+> `windhoek-production`, rename them to `monorepo-*` (Connectors → tunnel →
+> ⋯ → Rename). Cosmetic only — the tunnel id + connector token are unchanged.
+
+Per env, open the tunnel (Connectors → click `monorepo-{env}` → Edit →
+**Published application routes** / Public Hostname) and add — `monorepo-staging`
+shown, substitute the production hosts for `monorepo-production`:
 
 - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
 - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000`
 - **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
 - **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK derives as `admin.<env-domain>`.
 
-Production: same on `windhoek-production` with `app.afframe.com`,
+Production: same on `monorepo-production` with `app.afframe.com`,
 `api.afframe.com`, `admin.app.afframe.com`.
 
 **Cloudflare Access for admin** — Zero Trust → Access → Applications → Add an

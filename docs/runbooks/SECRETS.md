@@ -2,17 +2,17 @@
 
 ## Decision matrix
 
-| Value | Type | Where | Why |
-|-------|------|-------|-----|
-| `AWS_REGION` | repo `vars` | repository | static, non-sensitive |
-| `AWS_ACCOUNT_ID_STAGING`, `AWS_ACCOUNT_ID_PRODUCTION` | repo `vars` | repository | non-sensitive, OK in logs |
-| `AWS_DEPLOY_ROLE_ARN_STAGING`, `AWS_DEPLOY_ROLE_ARN_PRODUCTION` | repo `vars` | repository | non-sensitive; trust policy gates the actual access |
-| `AWS_BOOTSTRAPPED` | repo `vars` | repository | boolean flag, gates AWS-touching workflows |
-| Cosign signing | none | n/a | keyless OIDC via Sigstore; no secret stored |
-| Sentry DSN | environment `secrets` | `staging`, `production` | per-env DSN; isolation |
-| Honeycomb API key | environment `secrets` | `staging`, `production` | per-env writer key |
-| Payment processor secret keys (deferred — no payments yet) | AWS Secrets Manager | runtime, not GitHub | rotate quarterly when introduced |
-| GitHub App private key (future cross-repo automation) | org `secrets` | org-level | one source for many repos |
+| Value                                                           | Type                  | Where                   | Why                                                                            |
+| --------------------------------------------------------------- | --------------------- | ----------------------- | ------------------------------------------------------------------------------ |
+| `AWS_REGION`                                                    | repo `vars`           | repository              | static, non-sensitive                                                          |
+| `AWS_ACCOUNT_ID`                                                | repo `secrets`        | repository              | single-account MVP (ADR-0007); stored as secret to keep account ID out of logs |
+| `AWS_DEPLOY_ROLE_ARN_STAGING`, `AWS_DEPLOY_ROLE_ARN_PRODUCTION` | repo `secrets`        | repository              | contain account ID; trust policy gates the actual access                       |
+| `AWS_BOOTSTRAPPED`                                              | repo `vars`           | repository              | boolean flag, gates AWS-touching workflows                                     |
+| Cosign signing                                                  | none                  | n/a                     | keyless OIDC via Sigstore; no secret stored                                    |
+| Sentry DSN                                                      | environment `secrets` | `staging`, `production` | per-env DSN; isolation                                                         |
+| Honeycomb API key                                               | environment `secrets` | `staging`, `production` | per-env writer key                                                             |
+| Payment processor secret keys (deferred — no payments yet)      | AWS Secrets Manager   | runtime, not GitHub     | rotate quarterly when introduced                                               |
+| GitHub App private key (future cross-repo automation)           | org `secrets`         | org-level               | one source for many repos                                                      |
 
 ## Forbidden
 
@@ -25,10 +25,10 @@
 
 Two environments must exist on the repo. Create at start of bootstrap (does not need AWS).
 
-| Environment | Required reviewers | Wait timer | Branch policy |
-|-------------|--------------------|-----------|----------------|
-| `staging` | 0 (auto-deploy) | 0 | `main` only |
-| `production` | 1 (Hleb for now) | 5 minutes | `main` only |
+| Environment  | Required reviewers | Wait timer | Branch policy |
+| ------------ | ------------------ | ---------- | ------------- |
+| `staging`    | 0 (auto-deploy)    | 0          | `main` only   |
+| `production` | 1 (Hleb for now)   | 5 minutes  | `main` only   |
 
 ```bash
 gh api -X PUT repos/hlebtkachenko/monorepo/environments/staging
@@ -44,11 +44,10 @@ Get your numeric user id with `gh api user --jq .id`.
 
 ```bash
 gh variable set AWS_REGION                       --body eu-central-1
-gh variable set AWS_ACCOUNT_ID_STAGING           --body <TBD-staging-account-id>
-gh variable set AWS_ACCOUNT_ID_PRODUCTION        --body <TBD-production-account-id>
-gh variable set AWS_DEPLOY_ROLE_ARN_STAGING      --body <TBD-staging-deploy-role-arn>
-gh variable set AWS_DEPLOY_ROLE_ARN_PRODUCTION   --body <TBD-production-deploy-role-arn>
 gh variable set AWS_BOOTSTRAPPED                 --body true
+gh secret set AWS_ACCOUNT_ID                     --body <TBD-account-id>
+gh secret set AWS_DEPLOY_ROLE_ARN_STAGING        --body <TBD-staging-deploy-role-arn>
+gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION     --body <TBD-production-deploy-role-arn>
 ```
 
 ## Setting environment secrets
@@ -65,21 +64,21 @@ gh secret set HONEYCOMB_KEY  --env production --body <TBD-production-honeycomb-k
 ```yaml
 - uses: aws-actions/configure-aws-credentials@v4
   with:
-    role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN_STAGING }}
+    role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
     aws-region: ${{ vars.AWS_REGION }}
 ```
 
-Never `${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}` — that is a category error. Role ARNs are not secret.
+Role ARNs contain the account ID, so they are stored as secrets (single-account MVP; see `docs/runbooks/AWS-DEPLOY.md`).
 
 ## Rotation cadence
 
-| Secret class | Cadence |
-|--------------|---------|
-| Sentry DSN, Honeycomb keys | annual, or on suspected leak |
-| AWS Secrets Manager runtime creds | 90 days, automated via Lambda |
-| KMS CMKs | annual rotation enabled at key creation |
-| GitHub App private keys | 12 months |
-| Cosign | n/a (keyless) |
+| Secret class                      | Cadence                                 |
+| --------------------------------- | --------------------------------------- |
+| Sentry DSN, Honeycomb keys        | annual, or on suspected leak            |
+| AWS Secrets Manager runtime creds | 90 days, automated via Lambda           |
+| KMS CMKs                          | annual rotation enabled at key creation |
+| GitHub App private keys           | 12 months                               |
+| Cosign                            | n/a (keyless)                           |
 
 ## Break-glass procedure
 
@@ -98,10 +97,10 @@ For emergency access when normal Identity Center login is unavailable (e.g. SAML
 
 Two tiers in this repo:
 
-| Tier | Cadence | Where |
-|---|---|---|
-| Dev + staging shared secrets | edits-as-needed | SOPS-encrypted YAML in `infra/secrets/` (gitignored plaintext copy; encrypted blob commits) |
-| Production runtime secrets | 90-day rotation lambda | AWS Secrets Manager + SSM Parameter Store |
+| Tier                         | Cadence                | Where                                                                                       |
+| ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| Dev + staging shared secrets | edits-as-needed        | SOPS-encrypted YAML in `infra/secrets/` (gitignored plaintext copy; encrypted blob commits) |
+| Production runtime secrets   | 90-day rotation lambda | AWS Secrets Manager + SSM Parameter Store                                                   |
 
 SOPS+age fits the dev/staging tier because:
 
@@ -161,7 +160,7 @@ Files to create:
   `CLOUDFLARE_TUNNEL_TOKEN`, `PGBOUNCER_AUTH_PASSWORD`,
   `RDS_MASTER_PASSWORD`. `key_groups[0].age` lists each contributor's age pubkey.
 - `infra/secrets/secrets.dev.sops.yaml.example` with placeholder values
-  matching `docs/env-vars.md` (REPLACE_WITH_... strings — no gitleaks-triggering shapes).
+  matching `docs/env-vars.md` (REPLACE*WITH*... strings — no gitleaks-triggering shapes).
 - `infra/secrets/secrets.staging.sops.yaml.example` with same shape, staging URLs.
 - `infra/secrets/README.md` with onboarding + daily-use copy.
 

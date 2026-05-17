@@ -31,6 +31,10 @@ Audit trail of changes: git history of this file.
 | ----------------- | ------------------------------------------ | --------------------- | ------- | ----------- | -------------------- | ------- | ------ | ------- |
 | ECS-WEB-PRD       | web (production)                           | ECS Fargate service   | `<TBD>` | Critical    | Customer             | Tier 1  | AWS    | `<TBD>` |
 | ECS-WEB-STG       | web (staging)                              | ECS Fargate service   | `<TBD>` | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |
+| ECS-API-PRD       | api (production)                           | ECS Fargate container | `<TBD>` | Critical    | Customer + Financial | Tier 1  | AWS    | `<TBD>` |
+| ECS-API-STG       | api (staging)                              | ECS Fargate container | `<TBD>` | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |
+| ECS-ADMIN-PRD     | admin (production)                         | ECS Fargate container | `<TBD>` | High        | Internal             | Tier 1  | AWS    | `<TBD>` |
+| ECS-ADMIN-STG     | admin (staging)                            | ECS Fargate container | `<TBD>` | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |
 | LAMBDA-ROT-PRD    | secret rotation                            | Lambda                | `<TBD>` | High        | Internal             | Tier 2  | AWS    | `<TBD>` |
 | LAMBDA-KILLSWITCH | cost kill-switch (SecurityStack)           | Lambda                | Hleb    | High        | Internal             | Tier 2  | AWS    | `<TBD>` |
 | LAMBDA-RDSWATCH   | RDS auto-restart watcher (SecurityStack)   | Lambda                | Hleb    | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |

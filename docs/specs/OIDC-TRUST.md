@@ -35,6 +35,7 @@ For each workload account (staging, production), create one role per environment
 ```
 
 Replace:
+
 - `<TBD-workload-account-id>` with the account ID where the role lives.
 - `<TBD-env>` with `staging` or `production`.
 
@@ -100,15 +101,15 @@ aws iam attach-role-policy \
 
 ## Failure modes and what to check
 
-| Symptom | Likely cause |
-|---------|--------------|
+| Symptom                                                                 | Likely cause                                                                        |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `AccessDenied: not authorized to perform sts:AssumeRoleWithWebIdentity` | Sub claim mismatch. Verify `repo:hlebtkachenko/monorepo:environment:<env>` exactly. |
-| `InvalidIdentityToken` | OIDC provider not registered, or thumbprint stale. |
-| Workflow runs but role session has wrong env | Role-name mismatch in `_deploy-aws.yml`'s role resolver. |
-| Works on `main` push, fails from PR | Expected: PRs do not have environment claims. |
+| `InvalidIdentityToken`                                                  | OIDC provider not registered, or thumbprint stale.                                  |
+| Workflow runs but role session has wrong env                            | Role-name mismatch in `_deploy-aws.yml`'s role resolver.                            |
+| Works on `main` push, fails from PR                                     | Expected: PRs do not have environment claims.                                       |
 
 ## Cross-references
 
-- `docs/runbooks/AWS-BOOTSTRAP.md` step 8.
+- `docs/runbooks/AWS-DEPLOY.md` step 2 (OIDC trust + deploy role).
 - `docs/specs/SUPPLY-CHAIN.md` (cosign keyless uses the same OIDC token, different audience).
 - `.github/workflows/_deploy-aws.yml`.

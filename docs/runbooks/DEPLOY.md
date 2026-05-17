@@ -14,7 +14,7 @@ Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` r
 
 - [ ] PR risk fields filled (data sensitivity, blast radius, rollback plan, cost estimate).
 - [ ] Cosign attestation verified on the candidate image (`cosign verify-attestation`).
-- [ ] Smoke on staging: `/api/version` returns the expected `sha`, `version`, `time`.
+- [ ] Smoke on staging: `/api/version` (Next.js) returns expected `sha`, `version`, `time`; `/api/health` (NestJS) returns `{status: "ok"}`.
 - [ ] Synthetic checks green for the last 24h on staging (`https://status.afframe.com`).
 - [ ] No SEV1/SEV2 incident open against this surface.
 

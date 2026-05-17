@@ -66,12 +66,14 @@ The migrate script reads `DATABASE_DIRECT_URL` from env (it refuses port
 every SQL file under `packages/db/migrations/` in lexical order, tracking
 which have been applied in a `_app_migrations` ledger.
 
-## Run the web app
+## Run the apps
 
 ```bash
-pnpm --filter web dev
+pnpm --filter web dev          # http://localhost:3000
+pnpm --filter api dev          # http://localhost:3001 (NestJS, watch mode)
+pnpm --filter admin dev        # http://localhost:3100 (admin surface)
 ```
 
-Visit `http://localhost:3000`. Auth catchall is mounted at
-`/api/auth/[...all]`. Workspace + organization routes do not exist yet —
-they will land in subsequent scaffold steps.
+The web app auth catchall is mounted at `/api/auth/[...all]`. Workspace
+routes live at `/workspace/*`, organization routes at `/[orgSlug]/*`,
+and onboarding at `/onboarding/*`.

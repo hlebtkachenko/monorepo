@@ -92,19 +92,42 @@ hard requirement or a hard-won workaround:
    skips the broken middleware path; **Caddy** handles the public URL → slug-path
    mapping instead.
 
-8. **Workspace feature limits are a paywall locally.** Self-host inherits the OpenStatus
-   Cloud `plan='free'` defaults — 1 monitor, no private-locations, no custom-domain,
-   `periodicity: ["10m","30m","1h"]` (no `1m`/`5m`). Bump via raw SQL:
-   `UPDATE workspace SET plan='team' WHERE id=1`. Unlocks: 50 monitors, private-locations,
-   custom-domain, 30s/1m/5m periodicities, 5 status pages. Zero $ — `plan` is a
-   feature-flag column in our libsql, not a Stripe state.
+8. **Workspace feature limits are a paywall locally — and `plan='team'` alone is not
+   enough.** Self-host inherits the OpenStatus Cloud `plan='free'` defaults: 1 monitor,
+   no private-locations, no custom-domain, `periodicity: ["10m","30m","1h"]`. Bumping
+   `plan='team'` is necessary but **not sufficient** — the `workspace.limits` column is
+   a JSON blob that the dashboard reads at runtime, and the `UPDATE workspace SET plan=...`
+   statement does **not** recompute it. A workspace created by sign-up has
+   `limits='{}'` (empty), and several runtime gates (`if (!workspace.limits["status-subscribers"]) return`
+   in `packages/api/src/router/email/index.ts`, plus identical gates in
+   `packages/services/src/{maintenance,status-report}/notify.ts`) **silently skip**
+   sending — the dashboard reports success and no email goes out. Fix: populate the
+   limits JSON explicitly using the team-plan shape from
+   `packages/db/src/schema/plan/config.ts`. See Phase 1 step 8 for the exact UPDATE.
 
-9. **Resend send fails by default.** The OpenStatus magic-link `from:` is
-   `thibault@openstatus.dev` (their domain, not Resend-verified for us). Magic-link
-   emails won't deliver. They DO print to the dashboard logs (`SELF_HOST=true` behaviour):
-   `docker logs openstatus-dashboard | grep 'Magic Link'`. Use that for login. For alert
-   emails: configure a Resend domain we control (e.g. `noreply@afframe.com`) — covered
-   in the notification step.
+9. **Resend rejects every default OpenStatus `from:`.** Senders are hardcoded across
+   `packages/emails/src/client.tsx`, `apps/dashboard/src/lib/auth/index.ts`, and
+   `apps/workflows/src/cron/monitor.ts`:
+   - `notifications@notifications.openstatus.dev` (subscription confirm, status reports,
+     magic-link-for-subscribers, team invitations, monitor alerts)
+   - `thibault@openstatus.dev` and `welcome@openstatus.dev` (admin magic-link login,
+     follow-up emails)
+
+   Resend returns `403 validation_error: domain not verified` for all of them because we
+   don't own `openstatus.dev`. There is **no env override** in source — the strings are
+   compiled into the images.
+
+   Workaround: a startup `sed` over the Next.js compiled chunks rewrites every hardcoded
+   `*@openstatus.dev` to `notifications@afframe.com` (our Resend-verified domain) before
+   `node server.js` starts. The script (`/opt/openstatus/patch-emails.sh`) is mounted into
+   `dashboard` and `status-page`, and the compose `entrypoint:` is overridden to wrap it
+   around the original `docker-entrypoint.sh` — see Phase 1 step 9. **The patch is required
+   for sub-confirm emails and the dashboard magic-link.** The `workflows` and `server`
+   containers are Bun single-file ELF binaries (string lengths are fixed at compile time)
+   so sed cannot rewrite them in place — monitor-alert emails still go out from the
+   hardcoded `openstatus.dev` sender and Resend rejects them. Fixing those requires a
+   source patch + image rebuild (`docker compose -f docker-compose.yaml build workflows`),
+   which is deferred until prod monitors are activated and alert email actually matters.
 
 10. **WSL2 distro idle-stop.** With no attached session, WSL terminates the `openstatus`
     distro → `cloudflared` dies → tunnel down → 530 on the public URL. Fix: Windows
@@ -169,6 +192,54 @@ hard requirement or a hard-won workaround:
        - NEXT_PUBLIC_URL=https://status.afframe.com # ← add
    ```
 
+   Add the Resend-`from:` patch wrapper (per pre-flight 9). Create
+   `/opt/openstatus/patch-emails.sh`:
+
+   ```sh
+   #!/bin/sh
+   # Rewrite hardcoded openstatus.dev Resend `from:` addresses in Next.js
+   # compiled chunks before the original entrypoint exec's the Node server.
+   set -e
+   find /app -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) \
+     -exec grep -l 'openstatus\.dev' {} + 2>/dev/null \
+     | xargs -r sed -i \
+       -e 's/notifications@notifications\.openstatus\.dev/notifications@afframe.com/g' \
+       -e 's/welcome@openstatus\.dev/welcome@afframe.com/g' \
+       -e 's/thibault@notifications\.openstatus\.dev/notifications@afframe.com/g' \
+       -e 's/thibault@openstatus\.dev/notifications@afframe.com/g' \
+       -e 's|\${t\.page\.slug}\.openstatus\.dev/verify/|status.afframe.com/verify/|g' \
+       -e 's|\${t\.page\.slug}\.openstatus\.dev/unsubscribe/|status.afframe.com/unsubscribe/|g' \
+       -e 's|\${t\.page\.slug}\.openstatus\.dev/manage/|status.afframe.com/manage/|g' \
+       -e 's|\${pageSlug}\.openstatus\.dev|status.afframe.com|g' \
+       -e 's|\${req\.pageSlug}\.openstatus\.dev|status.afframe.com|g' \
+     || true
+   exec "$@"
+   ```
+
+   `chmod +x /opt/openstatus/patch-emails.sh`. Then patch `dashboard` and `status-page`
+   in the compose to mount the script + override entrypoint:
+
+   ```yaml
+   dashboard:
+     # ...
+     user: "0" # sed needs write access to build-baked chunks
+     entrypoint: ["/bin/sh", "/opt/patch-emails.sh", "docker-entrypoint.sh"]
+     command: ["node", "server.js"] # must restate when entrypoint is overridden
+     volumes:
+       - ./patch-emails.sh:/opt/patch-emails.sh:ro
+   status-page:
+     # ...
+     user: "0"
+     entrypoint: ["/bin/sh", "/opt/patch-emails.sh", "docker-entrypoint.sh"]
+     command: ["node", "server.js"]
+     volumes:
+       - ./patch-emails.sh:/opt/patch-emails.sh:ro
+   ```
+
+   The compose `entrypoint:` override resets the image CMD, so `command: ["node", "server.js"]`
+   must be restated. Running as `user: "0"` is acceptable here because there is no public
+   ingress (Cloudflare-Tunnel-only) and the stack is single-tenant.
+
 6. **Build `.env.docker`** from the example:
 
    ```bash
@@ -208,17 +279,28 @@ hard requirement or a hard-won workaround:
    Verify 8 containers `Up (healthy)` except `checker` (Up, no health — see pre-flight 3).
    Verify schema landed: 43 tables in libsql.
 
-8. **Bump workspace feature limits** (per pre-flight 8). Do this BEFORE creating the
-   workspace — it removes paywalls for private-locations, custom-domain, 1m/5m periodicity:
+8. **Bump workspace feature limits** (per pre-flight 8). Run this **after the workspace
+   row exists** (sign in once via the dashboard so step 14 below creates it), then reload.
+   Both `plan` AND `limits` must be set — `limits` is the gate the runtime actually reads,
+   and `UPDATE plan='team'` alone leaves `limits='{}'` and silently skips email sends.
 
    ```bash
+   # Step A — set plan label
    docker exec openstatus-server sh -c \
      'curl -s http://libsql:8080/v2/pipeline -H "Content-Type: application/json" \
       -d "{\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"UPDATE workspace SET plan=\\\"team\\\" WHERE id=1\"}},{\"type\":\"close\"}]}"'
+
+   # Step B — populate limits JSON to match the team plan shape from
+   # packages/db/src/schema/plan/config.ts. Without this, status-subscribers
+   # and several other gates remain disabled even with plan='team'.
+   LIMITS='{"monitors":50,"synthetic-checks":300,"periodicity":["30s","1m","5m","10m","30m","1h"],"multi-region":true,"max-regions":35,"data-retention":"12 months","status-pages":5,"page-components":50,"maintenance":true,"monitor-values-visibility":true,"response-logs":true,"screenshots":true,"otel":true,"status-subscribers":true,"custom-domain":true,"i18n":true,"password-protection":true,"email-domain-protection":false,"ip-restriction":false,"white-label":true,"no-index":true,"notifications":true,"sms":true,"sms-limit":100,"pagerduty":true,"opsgenie":true,"grafana-oncall":true,"whatsapp":true,"notification-channels":20,"members":"Unlimited","audit-log":true,"private-locations":true,"slack-agent":true}'
+   jq -nc --arg lim "$LIMITS" '{requests:[{type:"execute",stmt:{sql:"UPDATE workspace SET limits = ? WHERE id = 1",args:[{type:"text",value:$lim}]}},{type:"close"}]}' \
+     | docker exec -i openstatus-server sh -c \
+       'curl -s http://libsql:8080/v2/pipeline -H "Content-Type: application/json" --data-binary @-'
    ```
 
-   If no workspace row exists yet (you sign up below first), run this AFTER step 9 and
-   reload the dashboard.
+   Confirm with `SELECT plan, limits FROM workspace`: `plan='team'` AND `limits` is the
+   full JSON above (not `{}`).
 
 ### Phase 2 — Cloudflare Tunnel + Caddy reverse-proxy
 
@@ -432,23 +514,35 @@ hard requirement or a hard-won workaround:
     SYSTEM task), which loses Hleb-SSH access to `wsl -d openstatus`. Default is the
     Hleb-Interactive task; upgrade only if a reboot-without-login scenario is a concern.
 
-21. **Container memory caps** (optional but recommended once metrics show pressure):
+21. **Container memory caps.** Apply unconditionally — they have negligible overhead and
+    prevent a single container leaking and starving the others. Measured steady-state
+    usage in parentheses:
 
     ```yaml
     services:
       tinybird-local:
-        mem_limit: 2g # ClickHouse-based; the heaviest container
+        mem_limit: 4g # (~1.4 GiB; ClickHouse-based, heaviest)
+      libsql:
+        mem_limit: 256m # (~10 MiB)
       workflows:
-        mem_limit: 768m
+        mem_limit: 512m # (~140 MiB)
       server:
-        mem_limit: 768m
+        mem_limit: 512m # (~140 MiB)
       dashboard:
-        mem_limit: 768m
+        mem_limit: 512m # (~310 MiB)
       status-page:
-        mem_limit: 768m
+        mem_limit: 512m # (~230 MiB)
+      private-location:
+        mem_limit: 128m # (~4 MiB)
+      checker:
+        mem_limit: 128m # (~10 MiB)
+      cloudflared:
+        mem_limit: 128m # (~25 MiB)
+      caddy:
+        mem_limit: 64m # (~20 MiB)
     ```
 
-    Total cap ~5 GB; WSL2 distro has ~11 GB. Skip unless you observe memory pressure.
+    Total cap ~6.6 GiB; WSL2 distro has ~11 GiB available.
 
 ## Acceptance
 
@@ -527,8 +621,19 @@ All pre-flight items are also gotchas; the ones that bite during operation:
 - **One probe only.** Self-host has a single private-location probe (one European
   vantage), not multi-region. To add vantages: deploy another `private-location`
   container on a different VPS / cloud, register as a separate private location.
-- **Resend send fails** for OpenStatus's default `from:` (not on our Resend domain). Use
-  magic-link-in-logs for login; document the gap for alert emails.
+- **Resend `from:` is hardcoded across the source.** The `patch-emails.sh` startup wrapper
+  (pre-flight 9) rewrites every `*@openstatus.dev` sender to `notifications@afframe.com`
+  inside the `dashboard` and `status-page` Next.js bundles — these cover sub-confirm,
+  page magic-link, status-report broadcast, and admin magic-link. The `workflows` and
+  `server` containers are Bun single-file binaries (fixed-length string literals) so
+  in-place sed won't work — monitor-alert sends from `workflows` still hit the hardcoded
+  sender and Resend rejects them. Activate prod monitors only after rebuilding those two
+  images from a source-patched fork, or accept that alert email is best-effort while
+  status-page + dashboard email flows work.
+- **Workspace `limits` is a separate gate from `plan`.** `UPDATE workspace SET plan='team'`
+  does NOT recompute the `limits` JSON; the dashboard reads `limits` directly and the gate
+  `if (!limits["status-subscribers"]) return;` silently skips every subscription-email
+  send. Always set both — see Phase 1 step 8.
 - **`IP Restriction` is insecure off-Vercel.** `X-Forwarded-For` is spoofable behind
   Cloudflare — do not rely on OpenStatus IP restriction.
 - **Internal sidecars not externally monitorable.** OpenFGA / Cerbos / pgBouncer are

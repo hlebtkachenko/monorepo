@@ -19,7 +19,9 @@ services:
         -c log_min_messages=warning
         -c max_connections=200
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18 images store data under a major-version subdirectory and
+      # require the volume mounted at /var/lib/postgresql, not .../data.
+      - postgres_data:/var/lib/postgresql
       - ./postgres/init.d:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
@@ -49,8 +51,10 @@ services:
     ports:
       - "6432:6432"
     healthcheck:
-      # TCP probe: nc exits 0 if port is open.
-      test: ["CMD-SHELL", "nc -z localhost 6432 || exit 1"]
+      # TCP probe: nc exits 0 if port is open. Use 127.0.0.1, not localhost:
+      # the container resolves localhost to ::1 (IPv6) but pgbouncer listens
+      # IPv4-only on 0.0.0.0, so an IPv6 probe never connects.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 6432 || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10

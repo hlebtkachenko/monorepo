@@ -1,11 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ChevronLeft } from "lucide-react"
 
 import { authClient } from "@workspace/auth/client"
 import { useTranslations } from "@workspace/i18n/client"
@@ -20,12 +19,19 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldSeparator,
 } from "@workspace/ui/components/field"
+import { Heading } from "@workspace/ui/components/heading"
 import { Input } from "@workspace/ui/components/input"
 import { PasswordInput } from "@workspace/ui/components/password-input"
+import { Text } from "@workspace/ui/components/text"
+import { ArrowLeft, Mail } from "@workspace/ui/lib/icons"
 
 import { safeNext } from "../../../../../lib/safe-next"
-import { clearLoginEmailAction } from "../actions"
+import { AuthHeaderLinkOverride } from "../../_components/auth-header-link"
+import { clearLoginEmailAction, sendMagicLinkAction } from "../actions"
+
+const RESEND_COOLDOWN = 30
 
 interface Props {
   email: string
@@ -36,8 +42,8 @@ export function LoginPasswordForm({ email }: Props) {
   const search = useSearchParams()
   const next = safeNext(search.get("next"), "/workspace")
 
+  const tBrand = useTranslations("brand")
   const t = useTranslations("auth.login.password")
-  const tEmailStep = useTranslations("auth.login.email")
   const tValidation = useTranslations("auth.validation")
   const tErrors = useTranslations("auth.errors")
 
@@ -48,6 +54,28 @@ export function LoginPasswordForm({ email }: Props) {
   })
 
   const [serverError, setServerError] = useState<string | null>(null)
+  const [magicLinkSending, setMagicLinkSending] = useState(false)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const id = setTimeout(() => setResendCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(id)
+  }, [resendCooldown])
+
+  const sendMagicLink = useCallback(async () => {
+    setMagicLinkSending(true)
+    setServerError(null)
+    const result = await sendMagicLinkAction(email, next)
+    if (result.ok) {
+      setMagicLinkSent(true)
+      setResendCooldown(RESEND_COOLDOWN)
+    } else {
+      setServerError(result.error ?? tErrors("signInFailed"))
+    }
+    setMagicLinkSending(false)
+  }, [email, next, tErrors])
 
   function translateValidation(msg: string | undefined): string | undefined {
     if (!msg) return undefined
@@ -80,23 +108,64 @@ export function LoginPasswordForm({ email }: Props) {
     }
   }
 
+  const backIcon = useMemo(
+    () => <ArrowLeft className="size-4" aria-hidden="true" />,
+    [],
+  )
+
+  if (magicLinkSent) {
+    return (
+      <div className="flex flex-col gap-8">
+        <AuthHeaderLinkOverride
+          href="/auth/login"
+          label={t("useDifferentEmail")}
+          icon={backIcon}
+        />
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("magicLinkSentTitle")}
+          </Heading>
+          <Text variant="muted">
+            {t("magicLinkSentDescription", { email })}
+          </Text>
+        </header>
+
+        {serverError && (
+          <Text variant="small" className="text-destructive" role="alert">
+            {serverError}
+          </Text>
+        )}
+
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto self-start p-0 text-muted-foreground"
+          disabled={resendCooldown > 0 || magicLinkSending}
+          onClick={sendMagicLink}
+        >
+          {resendCooldown > 0
+            ? t("magicLinkResendIn", { seconds: String(resendCooldown) })
+            : t("magicLinkResend")}
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-8">
-      <Link
+      <AuthHeaderLinkOverride
         href="/auth/login"
-        className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="size-4" aria-hidden="true" />
-        {t("useDifferentEmail")}
-      </Link>
-
+        label={t("useDifferentEmail")}
+        icon={backIcon}
+      />
       <header className="flex flex-col gap-2">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">
+        <Heading level={2} className="mt-0">
           {t("title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("description", { email })}
-        </p>
+        </Heading>
+        <Text variant="muted">
+          {t("description", { brand: tBrand("name") })}
+        </Text>
       </header>
 
       <form
@@ -106,12 +175,11 @@ export function LoginPasswordForm({ email }: Props) {
       >
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="email-locked">
-              {tEmailStep("label")}
-            </FieldLabel>
+            <FieldLabel htmlFor="email-locked">Email</FieldLabel>
             <Input
               id="email-locked"
               type="email"
+              inputSize="xl"
               value={email}
               readOnly
               disabled
@@ -128,13 +196,14 @@ export function LoginPasswordForm({ email }: Props) {
                 href="/auth/forgot-password"
                 className="text-sm font-normal text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
               >
-                {t("forgotPassword")}
+                {t("forgot")}
               </Link>
             </FieldLabel>
             <PasswordInput
               id="password"
               autoComplete="current-password"
               autoFocus
+              inputSize="xl"
               value={form.watch("password")}
               onValueChange={(v) =>
                 form.setValue("password", v, { shouldValidate: false })
@@ -162,15 +231,29 @@ export function LoginPasswordForm({ email }: Props) {
         </FieldGroup>
 
         {serverError && (
-          <p className="text-sm text-destructive" role="alert">
+          <Text variant="small" className="text-destructive" role="alert">
             {serverError}
-          </p>
+          </Text>
         )}
 
-        <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
+        <Button type="submit" size="xl" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? t("submitting") : t("submit")}
         </Button>
       </form>
+
+      <FieldSeparator>or</FieldSeparator>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="xl"
+        className="w-full"
+        disabled={magicLinkSending}
+        onClick={sendMagicLink}
+      >
+        <Mail className="size-4" aria-hidden="true" />
+        {magicLinkSending ? t("submitting") : t("emailMeLink")}
+      </Button>
     </div>
   )
 }

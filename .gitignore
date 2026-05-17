@@ -43,6 +43,7 @@ _junk/
 playwright-report
 test-results
 .playwright-mcp
+apps/web/e2e/.results/
 
 # Misc
 .DS_Store

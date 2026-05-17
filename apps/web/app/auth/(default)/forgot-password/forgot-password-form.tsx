@@ -1,12 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
+import { useMemo, useState, useEffect, useCallback } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { ChevronLeft } from "lucide-react"
 
-import { authClient } from "@workspace/auth/client"
 import { useTranslations } from "@workspace/i18n/client"
 import {
   ForgotPasswordSchema,
@@ -19,12 +16,19 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@workspace/ui/components/field"
+import { Heading } from "@workspace/ui/components/heading"
 import { Input } from "@workspace/ui/components/input"
+import { Text } from "@workspace/ui/components/text"
+import { ArrowLeft } from "@workspace/ui/lib/icons"
+
+import { AuthHeaderLinkOverride } from "../_components/auth-header-link"
+import { requestPasswordResetAction } from "./actions"
+
+const RESEND_COOLDOWN = 30
 
 export function ForgotPasswordForm() {
   const t = useTranslations("auth.forgot")
   const tValidation = useTranslations("auth.validation")
-  const tErrors = useTranslations("auth.errors")
 
   const form = useForm<ForgotPasswordInput>({
     resolver: zodResolver(ForgotPasswordSchema),
@@ -34,6 +38,18 @@ export function ForgotPasswordForm() {
 
   const [serverError, setServerError] = useState<string | null>(null)
   const [sentEmail, setSentEmail] = useState<string | null>(null)
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const id = setTimeout(() => setResendCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(id)
+  }, [resendCooldown])
+
+  const headerIcon = useMemo(
+    () => <ArrowLeft className="size-4" aria-hidden="true" />,
+    [],
+  )
 
   function translateValidation(msg: string | undefined): string | undefined {
     if (!msg) return undefined
@@ -43,47 +59,58 @@ export function ForgotPasswordForm() {
 
   async function onSubmit(values: ForgotPasswordInput) {
     setServerError(null)
-    try {
-      const result = await authClient.requestPasswordReset({
-        email: values.email,
-        redirectTo: "/auth/reset-password",
-      })
-      if (result.error) {
-        setServerError(result.error.message ?? tErrors("couldNotSendReset"))
-        return
-      }
+    const result = await requestPasswordResetAction(values.email)
+    if (result.ok) {
       setSentEmail(values.email)
-    } catch (err) {
-      setServerError((err as Error).message ?? tErrors("couldNotSendReset"))
+      setResendCooldown(RESEND_COOLDOWN)
     }
   }
 
+  const handleResend = useCallback(async () => {
+    if (!sentEmail) return
+    await requestPasswordResetAction(sentEmail)
+    setResendCooldown(RESEND_COOLDOWN)
+  }, [sentEmail])
+
   return (
     <div className="flex flex-col gap-8">
-      <Link
+      <AuthHeaderLinkOverride
         href="/auth/login"
-        className="inline-flex items-center gap-1 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="size-4" aria-hidden="true" />
-        {t("backToLogin")}
-      </Link>
+        label={t("backToLogin")}
+        icon={headerIcon}
+      />
 
       {sentEmail ? (
-        <header className="flex flex-col gap-2">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">
-            {t("sent.title")}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {t("sent.description", { email: sentEmail })}
-          </p>
-        </header>
+        <>
+          <header className="flex flex-col gap-2">
+            <Heading level={2} className="mt-0">
+              {t("sent.title")}
+            </Heading>
+            <Text variant="muted">
+              {t("sent.description", { email: sentEmail })}
+            </Text>
+          </header>
+
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto self-start p-0 text-muted-foreground"
+            disabled={resendCooldown > 0}
+            onClick={handleResend}
+          >
+            {resendCooldown > 0
+              ? t("sent.resendIn", { seconds: String(resendCooldown) })
+              : t("sent.resend")}
+          </Button>
+        </>
       ) : (
         <>
           <header className="flex flex-col gap-2">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            <Heading level={2} className="mt-0">
               {t("title")}
-            </h1>
-            <p className="text-sm text-muted-foreground">{t("description")}</p>
+            </Heading>
+            <Text variant="muted">{t("description")}</Text>
           </header>
 
           <form
@@ -99,6 +126,7 @@ export function ForgotPasswordForm() {
                 <Input
                   id="email"
                   type="email"
+                  inputSize="xl"
                   autoComplete="email"
                   autoFocus
                   placeholder={t("placeholder")}
@@ -114,14 +142,14 @@ export function ForgotPasswordForm() {
             </FieldGroup>
 
             {serverError && (
-              <p className="text-sm text-destructive" role="alert">
+              <Text variant="small" className="text-destructive" role="alert">
                 {serverError}
-              </p>
+              </Text>
             )}
 
             <Button
               type="submit"
-              size="lg"
+              size="xl"
               disabled={form.formState.isSubmitting}
             >
               {form.formState.isSubmitting ? t("submitting") : t("submit")}

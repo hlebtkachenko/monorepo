@@ -6,4 +6,9 @@ export {
   type EmailTransport,
   type OutboxEntry,
 } from "./transport"
-export { passwordResetEmail, verifyEmailEmail, inviteEmail } from "./templates"
+export {
+  passwordResetEmail,
+  verifyEmailEmail,
+  magicLinkEmail,
+  inviteEmail,
+} from "./templates"

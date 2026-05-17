@@ -1,0 +1,13 @@
+; userlist.txt — pgBouncer credential file (local dev only).
+;
+; auth_type = scram-sha-256 (set in pgbouncer.ini). pgBouncer derives SCRAM
+; for the client leg and the backend leg from the plaintext entries below.
+;
+; These are the dev-only credentials defined in init.d/00-roles.sql. They are
+; non-secret and already appear in plaintext in docker-compose.dev.yml, so this
+; file is committed — `docker compose up` works on a fresh checkout with no
+; manual steps. Production pgBouncer gets its userlist from Secrets Manager
+; (see docs/runbooks/AWS-DEPLOY.md), never from this file.
+
+"app_user"   "dev_user"
+"app_owner"  "dev_owner"

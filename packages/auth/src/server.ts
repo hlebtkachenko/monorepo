@@ -1,14 +1,56 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
-import { admin, twoFactor } from "better-auth/plugins"
+import { admin, magicLink, twoFactor } from "better-auth/plugins"
 import { db } from "@workspace/db/client"
 import * as schema from "@workspace/db/schema"
 import {
   sendEmail,
   passwordResetEmail,
   verifyEmailEmail,
+  magicLinkEmail,
 } from "@workspace/email"
+
+/**
+ * Resolve the absolute base URL Better Auth uses for cookie domain, magic
+ * link / password-reset / email-verification redirects, and trusted-origin
+ * checks.
+ *
+ * Production (NODE_ENV=production): `BETTER_AUTH_URL` is required. Missing
+ * → throw at module load so a misconfigured deploy fails fast instead of
+ * silently emitting localhost links into customer inboxes.
+ *
+ * Dev: when the env var is absent we fall back to `http://localhost:${PORT}`
+ * so `pnpm --filter web dev` on a non-3000 port still produces working
+ * magic-link / password-reset URLs without any extra setup.
+ *
+ * Dev-with-explicit-URL-but-different-port: if `BETTER_AUTH_URL` is set to
+ * `http://localhost:3000` but `PORT` says otherwise (e.g. PORT=3010 because
+ * 3000 is taken), rewrite the port. Keeps the dev override path simple.
+ */
+export function resolveBaseURL(): string {
+  const explicit = process.env.BETTER_AUTH_URL
+  const port = process.env.PORT
+  if (!explicit) {
+    // Next.js build phase needs a value for static analysis but won't
+    // actually emit URLs — return a placeholder. The runtime guard below
+    // catches real production requests with no BETTER_AUTH_URL.
+    if (process.env.NEXT_PHASE === "phase-production-build") {
+      return "http://build-time-placeholder.invalid"
+    }
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "BETTER_AUTH_URL must be set in production. " +
+          "Set it to the deployed origin (e.g. https://staging.afframe.com).",
+      )
+    }
+    return `http://localhost:${port ?? "3000"}`
+  }
+  if (port && explicit.includes("localhost")) {
+    return explicit.replace(/:\d+/, `:${port}`)
+  }
+  return explicit
+}
 
 /**
  * Better Auth server instance.
@@ -208,6 +250,9 @@ export const auth = betterAuth({
   plugins: [
     admin(),
     twoFactor({
+      // Issuer surfaced in the authenticator app row (e.g. "Afframe
+      // (alice@hapd.cz)"). Without this BA defaults to "Better Auth".
+      issuer: "Afframe",
       // BA plugin core treats field names as camelCase (backupCodes, userId).
       // Our Drizzle table exposes snake_case JS keys (backup_codes, user_id)
       // matching the SQL columns. Remap so the adapter's `schema[fieldName]`
@@ -224,6 +269,11 @@ export const auth = betterAuth({
             twoFactorEnabled: "two_factor_enabled",
           },
         },
+      },
+    }),
+    magicLink({
+      sendMagicLink: async ({ email, url }) => {
+        await sendEmail(magicLinkEmail({ to: email, url }))
       },
     }),
     // MUST be last in the plugin chain (per Better Auth docs). nextCookies

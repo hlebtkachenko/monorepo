@@ -7,26 +7,25 @@ two-URL contract: `DATABASE_DIRECT_URL` (port 5432, direct Postgres) and
 ## Quick start
 
 ```bash
-# 1. Copy the pgBouncer credential template
-cp infra/compose/pgbouncer/userlist.txt.example infra/compose/pgbouncer/userlist.txt
-# Edit userlist.txt and replace the md5 placeholders with real hashes.
-
-# 2. Start postgres only (fastest path for migration runs)
+# 1. Start postgres only (fastest path for migration runs)
 docker compose -f infra/compose/docker-compose.dev.yml up -d postgres
 
-# 3. Apply migrations
+# 2. Apply migrations
 pnpm --filter @workspace/db db:migrate
 
-# 4. Start pgBouncer too (required for pgBouncer canary test)
+# 3. Start pgBouncer too (required for pgBouncer canary test)
 docker compose -f infra/compose/docker-compose.dev.yml up -d postgres pgbouncer
 
-# 5. Stop everything
+# 4. Stop everything
 docker compose -f infra/compose/docker-compose.dev.yml down
 
-# 6. Reset (wipe volume + restart)
+# 5. Reset (wipe volume + restart)
 docker compose -f infra/compose/docker-compose.dev.yml down -v && \
   docker compose -f infra/compose/docker-compose.dev.yml up -d postgres
 ```
+
+pgBouncer credentials live in committed `pgbouncer/userlist.txt` (dev-only,
+non-secret). No manual setup step needed.
 
 ## Services
 

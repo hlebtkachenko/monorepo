@@ -13,6 +13,12 @@ import {
  * — there's no app_user row yet — the inputs are stashed in this signed
  * HttpOnly cookie. Step 3 reads everything, creates the BA user, applies
  * the merged data to the new `app_user` row, then clears the cookie.
+ *
+ * Note: this reader intentionally does NOT consult the dev-preview cookie.
+ * dev-preview relaxes auth-guards at the LAYOUT level (so designers can
+ * render screens without a session); it must never fake "the user already
+ * filled step 1+2", because that pollutes `decideNextStep` and routes
+ * fresh signups straight to /password.
  */
 export const ONBOARDING_STATE_COOKIE = "app-onboarding-state"
 const COOKIE_PATH = "/"

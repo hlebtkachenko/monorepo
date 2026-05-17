@@ -3,9 +3,9 @@ import { getTranslations } from "@workspace/i18n/server"
 
 /**
  * Per-step progress meter rendered at the top of every onboarding form
- * column. The chrome (logo header, footer, aside) is owned by the route
- * group layouts (`(owner)/layout.tsx`, `member/layout.tsx`); only the
- * progress bar is page-specific because `current` changes per step.
+ * column. Owned by the layout — pages don't include it directly. The
+ * layout derives `current` from the URL segment + `total` from the
+ * role (owner = 7 steps, member = 4 steps).
  */
 export async function WizardProgress({
   current,

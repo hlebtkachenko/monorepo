@@ -2,24 +2,37 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+
 import { authClient } from "@workspace/auth/client"
+import { useTranslations } from "@workspace/i18n/client"
+import { OTPSchema, type OTPInput } from "@workspace/shared/auth"
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
-import { Input } from "@workspace/ui/components/input"
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@workspace/ui/components/field"
+import { Heading } from "@workspace/ui/components/heading"
 import {
+  INPUT_OTP_PATTERNS,
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
-import { Label } from "@workspace/ui/components/label"
+import { PasswordInput } from "@workspace/ui/components/password-input"
+import { QRCode, QRCodeSvg } from "@workspace/ui/components/qr-code"
+import { Text } from "@workspace/ui/components/text"
+import { Copy, Check } from "@workspace/ui/lib/icons"
 
-type Stage = "password" | "backup" | "verify"
+// Enrollment is a 4-stage wizard: confirm password, scan the QR, save the
+// backup codes, then enter a TOTP code to finish. The backup-codes stage
+// is mandatory — without recovery codes a lost authenticator locks the
+// user out permanently.
+type Stage = "password" | "qr" | "backup" | "totp"
 
 interface EnrollState {
   totpURI: string
@@ -36,219 +49,323 @@ const OTP_RE = /^\d{6}$/
 
 export function MfaSetupForm() {
   const router = useRouter()
+  const t = useTranslations("auth.mfa.setup")
+  const tBrand = useTranslations("brand")
+  const tValidation = useTranslations("auth.validation")
+
   const [stage, setStage] = useState<Stage>("password")
   const [password, setPassword] = useState("")
   const [enroll, setEnroll] = useState<EnrollState | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false)
+  const [copied, setCopied] = useState<"uri" | "secret" | "backup" | null>(null)
   const [backupAck, setBackupAck] = useState(false)
-  const [code, setCode] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
+  const [backupError, setBackupError] = useState<string | null>(null)
+
+  const otpForm = useForm<OTPInput>({
+    resolver: zodResolver(OTPSchema),
+    defaultValues: { code: "" },
+    mode: "onSubmit",
+  })
+  const [otpServerError, setOtpServerError] = useState<string | null>(null)
+  const code = otpForm.watch("code")
 
   async function onSubmitPassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError(null)
-    setSubmitting(true)
+    setPasswordError(null)
+    setPasswordSubmitting(true)
     try {
       const result = await authClient.twoFactor.enable({ password })
       if (result.error) {
-        setError(result.error.message ?? "Could not start enrollment")
+        setPasswordError(result.error.message ?? t("password.errorGeneric"))
         return
       }
       const data = result.data as TwoFactorEnableResult | null
       const totpURI = data?.totpURI
       if (!totpURI) {
-        setError("Backend did not return a TOTP URI.")
+        setPasswordError(t("password.errorMissingUri"))
         return
       }
       const backupCodes = data?.backupCodes ?? []
       if (backupCodes.length === 0) {
         // Without backup codes the user can be permanently locked out
         // if they lose their authenticator. Refuse to advance.
-        setError(
-          "Backend did not return backup codes. Cannot continue without recovery codes.",
-        )
+        setPasswordError(t("password.errorMissingBackup"))
         return
       }
-      const secret = extractSecret(totpURI)
-      setEnroll({ totpURI, secret, backupCodes })
-      setStage("backup")
+      setEnroll({ totpURI, secret: extractSecret(totpURI), backupCodes })
+      setStage("qr")
     } catch (err) {
-      setError((err as Error).message ?? "Could not start enrollment")
+      setPasswordError((err as Error).message ?? t("password.errorGeneric"))
     } finally {
-      setSubmitting(false)
+      setPasswordSubmitting(false)
     }
   }
 
   function onAcknowledgeBackup() {
     if (!backupAck) {
-      setError("Confirm that you saved your backup codes before continuing.")
+      setBackupError(t("backup.errorNotAcknowledged"))
       return
     }
-    setError(null)
-    setStage("verify")
+    setBackupError(null)
+    setStage("totp")
   }
 
-  async function onSubmitVerify(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!OTP_RE.test(code)) {
-      setError("Enter the 6-digit code from your authenticator app.")
-      return
-    }
-    setError(null)
-    setSubmitting(true)
+  function translateOtpValidation(msg: string | undefined): string | undefined {
+    if (!msg) return undefined
+    if (msg.startsWith("otp.")) return tValidation(msg)
+    return msg
+  }
+
+  async function onSubmitVerify(values: OTPInput) {
+    setOtpServerError(null)
     try {
-      const result = await authClient.twoFactor.verifyTotp({ code })
+      const result = await authClient.twoFactor.verifyTotp({
+        code: values.code,
+      })
       if (result.error) {
-        setError(result.error.message ?? "Invalid code")
+        setOtpServerError(result.error.message ?? t("verify.errorGeneric"))
         return
       }
       // Scrub sensitive state from memory before navigating away. The
-      // TOTP secret + backup codes were only ever in this component;
-      // clearing reduces the window where DevTools / a hot-reload would
-      // expose them.
+      // TOTP secret + backup codes only ever lived in this component;
+      // clearing them shrinks the window where DevTools or a hot-reload
+      // could expose them.
       setEnroll(null)
-      setCode("")
+      otpForm.reset({ code: "" })
       setPassword("")
       router.push("/workspace/profile?mfa=enabled")
     } catch (err) {
-      setError((err as Error).message ?? "Invalid code")
-    } finally {
-      setSubmitting(false)
+      setOtpServerError((err as Error).message ?? t("verify.errorGeneric"))
+    }
+  }
+
+  async function copyValue(value: string, which: "uri" | "secret" | "backup") {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(which)
+      setTimeout(() => setCopied((c) => (c === which ? null : c)), 1500)
+    } catch {
+      // clipboard may be unavailable (insecure context); silently ignore
     }
   }
 
   if (stage === "password") {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Set up two-factor authentication</CardTitle>
-          <CardDescription>
-            Confirm your password to begin enrollment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmitPassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password">Current password</Label>
-              <Input
-                id="password"
-                type="password"
+      <div className="flex flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("password.title")}
+          </Heading>
+          <Text variant="muted">{t("password.description")}</Text>
+        </header>
+
+        <form
+          onSubmit={onSubmitPassword}
+          className="flex flex-col gap-5"
+          noValidate
+        >
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="mfa-password">
+                {t("password.label")}
+              </FieldLabel>
+              <PasswordInput
+                id="mfa-password"
                 autoComplete="current-password"
-                required
+                autoFocus
+                inputSize="xl"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onValueChange={setPassword}
+                required
               />
+            </Field>
+          </FieldGroup>
+
+          {passwordError && (
+            <Text variant="small" className="text-destructive" role="alert">
+              {passwordError}
+            </Text>
+          )}
+
+          <Button
+            type="submit"
+            size="xl"
+            disabled={passwordSubmitting || password.length === 0}
+          >
+            {passwordSubmitting
+              ? t("password.submitting")
+              : t("password.submit")}
+          </Button>
+        </form>
+      </div>
+    )
+  }
+
+  if (stage === "qr") {
+    return (
+      <div className="flex flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("verify.step1")}
+          </Heading>
+          <Text variant="muted">{t("verify.step1Description")}</Text>
+        </header>
+
+        {enroll && (
+          <section className="flex flex-col gap-4">
+            <button
+              type="button"
+              onClick={() => copyValue(enroll.totpURI, "uri")}
+              aria-label={t("verify.copy")}
+              className="group relative mx-auto rounded-xl border border-input bg-white p-4 transition-colors hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <QRCode value={enroll.totpURI} size={192} level="M">
+                <QRCodeSvg />
+              </QRCode>
+              <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-background/95 px-2 py-1 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                {copied === "uri" ? (
+                  <Check className="size-3" aria-hidden="true" />
+                ) : (
+                  <Copy className="size-3" aria-hidden="true" />
+                )}
+                {copied === "uri" ? t("verify.copied") : t("verify.copy")}
+              </span>
+            </button>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">
+                  {t("verify.secretLabel")}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyValue(enroll.secret, "secret")}
+                  aria-label={t("verify.copy")}
+                >
+                  {copied === "secret" ? (
+                    <Check className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Copy className="size-4" aria-hidden="true" />
+                  )}
+                  {copied === "secret" ? t("verify.copied") : t("verify.copy")}
+                </Button>
+              </div>
+              <code className="block w-full rounded-lg border border-input bg-muted/40 p-3 text-xs break-all">
+                {enroll.secret}
+              </code>
+              <Text variant="small" className="text-muted-foreground">
+                {t("verify.secretHint")}
+              </Text>
             </div>
-            {error ? (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Starting…" : "Continue"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </section>
+        )}
+
+        <Button type="button" size="xl" onClick={() => setStage("backup")}>
+          {t("verify.continue")}
+        </Button>
+      </div>
     )
   }
 
   if (stage === "backup") {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Save your backup codes</CardTitle>
-          <CardDescription>
-            These codes let you sign in if you lose your authenticator app. Each
-            can be used once. Save them in a password manager or print them —
-            they will not be shown again.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {enroll ? (
-            <div className="space-y-4">
-              <ul className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 font-mono text-sm">
-                {enroll.backupCodes.map((c) => (
-                  <li key={c}>{c}</li>
-                ))}
-              </ul>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  void navigator.clipboard.writeText(
-                    enroll.backupCodes.join("\n"),
-                  )
-                }}
-              >
-                Copy codes
-              </Button>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={backupAck}
-                  onChange={(e) => setBackupAck(e.target.checked)}
-                  className="mt-1"
-                />
-                <span>
-                  I have saved these backup codes somewhere safe. I understand
-                  they will not be shown again.
-                </span>
-              </label>
-              {error ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {error}
-                </p>
-              ) : null}
-              <Button
-                type="button"
-                className="w-full"
-                onClick={onAcknowledgeBackup}
-                disabled={!backupAck}
-              >
-                Continue
-              </Button>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <Heading level={2} className="mt-0">
+            {t("backup.title")}
+          </Heading>
+          <Text variant="muted">{t("backup.description")}</Text>
+        </header>
+
+        {enroll && (
+          <section className="flex flex-col gap-4">
+            <ul className="grid grid-cols-2 gap-2 rounded-lg border border-input bg-muted/40 p-4 font-mono text-sm">
+              {enroll.backupCodes.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => copyValue(enroll.backupCodes.join("\n"), "backup")}
+            >
+              {copied === "backup" ? (
+                <Check className="size-4" aria-hidden="true" />
+              ) : (
+                <Copy className="size-4" aria-hidden="true" />
+              )}
+              {copied === "backup" ? t("backup.copied") : t("backup.copy")}
+            </Button>
+            <label className="flex items-start gap-2.5 text-sm">
+              <Checkbox
+                checked={backupAck}
+                onCheckedChange={(v) => setBackupAck(v === true)}
+                className="mt-0.5"
+              />
+              <span className="text-muted-foreground">
+                {t("backup.acknowledge")}
+              </span>
+            </label>
+          </section>
+        )}
+
+        {backupError && (
+          <Text variant="small" className="text-destructive" role="alert">
+            {backupError}
+          </Text>
+        )}
+
+        <Button
+          type="button"
+          size="xl"
+          onClick={onAcknowledgeBackup}
+          disabled={!backupAck}
+        >
+          {t("backup.submit")}
+        </Button>
+      </div>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Scan this in your authenticator app</CardTitle>
-        <CardDescription>
-          Use Google Authenticator, 1Password, Authy, or similar. After
-          scanning, enter the 6-digit code below to confirm.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {enroll ? (
-          <div className="mb-4 space-y-2">
-            <Label>otpauth URI</Label>
-            <code className="block rounded-md bg-muted p-3 text-xs break-all">
-              {enroll.totpURI}
-            </code>
-            <Label>Secret (manual entry)</Label>
-            <code className="block rounded-md bg-muted p-3 text-xs break-all">
-              {enroll.secret}
-            </code>
-          </div>
-        ) : null}
-        <form onSubmit={onSubmitVerify} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="otp">6-digit code</Label>
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-2">
+        <Heading level={2} className="mt-0">
+          {t("verify.step2")}
+        </Heading>
+        <Text variant="muted">
+          {t("verify.step2Description", { brand: tBrand("name") })}
+        </Text>
+      </header>
+
+      <form
+        onSubmit={otpForm.handleSubmit(onSubmitVerify)}
+        className="flex flex-col gap-4"
+        noValidate
+      >
+        <FieldGroup>
+          <Field
+            data-invalid={otpForm.formState.errors.code ? "true" : undefined}
+          >
+            <FieldLabel htmlFor="mfa-otp">{t("verify.label")}</FieldLabel>
             <InputOTP
-              id="otp"
+              id="mfa-otp"
               maxLength={6}
+              pattern={INPUT_OTP_PATTERNS.numeric}
+              inputMode="numeric"
               value={code}
-              onChange={setCode}
+              onChange={(v) =>
+                otpForm.setValue("code", v, { shouldValidate: false })
+              }
+              containerClassName="w-full"
               autoFocus
             >
-              <InputOTPGroup>
+              <InputOTPGroup size="xl">
                 <InputOTPSlot index={0} />
                 <InputOTPSlot index={1} />
                 <InputOTPSlot index={2} />
@@ -257,22 +374,45 @@ export function MfaSetupForm() {
                 <InputOTPSlot index={5} />
               </InputOTPGroup>
             </InputOTP>
-          </div>
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={submitting || !OTP_RE.test(code)}
-          >
-            {submitting ? "Verifying…" : "Confirm"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+            {otpForm.formState.errors.code && (
+              <FieldError>
+                {translateOtpValidation(otpForm.formState.errors.code.message)}
+              </FieldError>
+            )}
+          </Field>
+        </FieldGroup>
+
+        {otpServerError && (
+          <Text variant="small" className="text-destructive" role="alert">
+            {otpServerError}
+          </Text>
+        )}
+
+        <Button
+          type="submit"
+          size="xl"
+          disabled={otpForm.formState.isSubmitting || !OTP_RE.test(code)}
+        >
+          {otpForm.formState.isSubmitting
+            ? t("verify.submitting")
+            : t("verify.submit")}
+        </Button>
+
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto self-start p-0 text-muted-foreground"
+          onClick={() => {
+            setStage("qr")
+            otpForm.reset({ code: "" })
+            setOtpServerError(null)
+          }}
+        >
+          {t("verify.backToScan")}
+        </Button>
+      </form>
+    </div>
   )
 }
 

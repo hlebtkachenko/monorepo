@@ -161,7 +161,16 @@ After Active: adm.tools can be dropped entirely.
    gh secret set RESEND_API_KEY --body "<key>" --repo hlebtkachenko/monorepo
    ```
 
-`packages/email` already has the Resend client wired.
+`packages/email` already has the Resend client wired. The web container's
+`EMAIL_TRANSPORT=resend` (set in `infra/cdk/lib/app-stack.ts`) pins the
+transport so a partially-configured task can't silently fall through to
+console + dev outbox.
+
+The deploy workflow's "Ensure Resend API key secret exists" step copies the
+GitHub repo secret into Secrets Manager as
+`monorepo-{env}-resend-api-key` (the secret name AppStack references via
+`Secret.fromSecretNameV2`). Rotation: `gh secret set RESEND_API_KEY ...`,
+then re-deploy.
 
 ### 8. AWS SES (outbound transactional, larger free tier - wait 24-48h for approval)
 
@@ -290,6 +299,28 @@ gh variable set AWS_BOOTSTRAPPED --body true --repo hlebtkachenko/monorepo
 ```
 
 Set it back to `false` to put the entire deploy machinery on ice without removing AWS resources (e.g., during a security incident).
+
+## Auth + email env wiring
+
+The web container in the ECS task receives every runtime value needed by
+Better Auth and `packages/email` automatically. Source of truth is
+`infra/cdk/lib/app-stack.ts` (`webContainer` block).
+
+| Var | Source | Notes |
+|---|---|---|
+| `BETTER_AUTH_URL` | CDK env (`https://${domain}`) | Drives cookie scope + every email link |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | CDK env | Same value, browser-visible |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | CDK env (CSV) | Add www / extra aliases here if Cloudflare adds them |
+| `EMAIL_FROM` | CDK env (`no-reply@${domain}`) | Must be on a Resend-verified domain |
+| `EMAIL_TRANSPORT` | CDK env (`resend`) | Pins the email backend |
+| `BETTER_AUTH_SECRET` | Secrets Manager (CDK-generated) | `monorepo-{env}-better-auth-secret` |
+| `APP_TOKEN_SECRET` | Secrets Manager (CDK-generated) | `monorepo-{env}-app-token-secret` |
+| `RESEND_API_KEY` | Secrets Manager (workflow-seeded) | `monorepo-{env}-resend-api-key`, value comes from `gh secret RESEND_API_KEY` |
+| `DATABASE_URL` | composed at container start | `/bin/sh` builds it from DB_USER + DB_PASSWORD secrets + DB_HOST/PORT/NAME env |
+
+Rotating `BETTER_AUTH_SECRET` invalidates every active session and makes
+every pending invite / signup token unredeemable. Plan a maintenance
+window before rotating.
 
 ## DNS - final wiring after first deploy
 

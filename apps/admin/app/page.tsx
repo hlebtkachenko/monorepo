@@ -5,6 +5,9 @@ export default function AdminPage() {
     <div className="flex min-h-svh items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <h1>Admin Tools</h1>
+        <Link href="/dev" className="text-primary underline">
+          Dev tools (preview, tokens, outbox)
+        </Link>
         <Link href="/showcase" className="text-primary underline">
           Component Showcase
         </Link>

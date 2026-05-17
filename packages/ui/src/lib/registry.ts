@@ -151,6 +151,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["feedback"],
     dependencies: ["button"],
   },
+  "border-beam": {
+    source: "border-beam",
+    sourceType: "import",
+    upstream: "https://www.npmjs.com/package/border-beam",
+    description:
+      "Generic wrapper that traces an animated beam border around its children, with size, color variant, theme, and timing controls",
+    categories: ["effects"],
+    packages: ["border-beam"],
+  },
   breadcrumb: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -623,6 +632,15 @@ export const registry: Record<string, ComponentMeta> = {
       "Full-screen overlay that cycles through ordered loading states with check animations",
     categories: ["feedback", "effects"],
     packages: ["motion"],
+  },
+  "image-cropper": {
+    source: "custom",
+    sourceType: "custom",
+    description:
+      "Avatar crop modal — circular or rectangular 1:1 crop overlay with zoom slider, Reset / Cancel / Save actions, outputs a square cropped image as a Blob via canvas. Composes Dialog, Slider, Button",
+    categories: ["forms", "overlay"],
+    dependencies: ["dialog", "slider", "button"],
+    packages: ["react-easy-crop"],
   },
   "noise-background": {
     source: "aceternity",

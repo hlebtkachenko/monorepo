@@ -32,5 +32,5 @@ export const ExtraLarge: Story = {
 }
 
 export const InputSizeXl: Story = {
-  args: { children: "Xl", inputSize: "xl" },
+  args: { inputSize: "xl", placeholder: "Extra large" },
 }

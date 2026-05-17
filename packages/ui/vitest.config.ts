@@ -14,6 +14,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     globals: true,
+    // CI runners run these jsdom + userEvent tests alongside Docker-backed
+    // test tasks; 5s is too tight under that load. 20s absorbs the jitter.
+    testTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],

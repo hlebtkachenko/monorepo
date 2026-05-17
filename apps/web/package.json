@@ -25,6 +25,7 @@
     "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
+    "@workspace/storage": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.6.10",
     "drizzle-orm": "^0.45.2",

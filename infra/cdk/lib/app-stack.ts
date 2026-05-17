@@ -158,9 +158,19 @@ export class AppStack extends Stack {
 
     // Drop ALL Linux capabilities. Removes NET_ADMIN/SYS_ADMIN/etc. that
     // most cryptominer payloads need to operate.
-    const linuxParams = (id: string) => {
+    //
+    // `keepCaps` is for the narrow case of a container that starts as root and
+    // then drops to its own user (pgbouncer does this via the `user =` line in
+    // pgbouncer.ini). `setgroups(2)` requires CAP_SETGID and `setuid(2)`
+    // requires CAP_SETUID; without them pgbouncer FATALs at boot with
+    // "failed to reset groups: Operation not permitted". The two caps are
+    // moot once pgbouncer is running as the non-root postgres user.
+    const linuxParams = (id: string, keepCaps?: Capability[]) => {
       const params = new LinuxParameters(this, id)
       params.dropCapabilities(Capability.ALL)
+      if (keepCaps && keepCaps.length > 0) {
+        params.addCapabilities(...keepCaps)
+      }
       return params
     }
 
@@ -565,7 +575,15 @@ export class AppStack extends Stack {
       },
       memoryReservationMiB: 64,
       readonlyRootFilesystem: true,
-      linuxParameters: linuxParams("PgBouncerLinuxParams"),
+      // edoburu/pgbouncer entrypoint generates pgbouncer.ini with `user =
+      // postgres`. pgbouncer then calls setgroups(2) + setuid(2) to drop from
+      // root to the postgres user — both require CAP_SETGID + CAP_SETUID.
+      // Without them pgbouncer FATALs at boot. After the drop, the running
+      // process is unprivileged regardless.
+      linuxParameters: linuxParams("PgBouncerLinuxParams", [
+        Capability.SETGID,
+        Capability.SETUID,
+      ]),
     })
     pgbouncerContainer.addMountPoints({
       containerPath: "/tmp",

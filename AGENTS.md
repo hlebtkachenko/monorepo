@@ -46,6 +46,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 ## Runbooks
 
 Agent-specific runbooks live in `docs/runbooks/`:
+
 - `SHOWCASE-RUNBOOK.md`: instructions for adding component demos to the showcase page
 - `COMPONENT-MIGRATION-RUNBOOK.md`: workflow for adding non-shadcn components from external registries
 
@@ -59,6 +60,7 @@ Every versioned dependency merged to main MUST have automated update tracking:
 Before adding a new versioned dependency, verify which category it falls into. If category 2, the PR must include the update-check workflow.
 
 Current custom checks:
+
 - `shadcn-check.yml` — shadcn/ui source-copied components
 
 ## Code Standards
@@ -74,7 +76,7 @@ Current custom checks:
 - All amounts in CZK by default. Stored as `numeric(19, 4)` in Postgres and `bigint` minor units in TypeScript via `Money<Currency>`. Never use native `number` for money fields.
 - Cross-currency conversion uses `FxRate<From, To>`. Call `FxRate.convert(money)` only. Never query rate tables directly; never auto-invert; never substitute a neighbor date.
 - AI tool input schemas must NOT declare `organization_id`, `user_id`, or `role`. Server-side injection is the only path.
-- PostgreSQL 18 uses snake_case for tables and columns. No abbreviated prefixes (`acc_`, `inv_`); full words only (`account_`, `invoice_`).
+- PostgreSQL 18 uses snake*case for tables and columns. No abbreviated prefixes (`acc*`, `inv*`); full words only (`account*`, `invoice\_`).
 - Multi-tenant isolation via FORCE RLS. Every tenant-scoped table has `organization_id` + pgPolicy using `current_setting('app.organization_id')`.
 - Test-only HTTP endpoints must gate on `NODE_ENV !== 'production'` + explicit env flag check.
 
@@ -106,6 +108,7 @@ All reads/writes go through `withWorkspace`, `withOrganization`, or `withAdminBy
 ## Story Coverage Rules
 
 Every component story file MUST cover:
+
 1. All CVA variants (one story per non-default variant value)
 2. All sizes (one story per non-default size value)
 3. Disabled state (if component accepts `disabled` prop)
@@ -119,6 +122,7 @@ Generated stories use simple `args` format. For compound components (Dialog, Acc
 ## Component Design Rules
 
 Every component MUST:
+
 1. Use CSS custom property tokens (`var(--background)`, `var(--primary)`, etc.), never hardcoded colors
 2. Compose with existing primitives (e.g., use our Button, not raw `<button>`)
 3. Support dark mode via `.dark` class and token system
@@ -138,9 +142,10 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## Infrastructure
 
-- Single-account AWS CDK v2 (`infra/cdk/`). Stacks: network, data, app, security, observability, billing alarms. See ADR-0007.
+- Single-account AWS CDK v2 (`infra/cdk/`), single region eu-central-1. Stacks: network, data, app, security, observability, backup. See ADR-0007.
 - AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Staging is deployed at `staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed. Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
 - See `docs/adr/` for the architectural decisions backing this layout.
+- `infra/openstatus/` (the `status.afframe.com` status page) is **not AWS**: it runs OpenStatus self-hosted on the OVH VPS and is never deployed by CDK / `make deploy-cdk` / `_deploy-aws.yml`. It lives in the monorepo as monitors-as-code only. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md) and `docs/runbooks/STATUS-PAGE.md`.
 
 ### Budgets & Cost-Runaway Protection
 

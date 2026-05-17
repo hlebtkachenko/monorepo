@@ -4,16 +4,19 @@ Application-layer infrastructure. Deployed per environment.
 
 ## Stacks
 
-| Stack | Responsibilities |
-|-------|------------------|
-| `NetworkStack` | VPC, subnets (public + isolated), security groups. Zero NAT gateways (ADR-0008). |
-| `DataStack` | RDS Postgres 18, ECR repos, S3 app bucket, Secrets Manager runtime creds. |
-| `AppStack` | ECS Fargate (arm64), 3-container task (web + api + cloudflared sidecar). Hardened (capDrop ALL + readonlyRootFilesystem on api/cloudflared + shared /tmp). |
-| `SecurityStack` | Kill-switch Lambda + 5 budgets + CloudTrail + RDS restart watcher (ADR-0016). |
-| `ObservabilityStack` | CloudWatch alarms (6 attack-vector + 2 critical Fargate) wired to email + kill-switch SNS. |
-| `BillingAlarmsStack` | Deployed to `us-east-1`. `EstimatedCharges` alarms at $40 warning / $80 critical. |
+| Stack                | Responsibilities                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NetworkStack`       | VPC, subnets (public + isolated), security groups. Zero NAT gateways (ADR-0008).                                                                           |
+| `DataStack`          | RDS Postgres 18, ECR repos, S3 app bucket, Secrets Manager runtime creds.                                                                                  |
+| `AppStack`           | ECS Fargate (arm64), 3-container task (web + api + cloudflared sidecar). Hardened (capDrop ALL + readonlyRootFilesystem on api/cloudflared + shared /tmp). |
+| `SecurityStack`      | Kill-switch Lambda + 5 budgets + CloudTrail + RDS restart watcher (ADR-0016).                                                                              |
+| `ObservabilityStack` | CloudWatch alarms (6 attack-vector + 2 critical Fargate) wired to email + kill-switch SNS.                                                                 |
 
 Stacks named `<Stack>-<env>` where `env` ∈ {`staging`, `production`}.
+
+The CDK app deploys only the stacks registered in `bin/app.ts`. `infra/openstatus/` (the
+`status.afframe.com` status page) is **not** a CDK stack — it is OVH-VPS-hosted and never
+touched by `cdk deploy`, `make deploy-cdk`, or `_deploy-aws.yml`. See `docs/adr/0019-status-page-and-uptime-monitoring.md`.
 
 `cdk synth` exercises type-checking + stack instantiation pre-bootstrap (works with dummy `AWS_ACCOUNT_ID=000000000000`). `cdk.context.json` is committed with dummy AZ data; refresh after first real bootstrap via `cdk context --clear` + re-synth.
 

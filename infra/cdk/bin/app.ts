@@ -4,7 +4,6 @@ import { NetworkStack } from "../lib/network-stack.js"
 import { DataStack } from "../lib/data-stack.js"
 import { AppStack } from "../lib/app-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
-import { BillingAlarmsStack } from "../lib/billing-alarms-stack.js"
 import { SecurityStack } from "../lib/security-stack.js"
 import { BackupStack } from "../lib/backup-stack.js"
 
@@ -84,12 +83,6 @@ new ObservabilityStack(app, `Observability-${env}`, {
   dataStack: data,
   alertEmail,
   killSwitchTopic: security.killSwitchTopic,
-})
-
-new BillingAlarmsStack(app, `BillingAlarms-${env}`, {
-  env: { account, region: "us-east-1" },
-  envName: env,
-  alertEmail,
 })
 
 new BackupStack(app, `Backup-${env}`, {

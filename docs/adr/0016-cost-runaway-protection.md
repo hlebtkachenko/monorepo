@@ -45,6 +45,14 @@ Follow-up work required:
 - Custom Next.js cacheHandler that writes to `/tmp/.next-cache` so the web container can also enable readonlyRootFilesystem.
 - AWS Budgets Actions (RUN_SSM_DOCUMENTS or APPLY_IAM_POLICY) for stronger dollar caps. Deferred because budget execution roles have high blast radius and the 7-day requiresApproval mode is operational overhead. The SNS->Lambda path is the dollar-cap safety net for now.
 
+## Amendment (2026-05-17): BillingAlarmsStack removed
+
+`BillingAlarmsStack` — two CloudWatch alarms on the `AWS/Billing` `EstimatedCharges` metric ($40 warning, $80 critical) plus an email-only SNS topic — has been deleted.
+
+Reason: the project consolidated to a single region (eu-central-1). `EstimatedCharges` is published by AWS only in us-east-1, so the stack forced a second region and a second CDK bootstrap for no enforcement value. The two alarms were email-only and never wired to the kill-switch (`KILL_SWITCH_ALARM_NAMES` lists only the five ECS/S3/log alarms); they duplicated the `MonthlyTotal` $40 Budget's own email notifications, and `EstimatedCharges` refreshes only every ~6h, so they were no faster than the Budget.
+
+Dollar-cap enforcement is now solely the `MonthlyTotal` $40 Budget at 100% -> kill-switch SNS -> ECS stop (defense 3 above), unchanged. There is no dollar trigger above $40; that is accepted and consistent with the ~$50 worst-case ceiling stated in Consequences. The attack-vector CloudWatch alarms and the kill-switch are untouched.
+
 ## Alternatives considered
 
 - **GuardDuty + WAF.** $5-15/mo, detection-only. Doesn't auto-stop. Cloudflare WAF is already in front; AWS WAF would duplicate. Revisit at first paying customer.
@@ -58,5 +66,4 @@ Follow-up work required:
 - [docs/runbooks/COST-INCIDENT-RESPONSE.md](../runbooks/COST-INCIDENT-RESPONSE.md)
 - `infra/cdk/lib/security-stack.ts` - kill-switch Lambda + Budgets + CloudTrail + RDS watcher
 - `infra/cdk/lib/observability-stack.ts` - 6 attack-vector alarms + 2 critical alarms
-- `infra/cdk/lib/billing-alarms-stack.ts` - us-east-1 EstimatedCharges alarms
 - `infra/cdk/lib/app-stack.ts` - Fargate task hardening (capDrop, tmpfs, readonlyRoot)

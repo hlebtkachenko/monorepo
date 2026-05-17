@@ -31,11 +31,12 @@ packages/
   eslint-config/                   Shared ESLint flat configs
   typescript-config/               Shared TypeScript presets
 infra/
-  cdk/                             AWS CDK v2 app stacks (network, data, app, security, observability, billing alarms, backup)
+  cdk/                             AWS CDK v2 app stacks (network, data, app, security, observability, backup)
   cerbos/                          L3 authz policies + tests + DockerImageAsset (ADR-0018)
   openfga/                         L2 authz model + tests + SSM bootstrap (ADR-0018)
   compose/                         Local Docker Compose (Postgres 18 + pgBouncer + pgTap + auth + observability profiles)
   observability/                   OTel + FireLens configs (UNWIRED in CDK; ADR-0002 trip-wire)
+  openstatus/                      Status page monitors-as-code (OpenStatus on OVH VPS, off-AWS; ADR-0019)
   scripts/                         backup + restore + WAL archive scripts
 docs/
   adr/                             Architecture Decision Records
@@ -106,15 +107,15 @@ Dispatch failure semantics: `invokeTool` opens transaction, inserts into `tool_c
 
 pg-boss owns schema `pgboss`. Seven explicit lanes with independent retry, timeout, retention, priority, and batch-size policy.
 
-| Lane | Use | Priority | Timeout | Retry |
-|---|---|---|---|---|
-| `ledger` | ledger side-effects (fx, audit batch) | 10 | 30s | 3 + backoff |
-| `bank-import` | ABO / camt.053 / CSV parse + recon | 10 | 300s | 3 + backoff |
-| `ai-verify` | confidence-gated AI writes | 8 | 60s | 2 + backoff |
-| `email-send` | invoice emails, OTP, notifications | 5 | 30s | 3 + backoff |
-| `pdf-gen` | PDF/A-3 + QR Platba rendering | 5 | 120s | 3 + backoff |
-| `export` | org-export, ledger CSV, audit CSV | 2 | 600s | 2 |
-| `scheduled` | cron tasks via taskName dispatcher | 1 | 1800s | 2 |
+| Lane          | Use                                   | Priority | Timeout | Retry       |
+| ------------- | ------------------------------------- | -------- | ------- | ----------- |
+| `ledger`      | ledger side-effects (fx, audit batch) | 10       | 30s     | 3 + backoff |
+| `bank-import` | ABO / camt.053 / CSV parse + recon    | 10       | 300s    | 3 + backoff |
+| `ai-verify`   | confidence-gated AI writes            | 8        | 60s     | 2 + backoff |
+| `email-send`  | invoice emails, OTP, notifications    | 5        | 30s     | 3 + backoff |
+| `pdf-gen`     | PDF/A-3 + QR Platba rendering         | 5        | 120s    | 3 + backoff |
+| `export`      | org-export, ledger CSV, audit CSV     | 2        | 600s    | 2           |
+| `scheduled`   | cron tasks via taskName dispatcher    | 1        | 1800s   | 2           |
 
 ### Tx-safe Enqueue
 
@@ -159,12 +160,12 @@ Books remain CZK-only in v1. Foreign-currency postings carry both native and CZK
 
 Three log streams, three retentions:
 
-| Stream | Source | Retention |
-|---|---|---|
-| Pino app logs | Next.js + workers stdout | 30 days |
-| `tool_call_log` (DB) | every tool call (human + AI) | 10 years (CZ statutory) |
-| OTel traces | request timing + spans | 7 days |
-| `audit_event` (DB) | workspace + org dual-dimension | indefinite |
+| Stream               | Source                         | Retention               |
+| -------------------- | ------------------------------ | ----------------------- |
+| Pino app logs        | Next.js + workers stdout       | 30 days                 |
+| `tool_call_log` (DB) | every tool call (human + AI)   | 10 years (CZ statutory) |
+| OTel traces          | request timing + spans         | 7 days                  |
+| `audit_event` (DB)   | workspace + org dual-dimension | indefinite              |
 
 Redaction baseline: auth tokens, Czech PII (DIC, rodne cislo, IBAN), session IDs in audit only. Organization ID and user ID are never redacted.
 
@@ -181,6 +182,7 @@ Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> De
 - **Dev:** macOS local Docker (Postgres 18 + pgBouncer).
 - **Staging:** AWS eu-central-1, deployed and live at `staging.afframe.com`.
 - **Production:** AWS eu-central-1 at `app.afframe.com` — prepared, not yet deployed. Stack: ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, ALB + ACM, CloudWatch + OTel Collector sidecar.
+- **Status page:** `status.afframe.com` — OpenStatus self-hosted on the OVH VPS (Docker Compose + Cloudflare Tunnel), deliberately **off AWS** so it survives an AWS region outage. Monitors-as-code in `infra/openstatus/`; not deployed by CDK. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md).
 
 ## Cost Protection
 

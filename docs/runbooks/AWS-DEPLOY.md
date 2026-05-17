@@ -554,3 +554,4 @@ Trip-wired for later (see ADR 0008 trip-wire section):
 - Drizzle migration ECS task (deferred until `packages/db` ships schema + `src/migrate.ts`)
 - Workers / Upstash Redis (deferred)
 - ALB + ACM cert (replaced by Cloudflare Tunnel)
+- Status page / uptime monitoring — `status.afframe.com` runs OpenStatus on the OVH VPS, **not AWS**, and is not part of any `cdk deploy` / `_deploy-aws.yml` run. See `docs/runbooks/STATUS-PAGE.md` and `docs/adr/0019-status-page-and-uptime-monitoring.md`.

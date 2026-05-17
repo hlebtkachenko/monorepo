@@ -1,0 +1,111 @@
+# yaml-language-server: $schema=https://www.openstatus.dev/schema.json
+#
+# OpenStatus monitors-as-code for status.afframe.com.
+# Deployed on the OVH VPS, NOT AWS. See ./README.md and
+# docs/adr/0019-status-page-and-uptime-monitoring.md.
+#
+# Apply (from the VPS, OPENSTATUS_API_TOKEN exported):
+#   openstatus monitors apply -c infra/openstatus/openstatus.yaml --dry-run
+#   openstatus monitors apply -c infra/openstatus/openstatus.yaml
+# Full procedure: docs/runbooks/STATUS-PAGE.md.
+#
+# `regions` references the self-hosted private-location probe slug registered on the
+# VPS (STATUS-PAGE.md). `ovh-eu` is the slug this repo assumes; reconcile any
+# environment-bound value with `--dry-run` before applying.
+
+web-app-prod:
+  name: "Web app (production)"
+  description: "afframe.com web app reachability — app.afframe.com/api/version"
+  frequency: "1m"
+  active: true
+  regions:
+    - ovh-eu
+  retry: 3
+  kind: http
+  request:
+    url: https://app.afframe.com/api/version
+    method: GET
+    headers:
+      User-Agent: openstatus-afframe
+  assertions:
+    - kind: statusCode
+      compare: eq
+      target: 200
+
+api-prod:
+  name: "API (production)"
+  description: "afframe.com API health — app.afframe.com/api/health, body must report ok"
+  frequency: "1m"
+  active: true
+  regions:
+    - ovh-eu
+  retry: 3
+  kind: http
+  request:
+    url: https://app.afframe.com/api/health
+    method: GET
+    headers:
+      User-Agent: openstatus-afframe
+  assertions:
+    - kind: statusCode
+      compare: eq
+      target: 200
+    - kind: textBody
+      compare: contains
+      target: '"status":"ok"'
+
+dns-afframe:
+  name: "DNS (afframe.com)"
+  description: "afframe.com apex DNS resolution"
+  frequency: "5m"
+  active: true
+  regions:
+    - ovh-eu
+  retry: 3
+  # DNS monitor. OpenStatus documents monitors-as-code for `http` in detail; confirm the
+  # `dns` request/assertion shape with `openstatus monitors apply --dry-run` before applying.
+  kind: dns
+  request:
+    url: afframe.com
+  assertions:
+    - kind: dnsRecord
+      key: A
+      compare: not_empty
+
+staging-web:
+  name: "Web app (staging)"
+  description: "staging.afframe.com web app — private, kept off the public status page"
+  frequency: "5m"
+  active: true
+  regions:
+    - ovh-eu
+  retry: 3
+  kind: http
+  request:
+    url: https://staging.afframe.com/api/version
+    method: GET
+    headers:
+      User-Agent: openstatus-afframe
+  assertions:
+    - kind: statusCode
+      compare: eq
+      target: 200
+
+staging-api:
+  name: "API (staging)"
+  description: "staging.afframe.com API health — private, kept off the public status page"
+  frequency: "5m"
+  active: true
+  regions:
+    - ovh-eu
+  retry: 3
+  kind: http
+  request:
+    url: https://staging.afframe.com/api/health
+    method: GET
+    headers:
+      User-Agent: openstatus-afframe
+  assertions:
+    - kind: statusCode
+      compare: eq
+      target: 200

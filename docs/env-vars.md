@@ -75,12 +75,12 @@ production guard fires uniformly.
 
 ## AWS (apps/api, infra/openfga/bootstrap.mjs, scripts)
 
-| Var             | Notes                                                           |
-| --------------- | --------------------------------------------------------------- |
-| `AWS_REGION`    | `eu-central-1`                                                  |
-| `ALERT_EMAIL`   | cost-runaway alerts destination (BillingAlarmsStack — PR #77)   |
-| `APP_BUCKET`    | S3 app bucket; empty in dev = no uploads                        |
-| `APP_S3_REGION` | consumed by backup scripts (`infra/scripts/pg-dump-nightly.sh`) |
+| Var             | Notes                                                                               |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `AWS_REGION`    | `eu-central-1`                                                                      |
+| `ALERT_EMAIL`   | cost-runaway alerts destination (SecurityStack budgets + ObservabilityStack alarms) |
+| `APP_BUCKET`    | S3 app bucket; empty in dev = no uploads                                            |
+| `APP_S3_REGION` | consumed by backup scripts (`infra/scripts/pg-dump-nightly.sh`)                     |
 
 `AWS_ACCOUNT_ID` is NOT an app env. Runtime IAM identity comes from the task
 role. CI reads the account id from a GitHub Actions secret only.

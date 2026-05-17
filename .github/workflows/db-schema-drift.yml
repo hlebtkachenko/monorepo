@@ -16,6 +16,22 @@
 # Advisory until first green PR cycle. drizzle-kit introspect is forbidden
 # by ADR-0009, so this is the alternative for tracking schema-vs-migration
 # parity.
+#
+# ── KNOWN LIMITATION: model↔migration index drift ────────────────────────────
+# This workflow compares applied migrations against the committed SQL snapshot
+# only. It never parses the TypeScript Drizzle schema files under
+# packages/db/src/schema/. A divergence between a migration-created index and
+# the corresponding Drizzle model is therefore NOT detected here.
+#
+# Example: migration 0004_audit.sql creates UNIQUE index
+# `tool_call_log_idemp_unique` on tool_call_log(organization_id, tool_name,
+# idempotency_key). The Drizzle model packages/db/src/schema/tool_call_log.ts
+# declares no matching uniqueIndex() — and intentionally never will.
+#
+# Project convention (ADR-0009): migrations are the sole owner of all index
+# DDL; Drizzle schema files declare no indexes by design. This blind spot is
+# therefore an accepted, documented limitation of this workflow, not a bug.
+# ─────────────────────────────────────────────────────────────────────────────
 
 name: DB schema drift
 
@@ -44,7 +60,7 @@ jobs:
   drift:
     name: Migration vs schema snapshot
     runs-on: ubuntu-latest
-    continue-on-error: true  # ADVISORY — flip to required after first green run
+    continue-on-error: true # ADVISORY — flip to required after first green run
     permissions:
       contents: read
     services:

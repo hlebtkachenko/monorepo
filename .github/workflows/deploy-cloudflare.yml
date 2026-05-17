@@ -25,6 +25,12 @@ permissions: {}
 
 jobs:
   deploy:
+    # Caller MUST grant permissions at the job level — reusable workflow's
+    # internal `permissions: { contents: read }` is capped by whatever the
+    # caller grants. Without this, the called workflow gets zero
+    # permissions and fails at startup (startup_failure, 0 jobs).
+    permissions:
+      contents: read
     uses: ./.github/workflows/_deploy-cloudflare.yml
     with:
       environment: ${{ inputs.environment || 'production' }}

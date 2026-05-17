@@ -24,10 +24,10 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `dependency-review`                       | advisory                 | required                    |
 | `gitleaks`                                | required                 | required                    |
 | `osv-scanner` (lib CVEs)                  | advisory                 | required (fail on Critical) |
-| `license-check`                           | advisory                 | required                    |
+| `license-check`                           | advisory [^2]            | required                    |
 | `size-limit` (bundle)                     | advisory                 | required                    |
-| `sbom` (CycloneDX)                        | advisory                 | required                    |
-| `provenance` (SLSA L2)                    | advisory                 | required                    |
+| `sbom` (CycloneDX)                        | advisory [^3]            | required                    |
+| `provenance` (SLSA L2)                    | advisory [^4]            | required                    |
 | `cosign sign` (push only)                 | required                 | required                    |
 | `cosign verify-attestation` (deploy gate) | n/a (no deploy)          | required                    |
 | `openapi-lint` (spec drift + Spectral)    | advisory                 | required                    |
@@ -39,6 +39,12 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | Mutation testing (Stryker)                | advisory, nightly        | advisory, nightly           |
 
 [^1]: `knip` is a REQUIRED status check on the `main` ruleset (the job must run and be visible on every PR), but `.github/workflows/knip.yml` uses `continue-on-error: true` on the run step, making it warn-only today. This is intentional: knip found day-1 findings across 101k LOC that require a dedicated owner decision and cleanup pass — silently failing PRs that don't touch dead code would be noise, not signal. Once a dedicated dead-code cleanup issue lands and knip is clean, remove `continue-on-error: true` to make the gate real.
+
+[^2]: `license-check` is implemented at `.github/workflows/_supply-chain.yml:138-167` using `scripts/license-check.mjs` (default-deny posture; allows MIT/Apache-2.0/BSD/ISC/MPL-2.0/etc., denies GPL/AGPL/LGPL). Runs on `release.yml`. Promote to required after one green release cycle.
+
+[^3]: `sbom` is implemented at `.github/workflows/_supply-chain.yml:69-87` using `anchore/sbom-action` (CycloneDX JSON 1.6) with cosign keyless attestation. Runs on `release.yml`. Promote to required after one green release cycle.
+
+[^4]: `provenance` is implemented at TWO levels: SLSA L2 via cosign sign-blob in `_supply-chain.yml:90-111`, and SLSA L3 via `slsa-framework/slsa-github-generator` in `release.yml:95-105`. Promote to required after one green release cycle.
 
 A check moves from advisory to required by:
 

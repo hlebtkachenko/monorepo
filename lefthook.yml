@@ -23,3 +23,15 @@ pre-commit:
           echo "ADR-0009: 'drizzle-kit generate' / 'drizzle-kit push' are forbidden — migrations are handwritten SQL in packages/db/migrations/."
           exit 1
         fi
+    gitleaks:
+      # Local secret scan on staged files. Defence-in-depth: CI gitleaks
+      # (ci.yml gitleaks job) is the authoritative gate; this hook catches
+      # secrets before they reach the remote. No-ops if gitleaks is not
+      # installed (brew install gitleaks) so the hook never blocks a commit
+      # on a fresh checkout without local tooling.
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks protect --staged --redact --no-banner
+        else
+          echo "[lefthook gitleaks] not installed — skipping. brew install gitleaks to enable local secret scan."
+        fi

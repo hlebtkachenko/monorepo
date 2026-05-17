@@ -32,6 +32,7 @@ jobs:
         with:
           # Full history so `turbo --affected` can diff against the PR base.
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup
 
       - name: Typecheck
@@ -64,6 +65,7 @@ jobs:
         with:
           # Full history so `turbo --affected` can diff against the PR base.
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup
 
       - name: Test
@@ -96,6 +98,7 @@ jobs:
         with:
           # Full history so `turbo --affected` can diff against the PR base.
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup
 
       - name: Build Storybook
@@ -146,10 +149,18 @@ jobs:
         with:
           # Full history so `turbo --affected` can diff against the PR base.
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup
 
       - name: Build
         run: pnpm turbo build --ui=stream
+
+      - name: Scan client bundle for leaked server secrets
+        # Defence-in-depth post-build check. Fails if any server-only env var
+        # or secret-shaped literal landed in apps/web/.next/static/**, or if
+        # production source maps shipped. Cheap (<2s) — runs only when the
+        # build above produced .next output.
+        run: pnpm check:client-secrets
 
   # Aggregation shim. `ci` is a REQUIRED status check on the main branch
   # ruleset. After splitting the monolithic job into parallel jobs, this job

@@ -151,6 +151,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["feedback"],
     dependencies: ["button"],
   },
+  "border-beam": {
+    source: "border-beam",
+    sourceType: "import",
+    upstream: "https://www.npmjs.com/package/border-beam",
+    description:
+      "Generic wrapper that traces an animated beam border around its children, with size, color variant, theme, and timing controls",
+    categories: ["effects"],
+    packages: ["border-beam"],
+  },
   breadcrumb: {
     source: "shadcn",
     sourceType: "vanilla",

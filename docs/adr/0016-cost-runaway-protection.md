@@ -53,6 +53,14 @@ Reason: the project consolidated to a single region (eu-central-1). `EstimatedCh
 
 Dollar-cap enforcement is now solely the `MonthlyTotal` $40 Budget at 100% -> kill-switch SNS -> ECS stop (defense 3 above), unchanged. There is no dollar trigger above $40; that is accepted and consistent with the ~$50 worst-case ceiling stated in Consequences. The attack-vector CloudWatch alarms and the kill-switch are untouched.
 
+## Amendment (2026-05-17): KillSwitchFn concurrency reservation removed
+
+`KillSwitchFn` previously set `reservedConcurrentExecutions: 1` as defense against a flapping-alarm + budget concurrent-fire race on `ecs:UpdateService`. Removed because new AWS accounts cap the unreserved-concurrency pool at AWS's 10-execution floor; any reservation > 0 blocks `CREATE_COMPLETE` on `Security-staging` with `"Specified ReservedConcurrentExecutions for function decreases account's UnreservedConcurrentExecution below its minimum value of [10]"`.
+
+Correctness still holds without the reservation: the handler is idempotent (`UpdateService desiredCount=0` is a no-op the second time), the SNS subscription has a DLQ (`KillSwitchDlq`), and `KillSwitchErrorsAlarm` pages via `KillSwitchOpsTopic` on any invocation failure. ADR-0016's "three independent defenses" never named concurrency reservation as one of them; the protection was a belt on top of suspenders.
+
+Restore the reservation if and when an AWS service-quota increase for "Concurrent executions" is granted on this account and a measured race justifies re-pinning concurrency.
+
 ## Alternatives considered
 
 - **GuardDuty + WAF.** $5-15/mo, detection-only. Doesn't auto-stop. Cloudflare WAF is already in front; AWS WAF would duplicate. Revisit at first paying customer.

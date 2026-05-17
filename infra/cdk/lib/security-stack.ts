@@ -95,12 +95,16 @@ export class SecurityStack extends Stack {
       code: Code.fromAsset(path.join(__dirname, "lambda", "killswitch")),
       timeout: Duration.seconds(30),
       memorySize: 256,
-      // Pin concurrency to 1 so a flapping alarm + concurrent Budget
-      // notification cannot race on UpdateService and re-spawn between
-      // invocations. The handler is also idempotent (desiredCount=0
-      // returns "noop"), but reservedConcurrency makes the invariant
-      // load-bearing instead of best-effort.
-      reservedConcurrentExecutions: 1,
+      // Concurrency is intentionally NOT reserved. AWS holds an account-
+      // wide floor of 10 unreserved executions; any reservation > 0
+      // drops the unreserved pool below 10 on a fresh account and CFN
+      // rejects with "decreases UnreservedConcurrentExecution below its
+      // minimum value of [10]" — see ADR-0016 Amendment (2026-05-17).
+      // Correctness still holds: the handler is idempotent (desiredCount=0
+      // is a no-op the second time), the SNS subscription has a DLQ, and
+      // KillSwitchErrorsAlarm pages on failure. Restore the reservation
+      // when an account quota increase makes a measured race worth
+      // re-pinning.
       logGroup: killSwitchLogGroup,
       environment: {
         CLUSTER_NAME: props.appStack.cluster.clusterName,

@@ -38,8 +38,8 @@ export interface ObservabilityStackProps extends StackProps {
  * BillingTopic. Warning at 70% surfaces problems early enough to act; the
  * 95% Critical threshold leaves room for the SecurityStack kill-switch.
  *
- * Pure billing-dollar alarms ($40/$80) live in BillingAlarmsStack
- * (us-east-1, where AWS publishes EstimatedCharges).
+ * Dollar-cap protection is handled by the SecurityStack AWS Budgets (the
+ * MonthlyTotal $40 budget at 100% feeds the kill-switch).
  *
  * Six attack-vector alarms cover cost-runaway signals: Fargate egress, RDS
  * egress, S3 PUT rate + bucket size, CloudWatch Logs ingestion, ECR pull

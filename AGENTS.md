@@ -138,7 +138,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## Infrastructure
 
-- Single-account AWS CDK v2 (`infra/cdk/`). Stacks: network, data, app, security, observability, billing alarms. See ADR-0007.
+- Single-account AWS CDK v2 (`infra/cdk/`), single region eu-central-1. Stacks: network, data, app, security, observability, backup. See ADR-0007.
 - AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Staging is deployed at `staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed. Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
 - See `docs/adr/` for the architectural decisions backing this layout.
 

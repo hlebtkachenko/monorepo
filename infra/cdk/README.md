@@ -11,7 +11,6 @@ Application-layer infrastructure. Deployed per environment.
 | `AppStack` | ECS Fargate (arm64), 3-container task (web + api + cloudflared sidecar). Hardened (capDrop ALL + readonlyRootFilesystem on api/cloudflared + shared /tmp). |
 | `SecurityStack` | Kill-switch Lambda + 5 budgets + CloudTrail + RDS restart watcher (ADR-0016). |
 | `ObservabilityStack` | CloudWatch alarms (6 attack-vector + 2 critical Fargate) wired to email + kill-switch SNS. |
-| `BillingAlarmsStack` | Deployed to `us-east-1`. `EstimatedCharges` alarms at $40 warning / $80 critical. |
 
 Stacks named `<Stack>-<env>` where `env` ∈ {`staging`, `production`}.
 

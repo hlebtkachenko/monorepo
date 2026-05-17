@@ -9,6 +9,7 @@ import { workspace_membership } from "@workspace/db/schema"
 import { Heading } from "@workspace/ui/components/heading"
 import { Text } from "@workspace/ui/components/text"
 
+import { isWorkspaceAllowed, parseAdminWorkspaceAllowlist } from "./allowlist"
 import { SignOutButton } from "./sign-out-button"
 
 /**
@@ -27,23 +28,17 @@ import { SignOutButton } from "./sign-out-button"
  * the existing workspace / workspace_membership tables are reused unchanged.
  */
 
-/** Parse `ADMIN_WORKSPACE_ALLOWLIST` — comma-separated workspace ids. */
-function adminWorkspaceAllowlist(): string[] {
-  return (process.env.ADMIN_WORKSPACE_ALLOWLIST ?? "")
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean)
-}
-
 /**
  * True when the user is an active member of an allowlisted workspace.
  *
  * Runs under `withAdminBypass`: workspace_membership is FORCE-RLS and the
  * GUCs are not bound here (same pattern as the web org-switcher bootstrap).
+ * The allowlist decision itself lives in `./allowlist` (pure + unit-tested).
  */
 async function userIsAllowlisted(userId: string): Promise<boolean> {
-  const allowlist = adminWorkspaceAllowlist()
-  if (allowlist.length === 0) return false
+  const allowlistEnv = process.env.ADMIN_WORKSPACE_ALLOWLIST
+  // Empty allowlist denies everyone — skip the DB round-trip entirely.
+  if (parseAdminWorkspaceAllowlist(allowlistEnv).length === 0) return false
 
   const rows = await withAdminBypass((db) =>
     db
@@ -57,8 +52,10 @@ async function userIsAllowlisted(userId: string): Promise<boolean> {
       ),
   )
 
-  const allowed = new Set(allowlist)
-  return rows.some((row) => allowed.has(row.workspaceId))
+  return isWorkspaceAllowed(
+    rows.map((row) => row.workspaceId),
+    allowlistEnv,
+  )
 }
 
 export default async function GatedLayout({

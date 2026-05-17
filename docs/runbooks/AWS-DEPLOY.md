@@ -9,6 +9,7 @@ The runbook for the older multi-account bootstrap is at `_junk/2026-05-11-mvp-si
 ## Public-repo security
 
 The repo is public. The following inputs MUST stay out of code and PR descriptions:
+
 - AWS account ID
 - Any IAM role ARN (contains account ID)
 - Secrets Manager ARN (contains account ID)
@@ -196,12 +197,24 @@ Per env:
    ```bash
    gh secret set CLOUDFLARE_TUNNEL_TOKEN_STAGING --body "<token>" --repo hlebtkachenko/monorepo
    ```
-5. In the tunnel's Public Hostnames tab, add:
+5. In the tunnel's Public Hostnames tab, add (staging shown — substitute the
+   production hosts for `monorepo-production`):
    - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
    - **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (leave blank for catch-all), **Service** `HTTP localhost:3000`
-6. Repeat for `monorepo-production` with `app.afframe.com`
+   - **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
+   - **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface (`admin.afframe.com` in production). This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK derives as `admin.<env-domain>`.
+6. Repeat for `monorepo-production` with `app.afframe.com`, `api.afframe.com`, `admin.app.afframe.com`.
+7. **Cloudflare Access for admin** — in Zero Trust → Access → Applications, add a
+   self-hosted app on the `admin.*` hostname with an Allow policy for staff
+   emails. This is an edge gate, defense in depth with the in-app workspace
+   allowlist (`apps/admin/app/(gated)/layout.tsx`).
 
 The tunnel connector starts running inside the Fargate task on first deploy. Until then it'll show "inactive" in Cloudflare dashboard.
+
+> **Admin allowlist** — set the `ADMIN_WORKSPACE_ALLOWLIST` GitHub Actions
+> variable (per environment) to a comma-separated list of `workspace` ids whose
+> members may sign into admin. Unset ⇒ the gate denies everyone. Changing it is
+> a redeploy. Staff workspaces are created manually; there is no admin role.
 
 ### 10. Flip the bootstrap flag
 
@@ -247,11 +260,11 @@ curl -s https://staging.afframe.com/api/health | jq '.'
 
 ### When to use which `stack` value
 
-| Stack value | When to use | Time |
-|---|---|---|
-| `app-only` | Code change in `apps/**` or `packages/**`. **Default for ~99% of deploys.** | ~8-12 min |
-| `infra-only` | Change to `infra/cdk/lib/*-stack.ts` only (no app code change). | ~5-15 min |
-| `all` | Both infra + app changes in the same release, OR first-time setup of a new env. | ~15-25 min |
+| Stack value  | When to use                                                                     | Time       |
+| ------------ | ------------------------------------------------------------------------------- | ---------- |
+| `app-only`   | Code change in `apps/**` or `packages/**`. **Default for ~99% of deploys.**     | ~8-12 min  |
+| `infra-only` | Change to `infra/cdk/lib/*-stack.ts` only (no app code change).                 | ~5-15 min  |
+| `all`        | Both infra + app changes in the same release, OR first-time setup of a new env. | ~15-25 min |
 
 ### Deploy to production
 
@@ -272,6 +285,7 @@ Production deploys use a SEPARATE OIDC role (`AWS_DEPLOY_ROLE_ARN_PRODUCTION` se
 The deploy workflow tags images with the git SHA (`sha-<commit>`). To roll back, either:
 
 **Option 1 - Re-deploy a previous good commit** (most surgical):
+
 ```bash
 gh workflow run _deploy-aws.yml \
   -f environment=staging \
@@ -279,9 +293,11 @@ gh workflow run _deploy-aws.yml \
   --repo hlebtkachenko/monorepo \
   --ref <previous-good-sha>
 ```
+
 The `--ref` checks out that commit, the build uses its SHA tag, ECS rolls to the old image.
 
 **Option 2 - Git revert the bad commit**, push the revert to main, then deploy:
+
 ```bash
 git revert <bad-commit-sha>
 git push origin main
@@ -306,17 +322,17 @@ The web container in the ECS task receives every runtime value needed by
 Better Auth and `packages/email` automatically. Source of truth is
 `infra/cdk/lib/app-stack.ts` (`webContainer` block).
 
-| Var | Source | Notes |
-|---|---|---|
-| `BETTER_AUTH_URL` | CDK env (`https://${domain}`) | Drives cookie scope + every email link |
-| `NEXT_PUBLIC_BETTER_AUTH_URL` | CDK env | Same value, browser-visible |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | CDK env (CSV) | Add www / extra aliases here if Cloudflare adds them |
-| `EMAIL_FROM` | CDK env (`no-reply@${domain}`) | Must be on a Resend-verified domain |
-| `EMAIL_TRANSPORT` | CDK env (`resend`) | Pins the email backend |
-| `BETTER_AUTH_SECRET` | Secrets Manager (CDK-generated) | `monorepo-{env}-better-auth-secret` |
-| `APP_TOKEN_SECRET` | Secrets Manager (CDK-generated) | `monorepo-{env}-app-token-secret` |
-| `RESEND_API_KEY` | Secrets Manager (workflow-seeded) | `monorepo-{env}-resend-api-key`, value comes from `gh secret RESEND_API_KEY` |
-| `DATABASE_URL` | composed at container start | `/bin/sh` builds it from DB_USER + DB_PASSWORD secrets + DB_HOST/PORT/NAME env |
+| Var                           | Source                            | Notes                                                                          |
+| ----------------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
+| `BETTER_AUTH_URL`             | CDK env (`https://${domain}`)     | Drives cookie scope + every email link                                         |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | CDK env                           | Same value, browser-visible                                                    |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | CDK env (CSV)                     | Add www / extra aliases here if Cloudflare adds them                           |
+| `EMAIL_FROM`                  | CDK env (`no-reply@${domain}`)    | Must be on a Resend-verified domain                                            |
+| `EMAIL_TRANSPORT`             | CDK env (`resend`)                | Pins the email backend                                                         |
+| `BETTER_AUTH_SECRET`          | Secrets Manager (CDK-generated)   | `monorepo-{env}-better-auth-secret`                                            |
+| `APP_TOKEN_SECRET`            | Secrets Manager (CDK-generated)   | `monorepo-{env}-app-token-secret`                                              |
+| `RESEND_API_KEY`              | Secrets Manager (workflow-seeded) | `monorepo-{env}-resend-api-key`, value comes from `gh secret RESEND_API_KEY`   |
+| `DATABASE_URL`                | composed at container start       | `/bin/sh` builds it from DB_USER + DB_PASSWORD secrets + DB_HOST/PORT/NAME env |
 
 Rotating `BETTER_AUTH_SECRET` invalidates every active session and makes
 every pending invite / signup token unredeemable. Plan a maintenance
@@ -327,6 +343,7 @@ window before rotating.
 The Cloudflare Tunnel handles `staging.afframe.com` and `app.afframe.com` end-to-end. No CNAME at adm.tools to set; Cloudflare's Tunnel hostname config auto-creates a DNS record at Cloudflare DNS.
 
 Verify:
+
 ```bash
 dig +short staging.afframe.com
 # Should show Cloudflare's edge IPs (104.x or 172.67.x)
@@ -344,6 +361,7 @@ Both should return 200 with JSON.
 ## Monitoring after first deploy
 
 Watch for 24h:
+
 - **CloudWatch** → `/ecs/monorepo-staging/{web,api,cloudflared}` log groups for errors
 - **CloudWatch** → ECS Cluster `monorepo-staging` → task count steady at 1
 - **Cloudflare dashboard** → Zero Trust → Tunnels → connector status "Healthy"
@@ -393,6 +411,7 @@ Before flipping the api secret reference, decide which pattern fits and
 update this section with the concrete CDK + secrets layout.
 
 Other deferred dependencies:
+
 - bootstrap chain runs as `app_owner` (CREATE SCHEMA openfga, openfga
   migrate, drizzle migrate). That continues to use the master credential
   regardless of which pattern wins.
@@ -523,6 +542,7 @@ no longer required at runtime.
 ## What this runbook deliberately does NOT cover
 
 Trip-wired for later (see ADR 0008 trip-wire section):
+
 - AWS Organizations / multi-account
 - AWS WAF (Cloudflare handles edge)
 - GuardDuty / Inspector v2 / Security Hub

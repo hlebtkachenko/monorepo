@@ -55,14 +55,15 @@ pre-push:
       run: node scripts/check-pr-title.mjs "$(git log -1 --format='%s')"
     actionlint:
       # Mirrors `.github/workflows/workflow-lint.yml` actionlint job.
-      # Only runs when workflow YAML or composite actions changed.
+      # Only runs when workflow YAML changed. Composite actions (.github/actions/**)
+      # are excluded — actionlint parses them as workflows and errors on
+      # the missing `on`/`jobs` keys even though composite is valid.
       # ~300ms — catches GitHub Actions syntax + expression errors before
       # CI burns ~30s of runner time on the same failure.
       # No-ops gracefully if actionlint is not installed (brew install actionlint).
       glob:
         - ".github/workflows/*.yml"
         - ".github/workflows/*.yaml"
-        - ".github/actions/**"
       run: |
         if command -v actionlint >/dev/null 2>&1; then
           actionlint {push_files}

@@ -126,8 +126,13 @@ infra, no CDK change, configured manually (see `docs/runbooks/AWS-DEPLOY.md`):
 
 - `api.afframe.com` → `http://localhost:3001` (the existing NestJS container)
 - `admin.<env-domain>` → `http://localhost:3100` (the new admin container).
-  Cloudflare Access (free Zero Trust) fronts `admin` as an edge gate, defense
-  in depth with the in-app workspace-allowlist gate.
+
+Neither host uses Cloudflare Access. Access filters only by Cloudflare-visible
+identity (email / domain / IdP groups) and has no knowledge of afframe
+`workspace_membership` — it cannot model "member of an allowlisted staff
+workspace," and staff are intentionally cross-domain. `admin` is gated solely
+by the in-app workspace-allowlist (`ADMIN_WORKSPACE_ALLOWLIST`), `api` solely
+by API keys.
 
 New trip-wire: the non-essential `admin` container fails quietly — a
 crash-loop neither fails the task nor is loud. Consider a CloudWatch alarm on

@@ -211,12 +211,16 @@ shown, substitute the production hosts for `monorepo-production`:
 Production: same on `monorepo-production` with `app.afframe.com`,
 `api.afframe.com`, `admin.app.afframe.com`.
 
-**Cloudflare Access for admin** — Zero Trust → Access → Applications → Add an
-application. Protect the `admin.*` hostname with an Allow policy for staff
-emails. Edge gate, defense in depth with the in-app workspace allowlist
-(`apps/admin/app/(gated)/layout.tsx`). Do NOT put Access on `api.*` — a
-machine API caller cannot complete an Access login; `api.*` is gated by
-API keys only.
+**No Cloudflare Access on `admin.*` or `api.*`.** Cloudflare Access can only
+filter by Cloudflare-visible identity (email, email domain, IdP groups) — it
+has no knowledge of afframe `workspace_membership`, so it cannot express
+"member of an allowlisted staff workspace." Staff are intentionally
+cross-domain, so an email/domain Access policy would wrongly exclude valid
+staff, and an allow-everyone policy is just a useless second login. Admin
+access is controlled solely by the in-app workspace-allowlist gate
+(`apps/admin/app/(gated)/layout.tsx` + `ADMIN_WORKSPACE_ALLOWLIST`); `api.*`
+solely by API keys. (If bot-walling the admin surface is wanted later, use
+Cloudflare WAF rate-limit rules — not Access.)
 
 The tunnel connector runs as the `cloudflared` container inside the Fargate
 task — a tunnel shows "DOWN"/"INACTIVE" in Cloudflare until that task is

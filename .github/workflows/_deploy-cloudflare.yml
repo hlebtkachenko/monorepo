@@ -81,18 +81,11 @@ jobs:
 
       - name: Resolve Worker URL
         id: worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        working-directory: infra/cloudflare
         run: |
-          # Cloudflare workers_dev subdomain is "<worker-name>.<account-subdomain>.workers.dev"
-          # The account subdomain is account-scoped (one per account), discoverable via API.
-          subdomain=$(curl -fsSL \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['subdomain'])")
-          url="https://turbo-cache.${subdomain}.workers.dev"
+          # Hardcoded — wrangler.jsonc binds the Worker to cache.afframe.com
+          # via `custom_domain: true` on a route inside the afframe.com zone.
+          # If you change the route pattern in wrangler.jsonc, update this too.
+          url="https://cache.afframe.com"
           echo "url=${url}" >> "$GITHUB_OUTPUT"
           echo "Worker URL: ${url}" >> "$GITHUB_STEP_SUMMARY"
 

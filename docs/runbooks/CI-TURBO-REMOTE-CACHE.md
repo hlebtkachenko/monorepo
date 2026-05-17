@@ -34,13 +34,13 @@ The deploy workflow:
 1. Idempotently creates the R2 bucket (`turbo-cache-prod`)
 2. Runs `wrangler deploy` (creates / updates the Worker)
 3. Pipes `TURBO_TOKEN` into `wrangler secret put` (stdin, never logged)
-4. Resolves the `*.workers.dev` URL via Cloudflare API and prints it to the run summary
+4. Reports the custom-domain URL (`https://cache.afframe.com`) to the run summary
 5. Smoke-checks the URL returns HTTP < 500
 
-After successful deploy, copy the printed URL and set it as a GitHub repo **variable** (not secret):
+After successful deploy, set it as a GitHub repo **variable** (not secret):
 
 ```bash
-gh variable set TURBO_API --body "https://turbo-cache.<your-account>.workers.dev"
+gh variable set TURBO_API --body "https://cache.afframe.com"
 ```
 
 Next CI run on any PR will start using the remote cache. First PR = cold (populates). Second PR onwards = `cache hit (remote)` lines in turbo run summaries.
@@ -52,7 +52,7 @@ Three signals, increasing specificity:
 **A. CI step summary** — composite emits one of:
 
 ```
-turbo remote cache: enabled (api=https://turbo-cache.<account>.workers.dev)
+turbo remote cache: enabled (api=https://cache.afframe.com)
 turbo remote cache: disabled (TURBO_API or TURBO_TOKEN unset)
 ```
 

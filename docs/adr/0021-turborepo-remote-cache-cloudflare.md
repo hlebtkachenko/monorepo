@@ -19,7 +19,9 @@ Candidates evaluated:
 
 ## Decision
 
-Deploy `AdiRishi/turborepo-remote-cache-cloudflare` v4.0.0 as a Cloudflare Worker (`turbo-cache`) backed by an R2 bucket (`turbo-cache-prod`). The Worker uses the `*.workers.dev` subdomain (no custom domain in v1). The Turbo CLI in CI consumes it via `TURBO_API`, `TURBO_TOKEN`, `TURBO_TEAM`, `TURBO_REMOTE_CACHE_SIGNATURE_KEY` env vars set at workflow level in `ci.yml`, `e2e.yml`, `release.yml`. Cache integrity is enforced by HMAC-SHA256 signatures verified client-side in the CLI (the Worker is a dumb passthrough).
+Deploy `AdiRishi/turborepo-remote-cache-cloudflare` v4.0.0 as a Cloudflare Worker (`turbo-cache`) backed by an R2 bucket (`turbo-cache-prod`). The Worker is served at `cache.afframe.com` via a Cloudflare custom-domain route on the existing `afframe.com` zone (`wrangler.jsonc` declares `custom_domain: true` so wrangler auto-manages the DNS record). The Turbo CLI in CI consumes it via `TURBO_API`, `TURBO_TOKEN`, `TURBO_TEAM`, `TURBO_REMOTE_CACHE_SIGNATURE_KEY` env vars set at workflow level in `ci.yml`, `e2e.yml`, `release.yml`. Cache integrity is enforced by HMAC-SHA256 signatures verified client-side in the CLI (the Worker is a dumb passthrough).
+
+> Note: the original PR-D plan deferred custom domain to a follow-up and used a `*.workers.dev` subdomain. The first deploy attempt failed because the account had no workers.dev subdomain registered (Cloudflare auto-creates one only on the first dashboard visit to Workers & Pages, requiring a manual click). Custom domain on a zone we already own (`afframe.com`) sidesteps that onboarding entirely and is the long-term right answer regardless. Decision flipped early.
 
 ## Consequences
 
@@ -40,7 +42,7 @@ Negative / trade-offs:
 
 Follow-up work required:
 
-- After first Worker deploy: set GitHub repo variable `TURBO_API` to the printed `https://turbo-cache.<account>.workers.dev` URL. Until then, remote cache stays disabled and turbo uses local + GH Actions cache only.
+- After first Worker deploy: set GitHub repo variable `TURBO_API` to `https://cache.afframe.com`. Until then, remote cache stays disabled and turbo uses local + GH Actions cache only.
 - Observe cache hit-rate over first 2 weeks via `wrangler tail` and turbo run summaries (`cache hit (remote)` lines). If hit rate < 30% on small PRs, investigate input-hash drift.
 - Consider custom domain `cache.afframe.com` in a follow-up (requires Cloudflare DNS edit + `routes` block in `wrangler.jsonc`). Purely cosmetic.
 - Quarterly: rotate `TURBO_TOKEN` and `TURBO_REMOTE_CACHE_SIGNATURE_KEY` per runbook.

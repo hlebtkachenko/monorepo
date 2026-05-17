@@ -4,16 +4,26 @@
   //
   // Deployed via .github/workflows/_deploy-cloudflare.yml.
   // Consumed by .github/actions/setup/action.yml which sets TURBO_API to
-  // https://<worker_name>.<account>.workers.dev (workers_dev: true below).
-  // Custom domain (cache.afframe.com) deferred to follow-up — saves a DNS
-  // step and the parking-page failure mode when the Worker isn't deployed yet.
+  // https://cache.afframe.com via the custom-domain route below.
+  // Original PR-D plan deferred custom domain to v2 — flipped early because
+  // the account had no workers.dev subdomain (one-time onboarding requires
+  // a manual dashboard click; custom domain on a zone we already own skips it).
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "turbo-cache",
   "main": "src/index.ts",
   "compatibility_date": "2026-01-19",
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
+  // Custom domain on afframe.com (Cloudflare DNS already managed). `custom_domain: true`
+  // tells wrangler to auto-create the DNS record. Avoids the workers.dev one-time
+  // onboarding step + gives a memorable URL.
+  "workers_dev": false,
   "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "cache.afframe.com",
+      "custom_domain": true,
+    },
+  ],
 
   // R2 binding consumed by src/storage/r2-storage.ts.
   // Bucket created idempotently in the deploy workflow before `wrangler deploy`.

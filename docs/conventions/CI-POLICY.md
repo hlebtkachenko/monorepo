@@ -108,11 +108,11 @@ Workflow-level `paths:` filters on the trigger block create stuck PRs when the w
 
 Turborepo Remote Cache runs on Cloudflare Workers + R2. Architecture decision: [ADR-0021](../adr/0021-turborepo-remote-cache-cloudflare.md). Operator runbook: [`docs/runbooks/CI-TURBO-REMOTE-CACHE.md`](../runbooks/CI-TURBO-REMOTE-CACHE.md).
 
-| Layer                                    | What it caches                        | Backend                                                                   | Quota                |
-| ---------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------- | -------------------- |
-| Local `.turbo` (per-runner)              | Most recent task outputs              | Runner filesystem                                                         | Tmpfs                |
-| GitHub Actions cache (content-addressed) | `.turbo` snapshot keyed on input hash | GH built-in                                                               | 10 GiB/repo (LRU)    |
-| **Cloudflare Workers + R2 (remote)**     | All task outputs, cross-branch        | Worker `turbo-cache.<account>.workers.dev` → R2 bucket `turbo-cache-prod` | R2 free tier (10 GB) |
+| Layer                                    | What it caches                        | Backend                                                   | Quota                |
+| ---------------------------------------- | ------------------------------------- | --------------------------------------------------------- | -------------------- |
+| Local `.turbo` (per-runner)              | Most recent task outputs              | Runner filesystem                                         | Tmpfs                |
+| GitHub Actions cache (content-addressed) | `.turbo` snapshot keyed on input hash | GH built-in                                               | 10 GiB/repo (LRU)    |
+| **Cloudflare Workers + R2 (remote)**     | All task outputs, cross-branch        | Worker `cache.afframe.com` → R2 bucket `turbo-cache-prod` | R2 free tier (10 GB) |
 
 **Fail-open posture.** The composite step "Configure Turbo Remote Cache defaults" in `.github/actions/setup/action.yml` uses `continue-on-error: true`, and turbo CLI treats a remote-cache HTTP failure as a cache miss (rebuilds locally). No CI required-check depends on the remote cache being live. A Cloudflare outage at the cache layer slows CI on cached jobs but cannot red the build.
 
@@ -122,7 +122,7 @@ Turborepo Remote Cache runs on Cloudflare Workers + R2. Architecture decision: [
 
 **Required configuration** (set during PR-D pre-flight, see [runbook § 1](../runbooks/CI-TURBO-REMOTE-CACHE.md#1-first-time-deploy-done-once)):
 
-- Repo variable `TURBO_API` — Worker URL (`https://turbo-cache.<account>.workers.dev`)
+- Repo variable `TURBO_API` — Worker URL (`https://cache.afframe.com`)
 - Repo secret `TURBO_TOKEN` — Worker auth bearer
 - Repo secret `TURBO_REMOTE_CACHE_SIGNATURE_KEY` — HMAC key
 

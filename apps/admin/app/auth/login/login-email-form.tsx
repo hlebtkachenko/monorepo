@@ -14,18 +14,11 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
 import { Input } from "@workspace/ui/components/input"
 import { Text } from "@workspace/ui/components/text"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
-import { ArrowUpRight, KeyRound } from "@workspace/ui/lib/icons"
+import { ArrowUpRight } from "@workspace/ui/lib/icons"
 
 import { safeNext } from "../../../lib/safe-next"
 import { identifyEmailAction } from "./actions"
@@ -57,8 +50,7 @@ export function LoginEmailForm() {
 
   const tBrand = useTranslations("brand")
   const t = useTranslations("auth.login.email")
-  const tSso = useTranslations("auth.login.sso")
-  const tDivider = useTranslations("auth.login")
+  const tAdmin = useTranslations("admin.auth.login.email")
   const tValidation = useTranslations("auth.validation")
   const tErrors = useTranslations("auth.errors")
 
@@ -105,7 +97,12 @@ export function LoginEmailForm() {
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
         <Heading level={2} className="mt-0">
-          {t("title", { brand: brandName })}
+          {tAdmin.rich("title", {
+            brand: brandName,
+            admin: (chunks) => (
+              <span className="text-foreground">{chunks}</span>
+            ),
+          })}
         </Heading>
         <Text variant="muted">{t("description")}</Text>
       </header>
@@ -126,7 +123,7 @@ export function LoginEmailForm() {
               inputSize="xl"
               autoComplete="email"
               autoFocus
-              placeholder={t("placeholder")}
+              placeholder={tAdmin("placeholder")}
               {...form.register("email")}
               aria-invalid={!!form.formState.errors.email}
             />
@@ -148,29 +145,6 @@ export function LoginEmailForm() {
           {form.formState.isSubmitting ? t("submitting") : t("submit")}
         </Button>
       </form>
-
-      <FieldSeparator>{tDivider("divider")}</FieldSeparator>
-
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span tabIndex={0} className="inline-block">
-              <Button
-                type="button"
-                variant="outline"
-                size="xl"
-                className="w-full"
-                disabled
-                aria-disabled="true"
-              >
-                <KeyRound className="size-4" aria-hidden="true" />
-                {tSso("label")}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{tSso("tooltip")}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
 
       <Text variant="muted">
         {t("contactSalesPrompt", { brand: brandName })}{" "}

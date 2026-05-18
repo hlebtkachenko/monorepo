@@ -45,6 +45,7 @@ export function LoginPasswordForm({ email }: Props) {
 
   const tBrand = useTranslations("brand")
   const t = useTranslations("auth.login.password")
+  const tAdmin = useTranslations("admin.auth.login.password")
   const tValidation = useTranslations("auth.validation")
   const tErrors = useTranslations("auth.errors")
 
@@ -87,11 +88,15 @@ export function LoginPasswordForm({ email }: Props) {
   async function onSubmit(values: LoginPasswordInput) {
     setServerError(null)
     try {
+      // Intentionally NO `callbackURL` here. Better Auth's client navigates
+      // window.location to callbackURL immediately on success, racing past
+      // the allowlist gate below — we'd land on /Not-authorized before the
+      // gate ever returns. Drive navigation manually with router.push after
+      // the gate clears, same way the 2FA branch already does.
       const result = await authClient.signIn.email({
         email,
         password: values.password,
         rememberMe: values.rememberMe,
-        callbackURL: next,
       })
       if (result.error) {
         setServerError(result.error.message ?? tErrors("invalidCredentials"))
@@ -105,13 +110,14 @@ export function LoginPasswordForm({ email }: Props) {
         return
       }
       // No 2FA: gate the just-created session BEFORE navigating to /. If the
-      // user isn't allowlisted, sign them back out and show an error on the
-      // form. This keeps the credentials in-form instead of bouncing through
-      // the (gated)/layout "Not authorized" page after a successful login.
+      // user isn't allowlisted, sign them back out and show a generic
+      // "Invalid email or password" — same UI as a wrong-password attempt,
+      // so an attacker probing accounts can't tell whether a given email
+      // is in ADMIN_WORKSPACE_ALLOWLIST.
       const allowed = await checkAdminAllowlistAction()
       if (!allowed) {
         await authClient.signOut()
-        setServerError(tErrors("notAllowlisted"))
+        setServerError(tErrors("invalidCredentials"))
         return
       }
       await clearLoginEmailAction()
@@ -177,7 +183,7 @@ export function LoginPasswordForm({ email }: Props) {
           {t("title")}
         </Heading>
         <Text variant="muted">
-          {t("description", { brand: tBrand("name") })}
+          {tAdmin("description", { brand: tBrand("name") })}
         </Text>
       </header>
 

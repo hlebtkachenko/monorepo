@@ -61,17 +61,16 @@ export default async function AuthLayout({
         <AuthShellLeft>
           <AuthShellHeader>
             <div className="flex w-full items-center justify-between gap-4">
-              <span className="inline-flex items-baseline gap-2 text-base font-semibold tracking-tight">
+              <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
                 <WalletMinimal
-                  className="size-5 self-center text-foreground"
+                  className="size-5 text-foreground"
                   aria-hidden="true"
                 />
                 {brand}
-                <span className="text-red-500">{tAdmin("wordmark")}</span>
               </span>
               <AuthHeaderRight
-                defaultHref={tAdmin("auth.returnLinkHref")}
-                defaultLabel={tAdmin("auth.returnLinkLabel")}
+                defaultHref={tBrand("returnLinkHref")}
+                defaultLabel={tBrand("returnLinkLabel")}
               />
             </div>
           </AuthShellHeader>

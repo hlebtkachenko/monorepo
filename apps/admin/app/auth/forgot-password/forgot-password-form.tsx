@@ -28,6 +28,7 @@ const RESEND_COOLDOWN = 30
 
 export function ForgotPasswordForm() {
   const t = useTranslations("auth.forgot")
+  const tAdmin = useTranslations("admin.auth.forgot")
   const tValidation = useTranslations("auth.validation")
 
   const form = useForm<ForgotPasswordInput>({
@@ -129,7 +130,7 @@ export function ForgotPasswordForm() {
                   inputSize="xl"
                   autoComplete="email"
                   autoFocus
-                  placeholder={t("placeholder")}
+                  placeholder={tAdmin("placeholder")}
                   {...form.register("email")}
                   aria-invalid={!!form.formState.errors.email}
                 />

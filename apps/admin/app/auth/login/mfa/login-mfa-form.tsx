@@ -65,13 +65,15 @@ export function LoginMfaForm({ email }: Props) {
   // Pre-navigation allowlist gate. The 2FA path defers the check from the
   // password form down to here so that a non-allowlisted staff account
   // never reaches the admin home, even with a valid TOTP / recovery code.
-  // Mirrors the password form's behaviour exactly: signOut + form-level
-  // error on rejection.
+  // Mirrors the password form's behaviour exactly: signOut + a generic
+  // "Invalid code" error — same UI as a wrong-OTP attempt, so an attacker
+  // who already passed the password gate can't tell whether the account
+  // is in ADMIN_WORKSPACE_ALLOWLIST.
   async function gateAndNavigate(): Promise<boolean> {
     const allowed = await checkAdminAllowlistAction()
     if (!allowed) {
       await authClient.signOut()
-      setServerError(tErrors("notAllowlisted"))
+      setServerError(tErrors("invalidCode"))
       return false
     }
     return true

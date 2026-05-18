@@ -181,8 +181,7 @@
       "loginSessionExpired": "Your sign-in session expired. Please start over.",
       "resetFailed": "Could not reset password.",
       "resetSent": "If an account exists, a reset link is on the way.",
-      "couldNotSendReset": "Could not send the reset email. Try again in a moment.",
-      "notAllowlisted": "Your workspace is not authorized for admin access. Contact a workspace administrator."
+      "couldNotSendReset": "Could not send the reset email. Try again in a moment."
     },
     "validation": {
       "email": {
@@ -456,18 +455,27 @@
     }
   },
   "admin": {
-    "wordmark": "Admin",
     "auth": {
-      "returnLinkLabel": "Back to Afframe app",
-      "returnLinkHref": "https://app-staging.afframe.com",
       "statusLabel": "Status",
       "statusHref": "https://status.afframe.com",
       "aside": {
         "quote": {
-          "text": "It works on my machine ergo it works on staging ergo it works in production. QED.",
-          "author": "An optimist, moments before deploy",
-          "role": "Source: trust me bro"
+          "text": "If nobody is complaining, either everything works or the notification system doesn't.",
+          "author": "Source",
+          "role": "Support, after one bad Monday"
         }
+      },
+      "login": {
+        "email": {
+          "title": "Sign in to {brand} <admin>Admin</admin>",
+          "placeholder": "you@afframe.com"
+        },
+        "password": {
+          "description": "Enter your password to continue to {brand} Admin."
+        }
+      },
+      "forgot": {
+        "placeholder": "you@afframe.com"
       }
     }
   }

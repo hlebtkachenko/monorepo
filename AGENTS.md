@@ -214,16 +214,15 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 - Single-account AWS CDK v2 (`infra/cdk/`), single region eu-central-1. Stacks: network, data, app, security, observability, backup. See ADR-0007.
 - AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
-- Domain scheme (Cloudflare Tunnel → Fargate task, one task per env, 7 containers):
+- Public host classes (Cloudflare Tunnel → Fargate task, one task per env, 7 containers):
 
-  | Host | Staging | Production | Container port |
-  |------|---------|------------|----------------|
-  | Web | `app-staging.afframe.com` | `app.afframe.com` | 3000 |
-  | Public API | `api-staging.afframe.com` | `api.afframe.com` | 3001 |
-  | Admin | `admin-staging.afframe.com` | `admin.afframe.com` | 3100 |
-  | Status page | — | `status.afframe.com` | OVH VPS (not AWS) |
+  | Class | Production | Staging |
+  |---|---|---|
+  | Web | `app.afframe.com` | `app-staging.afframe.com` |
+  | Public API | `api.afframe.com` | `api-staging.afframe.com` |
+  | Admin | `admin.afframe.com` | `admin-staging.afframe.com` |
 
-  Admin host is its own per-env variable `ADMIN_DOMAIN` (not a subdomain of `APP_DOMAIN`). See `docs/env-vars.md` and ADR-0008.
+  Status page (`status.afframe.com`) runs off AWS on the OVH VPS. Full inventory of every host + email address is at [`docs/DOMAINS-AND-EMAIL.md`](docs/DOMAINS-AND-EMAIL.md). Admin is its own per-env variable `ADMIN_DOMAIN`, not a subdomain of `APP_DOMAIN`.
 - See `docs/adr/` for the architectural decisions backing this layout.
 - `infra/openstatus/` (the `status.afframe.com` status page) is **not AWS**: it runs OpenStatus self-hosted on the OVH VPS and is never deployed by CDK / `make deploy-cdk` / `_deploy-aws.yml`. It lives in the monorepo as monitors-as-code only. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md) and `docs/runbooks/STATUS-PAGE.md`.
 

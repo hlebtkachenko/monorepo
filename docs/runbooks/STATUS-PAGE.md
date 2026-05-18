@@ -1,5 +1,7 @@
 # Status Page
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+
 `https://status.afframe.com` is the public uptime + incident page for afframe customers.
 It runs **OpenStatus self-hosted on the OVH VPS — not AWS** (independent failure domain;
 see [ADR-0019](../adr/0019-status-page-and-uptime-monitoring.md)). The OpenStatus admin

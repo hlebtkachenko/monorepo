@@ -1,5 +1,7 @@
 # AWS Deploy
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This runbook covers the operational steps; the inventory file is the source of truth for what each host is.
+
 Single-account MVP deploy with Cloudflare front door + AWS-hosted compute and data. See ADR `docs/adr/0007-mvp-single-account-cdk-only.md` (parent decision) and `docs/adr/0008-cloudflare-tunnel-and-email.md` (network + email architecture).
 
 The runbook for the older multi-account bootstrap is at `_junk/2026-05-11-mvp-single-account-pivot/AWS-BOOTSTRAP.md`.

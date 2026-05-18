@@ -1,6 +1,7 @@
 # ICT Asset Inventory
 
 > Maintained per DORA Article 8 ICT asset register requirement.
+> Per-host URL inventory (web/api/admin/status/monitoring/cache + email): [`docs/DOMAINS-AND-EMAIL.md`](DOMAINS-AND-EMAIL.md).
 
 Source of truth for material ICT assets. Updated when an asset is added, retired, or changes data classification. AWS is connected; as the AWS Config aggregator is wired up it becomes the machine-readable source of truth and this file the human-readable index — both must agree on every asset.
 

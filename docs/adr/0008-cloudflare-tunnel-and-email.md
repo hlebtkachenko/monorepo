@@ -49,6 +49,8 @@ Chosen: **network = Option 4 (Cloudflare Tunnel), email = Option C (Cloudflare R
 
 ### Task topology
 
+> Live host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). The tables below capture topology at decision time.
+
 One Fargate task per env, three containers:
 
 ```

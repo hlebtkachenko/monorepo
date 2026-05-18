@@ -1,5 +1,7 @@
 # CI: Turborepo Remote Cache (Cloudflare R2 + Workers)
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+
 Operator runbook for the Turborepo Remote Cache deployed on Cloudflare Workers + R2.
 
 - **Architecture decision**: [ADR-0021](../adr/0021-turborepo-remote-cache-cloudflare.md)

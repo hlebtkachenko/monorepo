@@ -1,5 +1,7 @@
 # infra/openstatus
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../../docs/DOMAINS-AND-EMAIL.md).
+
 **Deployed on the OVH VPS (WSL2 Ubuntu, Docker Compose) and fronted by Cloudflare Tunnel.
 NOT an AWS / CDK target — `cdk deploy`, `make deploy-cdk`, and `_deploy-aws.yml` never
 touch this directory.** It holds only monitors-as-code. The OpenStatus app itself runs

@@ -188,6 +188,8 @@ Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> De
 - **Production:** AWS eu-central-1 at `app.afframe.com` — prepared, not yet deployed. Stack: ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, ALB + ACM, CloudWatch + OTel Collector sidecar.
 - **Status page:** `status.afframe.com` — OpenStatus self-hosted on the OVH VPS (Docker Compose + Cloudflare Tunnel), deliberately **off AWS** so it survives an AWS region outage. Monitors-as-code in `infra/openstatus/`; not deployed by CDK. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md).
 
+Full public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](docs/DOMAINS-AND-EMAIL.md).
+
 ## Cost Protection
 
 Three-layer defense against cost-runaway attacks (see [ADR 0016](docs/adr/0016-cost-runaway-protection.md)):

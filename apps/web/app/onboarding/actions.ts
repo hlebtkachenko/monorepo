@@ -242,7 +242,7 @@ export async function submitPasswordAction(
     })
   } catch (err) {
     console.error("[onboarding/password] persist profile failed", err)
-    return { ok: false, errorKey: "saveProfileFailed" }
+    return { ok: false, errorKey: "persistOnboardingFailed" }
   }
 
   // Member branch — accept the invite, return the org slug.

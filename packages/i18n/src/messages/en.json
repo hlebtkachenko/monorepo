@@ -445,6 +445,7 @@
       "createWorkspaceFailed": "Could not create your workspace.",
       "savePlanFailed": "Could not save your plan choice.",
       "saveProfileFailed": "Could not save your profile.",
+      "persistOnboardingFailed": "Could not finish setting up your account.",
       "uploadAvatarFailed": "Could not upload your profile photo.",
       "saveExperienceFailed": "Could not save your experience.",
       "saveTeamFailed": "Could not save your invitations.",

@@ -195,3 +195,11 @@ Overrun triggers: storage > 10 GB → $0.015/GB-month; Workers requests > 100k/d
 ## 9. Upgrading the vendored Worker
 
 See [`infra/cloudflare/SOURCE.md`](../../infra/cloudflare/SOURCE.md) for the full procedure.
+
+## 10. Editing the deploy workflow itself
+
+The push-trigger in `.github/workflows/deploy-cloudflare.yml` fires only on `infra/cloudflare/**` changes — it deliberately ignores edits to the workflow files themselves so Dependabot SHA bumps to shared actions (e.g. `harden-runner`) don't trigger pointless redeploys. If you change `wranglerVersion`, the smoke URL, or add a deploy step, push then dispatch manually:
+
+```bash
+gh workflow run deploy-cloudflare.yml
+```

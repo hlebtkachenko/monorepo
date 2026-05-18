@@ -9,9 +9,11 @@ on:
   push:
     branches: [main]
     paths:
+      # Worker source / config only. Edits to the deploy workflow itself
+      # (wranglerVersion bump, smoke URL change, new step) require a manual
+      # `gh workflow run deploy-cloudflare.yml` — Dependabot SHA bumps to
+      # actions used inside this workflow used to fire pointless redeploys.
       - "infra/cloudflare/**"
-      - ".github/workflows/_deploy-cloudflare.yml"
-      - ".github/workflows/deploy-cloudflare.yml"
   workflow_dispatch:
     inputs:
       environment:

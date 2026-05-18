@@ -4,10 +4,12 @@
 # `infra/cloudflare/**` changes, or manually via `workflow_dispatch`.
 #
 # What it does:
-#   1. Ensures R2 bucket exists (idempotent — `wrangler r2 bucket create` is
-#      a no-op if the bucket is already there).
-#   2. Deploys the Worker from `infra/cloudflare/`.
-#   3. Pushes `TURBO_TOKEN` as a Worker secret (stdin-piped, never logged).
+#   1. Ensures the account has a workers.dev subdomain registered
+#      (account-level prereq for cron-trigger registration; wrangler v4
+#      enforces it even when `workers_dev: false`).
+#   2. Ensures R2 bucket exists (API pre-check, then create if missing).
+#   3. Deploys the Worker from `infra/cloudflare/`.
+#   4. Pushes `TURBO_TOKEN` as a Worker secret (stdin-piped, never logged).
 #
 # Cloudflare account/token via repo secrets `CLOUDFLARE_API_TOKEN` +
 # `CLOUDFLARE_ACCOUNT_ID`. Worker auth token via repo secret `TURBO_TOKEN`.
@@ -44,18 +46,67 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
 
+      - name: Ensure account has workers.dev subdomain registered
+        # Wrangler v4 fails cron-trigger registration with error 10063
+        # ("You need a workers.dev subdomain") even when `workers_dev: false`
+        # in wrangler.jsonc. Custom-domain routing (cache.afframe.com) does
+        # not satisfy this account-level prereq. Idempotent: GET pre-check;
+        # PUT only on first run. The subdomain is never used at runtime —
+        # all traffic flows through the custom domain.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          existing=$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+            | jq -r '.result.subdomain // ""')
+          if [ -n "$existing" ]; then
+            echo "Workers subdomain already registered: ${existing}.workers.dev"
+            exit 0
+          fi
+          for name in hapd-cache afframe-cache hapdglobal-cache; do
+            echo "Trying to register workers.dev subdomain: $name"
+            resp=$(curl -sS -X PUT \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data "{\"subdomain\":\"$name\"}" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain")
+            if echo "$resp" | jq -e '.success == true' >/dev/null; then
+              echo "Registered: ${name}.workers.dev"
+              exit 0
+            fi
+            echo "Failed: $resp"
+          done
+          echo "::error::Could not register any workers.dev subdomain — pick one manually in CF dashboard"
+          exit 1
+
       - name: Ensure R2 bucket exists
-        # Idempotent: `wrangler r2 bucket create` exits non-zero only on
-        # genuinely failed creates. The `|| true` swallows the
-        # "bucket already exists" error which is the expected steady-state.
+        # Idempotent: check via API first, only call wrangler create when
+        # the bucket genuinely doesn't exist. The prior version's pipe
+        # `pnpm exec wrangler ... | tee ... || grep "already exists"`
+        # was brittle (pipefail + grep pattern didn't match wrangler v4
+        # error code 10004's actual output).
         working-directory: infra/cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          pnpm exec wrangler r2 bucket create turbo-cache-prod 2>&1 \
-            | tee /tmp/r2-create.log \
-            || grep -q "already exists\|bucket name is already taken" /tmp/r2-create.log
+          http=$(curl -sS -o /tmp/cf-r2.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/r2/buckets")
+          if [ "$http" != "200" ]; then
+            echo "::error::R2 list returned HTTP $http"
+            cat /tmp/cf-r2.json
+            exit 1
+          fi
+          if jq -e --arg n turbo-cache-prod \
+              '.result.buckets[]? | select(.name == $n)' \
+              /tmp/cf-r2.json > /dev/null; then
+            echo "Bucket turbo-cache-prod already exists — skipping create"
+          else
+            pnpm exec wrangler r2 bucket create turbo-cache-prod
+          fi
 
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0

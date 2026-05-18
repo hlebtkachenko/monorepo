@@ -1,5 +1,7 @@
 # 21. Turborepo Remote Cache on Cloudflare Workers + R2
 
+> **Updated**: Live host inventory is in [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This ADR is the decision record; "follow-up" notes below about `cache.afframe.com` custom domain have since landed.
+
 - Status: Accepted
 - Date: 2026-05-18
 - Deciders: Hleb

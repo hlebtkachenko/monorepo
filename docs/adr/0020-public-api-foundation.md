@@ -1,5 +1,7 @@
 # 20. Public API foundation: NestJS-native contracts on a webpack bundle
 
+> **Updated**: Live host inventory is in [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This ADR is the decision record.
+
 - Status: Accepted
 - Date: 2026-05-17
 - Deciders: Hleb Tkachenko

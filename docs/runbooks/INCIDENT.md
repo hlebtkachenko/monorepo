@@ -1,5 +1,7 @@
 # Incident Response (DORA-aligned)
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+
 DORA Article 19 reporting timeline:
 
 - T+4h initial classification + report.

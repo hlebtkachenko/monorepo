@@ -1,5 +1,7 @@
 # Deploy
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+
 Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` runs. Staging deploys are live; production deploys additionally require approval in the `production` GitHub environment and have not been run yet.
 
 ## Trigger matrix

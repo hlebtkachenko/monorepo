@@ -336,6 +336,14 @@ export async function withAdminBypass<T>(
 
     let fnError: unknown = null
     try {
+      // The `app_prevent_last_owner_demotion` trigger (migration 0005) reads
+      // `app.app_user_role_name` and fail-closes when it is NULL. The compose
+      // dev stack sets the GUC via `ALTER ROLE ... SET` (init.d/00-roles.sql),
+      // but RDS rejects ALTER ROLE/DATABASE SET for custom GUCs (custom-GUC
+      // permission requires true SUPERUSER, which rds_superuser is not). Set
+      // it per transaction here so every withAdminBypass write hits the
+      // trigger with a satisfied GUC. Value matches what the fixtures use.
+      await tx.execute(sql`SET LOCAL app.app_user_role_name = 'app_user'`)
       await tx.execute(sql`SET LOCAL ROLE app_admin`)
       return await fn(tx as unknown as AdminBypassDb)
     } catch (err) {

@@ -219,6 +219,9 @@ echo "  cmd: $CMD"
 export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASS}@127.0.0.1:5432/monorepo?sslmode=require"
 unset DB_PASS
 
+# eval is intentional: the script is operator-driven and the operator owns
+# the CMD value. set -euo pipefail (line 32) propagates failures; DB_PASS is
+# already unset so it cannot be re-expanded by the eval'd command.
 eval "$CMD"
 
 if [ "$CMD" = "$DEFAULT_CMD" ]; then

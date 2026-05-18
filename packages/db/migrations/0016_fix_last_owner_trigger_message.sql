@@ -7,7 +7,9 @@
 --                    ALTER ROLE SET on custom GUCs — needs SUPERUSER, not
 --                    rds_superuser; see packages/db/src/tenancy.ts).
 --
--- Body unchanged; only the RAISE EXCEPTION text differs.
+-- Body identical to 0005 (including in-body PL/pgSQL comments, so prosrc
+-- stays byte-equal to what schema-snapshot.sql captures). Only the
+-- RAISE EXCEPTION text differs.
 
 CREATE OR REPLACE FUNCTION app_prevent_last_owner_demotion()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -15,11 +17,17 @@ DECLARE
   owner_count      integer;
   v_app_user_role  text := NULLIF(current_setting('app.app_user_role_name', true), '');
 BEGIN
+  -- Fail-closed: every connection must have app.app_user_role_name set.
+  -- An unset GUC means the init script did not run; crash loudly rather than
+  -- silently falling back to a default that might not match the real role.
   IF v_app_user_role IS NULL THEN
     RAISE EXCEPTION 'app.app_user_role_name GUC must be set on every connection (see infra/compose/postgres/init.d/00-roles.sql or withAdminBypass)'
       USING ERRCODE = 'check_violation';
   END IF;
 
+  -- INSERT arm: the application user role cannot insert owner rows directly.
+  -- withAdminBypass connections run as app_admin (BYPASSRLS) and bypass the trigger.
+  -- Using pg_has_role avoids hardcoding the role name inside the trigger body.
   IF TG_OP = 'INSERT' THEN
     IF NEW.role = 'owner'
        AND pg_has_role(current_user, v_app_user_role, 'MEMBER') THEN
@@ -30,6 +38,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- UPDATE arm: prevent demoting / deactivating the last active owner.
   IF TG_OP = 'UPDATE' THEN
     IF OLD.role = 'owner' AND (NEW.role <> 'owner' OR NEW.active = false) THEN
       SELECT count(*) INTO owner_count
@@ -46,6 +55,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- DELETE arm: prevent deleting the last active owner.
   IF TG_OP = 'DELETE' THEN
     IF OLD.role = 'owner' AND OLD.active = true THEN
       SELECT count(*) INTO owner_count

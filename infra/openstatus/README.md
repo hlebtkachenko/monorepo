@@ -36,6 +36,8 @@ and could be applied as-is — `regions` slug + the `dns` assertion shape would 
 
 ## Monitors
 
+> The table below enumerates OpenStatus monitoring targets only. The canonical inventory of every host afframe operates is [`docs/DOMAINS-AND-EMAIL.md`](../../docs/DOMAINS-AND-EMAIL.md).
+
 | Key             | Target                                 | Check                                           | Public page?                         | Active?                       |
 | --------------- | -------------------------------------- | ----------------------------------------------- | ------------------------------------ | ----------------------------- |
 | `web-app-prod`  | `app.afframe.com/api/version`          | HTTP 200                                        | ✅ Public — group "Web App"          | ❌ paused (prod not deployed) |

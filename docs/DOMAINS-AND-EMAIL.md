@@ -202,7 +202,7 @@ GitHub Actions variable flip.
 | `packages/db/migrations/0015_api_key.sql`   | Migration comment                     | `api.afframe.com`               |
 | `packages/auth/src/server.ts`               | Error message example                 | `app-staging.afframe.com`       |
 
-Also: `.github/workflows/_deploy-cloudflare.yml` currently hardcodes the
-Worker custom-domain literal in bash. A rename of `cache.afframe.com`
-requires editing the workflow until that's refactored to read from a
-GitHub Actions variable (tracked separately as a follow-up).
+Source-of-URL contract for Cloudflare Workers (`cache.afframe.com`):
+the deploy workflow `.github/workflows/_deploy-cloudflare.yml` reads
+`vars.TURBO_API` for the public URL; `infra/cloudflare/wrangler.jsonc`
+binds the Worker to the matching custom domain. Both must agree.

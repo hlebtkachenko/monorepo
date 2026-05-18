@@ -1,5 +1,7 @@
 # Public API Architecture
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+
 `apps/api` (NestJS) serves two surfaces from a single `:3001` process:
 
 - **BFF** `app.afframe.com/api/*` — private, session-cookie auth, same-origin web app calls.

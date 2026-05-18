@@ -86,12 +86,12 @@ ADR-0008 "Amendment 2026-05-17 — redirect base URLs".
 
 ## AWS (apps/api, infra/openfga/bootstrap.mjs, scripts)
 
-| Var             | Notes                                                                               |
-| --------------- | ----------------------------------------------------------------------------------- |
-| `AWS_REGION`    | `eu-central-1`                                                                      |
-| `ALERT_EMAIL`   | cost-runaway alerts destination (SecurityStack budgets + ObservabilityStack alarms) |
-| `APP_BUCKET`    | S3 app bucket; empty in dev = no uploads                                            |
-| `APP_S3_REGION` | consumed by backup scripts (`infra/scripts/pg-dump-nightly.sh`)                     |
+| Var             | Notes                                                                                                                                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AWS_REGION`    | **Required, no default.** `infra/cdk/bin/app.ts` throws on missing. In CI sourced from the `AWS_REGION` repo variable (e.g. `eu-central-1`).                                                                    |
+| `ALERT_EMAIL`   | **Required, no default.** Cost-runaway alerts destination (SecurityStack budgets + ObservabilityStack alarms). In CI sourced from the `EMAIL_FORWARD_TO` repo secret. `infra/cdk/bin/app.ts` throws on missing. |
+| `APP_BUCKET`    | S3 app bucket; empty in dev = no uploads                                                                                                                                                                        |
+| `APP_S3_REGION` | consumed by backup scripts (`infra/scripts/pg-dump-nightly.sh`)                                                                                                                                                 |
 
 `AWS_ACCOUNT_ID` is NOT an app env. Runtime IAM identity comes from the task
 role. CI reads the account id from a GitHub Actions secret only.

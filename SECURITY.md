@@ -8,7 +8,8 @@ This monorepo is pre-release. Only `main` is supported. No backports.
 
 Do **not** open a public GitHub issue for security vulnerabilities.
 
-Email **g1053015@icloud.com** with:
+Email **support+github@afframe.com** with:
+
 - Description of the issue
 - Steps to reproduce
 - Affected component (`apps/web`, `packages/ui`, `infra/`, CI workflow, etc.)
@@ -18,12 +19,12 @@ Acknowledgement target: 72 hours. Triage target: 7 days. Fix target depends on s
 
 ## Severity
 
-| Severity | Examples | Response |
-|----------|----------|----------|
-| Critical | RCE, auth bypass, data exfiltration, secrets leak | Immediate triage, hotfix, public advisory |
-| High | Privilege escalation, injection, supply-chain compromise of a build action | 7-day fix |
-| Medium | DoS, info disclosure | Next release |
-| Low | Hardening improvement | Backlog |
+| Severity | Examples                                                                   | Response                                  |
+| -------- | -------------------------------------------------------------------------- | ----------------------------------------- |
+| Critical | RCE, auth bypass, data exfiltration, secrets leak                          | Immediate triage, hotfix, public advisory |
+| High     | Privilege escalation, injection, supply-chain compromise of a build action | 7-day fix                                 |
+| Medium   | DoS, info disclosure                                                       | Next release                              |
+| Low      | Hardening improvement                                                      | Backlog                                   |
 
 ## Supply Chain
 

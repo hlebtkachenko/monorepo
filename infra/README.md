@@ -1,5 +1,7 @@
 # Infrastructure
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../docs/DOMAINS-AND-EMAIL.md).
+
 Single-account AWS CDK v2 (TypeScript) for app stacks, plus a local Docker Compose stack for dev parity. One tool, one state system, one CI path.
 
 See ADR `docs/adr/0007-mvp-single-account-cdk-only.md` for the IaC scope decision.

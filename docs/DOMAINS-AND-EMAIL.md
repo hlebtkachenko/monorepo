@@ -179,6 +179,30 @@ authorization gates. Pick by host class:
 - **Outbound sender**: add identity in Resend, update relevant container env
 
 After any rename, update this file's stanza and grep the repo for the old
-hostname to catch hardcoded references. In particular, `packages/i18n/`
-holds user-facing link targets (e.g. "Return to afframe.com") that are not
-sourced from env vars and need a manual update on rename.
+hostname to catch hardcoded references — the list below names the
+known code-essential touch points.
+
+---
+
+## Code-essential host references
+
+These files embed a hostname in code or product copy and are NOT sourced
+from environment variables. A rename is a coordinated change, not just a
+GitHub Actions variable flip.
+
+| File                                        | What                                  | Host                            |
+| ------------------------------------------- | ------------------------------------- | ------------------------------- |
+| `packages/i18n/src/messages/en.json`        | "Return to afframe.com" link href     | apex + `status` + `app-staging` |
+| `apps/api/src/openapi.ts`                   | OpenAPI `addServer()` literal         | `api.afframe.com`               |
+| `apps/api/openapi/v1.json`                  | OpenAPI spec server URL (generated)   | `api.afframe.com`               |
+| `apps/api/src/v1/v1.module.ts`              | JSDoc describing public API surface   | `api.afframe.com`               |
+| `apps/admin/app/api/auth/[...all]/route.ts` | Comment documenting `BETTER_AUTH_URL` | `admin.afframe.com`             |
+| `apps/web/app/auth/mfa/layout.tsx`          | UI copy reference                     | apex                            |
+| `packages/shared/src/api/common.ts`         | JSDoc                                 | `api.afframe.com`               |
+| `packages/db/migrations/0015_api_key.sql`   | Migration comment                     | `api.afframe.com`               |
+| `packages/auth/src/server.ts`               | Error message example                 | `app-staging.afframe.com`       |
+
+Source-of-URL contract for Cloudflare Workers (`cache.afframe.com`):
+the deploy workflow `.github/workflows/_deploy-cloudflare.yml` reads
+`vars.TURBO_API` for the public URL; `infra/cloudflare/wrangler.jsonc`
+binds the Worker to the matching custom domain. Both must agree.

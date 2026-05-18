@@ -1,5 +1,7 @@
 # DR Drill (Quarterly)
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+
 DORA expects quarterly evidence of disaster-recovery capability. This drill produces that evidence.
 
 Objectives:

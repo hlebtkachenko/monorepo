@@ -1,5 +1,7 @@
 # 8. Cloudflare Tunnel front door + Cloudflare/SES email split
 
+> **Updated**: Live host + email inventory is in [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This ADR is the decision record; the tables below capture state at decision time.
+
 - Status: Accepted
 - Date: 2026-05-11
 - Deciders: Hleb Tkachenko

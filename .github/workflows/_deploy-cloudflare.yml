@@ -81,11 +81,14 @@ jobs:
 
       - name: Resolve Worker URL
         id: worker
+        env:
+          TURBO_API: ${{ vars.TURBO_API }}
         run: |
-          # Hardcoded — wrangler.jsonc binds the Worker to cache.afframe.com
-          # via `custom_domain: true` on a route inside the afframe.com zone.
-          # If you change the route pattern in wrangler.jsonc, update this too.
-          url="https://cache.afframe.com"
+          # Source of truth is `vars.TURBO_API` (the same URL CI consumers use
+          # via `.github/actions/setup`). wrangler.jsonc must bind the Worker
+          # to the matching custom domain — see docs/DOMAINS-AND-EMAIL.md
+          # "cache.afframe.com" entry.
+          url="${TURBO_API:?vars.TURBO_API is not set — configure it before deploying}"
           echo "url=${url}" >> "$GITHUB_OUTPUT"
           echo "Worker URL: ${url}" >> "$GITHUB_STEP_SUMMARY"
 

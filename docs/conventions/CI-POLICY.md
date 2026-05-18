@@ -1,5 +1,7 @@
 # CI Policy
 
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+
 Which checks must pass before a PR can merge, and which are advisory.
 
 ## Required vs advisory: today

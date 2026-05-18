@@ -1,5 +1,7 @@
 # 7. MVP single-account: CDK-only, archive OpenTofu platform layer
 
+> **Updated**: Live host inventory is in [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This ADR is the decision record; deployment status below reflects the date below, not today.
+
 - Status: Accepted
 - Date: 2026-05-11
 - Deciders: Hleb Tkachenko

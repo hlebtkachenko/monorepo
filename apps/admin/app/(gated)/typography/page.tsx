@@ -715,7 +715,7 @@ export default function TypographyPage() {
                   <tbody className="font-mono tabular-nums">
                     <tr className="border-b">
                       <td className="py-2 pr-4 font-sans">FV-2026-0042</td>
-                      <td className="py-2 pr-4 font-sans">HAPD s.r.o.</td>
+                      <td className="py-2 pr-4 font-sans">Acme s.r.o.</td>
                       <td className="py-2 pr-4 text-right">45 000,00</td>
                       <td className="py-2 pr-4 text-right">9 450,00</td>
                       <td className="py-2 text-right font-semibold">
@@ -724,7 +724,7 @@ export default function TypographyPage() {
                     </tr>
                     <tr className="border-b">
                       <td className="py-2 pr-4 font-sans">FV-2026-0043</td>
-                      <td className="py-2 pr-4 font-sans">Rotary Club Praha</td>
+                      <td className="py-2 pr-4 font-sans">Initech Group</td>
                       <td className="py-2 pr-4 text-right">12 500,00</td>
                       <td className="py-2 pr-4 text-right">2 625,00</td>
                       <td className="py-2 text-right font-semibold">
@@ -733,7 +733,7 @@ export default function TypographyPage() {
                     </tr>
                     <tr className="border-b">
                       <td className="py-2 pr-4 font-sans">FV-2026-0044</td>
-                      <td className="py-2 pr-4 font-sans">Henderson Profese</td>
+                      <td className="py-2 pr-4 font-sans">Globex Profese</td>
                       <td className="py-2 pr-4 text-right">187 320,00</td>
                       <td className="py-2 pr-4 text-right">39 337,20</td>
                       <td className="py-2 text-right font-semibold">

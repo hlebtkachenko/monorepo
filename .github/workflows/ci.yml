@@ -111,14 +111,18 @@ jobs:
 
       - name: CDK Synth
         # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
-        # Real account ID + domains come from repo secrets at deploy time.
+        # Real account ID + domains + region + alert email come from repo
+        # secrets at deploy time; here we use dummy placeholders just to
+        # satisfy infra/cdk/bin/app.ts's required-env guards.
         # Gated on infra/** changes — saves ~20-40s on PRs that don't
         # touch CDK or dependency surfaces it reads.
         if: steps.filter.outputs.infra == 'true'
         env:
           AWS_ACCOUNT_ID: "000000000000"
+          AWS_REGION: eu-central-1
           APP_DOMAIN: example.com
           ADMIN_DOMAIN: admin.example.com
+          ALERT_EMAIL: ci-synth@example.com
         run: pnpm turbo synth --ui=stream
 
   unit-test:

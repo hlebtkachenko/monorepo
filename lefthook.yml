@@ -55,9 +55,13 @@ pre-push:
       run: node scripts/check-pr-title.mjs "$(git log -1 --format='%s')"
     actionlint:
       # Mirrors `.github/workflows/workflow-lint.yml` actionlint job.
-      # Only runs when workflow YAML changed. Composite actions (.github/actions/**)
-      # are excluded — actionlint parses them as workflows and errors on
-      # the missing `on`/`jobs` keys even though composite is valid.
+      # Runs when workflow YAML changed. Composite actions under
+      # `.github/actions/**` are intentionally excluded: actionlint's default
+      # CLI invocation treats every input as a workflow and reports valid
+      # composite-action syntax (`runs:`, `inputs:`, no `jobs:`/`on:`) as
+      # syntax errors, blocking pushes that touch unrelated workflow files.
+      # CI's `workflow-lint.yml` job covers composite actions via its own
+      # actionlint setup; local pre-push coverage is workflows only.
       # ~300ms — catches GitHub Actions syntax + expression errors before
       # CI burns ~30s of runner time on the same failure.
       # No-ops gracefully if actionlint is not installed (brew install actionlint).

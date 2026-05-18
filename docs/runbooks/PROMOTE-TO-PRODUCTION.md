@@ -66,7 +66,7 @@ Expected: 1-2 Cloudflare edge IPs (`104.x` or `172.67.x`). If empty, the tunnel 
 If staging stays running (Option "Keep staging"), the existing $50/mo hard-cap will fire mid-month. Raise to $120 BEFORE deploying production:
 
 ```bash
-aws budgets update-budget --account-id 637560253662 --new-budget '{
+aws budgets update-budget --account-id "${AWS_ACCOUNT_ID}" --new-budget '{
   "BudgetName":"monorepo-hard-cap-50",
   "BudgetLimit":{"Amount":"120","Unit":"USD"},
   "TimeUnit":"MONTHLY",

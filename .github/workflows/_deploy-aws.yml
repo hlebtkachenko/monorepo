@@ -333,6 +333,11 @@ jobs:
           # closed (nobody authorized). Set vars.ADMIN_WORKSPACE_ALLOWLIST
           # to grant staff access; changing it is a redeploy.
           ADMIN_WORKSPACE_ALLOWLIST: ${{ vars.ADMIN_WORKSPACE_ALLOWLIST }}
+          # Inbox for AWS Budget breaches + CloudWatch alarms + cost-runaway
+          # kill-switch notifications. Sourced from the EMAIL_FORWARD_TO
+          # repo secret (same address that forwards inbound mail to the
+          # operator's real inbox). bin/app.ts throws if unset.
+          ALERT_EMAIL: ${{ secrets.EMAIL_FORWARD_TO }}
         run: |
           case "$STACK_SCOPE" in
             all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;

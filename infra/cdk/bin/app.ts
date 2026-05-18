@@ -21,11 +21,17 @@ if (!validEnvironments.includes(env)) {
 }
 
 const account = process.env.AWS_ACCOUNT_ID
-const region = process.env.AWS_REGION ?? "eu-central-1"
+const region = process.env.AWS_REGION
 
 if (!account) {
   throw new Error(
     "AWS_ACCOUNT_ID env var is required. Locally: export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text). In CI it comes from the AWS_ACCOUNT_ID repo secret.",
+  )
+}
+
+if (!region) {
+  throw new Error(
+    "AWS_REGION env var is required. Locally: export AWS_REGION=<your-region> (e.g. eu-central-1). In CI it comes from the AWS_REGION repo variable.",
   )
 }
 
@@ -48,7 +54,12 @@ if (!adminDomain) {
   )
 }
 
-const alertEmail = process.env.ALERT_EMAIL ?? "g1053015@icloud.com"
+const alertEmail = process.env.ALERT_EMAIL
+if (!alertEmail) {
+  throw new Error(
+    "ALERT_EMAIL env var is required. In CI sourced from the EMAIL_FORWARD_TO repo secret; locally set to a real inbox that receives AWS budget + alarm notifications.",
+  )
+}
 
 const network = new NetworkStack(app, `Network-${env}`, {
   env: stackEnv,

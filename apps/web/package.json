@@ -55,7 +55,7 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^9.39.2",
+    "eslint": "^10.3.0",
     "postgres": "^3.4.7",
     "size-limit": "^12.1.0",
     "typescript": "^6.0.3",

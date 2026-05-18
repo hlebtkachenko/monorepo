@@ -21,7 +21,7 @@
     "@stoplight/spectral-cli": "^6.15.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^9.39.2",
+    "eslint": "^10.3.0",
     "knip": "^6.14.1",
     "lefthook": "^2.1.6",
     "msw": "^2.9.1",

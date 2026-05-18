@@ -6,9 +6,13 @@
  * by the `workspace-rls/require-with-organization` ESLint rule.
  *
  * GUC `app.app_user_role_name` is set per role via init.d/00-roles.sql
- * (`ALTER ROLE app_user SET app.app_user_role_name = 'app_user'`). Runtime
- * helpers do not set it. Testcontainer environments must set it explicitly on
- * connection setup or the last-owner-demotion trigger will fail closed.
+ * (`ALTER ROLE app_user SET app.app_user_role_name = 'app_user'`) for compose
+ * and testcontainer environments. RDS rejects `ALTER ROLE SET` for custom GUCs
+ * (true SUPERUSER required; rds_superuser is not enough), so every runtime
+ * helper here also sets it per transaction via `SET LOCAL`. The per-tx SET is
+ * idempotent with the connection-level default on local stacks and load-bearing
+ * on RDS — without it the `app_prevent_last_owner_demotion` trigger fail-closes
+ * on any workspace_membership write.
  *
  * GUC contract (ADR-0010):
  *   - Every GUC mutation uses `set_config(name, value, true)` (is_local = true).
@@ -164,6 +168,11 @@ export async function withOrganization<T>(
         }
       : null
     try {
+      // RDS rejects ALTER ROLE/DATABASE SET for custom GUCs, so set the
+      // trigger-reading GUC per transaction. Mirrors withAdminBypass. Idempotent
+      // on local stacks where 00-roles.sql already sets the same value via
+      // ALTER ROLE app_user SET.
+      await tx.execute(sql`SET LOCAL app.app_user_role_name = 'app_user'`)
       await tx.execute(
         sql`SELECT set_config('app.organization_id', ${organizationId}, true)`,
       )
@@ -239,6 +248,11 @@ export async function withWorkspace<T>(
         }
       : null
     try {
+      // RDS rejects ALTER ROLE/DATABASE SET for custom GUCs, so set the
+      // trigger-reading GUC per transaction. Mirrors withAdminBypass. Idempotent
+      // on local stacks where 00-roles.sql already sets the same value via
+      // ALTER ROLE app_user SET.
+      await tx.execute(sql`SET LOCAL app.app_user_role_name = 'app_user'`)
       await tx.execute(
         sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`,
       )

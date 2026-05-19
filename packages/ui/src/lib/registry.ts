@@ -19,6 +19,26 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["block", "layout", "auth"],
     dependencies: ["button"],
   },
+  "auth-forms": {
+    source: "src/blocks/auth",
+    sourceType: "custom",
+    description:
+      "Block — shared login / forgot-password / reset-password form components (LoginEmailForm, LoginPasswordForm, LoginMfaForm, ForgotPasswordForm, ResetPasswordForm) plus AuthHeaderLinkProvider / AuthHeaderLinkOverride context. Accepts translated message-map props for i18n; afterSignInGate prop threads the admin allowlist check without coupling the block to Next.js. Composes Field, Heading, Input, PasswordInput, PasswordChecklist, Checkbox, InputOTP, Button, Text.",
+    categories: ["block", "auth", "forms"],
+    dependencies: [
+      "button",
+      "checkbox",
+      "field",
+      "heading",
+      "input",
+      "input-otp",
+      "password-checklist",
+      "password-input",
+      "text",
+      "tooltip",
+    ],
+    packages: ["@workspace/shared", "react-hook-form", "@hookform/resolvers"],
+  },
   "auth-aside": {
     source: "src/blocks/auth-aside",
     sourceType: "custom",

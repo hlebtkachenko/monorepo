@@ -1,161 +1,43 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-
 import { useTranslations } from "@workspace/i18n/client"
-import { LoginEmailSchema, type LoginEmailInput } from "@workspace/shared/auth"
-import { Button } from "@workspace/ui/components/button"
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@workspace/ui/components/field"
-import { Heading } from "@workspace/ui/components/heading"
-import { Input } from "@workspace/ui/components/input"
-import { Text } from "@workspace/ui/components/text"
-import { ArrowUpRight } from "@workspace/ui/lib/icons"
+import { LoginEmailForm as LoginEmailFormBlock } from "@workspace/ui/blocks/auth"
 
-import { safeNext } from "../../../lib/safe-next"
 import { identifyEmailAction } from "./actions"
-
-const KNOWN_ERROR_CODES = [
-  "no-workspace-access",
-  "signup-session-expired",
-  "invite-session-expired",
-  "missing-signup-token",
-  "missing-invite-token",
-  "expired",
-  "invalid",
-  "wrong_kind",
-  "disabled",
-  "loginSessionExpired",
-] as const
-
-function isKnownErrorCode(
-  code: string,
-): code is (typeof KNOWN_ERROR_CODES)[number] {
-  return (KNOWN_ERROR_CODES as readonly string[]).includes(code)
-}
 
 export function LoginEmailForm() {
   const router = useRouter()
   const search = useSearchParams()
-  const next = safeNext(search.get("next"), "/")
-  const errorCode = search.get("error")
-
   const tBrand = useTranslations("brand")
   const t = useTranslations("auth.login.email")
   const tAdmin = useTranslations("admin.auth.login.email")
   const tValidation = useTranslations("auth.validation")
   const tErrors = useTranslations("auth.errors")
 
-  const form = useForm<LoginEmailInput>({
-    resolver: zodResolver(LoginEmailSchema),
-    defaultValues: { email: "" },
-    mode: "onSubmit",
-  })
-
-  const [serverError, setServerError] = useState<string | null>(
-    errorCode && isKnownErrorCode(errorCode) ? tErrors(errorCode) : null,
-  )
-
-  function translateValidation(
-    message: string | undefined,
-  ): string | undefined {
-    if (!message) return undefined
-    if (message.startsWith("email.")) {
-      return tValidation(message)
-    }
-    return message
-  }
-
-  async function onSubmit(values: LoginEmailInput) {
-    setServerError(null)
-    const result = await identifyEmailAction({ email: values.email })
-    if (!result.ok) {
-      const translated =
-        result.errorKey && result.errorKey.startsWith("email.")
-          ? tValidation(result.errorKey)
-          : (result.errorKey ?? tErrors("signInFailed"))
-      setServerError(translated)
-      return
-    }
-    const nextHref =
-      `/auth/login/password` +
-      (next !== "/workspace" ? `?next=${encodeURIComponent(next)}` : "")
-    router.push(nextHref)
-  }
-
   const brandName = tBrand("name")
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <Heading level={2} className="mt-0">
-          {tAdmin.rich("title", {
-            brand: brandName,
-            admin: (chunks) => (
-              <span className="text-foreground">{chunks}</span>
-            ),
-          })}
-        </Heading>
-        <Text variant="muted">{t("description")}</Text>
-      </header>
-
-      <form
-        onSubmit={(e) => void form.handleSubmit(onSubmit)(e)}
-        className="flex flex-col gap-5"
-        noValidate
-      >
-        <FieldGroup>
-          <Field
-            data-invalid={form.formState.errors.email ? "true" : undefined}
-          >
-            <FieldLabel htmlFor="email">{t("label")}</FieldLabel>
-            <Input
-              id="email"
-              type="email"
-              inputSize="xl"
-              autoComplete="email"
-              autoFocus
-              placeholder={tAdmin("placeholder")}
-              {...form.register("email")}
-              aria-invalid={!!form.formState.errors.email}
-            />
-            {form.formState.errors.email && (
-              <FieldError>
-                {translateValidation(form.formState.errors.email.message)}
-              </FieldError>
-            )}
-          </Field>
-        </FieldGroup>
-
-        {serverError && (
-          <Text variant="small" className="text-destructive" role="alert">
-            {serverError}
-          </Text>
-        )}
-
-        <Button type="submit" size="xl" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? t("submitting") : t("submit")}
-        </Button>
-      </form>
-
-      <Text variant="muted">
-        {t("contactSalesPrompt", { brand: brandName })}{" "}
-        <Link
-          href="#"
-          className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
-        >
-          {t("contactSalesCta")}
-          <ArrowUpRight className="size-3" aria-hidden="true" />
-        </Link>
-      </Text>
-    </div>
+    <LoginEmailFormBlock
+      defaultNext="/"
+      next={search.get("next") ?? undefined}
+      initialErrorCode={search.get("error")}
+      onSubmitEmail={identifyEmailAction}
+      onNavigate={(href) => router.push(href)}
+      messages={{
+        title: tAdmin.rich("title", {
+          brand: brandName,
+          admin: (chunks) => <span className="text-foreground">{chunks}</span>,
+        }),
+        description: t("description"),
+        label: t("label"),
+        placeholder: tAdmin("placeholder"),
+        submit: t("submit"),
+        submitting: t("submitting"),
+        errorFor: (code) => tErrors(code),
+        validationFor: (key) => tValidation(key),
+        signInFailed: tErrors("signInFailed"),
+      }}
+    />
   )
 }

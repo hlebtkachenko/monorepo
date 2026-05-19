@@ -833,7 +833,13 @@ jobs:
 
           migrate_subscribers() {
             local budget="$1" threshold="$2" want_kill="$3"
-            local notif="ComparisonOperator=GREATER_THAN,NotificationType=ACTUAL,Threshold=${threshold},ThresholdType=PERCENTAGE,NotificationState=ALARM"
+            # NotificationState intentionally omitted. CDK's CfnBudget block
+            # does not set notification.notificationState, so AWS Budgets
+            # stores the default. Including `NotificationState=ALARM` in this
+            # shorthand makes describe-subscribers-for-notification +
+            # create-subscriber both fail with "notification doesn't exist"
+            # because the state filter excludes the actual stored row.
+            local notif="ComparisonOperator=GREATER_THAN,NotificationType=ACTUAL,Threshold=${threshold},ThresholdType=PERCENTAGE"
 
             # Existing subscribers for this notification.
             local existing

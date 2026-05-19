@@ -375,7 +375,7 @@ BEGIN
   -- An unset GUC means the init script did not run; crash loudly rather than
   -- silently falling back to a default that might not match the real role.
   IF v_app_user_role IS NULL THEN
-    RAISE EXCEPTION 'app.app_user_role_name GUC must be set on every connection (see init.d/03-set-guc.sql)'
+    RAISE EXCEPTION 'app.app_user_role_name GUC must be set on every connection (see infra/compose/postgres/init.d/00-roles.sql or withAdminBypass)'
       USING ERRCODE = 'check_violation';
   END IF;
 

@@ -20,6 +20,16 @@
 # Usage:
 #   ./scripts/staging-bastion-migrate.sh [staging|production]
 #
+#   # Default: run migrations
+#   ./scripts/staging-bastion-migrate.sh staging
+#
+#   # Ad-hoc SQL file copied into the bastion env
+#   CMD='psql "$DATABASE_DIRECT_URL" -f /tmp/probe.sql' \
+#     ./scripts/staging-bastion-migrate.sh staging
+#
+#   # Interactive shell with DATABASE_DIRECT_URL pre-set
+#   CMD='bash -i' ./scripts/staging-bastion-migrate.sh staging
+#
 # Prereqs:
 #   - AWS CLI v2 with credentials for the target account
 #   - Session Manager plugin: brew install --cask session-manager-plugin
@@ -201,18 +211,27 @@ if ! timeout 3 bash -c "cat </dev/tcp/127.0.0.1/5432" >/dev/null 2>&1; then
   tail -10 /tmp/ssm-tunnel.log
 fi
 
-echo "== 8. Apply migrations =="
+DEFAULT_CMD='pnpm --filter @workspace/db db:migrate'
+CMD="${CMD:-$DEFAULT_CMD}"
+
+echo "== 8. Run command =="
+echo "  cmd: $CMD"
 export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASS}@127.0.0.1:5432/monorepo?sslmode=require"
 unset DB_PASS
 
-pnpm --filter @workspace/db db:migrate
+# eval is intentional: the script is operator-driven and the operator owns
+# the CMD value. set -euo pipefail (line 32) propagates failures; DB_PASS is
+# already unset so it cannot be re-expanded by the eval'd command.
+eval "$CMD"
+
+if [ "$CMD" = "$DEFAULT_CMD" ]; then
+  echo ""
+  echo "== 9. Verify (count rows in api_key) =="
+  PGPASSWORD_REDACTED='[redacted]' \
+    psql "$DATABASE_DIRECT_URL" -c "SELECT COUNT(*) AS api_key_rows FROM api_key;" 2>&1 \
+    | grep -v "password" || echo "  (psql probe skipped or table missing)"
+fi
 
 echo ""
-echo "== 9. Verify (count rows in api_key) =="
-PGPASSWORD_REDACTED='[redacted]' \
-  psql "$DATABASE_DIRECT_URL" -c "SELECT COUNT(*) AS api_key_rows FROM api_key;" 2>&1 \
-  | grep -v "password" || echo "  (psql probe skipped or table missing)"
-
-echo ""
-echo "All migrations applied. Cleanup will run on exit."
+echo "Done. Cleanup will run on exit."
 unset DATABASE_DIRECT_URL

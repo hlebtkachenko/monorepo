@@ -74,12 +74,17 @@ Workflow-level `paths:` filters on the trigger block create stuck PRs when the w
 
 ### In-workflow job/step skip via `changes` upstream
 
-`ci.yml` runs `dorny/paths-filter` in a `changes` job and downstream jobs key off `needs.changes.outputs.<name>`. The `ci` aggregator at the bottom of `ci.yml` treats `skipped` as non-failure (only `failure|cancelled` red the aggregator), so skipped jobs do not break the required `ci` status check.
+Three workflows use the same pattern: a `changes` job runs `dorny/paths-filter` to compute outputs, real jobs gate on those outputs via `if:`, and a final aggregator job owns the required-check name and treats `skipped` as non-failure (only `failure|cancelled` red the aggregator). The required status check stays posted on every PR even when the real job skips. See `ci.yml:284-312` (the `ci` aggregator) for the canonical example.
 
-| Job / Step                                             | Gated on                                                | What skipping saves                                        |
-| ------------------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------- |
-| `storybook-build` + `storybook-test` (entire pipeline) | `packages/ui/**`                                        | ~220s on non-UI PRs                                        |
-| `lint-typecheck` → `CDK Synth` step                    | `infra/cdk/**`, `apps/*/package.json`, `pnpm-lock.yaml` | ~20-40s on PRs that don't touch CDK or dependency surfaces |
+| Workflow         | Required check name | Real job             | Gated on                                                                                    | What skipping saves                   |
+| ---------------- | ------------------- | -------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `ci.yml`         | `ci`                | `storybook-*`        | `packages/ui/**`                                                                            | ~220s on non-UI PRs                   |
+| `ci.yml`         | `ci`                | `lint-typecheck`     | `code` filter (apps/\*\*, packages/\*\*, infra/cdk/\*\*, lockfile, tsconfig, turbo.json)    | ~60-90s runner setup on docs-only PRs |
+| `ci.yml`         | `ci`                | `unit-test`          | `code` filter (same as above)                                                               | ~60-90s runner setup on docs-only PRs |
+| `ci.yml`         | `ci`                | `build`              | `code` filter (same as above)                                                               | ~2-4 min on docs-only PRs             |
+| `ci.yml`         | `ci`                | inner CDK Synth step | `infra/cdk/**`, `apps/*/package.json`, `pnpm-lock.yaml`                                     | ~20-40s on PRs that don't touch CDK   |
+| `knip.yml`       | `knip`              | `knip-run`           | source filter (\*\*/\_.{ts,tsx,js,jsx,mjs,cjs}, \*\*/package.json, lockfile, knip config)   | ~60-120s on docs/infra-only PRs       |
+| `boundaries.yml` | `boundaries`        | `boundaries-run`     | source filter (\*\*/\_.{ts,tsx,mts,cts}, \*\*/package.json, tsconfig, turbo.json, lockfile) | ~30-60s on docs/infra-only PRs        |
 
 `storybook-test` is a 2-shard matrix (`--shard=N/2` on `@storybook/test-runner`). `storybook-build` runs once and uploads `packages/ui/storybook-static` as a 1-day-retention artifact; both shards download it. Net storybook wall on UI PRs: ~220-240s (sequential) → ~130-140s (build + max(shard)).
 

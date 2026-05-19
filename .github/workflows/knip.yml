@@ -1,3 +1,19 @@
+# `knip` is a REQUIRED status check on `.github/rulesets/main.json`. We CANNOT
+# add a trigger-level `paths:` filter — a skipped check reads as "missing" to
+# branch protection and the PR gets stuck.
+#
+# Instead we use the same ci-status-shim pattern as ci.yml: the required
+# status check name `knip` is owned by a tiny always-runs aggregator job that
+# treats `skipped` as non-failure. The actual `knip-run` job is gated on a
+# `changes` upstream and only runs when source/package.json/lockfile changes.
+# Docs-only PRs no longer pay the ~60-120s knip wall time.
+#
+# When the warn-only flag (continue-on-error: true) is removed and knip
+# becomes a real gate, this structure is unchanged — the shim still owns the
+# required-check name; the real job just stops being warn-only.
+#
+# See Linear AFF-68 for the broader rollout.
+
 name: Knip
 
 on:
@@ -11,7 +27,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  knip:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      source: ${{ steps.filter.outputs.source }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            source:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.mjs'
+              - '**/*.cjs'
+              - '**/package.json'
+              - 'pnpm-lock.yaml'
+              - 'knip.json'
+              - 'knip.config.ts'
+              - '.github/workflows/knip.yml'
+
+  knip-run:
+    needs: [changes]
+    if: needs.changes.outputs.source == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -28,7 +77,26 @@ jobs:
         # continue-on-error is intentional: knip has day-1 findings that require
         # a dedicated dead-code cleanup pass (owner decision). The required status
         # check on the main ruleset ensures the job runs and is visible on every
-        # PR, but the gate stays non-blocking until the cleanup is done.
-        # See docs/conventions/CI-POLICY.md for the full rationale (knip footnote).
+        # PR that touches source, but the gate stays non-blocking until the
+        # cleanup is done. See docs/conventions/CI-POLICY.md for the full
+        # rationale (knip footnote).
         continue-on-error: true
         run: pnpm knip
+
+  # Aggregation shim. `knip` is the REQUIRED status check name on the main
+  # branch ruleset. This job owns that name so the check posts on every PR
+  # — including docs-only PRs where the real `knip-run` job is skipped.
+  # Treats `skipped` as non-failure (only `failure|cancelled` red the gate),
+  # matching the `ci` aggregator pattern at the bottom of ci.yml.
+  knip:
+    needs: [changes, knip-run]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Aggregate knip result
+        run: |
+          if echo '${{ join(needs.*.result, ',') }}' | grep -qE 'failure|cancelled'; then
+            echo "knip failed."; exit 1
+          fi
+          echo "knip passed (or skipped — no source changes)."

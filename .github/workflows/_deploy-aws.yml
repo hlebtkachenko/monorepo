@@ -805,14 +805,21 @@ jobs:
           kill_query=$'Stacks[0].Outputs[?OutputKey==\x60KillSwitchTopicArn\x60].OutputValue'
           OPS_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$ops_query" --output text)
           KILL_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$kill_query" --output text)
+          # Fallback for stacks deployed with the pre-PR-#186 template (no
+          # outputs yet). CDK appends an 8-char hash suffix to logical ids
+          # ("KillSwitchOpsTopicFFD7A2C2"), so the filter uses starts_with
+          # against the SNS::Topic resources rather than an exact match.
+          # ANSI-C wraps the JMESPath backtick literals here too.
+          ops_resource_query=$'StackResources[?ResourceType==\x60AWS::SNS::Topic\x60 && starts_with(LogicalResourceId, \x60KillSwitchOpsTopic\x60)].PhysicalResourceId'
+          kill_resource_query=$'StackResources[?ResourceType==\x60AWS::SNS::Topic\x60 && LogicalResourceId!=\x60\x60 && starts_with(LogicalResourceId, \x60KillSwitchTopic\x60) && !starts_with(LogicalResourceId, \x60KillSwitchOpsTopic\x60)].PhysicalResourceId'
           if [ -z "$OPS_ARN" ] || [ "$OPS_ARN" = "None" ]; then
-            OPS_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "StackResources[?LogicalResourceId=='KillSwitchOpsTopic'].PhysicalResourceId" --output text)
+            OPS_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$ops_resource_query" --output text)
           fi
           if [ -z "$KILL_ARN" ] || [ "$KILL_ARN" = "None" ]; then
-            KILL_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "StackResources[?LogicalResourceId=='KillSwitchTopic'].PhysicalResourceId" --output text)
+            KILL_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$kill_resource_query" --output text)
           fi
-          if [ -z "$OPS_ARN" ] || [ -z "$KILL_ARN" ]; then
-            echo "::error::Could not resolve KillSwitchOpsTopic / KillSwitchTopic ARNs. Aborting migration."
+          if [ -z "$OPS_ARN" ] || [ "$OPS_ARN" = "None" ] || [ -z "$KILL_ARN" ] || [ "$KILL_ARN" = "None" ]; then
+            echo "::error::Could not resolve KillSwitchOpsTopic / KillSwitchTopic ARNs (OPS=$OPS_ARN KILL=$KILL_ARN). Aborting migration."
             exit 1
           fi
           echo "Ops topic:  $OPS_ARN"

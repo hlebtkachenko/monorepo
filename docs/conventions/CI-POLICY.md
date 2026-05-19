@@ -8,37 +8,37 @@ Which checks must pass before a PR can merge, and which are advisory.
 
 While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must run on every PR but a failure does not block merge. _Required_ means: failure blocks merge. The matrix changes when the repo turns private + revenue-generating.
 
-| Check                                     | Today                        | Future (production)         |
-| ----------------------------------------- | ---------------------------- | --------------------------- |
-| `typecheck`                               | required                     | required                    |
-| `lint`                                    | required                     | required                    |
-| `test`                                    | required                     | required                    |
-| `build`                                   | required                     | required                    |
-| `ci` (aggregation shim)                   | required                     | required                    |
-| `knip` (dead-code)                        | required, warn-only [^1]     | required                    |
-| `check` (paired-files)                    | required                     | required                    |
-| `boundaries` (import boundaries)          | required                     | required                    |
-| `e2e` (Playwright auth flows)             | advisory, path-filtered      | required (via shim)         |
-| `commitlint`                              | advisory                     | required                    |
-| `actionlint`                              | advisory                     | required                    |
-| `zizmor` (workflow lint)                  | advisory                     | required                    |
-| `codeql`                                  | advisory                     | required                    |
-| `dependency-review`                       | advisory                     | required                    |
-| `gitleaks`                                | required                     | required                    |
-| `osv-scanner` (lib CVEs)                  | advisory                     | required (fail on Critical) |
-| `license-check`                           | advisory [^2]                | required                    |
-| `size-limit` (bundle)                     | advisory                     | required                    |
-| `sbom` (CycloneDX)                        | advisory [^3]                | required                    |
-| `provenance` (SLSA L2)                    | advisory [^4]                | required                    |
-| `cosign sign` (push only)                 | required                     | required                    |
-| `cosign verify-attestation` (deploy gate) | n/a (no deploy)              | required                    |
-| `openapi-lint` (spec drift + Spectral)    | advisory                     | required                    |
-| `db-schema-drift` (migration vs snapshot) | required                     | required                    |
-| `squawk` (migration lint)                 | required                     | required                    |
-| `db-tests` (Postgres 18 testcontainer)    | advisory, path-filtered [^5] | required (via shim)         |
-| `conv-title` (PR title lint)              | advisory                     | required                    |
-| `size-cap` (PR size limit)                | advisory                     | required                    |
-| Mutation testing (Stryker)                | advisory, nightly            | advisory, nightly           |
+| Check                                                 | Today                        | Future (production)         |
+| ----------------------------------------------------- | ---------------------------- | --------------------------- |
+| `typecheck`                                           | required                     | required                    |
+| `lint`                                                | required                     | required                    |
+| `test`                                                | required                     | required                    |
+| `build`                                               | required                     | required                    |
+| `ci` (aggregation shim)                               | required                     | required                    |
+| `knip` (dead-code)                                    | required, warn-only [^1]     | required                    |
+| `check` (paired-files)                                | required                     | required                    |
+| `boundaries` (import boundaries)                      | required                     | required                    |
+| `e2e` (Playwright auth flows)                         | advisory, path-filtered      | required (via shim)         |
+| `commitlint` (posts as `lint`)                        | required [^6]                | required                    |
+| `actionlint`                                          | advisory, path-filtered [^7] | required (via shim)         |
+| `zizmor` (workflow lint)                              | advisory                     | required                    |
+| `codeql` (posts as `Analyze (javascript-typescript)`) | required [^6]                | required                    |
+| `dependency-review` (posts as `review`)               | required [^6]                | required                    |
+| `gitleaks`                                            | required                     | required                    |
+| `osv-scanner` (posts as `scan-pr / osv-scan`)         | required [^6]                | required (fail on Critical) |
+| `license-check`                                       | advisory [^2]                | required                    |
+| `size-limit` (bundle, posts as `size`)                | advisory, path-filtered [^7] | required (via shim)         |
+| `sbom` (CycloneDX)                                    | advisory [^3]                | required                    |
+| `provenance` (SLSA L2)                                | advisory [^4]                | required                    |
+| `cosign sign` (push only)                             | required                     | required                    |
+| `cosign verify-attestation` (deploy gate)             | n/a (no deploy)              | required                    |
+| `openapi-lint` (spec drift + Spectral)                | advisory                     | required                    |
+| `db-schema-drift` (migration vs snapshot)             | required                     | required                    |
+| `squawk` (migration lint)                             | required                     | required                    |
+| `db-tests` (Postgres 18 testcontainer)                | advisory, path-filtered [^5] | required (via shim)         |
+| `conv-title` (PR title lint)                          | required                     | required                    |
+| `size-cap` (PR size limit)                            | required                     | required                    |
+| Mutation testing (Stryker)                            | advisory, nightly            | advisory, nightly           |
 
 [^1]: `knip` is a REQUIRED status check on the `main` ruleset (the job must run and be visible on every PR), but `.github/workflows/knip.yml` uses `continue-on-error: true` on the run step, making it warn-only today. This is intentional: knip found day-1 findings across 101k LOC that require a dedicated owner decision and cleanup pass — silently failing PRs that don't touch dead code would be noise, not signal. Once a dedicated dead-code cleanup issue lands and knip is clean, remove `continue-on-error: true` to make the gate real.
 
@@ -49,6 +49,10 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 [^4]: `provenance` is implemented at TWO levels: SLSA L2 via cosign sign-blob in `_supply-chain.yml:90-111`, and SLSA L3 via `slsa-framework/slsa-github-generator` in `release.yml:95-105`. Promote to required after one green release cycle.
 
 [^5]: `db-tests` was previously listed as `required` here but is not in `.github/rulesets/main.json` required_status_checks. Live branch protection is the source of truth — db-tests is advisory today. When promoted to required (Linear AFF-65), the trigger-paths filter must be replaced with the ci-status-shim pattern (Linear AFF-68) to avoid stuck PRs.
+
+[^6]: Live `.github/rulesets/main.json` lists these checks as required by their posted context name (`lint` for commitlint, `Analyze (javascript-typescript)` for codeql, `review` for dependency-review, `scan-pr / osv-scan` for osv-scanner). The earlier `advisory` classification was stale — branch protection has enforced them for some time. Reconciled 2026-05-19 as part of AFF-65.
+
+[^7]: `actionlint`, `zizmor`, and `size` (size-limit) use trigger-level `paths:` filters today. Promoting them to required without first refactoring to the ci-status-shim pattern (Linear AFF-68 Tier 2) would create stuck PRs — branch protection reads a `paths:`-skipped check as "missing". Promote after the shim refactor lands. Tracked as the AFF-65 follow-up.
 
 A check moves from advisory to required by:
 

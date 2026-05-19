@@ -1,10 +1,52 @@
 name: E2E Tests
 
+# Path-filtered because e2e is ADVISORY (not in main branch ruleset's
+# required checks). Trigger-level `paths:` is safe — a skipped check that
+# is not required does not block the merge gate. If e2e is ever promoted
+# to required (see Linear AFF-65), switch to the ci-status-shim pattern
+# used by ci.yml so a skipped check still reports a green status.
+#
+# Triggers when anything that the Playwright auth-flow suite could
+# exercise changes: web/api/admin app source, packages they consume
+# (auth, db, shared, email, ui, testcontainers), lockfile (dep upgrades
+# may change SSR/runtime behavior), the workflow file itself, and the
+# shared setup composite action.
+
 on:
   push:
     branches: [main]
+    paths:
+      - "apps/web/**"
+      - "apps/api/**"
+      - "apps/admin/**"
+      - "packages/auth/**"
+      - "packages/db/**"
+      - "packages/shared/**"
+      - "packages/email/**"
+      - "packages/ui/**"
+      - "packages/testcontainers/**"
+      - "packages/i18n/**"
+      - "packages/observability/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/e2e.yml"
+      - ".github/actions/setup/**"
   pull_request:
     branches: [main]
+    paths:
+      - "apps/web/**"
+      - "apps/api/**"
+      - "apps/admin/**"
+      - "packages/auth/**"
+      - "packages/db/**"
+      - "packages/shared/**"
+      - "packages/email/**"
+      - "packages/ui/**"
+      - "packages/testcontainers/**"
+      - "packages/i18n/**"
+      - "packages/observability/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/e2e.yml"
+      - ".github/actions/setup/**"
 
 permissions: {}
 

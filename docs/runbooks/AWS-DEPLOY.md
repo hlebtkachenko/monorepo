@@ -595,7 +595,7 @@ Trip-wired for later (see ADR 0008 trip-wire section):
 - Object Lock buckets for audit
 - RDS Multi-AZ + Read Replica
 - RDS Proxy
-- Drizzle migration ECS task (deferred until `packages/db` ships schema + `src/migrate.ts`)
+- Drizzle migration ECS task (**LANDED 2026-05-20**) — `_deploy-aws.yml`'s "Apply DB migrations via one-off ECS task" step calls `infra/scripts/apply-migrations-via-ecs.sh`, which uploads `packages/db/migrations/*.sql` to the Backup S3 bucket, presigns them, and runs the Backup TaskDef with an overridden command that fetches + applies each in order (journaling to `_app_migrations`). Replaces the operator-driven bastion `pnpm db:migrate` step described earlier. Re-runs are no-ops; failure prints the full task log and aborts the deploy before `cdk deploy App-*`.
 - Workers / Upstash Redis (deferred)
 - ALB + ACM cert (replaced by Cloudflare Tunnel)
 - Status page / uptime monitoring — `status.afframe.com` runs OpenStatus on the OVH VPS, **not AWS**, and is not part of any `cdk deploy` / `_deploy-aws.yml` run. See `docs/runbooks/STATUS-PAGE.md` and `docs/adr/0019-status-page-and-uptime-monitoring.md`.

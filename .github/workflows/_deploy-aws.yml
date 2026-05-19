@@ -978,6 +978,29 @@ jobs:
 
           echo "Live budget subscribers now match CDK template (SNS-only)."
 
+      # Apply pending `packages/db/migrations/*.sql` to RDS via a one-off
+      # ECS Fargate task that reuses the Backup TaskDef (it already has
+      # the network + `app_owner` secret wiring). Replaces the operator-
+      # driven bastion `pnpm db:migrate` step in docs/runbooks/AWS-DEPLOY.md.
+      #
+      # Runs BEFORE `cdk deploy App-*` so:
+      #   1. New schema (auth_token, audit_event.workspace_id nullable, etc.)
+      #      is in place when ECS rolls out the new App task definition.
+      #   2. Old App task (still on the previous task def) keeps serving
+      #      until rollout — migrations include `DROP TABLE auth_invite`
+      #      (0020), which the old code does not read; the inverse path
+      #      (apply AFTER deploy) crashed the OLD task and tripped
+      #      circuit breaker.
+      #
+      # Idempotent: every applied SQL file is journaled in `_app_migrations`
+      # and skipped on re-run. The script also no-ops cleanly when
+      # `packages/db/migrations/` is empty.
+      - name: Apply DB migrations via one-off ECS task
+        if: env.STACK_SCOPE != 'infra-only'
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: bash infra/scripts/apply-migrations-via-ecs.sh
+
       # Single cdk deploy, AFTER images + secrets exist. App and the stacks
       # that depend on it (Security, Observability, Backup) cannot deploy
       # before the web/api images are in ECR and the tunnel/Resend secrets

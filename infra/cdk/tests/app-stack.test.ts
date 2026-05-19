@@ -145,6 +145,11 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["DB_HOST"]).toBe("localhost")
     expect(envByName["DB_PORT"]).toBe("6432")
     expect(envByName["DB_NAME"]).toBe("monorepo")
+    // AUTH_TOKEN_ENV must be explicitly mapped from envName so the
+    // resolveAuthTokenEnv() fallback (NODE_ENV='production' -> 'prd')
+    // does not stamp staging tokens with the production checksum code.
+    // TEST_ENV_NAME == "test" falls through the map to "dev".
+    expect(envByName["AUTH_TOKEN_ENV"]).toBe("dev")
     // Secrets reach the container via Secrets Manager; the names match
     // what packages/auth + packages/email read.
     const secretNames = (web?.Secrets ?? []).map((s) => s.Name)
@@ -153,6 +158,33 @@ describe("AppStack Fargate hardening", () => {
     expect(secretNames).not.toContain("APP_TOKEN_SECRET")
     expect(secretNames).toContain("DB_USER")
     expect(secretNames).toContain("DB_PASSWORD")
+  })
+
+  it("AUTH_TOKEN_ENV is explicitly set on web + admin + api so staging tokens are not stamped 'prd'", () => {
+    // resolveAuthTokenEnv() falls back to NODE_ENV==='production' ? 'prd'
+    // : 'dev' when AUTH_TOKEN_ENV is unset. Every Fargate container sets
+    // NODE_ENV='production' (Next.js prod build), so without an explicit
+    // AUTH_TOKEN_ENV value staging would mint tokens carrying the 'prd'
+    // checksum code — opening a cross-env replay channel. ADR-0022 §"Kind
+    // taxonomy" requires the env code to be bound to the deploy env.
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+    }>
+    for (const name of ["web", "admin", "api"]) {
+      const c = containers.find((x) => x.Name === name)
+      expect(c, `container ${name} missing`).toBeDefined()
+      const envByName = Object.fromEntries(
+        (c?.Environment ?? []).map((e) => [e.Name, e.Value]),
+      )
+      // TEST_ENV_NAME == "test" falls through the envName->code map to "dev".
+      expect(envByName["AUTH_TOKEN_ENV"]).toBe("dev")
+    }
   })
 
   it("admin container BETTER_AUTH_URL is the explicit adminDomain, not derived from the web domain", () => {

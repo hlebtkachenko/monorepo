@@ -171,6 +171,21 @@ export class AppStack extends Stack {
       requiredSecretArn("cloudflareTunnelSecretArn"),
     )
 
+    // Map CDK envName -> auth_token env code (ADR-0022 §"Kind taxonomy").
+    // Tokens carry this code in their checksum so a token minted in
+    // staging cannot be replayed against production. Without this, the
+    // runtime resolver in packages/auth/src/tokens/auth-token.ts falls
+    // back to `NODE_ENV === 'production' ? 'prd' : 'dev'` — and every
+    // container already sets `NODE_ENV: "production"` (Next.js prod
+    // build requirement), so staging tokens would be stamped 'prd' and
+    // the cross-env checksum gate would silently fail open.
+    const authTokenEnv: "dev" | "stg" | "prd" =
+      props.envName === "production"
+        ? "prd"
+        : props.envName === "staging"
+          ? "stg"
+          : "dev"
+
     this.cluster = new Cluster(this, "Cluster", {
       vpc: props.vpc,
       clusterName: `monorepo-${props.envName}`,
@@ -361,6 +376,7 @@ export class AppStack extends Stack {
       environment: {
         NODE_ENV: "production",
         APP_ENV: props.envName,
+        AUTH_TOKEN_ENV: authTokenEnv,
         PORT: "3000",
         APP_DOMAIN: props.domain,
         // Better Auth: cookie scope + email link composition. resolveBaseURL
@@ -463,6 +479,7 @@ export class AppStack extends Stack {
       environment: {
         NODE_ENV: "production",
         APP_ENV: props.envName,
+        AUTH_TOKEN_ENV: authTokenEnv,
         PORT: "3001",
         HOST: "0.0.0.0",
         // pgbouncer-routed connection for app queries (RLS + GUC contract).
@@ -535,6 +552,7 @@ export class AppStack extends Stack {
       environment: {
         NODE_ENV: "production",
         APP_ENV: props.envName,
+        AUTH_TOKEN_ENV: authTokenEnv,
         PORT: "3100",
         BETTER_AUTH_URL: adminOrigin,
         BETTER_AUTH_TRUSTED_ORIGINS: adminOrigin,

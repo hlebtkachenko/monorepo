@@ -37,8 +37,20 @@ Customer ─▶ Cloudflare DNS/edge ─▶ status.afframe.com   (public page)
 `checker` (8082), `dashboard` (3002), `status-page` (3003), `caddy` (80), plus
 `cloudflared` (tunnel — no port published).
 
-All secrets below are placeholders (`<NAME>`). Real values stay on the VPS in
-`/root/openstatus-deploy.env` (`chmod 600`) and in container `.env.docker`.
+Stack secrets are sourced from GitHub Actions and rendered into
+`/opt/openstatus/.env.docker` by [`deploy-statuspage.yml`](../../.github/workflows/deploy-statuspage.yml).
+Compose, `patch-emails.sh`, `keepalive.sh`, and the Caddyfile live in
+[`infra/openstatus/deploy/`](../../infra/openstatus/deploy/) — the runbook below
+describes the manual procedure that workflow now automates (Phase 1 steps 5-7
+and Phase 4 step 20). Use the manual procedure only for a cold-start VPS where
+the workflow's prerequisites (deploy SSH key on the VPS, Cloudflare Tunnel
+created) are not yet in place.
+
+Deploy-time bootstrap secrets (`CLOUDFLARE_API_TOKEN`, `TUNNEL_ID`,
+`OPENSTATUS_API_TOKEN`) historically lived in `/root/openstatus-deploy.env`
+(`chmod 600`). With the workflow in place they belong in GitHub Actions
+secrets; see [`infra/openstatus/deploy/README.md`](../../infra/openstatus/deploy/README.md).
+Placeholders below are written as `<NAME>` for documentation.
 
 ## Pre-flight: self-host realities (read first)
 
@@ -137,6 +149,12 @@ hard requirement or a hard-won workaround:
     process to hold it open. See "Phase 4 protection".
 
 ## Deploy — one-time
+
+> **Automated path** — once the VPS has the dedicated deploy SSH key installed
+> and the Cloudflare Tunnel exists (Phase 1 step 2 + Phase 2 step 9 below),
+> the rest of "deploy / refresh the stack" runs through
+> [`.github/workflows/deploy-statuspage.yml`](../../.github/workflows/deploy-statuspage.yml).
+> The manual steps below remain authoritative for the cold-start case.
 
 ### Phase 1 — OpenStatus stack on the OVH VPS
 

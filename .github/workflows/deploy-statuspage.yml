@@ -1,0 +1,183 @@
+# Deploy / refresh the OpenStatus stack on the OVH VPS.
+#
+# This is the operational counterpart to docs/runbooks/STATUS-PAGE.md Phase 1
+# steps 5-7. It renders `infra/openstatus/deploy/env.docker.template` from
+# GitHub Actions secrets, ships the file + the four scripted artifacts
+# (compose, patch-emails.sh, keepalive.sh, Caddyfile) to the VPS over scp,
+# then runs `docker compose up -d` inside the `openstatus` WSL2 distro.
+#
+# Status page hosting is intentionally off-AWS (ADR-0019). This workflow is the
+# closest thing to "infrastructure as code" for it — without this, secrets and
+# the patched compose live only on the VPS, and DR after a VPS loss is hours of
+# hand work. See infra/openstatus/deploy/README.md for context.
+#
+# Required GitHub Actions secrets / variables — see README.md.
+
+name: deploy-statuspage
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "infra/openstatus/deploy/**"
+      - ".github/workflows/deploy-statuspage.yml"
+
+permissions: {}
+
+concurrency:
+  group: deploy-statuspage
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Render env.docker from template
+        env:
+          OPENSTATUS_AUTH_SECRET: ${{ secrets.OPENSTATUS_AUTH_SECRET }}
+          OPENSTATUS_RESEND_API_KEY: ${{ secrets.OPENSTATUS_RESEND_API_KEY }}
+          OPENSTATUS_TUNNEL_TOKEN: ${{ secrets.OPENSTATUS_TUNNEL_TOKEN }}
+          OPENSTATUS_PROBE_KEY: ${{ secrets.OPENSTATUS_PROBE_KEY }}
+          OPENSTATUS_DB_AUTH_TOKEN: ${{ secrets.OPENSTATUS_DB_AUTH_TOKEN }}
+        run: |
+          # Belt-and-suspenders masking. GitHub already masks secrets in log
+          # output, but envsubst reads from env and the rendered file briefly
+          # lives on the runner FS before scp uploads it.
+          for v in \
+            "$OPENSTATUS_AUTH_SECRET" \
+            "$OPENSTATUS_RESEND_API_KEY" \
+            "$OPENSTATUS_TUNNEL_TOKEN" \
+            "$OPENSTATUS_PROBE_KEY" \
+            "$OPENSTATUS_DB_AUTH_TOKEN"; do
+            if [ -n "$v" ]; then echo "::add-mask::$v"; fi
+          done
+          if [ -z "$OPENSTATUS_AUTH_SECRET" ] || \
+             [ -z "$OPENSTATUS_RESEND_API_KEY" ] || \
+             [ -z "$OPENSTATUS_TUNNEL_TOKEN" ] || \
+             [ -z "$OPENSTATUS_PROBE_KEY" ]; then
+            echo "::error::One or more required OPENSTATUS_* secrets are unset"
+            exit 1
+          fi
+          mkdir -p staging
+          envsubst < infra/openstatus/deploy/env.docker.template \
+            > staging/.env.docker
+          chmod 600 staging/.env.docker
+          # Bundle the four operator-authored artifacts alongside the env file
+          # so a single scp transfer keeps the VPS state coherent.
+          cp infra/openstatus/deploy/docker-compose.github-packages.yaml staging/
+          cp infra/openstatus/deploy/patch-emails.sh staging/
+          cp infra/openstatus/deploy/keepalive.sh staging/
+          mkdir -p staging/caddy
+          cp infra/openstatus/deploy/caddy/Caddyfile staging/caddy/
+          chmod +x staging/patch-emails.sh staging/keepalive.sh
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.OVH_VPS_SSH_KEY }}
+          HOST_KEY: ${{ secrets.OVH_VPS_HOST_KEY }}
+          VPS_HOST: ${{ vars.OVH_VPS_HOST }}
+          VPS_PORT: ${{ vars.OVH_VPS_PORT }}
+        run: |
+          for v in "$SSH_KEY" "$HOST_KEY"; do
+            if [ -n "$v" ]; then echo "::add-mask::$v"; fi
+          done
+          if [ -z "$SSH_KEY" ] || [ -z "$HOST_KEY" ] \
+             || [ -z "$VPS_HOST" ] || [ -z "$VPS_PORT" ]; then
+            echo "::error::OVH_VPS_SSH_KEY / OVH_VPS_HOST_KEY / vars.OVH_VPS_HOST / vars.OVH_VPS_PORT must be set"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          install -m 600 /dev/stdin ~/.ssh/id_deploy <<< "$SSH_KEY"
+          # Host key pinning: store the full `ssh-keyscan` output for the VPS
+          # in secret OVH_VPS_HOST_KEY (see README.md). Refusing any first-use
+          # auto-accept — MITM defence on the deploy path.
+          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload artifacts to VPS
+        env:
+          VPS_HOST: ${{ vars.OVH_VPS_HOST }}
+          VPS_PORT: ${{ vars.OVH_VPS_PORT }}
+          VPS_USER: ${{ vars.OVH_VPS_USER }}
+        run: |
+          # Single scp of the whole staging dir; atomic from the VPS side via
+          # `install -m 600` in the next step. Target staging dir on the VPS is
+          # outside /opt/openstatus until validated; then we move into place.
+          ssh -i ~/.ssh/id_deploy -p "$VPS_PORT" \
+              -o BatchMode=yes \
+              "$VPS_USER@$VPS_HOST" \
+              "powershell -Command \"wsl -d openstatus -u root -- bash -lc 'rm -rf /tmp/openstatus-deploy && mkdir -p /tmp/openstatus-deploy'\""
+          scp -i ~/.ssh/id_deploy -P "$VPS_PORT" \
+              -o BatchMode=yes \
+              -r staging/* \
+              "$VPS_USER@$VPS_HOST:C:/Hosting/openstatus-deploy/"
+          # The Windows -> WSL bridge: copy from C:/Hosting (Windows FS) into
+          # /tmp on the openstatus distro. Going direct over scp into WSL paths
+          # is unreliable on OpenSSH-for-Windows.
+          ssh -i ~/.ssh/id_deploy -p "$VPS_PORT" \
+              -o BatchMode=yes \
+              "$VPS_USER@$VPS_HOST" \
+              "powershell -Command \"wsl -d openstatus -u root -- bash -lc 'cp -r /mnt/c/Hosting/openstatus-deploy/. /tmp/openstatus-deploy/ && rm -rf /mnt/c/Hosting/openstatus-deploy'\""
+
+      - name: Install + recompose
+        env:
+          VPS_HOST: ${{ vars.OVH_VPS_HOST }}
+          VPS_PORT: ${{ vars.OVH_VPS_PORT }}
+          VPS_USER: ${{ vars.OVH_VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "$VPS_PORT" \
+              -o BatchMode=yes \
+              "$VPS_USER@$VPS_HOST" \
+              "powershell -Command \"wsl -d openstatus -u root -- bash -lc '
+                set -euo pipefail
+                cd /opt/openstatus
+                # Back up the previous env so a botched secret rotation is recoverable.
+                if [ -f .env.docker ]; then
+                  install -m 600 .env.docker .env.docker.prev
+                fi
+                install -m 600 /tmp/openstatus-deploy/.env.docker .env.docker
+                install -m 644 /tmp/openstatus-deploy/docker-compose.github-packages.yaml docker-compose.github-packages.yaml
+                install -m 755 /tmp/openstatus-deploy/patch-emails.sh patch-emails.sh
+                install -m 755 /tmp/openstatus-deploy/keepalive.sh keepalive.sh
+                mkdir -p caddy
+                install -m 644 /tmp/openstatus-deploy/caddy/Caddyfile caddy/Caddyfile
+                # Wipe the staging copy on the VPS so the rendered env file
+                # does not linger outside /opt/openstatus.
+                find /tmp/openstatus-deploy -type f -exec shred -u {} +
+                rm -rf /tmp/openstatus-deploy
+                docker compose -f docker-compose.github-packages.yaml pull
+                docker compose -f docker-compose.github-packages.yaml up -d
+                docker compose -f docker-compose.github-packages.yaml ps
+              '\""
+
+      - name: Smoke check public status page
+        run: |
+          # cloudflared picks up new ingress within ~30s; allow up to 90s for
+          # container restart + tunnel re-handshake before failing.
+          for i in $(seq 1 18); do
+            http=$(curl -sSL -o /dev/null -w '%{http_code}' \
+              --max-time 10 "https://status.afframe.com/" || echo "000")
+            if [ "$http" = "200" ]; then
+              echo "status.afframe.com → HTTP 200 (attempt $i)" \
+                >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $http"
+            sleep 5
+          done
+          echo "::error::status.afframe.com never returned HTTP 200"
+          exit 1

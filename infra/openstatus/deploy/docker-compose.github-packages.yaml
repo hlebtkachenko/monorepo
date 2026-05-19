@@ -1,0 +1,263 @@
+networks:
+  openstatus:
+    driver: bridge
+    name: openstatus
+
+volumes:
+  libsql-data:
+    name: openstatus-libsql-data
+  workflows-data:
+    name: openstatus-workflows-data
+
+services:
+  # External services
+  libsql:
+    container_name: openstatus-libsql
+    # libsql-server image pinned by digest for DR reproducibility.
+    # Upgrade: `docker pull ghcr.io/tursodatabase/libsql-server:latest`, then
+    # `docker images --digests` to get the new sha256, replace below.
+    image: ghcr.io/tursodatabase/libsql-server:latest@sha256:05328338f61d8c6f8f8b224457eb65f429360c62b7bedc13c999c140ec9cfca9
+    mem_limit: 256m
+    networks:
+      - openstatus
+    ports:
+      - "18080:8080"
+      - "15001:5001"
+    volumes:
+      - libsql-data:/var/lib/sqld
+    environment:
+      - SQLD_NODE=primary
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'perl -e ''use IO::Socket::INET; exit(IO::Socket::INET->new(PeerAddr=>"127.0.0.1:8080",Timeout=>1) ? 0 : 1);''',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  tinybird-local:
+    container_name: openstatus-tinybird
+    image: tinybirdco/tinybird-local:latest@sha256:3a3bba69c2444a95a436cccc153b7bf1840bde588ecf29d1fdd84f3fb2aea086
+    platform: linux/amd64
+    mem_limit: 4g
+    networks:
+      - openstatus
+    ports:
+      - "7181:7181"
+    environment:
+      - COMPATIBILITY_MODE=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7181/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # Internal Services - Using GitHub Packages
+  workflows:
+    container_name: openstatus-workflows
+    image: ghcr.io/openstatushq/openstatus-workflows:latest@sha256:5979cca42c28052121f920b1c74729558175f402b18854e9758c8d85fafbca98
+    mem_limit: 512m
+    networks:
+      - openstatus
+    ports:
+      - "3000:3000"
+    volumes:
+      - workflows-data:/app/data
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=http://libsql:8080
+      - PORT=3000
+    depends_on:
+      libsql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ping || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  server:
+    container_name: openstatus-server
+    image: ghcr.io/openstatushq/openstatus-server:latest@sha256:f797be4cc3c452b690f1fc3567319b8a8da0dc50c246bfffcdaf385df0eb4b4f
+    mem_limit: 512m
+    networks:
+      - openstatus
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=http://libsql:8080
+      - PORT=3000
+    depends_on:
+      workflows:
+        condition: service_healthy
+      libsql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ping || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  private-location:
+    container_name: openstatus-private-location
+    image: ghcr.io/openstatushq/openstatus-private-location:latest@sha256:0810322f24ff04e142eda0a965b832ba39b980de4ac32162ef523c7b83ab609d
+    mem_limit: 128m
+    networks:
+      - openstatus
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env.docker
+    environment:
+      - DB_URL=http://libsql:8080
+      - TINYBIRD_URL=http://tinybird-local:7181
+      - GIN_MODE=release
+      - PORT=8080
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  checker:
+    container_name: openstatus-checker
+    image: ghcr.io/openstatushq/openstatus-checker:latest@sha256:d068d82502c6aa0863ce4fa4a71e152d32eba867b1b3750bd5a161a4f852e0f4
+    mem_limit: 128m
+    networks:
+      - openstatus
+    ports:
+      - "8082:8080"
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=http://libsql:8080
+      - PORT=8080
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["NONE"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  dashboard:
+    container_name: openstatus-dashboard
+    image: ghcr.io/openstatushq/openstatus-dashboard:latest@sha256:8c8fe0dc4ab7a3085b1a522ff20a4491a07f5280a8deb64d8698e55aaf3eddf7
+    mem_limit: 512m
+    # Run as root so the in-place sed in /opt/patch-emails.sh can rewrite
+    # the build-baked chunks (the default `nextjs` user has read-only perms).
+    # Acceptable here: no public ingress (Cloudflare-Tunnel-only) and the
+    # whole stack is one-tenant.
+    user: "0"
+    entrypoint: ["/bin/sh", "/opt/patch-emails.sh", "docker-entrypoint.sh"]
+    command: ["node", "server.js"]
+    volumes:
+      - ./patch-emails.sh:/opt/patch-emails.sh:ro
+    networks:
+      - openstatus
+    ports:
+      - "3002:3000"
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=http://libsql:8080
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - AUTH_TRUST_HOST=true
+    depends_on:
+      workflows:
+        condition: service_healthy
+      libsql:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    restart: unless-stopped
+
+  status-page:
+    container_name: openstatus-status-page
+    image: ghcr.io/openstatushq/openstatus-status-page:latest@sha256:0b8bc9cc19a1904ba0e3b2e58c14a7e31771f696098a736f6e93d1b2f5f380e0
+    mem_limit: 512m
+    # See dashboard service for rationale on root user.
+    user: "0"
+    entrypoint: ["/bin/sh", "/opt/patch-emails.sh", "docker-entrypoint.sh"]
+    command: ["node", "server.js"]
+    volumes:
+      - ./patch-emails.sh:/opt/patch-emails.sh:ro
+    networks:
+      - openstatus
+    ports:
+      - "3003:3000"
+    env_file:
+      - .env.docker
+    environment:
+      - DATABASE_URL=http://libsql:8080
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - AUTH_TRUST_HOST=true
+      - NEXT_PUBLIC_URL=https://status.afframe.com
+    depends_on:
+      workflows:
+        condition: service_healthy
+      libsql:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    restart: unless-stopped
+
+  cloudflared:
+    container_name: openstatus-cloudflared
+    image: cloudflare/cloudflared:latest@sha256:59bab8d3aceec09bf6bdb07d6beca0225ca5cd7ab79436a87ea97978fe1dc4f9
+    mem_limit: 128m
+    command: tunnel --no-autoupdate run
+    env_file:
+      - .env.docker
+    networks:
+      - openstatus
+    depends_on:
+      - status-page
+    restart: unless-stopped
+
+  caddy:
+    container_name: openstatus-caddy
+    image: caddy:2-alpine@sha256:86deaf5e3d3408a6ccec08fbb79989783dd26e206ae10bcf78a801dc8c9ab794
+    mem_limit: 64m
+    networks:
+      - openstatus
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - status-page
+    restart: unless-stopped

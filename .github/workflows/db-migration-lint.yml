@@ -60,9 +60,14 @@ jobs:
         #   AFF-198 cutover. Pre-prod posture, no real users; the table was
         #   migrated INTO auth_token in 0018 before being dropped here.
         #   Same rationale as ban-drop-column.
+        # - ban-drop-not-null: 0021 intentionally drops NOT NULL from
+        #   audit_event.workspace_id so Better Auth `hooks.after` pre-account
+        #   events (failed login of unknown email) can persist with NULL
+        #   workspace_id. RLS guards keep tenant reads scoped. Pre-prod, no
+        #   existing clients to break.
         run: |
           set -euo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
           squawk \
-            --exclude prefer-text-field,disallowed-unique-constraint,require-timeout-settings,ban-drop-column,ban-drop-table,prefer-bigint-over-int,prefer-bigint-over-smallint,constraint-missing-not-valid,adding-foreign-key-constraint \
+            --exclude prefer-text-field,disallowed-unique-constraint,require-timeout-settings,ban-drop-column,ban-drop-table,ban-drop-not-null,prefer-bigint-over-int,prefer-bigint-over-smallint,constraint-missing-not-valid,adding-foreign-key-constraint \
             packages/db/migrations/*.sql

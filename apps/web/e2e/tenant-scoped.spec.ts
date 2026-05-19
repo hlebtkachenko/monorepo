@@ -91,15 +91,13 @@ async function loginAsSeededOwner(
   // raced the queued bounce and Playwright aborted with "interrupted by
   // another navigation to /workspace".
   //
-  // Waiting on the FINAL settled URL (the seeded org dashboard) plus
-  // `networkidle` defeats the race. The helper is now safe to chain with
-  // an explicit `page.goto` in the test body if needed.
-  await page.waitForURL(
-    (url) =>
-      !url.pathname.includes("/auth/login") &&
-      !url.pathname.startsWith("/workspace"),
-    { timeout: 15_000 },
-  )
+  // Post-E1 the workspace chooser at /workspace stays put (no further
+  // redirect to /<orgSlug>), so the helper waits for the URL to leave
+  // /auth/login + networkidle so any explicit page.goto in the test
+  // body navigates from a fully-settled state.
+  await page.waitForURL((url) => !url.pathname.includes("/auth/login"), {
+    timeout: 15_000,
+  })
   await page.waitForLoadState("networkidle")
 }
 

@@ -28,7 +28,6 @@ interface BuiltApp {
 export const TEST_CLOUDFLARE_TUNNEL_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-cloudflare-tunnel-token-AbCdEf`
 export const TEST_RESEND_API_KEY_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-resend-api-key-GhIjKl`
 export const TEST_BETTER_AUTH_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-better-auth-secret-MnOpQr`
-export const TEST_APP_TOKEN_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-app-token-secret-StUvWx`
 
 export function buildTestApp(): BuiltApp {
   const app = new App({
@@ -44,7 +43,6 @@ export function buildTestApp(): BuiltApp {
       cloudflareTunnelSecretArn: TEST_CLOUDFLARE_TUNNEL_SECRET_ARN,
       resendApiKeySecretArn: TEST_RESEND_API_KEY_SECRET_ARN,
       betterAuthSecretArn: TEST_BETTER_AUTH_SECRET_ARN,
-      appTokenSecretArn: TEST_APP_TOKEN_SECRET_ARN,
     },
   })
 

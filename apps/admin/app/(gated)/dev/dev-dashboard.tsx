@@ -343,8 +343,8 @@ function InviteTokenSection() {
         <CardTitle>Generate invite token</CardTitle>
         <Text variant="small" className="text-muted-foreground">
           Issues an invite for an existing organization. Inserts a pending row
-          in <code>auth_invite</code> + sends the invite email through the
-          configured transport.
+          in <code>auth_token</code> (kind <code>inv</code>) + sends the invite
+          email through the configured transport.
         </Text>
       </CardHeader>
       <CardContent>

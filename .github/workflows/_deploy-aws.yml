@@ -655,28 +655,22 @@ jobs:
           fi
           capture resendApiKeySecretArn "$NAME"
 
-          # ---------- 3+4. Better Auth + app-token signing secrets ----------
+          # ---------- 3. Better Auth signing secret ----------
           # 44-char alphanumeric, generated ONCE on first creation. We never
           # put a new value into an existing signing secret — that would
-          # invalidate every active session and every pending invite/signup
-          # token redemption on each deploy.
-          for slug in better-auth-secret app-token-secret; do
-            NAME="monorepo-${ENV_NAME}-${slug}"
-            case "$slug" in
-              better-auth-secret) DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}"; OUT=betterAuthSecretArn ;;
-              app-token-secret)   DESC="App signup/invite/login-email token signing secret, monorepo ${ENV_NAME}"; OUT=appTokenSecretArn ;;
-            esac
-            restore_if_pending "$NAME"
-            if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-              echo "Secret $NAME already exists — leaving value untouched."
-            else
-              VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
-              echo "::add-mask::$VALUE"
-              aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
-              echo "Secret $NAME created with fresh 44-char value."
-            fi
-            capture "$OUT" "$NAME"
-          done
+          # invalidate every active session on each deploy.
+          NAME="monorepo-${ENV_NAME}-better-auth-secret"
+          DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}"
+          restore_if_pending "$NAME"
+          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Secret $NAME already exists — leaving value untouched."
+          else
+            VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
+            echo "::add-mask::$VALUE"
+            aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
+            echo "Secret $NAME created with fresh 44-char value."
+          fi
+          capture betterAuthSecretArn "$NAME"
 
       # Sanity check: when image_tag_override is set the operator is asking
       # CDK to reuse images that should already be in ECR. Fail fast if any
@@ -788,7 +782,6 @@ jobs:
           CLOUDFLARE_TUNNEL_SECRET_ARN: ${{ steps.secrets.outputs.cloudflareTunnelSecretArn }}
           RESEND_API_KEY_SECRET_ARN: ${{ steps.secrets.outputs.resendApiKeySecretArn }}
           BETTER_AUTH_SECRET_ARN: ${{ steps.secrets.outputs.betterAuthSecretArn }}
-          APP_TOKEN_SECRET_ARN: ${{ steps.secrets.outputs.appTokenSecretArn }}
         run: |
           case "$STACK_SCOPE" in
             all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;
@@ -812,8 +805,7 @@ jobs:
             for pair in \
               "cloudflareTunnelSecretArn=${CLOUDFLARE_TUNNEL_SECRET_ARN}" \
               "resendApiKeySecretArn=${RESEND_API_KEY_SECRET_ARN}" \
-              "betterAuthSecretArn=${BETTER_AUTH_SECRET_ARN}" \
-              "appTokenSecretArn=${APP_TOKEN_SECRET_ARN}"; do
+              "betterAuthSecretArn=${BETTER_AUTH_SECRET_ARN}"; do
               key="${pair%%=*}"
               val="${pair#*=}"
               if [ -z "$val" ]; then

@@ -1,9 +1,8 @@
 /**
- * login-flow.ts dual-path tests (AFF-198 D3 — lem).
+ * login-flow.ts tests (AFF-198 D3 — lem).
  *
- * Boots a Postgres 18 testcontainer so the new opaque-token path can
- * exercise the auth_token table end-to-end. The legacy JWT path is also
- * exercised by toggling USE_AUTH_TOKEN_FOR_LEM.
+ * Boots a Postgres 18 testcontainer so the opaque-token path can
+ * exercise the auth_token table end-to-end.
  *
  * The cookieStore is a hand-rolled Map-backed jar matching the minimal
  * CookieStore contract from packages/auth/src/tokens/cookies.ts.
@@ -11,7 +10,6 @@
 
 import {
   afterAll,
-  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -24,7 +22,6 @@ import type { BootResult } from "@workspace/testcontainers"
 
 process.env["NODE_ENV"] = process.env["NODE_ENV"] ?? "test"
 process.env["AUTH_TOKEN_ENV"] = "dev"
-process.env["APP_TOKEN_SECRET"] = "x".repeat(64)
 
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 120_000 })
 
@@ -49,10 +46,6 @@ beforeEach(async () => {
   } finally {
     await sql.end({ timeout: 5 })
   }
-})
-
-afterEach(() => {
-  delete process.env["USE_AUTH_TOKEN_FOR_LEM"]
 })
 
 interface JarEntry {
@@ -82,27 +75,8 @@ function makeJar() {
   }
 }
 
-describe("login-flow lem dual-path (D3)", () => {
-  it("legacy path: writes app-login-email JWT cookie, reads it back", async () => {
-    delete process.env["USE_AUTH_TOKEN_FOR_LEM"]
-    const { identifyEmail, readLoginEmailFromStore } =
-      await import("./login-flow")
-
-    const jar = makeJar()
-    const result = await identifyEmail({ email: "legacy@test.invalid" }, jar)
-    expect(result.ok).toBe(true)
-
-    const cookie = jar._peek("app-login-email")
-    expect(cookie?.value).toBeTruthy()
-    // JWT three-part shape
-    expect(cookie?.value.split(".").length).toBe(3)
-
-    const email = await readLoginEmailFromStore(jar)
-    expect(email).toBe("legacy@test.invalid")
-  })
-
-  it("new path: mints auth_token row, writes afkey-lem cookie, reads payload", async () => {
-    process.env["USE_AUTH_TOKEN_FOR_LEM"] = "true"
+describe("login-flow lem (auth_token)", () => {
+  it("mints an auth_token row + writes afkey-lem cookie + reads payload", async () => {
     const { identifyEmail, readLoginEmailFromStore } =
       await import("./login-flow")
 
@@ -112,14 +86,12 @@ describe("login-flow lem dual-path (D3)", () => {
 
     const cookie = jar._peek("afkey-lem")
     expect(cookie?.value).toMatch(/^afkey-[0-9A-Za-z]{43}-[0-9a-f]{8}$/)
-    expect(jar._peek("app-login-email")).toBeUndefined()
 
     const email = await readLoginEmailFromStore(jar)
     expect(email).toBe("newpath@test.invalid")
   })
 
-  it("new path: consumeLoginEmail flips the auth_token row to consumed", async () => {
-    process.env["USE_AUTH_TOKEN_FOR_LEM"] = "true"
+  it("consumeLoginEmail flips the auth_token row to consumed", async () => {
     const { identifyEmail, consumeLoginEmail } = await import("./login-flow")
     const { adminClient } = await import("@workspace/db/tests/fixtures")
 
@@ -139,8 +111,7 @@ describe("login-flow lem dual-path (D3)", () => {
     }
   })
 
-  it("new path: readLoginEmailFromStore is non-destructive (status stays pending)", async () => {
-    process.env["USE_AUTH_TOKEN_FOR_LEM"] = "true"
+  it("readLoginEmailFromStore is non-destructive (status stays pending)", async () => {
     const { identifyEmail, readLoginEmailFromStore } =
       await import("./login-flow")
     const { adminClient } = await import("@workspace/db/tests/fixtures")
@@ -164,13 +135,11 @@ describe("login-flow lem dual-path (D3)", () => {
   })
 
   it("invalid email shape returns ok=false with no cookie written", async () => {
-    process.env["USE_AUTH_TOKEN_FOR_LEM"] = "true"
     const { identifyEmail } = await import("./login-flow")
 
     const jar = makeJar()
     const result = await identifyEmail({ email: "not-an-email" }, jar)
     expect(result.ok).toBe(false)
     expect(jar._peek("afkey-lem")).toBeUndefined()
-    expect(jar._peek("app-login-email")).toBeUndefined()
   })
 })

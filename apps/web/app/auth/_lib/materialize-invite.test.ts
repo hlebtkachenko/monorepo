@@ -1,7 +1,8 @@
 /**
  * Integration tests for materializeInvite.
  *
- * AFF-119 / E7b — apps/web integration tests.
+ * AFF-119 / E7b (rewritten for ADR-0022 — invite state lives on
+ * auth_token, kind='inv', not the dropped auth_invite table).
  *
  * Tests run against the live Postgres 18 testcontainer booted by
  * apps/web/tests/global-setup.ts. All imports of db/auth modules are
@@ -12,16 +13,18 @@
  *
  * Covered behaviors:
  *   - successful invite redemption: workspace_membership +
- *     organization_membership are materialized; org slug is returned
+ *     organization_membership are materialized; org slug is returned;
+ *     the auth_token row flips to status='consumed'
  *   - idempotent workspace_membership: a second accept for the same
  *     workspace reuses the existing membership row rather than inserting
  *     a duplicate
- *   - conflict (already-accepted): second call throws "invite-already-accepted"
- *   - expiry: expired invite throws "invite-expired"
- *   - unknown token: throws "invite-not-found"
+ *   - conflict (already-consumed): second call throws invite-not-found
+ *     because consumeToken only updates status='pending' rows
+ *   - expiry: an expired token cannot be consumed; throws invite-not-found
+ *   - unknown token: throws invite-not-found
  *   - email-mismatch defense: a different user's ID cannot steal the invite
  *   - workspace cross-check (F7): a tampered invite whose workspace_id does
- *     not match the organization's workspace_id throws "organization-not-found"
+ *     not match the organization's workspace_id throws organization-not-found
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
@@ -32,21 +35,20 @@ import postgres from "postgres"
 process.env["BETTER_AUTH_SECRET"] =
   process.env["BETTER_AUTH_SECRET"] ??
   "web-integration-test-secret-0123456789ab"
+process.env["AUTH_TOKEN_ENV"] = process.env["AUTH_TOKEN_ENV"] ?? "dev"
 
 let sql: postgres.Sql
 
 // Dynamically imported after env is set by globalSetup
 let materializeInvite: (typeof import("./materialize-invite"))["materializeInvite"]
 let InviteAcceptError: (typeof import("./materialize-invite"))["InviteAcceptError"]
-let hashInviteToken: (typeof import("@workspace/auth/tokens"))["hashInviteToken"]
-let generateRawInviteToken: (typeof import("@workspace/auth/tokens"))["generateRawInviteToken"]
+let mintToken: (typeof import("@workspace/auth/tokens"))["mintToken"]
 let adminClient: (typeof import("@workspace/db/tests/fixtures"))["adminClient"]
 let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
 
 beforeAll(async () => {
   ;({ adminClient, truncateAll } = await import("@workspace/db/tests/fixtures"))
-  ;({ hashInviteToken, generateRawInviteToken } =
-    await import("@workspace/auth/tokens"))
+  ;({ mintToken } = await import("@workspace/auth/tokens"))
   ;({ materializeInvite, InviteAcceptError } =
     await import("./materialize-invite"))
 
@@ -71,21 +73,21 @@ beforeEach(async () => {
  * Seed the minimal graph for a materializable invite:
  *   - owning workspace + owner membership
  *   - one organization under that workspace
- *   - a pending auth_invite row
+ *   - a pending auth_token row (kind='inv') with payload
  *   - the invitee app_user row
  *
  * Returns everything the test needs to call materializeInvite.
  */
 async function seedInviteScenario(opts?: {
   inviteeEmail?: string
-  expiresAt?: Date
-  role?: string
+  ttlSeconds?: number
+  role?: "owner" | "admin" | "member" | "agent" | "guest"
 }) {
   const ownerEmail = `owner-${Date.now()}@invite-test.invalid`
   const inviteeEmail =
     opts?.inviteeEmail ?? `invitee-${Date.now()}@invite-test.invalid`
   const role = opts?.role ?? "member"
-  const expiresAt = opts?.expiresAt ?? new Date(Date.now() + 60 * 60 * 1000) // +1h
+  const ttlSeconds = opts?.ttlSeconds ?? 60 * 60
 
   // Owner
   const [owner] = await sql<Array<{ id: string }>>`
@@ -135,18 +137,17 @@ async function seedInviteScenario(opts?: {
   `
   if (!invitee) throw new Error("invitee insert failed")
 
-  // Pending invite
-  const rawToken = generateRawInviteToken()
-  const tokenHash = hashInviteToken(rawToken)
-  await sql`
-    INSERT INTO auth_invite (
-      organization_id, workspace_id, token_hash, email, role,
-      status, expires_at
-    ) VALUES (
-      ${org.id}::uuid, ${workspaceId}::uuid, ${tokenHash},
-      ${inviteeEmail}, ${role}, 'pending', ${expiresAt}
-    )
-  `
+  // Pending invite as an auth_token row.
+  const minted = await mintToken({
+    kind: "inv",
+    payload: {
+      email: inviteeEmail,
+      organizationId: org.id,
+      workspaceId,
+      role,
+    },
+    ttlSeconds,
+  })
 
   return {
     workspaceId,
@@ -155,8 +156,8 @@ async function seedInviteScenario(opts?: {
     ownerId: owner.id,
     inviteeId: invitee.id,
     inviteeEmail,
-    rawToken,
-    tokenHash,
+    rawToken: minted.rawToken,
+    tokenId: minted.id,
   }
 }
 
@@ -176,15 +177,11 @@ describe("materializeInvite", () => {
     // Returns the org slug for redirect.
     expect(orgSlug).toBe(seed.orgSlug)
 
-    // auth_invite flipped to 'accepted'.
-    const [invite] = await sql<
-      Array<{ status: string; accepted_by_user_id: string }>
-    >`
-      SELECT status, accepted_by_user_id FROM auth_invite
-      WHERE token_hash = ${seed.tokenHash}
+    // auth_token row flipped to 'consumed'.
+    const [tokenRow] = await sql<Array<{ status: string }>>`
+      SELECT status FROM auth_token WHERE id = ${seed.tokenId}::uuid
     `
-    expect(invite!.status).toBe("accepted")
-    expect(invite!.accepted_by_user_id).toBe(seed.inviteeId)
+    expect(tokenRow!.status).toBe("consumed")
 
     // workspace_membership created.
     const wsMemberships = await sql<Array<{ role: string; active: boolean }>>`
@@ -239,7 +236,7 @@ describe("materializeInvite", () => {
     expect(wsMemberships[0]!.id).toBe(existingWsM.id)
   }, 30_000)
 
-  it("throws invite-already-accepted on a second redemption attempt", async () => {
+  it("throws invite-not-found on a second redemption attempt", async () => {
     const seed = await seedInviteScenario()
 
     // First redemption succeeds.
@@ -248,7 +245,8 @@ describe("materializeInvite", () => {
       inviteRawToken: seed.rawToken,
     })
 
-    // Second attempt must throw.
+    // Second attempt must throw — consumeToken sees status='consumed'
+    // and returns null. We surface the generic invite-not-found.
     await expect(
       materializeInvite({
         userId: seed.inviteeId,
@@ -256,14 +254,22 @@ describe("materializeInvite", () => {
       }),
     ).rejects.toSatisfy(
       (err) =>
-        err instanceof InviteAcceptError &&
-        err.code === "invite-already-accepted",
+        err instanceof InviteAcceptError && err.code === "invite-not-found",
     )
   }, 30_000)
 
-  it("throws invite-expired when expires_at is in the past", async () => {
-    const past = new Date(Date.now() - 1000) // 1s in the past
-    const seed = await seedInviteScenario({ expiresAt: past })
+  it("throws invite-not-found when expires_at is in the past", async () => {
+    const seed = await seedInviteScenario()
+
+    // Backdate expires_at so consumeToken's `expires_at > now()` predicate
+    // refuses the row. Bypass append-only trigger (refuses past expires_at)
+    // via session_replication_role=replica.
+    await sql.unsafe(`
+      SET LOCAL session_replication_role = replica;
+      UPDATE auth_token
+      SET expires_at = now() - interval '1 second'
+      WHERE id = '${seed.tokenId}';
+    `)
 
     await expect(
       materializeInvite({
@@ -272,15 +278,16 @@ describe("materializeInvite", () => {
       }),
     ).rejects.toSatisfy(
       (err) =>
-        err instanceof InviteAcceptError && err.code === "invite-expired",
+        err instanceof InviteAcceptError && err.code === "invite-not-found",
     )
 
-    // The invite row must NOT have been flipped — the entire transaction
-    // rolled back because withAdminBypass wraps the fn in a DB transaction.
-    const [invite] = await sql<Array<{ status: string }>>`
-      SELECT status FROM auth_invite WHERE token_hash = ${seed.tokenHash}
+    // Token row must NOT have flipped to 'consumed' — the WHERE clause
+    // refused it. The expired row stays 'pending' (the cleanup worker
+    // would flip it to 'expired' later).
+    const [tokenRow] = await sql<Array<{ status: string }>>`
+      SELECT status FROM auth_token WHERE id = ${seed.tokenId}::uuid
     `
-    expect(invite!.status).toBe("pending")
+    expect(tokenRow!.status).toBe("pending")
   }, 30_000)
 
   it("throws invite-not-found for a completely unknown token", async () => {
@@ -289,12 +296,25 @@ describe("materializeInvite", () => {
       VALUES ('nobody@invite-test.invalid', 'Nobody', 'user')
       RETURNING id
     `
-    const unknownRawToken = generateRawInviteToken()
+    // Mint a token but discard the seed graph — it points at no real
+    // org/workspace.
+    const orphan = await mintToken({
+      kind: "inv",
+      payload: {
+        email: "ghost@invite-test.invalid",
+        organizationId: "00000000-0000-0000-0000-000000000000",
+        workspaceId: "00000000-0000-0000-0000-000000000000",
+        role: "member",
+      },
+      ttlSeconds: 60,
+    })
+    // Revoke it so consumeToken returns null.
+    await sql`UPDATE auth_token SET status = 'revoked' WHERE id = ${orphan.id}::uuid`
 
     await expect(
       materializeInvite({
         userId: user!.id,
-        inviteRawToken: unknownRawToken,
+        inviteRawToken: orphan.rawToken,
       }),
     ).rejects.toSatisfy(
       (err) =>
@@ -324,10 +344,12 @@ describe("materializeInvite", () => {
         err instanceof InviteAcceptError && err.code === "invite-not-found",
     )
 
-    // withAdminBypass wraps the entire fn in a DB transaction. The UPDATE
-    // to status='accepted' happens inside that transaction, but the throw
-    // from the email-mismatch guard causes the transaction to roll back.
-    // The invite row reverts to 'pending' and no membership is created.
+    // The auth_token row has already flipped to 'consumed' (consumeToken
+    // ran before the email check). That is the documented trade-off: an
+    // attacker burning their own access to a known token does not help
+    // them — they still can't materialize memberships because the
+    // post-consume defence-in-depth blocks the write. No memberships
+    // exist.
     const wsMemberships = await sql<Array<{ id: string }>>`
       SELECT id FROM workspace_membership
       WHERE workspace_id = ${seed.workspaceId}::uuid
@@ -358,13 +380,16 @@ describe("materializeInvite", () => {
       RETURNING id
     `
 
-    // Tamper the invite: workspace_id now points to the unrelated workspace
-    // while the organization still belongs to the original workspace_id.
-    await sql`
-      UPDATE auth_invite
-      SET workspace_id = ${anotherWs!.id}::uuid
-      WHERE token_hash = ${seed.tokenHash}
-    `
+    // Tamper the invite payload: workspaceId now points to the unrelated
+    // workspace while the organization still belongs to the original
+    // workspace_id. Bypass append-only trigger (refuses payload mutation
+    // on every row) via session_replication_role=replica.
+    await sql.unsafe(`
+      SET LOCAL session_replication_role = replica;
+      UPDATE auth_token
+      SET payload = jsonb_set(payload, '{workspaceId}', to_jsonb('${anotherWs!.id}'::text))
+      WHERE id = '${seed.tokenId}';
+    `)
 
     await expect(
       materializeInvite({

@@ -1,10 +1,9 @@
 import "server-only"
-import { and, eq, sql } from "drizzle-orm"
-import { hashInviteToken } from "@workspace/auth/tokens"
+import { and, eq } from "drizzle-orm"
+import { consumeToken } from "@workspace/auth/tokens"
 import { withAdminBypass } from "@workspace/db"
 import {
   app_user,
-  auth_invite,
   organization,
   organization_membership,
   workspace_membership,
@@ -13,33 +12,41 @@ import {
 /**
  * Shared helper for accept-invite flows.
  *
- * Atomically flips the `auth_invite` row (pre-created at issue time with
- * status='pending') to status='accepted', then materializes
- * `workspace_membership` + `organization_membership` for the user.
+ * Atomically redeems the invite's `auth_token` row (kind='inv', flips
+ * `pending` → `consumed` in the same UPDATE that returns the payload)
+ * and materializes `workspace_membership` + `organization_membership`
+ * for the accepting user.
  *
- * Runs under `withAdminBypass` because no tenancy context is bound at
- * this point (the user has no `app.organization_id` GUC yet).
+ * Replaces the previous flow that flipped a separate `auth_invite` row
+ * — that table was dropped in migration 0020. The single auth_token row
+ * is the source of truth for an invite's lifecycle.
  *
- * Lifecycle (mirroring lac/packages/domain/src/auth/invite.ts):
- *   issue   →  auth_invite (status='pending', token_hash, expires_at)
- *   accept  →  this function: UPDATE status='accepted' WHERE
- *              token_hash=? AND status='pending' RETURNING
- *              {id, organization_id, workspace_id, role, email}
- *              → if 0 rows updated, the invite is already-accepted,
- *                revoked, or expired → throw.
- *   revoke  →  see invite-issuer.ts `revokePendingInvites`.
+ * Runs under `withAdminBypass` (consumeToken does the same internally
+ * for the row update) because no tenancy context is bound at this point
+ * (the user has no `app.organization_id` GUC yet).
+ *
+ * Lifecycle:
+ *   issue   →  auth_token (status='pending', kind='inv', payload carries
+ *              email + organizationId + workspaceId + role)
+ *   accept  →  this function: consumeToken returns payload + flips status
+ *              to 'consumed'. If consumeToken returns null, throws an
+ *              InviteAcceptError so the caller can render a generic error.
+ *              The subsequent membership writes run in a fresh transaction
+ *              (organization lookup + insert). If a membership write fails,
+ *              the token row stays `consumed` — re-attempts cannot replay
+ *              the same token.
  *
  * Contract: callers pass only the accepting user id and the raw token.
- * `role`, `organization_id`, `workspace_id`, and `email` are derived
- * from the auth_invite row inside this function so a caller cannot
- * inject a different role or org via parameter manipulation.
+ * `role`, `organization_id`, `workspace_id`, and `email` are read off
+ * the auth_token payload so a caller cannot inject a different role via
+ * parameter manipulation.
  *
  * Returns the organization slug so the caller can redirect to /[orgSlug].
  */
 export interface MaterializeInviteInput {
   /** Better Auth user id of the accepting user. */
   userId: string
-  /** Raw invite token from the URL/cookie — hashed for the DB lookup. */
+  /** Raw invite token from the URL/cookie. */
   inviteRawToken: string
 }
 
@@ -57,61 +64,38 @@ export type InviteAcceptErrorCode =
   | "invite-expired"
   | "organization-not-found"
 
+interface InvitePayload {
+  email?: string
+  organizationId?: string
+  workspaceId?: string
+  role?: string
+}
+
 export async function materializeInvite(
   input: MaterializeInviteInput,
 ): Promise<string> {
-  const tokenHash = hashInviteToken(input.inviteRawToken)
+  // consumeToken returns null on any failure mode (expired, revoked,
+  // wrong kind, format mismatch, already consumed). We deliberately do
+  // NOT distinguish those externally; one generic error code propagates
+  // back to the UI. Callers that need the finer-grained reason should
+  // peek with `readInviteByRawToken` BEFORE calling this helper.
+  const consumed = await consumeToken<InvitePayload>({
+    rawToken: input.inviteRawToken,
+    expectedKind: "inv",
+  })
+  if (!consumed) {
+    throw new InviteAcceptError("invite-not-found")
+  }
+
+  const email = consumed.payload.email
+  const organizationId = consumed.payload.organizationId
+  const workspaceId = consumed.payload.workspaceId
+  const role = consumed.payload.role
+  if (!email || !organizationId || !workspaceId || !role) {
+    throw new InviteAcceptError("invite-not-found")
+  }
 
   return await withAdminBypass(async (db) => {
-    // Atomic check-and-set: only one accept can succeed per token.
-    // RETURNING includes role + email so we never trust the caller to
-    // tell us what they're materializing.
-    const updated = await db
-      .update(auth_invite)
-      .set({
-        status: "accepted",
-        accepted_at: new Date(),
-        accepted_by_user_id: input.userId,
-      })
-      .where(
-        and(
-          eq(auth_invite.token_hash, tokenHash),
-          eq(auth_invite.status, "pending"),
-          sql`${auth_invite.expires_at} > now()`,
-        ),
-      )
-      .returning({
-        id: auth_invite.id,
-        organization_id: auth_invite.organization_id,
-        workspace_id: auth_invite.workspace_id,
-        role: auth_invite.role,
-        email: auth_invite.email,
-      })
-
-    if (updated.length === 0) {
-      // Diagnose why: was it already accepted / revoked / expired / not found?
-      const [existing] = await db
-        .select({
-          status: auth_invite.status,
-          expires_at: auth_invite.expires_at,
-        })
-        .from(auth_invite)
-        .where(eq(auth_invite.token_hash, tokenHash))
-        .limit(1)
-      if (!existing) throw new InviteAcceptError("invite-not-found")
-      if (existing.status === "accepted") {
-        throw new InviteAcceptError("invite-already-accepted")
-      }
-      if (existing.status === "revoked") {
-        throw new InviteAcceptError("invite-revoked")
-      }
-      if (existing.expires_at < new Date()) {
-        throw new InviteAcceptError("invite-expired")
-      }
-      throw new InviteAcceptError("invite-not-found")
-    }
-    const inviteRow = updated[0]!
-
     // Defence-in-depth: the session user's email must match the invite's
     // recipient email. Even if the caller already checked this (the
     // welcome card does), enforcing it here guarantees no path can write
@@ -124,10 +108,7 @@ export async function materializeInvite(
     if (!userRow) {
       throw new InviteAcceptError("invite-not-found")
     }
-    if (
-      userRow.email.trim().toLowerCase() !==
-      inviteRow.email.trim().toLowerCase()
-    ) {
+    if (userRow.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
       throw new InviteAcceptError("invite-not-found")
     }
 
@@ -138,12 +119,12 @@ export async function materializeInvite(
         slug: organization.slug,
       })
       .from(organization)
-      .where(eq(organization.id, inviteRow.organization_id))
+      .where(eq(organization.id, organizationId))
       .limit(1)
     if (!org) throw new InviteAcceptError("organization-not-found")
     // Workspace cross-check (F7): the workspace_id stored on the invite
-    // row must match the organization's workspace_id.
-    if (org.workspace_id !== inviteRow.workspace_id) {
+    // payload must match the organization's workspace_id.
+    if (org.workspace_id !== workspaceId) {
       throw new InviteAcceptError("organization-not-found")
     }
 
@@ -193,20 +174,12 @@ export async function materializeInvite(
       .limit(1)
 
     if (!existingOrgM) {
-      // auth_invite.role is varchar(64) (intentionally open for future
-      // roles); organization_membership.role is an enum. The invite-issuer
-      // validates against the enum at write time, so casting here is safe.
       await db.insert(organization_membership).values({
         organization_id: org.id,
         workspace_id: org.workspace_id,
         user_id: input.userId,
         workspace_membership_id: wsMembershipId,
-        role: inviteRow.role as
-          | "owner"
-          | "admin"
-          | "member"
-          | "agent"
-          | "guest",
+        role: role as "owner" | "admin" | "member" | "agent" | "guest",
       })
     }
 

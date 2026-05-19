@@ -1,43 +1,87 @@
 import { cookies } from "next/headers"
-import { readInviteByRawToken } from "@workspace/auth/invite-issuer"
-import type { InviteRecord } from "@workspace/auth/tokens"
+import { readAuthCookie } from "@workspace/auth/tokens"
+import type { InviteRecord, InviteRole } from "@workspace/auth/invite-issuer"
 
 /**
- * Invite-token cookie reader for the member onboarding wizard.
+ * Invite-token cookie reader.
  *
- * The cookie is minted by `/auth/invite/start/route.ts` (path "/", 24h
- * TTL, HttpOnly). Carries a 32-byte random base64url token — no
- * claims. Claims (email, organizationId, role) live in the
- * `auth_invite` row, looked up by SHA-256(rawToken).
+ * Mirrors the signup-cookie pattern (ADR-0022 §"Kind taxonomy"):
+ *
+ *   __Host-afkey-inv  — raw opaque token, set by /auth/invite/consume.
+ *                       The corresponding auth_token row stays 'pending'
+ *                       until `materializeInvite` atomically consumes it
+ *                       at accept time.
+ *   app-invite-payload — JSON-encoded InviteRecord (minus expiresAt) so
+ *                       downstream reads (welcome card, role detector)
+ *                       don't need a DB round-trip.
  */
-export const INVITE_TOKEN_COOKIE = "app-invite-token"
 
-/**
- * Reads the invite cookie's raw token, looks up the DB row, returns
- * the still-usable record. Returns null when the cookie is missing,
- * the row is gone, or the status is no longer 'pending'.
- *
- * Callers that need to know WHY the invite is unusable (so they can
- * render a distinct error UI) should call `readInviteByRawToken`
- * directly and inspect `status`.
- */
+export const INVITE_PAYLOAD_COOKIE = "app-invite-payload"
+
+interface PersistedInvitePayload {
+  kind: "invite"
+  id: string
+  email: string
+  organizationId: string
+  workspaceId: string
+  role: InviteRole
+}
+
 export async function readInviteClaims(): Promise<InviteRecord | null> {
   const cookieStore = await cookies()
-  const rawToken = cookieStore.get(INVITE_TOKEN_COOKIE)?.value
-  if (!rawToken) return null
-  const record = await readInviteByRawToken(rawToken)
-  if (!record) return null
-  if (record.status !== "pending") return null
-  return record
+
+  // Gate on the opaque auth cookie. If it isn't set, treat the payload
+  // as absent — a stale payload-only cookie must not resurrect an
+  // expired/revoked invite.
+  const rawAfkey = readAuthCookie(cookieStore, "inv")
+  if (!rawAfkey) return null
+
+  const payloadRaw = cookieStore.get(INVITE_PAYLOAD_COOKIE)?.value
+  if (!payloadRaw) return null
+
+  let parsed: PersistedInvitePayload | null = null
+  try {
+    const obj = JSON.parse(payloadRaw) as unknown
+    if (
+      obj !== null &&
+      typeof obj === "object" &&
+      "kind" in obj &&
+      (obj as Record<string, unknown>).kind === "invite" &&
+      typeof (obj as Record<string, unknown>).id === "string" &&
+      typeof (obj as Record<string, unknown>).email === "string" &&
+      typeof (obj as Record<string, unknown>).organizationId === "string" &&
+      typeof (obj as Record<string, unknown>).workspaceId === "string" &&
+      typeof (obj as Record<string, unknown>).role === "string"
+    ) {
+      parsed = obj as PersistedInvitePayload
+    }
+  } catch {
+    return null
+  }
+  if (!parsed) return null
+
+  // expiresAt is not persisted in the cookie — the welcome card doesn't
+  // need it; the underlying auth_token row's expires_at is the source of
+  // truth and is consulted again by consumeToken at accept time.
+  return {
+    id: parsed.id,
+    email: parsed.email,
+    organizationId: parsed.organizationId,
+    workspaceId: parsed.workspaceId,
+    role: parsed.role,
+    status: "pending",
+    expiresAt: new Date(0),
+  }
 }
 
 /** Returns the raw token without a DB lookup — used by accept actions. */
 export async function readRawInviteToken(): Promise<string | null> {
   const cookieStore = await cookies()
-  return cookieStore.get(INVITE_TOKEN_COOKIE)?.value ?? null
+  return readAuthCookie(cookieStore, "inv")
 }
 
 export async function clearInviteCookie(): Promise<void> {
   const cookieStore = await cookies()
-  cookieStore.delete({ name: INVITE_TOKEN_COOKIE, path: "/" })
+  cookieStore.delete({ name: INVITE_PAYLOAD_COOKIE, path: "/" })
+  cookieStore.delete({ name: "__Host-afkey-inv", path: "/" })
 }

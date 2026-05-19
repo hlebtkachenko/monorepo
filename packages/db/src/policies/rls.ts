@@ -19,17 +19,19 @@
 /**
  * Names of organization-scoped tables in the current schema.
  * Kept in sync with migrations that declare `organization_isolation` policy:
- *   - 0002_auth.sql       — auth_invite
  *   - 0003_rls_force.sql  — organization
  *   - 0004_audit.sql      — tool_call_log
  *   - 0015_api_key.sql    — api_key
  *
  * If you add an organization-scoped table, add it here AND to a migration
  * that creates the `organization_isolation` policy with the NULLIF guard.
+ *
+ * Note: auth_invite (dropped in 0020) was previously in this list.
+ * auth_token is global, not organization-scoped — it carries
+ * organization context in `payload` for `inv` rows only.
  */
 export const ORGANIZATION_SCOPED_TABLES = [
   "api_key",
-  "auth_invite",
   "organization",
   "tool_call_log",
 ] as const

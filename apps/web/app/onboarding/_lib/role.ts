@@ -15,15 +15,16 @@ export interface OnboardingRoleContext {
 
 /**
  * Onboarding role detection. The two onboarding flows (owner vs member)
- * are distinguished by which cookie minted the session:
+ * are distinguished by which auth-token cookie minted the session:
  *
- *   - `app-signup-token` → owner flow (7 steps: profile, experience,
- *     password, workspace, plan, team, done)
- *   - `app-invite-token` → member flow (4 steps: profile, experience,
- *     password, done)
+ *   __Host-afkey-sig + app-signup-payload  → owner flow (7 steps:
+ *      profile, experience, password, workspace, plan, team, done)
+ *   __Host-afkey-inv + app-invite-payload  → member flow (4 steps:
+ *      profile, experience, password, done)
  *
- * The cookie is set at the entry route (`/auth/signup/start` or
- * `/auth/invite/start`) before the user lands on `/onboarding/*`.
+ * The cookies are set by `/auth/<flow>/consume`, never on the GET
+ * welcome route — that route's only job is to render the prefetch
+ * defense form for human submission.
  *
  * If both cookies are present (edge case: a user with a pending invite
  * also started signup), the invite wins because the invite carries

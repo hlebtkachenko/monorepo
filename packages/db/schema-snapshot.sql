@@ -144,6 +144,32 @@ END;
 $$;
 
 --
+-- Name: app_auth_token_limited_update(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_auth_token_limited_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF (OLD.id                     <> NEW.id
+      OR OLD.token_hash          <> NEW.token_hash
+      OR OLD.kind                <> NEW.kind
+      OR OLD.env                 <> NEW.env
+      OR OLD.payload::text       <> NEW.payload::text
+      OR OLD.expires_at          <> NEW.expires_at
+      OR OLD.issued_at           <> NEW.issued_at
+      OR OLD.issued_to_user_id   IS DISTINCT FROM NEW.issued_to_user_id
+      OR OLD.issued_to_ip        IS DISTINCT FROM NEW.issued_to_ip
+      OR OLD.issued_user_agent_hash IS DISTINCT FROM NEW.issued_user_agent_hash) THEN
+    RAISE EXCEPTION
+      'auth_token immutable columns changed (id=%, kind=%)', OLD.id, OLD.kind
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+--
 -- Name: app_block_mutation_audit_event(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -186,6 +212,20 @@ END;
 $$;
 
 --
+-- Name: app_block_truncate_auth_token(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_block_truncate_auth_token() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION
+    'auth_token is append-only at table level; TRUNCATE is blocked.'
+    USING ERRCODE = 'feature_not_supported';
+END;
+$$;
+
+--
 -- Name: app_block_truncate_tool_call_log(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -196,6 +236,28 @@ BEGIN
   RAISE EXCEPTION
     'tool_call_log is append-only; TRUNCATE is blocked. Use the documented retention-purge ceremony instead.'
     USING ERRCODE = 'feature_not_supported';
+END;
+$$;
+
+--
+-- Name: app_guard_delete_auth_token(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_guard_delete_auth_token() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- Pending tokens cannot be deleted directly: they must transition via
+  -- UPDATE to 'consumed', 'revoked', or 'expired' first, so the lifecycle
+  -- audit trail is preserved. The 90-day retention worker only deletes
+  -- terminal-state rows; this trigger fail-closes against a buggy caller.
+  IF OLD.status = 'pending' THEN
+    RAISE EXCEPTION
+      'auth_token row in status=pending cannot be deleted (id=%, kind=%); revoke or expire first.',
+      OLD.id, OLD.kind
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN OLD;
 END;
 $$;
 
@@ -653,6 +715,32 @@ CREATE TABLE public.auth_session (
 );
 
 --
+-- Name: auth_token; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.auth_token (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    token_hash text NOT NULL,
+    kind text NOT NULL,
+    env text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    issued_at timestamp with time zone DEFAULT now() NOT NULL,
+    issued_to_user_id uuid,
+    issued_to_ip text,
+    issued_user_agent_hash text,
+    consumed_at timestamp with time zone,
+    consumed_from_ip text,
+    consumed_user_agent_hash text,
+    CONSTRAINT auth_token_env_valid CHECK ((env = ANY (ARRAY['dev'::text, 'stg'::text, 'prd'::text]))),
+    CONSTRAINT auth_token_payload_is_object CHECK ((jsonb_typeof(payload) = 'object'::text)),
+    CONSTRAINT auth_token_status_valid CHECK ((status = ANY (ARRAY['pending'::text, 'consumed'::text, 'revoked'::text, 'expired'::text])))
+);
+
+ALTER TABLE ONLY public.auth_token FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: auth_verification; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1012,6 +1100,20 @@ ALTER TABLE ONLY public.auth_session
     ADD CONSTRAINT auth_session_token_key UNIQUE (token);
 
 --
+-- Name: auth_token auth_token_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auth_token
+    ADD CONSTRAINT auth_token_pkey PRIMARY KEY (id);
+
+--
+-- Name: auth_token auth_token_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auth_token
+    ADD CONSTRAINT auth_token_token_hash_key UNIQUE (token_hash);
+
+--
 -- Name: auth_verification auth_verification_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1225,6 +1327,18 @@ CREATE INDEX auth_session_impersonated_idx ON public.auth_session USING btree (i
 --
 
 CREATE INDEX auth_session_user_idx ON public.auth_session USING btree (user_id);
+
+--
+-- Name: auth_token_kind_issued_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX auth_token_kind_issued_idx ON public.auth_token USING btree (kind, issued_at DESC);
+
+--
+-- Name: auth_token_status_expires_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX auth_token_status_expires_idx ON public.auth_token USING btree (status, expires_at) WHERE (status = 'pending'::text);
 
 --
 -- Name: auth_verification_app_identifier_unique; Type: INDEX; Schema: public; Owner: -
@@ -1443,6 +1557,24 @@ CREATE TRIGGER audit_event_ws_org_consistent BEFORE INSERT ON public.audit_event
 CREATE TRIGGER auth_invite_email_normalize BEFORE INSERT OR UPDATE ON public.auth_invite FOR EACH ROW EXECUTE FUNCTION public.app_auth_invite_email_normalize();
 
 --
+-- Name: auth_token auth_token_guard_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER auth_token_guard_delete BEFORE DELETE ON public.auth_token FOR EACH ROW EXECUTE FUNCTION public.app_guard_delete_auth_token();
+
+--
+-- Name: auth_token auth_token_limited_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER auth_token_limited_update BEFORE UPDATE ON public.auth_token FOR EACH ROW EXECUTE FUNCTION public.app_auth_token_limited_update();
+
+--
+-- Name: auth_token auth_token_no_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER auth_token_no_truncate BEFORE TRUNCATE ON public.auth_token FOR EACH STATEMENT EXECUTE FUNCTION public.app_block_truncate_auth_token();
+
+--
 -- Name: impersonation impersonation_ws_org_consistent; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1598,6 +1730,13 @@ ALTER TABLE ONLY public.auth_session
 
 ALTER TABLE ONLY public.auth_session
     ADD CONSTRAINT auth_session_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
+
+--
+-- Name: auth_token auth_token_issued_to_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auth_token
+    ADD CONSTRAINT auth_token_issued_to_user_id_fkey FOREIGN KEY (issued_to_user_id) REFERENCES public.app_user(id);
 
 --
 -- Name: auth_verification auth_verification_workspace_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1801,6 +1940,18 @@ CREATE POLICY audit_event_ws_admin_read ON public.audit_event FOR SELECT USING (
 --
 
 ALTER TABLE public.auth_invite ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: auth_token; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.auth_token ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: auth_token auth_token_deny_all; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY auth_token_deny_all ON public.auth_token USING (false) WITH CHECK (false);
 
 --
 -- Name: impersonation; Type: ROW SECURITY; Schema: public; Owner: -

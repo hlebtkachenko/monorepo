@@ -386,3 +386,104 @@ describe("forensic helpers", () => {
     expect(hashUserAgent("")).toBeNull()
   })
 })
+
+describe("extendAuthTokenExpiry — sliding renewal (D4 ons)", () => {
+  it("extends expires_at by extendBySeconds when below the cap", async () => {
+    const { mintToken, extendAuthTokenExpiry } = await import("./auth-token")
+    const { adminClient } = await import("@workspace/db/tests/fixtures")
+    const sql = adminClient()
+    try {
+      // Mint with a short TTL so the extension visibly moves expires_at.
+      const minted = await mintToken({
+        kind: "ons",
+        payload: { profile: { firstName: "X" } },
+        ttlSeconds: 60 * 60, // 1h
+      })
+
+      const newExpires = await extendAuthTokenExpiry({
+        rawToken: minted.rawToken,
+        expectedKind: "ons",
+        extendBySeconds: 60 * 60 * 24, // +24h
+        maxLifetimeSeconds: 60 * 60 * 24 * 7, // 7d cap
+      })
+
+      expect(newExpires).not.toBeNull()
+      // The new expires_at should be ~24h in the future (well past the
+      // original 1h TTL).
+      const diffMs = (newExpires as Date).getTime() - Date.now()
+      expect(diffMs).toBeGreaterThan(23 * 60 * 60 * 1000)
+      expect(diffMs).toBeLessThan(25 * 60 * 60 * 1000)
+
+      const [row] = await sql<
+        Array<{ status: string; expires_at: Date }>
+      >`SELECT status, expires_at FROM auth_token WHERE id = ${minted.id}::uuid`
+      expect(row?.status).toBe("pending")
+    } finally {
+      await sql.end({ timeout: 5 })
+    }
+  })
+
+  it("caps expires_at at issued_at + maxLifetimeSeconds", async () => {
+    const { mintToken, extendAuthTokenExpiry } = await import("./auth-token")
+    const { adminClient } = await import("@workspace/db/tests/fixtures")
+    const sql = adminClient()
+    try {
+      const minted = await mintToken({
+        kind: "ons",
+        payload: {},
+        ttlSeconds: 60 * 60 * 24, // 1d
+      })
+
+      // Backdate issued_at to 6 days, 23 hours ago, so the 7-day cap is
+      // about to bite. A +24h slide would otherwise push expires_at to
+      // now+24h, but the cap limits it to issued_at + 7d ≈ now + 1h.
+      await sql.unsafe(`
+        SET LOCAL session_replication_role = replica;
+        UPDATE auth_token
+        SET issued_at = now() - interval '6 days 23 hours'
+        WHERE id = '${minted.id}';
+      `)
+
+      const newExpires = await extendAuthTokenExpiry({
+        rawToken: minted.rawToken,
+        expectedKind: "ons",
+        extendBySeconds: 60 * 60 * 24, // +24h
+        maxLifetimeSeconds: 60 * 60 * 24 * 7, // 7d cap
+      })
+
+      expect(newExpires).not.toBeNull()
+      const diffMs = (newExpires as Date).getTime() - Date.now()
+      // Cap pins to ~1h from now (not the requested +24h).
+      expect(diffMs).toBeLessThan(2 * 60 * 60 * 1000)
+    } finally {
+      await sql.end({ timeout: 5 })
+    }
+  })
+
+  it("returns null on wrong kind", async () => {
+    const { mintToken, extendAuthTokenExpiry } = await import("./auth-token")
+    const minted = await mintToken({ kind: "ons", payload: {} })
+    const result = await extendAuthTokenExpiry({
+      rawToken: minted.rawToken,
+      expectedKind: "sig",
+      extendBySeconds: 60,
+      maxLifetimeSeconds: 60 * 60,
+    })
+    expect(result).toBeNull()
+  })
+
+  it("returns null when the row is already consumed", async () => {
+    const { mintToken, consumeToken, extendAuthTokenExpiry } =
+      await import("./auth-token")
+    const minted = await mintToken({ kind: "ons", payload: {} })
+    await consumeToken({ rawToken: minted.rawToken, expectedKind: "ons" })
+
+    const result = await extendAuthTokenExpiry({
+      rawToken: minted.rawToken,
+      expectedKind: "ons",
+      extendBySeconds: 60 * 60 * 24,
+      maxLifetimeSeconds: 60 * 60 * 24 * 7,
+    })
+    expect(result).toBeNull()
+  })
+})

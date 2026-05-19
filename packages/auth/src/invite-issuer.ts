@@ -1,5 +1,5 @@
-import { and, eq, sql } from "drizzle-orm"
-import { withAdminBypass } from "@workspace/db"
+import { and, eq, inArray, sql } from "drizzle-orm"
+import { withAdminBypass, auth_token } from "@workspace/db"
 import {
   app_user,
   auth_invite,
@@ -13,6 +13,7 @@ import {
   hashInviteToken,
   type InviteRecord,
 } from "./tokens/invite"
+import { mintToken, hashRawToken } from "./tokens"
 
 /**
  * Issue a single invite: generates a 32-byte random token, writes the
@@ -29,6 +30,10 @@ import {
 export const DEFAULT_INVITE_TTL_SECONDS = 60 * 60 * 24 * 7
 
 export type InviteRole = InviteRecord["role"]
+
+function useNewInvPath(): boolean {
+  return process.env.USE_AUTH_TOKEN_FOR_INV === "true"
+}
 
 export interface IssueInviteInput {
   email: string
@@ -62,73 +67,96 @@ export async function issueInvite(
   // user's email.
   const normalizedEmail = input.email.trim().toLowerCase()
 
-  // Mint a fresh random token and hash it once. The raw token is
-  // returned in the URL + cookie + email body. Only the hash is
-  // persisted, so a DB leak doesn't expose a forgeable invite.
-  const rawToken = generateRawInviteToken()
-  const tokenHash = hashInviteToken(rawToken)
+  // Resolve the org first (we need workspace_id for both writes).
+  const { orgRow, inviterName } = await withAdminBypass(async (db) => {
+    const [org] = await db
+      .select({
+        id: organization.id,
+        workspace_id: organization.workspace_id,
+        legal_name: organization.legal_name,
+      })
+      .from(organization)
+      .where(eq(organization.id, input.organizationId))
+      .limit(1)
+    if (!org) {
+      throw new Error(`Organization ${input.organizationId} not found`)
+    }
+
+    let inviterDisplay: string | null = null
+    if (input.issuedByUserId) {
+      const [issuer] = await db
+        .select({
+          display_name: app_user.display_name,
+          name: app_user.name,
+        })
+        .from(app_user)
+        .where(eq(app_user.id, input.issuedByUserId))
+        .limit(1)
+      inviterDisplay = issuer?.display_name ?? issuer?.name ?? null
+    }
+    return { orgRow: org, inviterName: inviterDisplay }
+  })
+
+  // Mint the raw token. Under the legacy path it's a random base64url
+  // (32 bytes). Under the new path it's an afkey-formatted token from
+  // `mintToken('inv')` which ALSO writes an auth_token row. Both
+  // hashing paths use sha256(raw), so the token_hash that lands in
+  // auth_invite (the source-of-truth lifecycle row) is identical to the
+  // one in auth_token. The new /landing/consume route consults auth_token
+  // (via consumeToken); the existing materializeInvite path consults
+  // auth_invite — both find the same hash.
+  const useNew = useNewInvPath()
+  let rawToken: string
+  let tokenHash: string
+  if (useNew) {
+    const minted = await mintToken({
+      kind: "inv",
+      payload: {
+        email: normalizedEmail,
+        organizationId: orgRow.id,
+        workspaceId: orgRow.workspace_id,
+        role: input.role,
+        issuedByUserId: input.issuedByUserId,
+      },
+      ttlSeconds,
+      issuedToUserId: input.issuedByUserId ?? null,
+    })
+    rawToken = minted.rawToken
+    tokenHash = hashRawToken(rawToken)
+  } else {
+    rawToken = generateRawInviteToken()
+    tokenHash = hashInviteToken(rawToken)
+  }
+
   const url = `${input.baseUrl}/auth/invite/start?token=${encodeURIComponent(rawToken)}`
 
-  const { workspaceName, inviterName, inviteId } = await withAdminBypass(
-    async (db) => {
-      const [org] = await db
-        .select({
-          id: organization.id,
-          workspace_id: organization.workspace_id,
-          legal_name: organization.legal_name,
-        })
-        .from(organization)
-        .where(eq(organization.id, input.organizationId))
-        .limit(1)
-      if (!org) {
-        throw new Error(`Organization ${input.organizationId} not found`)
-      }
+  const inviteId = await withAdminBypass(async (db) => {
+    const [inserted] = await db
+      .insert(auth_invite)
+      .values({
+        organization_id: orgRow.id,
+        workspace_id: orgRow.workspace_id,
+        token_hash: tokenHash,
+        email: normalizedEmail,
+        role: input.role,
+        status: "pending",
+        issued_by_user_id: input.issuedByUserId,
+        expires_at: expiresAt,
+      })
+      .returning({ id: auth_invite.id })
 
-      let inviterDisplay: string | null = null
-      if (input.issuedByUserId) {
-        const [issuer] = await db
-          .select({
-            display_name: app_user.display_name,
-            name: app_user.name,
-          })
-          .from(app_user)
-          .where(eq(app_user.id, input.issuedByUserId))
-          .limit(1)
-        inviterDisplay = issuer?.display_name ?? issuer?.name ?? null
-      }
-
-      const [inserted] = await db
-        .insert(auth_invite)
-        .values({
-          organization_id: org.id,
-          workspace_id: org.workspace_id,
-          token_hash: tokenHash,
-          email: normalizedEmail,
-          role: input.role,
-          status: "pending",
-          issued_by_user_id: input.issuedByUserId,
-          expires_at: expiresAt,
-        })
-        .returning({ id: auth_invite.id })
-
-      if (!inserted) {
-        throw new Error("auth_invite insert returned no row")
-      }
-
-      return {
-        inviteId: inserted.id,
-        workspaceName: org.legal_name,
-        inviterName: inviterDisplay,
-      }
-    },
-  )
+    if (!inserted) {
+      throw new Error("auth_invite insert returned no row")
+    }
+    return inserted.id
+  })
 
   await sendEmail(
     inviteEmail({
       to: normalizedEmail,
       url,
       brandName: input.brandName,
-      workspaceName,
+      workspaceName: orgRow.legal_name,
       inviterName,
       role: input.role,
       expiresAt,
@@ -197,6 +225,12 @@ export async function readInviteByRawToken(
  * Mark every still-pending invite for (organizationId, email) as
  * 'revoked'. Call this BEFORE issuing a fresh invite to the same
  * recipient so an older token can no longer be redeemed.
+ *
+ * Under the dual-write window (USE_AUTH_TOKEN_FOR_INV=true), the matching
+ * `auth_token` rows (kind='inv', same token_hash) are also flipped to
+ * 'revoked' so the new consume path stops returning them. The dual write
+ * means we may have a token_hash in BOTH tables, and revoke must catch
+ * both.
  */
 export async function revokePendingInvites(input: {
   organizationId: string
@@ -206,7 +240,7 @@ export async function revokePendingInvites(input: {
   // "Foo@Bar.com" still hits rows the trigger lowercased on INSERT.
   const normalizedEmail = input.email.trim().toLowerCase()
   const rows = await withAdminBypass(async (db) => {
-    return await db
+    const flipped = await db
       .update(auth_invite)
       .set({ status: "revoked" })
       .where(
@@ -216,7 +250,25 @@ export async function revokePendingInvites(input: {
           eq(auth_invite.status, "pending"),
         ),
       )
-      .returning({ id: auth_invite.id })
+      .returning({ id: auth_invite.id, token_hash: auth_invite.token_hash })
+
+    if (flipped.length > 0) {
+      // Mirror the revoke to auth_token. Same token_hash, kind='inv', and
+      // pending status — every matched row becomes 'revoked'. No-op when
+      // the new path is off (no auth_token rows exist for these hashes).
+      const hashes = flipped.map((r) => r.token_hash)
+      await db
+        .update(auth_token)
+        .set({ status: "revoked" })
+        .where(
+          and(
+            inArray(auth_token.token_hash, hashes),
+            eq(auth_token.kind, "inv"),
+            eq(auth_token.status, "pending"),
+          ),
+        )
+    }
+    return flipped
   })
   return rows.length
 }

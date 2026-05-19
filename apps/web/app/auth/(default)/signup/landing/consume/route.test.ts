@@ -67,7 +67,7 @@ function makePostRequest(
   ip = "1.2.3.4",
 ): NextRequest {
   const form = new URLSearchParams(body).toString()
-  return new Request("http://localhost/auth/signup/landing", {
+  return new Request("http://localhost/auth/signup/landing/consume", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

@@ -64,7 +64,7 @@ export default async function SignupLandingPage({ searchParams }: Props) {
         <Text variant="muted">{t("descriptionGeneric")}</Text>
       </header>
 
-      <form method="POST" action="/auth/signup/landing">
+      <form method="POST" action="/auth/signup/landing/consume">
         <input type="hidden" name="token" value={token} />
         <Button type="submit" size="xl" className="w-full">
           {t("continue")}

@@ -35,6 +35,17 @@ pre-commit:
         else
           echo "[lefthook gitleaks] not installed — skipping. brew install gitleaks to enable local secret scan."
         fi
+    db-schema-snapshot:
+      # Auto-regenerates packages/db/schema-snapshot.sql whenever a migration
+      # file is staged. Requires a running local Postgres (see LOCAL-DEV.md
+      # for how to bring one up with docker compose). The regenerated snapshot
+      # is re-staged into the same commit so migration + snapshot are always
+      # atomic. If Postgres is not running, the command fails noisily — start
+      # it first:
+      #   docker compose -f infra/compose/docker-compose.dev.yml up -d
+      glob: "packages/db/migrations/*.sql"
+      run: pnpm --filter @workspace/db db:schema-snapshot
+      stage_fixed: true
 
 pre-push:
   # Budget: total pre-push must stay under ~10s on a typical push so the

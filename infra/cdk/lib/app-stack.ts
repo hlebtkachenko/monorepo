@@ -27,13 +27,7 @@ import {
   OperatingSystemFamily,
   Secret as EcsSecret,
 } from "aws-cdk-lib/aws-ecs"
-import {
-  Effect,
-  ManagedPolicy,
-  PolicyStatement,
-  Role,
-  ServicePrincipal,
-} from "aws-cdk-lib/aws-iam"
+import { ManagedPolicy, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam"
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import type { DatabaseInstance } from "aws-cdk-lib/aws-rds"
 import type { Bucket } from "aws-cdk-lib/aws-s3"
@@ -134,14 +128,47 @@ export class AppStack extends Stack {
     const imageTag =
       (this.node.tryGetContext("imageTag") as string | undefined) ?? "bootstrap"
 
-    // Tunnel token secret is created + populated by the deploy workflow before
-    // cdk deploy App-* runs (see .github/workflows/_deploy-aws.yml). CDK only
-    // references it by name so the secret value lifecycle stays decoupled
-    // from stack updates.
-    this.tunnelTokenSecret = Secret.fromSecretNameV2(
+    // Workflow-managed secrets (cloudflare-tunnel, resend-api-key,
+    // better-auth-secret, app-token-secret) are created + populated by the
+    // deploy workflow BEFORE `cdk deploy` runs (see .github/workflows/_deploy-aws.yml's
+    // "Ensure ... secret exists" steps). The workflow then captures each
+    // secret's FULL ARN (the AWS-assigned 6-char random suffix is appended
+    // automatically) and passes it to CDK via --context flags.
+    //
+    // Why the full ARN, not the bare name (fromSecretNameV2)? The bare-name
+    // form makes CDK emit two MISMATCHED ARN forms:
+    //   - secretArn (used in ECS task def `valueFrom`):
+    //       arn:...:secret:monorepo-${env}-better-auth-secret   <- NO suffix
+    //   - grantRead() policy resource:
+    //       arn:...:secret:monorepo-${env}-better-auth-secret-??????
+    //
+    // ECS task tries GetSecretValue with the bare ARN; Secrets Manager auth
+    // refuses to match the bare form against any of:
+    //   - the suffix-pinned `-??????` wildcard pattern
+    //   - the trailing-`*` "name*" pattern (verified ALLOWED by IAM simulator
+    //     but DENIED by the live Secrets Manager API — see deploy run
+    //     26108189235, 2026-05-19 18:00Z, task 99b69418fc224e67a633b925f8a2d7fc)
+    // The result is AccessDeniedException → task fails to start → ECS
+    // Deployment Circuit Breaker → stack wedges in UPDATE_ROLLBACK_FAILED.
+    //
+    // fromSecretCompleteArn fixes this end-to-end: the task def `valueFrom`
+    // gets the full ARN (with suffix), the grantRead policy resource gets
+    // the SAME full ARN, and IAM matches an exact-string Resource against
+    // an exact-string request. No wildcards, no mismatch.
+    const requiredSecretArn = (contextKey: string): string => {
+      const value = this.node.tryGetContext(contextKey) as string | undefined
+      if (!value) {
+        throw new Error(
+          `Missing required CDK context: ${contextKey}. The deploy workflow looks up the secret's full ARN after the "Ensure ... secret exists" step and passes it via --context. Locally: pass --context ${contextKey}=$(aws secretsmanager describe-secret --secret-id monorepo-${props.envName}-NAME --query ARN --output text).`,
+        )
+      }
+      return value
+    }
+
+    this.tunnelTokenSecret = Secret.fromSecretCompleteArn(
       this,
       "TunnelTokenSecret",
-      `monorepo-${props.envName}-cloudflare-tunnel-token`,
+      requiredSecretArn("cloudflareTunnelSecretArn"),
     )
 
     this.cluster = new Cluster(this, "Cluster", {
@@ -274,92 +301,45 @@ export class AppStack extends Stack {
       `/monorepo/${props.envName}/openfga/model-id`,
     )
 
-    // Better Auth + app token signing secrets. Each is a separate Secrets
-    // Manager secret because `generateSecretString` can only populate ONE
-    // field per Secret resource. Keeping them out of GitHub Actions
-    // secrets entirely — they exist only inside AWS and rotate by
-    // recreating the Secret (CDK + new stack version).
+    // Better Auth + app-token signing secrets — workflow-managed, referenced
+    // by FULL ARN via CDK context (see the TunnelTokenSecret block above for
+    // the bare-vs-full-ARN rationale). The deploy workflow's "Ensure ...
+    // secret exists" step generates the random 44-char value on first
+    // creation, restores from PendingDeletion on retry, never overwrites an
+    // existing value, then captures the secret's full ARN and passes it
+    // here. Each secret is a separate Secrets Manager resource because
+    // `generateSecretString` (when CDK used to manage them) only populated
+    // one field per secret; we keep that 1:1 mapping with the workflow
+    // generator too.
     //
-    // SAFETY: production keeps default RETAIN — losing these secrets
-    // invalidates every active session and makes every pending invite/signup
-    // token unredeemable. Staging gets DESTROY so a rollback that leaves
-    // the secret in PendingDeletion state cannot wedge the next deploy
-    // at ResourceExistsException. Staging sessions invalidating on a
-    // staging rollback is acceptable.
-    // Better Auth + app-token signing secrets — workflow-managed (same
-    // pattern as the Cloudflare-tunnel + Resend secrets above). Previously
-    // CDK created them with `new Secret(...) + generateSecretString`,
-    // which produced an AWS-assigned random suffix on the ARN
-    // (`...-better-auth-secret-EQ76ea`). When a CFN rollback force-deleted
-    // the secret, the next deploy created a new suffix but the CFN stack
-    // template + IAM policy still cached the old one, leading to:
-    //
-    //   ResourceInitializationError: unable to retrieve secret ...
-    //   AccessDeniedException: ... not authorized to perform
-    //   secretsmanager:GetSecretValue on resource:
-    //   .../monorepo-staging-better-auth-secret-EQ76ea
-    //
-    // — see deploy run 26091787153 (2026-05-19 12:59Z). Switching to
-    // fromSecretNameV2 references the secret by NAME only, no ARN suffix
-    // drift. The deploy workflow's `Ensure secret exists` steps generate
-    // the random 44-char value on first creation, restore from
-    // PendingDeletion on retry, and never delete the underlying secret.
-    const betterAuthSecret = Secret.fromSecretNameV2(
+    // SAFETY: secrets are never deleted by CDK (RemovalPolicy is moot since
+    // the construct is `fromSecretCompleteArn`, a reference only). On
+    // production a lost secret invalidates every active session + every
+    // pending invite/signup token. The workflow generator path is the only
+    // creator; rotation = put-secret-value out-of-band, not stack churn.
+    const betterAuthSecret = Secret.fromSecretCompleteArn(
       this,
       "BetterAuthSecret",
-      `monorepo-${props.envName}-better-auth-secret`,
+      requiredSecretArn("betterAuthSecretArn"),
     )
-    const appTokenSecret = Secret.fromSecretNameV2(
+    const appTokenSecret = Secret.fromSecretCompleteArn(
       this,
       "AppTokenSecret",
-      `monorepo-${props.envName}-app-token-secret`,
+      requiredSecretArn("appTokenSecretArn"),
     )
 
     // Resend API key — populated out-of-band (gh repo secret + deploy
-    // workflow `secretsmanager put-secret-value`). CDK only references the
-    // secret by name so the value's lifecycle is decoupled from stack
-    // updates. The deploy workflow ensures the secret exists with a
-    // non-empty value before the App stack deploy step runs.
-    const resendApiKeySecret = Secret.fromSecretNameV2(
+    // workflow `secretsmanager put-secret-value`). Full ARN comes from
+    // workflow context too.
+    const resendApiKeySecret = Secret.fromSecretCompleteArn(
       this,
       "ResendApiKeySecret",
-      `monorepo-${props.envName}-resend-api-key`,
+      requiredSecretArn("resendApiKeySecretArn"),
     )
 
-    // Explicit trailing-wildcard grant for the 4 workflow-managed secrets.
-    //
-    // CDK's Secret.fromSecretNameV2 emits two MISMATCHED forms:
-    //   - secretArn (used in ECS task def `valueFrom`):
-    //       arn:...:secret:monorepo-${env}-better-auth-secret   <- NO suffix
-    //   - grantRead() policy resource:
-    //       arn:...:secret:monorepo-${env}-better-auth-secret-??????
-    //
-    // ECS task tries GetSecretValue with the bare ARN; IAM checks against the
-    // policy's suffix-pinned wildcard `-??????` (exactly 6 chars); the bare
-    // form does not match → AccessDeniedException → task fails to start →
-    // ECS circuit breaker → stack stuck in UPDATE_ROLLBACK_FAILED. See
-    // deploy run 26106127384 (2026-05-19 15:14Z) for the canonical trace.
-    //
-    // Adding an explicit PolicyStatement with `name*` (trailing star, no
-    // dash) covers both forms: the bare ARN AND any random-suffix ARN. The
-    // grantRead() calls remain — harmless redundancy that keeps the
-    // CDK construct tree intact for assertions / future migrations.
-    taskExecutionRole.addToPrincipalPolicy(
-      new PolicyStatement({
-        effect: Effect.ALLOW,
-        actions: [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret",
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-cloudflare-tunnel-token*`,
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-resend-api-key*`,
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-better-auth-secret*`,
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-app-token-secret*`,
-        ],
-      }),
-    )
-
+    // grantRead now emits the EXACT full ARN (with random suffix) as the
+    // policy Resource — IAM matches it 1:1 against ECS's GetSecretValue
+    // call. No wildcards, no mismatch, no manual PolicyStatement needed.
     betterAuthSecret.grantRead(taskExecutionRole)
     appTokenSecret.grantRead(taskExecutionRole)
     resendApiKeySecret.grantRead(taskExecutionRole)

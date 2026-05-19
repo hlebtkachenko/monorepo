@@ -563,116 +563,111 @@ jobs:
       # here (above) because cdk deploy ALSO builds arm64 DockerImageAssets
       # inline for Cerbos (App stack) and the Backup Lambda.
 
-      - name: Ensure Cloudflare Tunnel token secret exists in Secrets Manager [stack=all|app-only]
+      - name: Ensure workflow-managed Secrets Manager secrets exist + capture full ARNs
+        id: secrets
         if: env.SKIP_IMAGE_BUILD != 'true'
         env:
           TUNNEL_TOKEN: ${{ secrets[format('CLOUDFLARE_TUNNEL_TOKEN_{0}', inputs.environment)] }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
+          set -euo pipefail
+
+          # AppStack references 4 workflow-managed Secrets Manager secrets by
+          # FULL ARN (Secret.fromSecretCompleteArn — see app-stack.ts for the
+          # bare-vs-full-ARN rationale). Each secret is ensured here BEFORE
+          # `cdk deploy` runs, then its full ARN is captured into a step
+          # output and passed to CDK via --context flags below. This keeps
+          # the ECS task def `valueFrom` and the IAM grantRead policy
+          # Resource pinned to the SAME exact full ARN, so Secrets Manager's
+          # GetSecretValue auth always matches 1:1.
+          #
+          # Idempotent shape per secret:
+          #   1. describe-secret to detect PendingDeletion → restore-secret
+          #   2. describe-secret → if exists, optionally put-secret-value
+          #      (only for value-driven secrets; signing secrets keep value)
+          #   3. else create-secret with the appropriate value
+          #   4. describe-secret --query ARN → step output
+          #
+          # capture <output-name> <secret-name>: emit the live full ARN as a
+          # GitHub Actions step output (consumed by cdk deploy --context).
+          capture() {
+            local out="$1" name="$2"
+            local arn
+            arn=$(aws secretsmanager describe-secret \
+              --secret-id "$name" \
+              --region "$AWS_REGION" \
+              --query ARN --output text)
+            if [ -z "$arn" ] || [ "$arn" = "None" ]; then
+              echo "::error::Failed to read ARN of secret $name (describe-secret returned empty)"
+              exit 1
+            fi
+            echo "$out=$arn" >> "$GITHUB_OUTPUT"
+            echo "captured: $out=$arn"
+          }
+
+          # restore_if_pending <secret-name>: undo a prior delete-secret so
+          # subsequent describe / put / create steps see an active secret.
+          restore_if_pending() {
+            local name="$1"
+            local deleted
+            deleted=$(aws secretsmanager describe-secret --secret-id "$name" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
+            if [ "$deleted" != "MISSING" ] && [ "$deleted" != "None" ]; then
+              echo "Secret $name in PendingDeletion — restoring."
+              aws secretsmanager restore-secret --secret-id "$name" --region "$AWS_REGION" >/dev/null
+            fi
+          }
+
+          # ---------- 1. Cloudflare Tunnel token ----------
           if [ -z "$TUNNEL_TOKEN" ]; then
             echo "::error::CLOUDFLARE_TUNNEL_TOKEN_${ENV_NAME^^} secret is not set. Create the tunnel in Cloudflare and store its token."
             exit 1
           fi
           echo "::add-mask::$TUNNEL_TOKEN"
-          SECRET_NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
-          # describe-secret succeeds even when the secret is in
-          # PendingDeletion. put-secret-value against PendingDeletion fails
-          # with InvalidRequestException. Restore first so the create-or-put
-          # branch below works against an active secret.
-          DELETED=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
-          if [ "$DELETED" != "MISSING" ] && [ "$DELETED" != "None" ]; then
-            echo "Secret $SECRET_NAME in PendingDeletion — restoring."
-            aws secretsmanager restore-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null
-          fi
-          if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            aws secretsmanager put-secret-value \
-              --secret-id "$SECRET_NAME" \
-              --secret-string "$TUNNEL_TOKEN" \
-              --region "$AWS_REGION" \
-              >/dev/null
+          NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
+          restore_if_pending "$NAME"
+          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$TUNNEL_TOKEN" --region "$AWS_REGION" >/dev/null
           else
-            aws secretsmanager create-secret \
-              --name "$SECRET_NAME" \
-              --secret-string "$TUNNEL_TOKEN" \
-              --description "Cloudflare Tunnel connector token for cloudflared sidecar (monorepo ${ENV_NAME})" \
-              --region "$AWS_REGION" \
-              >/dev/null
+            aws secretsmanager create-secret --name "$NAME" --secret-string "$TUNNEL_TOKEN" --description "Cloudflare Tunnel connector token for cloudflared sidecar (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
           fi
+          capture cloudflareTunnelSecretArn "$NAME"
 
-      - name: Ensure Resend API key secret exists in Secrets Manager [stack=all|app-only]
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: |
-          # AppStack references monorepo-${ENV_NAME}-resend-api-key by name
-          # (Secret.fromSecretNameV2), so the secret must exist before the
-          # `cdk deploy App-*` step runs — otherwise ECS task start fails
-          # with SecretsManager:ResourceNotFoundException. Same pattern as
-          # the Cloudflare Tunnel token above. The web container reads this
-          # at runtime; packages/email's pickTransport() selects Resend.
+          # ---------- 2. Resend API key ----------
           if [ -z "$RESEND_API_KEY" ]; then
             echo "::error::RESEND_API_KEY repo secret is not set. Create the Resend account + key (docs/runbooks/AWS-DEPLOY.md step 7)."
             exit 1
           fi
           echo "::add-mask::$RESEND_API_KEY"
-          SECRET_NAME="monorepo-${ENV_NAME}-resend-api-key"
-          # See tunnel-token step for PendingDeletion rationale.
-          DELETED=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
-          if [ "$DELETED" != "MISSING" ] && [ "$DELETED" != "None" ]; then
-            echo "Secret $SECRET_NAME in PendingDeletion — restoring."
-            aws secretsmanager restore-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null
-          fi
-          if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            aws secretsmanager put-secret-value \
-              --secret-id "$SECRET_NAME" \
-              --secret-string "$RESEND_API_KEY" \
-              --region "$AWS_REGION" \
-              >/dev/null
+          NAME="monorepo-${ENV_NAME}-resend-api-key"
+          restore_if_pending "$NAME"
+          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$RESEND_API_KEY" --region "$AWS_REGION" >/dev/null
           else
-            aws secretsmanager create-secret \
-              --name "$SECRET_NAME" \
-              --secret-string "$RESEND_API_KEY" \
-              --description "Resend API key for transactional email (monorepo ${ENV_NAME})" \
-              --region "$AWS_REGION" \
-              >/dev/null
+            aws secretsmanager create-secret --name "$NAME" --secret-string "$RESEND_API_KEY" --description "Resend API key for transactional email (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
           fi
+          capture resendApiKeySecretArn "$NAME"
 
-      - name: Ensure Better Auth + app-token signing secrets exist in Secrets Manager [stack=all|app-only]
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        run: |
-          # AppStack references these by name (Secret.fromSecretNameV2). They
-          # were previously CDK-managed via `new Secret + generateSecretString`,
-          # which produced random-suffix ARNs that drifted across deploys
-          # whenever rollback force-deleted the secret — see deploy run
-          # 26091787153 (2026-05-19 12:59Z). Workflow-managed pattern: the
-          # secret name is deterministic, the 44-char value is generated ONCE
-          # on first creation (idempotent on retry), and PendingDeletion is
-          # auto-restored. We never put a new value into an existing secret —
-          # that would invalidate every active session on staging/production
-          # on each deploy, which is not the intent.
-          for name in better-auth-secret app-token-secret; do
-            SECRET_NAME="monorepo-${ENV_NAME}-${name}"
-            case "$name" in
-              better-auth-secret) DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}" ;;
-              app-token-secret)   DESC="App signup/invite/login-email token signing secret, monorepo ${ENV_NAME}" ;;
+          # ---------- 3+4. Better Auth + app-token signing secrets ----------
+          # 44-char alphanumeric, generated ONCE on first creation. We never
+          # put a new value into an existing signing secret — that would
+          # invalidate every active session and every pending invite/signup
+          # token redemption on each deploy.
+          for slug in better-auth-secret app-token-secret; do
+            NAME="monorepo-${ENV_NAME}-${slug}"
+            case "$slug" in
+              better-auth-secret) DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}"; OUT=betterAuthSecretArn ;;
+              app-token-secret)   DESC="App signup/invite/login-email token signing secret, monorepo ${ENV_NAME}"; OUT=appTokenSecretArn ;;
             esac
-            DELETED=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
-            if [ "$DELETED" != "MISSING" ] && [ "$DELETED" != "None" ]; then
-              echo "Secret $SECRET_NAME in PendingDeletion — restoring."
-              aws secretsmanager restore-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null
-            fi
-            if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-              echo "Secret $SECRET_NAME already exists — leaving value untouched."
+            restore_if_pending "$NAME"
+            if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "Secret $NAME already exists — leaving value untouched."
             else
               VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
               echo "::add-mask::$VALUE"
-              aws secretsmanager create-secret \
-                --name "$SECRET_NAME" \
-                --secret-string "$VALUE" \
-                --description "$DESC" \
-                --region "$AWS_REGION" \
-                >/dev/null
-              echo "Secret $SECRET_NAME created with fresh 44-char value."
+              aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
+              echo "Secret $NAME created with fresh 44-char value."
             fi
+            capture "$OUT" "$NAME"
           done
 
       # Sanity check: when image_tag_override is set the operator is asking
@@ -778,6 +773,14 @@ jobs:
           # repo secret (same address that forwards inbound mail to the
           # operator's real inbox). bin/app.ts throws if unset.
           ALERT_EMAIL: ${{ secrets.EMAIL_FORWARD_TO }}
+          # Full Secrets Manager ARNs captured by the "Ensure workflow-managed
+          # Secrets Manager secrets" step. AppStack reads each one from CDK
+          # context and instantiates Secret.fromSecretCompleteArn, so the
+          # task def + grantRead policy resource share one exact full ARN.
+          CLOUDFLARE_TUNNEL_SECRET_ARN: ${{ steps.secrets.outputs.cloudflareTunnelSecretArn }}
+          RESEND_API_KEY_SECRET_ARN: ${{ steps.secrets.outputs.resendApiKeySecretArn }}
+          BETTER_AUTH_SECRET_ARN: ${{ steps.secrets.outputs.betterAuthSecretArn }}
+          APP_TOKEN_SECRET_ARN: ${{ steps.secrets.outputs.appTokenSecretArn }}
         run: |
           case "$STACK_SCOPE" in
             all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;
@@ -790,11 +793,35 @@ jobs:
           # --concurrency 3: Security, Observability, Backup are App-stack
           # siblings (no cross-deps after App is up) — deploy them in
           # parallel. Saves ~2 min on full `stack=all` deploys.
+          # Secret ARN context flags — passed only when the App stack is in
+          # scope and the secrets step ran. App-stack.ts reads each ARN via
+          # `node.tryGetContext()` and feeds it into Secret.fromSecretCompleteArn,
+          # making the task def `valueFrom` and the IAM grantRead Resource
+          # both pin to the same full ARN (with random suffix). See app-stack.ts
+          # for the bare-vs-full-ARN failure mode this avoids.
+          SECRET_CTX=()
+          if [ "$STACK_SCOPE" != "infra-only" ]; then
+            for pair in \
+              "cloudflareTunnelSecretArn=${CLOUDFLARE_TUNNEL_SECRET_ARN}" \
+              "resendApiKeySecretArn=${RESEND_API_KEY_SECRET_ARN}" \
+              "betterAuthSecretArn=${BETTER_AUTH_SECRET_ARN}" \
+              "appTokenSecretArn=${APP_TOKEN_SECRET_ARN}"; do
+              key="${pair%%=*}"
+              val="${pair#*=}"
+              if [ -z "$val" ]; then
+                echo "::error::Missing secret ARN context for $key — the 'Ensure workflow-managed Secrets Manager secrets' step did not run or did not capture."
+                exit 1
+              fi
+              SECRET_CTX+=(--context "$pair")
+            done
+          fi
+
           pnpm --filter @workspace/cdk exec cdk deploy "${STACKS[@]}" \
             --exclusively \
             --concurrency 3 \
             --context "env=${ENV_NAME}" \
             --context "imageTag=${IMAGE_TAG}" \
+            "${SECRET_CTX[@]}" \
             --require-approval=never
 
       # Persist last-deploy state for the next run's detect-changes job.

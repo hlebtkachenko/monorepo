@@ -1,10 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Dev CLI — issue an invite and email it. Mirrors the path the
- * onboarding team-step uses: mint an opaque random token, INSERT the
- * auth_invite row at status='pending' (storing only its SHA-256 hash),
- * send the invite email via the configured transport (Resend / SES /
- * Console).
+ * Dev CLI — issue an organization invite and email it. Mirrors the path
+ * the onboarding team-step uses: mint an opaque `inv`-kind auth_token
+ * row carrying the recipient + org + role in its payload, then send the
+ * invite email via the configured transport (Resend / SES / Console).
  *
  * Usage:
  *   pnpm tsx packages/auth/scripts/issue-invite-token.ts \
@@ -23,20 +22,20 @@ import {
   issueInvite,
   revokePendingInvites,
   findOrganizationOwner,
+  type InviteRole,
 } from "../src/invite-issuer"
-import type { InviteRecord } from "../src/tokens/invite"
 
 interface Args {
   email: string
   organizationId: string
-  role: InviteRecord["role"]
+  role: InviteRole
   issuerUserId: string | null
   brandName: string
   baseUrl: string
   ttlSeconds: number
 }
 
-const VALID_ROLES: ReadonlyArray<InviteRecord["role"]> = [
+const VALID_ROLES: ReadonlyArray<InviteRole> = [
   "owner",
   "admin",
   "member",
@@ -52,7 +51,7 @@ function parseArgs(argv: string[]): Args {
 
   const email = get("--email")
   const organizationId = get("--org")
-  const roleArg = (get("--role") ?? "member") as InviteRecord["role"]
+  const roleArg = (get("--role") ?? "member") as InviteRole
   const issuerUserId = get("--issuer") ?? null
   const brandName = get("--brand") ?? "Afframe"
   const baseUrl = get("--base-url") ?? "http://localhost:3000"
@@ -91,16 +90,9 @@ function parseArgs(argv: string[]): Args {
 }
 
 async function main(): Promise<void> {
-  if (!process.env.APP_TOKEN_SECRET) {
-    console.error(
-      "ERROR: APP_TOKEN_SECRET is not set in the environment.\n" +
-        "  Source it from apps/web/.env.local before running.",
-    )
-    process.exit(2)
-  }
   if (!process.env.DATABASE_URL && !process.env.DATABASE_DIRECT_URL) {
     console.error(
-      "ERROR: DATABASE_URL (or DATABASE_DIRECT_URL) must be set so the auth_invite row can be persisted.",
+      "ERROR: DATABASE_URL (or DATABASE_DIRECT_URL) must be set so the auth_token row can be persisted.",
     )
     process.exit(2)
   }

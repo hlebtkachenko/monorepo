@@ -371,13 +371,14 @@ Better Auth and `packages/email` automatically. Source of truth is
 | `EMAIL_FROM`                  | CDK env (`no-reply@${domain}`)    | Must be on a Resend-verified domain                                            |
 | `EMAIL_TRANSPORT`             | CDK env (`resend`)                | Pins the email backend                                                         |
 | `BETTER_AUTH_SECRET`          | Secrets Manager (CDK-generated)   | `monorepo-{env}-better-auth-secret`                                            |
-| `APP_TOKEN_SECRET`            | Secrets Manager (CDK-generated)   | `monorepo-{env}-app-token-secret`                                              |
 | `RESEND_API_KEY`              | Secrets Manager (workflow-seeded) | `monorepo-{env}-resend-api-key`, value comes from `gh secret RESEND_API_KEY`   |
 | `DATABASE_URL`                | composed at container start       | `/bin/sh` builds it from DB_USER + DB_PASSWORD secrets + DB_HOST/PORT/NAME env |
 
-Rotating `BETTER_AUTH_SECRET` invalidates every active session and makes
-every pending invite / signup token unredeemable. Plan a maintenance
-window before rotating.
+Rotating `BETTER_AUTH_SECRET` invalidates every active session. Plan a
+maintenance window before rotating. Invite / signup / login-email
+tokens are opaque DB rows (`auth_token`, ADR-0022) and survive a
+session-secret rotation — only the BA session cookie depends on this
+secret.
 
 ## DNS - final wiring after first deploy
 

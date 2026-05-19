@@ -188,9 +188,8 @@ jobs:
           export APP_S3_PREFIX="backups/${DATE_UTC}"
           # The script boots a scratch postgres:18 container, pg_restores
           # the latest dump, and exit 1's on any row-count mismatch across
-          # the seven org-scoped tables (audit_event auth_invite
-          # impersonation organization organization_membership
-          # resource_grant tool_call_log).
+          # the six org-scoped tables (audit_event impersonation organization
+          # organization_membership resource_grant tool_call_log).
           bash infra/scripts/restore-drill.sh
 
       - name: Alarm on failure

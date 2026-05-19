@@ -1,9 +1,10 @@
 /**
  * Runs once at server-process boot, before any other module is loaded.
  * Dev-only: admin is a separate Next.js process and doesn't load
- * `apps/web/.env.local` automatically. Mirror the auth-relevant subset
- * into process.env so `@workspace/auth/tokens` (which snapshots
- * APP_TOKEN_SECRET at module load via an IIFE) sees the right value.
+ * `apps/web/.env.local` automatically. Mirror the relevant subset into
+ * process.env so `@workspace/auth/*` (Better Auth session secret,
+ * cookie config) and `@workspace/db` (DATABASE_URL/DATABASE_DIRECT_URL)
+ * see the same values the web app uses.
  */
 export async function register() {
   if (process.env.NODE_ENV === "production") return

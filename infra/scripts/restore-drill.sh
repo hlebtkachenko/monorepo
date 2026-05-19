@@ -59,7 +59,6 @@ err()  { printf '\033[1;31merr\033[0m  %s\n' "$*" >&2; exit 1; }
 # MUST seed each of these. Kept in sync with pg-dump-nightly.sh.
 ORG_SCOPED_TABLES=(
   audit_event
-  auth_invite
   impersonation
   organization
   organization_membership

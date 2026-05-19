@@ -14,11 +14,10 @@ For local dev, the fastest path is to run the generator:
 bash scripts/generate-env.sh
 ```
 
-The script writes `apps/web/.env.local` at `chmod 600` with random secrets
-for `BETTER_AUTH_SECRET` + `APP_TOKEN_SECRET`. Re-run with `--force` to
-regenerate. Add or override variables in `apps/web/.env.local` by hand for
-anything outside the generator's default set (Sentry DSN, OpenFGA IDs,
-etc.).
+The script writes `apps/web/.env.local` at `chmod 600` with a random
+`BETTER_AUTH_SECRET`. Re-run with `--force` to regenerate. Add or
+override variables in `apps/web/.env.local` by hand for anything
+outside the generator's default set (Sentry DSN, OpenFGA IDs, etc.).
 
 `.env*` is gitignored. Never commit secrets.
 

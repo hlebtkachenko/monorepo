@@ -73,7 +73,6 @@ jobs:
       APP_DOMAIN: example.com
       BETTER_AUTH_URL: "http://localhost:3010"
       BETTER_AUTH_SECRET: "e2e-test-secret-not-real-0123456789ab"
-      APP_TOKEN_SECRET: "e2e-app-token-secret-not-real-0123456789ab"
       # Build-time placeholders. The real database for the E2E run is the
       # disposable Postgres 18 testcontainer booted by apps/web/e2e/db-setup.ts
       # during Playwright config evaluation — it boots the container, runs

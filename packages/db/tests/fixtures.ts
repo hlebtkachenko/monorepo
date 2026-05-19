@@ -341,7 +341,7 @@ export async function truncateAll(sql: postgres.Sql): Promise<void> {
     await tx.unsafe(`SET LOCAL session_replication_role = replica`)
 
     // Child tables first (FK order), then parents.
-    // auth_invite → workspace; organization_membership → organization, app_user;
+    // organization_membership → organization, app_user;
     // workspace_membership → workspace, app_user; tool_call_log / audit_event
     // are append-only (handled via session_replication_role above).
     //
@@ -349,7 +349,6 @@ export async function truncateAll(sql: postgres.Sql): Promise<void> {
     // declared ON DELETE CASCADE, but session_replication_role = replica also
     // disables FK-driven cascades, so they must be deleted explicitly here or
     // they would be orphaned (and a future app_user delete would not cascade).
-    await tx.unsafe(`DELETE FROM auth_invite`)
     await tx.unsafe(`DELETE FROM auth_token`)
     await tx.unsafe(`DELETE FROM tool_call_log`)
     await tx.unsafe(`DELETE FROM audit_event`)

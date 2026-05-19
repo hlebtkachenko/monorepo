@@ -7,6 +7,7 @@ import requireWithOrganization from "./rules/require-with-organization.js"
 import noSetLocalOutsideWrapper from "./rules/no-set-local-outside-wrapper.js"
 import singleAuditWriter from "./rules/single-audit-writer.js"
 import noBareRoleIdentifier from "./rules/no-bare-role-identifier.js"
+import noLeakedAfkey from "./rules/no-leaked-afkey.js"
 
 /**
  * workspace-rls flat-config plugin.
@@ -26,6 +27,7 @@ const workspaceRlsPlugin = {
     "no-set-local-outside-wrapper": noSetLocalOutsideWrapper,
     "single-audit-writer": singleAuditWriter,
     "no-bare-role-identifier": noBareRoleIdentifier,
+    "no-leaked-afkey": noLeakedAfkey,
   },
 }
 
@@ -151,6 +153,7 @@ export const config = [
       "workspace-rls/require-with-organization": "error",
       "workspace-rls/no-set-local-outside-wrapper": "error",
       "workspace-rls/single-audit-writer": "error",
+      "workspace-rls/no-leaked-afkey": "error",
       // Advisory: registered under onlyWarn — fires as warning in the base
       // config and is downgraded to warn by eslint-plugin-only-warn.
       "workspace-rls/no-bare-role-identifier": "warn",

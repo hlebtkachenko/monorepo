@@ -1011,6 +1011,9 @@ importers:
       '@workspace/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@workspace/testcontainers':
+        specifier: workspace:*
+        version: link:../testcontainers
       '@workspace/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config

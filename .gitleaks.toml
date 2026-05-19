@@ -1,6 +1,17 @@
 [extend]
 useDefault = true
 
+# Custom rule: Afframe opaque auth_token credential (ADR-0022).
+# Format: afkey-<43 base62>-<8 hex>. Token body has 256 bits of entropy;
+# checksum is unkeyed and bound to (kind, env). Mirrors AFKEY_REGEX in
+# packages/auth/src/tokens/format.ts and the no-leaked-afkey ESLint rule.
+[[rules]]
+id = "afkey-opaque-token"
+description = "Afframe afkey- auth_token (ADR-0022)"
+regex = '''afkey-[0-9A-Za-z]{43}-[0-9a-f]{8}'''
+keywords = ["afkey-"]
+tags = ["secret", "afframe"]
+
 [allowlist]
 description = "Repo-wide allowlist for known-safe matches"
 

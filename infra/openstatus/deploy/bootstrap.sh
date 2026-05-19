@@ -83,18 +83,28 @@ PUBKEY=$(cat "$KEY_PATH.pub")
 # Add only if not already present. Windows-OpenSSH stores the admin key file
 # under C:\ProgramData\ssh; we let PowerShell resolve the exact filename so
 # the script does not hardcode the path in the public repo.
-ssh "$VPS_SSH_ALIAS" "powershell -NoProfile -Command \"
-    \$keyfile = Join-Path \$env:ProgramData 'ssh\\administrators_authorized_keys';
-    if (-not (Test-Path \$keyfile)) { New-Item -ItemType File -Force -Path \$keyfile | Out-Null }
-    \$line = '$PUBKEY';
-    if (-not (Select-String -Path \$keyfile -SimpleMatch \$line -Quiet)) {
-        Add-Content -Path \$keyfile -Value \$line
-        icacls \$keyfile /inheritance:r /grant 'SYSTEM:(R)' /grant 'BUILTIN\\Administrators:(R)' | Out-Null
-        Write-Output 'pubkey installed'
-    } else {
-        Write-Output 'pubkey already present'
-    }
-\""
+#
+# The PS script is piped over SSH stdin to `powershell -Command -` instead of
+# being embedded as a multi-line `-Command "..."` argument. The argument form
+# silently truncates at the first newline through Windows-OpenSSH's command
+# parser (parser-error not propagated; an earlier version of this script
+# silently failed to install the key while reporting success). Stdin avoids
+# the entire quote-nesting problem.
+# shellcheck disable=SC2087 # $PUBKEY must expand client-side before the
+# heredoc is shipped over SSH; PowerShell vars stay literal via the backslash
+# escapes below ($keyfile, $line, $env:...).
+ssh "$VPS_SSH_ALIAS" 'powershell -NoProfile -Command -' <<PS_EOF
+\$keyfile = Join-Path \$env:ProgramData 'ssh\administrators_authorized_keys'
+if (-not (Test-Path \$keyfile)) { New-Item -ItemType File -Force -Path \$keyfile | Out-Null }
+\$line = '$PUBKEY'
+if (-not (Select-String -Path \$keyfile -SimpleMatch \$line -Quiet)) {
+    Add-Content -Path \$keyfile -Value \$line
+    icacls \$keyfile /inheritance:r /grant 'SYSTEM:(R)' /grant 'BUILTIN\Administrators:(R)' | Out-Null
+    Write-Output 'pubkey installed'
+} else {
+    Write-Output 'pubkey already present'
+}
+PS_EOF
 
 echo "[3/5] capture VPS host key for known_hosts pinning"
 HOST_KEY=$(ssh-keyscan -p "$VPS_PORT" "$VPS_HOST" 2>/dev/null)

@@ -138,10 +138,13 @@ export class AppStack extends Stack {
 
     const taskDef = new FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
-      // 3072 (was 2048): the admin container adds a 7th process. CPU stays
-      // 512 — memory headroom is comfortable (~1736 MiB reserved); CPU is
-      // the watch item (see ADR-0008 amendment).
-      memoryLimitMiB: 3072,
+      // 2048: 7 containers reserve 1736 MiB total. Observed MemoryUtilized
+      // peak ~327 MiB over the first 7 days (admin/web idle), so 2048 leaves
+      // ~6× headroom on observed usage and ~310 MiB above the reservation
+      // sum. Next valid step at cpu=512 is 1024 (below reservations) or
+      // 3072 (was the previous setting, $3.50/mo more gross). CPU stays the
+      // watch item — see ADR-0008 amendment.
+      memoryLimitMiB: 2048,
       runtimePlatform: {
         cpuArchitecture: CpuArchitecture.ARM64,
         operatingSystemFamily: OperatingSystemFamily.LINUX,

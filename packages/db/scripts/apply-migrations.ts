@@ -147,6 +147,19 @@ async function main(): Promise<void> {
 
   const client = postgres(url, { prepare: false, max: 1, onnotice: () => {} })
 
+  // Propagate AUTH_TOKEN_ENV into the session as the `app.auth_token_env`
+  // GUC so migration bodies can derive the right token env at backfill
+  // time. Migration 0018 (auth_invite → auth_token backfill) reads
+  // `current_setting('app.auth_token_env', true)` to label every imported
+  // row with the deploy environment ('dev' / 'stg' / 'prd'); without this
+  // SET it would fall back to 'dev', causing cross-env checksum rejection
+  // on staging + production.
+  const rawTokenEnv = process.env["AUTH_TOKEN_ENV"]?.trim()
+  if (rawTokenEnv === "dev" || rawTokenEnv === "stg" || rawTokenEnv === "prd") {
+    await client.unsafe(`SET app.auth_token_env = '${rawTokenEnv}'`)
+    console.log(`SET app.auth_token_env = '${rawTokenEnv}'`)
+  }
+
   // Advisory lock: ensures only one migration runner executes at a time.
   // hashtext() maps the string key to a stable integer across the cluster.
   // The lock is session-scoped and released on connection close, but we also

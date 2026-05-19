@@ -12,7 +12,8 @@
     "./api-key-verifier": "./src/api-key-verifier.ts",
     "./env": "./src/env.ts",
     "./test-support": "./src/test-support.ts",
-    "./login-flow": "./src/login-flow.ts"
+    "./login-flow": "./src/login-flow.ts",
+    "./fresh-age": "./src/fresh-age.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

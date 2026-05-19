@@ -374,6 +374,60 @@ export function hashUserAgent(ua: string | null): string | null {
   return createHash("sha256").update(trimmed).digest("hex")
 }
 
+/**
+ * Atomic sliding renewal for kinds whose lifecycle calls for it (currently
+ * only `ons` — onboarding-state). Extends a row's `expires_at` by
+ * `extendBySeconds`, capped at `issued_at + maxLifetimeSeconds`. The
+ * computation lives in SQL so there is no TOCTOU window between the cap
+ * check and the write.
+ *
+ * Trigger interaction: migration 0019 relaxes the append-only trigger to
+ * permit `expires_at` changes on pending rows when the new value is in
+ * the future and not beyond `issued_at + 7 days`. This helper applies
+ * its own `LEAST` cap (the `maxLifetimeSeconds` parameter), and the
+ * trigger enforces the hard ceiling as defense-in-depth. The trigger
+ * rejects any other column change.
+ *
+ * Returns the new `expires_at` if the row was found + still pending, null
+ * otherwise (including when the cap already pinned it to its hard ceiling
+ * — in that case the row's `expires_at` did not move and the function
+ * returns the pinned value so the caller can re-set the cookie with the
+ * correct maxAge).
+ */
+export async function extendAuthTokenExpiry(opts: {
+  rawToken: string
+  expectedKind: AuthTokenKind
+  extendBySeconds: number
+  maxLifetimeSeconds: number
+}): Promise<Date | null> {
+  const env = resolveAuthTokenEnv()
+
+  // Reject malformed tokens before any DB I/O.
+  if (!verifyChecksum(opts.rawToken, opts.expectedKind, env)) return null
+
+  const tokenHash = hashRawToken(opts.rawToken)
+  const rows = await withAdminBypass(async (db) => {
+    return await db
+      .update(auth_token)
+      .set({
+        expires_at: sql`LEAST(
+            now() + (${opts.extendBySeconds}::int * interval '1 second'),
+            ${auth_token.issued_at} + (${opts.maxLifetimeSeconds}::int * interval '1 second')
+          )`,
+      })
+      .where(
+        sql`${auth_token.token_hash} = ${tokenHash}
+              AND ${auth_token.status} = 'pending'
+              AND ${auth_token.expires_at} > now()
+              AND ${auth_token.kind} = ${opts.expectedKind}`,
+      )
+      .returning({ expires_at: auth_token.expires_at })
+  })
+  const row = rows[0]
+  if (!row) return null
+  return row.expires_at
+}
+
 /** Mark a row by id as consumed without going through the raw-token path.
  *  Used only by admin tooling and tests; the regular consume flow MUST go
  *  through `consumeToken` to enforce the format + checksum gate. */

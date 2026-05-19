@@ -1,17 +1,36 @@
 # NOTE on path-filtering: required-status-check rules + path filters on a
 # workflow trigger create stuck PRs (skipped checks read as "missing" to the
-# rule engine). This workflow is ADVISORY (continue-on-error on the job level
-# is not supported for service containers; advisory status is tracked via the
-# workflow-level check not being marked required in branch protection).
-# Flip to required in branch protection after first green PR cycle.
+# rule engine). This workflow is ADVISORY today — neither `smoke` (Static
+# checks) nor `integration` (Migration + vitest) is listed in the main
+# branch ruleset's required_status_checks, so trigger-level `paths:` is
+# safe. If either job is promoted to required (see Linear AFF-65), switch
+# to the ci-status-shim pattern used by ci.yml so a skipped check still
+# reports green.
+#
+# Triggers only on changes that the DB suite can detect a regression in:
+# migrations + observability source (smoke greps for the lac_ port residue
+# in both), compose bootstrap SQL, lockfile (dep upgrades touch drizzle /
+# pg-boss / Better Auth schema), and the workflow itself.
 
 name: DB tests
 
 on:
   push:
     branches: [main]
+    paths:
+      - "packages/db/**"
+      - "packages/observability/**"
+      - "infra/compose/postgres/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/db-tests.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "packages/db/**"
+      - "packages/observability/**"
+      - "infra/compose/postgres/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/db-tests.yml"
 
 permissions: {}
 

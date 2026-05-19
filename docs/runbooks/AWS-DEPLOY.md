@@ -279,6 +279,26 @@ curl -s -o /dev/null -w "HTTP %{http_code}\n" https://app-staging.afframe.com/
 curl -s https://app-staging.afframe.com/api/health | jq '.'
 ```
 
+### Retry a partially-failed deploy — use `gh run rerun --failed`
+
+**Default:** when `_deploy-aws.yml` fails AFTER `build-images` succeeded (e.g. only the `deploy` job tripped a CFN race), use:
+
+```bash
+gh run rerun <run-id> --failed
+```
+
+NOT `gh workflow run` (which spawns a fresh run rebuilding all 3 images for ~5-6 min).
+
+`--failed` re-runs only the failed jobs in place, reusing the successful `build-images` matrix outputs already in ECR. Inputs (`environment`, `stack`, `image_tag_override`, `force_rebuild_images`) are preserved from the original run.
+
+**When to trigger a new run instead:**
+
+- The failure root cause is upstream of `build-images` (e.g. a Dockerfile bug).
+- A new commit landed on `main` and you want the latest code, not the previous attempt's images.
+- ECR has a half-pushed image at the same SHA tag (`IMAGE_TAG_MUTABILITY: IMMUTABLE`) — either `--failed` reuses the existing valid image, or `aws ecr batch-delete-image` cleans it first.
+
+**Anti-pattern:** Triggering a fresh `gh workflow run` after every `deploy`-job failure rebuilds all 3 images each time, eating ~5-6 min per attempt. Use `--failed` instead.
+
 ### When to use which `stack` value
 
 | Stack value  | When to use                                                                     | Time       |

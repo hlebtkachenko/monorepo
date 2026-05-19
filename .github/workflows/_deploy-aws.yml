@@ -663,38 +663,57 @@ jobs:
             exit 1
           fi
 
-      # Belt-and-braces orphan-resource purge for staging — secrets only.
+      # Pre-create the 7 ECS log groups idempotently.
       #
-      # Log groups WERE in this loop pre-2026-05-19. Removed because: with
-      # RemovalPolicy.DESTROY on staging (set in PR #153), CFN tears them
-      # down on rollback automatically. Manually deleting them here AND
-      # letting CDK recreate them caused a CloudControl-API race where
-      # AWS::IAM::Policy.GetAtt(LogGroup.Arn) returned ResourceNotFound for
-      # ~1s after the LogGroup was recreated, failing the App-staging
-      # update with "Unable to retrieve Arn attribute for
-      # AWS::Logs::LogGroup ... was not found" — see deploy run
-      # 26089391322 (2026-05-19 09:51:55Z).
+      # CFN's AWS::IAM::Policy GetAtt(LogGroup.Arn) hits CloudControl, which
+      # has ~1s read-after-write lag. Brand-new log groups (created within
+      # the same UPDATE) trigger 'Unable to retrieve Arn attribute for
+      # AWS::Logs::LogGroup ... was not found' on the IAM policy update.
+      # See deploy run 26089910853 (2026-05-19 10:03Z) — that's the failure
+      # mode this step prevents.
       #
-      # Generated secrets stay in the cleanup because Secrets Manager has
-      # a separate PendingDeletion state that can wedge create-or-put even
-      # after CFN rollback. Force-delete here is safe — they are
-      # session-signing secrets, invalidated sessions on a failed deploy
-      # are acceptable on staging.
-      - name: Pre-deploy cleanup (staging only)
+      # By pre-creating with the same names CDK uses, CDK's stack template
+      # sees them as "existing, no-op" and the IAM policy's GetAtt resolves
+      # to an already-propagated ARN. CloudFormation's import-by-name
+      # semantics treat these as CDK-managed once the stack is in sync.
+      #
+      # Idempotent on the AWS side (ResourceAlreadyExistsException is
+      # suppressed). Retention is set to ONE_WEEK to match app-stack.ts.
+      - name: Pre-create ECS log groups (staging only)
         if: env.ENV_NAME == 'staging' && env.STACK_SCOPE != 'infra-only'
         run: |
           set -euo pipefail
-          for name in better-auth-secret app-token-secret; do
-            sn="monorepo-${ENV_NAME}-${name}"
-            arn=$(aws secretsmanager describe-secret --secret-id "$sn" --region "$AWS_REGION" --query 'ARN' --output text 2>/dev/null || true)
-            if [ -n "$arn" ] && [ "$arn" != "None" ]; then
-              aws secretsmanager delete-secret --secret-id "$sn" --force-delete-without-recovery --region "$AWS_REGION" 2>/dev/null \
-                && echo "purged: $sn" \
-                || echo "purge skipped (in use or transient): $sn"
+          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
+            lg="/ecs/monorepo-${ENV_NAME}/${svc}"
+            if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
+              echo "exists: $lg"
             else
-              echo "absent: $sn"
+              aws logs create-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null && echo "created: $lg" || echo "::warning::create-log-group failed for $lg (may be racing)"
+              aws logs put-retention-policy --log-group-name "$lg" --retention-in-days 7 --region "$AWS_REGION" >/dev/null 2>&1 || true
             fi
           done
+
+      # The 'Pre-deploy cleanup (staging only)' step that USED to live here
+      # is gone entirely. It force-deleted the generated BetterAuth +
+      # AppToken secrets on every deploy; CDK then re-created them with
+      # NEW random suffixes; the TaskExecutionRole IAM policy lagged and
+      # ECS task start failed with:
+      #
+      #   AccessDeniedException: ... is not authorized to perform:
+      #   secretsmanager:GetSecretValue on resource:
+      #   .../monorepo-staging-better-auth-secret-EQ76ea
+      #
+      # — see deploy run 26089910853 (2026-05-19 12:26Z). The same
+      # cascading-secret pattern caused the ECS Deployment Circuit Breaker
+      # to trip + the stack to wedge in UPDATE_ROLLBACK_FAILED. Resolved
+      # by manual `aws cloudformation continue-update-rollback`.
+      #
+      # PendingDeletion recovery (the original justification) is now
+      # handled inline by the 'Ensure ... secret exists' steps above,
+      # which call `aws secretsmanager restore-secret` when DeletedDate
+      # is non-null. RemovalPolicy.DESTROY on staging (set in PR #153)
+      # handles tear-down on rollback. The combination supersedes the
+      # belt-and-braces cleanup.
 
       # Single cdk deploy, AFTER images + secrets exist. App and the stacks
       # that depend on it (Security, Observability, Backup) cannot deploy

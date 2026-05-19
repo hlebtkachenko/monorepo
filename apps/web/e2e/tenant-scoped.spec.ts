@@ -81,11 +81,17 @@ async function loginAsSeededOwner(
   await page.locator("input#password").fill(seed.password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
-  // Wait until the password step is left (session established).
+  // Wait until the password step is left (session established) AND the
+  // resulting navigation finishes loading. Without `waitForLoadState`,
+  // the post-login `router.push("/workspace")` is still in flight when
+  // this helper returns; a subsequent `page.goto("/<orgSlug>")` then
+  // races and Playwright aborts the new navigation with
+  // "interrupted by another navigation to /workspace".
   await page.waitForURL(
     (url) => !url.pathname.includes("/auth/login/password"),
     { timeout: 15_000 },
   )
+  await page.waitForLoadState("load")
 }
 
 // ---------------------------------------------------------------------------

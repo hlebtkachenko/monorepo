@@ -340,6 +340,14 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // Avatar upload + presigned-read chain in apps/web requires this. The
+        // api container already has it (below); the web container's
+        // /api/upload/avatar route and presignAvatarRead() call returned 500
+        // without it. Task role already has grantReadWrite on the bucket.
+        APP_BUCKET: props.appBucket.bucketName,
+        // SDK fell back through the credential/region chain on Fargate today,
+        // but wiring it explicitly removes that fragility.
+        AWS_REGION: this.region,
       },
       secrets: {
         BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
@@ -484,6 +492,11 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // Admin doesn't upload avatars today, but staff user-management views
+        // call presignAvatarRead() to render user profile photos. Wire it now
+        // so the next admin feature doesn't trip the same 500 the web app hit.
+        APP_BUCKET: props.appBucket.bucketName,
+        AWS_REGION: this.region,
         EMAIL_FROM: `no-reply@${props.domain}`,
         EMAIL_TRANSPORT: "resend",
       },

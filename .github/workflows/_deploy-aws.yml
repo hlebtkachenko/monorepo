@@ -17,6 +17,11 @@ on:
         required: false
         type: string
         default: ""
+      force_rebuild_images:
+        description: "Force the build-images matrix to run even when no app source changed since the last successful deploy. Default false — the detect-changes job skips image builds when apps/** + relevant packages did not change, and reuses the last-deployed image tag from SSM."
+        required: false
+        type: boolean
+        default: false
     outputs:
       deployed:
         description: "Whether the deploy step actually ran"
@@ -40,10 +45,15 @@ on:
           - infra-only
           - app-only
       image_tag_override:
-        description: "Existing image tag to deploy (e.g. sha-abcdef). Empty = build+push images for the current commit. Set this to reuse images already in ECR and skip the 12-15 min image build phase — useful for CDK-only retries."
+        description: "Existing image tag to deploy (e.g. sha-abcdef). Empty = build+push images for the current commit (or reuse last-deployed images if app source did not change since last deploy). Set this to a specific tag to pin a CDK-only retry."
         required: false
         type: string
         default: ""
+      force_rebuild_images:
+        description: "Force build-images matrix even when no app source changed since last deploy."
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -73,6 +83,145 @@ jobs:
             echo "go=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # Detect whether app source changed since the last successful deploy to
+  # this environment. Outputs drive the `build-images` skip decision and
+  # the IMAGE_TAG handed to `cdk deploy`. SSM Parameter Store
+  # `/monorepo/${env}/last-deploy/git-sha` is written at the end of the
+  # `deploy` job — first-ever deploy or a wiped param falls through to a
+  # full rebuild (safe default).
+  #
+  # Why not dorny/paths-filter? It's PR-event-centric. We need a
+  # workflow_dispatch-compatible comparison against an arbitrary past
+  # commit (the last deploy), which is a plain `git diff --name-only`.
+  detect-changes:
+    needs: guard
+    if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: ${{ inputs.environment }}
+    outputs:
+      skip_image_build: ${{ steps.decide.outputs.skip_image_build }}
+      image_tag: ${{ steps.decide.outputs.image_tag }}
+      last_deploy_sha: ${{ steps.decide.outputs.last_deploy_sha }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          # Need history back to the last-deploy SHA for `git diff`.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging)    echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-detect-${{ github.run_id }}
+          audience: sts.amazonaws.com
+
+      - id: decide
+        env:
+          IMAGE_TAG_OVERRIDE: ${{ inputs.image_tag_override }}
+          FORCE_REBUILD: ${{ inputs.force_rebuild_images }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          emit() {
+            local skip="$1" tag="$2" base="$3"
+            {
+              printf 'skip_image_build=%s\n' "$skip"
+              printf 'image_tag=%s\n' "$tag"
+              printf 'last_deploy_sha=%s\n' "$base"
+            } >> "$GITHUB_OUTPUT"
+          }
+
+          # Priority 1: explicit image_tag_override → skip build, use that tag.
+          if [ -n "$IMAGE_TAG_OVERRIDE" ]; then
+            echo "image_tag_override set — skipping build."
+            emit true "$IMAGE_TAG_OVERRIDE" ""
+            exit 0
+          fi
+
+          # Priority 2: operator force-rebuild → build.
+          if [ "$FORCE_REBUILD" = "true" ]; then
+            echo "force_rebuild_images=true — building."
+            emit false "sha-$GITHUB_SHA" ""
+            exit 0
+          fi
+
+          # Priority 3: compare HEAD against SSM last-deploy SHA.
+          LAST_SHA=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          LAST_TAG=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          echo "Last deploy SHA: ${LAST_SHA:-<none>}"
+          echo "Last image tag:  ${LAST_TAG:-<none>}"
+
+          if [ -z "$LAST_SHA" ] || [ "$LAST_SHA" = "None" ] || [ -z "$LAST_TAG" ] || [ "$LAST_TAG" = "None" ]; then
+            echo "First deploy (or wiped state) — full build."
+            emit false "sha-$GITHUB_SHA" ""
+            exit 0
+          fi
+
+          if ! git rev-parse --verify "$LAST_SHA" >/dev/null 2>&1; then
+            echo "Last SHA $LAST_SHA not reachable in checkout — full build."
+            emit false "sha-$GITHUB_SHA" ""
+            exit 0
+          fi
+
+          # Paths that affect image content. Anything else (CDK source,
+          # docs, infra/cerbos handled separately by Cerbos asset hash)
+          # cannot change what's baked into web/api/admin images.
+          APP_PATHS_REGEX='^(apps/(web|api|admin)/|packages/(auth|db|shared|email|ui|testcontainers|i18n|observability)/|pnpm-lock\.yaml$|\.github/actions/setup/)'
+
+          diff=$(git diff --name-only "$LAST_SHA" HEAD || true)
+          if [ -z "$diff" ]; then
+            echo "No file changes since $LAST_SHA — skipping build, reusing $LAST_TAG."
+            emit true "$LAST_TAG" "$LAST_SHA"
+            exit 0
+          fi
+
+          if echo "$diff" | grep -qE "$APP_PATHS_REGEX"; then
+            echo "App source changed since $LAST_SHA — building."
+            echo "Files (first 20):"
+            echo "$diff" | grep -E "$APP_PATHS_REGEX" | head -20
+            emit false "sha-$GITHUB_SHA" "$LAST_SHA"
+          else
+            echo "No app source changes since $LAST_SHA — skipping build, reusing $LAST_TAG."
+            echo "Changed files (CDK/docs/other, first 20):"
+            echo "$diff" | head -20
+            emit true "$LAST_TAG" "$LAST_SHA"
+          fi
+
   # Build the 3 app images in parallel (web, api, admin) on separate
   # runners. Sequential pre-2026-05-19 build time was web ~5m + api ~4m +
   # admin ~1.5m ≈ 10.5 min. Matrix wall-clock = max(web) + ~30s setup
@@ -81,12 +230,12 @@ jobs:
   # `fail-fast: true` so a CRITICAL CVE on web cancels api + admin builds —
   # the deploy can't run anyway.
   #
-  # Skipped entirely when stack=infra-only OR image_tag_override is set
-  # (then deploy verifies the override tag against ECR via the existing
-  # "Verify override images exist in ECR" step).
+  # Skipped when stack=infra-only OR image_tag_override is set OR
+  # detect-changes determined no app source changed since the last deploy
+  # (then deploy reuses the last-deployed image tag from SSM).
   build-images:
-    needs: guard
-    if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only' && inputs.image_tag_override == ''
+    needs: [guard, detect-changes]
+    if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only' && needs.detect-changes.outputs.skip_image_build != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: ${{ inputs.environment }}
@@ -216,12 +365,15 @@ jobs:
           echo "OK  No CRITICAL CVEs in $repo:$tag"
 
   deploy:
-    needs: [guard, build-images]
-    # Run the deploy when guard is green AND build-images either completed
-    # OR was skipped (infra-only / image_tag_override path). `needs.X.result`
-    # values: success | skipped | failure | cancelled.
+    needs: [guard, detect-changes, build-images]
+    # Run the deploy when guard is green AND (build-images succeeded OR was
+    # skipped). build-images is skipped for: infra-only, image_tag_override
+    # set, OR detect-changes determined no app source changed. detect-changes
+    # itself is skipped only on infra-only — its result must be success then.
+    # `needs.X.result` values: success | skipped | failure | cancelled.
     if: |
       needs.guard.outputs.go == 'true' &&
+      (needs.detect-changes.result == 'success' || needs.detect-changes.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -235,13 +387,18 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
       STACK_SCOPE: ${{ inputs.stack }}
-      # When image_tag_override is set, use it verbatim and skip the build/push
-      # steps below; CDK consumes IMAGE_TAG and pulls the existing ECR images.
-      IMAGE_TAG: ${{ inputs.image_tag_override != '' && inputs.image_tag_override || format('sha-{0}', github.sha) }}
-      # Used as the `if:` condition on every image-build + secret-ensure step.
-      # Truthy when either: (a) infra-only deploy (no app containers at all),
-      # or (b) the operator passed image_tag_override (images already in ECR).
-      SKIP_IMAGE_BUILD: ${{ (inputs.stack == 'infra-only' || inputs.image_tag_override != '') && 'true' || 'false' }}
+      # Tag resolution priority (decided by detect-changes):
+      #   1. inputs.image_tag_override (operator pin)
+      #   2. SSM last-deployed tag when no app source changed (changeset-aware
+      #      skip — saves ~5 min image-build wall)
+      #   3. sha-<github.sha> (default: build fresh)
+      # detect-changes is skipped for infra-only — fall back to sha tag.
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      # Truthy when image build path was skipped (infra-only, override, or
+      # no-app-change). The secret-ensure steps still need to run if any
+      # app container will be deployed; the only path that truly skips
+      # them is stack=infra-only.
+      SKIP_IMAGE_BUILD: ${{ inputs.stack == 'infra-only' && 'true' || 'false' }}
     steps:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
@@ -497,6 +654,33 @@ jobs:
             --context "env=${ENV_NAME}" \
             --context "imageTag=${IMAGE_TAG}" \
             --require-approval=never
+
+      # Persist last-deploy state for the next run's detect-changes job.
+      # Only writes on a fully-successful deploy. Two parameters:
+      #   - git-sha   : current commit, the baseline for the next diff
+      #   - image-tag : the tag actually deployed (may be the SSM-reused
+      #                 last tag when changeset-aware skip fired)
+      # Failure to write SSM is non-fatal — the next run will fall through
+      # to a full rebuild (safe default).
+      - name: Record last-deploy state in SSM
+        if: env.STACK_SCOPE != 'infra-only'
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          aws ssm put-parameter \
+            --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" \
+            --type String \
+            --value "$GITHUB_SHA" \
+            --overwrite \
+            --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/git-sha"
+          aws ssm put-parameter \
+            --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" \
+            --type String \
+            --value "$IMAGE_TAG" \
+            --overwrite \
+            --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag"
+          echo "Recorded: sha=$GITHUB_SHA tag=$IMAGE_TAG (env=$ENV_NAME)"
 
       - id: summary
         run: echo "deployed=true" >> "$GITHUB_OUTPUT"

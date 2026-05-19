@@ -185,14 +185,52 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["BETTER_AUTH_URL"]).not.toContain("test.example.com")
   })
 
-  it("references Better Auth + app-token secrets by name (workflow-managed)", () => {
-    // All four secrets are workflow-managed (fromSecretNameV2 imports), so
-    // none of them materialize as CDK Secret resources in this template.
-    // The workflow's `Ensure ... secret exists` steps create the values
-    // before `cdk deploy App-*` runs.
+  it("references the 4 workflow-managed secrets by FULL ARN (with random suffix)", () => {
+    // All four secrets are workflow-managed (fromSecretCompleteArn imports),
+    // so none of them materialize as CDK Secret resources in this template.
+    // The workflow's "Ensure workflow-managed Secrets Manager secrets" step
+    // creates them with the chosen value, captures the AWS-assigned full
+    // ARN (with random 6-char suffix), and passes each ARN to CDK via
+    // --context. App-stack.ts then imports each one via
+    // Secret.fromSecretCompleteArn so the task def `valueFrom` and the
+    // IAM grantRead policy resource share one exact ARN — no wildcards,
+    // no bare-name auth quirks.
     template.resourceCountIs("AWS::SecretsManager::Secret", 0)
-    // The TaskExecutionRole's DefaultPolicy must grant GetSecretValue
-    // against the secret names (not random-suffix ARNs).
+
+    // Container `valueFrom` must use the full ARN, not the bare name. We
+    // assert the suffix (last segment after the last "-") is present and
+    // 6+ chars — that is the AWS-assigned random suffix. The bare-name
+    // form was the failure mode: ECS task GetSecretValue against bare ARN
+    // returned AccessDenied even with a `name*` wildcard policy.
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Secrets?: Array<{ Name?: string; ValueFrom?: string }>
+    }>
+    const web = containers.find((c) => c.Name === "web")
+    const valueFromByName = Object.fromEntries(
+      (web?.Secrets ?? []).map((s) => [s.Name, s.ValueFrom ?? ""]),
+    )
+    for (const key of [
+      "BETTER_AUTH_SECRET",
+      "APP_TOKEN_SECRET",
+      "RESEND_API_KEY",
+    ]) {
+      const arn = valueFromByName[key] ?? ""
+      expect(arn).toMatch(/^arn:aws:secretsmanager:/)
+      // Suffix segment after the last "-" must be 6+ alnum (the AWS random
+      // suffix). The bare-name form would not have any suffix.
+      const tail = arn.split(":secret:")[1] ?? ""
+      expect(tail).toMatch(/-[A-Za-z0-9]{6,}$/)
+    }
+
+    // TaskExecutionRole's DefaultPolicy grants GetSecretValue. The policy
+    // Resource list now contains exact full ARNs (no `name*` wildcard,
+    // no `name-??????` wildcard).
     const policies = template.findResources("AWS::IAM::Policy", {
       Properties: {
         PolicyDocument: Match.objectLike({

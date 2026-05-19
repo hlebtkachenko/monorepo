@@ -25,6 +25,11 @@ interface BuiltApp {
   readonly backup: BackupStack
 }
 
+export const TEST_CLOUDFLARE_TUNNEL_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-cloudflare-tunnel-token-AbCdEf`
+export const TEST_RESEND_API_KEY_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-resend-api-key-GhIjKl`
+export const TEST_BETTER_AUTH_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-better-auth-secret-MnOpQr`
+export const TEST_APP_TOKEN_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-app-token-secret-StUvWx`
+
 export function buildTestApp(): BuiltApp {
   const app = new App({
     context: {
@@ -32,6 +37,14 @@ export function buildTestApp(): BuiltApp {
         "eu-central-1a",
         "eu-central-1b",
       ],
+      // Workflow-managed secret ARNs — AppStack reads each via
+      // node.tryGetContext and feeds Secret.fromSecretCompleteArn. The full
+      // ARN (with random 6-char suffix) keeps the task def `valueFrom` and
+      // the IAM grantRead policy resource pinned to the same value.
+      cloudflareTunnelSecretArn: TEST_CLOUDFLARE_TUNNEL_SECRET_ARN,
+      resendApiKeySecretArn: TEST_RESEND_API_KEY_SECRET_ARN,
+      betterAuthSecretArn: TEST_BETTER_AUTH_SECRET_ARN,
+      appTokenSecretArn: TEST_APP_TOKEN_SECRET_ARN,
     },
   })
 

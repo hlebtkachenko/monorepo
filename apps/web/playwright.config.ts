@@ -52,6 +52,11 @@ export default defineConfig({
       ...process.env,
       DATABASE_URL: e2eDb.databaseUrl,
       DATABASE_DIRECT_URL: e2eDb.databaseDirectUrl,
+      // E2E web server boots with NODE_ENV=production (via `pnpm start`).
+      // The fail-closed resolveAuthTokenEnv() in @workspace/auth throws when
+      // AUTH_TOKEN_ENV is unset in production — set it explicitly so the test
+      // harness behaves like a properly-configured staging container.
+      AUTH_TOKEN_ENV: process.env["AUTH_TOKEN_ENV"] ?? "dev",
     },
   },
 })

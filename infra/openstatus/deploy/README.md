@@ -58,35 +58,49 @@ would defeat that protection. Pull values from your password manager / 1Password
 
 ### One-time setup
 
+All five setup steps below are automated by
+[`bootstrap.sh`](./bootstrap.sh). Run it once from any machine with `gh`
+authenticated and existing SSH access to the VPS (e.g. via the
+`ovh-vps` config alias):
+
 ```bash
-# From the repo root, on a machine with `gh` authenticated:
+# From the repo root.
+# --pull-from-vps reads the five stack secrets out of the live
+# /opt/openstatus/.env.docker so you do not have to copy them by hand.
+VPS_HOST=<vps-host> \
+VPS_PORT=<ssh-port> \
+VPS_USER=<windows-user> \
+  infra/openstatus/deploy/bootstrap.sh --pull-from-vps
+```
 
-# 1. Generate a deploy-only SSH keypair locally and store the private key.
-ssh-keygen -t ed25519 -N "" -f /tmp/openstatus-deploy -C "openstatus-deploy@gha"
-gh secret set OVH_VPS_SSH_KEY < /tmp/openstatus-deploy
+If the VPS is fresh (no `.env.docker` to read), drop `--pull-from-vps` and
+export each `OPENSTATUS_*` value explicitly:
 
-# 2. Add the matching pubkey to the VPS (one-time, over your existing dev key).
-#    Path on the VPS is the standard Windows-OpenSSH administrators key file
-#    under C:\ProgramData\ssh — exact filename is in Microsoft's OpenSSH docs.
-cat /tmp/openstatus-deploy.pub | ssh ovh-vps 'powershell -Command "Add-Content -Path <windows-openssh-admin-keys-path> -Value (-)"'
+```bash
+VPS_HOST=<vps-host> VPS_PORT=<ssh-port> VPS_USER=<windows-user> \
+OPENSTATUS_RESEND_API_KEY="re_..." \
+OPENSTATUS_TUNNEL_TOKEN="eyJ..." \
+OPENSTATUS_PROBE_KEY="08a460a1-..." \
+OPENSTATUS_DB_AUTH_TOKEN="" \
+  infra/openstatus/deploy/bootstrap.sh
+```
 
-# 3. Capture the VPS host key for pinning.
-ssh-keyscan -p <ssh-port> <vps-host> 2>/dev/null | gh secret set OVH_VPS_HOST_KEY
+What the script does, idempotently:
 
-# 4. Deploy coordinates — not committed; read values from your password manager.
-gh variable set OVH_VPS_HOST --body <vps-host>
-gh variable set OVH_VPS_PORT --body <ssh-port>
-gh variable set OVH_VPS_USER --body <windows-user>
+1. Generate a deploy-only SSH keypair (skip if one already exists at
+   `$KEY_PATH`, default `~/.ssh/openstatus-deploy`).
+2. Append the pubkey to the Windows-OpenSSH administrators key file on the
+   VPS (skip if already present).
+3. `ssh-keyscan` the VPS and store the result as `OVH_VPS_HOST_KEY` for
+   known_hosts pinning.
+4. `gh secret set` + `gh variable set` for SSH + coordinate values.
+5. `gh secret set` for the five stack secrets, either from env or pulled
+   from `/opt/openstatus/.env.docker`.
 
-# 5. Stack secrets (copy from existing VPS .env.docker on first migration).
-gh secret set OPENSTATUS_AUTH_SECRET    --body "$(openssl rand -base64 32)"
-gh secret set OPENSTATUS_RESEND_API_KEY --body "re_..."
-gh secret set OPENSTATUS_TUNNEL_TOKEN   --body "eyJ..."
-gh secret set OPENSTATUS_PROBE_KEY      --body "08a460a1-..."
-gh secret set OPENSTATUS_DB_AUTH_TOKEN  --body ""
+The script does NOT trigger a deploy. Trigger the first deploy with:
 
-# 6. Shred the local private key copy.
-shred -u /tmp/openstatus-deploy /tmp/openstatus-deploy.pub
+```bash
+gh workflow run deploy-statuspage.yml
 ```
 
 Once configured, the workflow runs:

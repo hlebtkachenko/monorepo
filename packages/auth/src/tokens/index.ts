@@ -46,6 +46,7 @@ export {
   DEFAULT_TTL_SECONDS,
   consumeToken,
   expireDueAuthTokens,
+  extendAuthTokenExpiry,
   hashUserAgent,
   mintToken,
   pruneTerminalAuthTokens,

@@ -151,12 +151,35 @@ CREATE FUNCTION public.app_auth_token_limited_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
+  -- expires_at: permit mutation only when the row is pending and the new
+  -- value satisfies the bounds (now() <= new <= issued_at + 7 days). When
+  -- expires_at is unchanged, no checks apply.
+  IF OLD.expires_at <> NEW.expires_at THEN
+    IF OLD.status <> 'pending' THEN
+      RAISE EXCEPTION
+        'auth_token expires_at cannot change on non-pending row (id=%, kind=%, status=%)',
+        OLD.id, OLD.kind, OLD.status
+        USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.expires_at < now() THEN
+      RAISE EXCEPTION
+        'auth_token expires_at must be in the future (id=%, kind=%)',
+        OLD.id, OLD.kind
+        USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.expires_at > OLD.issued_at + interval '7 days' THEN
+      RAISE EXCEPTION
+        'auth_token expires_at exceeds 7-day hard cap (id=%, kind=%)',
+        OLD.id, OLD.kind
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
   IF (OLD.id                     <> NEW.id
       OR OLD.token_hash          <> NEW.token_hash
       OR OLD.kind                <> NEW.kind
       OR OLD.env                 <> NEW.env
       OR OLD.payload::text       <> NEW.payload::text
-      OR OLD.expires_at          <> NEW.expires_at
       OR OLD.issued_at           <> NEW.issued_at
       OR OLD.issued_to_user_id   IS DISTINCT FROM NEW.issued_to_user_id
       OR OLD.issued_to_ip        IS DISTINCT FROM NEW.issued_to_ip

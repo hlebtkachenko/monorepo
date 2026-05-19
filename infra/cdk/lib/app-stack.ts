@@ -1,5 +1,11 @@
 import * as path from "node:path"
-import { CfnOutput, Duration, Stack, type StackProps } from "aws-cdk-lib"
+import {
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  Stack,
+  type StackProps,
+} from "aws-cdk-lib"
 import { DockerImageAsset, Platform } from "aws-cdk-lib/aws-ecr-assets"
 import {
   SubnetSelection,
@@ -173,33 +179,50 @@ export class AppStack extends Stack {
       return params
     }
 
+    // RETAIN log groups + generated secrets in production (rollback / forensics
+    // must survive a deploy failure). DESTROY in staging so a failed deploy
+    // does not orphan resources by their fixed names — the next deploy used
+    // to fail at CREATE_FAILED ResourceAlreadyExists otherwise. Pattern
+    // mirrors data-stack.ts.
+    const ephemeralRemovalPolicy =
+      props.envName === "production"
+        ? RemovalPolicy.RETAIN
+        : RemovalPolicy.DESTROY
+
     this.webLogGroup = new LogGroup(this, "WebLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/web`,
       retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
     })
     this.adminLogGroup = new LogGroup(this, "AdminLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/admin`,
       retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
     })
     this.apiLogGroup = new LogGroup(this, "ApiLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/api`,
       retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
     })
     this.tunnelLogGroup = new LogGroup(this, "TunnelLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/cloudflared`,
       retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
     })
     this.pgbouncerLogGroup = new LogGroup(this, "PgBouncerLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/pgbouncer`,
       retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
     })
     this.cerbosLogGroup = new LogGroup(this, "CerbosLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/cerbos`,
       retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
     })
     this.openfgaLogGroup = new LogGroup(this, "OpenfgaLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/openfga`,
       retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
     })
 
     // OpenFGA store_id + model_id are identifiers, not secrets — kept in SSM
@@ -225,9 +248,12 @@ export class AppStack extends Stack {
     // secrets entirely — they exist only inside AWS and rotate by
     // recreating the Secret (CDK + new stack version).
     //
-    // SAFETY: do NOT enable destroy on prod removal policy — losing these
-    // secrets invalidates every active session and makes every pending
-    // invite / signup token unredeemable. Default RETAIN is correct.
+    // SAFETY: production keeps default RETAIN — losing these secrets
+    // invalidates every active session and makes every pending invite/signup
+    // token unredeemable. Staging gets DESTROY so a rollback that leaves
+    // the secret in PendingDeletion state cannot wedge the next deploy
+    // at ResourceExistsException. Staging sessions invalidating on a
+    // staging rollback is acceptable.
     const betterAuthSecret = new Secret(this, "BetterAuthSecret", {
       secretName: `monorepo-${props.envName}-better-auth-secret`,
       description: `${props.envName} Better Auth session-signing secret (32+ bytes)`,
@@ -235,6 +261,7 @@ export class AppStack extends Stack {
         passwordLength: 44,
         excludePunctuation: true,
       },
+      removalPolicy: ephemeralRemovalPolicy,
     })
     const appTokenSecret = new Secret(this, "AppTokenSecret", {
       secretName: `monorepo-${props.envName}-app-token-secret`,
@@ -243,6 +270,7 @@ export class AppStack extends Stack {
         passwordLength: 44,
         excludePunctuation: true,
       },
+      removalPolicy: ephemeralRemovalPolicy,
     })
 
     // Resend API key — populated out-of-band (gh repo secret + deploy
@@ -776,13 +804,23 @@ export class AppStack extends Stack {
       vpcSubnets: publicSubnetSelection,
       securityGroups: [props.appSecurityGroup],
       enableExecuteCommand: false,
-      minHealthyPercent: 50,
+      // 100 prevents the only running task from being stopped before the
+      // replacement is healthy — desiredCount=1 with 50% means ECS can
+      // scale to 0 momentarily, causing a Cloudflare-Tunnel outage window.
+      // Matches AWS re:Post zero-downtime guidance.
+      minHealthyPercent: 100,
       maxHealthyPercent: 200,
-      circuitBreaker: { rollback: true },
-      // 300s: a cold start pulls six images and chains api behind three
-      // sidecar HEALTHY gates — 90s could trip the circuit breaker before a
-      // legitimately slow first deploy stabilizes.
-      healthCheckGracePeriod: Duration.seconds(300),
+      // Rollback on production so a broken deploy auto-reverts. Disable on
+      // staging so a failed deploy leaves the task state intact for log
+      // forensics (we are usually the operator + investigator). The
+      // pre-deploy cleanup step in _deploy-aws.yml clears stale state
+      // before the next staging deploy attempt.
+      circuitBreaker: { rollback: props.envName === "production" },
+      // 180s: cold-start budget. Cold pull of six arm64 images + chained
+      // sidecar HEALTHY gates measured ~150s worst case. 180s gives ~20%
+      // headroom; the previous 300s over-budgeted and added 2 min to every
+      // failure-rollback cycle.
+      healthCheckGracePeriod: Duration.seconds(180),
     })
 
     new CfnOutput(this, "AppDomain", {

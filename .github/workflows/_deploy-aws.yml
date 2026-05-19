@@ -154,7 +154,11 @@ jobs:
           node-version: "24"
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      # Scoped install: this job only needs @workspace/cdk + its deps to run
+      # `cdk deploy`. Image builds happen inside Docker (no runner
+      # node_modules). Full-workspace install added ~30-60s of dependency
+      # resolution with zero benefit.
+      - run: pnpm install --frozen-lockfile --filter @workspace/cdk...
 
       # QEMU + Buildx: needed before any Docker build. The web/api/admin
       # images are cross-built to arm64 here; `cdk deploy` ALSO builds the
@@ -174,6 +178,33 @@ jobs:
         if: env.SKIP_IMAGE_BUILD != 'true'
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
         id: ecr
+
+      # First-deploy chicken-and-egg: Data stack creates the ECR repos, but
+      # `docker push` runs BEFORE `cdk deploy`. On any first deploy of a new
+      # service the push fails with RepositoryNotFoundException. This step
+      # is idempotent — does nothing when the repo already exists (the common
+      # path) — and matches the Data stack's repo configuration so the CDK
+      # diff stays clean. To avoid CFN ResourceAlreadyExistsException on the
+      # very first deploy of a brand-new service, run `stack=infra-only`
+      # once before `stack=all` (see docs/runbooks/AWS-DEPLOY.md).
+      - name: Ensure ECR repositories exist [stack=all|app-only]
+        if: env.SKIP_IMAGE_BUILD != 'true'
+        run: |
+          set -euo pipefail
+          for svc in web api admin; do
+            repo="monorepo-${ENV_NAME}-${svc}"
+            if aws ecr describe-repositories --repository-names "$repo" --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "OK   ECR repo exists: $repo"
+            else
+              echo "CREATE ECR repo: $repo"
+              aws ecr create-repository \
+                --repository-name "$repo" \
+                --image-tag-mutability IMMUTABLE \
+                --image-scanning-configuration scanOnPush=true \
+                --encryption-configuration encryptionType=AES256 \
+                --region "$AWS_REGION" >/dev/null
+            fi
+          done
 
       - name: Build + push web image [stack=all|app-only]
         if: env.SKIP_IMAGE_BUILD != 'true'
@@ -240,6 +271,15 @@ jobs:
           fi
           echo "::add-mask::$TUNNEL_TOKEN"
           SECRET_NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
+          # describe-secret succeeds even when the secret is in
+          # PendingDeletion. put-secret-value against PendingDeletion fails
+          # with InvalidRequestException. Restore first so the create-or-put
+          # branch below works against an active secret.
+          DELETED=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
+          if [ "$DELETED" != "MISSING" ] && [ "$DELETED" != "None" ]; then
+            echo "Secret $SECRET_NAME in PendingDeletion — restoring."
+            aws secretsmanager restore-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null
+          fi
           if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             aws secretsmanager put-secret-value \
               --secret-id "$SECRET_NAME" \
@@ -272,6 +312,12 @@ jobs:
           fi
           echo "::add-mask::$RESEND_API_KEY"
           SECRET_NAME="monorepo-${ENV_NAME}-resend-api-key"
+          # See tunnel-token step for PendingDeletion rationale.
+          DELETED=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
+          if [ "$DELETED" != "MISSING" ] && [ "$DELETED" != "None" ]; then
+            echo "Secret $SECRET_NAME in PendingDeletion — restoring."
+            aws secretsmanager restore-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null
+          fi
           if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             aws secretsmanager put-secret-value \
               --secret-id "$SECRET_NAME" \
@@ -314,6 +360,34 @@ jobs:
             exit 1
           fi
 
+      # Belt-and-braces orphan-resource purge for staging. App-stack now
+      # sets RemovalPolicy.DESTROY on the 7 log groups + 2 generated secrets
+      # in staging, but a CFN rollback in the middle of stack creation can
+      # still leave them dangling under their fixed names. Clearing them
+      # here keeps `stack=all` retries idempotent without manual operator
+      # intervention. Production is untouched (RETAIN policy + manual ops).
+      - name: Pre-deploy cleanup (staging only)
+        if: env.ENV_NAME == 'staging' && env.STACK_SCOPE != 'infra-only'
+        run: |
+          set -euo pipefail
+          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
+            lg="/ecs/monorepo-${ENV_NAME}/${svc}"
+            aws logs delete-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null \
+              && echo "deleted log group: $lg" \
+              || echo "absent: $lg"
+          done
+          for name in better-auth-secret app-token-secret; do
+            sn="monorepo-${ENV_NAME}-${name}"
+            arn=$(aws secretsmanager describe-secret --secret-id "$sn" --region "$AWS_REGION" --query 'ARN' --output text 2>/dev/null || true)
+            if [ -n "$arn" ] && [ "$arn" != "None" ]; then
+              aws secretsmanager delete-secret --secret-id "$sn" --force-delete-without-recovery --region "$AWS_REGION" 2>/dev/null \
+                && echo "purged: $sn" \
+                || echo "purge skipped (in use or transient): $sn"
+            else
+              echo "absent: $sn"
+            fi
+          done
+
       # Single cdk deploy, AFTER images + secrets exist. App and the stacks
       # that depend on it (Security, Observability, Backup) cannot deploy
       # before the web/api images are in ECR and the tunnel/Resend secrets
@@ -345,7 +419,14 @@ jobs:
             app-only)   STACKS=("App-${ENV_NAME}") ;;
             *) echo "::error::Unknown stack scope: $STACK_SCOPE"; exit 1 ;;
           esac
+          # --exclusively: do not deploy stacks not named in STACKS[] just
+          # because they are upstream dependencies that happen to be dirty.
+          # --concurrency 3: Security, Observability, Backup are App-stack
+          # siblings (no cross-deps after App is up) — deploy them in
+          # parallel. Saves ~2 min on full `stack=all` deploys.
           pnpm --filter @workspace/cdk exec cdk deploy "${STACKS[@]}" \
+            --exclusively \
+            --concurrency 3 \
             --context "env=${ENV_NAME}" \
             --context "imageTag=${IMAGE_TAG}" \
             --require-approval=never

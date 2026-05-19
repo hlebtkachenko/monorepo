@@ -75,14 +75,16 @@ jobs:
           envsubst < infra/openstatus/deploy/env.docker.template \
             > staging/.env.docker
           chmod 600 staging/.env.docker
-          # Bundle the four operator-authored artifacts alongside the env file
-          # so a single scp transfer keeps the VPS state coherent.
+          # Bundle the four operator-authored artifacts + the on-VPS installer
+          # script alongside the env file so a single scp transfer keeps the
+          # VPS state coherent.
           cp infra/openstatus/deploy/docker-compose.github-packages.yaml staging/
           cp infra/openstatus/deploy/patch-emails.sh staging/
           cp infra/openstatus/deploy/keepalive.sh staging/
+          cp infra/openstatus/deploy/install-on-vps.sh staging/
           mkdir -p staging/caddy
           cp infra/openstatus/deploy/caddy/Caddyfile staging/caddy/
-          chmod +x staging/patch-emails.sh staging/keepalive.sh
+          chmod +x staging/patch-emails.sh staging/keepalive.sh staging/install-on-vps.sh
 
       - name: Configure SSH
         env:
@@ -139,30 +141,15 @@ jobs:
           VPS_PORT: ${{ vars.OVH_VPS_PORT }}
           VPS_USER: ${{ vars.OVH_VPS_USER }}
         run: |
+          # The actual install logic lives in
+          # infra/openstatus/deploy/install-on-vps.sh, scp'd into the staging
+          # dir by the Upload step. Running it by path keeps the remote SSH
+          # argument single-line — no multi-line bash inside PowerShell
+          # `-Command "..."` (which silently truncates at the first newline).
           ssh -i ~/.ssh/id_deploy -p "$VPS_PORT" \
               -o BatchMode=yes \
               "$VPS_USER@$VPS_HOST" \
-              "powershell -Command \"wsl -d openstatus -u root -- bash -lc '
-                set -euo pipefail
-                cd /opt/openstatus
-                # Back up the previous env so a botched secret rotation is recoverable.
-                if [ -f .env.docker ]; then
-                  install -m 600 .env.docker .env.docker.prev
-                fi
-                install -m 600 /tmp/openstatus-deploy/.env.docker .env.docker
-                install -m 644 /tmp/openstatus-deploy/docker-compose.github-packages.yaml docker-compose.github-packages.yaml
-                install -m 755 /tmp/openstatus-deploy/patch-emails.sh patch-emails.sh
-                install -m 755 /tmp/openstatus-deploy/keepalive.sh keepalive.sh
-                mkdir -p caddy
-                install -m 644 /tmp/openstatus-deploy/caddy/Caddyfile caddy/Caddyfile
-                # Wipe the staging copy on the VPS so the rendered env file
-                # does not linger outside /opt/openstatus.
-                find /tmp/openstatus-deploy -type f -exec shred -u {} +
-                rm -rf /tmp/openstatus-deploy
-                docker compose -f docker-compose.github-packages.yaml pull
-                docker compose -f docker-compose.github-packages.yaml up -d
-                docker compose -f docker-compose.github-packages.yaml ps
-              '\""
+              "powershell -Command \"wsl -d openstatus -u root -- bash /tmp/openstatus-deploy/install-on-vps.sh\""
 
       - name: Smoke check public status page
         run: |

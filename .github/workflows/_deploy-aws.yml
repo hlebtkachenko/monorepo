@@ -663,22 +663,27 @@ jobs:
             exit 1
           fi
 
-      # Belt-and-braces orphan-resource purge for staging. App-stack now
-      # sets RemovalPolicy.DESTROY on the 7 log groups + 2 generated secrets
-      # in staging, but a CFN rollback in the middle of stack creation can
-      # still leave them dangling under their fixed names. Clearing them
-      # here keeps `stack=all` retries idempotent without manual operator
-      # intervention. Production is untouched (RETAIN policy + manual ops).
+      # Belt-and-braces orphan-resource purge for staging — secrets only.
+      #
+      # Log groups WERE in this loop pre-2026-05-19. Removed because: with
+      # RemovalPolicy.DESTROY on staging (set in PR #153), CFN tears them
+      # down on rollback automatically. Manually deleting them here AND
+      # letting CDK recreate them caused a CloudControl-API race where
+      # AWS::IAM::Policy.GetAtt(LogGroup.Arn) returned ResourceNotFound for
+      # ~1s after the LogGroup was recreated, failing the App-staging
+      # update with "Unable to retrieve Arn attribute for
+      # AWS::Logs::LogGroup ... was not found" — see deploy run
+      # 26089391322 (2026-05-19 09:51:55Z).
+      #
+      # Generated secrets stay in the cleanup because Secrets Manager has
+      # a separate PendingDeletion state that can wedge create-or-put even
+      # after CFN rollback. Force-delete here is safe — they are
+      # session-signing secrets, invalidated sessions on a failed deploy
+      # are acceptable on staging.
       - name: Pre-deploy cleanup (staging only)
         if: env.ENV_NAME == 'staging' && env.STACK_SCOPE != 'infra-only'
         run: |
           set -euo pipefail
-          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
-            lg="/ecs/monorepo-${ENV_NAME}/${svc}"
-            aws logs delete-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null \
-              && echo "deleted log group: $lg" \
-              || echo "absent: $lg"
-          done
           for name in better-auth-secret app-token-secret; do
             sn="monorepo-${ENV_NAME}-${name}"
             arn=$(aws secretsmanager describe-secret --secret-id "$sn" --region "$AWS_REGION" --query 'ARN' --output text 2>/dev/null || true)

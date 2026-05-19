@@ -27,7 +27,13 @@ import {
   OperatingSystemFamily,
   Secret as EcsSecret,
 } from "aws-cdk-lib/aws-ecs"
-import { ManagedPolicy, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam"
+import {
+  Effect,
+  ManagedPolicy,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam"
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import type { DatabaseInstance } from "aws-cdk-lib/aws-rds"
 import type { Bucket } from "aws-cdk-lib/aws-s3"
@@ -318,6 +324,40 @@ export class AppStack extends Stack {
       this,
       "ResendApiKeySecret",
       `monorepo-${props.envName}-resend-api-key`,
+    )
+
+    // Explicit trailing-wildcard grant for the 4 workflow-managed secrets.
+    //
+    // CDK's Secret.fromSecretNameV2 emits two MISMATCHED forms:
+    //   - secretArn (used in ECS task def `valueFrom`):
+    //       arn:...:secret:monorepo-${env}-better-auth-secret   <- NO suffix
+    //   - grantRead() policy resource:
+    //       arn:...:secret:monorepo-${env}-better-auth-secret-??????
+    //
+    // ECS task tries GetSecretValue with the bare ARN; IAM checks against the
+    // policy's suffix-pinned wildcard `-??????` (exactly 6 chars); the bare
+    // form does not match → AccessDeniedException → task fails to start →
+    // ECS circuit breaker → stack stuck in UPDATE_ROLLBACK_FAILED. See
+    // deploy run 26106127384 (2026-05-19 15:14Z) for the canonical trace.
+    //
+    // Adding an explicit PolicyStatement with `name*` (trailing star, no
+    // dash) covers both forms: the bare ARN AND any random-suffix ARN. The
+    // grantRead() calls remain — harmless redundancy that keeps the
+    // CDK construct tree intact for assertions / future migrations.
+    taskExecutionRole.addToPrincipalPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret",
+        ],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-cloudflare-tunnel-token*`,
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-resend-api-key*`,
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-better-auth-secret*`,
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:monorepo-${props.envName}-app-token-secret*`,
+        ],
+      }),
     )
 
     betterAuthSecret.grantRead(taskExecutionRole)

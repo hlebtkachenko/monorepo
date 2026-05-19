@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 import {
-  consumeToken,
   AUTH_COOKIE_DESCRIPTORS,
+  consumeToken,
   truncateIp,
 } from "@workspace/auth/tokens"
 
@@ -16,21 +16,22 @@ const SIGNUP_PAYLOAD_COOKIE = "app-signup-payload"
  * limited). No enumeration channel. ADR-0022 §"Mandatory companions" #5.
  */
 function invalidResponse(base: string): NextResponse {
-  return NextResponse.redirect(new URL("/auth/signup/landing?invalid=1", base))
+  return NextResponse.redirect(new URL("/auth/signup?invalid=1", base))
 }
 
 /**
- * POST /auth/signup/landing
+ * POST /auth/signup/consume
  *
  * Consumes the opaque sig token from the form body. On success:
- *   1. Writes the __Host-afkey-sig cookie.
+ *   1. Writes the __Host-afkey-sig cookie carrying the raw token.
  *   2. Writes a companion app-signup-payload cookie (JSON SignupClaims
- *      shape) so the onboarding wizard can read email + workspace without
- *      a DB round-trip.
- *   3. Redirects to /auth/signup (the welcome card).
+ *      shape) so the onboarding wizard can read email + workspace
+ *      without a DB round-trip.
+ *   3. Redirects to /auth/signup (re-renders as the welcome card now
+ *      that the payload cookie is set).
  *
- * On any failure: redirect to /auth/signup/landing?invalid=1 (the same
- * page renders an error state). Generic — no failure-mode enumeration.
+ * On any failure: redirects to /auth/signup?invalid=1 (the welcome page
+ * renders a generic error state). No failure-mode enumeration.
  *
  * ADR-0022 §"Mandatory companions" #1 (prefetch-scanner mitigation).
  */
@@ -89,10 +90,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const res = NextResponse.redirect(new URL("/auth/signup", base))
 
   // Write the __Host-afkey-sig cookie. The __Host- prefix requires Secure.
-  // In local dev (non-HTTPS) this cookie will be rejected by the browser
-  // but that is intentional: the new path is only active when
-  // USE_AUTH_TOKEN_FOR_SIG=true, which should never be set in plaintext
-  // local dev. Developers test the new path against staging (HTTPS).
+  // In local dev (non-HTTPS) this cookie will be rejected by the browser;
+  // the dev workaround is to clear the __Host- prefix locally, which
+  // ADR-0022 §"Local-dev" calls out. Developers test the full flow
+  // against staging (HTTPS).
   const sigDesc = AUTH_COOKIE_DESCRIPTORS.sig
   res.cookies.set({
     name: sigDesc.name,

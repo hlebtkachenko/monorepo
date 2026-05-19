@@ -25,8 +25,7 @@ export async function readLoginEmail(): Promise<string | null> {
 
 export async function clearLoginEmailAction(): Promise<void> {
   const store = await cookies()
-  // When USE_AUTH_TOKEN_FOR_LEM=true, redeem the auth_token row so the
-  // audit trail records 'consumed'. No-op under the legacy JWT path.
+  // Redeem the auth_token row so the audit trail records 'consumed'.
   await consumeLoginEmail(store)
   clearLoginEmail(store)
 }

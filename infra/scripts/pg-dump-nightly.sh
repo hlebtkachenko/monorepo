@@ -51,7 +51,6 @@ UUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F
 # restore-drill assertions.
 ORG_SCOPED_TABLES=(
   audit_event
-  auth_invite
   impersonation
   organization
   organization_membership

@@ -149,8 +149,8 @@ describe("AppStack Fargate hardening", () => {
     // what packages/auth + packages/email read.
     const secretNames = (web?.Secrets ?? []).map((s) => s.Name)
     expect(secretNames).toContain("BETTER_AUTH_SECRET")
-    expect(secretNames).toContain("APP_TOKEN_SECRET")
     expect(secretNames).toContain("RESEND_API_KEY")
+    expect(secretNames).not.toContain("APP_TOKEN_SECRET")
     expect(secretNames).toContain("DB_USER")
     expect(secretNames).toContain("DB_PASSWORD")
   })
@@ -215,11 +215,7 @@ describe("AppStack Fargate hardening", () => {
     const valueFromByName = Object.fromEntries(
       (web?.Secrets ?? []).map((s) => [s.Name, s.ValueFrom ?? ""]),
     )
-    for (const key of [
-      "BETTER_AUTH_SECRET",
-      "APP_TOKEN_SECRET",
-      "RESEND_API_KEY",
-    ]) {
+    for (const key of ["BETTER_AUTH_SECRET", "RESEND_API_KEY"]) {
       const arn = valueFromByName[key] ?? ""
       expect(arn).toMatch(/^arn:aws:secretsmanager:/)
       // Suffix segment after the last "-" must be 6+ alnum (the AWS random

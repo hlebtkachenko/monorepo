@@ -59,7 +59,6 @@ Migration runner refuses to run against port 6432. See `packages/db/scripts/appl
 | `BETTER_AUTH_URL`             | yes      | Absolute origin (e.g. `https://app-staging.afframe.com`). Prod: missing → `resolveBaseURL()` throws at startup.       |
 | `NEXT_PUBLIC_BETTER_AUTH_URL` | yes      | Same value as `BETTER_AUTH_URL`, surfaced to the browser.                                                             |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | yes      | CSV of allowed origins. Include every host the client may POST from.                                                  |
-| `APP_TOKEN_SECRET`            | yes      | Signup/invite/login-email JWT signing secret. Same generator. CDK-managed in `monorepo-{env}-app-token-secret`.       |
 
 `resolveBaseURL()` in `packages/auth/src/server.ts` is the canonical reader.
 Server actions that build absolute URLs (invite + magic link emails) MUST call

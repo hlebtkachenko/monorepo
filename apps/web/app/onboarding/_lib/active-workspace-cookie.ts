@@ -1,8 +1,5 @@
 import { cookies } from "next/headers"
 import {
-  signActiveWorkspaceToken,
-  verifyActiveWorkspaceToken,
-  AUTH_COOKIE_DESCRIPTORS,
   mintToken,
   readAuthCookie,
   setAuthCookie,
@@ -16,97 +13,52 @@ import { sql } from "drizzle-orm"
 
 /**
  * Active-workspace cookie helpers. Read by the onboarding resume
- * helper + by future workspace-scoped server actions to know which
- * workspace the user is operating in without an ORDER BY-based DB
- * fallback. Path "/" so it's available everywhere in-app.
+ * helper + by workspace-scoped server actions to know which workspace
+ * the user is operating in without an ORDER BY-based DB fallback.
  *
- * Dual-path during AFF-198 Phase 2 (D5):
- *   USE_AUTH_TOKEN_FOR_WKS=false → legacy HS256 JWT in `app-active-workspace`
- *   USE_AUTH_TOKEN_FOR_WKS=true  → opaque auth_token row + `__Host-afkey-wks`
+ * Storage: `__Host-afkey-wks` cookie carrying the raw token for a
+ * `wks`-kind `auth_token` row. The row carries the workspaceId in its
+ * payload. 90-day TTL (parity with the previous JWT carrier, ADR-0022
+ * §"Kind taxonomy").
  *
- * The new cookie is a long-lived carrier (90 d, per ADR-0022 §"Kind
- * taxonomy"). It is NOT redeemed on every read; the read path peeks at
- * the row (status=pending) and returns the payload. The single-use
- * contract is bypassed for `wks` by design — workspace switches
- * issue a fresh token and revoke the previous one.
+ * The wks row is NOT redeemed on every read; reads peek at the row
+ * (status='pending') and return the payload. The single-use contract
+ * is bypassed for `wks` by design — workspace switches issue a fresh
+ * token and revoke the previous one.
  */
-export const ACTIVE_WORKSPACE_COOKIE = "app-active-workspace"
-const COOKIE_PATH = "/"
-const COOKIE_TTL_SECONDS = 60 * 60 * 24 * 90
 
-function useNewWksPath(): boolean {
-  return process.env.USE_AUTH_TOKEN_FOR_WKS === "true"
-}
+const COOKIE_TTL_SECONDS = 60 * 60 * 24 * 90
 
 export async function setActiveWorkspaceCookie(
   workspaceId: string,
 ): Promise<void> {
   const cookieStore = await cookies()
 
-  if (useNewWksPath()) {
-    const { rawToken } = await mintToken({
-      kind: "wks",
-      payload: { workspaceId },
-      ttlSeconds: COOKIE_TTL_SECONDS,
-    })
-    // The __Host- prefix requires Secure. In local dev (non-HTTPS) the
-    // cookie will be rejected by the browser; the new path is only meant
-    // to be enabled in staging+. Toggle insecureLocalDev for non-prod.
-    setAuthCookie(cookieStore, "wks", rawToken, {
-      ttlSecondsOverride: COOKIE_TTL_SECONDS,
-      insecureLocalDev: process.env.NODE_ENV !== "production",
-    })
-    return
-  }
-
-  const token = await signActiveWorkspaceToken(workspaceId, COOKIE_TTL_SECONDS)
-  cookieStore.set(ACTIVE_WORKSPACE_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: COOKIE_PATH,
-    maxAge: COOKIE_TTL_SECONDS,
+  const { rawToken } = await mintToken({
+    kind: "wks",
+    payload: { workspaceId },
+    ttlSeconds: COOKIE_TTL_SECONDS,
+  })
+  // The __Host- prefix requires Secure. In local dev (non-HTTPS) the
+  // cookie will be rejected by the browser; the dev workaround is to
+  // toggle insecureLocalDev for non-prod.
+  setAuthCookie(cookieStore, "wks", rawToken, {
+    ttlSecondsOverride: COOKIE_TTL_SECONDS,
+    insecureLocalDev: process.env.NODE_ENV !== "production",
   })
 }
 
 export async function readActiveWorkspaceCookie(): Promise<string | null> {
   const cookieStore = await cookies()
-
-  if (useNewWksPath()) {
-    const raw = readAuthCookie(cookieStore, "wks")
-    if (raw) {
-      const peeked = await peekWksToken(raw)
-      if (peeked) return peeked.workspaceId
-    }
-  }
-
-  // Legacy fallback: JWT in app-active-workspace.
-  const token = cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value
-  if (!token) return null
-  try {
-    const claims = await verifyActiveWorkspaceToken(token)
-    return claims.workspaceId
-  } catch {
-    return null
-  }
+  const raw = readAuthCookie(cookieStore, "wks")
+  if (!raw) return null
+  const peeked = await peekWksToken(raw)
+  return peeked?.workspaceId ?? null
 }
 
 export async function clearActiveWorkspaceCookie(): Promise<void> {
   const cookieStore = await cookies()
-  cookieStore.delete({ name: ACTIVE_WORKSPACE_COOKIE, path: COOKIE_PATH })
-  const desc = AUTH_COOKIE_DESCRIPTORS.wks
-  clearAuthCookie(
-    {
-      get: (name: string) => {
-        const c = cookieStore.get(name)
-        return c ? { name: c.name, value: c.value } : undefined
-      },
-      set: () => {},
-      delete: (opts: { name: string; path?: string }) =>
-        cookieStore.delete({ name: opts.name, path: opts.path ?? desc.path }),
-    },
-    "wks",
-  )
+  clearAuthCookie(cookieStore, "wks")
 }
 
 /**

@@ -301,31 +301,23 @@ export class AppStack extends Stack {
       `/monorepo/${props.envName}/openfga/model-id`,
     )
 
-    // Better Auth + app-token signing secrets — workflow-managed, referenced
-    // by FULL ARN via CDK context (see the TunnelTokenSecret block above for
-    // the bare-vs-full-ARN rationale). The deploy workflow's "Ensure ...
+    // Better Auth signing secret — workflow-managed, referenced by FULL
+    // ARN via CDK context (see the TunnelTokenSecret block above for the
+    // bare-vs-full-ARN rationale). The deploy workflow's "Ensure ...
     // secret exists" step generates the random 44-char value on first
-    // creation, restores from PendingDeletion on retry, never overwrites an
-    // existing value, then captures the secret's full ARN and passes it
-    // here. Each secret is a separate Secrets Manager resource because
-    // `generateSecretString` (when CDK used to manage them) only populated
-    // one field per secret; we keep that 1:1 mapping with the workflow
-    // generator too.
+    // creation, restores from PendingDeletion on retry, never overwrites
+    // an existing value, then captures the secret's full ARN and passes
+    // it here.
     //
-    // SAFETY: secrets are never deleted by CDK (RemovalPolicy is moot since
-    // the construct is `fromSecretCompleteArn`, a reference only). On
-    // production a lost secret invalidates every active session + every
-    // pending invite/signup token. The workflow generator path is the only
-    // creator; rotation = put-secret-value out-of-band, not stack churn.
+    // SAFETY: the secret is never deleted by CDK (RemovalPolicy is moot
+    // since the construct is `fromSecretCompleteArn`, a reference only).
+    // On production a lost secret invalidates every active session. The
+    // workflow generator path is the only creator; rotation =
+    // put-secret-value out-of-band, not stack churn.
     const betterAuthSecret = Secret.fromSecretCompleteArn(
       this,
       "BetterAuthSecret",
       requiredSecretArn("betterAuthSecretArn"),
-    )
-    const appTokenSecret = Secret.fromSecretCompleteArn(
-      this,
-      "AppTokenSecret",
-      requiredSecretArn("appTokenSecretArn"),
     )
 
     // Resend API key — populated out-of-band (gh repo secret + deploy
@@ -341,7 +333,6 @@ export class AppStack extends Stack {
     // policy Resource — IAM matches it 1:1 against ECS's GetSecretValue
     // call. No wildcards, no mismatch, no manual PolicyStatement needed.
     betterAuthSecret.grantRead(taskExecutionRole)
-    appTokenSecret.grantRead(taskExecutionRole)
     resendApiKeySecret.grantRead(taskExecutionRole)
 
     // The web container speaks to the public origin via Cloudflare Tunnel.
@@ -407,7 +398,6 @@ export class AppStack extends Stack {
       },
       secrets: {
         BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
-        APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
         RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
         // app_user (RLS-bound runtime role). pgbouncer accepts the `app_user`
         // entry from `DATABASE_URLS=` (see pgbouncerContainer below) and
@@ -564,9 +554,8 @@ export class AppStack extends Stack {
         EMAIL_TRANSPORT: "resend",
       },
       secrets: {
-        // Shared with web: sessions + tokens must verify across both apps.
+        // Shared with web: sessions must verify across both apps.
         BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
-        APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
         // forgot/reset-password send mail via Resend.
         RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
         // app_user (RLS-bound runtime role). Same role as web — admin's

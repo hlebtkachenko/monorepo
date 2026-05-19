@@ -156,7 +156,7 @@ agent loop.
 Files to create:
 
 - `infra/secrets/.sops.yaml` with `creation_rules` and `encrypted_regex`
-  matching: `BETTER_AUTH_SECRET`, `APP_TOKEN_SECRET`, `RESEND_API_KEY`,
+  matching: `BETTER_AUTH_SECRET`, `RESEND_API_KEY`,
   `DATABASE_URL`, `DATABASE_DIRECT_URL`, `OPENFGA_STORE_ID`,
   `OPENFGA_MODEL_ID`, `SENTRY_DSN`, `HONEYCOMB_API_KEY`,
   `CLOUDFLARE_TUNNEL_TOKEN`, `PGBOUNCER_AUTH_PASSWORD`,

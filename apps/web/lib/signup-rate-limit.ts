@@ -1,9 +1,10 @@
 /**
  * In-memory sliding-window rate limiter for the signup entry points.
  *
- * Covers /auth/signup/start (legacy path) and /auth/signup/landing (POST).
- * Better Auth's internal limiter does NOT guard our custom route handlers
- * (BA issue #3264), so we hand-roll a minimal one here.
+ * Covers the welcome GET (per-IP only) and the /consume POST (per-IP
+ * + per-email once the consume reveals the email). Better Auth's
+ * internal limiter does NOT guard our custom route handlers (BA issue
+ * #3264), so we hand-roll a minimal one here.
  *
  * Two independent windows per request:
  *   - Per-IP:    60s window, 10 attempts

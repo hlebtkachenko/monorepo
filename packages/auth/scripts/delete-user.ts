@@ -14,13 +14,15 @@
  *
  * Order matters because not every FK cascades from workspace/org:
  *   1. audit_event   — no cascade from organization / workspace
- *   2. organization  — cascades organization_membership, auth_invite,
+ *   2. organization  — cascades organization_membership,
  *                      permission_template
  *   3. workspace     — cascades workspace_membership, workspace_billing,
  *                      two_factor_policy, impersonation
  *   4. app_user      — cascades auth_account, auth_session, two_factor
  *   5. auth_verification rows matching the email (BA stores reset
  *      tokens here keyed on the identifier email; no FK to app_user).
+ *   6. auth_token (inv) rows whose payload->>'email' matches the
+ *      recipient — revoked, not deleted, to preserve the audit trail.
  *
  * Usage:
  *   # local dev (default)
@@ -133,12 +135,15 @@ async function main(): Promise<void> {
       const ver = await tx<{ id: string }[]>`
         DELETE FROM auth_verification WHERE identifier = ${email} RETURNING id
       `
-      // auth_invite rows where this email is the *recipient* under other
-      // people's orgs — revoke instead of delete to preserve audit trail.
+      // auth_token (inv) rows where this email is the *recipient* under
+      // other people's orgs — revoke instead of delete to preserve audit
+      // trail.
       const inv = await tx<{ id: string }[]>`
-        UPDATE auth_invite
+        UPDATE auth_token
         SET status = 'revoked'
-        WHERE email = ${email} AND status = 'pending'
+        WHERE kind = 'inv'
+          AND status = 'pending'
+          AND payload->>'email' = ${email}
         RETURNING id
       `
 

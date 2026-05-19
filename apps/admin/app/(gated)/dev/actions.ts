@@ -2,7 +2,7 @@
 
 import { desc } from "drizzle-orm"
 
-import { signSignupToken, mintToken } from "@workspace/auth/tokens"
+import { mintToken } from "@workspace/auth/tokens"
 import { issueInvite, type InviteRole } from "@workspace/auth/invite-issuer"
 import { withAdminBypass } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
@@ -20,26 +20,17 @@ export async function generateSignupTokenAction(input: {
   workspace: string
   ttlDays: number
 }): Promise<SignupTokenResult> {
-  const useNewPath = process.env.USE_AUTH_TOKEN_FOR_SIG === "true"
   try {
     const ttlSeconds = Math.max(60, Math.round(input.ttlDays * 86400))
-    if (useNewPath) {
-      const { rawToken } = await mintToken({
-        kind: "sig",
-        payload: {
-          email: input.email.trim(),
-          workspace: input.workspace.trim(),
-        },
-        ttlSeconds,
-      })
-      const url = `${WEB_BASE_URL}/auth/signup/start?token=${encodeURIComponent(rawToken)}`
-      return { ok: true, url }
-    }
-    const token = await signSignupToken(
-      { email: input.email.trim(), workspace: input.workspace.trim() },
+    const { rawToken } = await mintToken({
+      kind: "sig",
+      payload: {
+        email: input.email.trim(),
+        workspace: input.workspace.trim(),
+      },
       ttlSeconds,
-    )
-    const url = `${WEB_BASE_URL}/auth/signup/start?token=${encodeURIComponent(token)}`
+    })
+    const url = `${WEB_BASE_URL}/auth/signup?token=${encodeURIComponent(rawToken)}`
     return { ok: true, url }
   } catch (err) {
     return { ok: false, error: (err as Error).message }

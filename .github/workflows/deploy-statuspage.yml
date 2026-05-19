@@ -116,6 +116,14 @@ jobs:
           VPS_PORT: ${{ vars.OVH_VPS_PORT }}
           VPS_USER: ${{ vars.OVH_VPS_USER }}
         run: |
+          # `staging/.env.docker` is the rendered env file the stack needs.
+          # Bash glob `staging/*` skips dotfiles by default, so without
+          # `shopt -s dotglob` scp silently uploaded every artifact EXCEPT
+          # `.env.docker`, and `install-on-vps.sh` then failed with
+          # `cannot stat '/tmp/openstatus-deploy/.env.docker'`. dotglob fixes
+          # the expansion; nullglob ensures an unexpected empty dir surfaces
+          # as a scp error instead of a silent "no args" pass.
+          shopt -s dotglob nullglob
           # Single scp of the whole staging dir; atomic from the VPS side via
           # `install -m 600` in the next step. Target staging dir on the VPS is
           # outside /opt/openstatus until validated; then we move into place.

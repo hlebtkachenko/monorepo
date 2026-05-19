@@ -30,6 +30,10 @@ Element.prototype.hasPointerCapture = () => false
 Element.prototype.setPointerCapture = () => {}
 Element.prototype.releasePointerCapture = () => {}
 
+// input-otp polls elementFromPoint after mount; stub to avoid unhandled errors
+// in jsdom where the method is not implemented.
+document.elementFromPoint = () => null
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

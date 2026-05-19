@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       "@workspace/ui": path.resolve(__dirname, "./src"),
       "@workspace/shared": path.resolve(__dirname, "../shared/src"),
+      "@workspace/shared/auth": path.resolve(__dirname, "../shared/src/auth"),
     },
   },
   test: {

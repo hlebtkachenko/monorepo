@@ -347,10 +347,48 @@ jobs:
           repo="monorepo-${ENV_NAME}-${SERVICE}"
           tag="${IMAGE_TAG}"
           echo "Waiting for scan results: $repo:$tag"
-          aws ecr wait image-scan-complete \
+
+          # scanOnPush is async — there's a propagation delay between
+          # `docker push` and ECR registering the scan. `aws ecr wait
+          # image-scan-complete` errors with ScanNotFoundException if the
+          # scan hasn't started yet. Either kick the scan ourselves
+          # (idempotent: re-starting an existing scan returns
+          # LimitExceededException for that day, which we suppress) or poll
+          # describe-image-scan-findings until findingsStatus != IN_PROGRESS.
+          aws ecr start-image-scan \
             --repository-name "$repo" \
             --image-id imageTag="$tag" \
-            --region "$AWS_REGION"
+            --region "$AWS_REGION" >/dev/null 2>&1 || true
+
+          # Poll describe-image-scan-findings up to ~5 min. The findings
+          # status transitions IN_PROGRESS -> COMPLETE | FAILED.
+          status=""
+          for i in $(seq 1 60); do
+            status=$(aws ecr describe-image-scan-findings \
+              --repository-name "$repo" \
+              --image-id imageTag="$tag" \
+              --region "$AWS_REGION" \
+              --query 'imageScanStatus.status' \
+              --output text 2>/dev/null || echo "NOT_FOUND")
+            case "$status" in
+              COMPLETE) break ;;
+              FAILED)
+                echo "::error::ECR scan FAILED for $repo:$tag"
+                aws ecr describe-image-scan-findings \
+                  --repository-name "$repo" \
+                  --image-id imageTag="$tag" \
+                  --region "$AWS_REGION" \
+                  --query 'imageScanStatus' --output json || true
+                exit 1
+                ;;
+              *) echo "  poll $i/60: status=$status"; sleep 5 ;;
+            esac
+          done
+          if [ "$status" != "COMPLETE" ]; then
+            echo "::error::ECR scan did not complete in 5 min for $repo:$tag (last status: $status)"
+            exit 1
+          fi
+
           findings=$(aws ecr describe-image-scan-findings \
             --repository-name "$repo" \
             --image-id imageTag="$tag" \

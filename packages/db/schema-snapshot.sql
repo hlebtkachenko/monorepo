@@ -656,7 +656,7 @@ CREATE TABLE public.app_user (
 
 CREATE TABLE public.audit_event (
     id uuid DEFAULT uuidv7() NOT NULL,
-    workspace_id uuid NOT NULL,
+    workspace_id uuid,
     organization_id uuid,
     actor_user_id uuid,
     action text NOT NULL,
@@ -1844,19 +1844,19 @@ ALTER TABLE public.audit_event ENABLE ROW LEVEL SECURITY;
 -- Name: audit_event audit_event_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY audit_event_insert ON public.audit_event FOR INSERT WITH CHECK (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+CREATE POLICY audit_event_insert ON public.audit_event FOR INSERT WITH CHECK (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
 -- Name: audit_event audit_event_org_member_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY audit_event_org_member_read ON public.audit_event FOR SELECT USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND (organization_id IS NOT NULL) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+CREATE POLICY audit_event_org_member_read ON public.audit_event FOR SELECT USING (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND (organization_id IS NOT NULL) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
 -- Name: audit_event audit_event_ws_admin_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY audit_event_ws_admin_read ON public.audit_event FOR SELECT USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+CREATE POLICY audit_event_ws_admin_read ON public.audit_event FOR SELECT USING (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
 -- Name: auth_token; Type: ROW SECURITY; Schema: public; Owner: -

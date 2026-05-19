@@ -176,13 +176,15 @@ export async function writeAuditEvent(
 }
 
 /**
- * Write an audit event without a workspace context (e.g. an admin gate check).
- * Runs under `withAdminBypass` so the RLS INSERT policy is bypassed. The caller
- * supplies `workspace_id` when it is known.
+ * Write an audit event without a workspace context (e.g. an admin gate check
+ * or a pre-account auth failure). Runs under `withAdminBypass` so the RLS
+ * INSERT policy is bypassed.
  *
- * When `workspaceId` is absent the write is silently skipped: `audit_event`
- * requires workspace_id NOT NULL with a FK, so pre-account events (failed logins
- * for unknown users) that cannot be attributed to a workspace are not persisted.
+ * `workspaceId` is optional: when absent the row is inserted with
+ * `workspace_id = NULL` — the pre-account event shape introduced in
+ * migration 0021 (AFF-208). Tenant-bound RLS policies exclude NULL rows,
+ * so pre-account events stay invisible to app_user reads; only
+ * `withAdminBypass` can see them.
  *
  * Fire-and-forget safe: errors are caught and swallowed so a failed audit write
  * never blocks the auth flow. Failures are logged to stderr.
@@ -190,14 +192,13 @@ export async function writeAuditEvent(
 export async function writeAuditEventGlobal(
   input: WriteAuditEventGlobalInput,
 ): Promise<void> {
-  if (!input.workspaceId) return
   const redacted = applyBaselineKeyRedactions(
     input.payload as Record<string, unknown>,
   )
   try {
     await withAdminBypass(async (db) => {
       await db.insert(audit_event).values({
-        workspace_id: input.workspaceId as string,
+        workspace_id: input.workspaceId ?? null,
         organization_id: input.organizationId ?? null,
         actor_user_id: input.actorUserId ?? null,
         action: input.action,

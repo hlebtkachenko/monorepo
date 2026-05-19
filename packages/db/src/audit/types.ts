@@ -70,11 +70,11 @@ export interface WriteAuditEventInput {
 /**
  * Input for `writeAuditEventGlobal` (admin bypass, no workspace tx needed).
  *
- * `workspaceId` is optional: when absent the write is silently skipped because
- * `audit_event.workspace_id` is NOT NULL with a FK to `workspace`. Pre-account
- * events (failed logins for unknown users, etc.) that cannot be attributed to a
- * workspace are not persisted — the forensic gap closes only for workspace-bound
- * users.
+ * `workspaceId` is optional: an absent / null value means this is a pre-account
+ * event (failed login for an unknown email, signup probe, magic-link
+ * send/consume failure before a session exists). The row is persisted with
+ * `workspace_id = NULL` per migration 0021 (AFF-208); tenant-bound RLS policies
+ * exclude NULL rows, so only `withAdminBypass` can read them.
  */
 export interface WriteAuditEventGlobalInput {
   workspaceId?: string | null

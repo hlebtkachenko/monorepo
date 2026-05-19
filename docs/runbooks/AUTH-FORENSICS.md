@@ -48,6 +48,35 @@ WHERE ev.actor_user_id = (SELECT id FROM target_user)
 ORDER BY ev.occurred_at;
 ```
 
+## Example query — pre-account auth events (enumeration probes)
+
+`audit_event.workspace_id` is NULLABLE since migration 0021 (AFF-208).
+Pre-account events — failed login of an unknown email, signup probe
+against an already-taken address, magic-link send/consume failures
+before any session exists — land with `workspace_id = NULL` and are
+invisible to every tenant-bound `app_user` connection (the RLS policies
+require `workspace_id IS NOT NULL`). Only `withAdminBypass` and the
+bastion `app_owner` session see them. Run the following from the bastion
+to spot enumeration / brute-force probes:
+
+```sql
+SELECT
+  created_at,
+  action,
+  payload->>'reason'   AS reason,
+  payload->>'ip_24'    AS ip_24,
+  payload->>'ua_hash'  AS ua_hash
+FROM audit_event
+WHERE workspace_id IS NULL
+  AND created_at > now() - interval '24 hours'
+ORDER BY created_at DESC
+LIMIT 200;
+```
+
+Cluster by `ip_24` + `ua_hash` to find the busiest probe origins. Cross-
+reference with `auth_token` rows of `kind='lem'` to see which probed
+emails actually triggered a magic-link send.
+
 ## How to run
 
 Use the bastion psql tunnel for production (see [AWS-DEPLOY.md

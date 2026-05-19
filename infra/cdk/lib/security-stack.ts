@@ -333,9 +333,19 @@ export class SecurityStack extends Stack {
               },
             ],
           },
-          // 100% threshold: ops topic (operator alert) + kill-switch topic
-          // (Lambda stops the ECS service). Both publish-grants in place
-          // higher in this stack.
+          // 100% threshold: kill-switch topic ONLY. AWS Budgets caps
+          // subscribers per notification at 1 SNS + 10 EMAIL — two SNS
+          // here fails with "one notification can only have 1 subscribers
+          // with type of SNS" (verified deploy run 26127290021). Operator
+          // visibility on 100% is preserved via three other paths:
+          //   1. ECS desiredCount drops 1→0 when kill-switch fires →
+          //      CloudWatch alarm on RunningCount → email via BillingTopic.
+          //   2. killSwitchErrorsAlarm fires email on ops topic if the
+          //      kill-switch Lambda itself errors (so a silent failure of
+          //      the kill-switch handler still pages).
+          //   3. 80% threshold (above) already publishes to ops topic, so
+          //      a runaway budget surfaces in the operator inbox before
+          //      it reaches 100%.
           {
             notification: {
               notificationType: "ACTUAL",
@@ -344,10 +354,6 @@ export class SecurityStack extends Stack {
               thresholdType: "PERCENTAGE",
             },
             subscribers: [
-              {
-                subscriptionType: "SNS",
-                address: this.killSwitchOpsTopic.topicArn,
-              },
               {
                 subscriptionType: "SNS",
                 address: this.killSwitchTopic.topicArn,

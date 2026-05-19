@@ -848,8 +848,13 @@ jobs:
               --output text 2>/dev/null | grep -qv '^0$'
           }
 
+          # migrate_subscribers <budget> <threshold> <want_ops> <want_kill>
+          # Match the CDK template exactly: 80% has ops only, 100% has
+          # kill only (AWS Budgets allows max 1 SNS subscriber per
+          # notification — verified deploy run 26127290021 with two SNS
+          # subscribers at 100% failed with CreationLimitExceededException).
           migrate_subscribers() {
-            local budget="$1" threshold="$2" want_kill="$3"
+            local budget="$1" threshold="$2" want_ops="$3" want_kill="$4"
             # NotificationState intentionally omitted. CDK's CfnBudget block
             # does not set notification.notificationState, so AWS Budgets
             # stores the default. Including `NotificationState=ALARM` in this
@@ -898,7 +903,20 @@ jobs:
               esac
             done < <(printf '%s\n' "$existing")
 
-            if [ "$have_ops" -eq 0 ]; then
+            # Remove SNS subscribers we no longer want at this threshold,
+            # then add the ones we do. Order matters because AWS Budgets
+            # caps each notification at exactly 1 SNS subscriber.
+            if [ "$want_ops" != "yes" ] && [ "$have_ops" -eq 1 ]; then
+              echo "  - removing stale SNS ops subscriber on $budget @ ${threshold}%"
+              aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
+              have_ops=0
+            fi
+            if [ "$want_kill" != "yes" ] && [ "$have_kill" -eq 1 ]; then
+              echo "  - removing stale SNS kill-switch subscriber on $budget @ ${threshold}%"
+              aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
+              have_kill=0
+            fi
+            if [ "$want_ops" = "yes" ] && [ "$have_ops" -eq 0 ]; then
               echo "  - adding SNS ops subscriber on $budget @ ${threshold}%"
               aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
             fi
@@ -924,8 +942,11 @@ jobs:
             fi
 
             echo "Aligning subscribers on $name (CFN-owned)…"
-            migrate_subscribers "$name" 80  no
-            migrate_subscribers "$name" 100 yes
+            # 80% threshold: ops only. 100% threshold: kill-switch only.
+            # Matches security-stack.ts CfnBudget subscribers per the
+            # 1-SNS-per-notification AWS Budgets cap.
+            migrate_subscribers "$name" 80  yes no
+            migrate_subscribers "$name" 100 no  yes
           done
 
           echo "Live budget subscribers now match CDK template (SNS-only)."

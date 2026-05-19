@@ -395,18 +395,53 @@ jobs:
             exit 1
           fi
 
-          findings=$(aws ecr describe-image-scan-findings \
+          # Allowlist of CVE IDs that are accepted (no upstream fix, no
+          # exploit path in our containers, etc). One per line, # comments.
+          allowlist_file=".github/security/cve-allowlist.txt"
+          allowed_ids=""
+          if [ -f "$allowlist_file" ]; then
+            allowed_ids=$(grep -vE '^\s*#|^\s*$' "$allowlist_file" | sort -u | xargs || true)
+          fi
+          echo "CVE allowlist: ${allowed_ids:-<empty>}"
+
+          # Fetch CRITICAL finding names (one per line) then filter.
+          # describe-image-scan-findings returns up to 1000 findings; the
+          # filter is narrow enough that pagination is unlikely.
+          # ANSI-C quoting ($'...') keeps shellcheck SC2016 quiet on the
+          # JMESPath backtick string literal (intentional, not shell
+          # command substitution).
+          query=$'imageScanFindings.findings[?severity==\x60CRITICAL\x60].name'
+          all_criticals=$(aws ecr describe-image-scan-findings \
             --repository-name "$repo" \
             --image-id imageTag="$tag" \
             --region "$AWS_REGION" \
-            --query 'imageScanFindings.findingSeverityCounts.CRITICAL' \
-            --output text)
-          if [ "$findings" != "None" ] && [ "$findings" != "0" ] && [ -n "$findings" ]; then
-            echo "::error::$repo:$tag has $findings CRITICAL CVE(s)"
+            --query "$query" \
+            --output text | tr '\t' '\n' | sort -u)
+
+          if [ -z "$all_criticals" ]; then
+            echo "OK  No CRITICAL CVEs in $repo:$tag"
+            exit 0
+          fi
+
+          unallowed=""
+          for cve in $all_criticals; do
+            allowed=0
+            for a in $allowed_ids; do
+              if [ "$cve" = "$a" ]; then allowed=1; break; fi
+            done
+            if [ "$allowed" = "0" ]; then unallowed="$unallowed $cve"; fi
+          done
+
+          if [ -n "$unallowed" ]; then
+            count=$(echo "$unallowed" | wc -w | tr -d ' ')
+            echo "::error::$repo:$tag has $count un-allowlisted CRITICAL CVE(s):$unallowed"
             echo "Run \`aws ecr describe-image-scan-findings --repository-name $repo --image-id imageTag=$tag --region $AWS_REGION\` to see the full list."
             exit 1
           fi
-          echo "OK  No CRITICAL CVEs in $repo:$tag"
+
+          allowed_count=$(echo "$all_criticals" | wc -l | tr -d ' ')
+          echo "OK  All $allowed_count CRITICAL CVE(s) in $repo:$tag are allowlisted."
+          echo "Allowlisted: $(echo "$all_criticals" | tr '\n' ' ')"
 
   deploy:
     needs: [guard, detect-changes, build-images]

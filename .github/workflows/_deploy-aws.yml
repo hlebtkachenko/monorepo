@@ -450,7 +450,15 @@ jobs:
     # set, OR detect-changes determined no app source changed. detect-changes
     # itself is skipped only on infra-only — its result must be success then.
     # `needs.X.result` values: success | skipped | failure | cancelled.
+    #
+    # The `!cancelled()` prefix is REQUIRED — without it GitHub Actions
+    # applies an implicit `success()` over `needs:`, and a SKIPPED ancestor
+    # (build-images on image_tag_override / no-app-changes / infra-only)
+    # auto-skips this job before the explicit conditions below ever run.
+    # Verified on deploy run 26110934645 (image_tag_override path,
+    # build-images=skipped) which silently SKIPPED deploy without these.
     if: |
+      !cancelled() &&
       needs.guard.outputs.go == 'true' &&
       (needs.detect-changes.result == 'success' || needs.detect-changes.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')

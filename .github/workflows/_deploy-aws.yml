@@ -325,11 +325,17 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-${{ matrix.service }}:${{ env.IMAGE_TAG }}
-          # SLSA L2: in-toto provenance attestation + CycloneDX SBOM.
-          # ~20s build overhead per matrix item; runs in parallel so the
-          # wall-clock cost hides behind the slowest build.
-          provenance: true
-          sbom: true
+          # SLSA L2 attestations (provenance + sbom) deliberately disabled.
+          # With them ON, docker/build-push-action emits an OCI image-index
+          # multi-manifest artifact (mediaType
+          # application/vnd.oci.image.index.v1+json). ECR Basic Scanning
+          # rejects that with UnsupportedImageTypeException — no scan ever
+          # runs and the CVE gate downstream fails on NOT_FOUND.
+          # Restore both flags when this account moves to ECR Enhanced
+          # Scanning (Inspector), which supports OCI artifacts. Tracked as
+          # the SLSA L2 follow-up (was AFF audit §4.1).
+          provenance: false
+          sbom: false
           cache-from: type=gha,scope=${{ matrix.service }}-${{ inputs.environment }}
           cache-to: type=gha,scope=${{ matrix.service }}-${{ inputs.environment }},mode=max
           build-args: |

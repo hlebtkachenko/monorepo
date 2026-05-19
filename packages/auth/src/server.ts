@@ -1,15 +1,88 @@
 import { betterAuth } from "better-auth"
+import { createAuthMiddleware } from "better-auth/api"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
 import { admin, magicLink, twoFactor } from "better-auth/plugins"
 import { db } from "@workspace/db/client"
 import * as schema from "@workspace/db/schema"
+import { writeAuditEventGlobal } from "@workspace/db"
 import {
   sendEmail,
   passwordResetEmail,
   verifyEmailEmail,
   magicLinkEmail,
 } from "@workspace/email"
+import { truncateIp, hashUserAgent } from "./tokens/auth-token"
+
+// ---------------------------------------------------------------------------
+// Better Auth version assertion (ADR-0022 / C2).
+//
+// Path strings in hooks.after are matched against this exact BA minor. If
+// Dependabot bumps the minor, audit coverage silently breaks. Review the
+// path-to-action mapping below on any `better-auth` minor-version change and
+// update this constant accordingly.
+// ---------------------------------------------------------------------------
+// This constant documents the BA minor against which the hooks.after path
+// mapping below was authored. On every Dependabot bump of `better-auth`,
+// review the path-to-action switch in `resolveAuditAction` and update this
+// constant. The package.json pin enforces the exact minor at install time.
+//
+// NOTE: declared as exported so TypeScript strict mode does not flag it unused.
+// Callers must not import it — it is not part of the public API.
+export const _AUDIT_BA_MINOR = "1.6" // better-auth@1.6.x
+
+/**
+ * Map a Better Auth endpoint path to a canonical audit action name, plus
+ * whether the event signals a failure (based on ctx.context.returned being an
+ * error Response or APIError).
+ *
+ * Returns null for paths we do not audit.
+ */
+export function resolveAuditAction(
+  path: string,
+  succeeded: boolean,
+): string | null {
+  switch (path) {
+    case "/sign-in/email":
+      return succeeded ? "auth.login.success" : "auth.login.failed_password"
+    case "/sign-up/email":
+      return succeeded ? "auth.signup.success" : "auth.signup.failed"
+    case "/two-factor/verify-totp":
+      return succeeded ? "auth.mfa.success_totp" : "auth.mfa.failed_totp"
+    case "/two-factor/verify-backup":
+      return succeeded ? "auth.mfa.success_backup" : "auth.mfa.failed_backup"
+    case "/sign-out":
+      return "auth.signout"
+    case "/forget-password":
+      return "auth.password_reset.requested"
+    case "/reset-password":
+      return "auth.password_reset.completed"
+    case "/magic-link/send":
+      return "auth.magic_link.issued"
+    case "/magic-link/sign-in":
+      return succeeded ? "auth.magic_link.consumed" : "auth.magic_link.failed"
+    default:
+      return null
+  }
+}
+
+/**
+ * Determine whether a Better Auth `hooks.after` ctx response succeeded.
+ * A missing returned value or an APIError/non-200 Response = failure.
+ */
+function isSuccess(returned: unknown): boolean {
+  if (returned == null) return false
+  if (returned instanceof Response) return returned.status === 200
+  // APIError objects carry a numeric `status` property.
+  if (
+    typeof returned === "object" &&
+    "status" in (returned as object) &&
+    typeof (returned as { status: unknown }).status === "number"
+  ) {
+    return false
+  }
+  return true
+}
 
 /**
  * Resolve the absolute base URL Better Auth uses for cookie domain, magic
@@ -246,6 +319,52 @@ export const auth = betterAuth({
       // delegating to Drizzle.
       generateId: "uuid",
     },
+  },
+  hooks: {
+    // Capture auth events after each BA endpoint response. Path strings are
+    // pinned to BA minor _AUDIT_BA_MINOR — review on every Dependabot bump.
+    after: createAuthMiddleware(async (ctx) => {
+      const path = ctx.path
+      if (!path) return
+      const returned = ctx.context.returned
+      const succeeded = isSuccess(returned)
+      const action = resolveAuditAction(path, succeeded)
+      if (!action) return
+
+      const rawIp =
+        ctx.request instanceof Request
+          ? (ctx.request.headers.get("x-forwarded-for") ?? null)
+          : null
+      const rawUa =
+        ctx.request instanceof Request
+          ? (ctx.request.headers.get("user-agent") ?? null)
+          : null
+
+      const ip = truncateIp(rawIp)
+      const ua = hashUserAgent(rawUa)
+
+      // Extract user_id from the BA session if one was just created.
+      const userId =
+        ctx.context.newSession?.user?.id ??
+        ctx.context.session?.user?.id ??
+        null
+
+      // All auth events are global-tier: no workspace binding exists at this
+      // hook level. writeAuditEventGlobal skips the write when workspaceId is
+      // absent (audit_event.workspace_id NOT NULL with FK). Pre-account events
+      // (failed logins for unknown users) are therefore not persisted — the
+      // forensic gap closes for workspace-bound sessions only.
+      // writeAuditEventGlobal never throws into the auth flow.
+      await writeAuditEventGlobal({
+        actorUserId: userId,
+        action,
+        payload: {
+          ...(ip ? { ip } : {}),
+          ...(ua ? { ua } : {}),
+          path,
+        },
+      })
+    }),
   },
   plugins: [
     admin(),

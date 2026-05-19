@@ -350,6 +350,7 @@ export async function truncateAll(sql: postgres.Sql): Promise<void> {
     // disables FK-driven cascades, so they must be deleted explicitly here or
     // they would be orphaned (and a future app_user delete would not cascade).
     await tx.unsafe(`DELETE FROM auth_invite`)
+    await tx.unsafe(`DELETE FROM auth_token`)
     await tx.unsafe(`DELETE FROM tool_call_log`)
     await tx.unsafe(`DELETE FROM audit_event`)
     await tx.unsafe(`DELETE FROM organization_membership`)

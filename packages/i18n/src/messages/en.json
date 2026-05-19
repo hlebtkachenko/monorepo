@@ -276,6 +276,7 @@
       "avatarUpload": "Upload photo",
       "avatarEdit": "Edit photo",
       "avatarHint": "PNG or JPG.",
+      "avatarRemove": "Remove photo",
       "avatarTooLarge": "This image is too large.",
       "avatarWrongType": "Use a PNG or JPG image.",
       "firstName": "First name",

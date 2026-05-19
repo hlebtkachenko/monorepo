@@ -1,6 +1,7 @@
 import "server-only"
 
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   S3Client,
   Upload,
@@ -84,4 +85,14 @@ export async function presignAvatarRead(
   return getSignedUrl(getClient(), command, {
     expiresIn: READ_URL_TTL_SECONDS,
   })
+}
+
+/**
+ * Delete an avatar object from S3 by key. No-ops silently if the key is
+ * absent (already deleted or was never uploaded). Also used by the DELETE
+ * route to remove avatars when the user requests removal.
+ */
+export async function deleteAvatar(key: string): Promise<void> {
+  const command = new DeleteObjectCommand({ Bucket: getBucket(), Key: key })
+  await getClient().send(command)
 }

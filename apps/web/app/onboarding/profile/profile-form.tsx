@@ -36,7 +36,12 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { Text } from "@workspace/ui/components/text"
-import { Pencil, UploadIcon, UserIcon } from "@workspace/ui/lib/icons"
+import {
+  Pencil,
+  Trash2Icon,
+  UploadIcon,
+  UserIcon,
+} from "@workspace/ui/lib/icons"
 
 import { submitProfileAction } from "../actions"
 import { clearCarriedAvatar, storeCarriedAvatar } from "../_lib/avatar-carry"
@@ -109,6 +114,8 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
   const [sourceFile, setSourceFile] = useState<File | null>(null)
   // Cropped image bytes — this is what gets uploaded on submit.
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null)
+  // When true, the server-side avatar should be deleted on submit.
+  const [removeServerAvatar, setRemoveServerAvatar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Revoke object URLs on unmount to avoid memory leaks.
@@ -120,7 +127,9 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
 
   // The freshly-cropped local blob wins; otherwise fall back to the avatar
   // already stored for this user (presigned URL passed from the server).
-  const displayedAvatarUrl = avatarPreview ?? initialAvatarUrl ?? null
+  // When the user has requested removal, treat both as absent.
+  const displayedAvatarUrl =
+    avatarPreview ?? (removeServerAvatar ? null : (initialAvatarUrl ?? null))
 
   function translate(msg: string | undefined): string | undefined {
     if (!msg) return undefined
@@ -134,6 +143,22 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
     return msg
   }
 
+  function clearAvatarState() {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+    setAvatarPreview(null)
+    setSourceFile(null)
+    setCroppedBlob(null)
+    setCropFile(null)
+    setAvatarError(null)
+  }
+
+  function handleAvatarRemove() {
+    clearAvatarState()
+    if (initialAvatarUrl) {
+      setRemoveServerAvatar(true)
+    }
+  }
+
   function handleAvatarPick() {
     fileInputRef.current?.click()
   }
@@ -144,6 +169,7 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
     e.target.value = ""
     if (!file) return
     setAvatarError(null)
+    setRemoveServerAvatar(false)
     if (file.size > AVATAR_MAX_BYTES) {
       setAvatarError(t("avatarTooLarge"))
       return
@@ -172,6 +198,22 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
     if (!result.ok) {
       setServerError(tErrors(result.errorKey ?? "saveProfileFailed"))
       return
+    }
+
+    // If the user asked to remove a server-side avatar, send the DELETE first.
+    // Only fires when a session exists (401 = no session, skip silently since
+    // there is no avatar on the server yet in fresh onboarding).
+    if (removeServerAvatar) {
+      try {
+        const res = await fetch("/api/upload/avatar", { method: "DELETE" })
+        if (!res.ok && res.status !== 401) {
+          setServerError(tErrors("uploadAvatarFailed"))
+          return
+        }
+      } catch {
+        setServerError(tErrors("uploadAvatarFailed"))
+        return
+      }
     }
 
     // Persist the avatar after the profile saved. During fresh onboarding the
@@ -248,15 +290,28 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
             )}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAvatarPick}
-            >
-              <UploadIcon className="size-3.5" aria-hidden="true" />
-              {t("avatarUpload")}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAvatarPick}
+              >
+                <UploadIcon className="size-3.5" aria-hidden="true" />
+                {t("avatarUpload")}
+              </Button>
+              {displayedAvatarUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAvatarRemove}
+                >
+                  <Trash2Icon className="size-3.5" aria-hidden="true" />
+                  {t("avatarRemove")}
+                </Button>
+              )}
+            </div>
             <Text variant="small" className="text-muted-foreground">
               {avatarError ?? t("avatarHint")}
             </Text>
@@ -277,6 +332,7 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
           cropShape="round"
           onCancel={() => setCropFile(null)}
           onCropComplete={handleCropComplete}
+          onRemove={clearAvatarState}
         />
 
         <FieldGroup>

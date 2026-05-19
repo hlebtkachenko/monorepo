@@ -1,8 +1,12 @@
 /**
- * Audit writer — writeToolCallLog + updateToolCallLogOutput.
+ * Audit writers:
+ *   - writeToolCallLog + updateToolCallLogOutput  (tool_call_log, org-scoped)
+ *   - writeAuditEvent                             (audit_event, workspace-scoped)
+ *   - writeAuditEventGlobal                       (audit_event, admin bypass for pre-account events)
  *
- * `writeToolCallLog` is THE audit writer. Every tool handler in the registry
- * calls this helper inside its `withOrganization` transaction. Rules:
+ * `writeToolCallLog` is THE audit writer for tool handlers. Every tool handler
+ * in the registry calls this helper inside its `withOrganization` transaction.
+ * Rules:
  *
  *   1. `actorKind` validation:
  *        - 'human'        requires userId
@@ -17,16 +21,24 @@
  *   4. INSERT tool_call_log with output_json = NULL. Caller calls
  *      `updateToolCallLogOutput` once the domain mutation completes.
  *
- * The `tx` parameter demands the `OrganizationBoundDb` brand: callers MUST be
- * inside a `withOrganization` transaction. RLS + the append-only trigger handle
- * the write-side guarantees.
+ * `writeAuditEvent` is the workspace-tier auth/system event writer. It targets
+ * `audit_event` and accepts a `WorkspaceBoundDb` brand so callers must be
+ * inside a `withWorkspace` transaction. Same two-pass redaction as writeToolCallLog.
+ *
+ * `writeAuditEventGlobal` wraps `withAdminBypass` for pre-account events where
+ * no workspace context exists (e.g. a failed login before a session is created).
+ * The caller supplies workspace_id explicitly.
  */
 import { and, eq } from "drizzle-orm"
-import type { OrganizationBoundDb } from "../tenancy"
+import type { OrganizationBoundDb, WorkspaceBoundDb } from "../tenancy"
+import { withAdminBypass } from "../tenancy"
 import { tool_call_log } from "../schema/tool_call_log"
+import { audit_event } from "../schema/audit_event"
 import { applyBaselineKeyRedactions, applyRedactions } from "./redact"
 import type {
   UpdateOutputInput,
+  WriteAuditEventGlobalInput,
+  WriteAuditEventInput,
   WriteLogInput,
   WriteLogResult,
 } from "./types"
@@ -137,6 +149,65 @@ export async function updateToolCallLogOutput(
         : typeof updates,
     )
     .where(eq(tool_call_log.id, input.toolCallLogId))
+}
+
+/**
+ * Write a workspace-tier audit event. Applies the same two-pass baseline
+ * redaction as writeToolCallLog before persisting payload.
+ *
+ * The `tx` parameter requires the `WorkspaceBoundDb` brand: the caller MUST be
+ * inside a `withWorkspace` transaction so the RLS INSERT policy
+ * (`audit_event_insert`) evaluates against a valid `app.workspace_id` GUC.
+ */
+export async function writeAuditEvent(
+  tx: WorkspaceBoundDb,
+  input: WriteAuditEventInput,
+): Promise<void> {
+  const redacted = applyBaselineKeyRedactions(
+    input.payload as Record<string, unknown>,
+  )
+  await tx.insert(audit_event).values({
+    workspace_id: input.workspaceId,
+    organization_id: input.organizationId ?? null,
+    actor_user_id: input.actorUserId ?? null,
+    action: input.action,
+    payload: redacted as never,
+  })
+}
+
+/**
+ * Write an audit event without a workspace context (e.g. an admin gate check).
+ * Runs under `withAdminBypass` so the RLS INSERT policy is bypassed. The caller
+ * supplies `workspace_id` when it is known.
+ *
+ * When `workspaceId` is absent the write is silently skipped: `audit_event`
+ * requires workspace_id NOT NULL with a FK, so pre-account events (failed logins
+ * for unknown users) that cannot be attributed to a workspace are not persisted.
+ *
+ * Fire-and-forget safe: errors are caught and swallowed so a failed audit write
+ * never blocks the auth flow. Failures are logged to stderr.
+ */
+export async function writeAuditEventGlobal(
+  input: WriteAuditEventGlobalInput,
+): Promise<void> {
+  if (!input.workspaceId) return
+  const redacted = applyBaselineKeyRedactions(
+    input.payload as Record<string, unknown>,
+  )
+  try {
+    await withAdminBypass(async (db) => {
+      await db.insert(audit_event).values({
+        workspace_id: input.workspaceId as string,
+        organization_id: input.organizationId ?? null,
+        actor_user_id: input.actorUserId ?? null,
+        action: input.action,
+        payload: redacted as never,
+      })
+    })
+  } catch (err) {
+    // Never block auth flow on a failed audit write.
+    console.error("writeAuditEventGlobal: failed to write audit_event", err)
+  }
 }
 
 function validateActorKind(input: WriteLogInput): void {

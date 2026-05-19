@@ -57,6 +57,34 @@ export interface UpdateOutputInput {
 }
 
 /**
+ * Input for `writeAuditEvent` (workspace-tier, requires WorkspaceBoundDb).
+ */
+export interface WriteAuditEventInput {
+  workspaceId: string
+  organizationId?: string | null
+  actorUserId?: string | null
+  action: string
+  payload: Record<string, unknown>
+}
+
+/**
+ * Input for `writeAuditEventGlobal` (admin bypass, no workspace tx needed).
+ *
+ * `workspaceId` is optional: when absent the write is silently skipped because
+ * `audit_event.workspace_id` is NOT NULL with a FK to `workspace`. Pre-account
+ * events (failed logins for unknown users, etc.) that cannot be attributed to a
+ * workspace are not persisted — the forensic gap closes only for workspace-bound
+ * users.
+ */
+export interface WriteAuditEventGlobalInput {
+  workspaceId?: string | null
+  organizationId?: string | null
+  actorUserId?: string | null
+  action: string
+  payload: Record<string, unknown>
+}
+
+/**
  * Filter shape for the audit timeline read API.
  */
 export interface AuditTimelineFilter {

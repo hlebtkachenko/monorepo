@@ -2,8 +2,9 @@
 
 import { headers } from "next/headers"
 import { auth } from "@workspace/auth/server"
+import { writeAuditEventGlobal } from "@workspace/db"
 
-import { userIsAllowlisted } from "../../(gated)/check-allowlist"
+import { checkAllowlist } from "../../(gated)/check-allowlist"
 
 /**
  * Pre-login allowlist check called by the password + MFA forms immediately
@@ -21,10 +22,21 @@ import { userIsAllowlisted } from "../../(gated)/check-allowlist"
  * The post-login gate in `(gated)/layout.tsx` is the fail-safe — it stays
  * untouched and catches any path that bypasses the form (existing session
  * from another tab, future signup flow, etc.). Same allowlist source of
- * truth (`userIsAllowlisted` from `(gated)/check-allowlist`).
+ * truth (`checkAllowlist` from `(gated)/check-allowlist`).
  */
 export async function checkAdminAllowlistAction(): Promise<boolean> {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) return false
-  return userIsAllowlisted(session.user.id)
+  const { allowed, workspaceId } = await checkAllowlist(session.user.id)
+  if (!allowed) {
+    void writeAuditEventGlobal({
+      // workspaceId is null for denied users (no allowlisted workspace matched).
+      // writeAuditEventGlobal silently skips when workspaceId is absent.
+      workspaceId: workspaceId ?? undefined,
+      actorUserId: session.user.id,
+      action: "auth.admin.allowlist_denied",
+      payload: { user_id: session.user.id },
+    })
+  }
+  return allowed
 }

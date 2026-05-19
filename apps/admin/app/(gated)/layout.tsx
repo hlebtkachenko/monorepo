@@ -3,10 +3,11 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { auth } from "@workspace/auth/server"
+import { writeAuditEventGlobal } from "@workspace/db"
 import { Heading } from "@workspace/ui/components/heading"
 import { Text } from "@workspace/ui/components/text"
 
-import { userIsAllowlisted } from "./check-allowlist"
+import { checkAllowlist } from "./check-allowlist"
 import { SignOutButton } from "./sign-out-button"
 
 /**
@@ -41,7 +42,16 @@ export default async function GatedLayout({
     redirect("/auth/login")
   }
 
-  if (!(await userIsAllowlisted(session.user.id))) {
+  const { allowed, workspaceId } = await checkAllowlist(session.user.id)
+
+  if (!allowed) {
+    // workspaceId is null for denied users; writeAuditEventGlobal skips when absent.
+    void writeAuditEventGlobal({
+      workspaceId: workspaceId ?? undefined,
+      actorUserId: session.user.id,
+      action: "auth.admin.gate_denied",
+      payload: { user_id: session.user.id },
+    })
     return (
       <div className="flex min-h-svh items-center justify-center p-6">
         <div className="flex w-full max-w-sm flex-col gap-4">
@@ -57,6 +67,13 @@ export default async function GatedLayout({
       </div>
     )
   }
+
+  void writeAuditEventGlobal({
+    workspaceId: workspaceId ?? undefined,
+    actorUserId: session.user.id,
+    action: "auth.admin.gate_allowed",
+    payload: { user_id: session.user.id },
+  })
 
   return <>{children}</>
 }

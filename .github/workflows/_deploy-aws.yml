@@ -883,29 +883,60 @@ jobs:
               --query 'Subscribers[*].[SubscriptionType,Address]' \
               --output text 2>/dev/null || true)
 
-            local have_ops=0 have_kill=0
+            local have_ops=0 have_kill=0 emails=()
             # Iterate. We do NOT echo the address — it may be a real email.
             # Process substitution keeps the loop in the current shell so
             # have_ops / have_kill propagate. A heredoc here would close
             # the YAML literal scalar block (column-0 body terminator).
+            #
+            # Critical: we do NOT delete anything inside the loop. AWS
+            # Budgets removes a notification when its LAST subscriber is
+            # deleted (verified deploy run 26127686345 on
+            # monorepo-staging-datatransfer @ 80%). If we delete the EMAIL
+            # subscriber before adding the SNS replacement, the
+            # notification vanishes and create-subscriber returns
+            # "notification doesn't exist". Buffer the EMAIL addresses
+            # and process all add/remove ops after this loop, with
+            # adds-first ordering preserved below.
             while IFS=$'\t' read -r kind addr; do
               [ -z "${kind:-}" ] && continue
               case "$kind:$addr" in
                 "SNS:$OPS_ARN")  have_ops=1 ;;
                 "SNS:$KILL_ARN") have_kill=1 ;;
-                EMAIL:*)
-                  echo "  - deleting EMAIL subscriber on $budget @ ${threshold}%"
-                  aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=EMAIL,Address=$addr" >/dev/null
-                  ;;
-                SNS:*)
-                  # Some other SNS topic — leave it, not our concern.
-                  ;;
+                EMAIL:*)         emails+=("$addr") ;;
+                SNS:*)           ;; # other SNS — leave alone
               esac
             done < <(printf '%s\n' "$existing")
 
-            # Remove SNS subscribers we no longer want at this threshold,
-            # then add the ones we do. Order matters because AWS Budgets
-            # caps each notification at exactly 1 SNS subscriber.
+            # Phase 1 — ADD the wanted SNS subscribers FIRST so the
+            # notification always has at least one subscriber before any
+            # delete fires. AWS Budgets caps each notification at 1 SNS,
+            # so if a STALE SNS already exists we must remove it before
+            # adding the new one — handled by the swap pair below.
+            if [ "$want_ops" = "yes" ] && [ "$have_ops" -eq 0 ]; then
+              if [ "$have_kill" -eq 1 ] && [ "$want_kill" != "yes" ]; then
+                echo "  - swapping SNS kill-switch → ops on $budget @ ${threshold}%"
+                aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
+                have_kill=0
+              fi
+              echo "  - adding SNS ops subscriber on $budget @ ${threshold}%"
+              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
+              have_ops=1
+            fi
+            if [ "$want_kill" = "yes" ] && [ "$have_kill" -eq 0 ]; then
+              if [ "$have_ops" -eq 1 ] && [ "$want_ops" != "yes" ]; then
+                echo "  - swapping SNS ops → kill-switch on $budget @ ${threshold}%"
+                aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
+                have_ops=0
+              fi
+              echo "  - adding SNS kill-switch subscriber on $budget @ ${threshold}%"
+              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
+              have_kill=1
+            fi
+
+            # Phase 2 — REMOVE everything we no longer want. Now safe
+            # because the wanted SNS subscriber is in place (or the
+            # notification already had a wanted subscriber going in).
             if [ "$want_ops" != "yes" ] && [ "$have_ops" -eq 1 ]; then
               echo "  - removing stale SNS ops subscriber on $budget @ ${threshold}%"
               aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
@@ -916,14 +947,10 @@ jobs:
               aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
               have_kill=0
             fi
-            if [ "$want_ops" = "yes" ] && [ "$have_ops" -eq 0 ]; then
-              echo "  - adding SNS ops subscriber on $budget @ ${threshold}%"
-              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
-            fi
-            if [ "$want_kill" = "yes" ] && [ "$have_kill" -eq 0 ]; then
-              echo "  - adding SNS kill-switch subscriber on $budget @ ${threshold}%"
-              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
-            fi
+            for addr in "${emails[@]}"; do
+              echo "  - deleting EMAIL subscriber on $budget @ ${threshold}%"
+              aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=EMAIL,Address=$addr" >/dev/null
+            done
           }
 
           for slug in "${BUDGETS[@]}"; do

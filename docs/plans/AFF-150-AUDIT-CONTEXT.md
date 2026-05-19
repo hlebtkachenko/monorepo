@@ -111,26 +111,21 @@ Status legend: **FIXED** = merged + deployed. **WORKAROUND** = applied to stagin
   - Require explicit `--i-know-this-is-not-local --typed-env-name=staging` confirmation flag combo.
   - Best: ALL of the above + log the resolved endpoint before deleting.
 
-### 7. Bastion script only runs `db:migrate` — OPEN (tooling)
+### 7. Bastion script only runs `db:migrate` — FIXED (PR #146)
 
 - **File:** `scripts/staging-bastion-migrate.sh`
-- **Limitation:** only runs `pnpm --filter @workspace/db db:migrate` at line 208. No way to invoke ad-hoc SQL or other commands without editing the script.
-- **This session:** edited in-place to inject `PROBE_SQL` hook for probes/grants, ran bastion, then reverted. Worked but error-prone.
-- **Fix path (~8 lines):** make the command configurable.
-  ```bash
-  CMD="${CMD:-pnpm --filter @workspace/db db:migrate}"
-  eval "$CMD"
-  ```
-- **Usage examples:**
+- **Was:** only ran `pnpm --filter @workspace/db db:migrate`. No way to invoke ad-hoc SQL or other commands without editing the script.
+- **Fix shipped:** `CMD="${CMD:-pnpm --filter @workspace/db db:migrate}"; eval "$CMD"`. Verify-rows probe gated to default command so custom `CMD` values don't fail when `api_key` is absent.
+- **Usage examples (now in script header):**
   - Migrations (default): `./scripts/staging-bastion-migrate.sh staging`
   - Ad-hoc SQL: `CMD='psql "$DATABASE_DIRECT_URL" -f /tmp/x.sql' ./scripts/staging-bastion-migrate.sh staging`
   - Interactive shell: `CMD='bash -i' ./scripts/staging-bastion-migrate.sh staging`
 
-### 8. Onboarding password step error key is misleading — OPEN (minor)
+### 8. Onboarding password step error key is misleading — FIXED (PR #146)
 
-- **File:** `apps/web/app/onboarding/actions.ts:245`
-- **Issue:** `submitPasswordAction` returns `errorKey: "saveProfileFailed"` when the post-signUp `UPDATE app_user` fails. But the user is on the password step, not the profile step. UI shows "Could not save your profile" — confusing.
-- **Fix:** add a distinct errorKey like `persistOnboardingFailed` with copy that doesn't mention "profile".
+- **File:** `apps/web/app/onboarding/actions.ts:245` + `packages/i18n/src/messages/en.json`
+- **Was:** `submitPasswordAction` returned `errorKey: "saveProfileFailed"` when the post-signUp `UPDATE app_user` failed on the password step. UI showed "Could not save your profile" — confusing.
+- **Fix shipped:** line 245 now returns `errorKey: "persistOnboardingFailed"`. New en.json copy: "Could not finish setting up your account." Line 105 (real profile step) keeps `saveProfileFailed`. `profile-form.tsx:173` fallback unchanged.
 
 ### 9. `stack=app-only` deploy parameter naming — OPEN (cosmetic)
 
@@ -146,10 +141,11 @@ Status legend: **FIXED** = merged + deployed. **WORKAROUND** = applied to stagin
 
 - Migration history lives at `public._app_migrations`, not `drizzle.__drizzle_migrations`. Noted for future probes.
 
-### 12. Init.d numbering gap — OPEN (minor)
+### 12. Init.d numbering gap — FIXED in code (PR #146); pending bastion apply on staging RDS
 
-- `packages/db/migrations/0005_workspace.sql:455` references `init.d/03-set-guc.sql` which does not exist. Only `00-roles.sql` and `01-grants.sql` are in `infra/compose/postgres/init.d/`. The role-default GUC is actually set by `00-roles.sql:82-83`.
-- **Fix:** either consolidate the SET into a renamed file matching the trigger comment, OR update the trigger message to point at the real file.
+- `packages/db/migrations/0005_workspace.sql:455` referenced `init.d/03-set-guc.sql` which never existed. The GUC is set by `infra/compose/postgres/init.d/00-roles.sql:82-83` in compose dev and by `withAdminBypass` per-transaction on RDS.
+- **Fix shipped:** new migration `packages/db/migrations/0016_fix_last_owner_trigger_message.sql` does `CREATE OR REPLACE FUNCTION app_prevent_last_owner_demotion()` with corrected `RAISE EXCEPTION` text: `'... (see infra/compose/postgres/init.d/00-roles.sql or withAdminBypass)'`. Function body byte-identical to 0005; `schema-snapshot.sql` mirrors. CI green (`Migration vs schema snapshot`, `Apply migrations twice, diff schema`, `pgTap suite`, `Migration + vitest (postgres 18)`).
+- **Pending on staging RDS:** run `./scripts/staging-bastion-migrate.sh staging` after merge to apply 0016. Verify with `\sf app_prevent_last_owner_demotion` in psql; new RAISE string should appear. `_app_migrations` top row should read `0016_fix_last_owner_trigger_message`.
 
 ### Staging-only deltas not in any migration
 
@@ -561,17 +557,17 @@ See section 3.
 
 ## 9. Suggested session split
 
-| Session                                       | Scope                                                                                                                                                             | Output                                         |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| **A. Unblock AFF-150**                        | Sign up `developer@hapdglobal.com`, bastion-seed two workspace rows + memberships, verify admin login, close AFF-150                                              | Linear: AFF-150 Done. No code change.          |
-| **B. Fix audit #2 (APP_BUCKET on web/admin)** | Edit `infra/cdk/lib/app-stack.ts` web + admin env blocks, PR, merge, infra redeploy, verify avatar upload                                                         | PR + green deploy                              |
-| **C. Fix audit #4 (app_user role split)**     | New `app_user` secret in `data-stack.ts`, wire web/api/admin to use it, revert staging `GRANT app_admin TO app_owner`, formalize migration                        | PR + green deploy. Production-blocker cleared. |
-| **D. Fix audit #5 remainder**                 | Mirror `SET LOCAL app.app_user_role_name = 'app_user'` into `withWorkspace` + `withOrganization`. Decide between this and the pgbouncer `connect_query` approach. | PR                                             |
-| **E. Fix audits #3, #6, #7, #8, #9, #12**     | UX cropper reset, delete-user.ts guard hole, bastion CMD generalization, error key rename, deploy param rename, init.d numbering                                  | Multi-PR batch                                 |
-| **F. Cleanup project close-outs**             | E16, E16a, E16b security hardening                                                                                                                                | PRs                                            |
+| Session                                       | Scope                                                                                                                                                             | Output                                                                                    |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **A. Unblock AFF-150**                        | Sign up `developer@hapdglobal.com`, bastion-seed two workspace rows + memberships, verify admin login, close AFF-150                                              | ✅ Done (AFF-150 closed 2026-05-18).                                                      |
+| **B. Fix audit #2 (APP_BUCKET on web/admin)** | Edit `infra/cdk/lib/app-stack.ts` web + admin env blocks, PR, merge, infra redeploy, verify avatar upload                                                         | PR + green deploy                                                                         |
+| **C. Fix audit #4 (app_user role split)**     | New `app_user` secret in `data-stack.ts`, wire web/api/admin to use it, revert staging `GRANT app_admin TO app_owner`, formalize migration                        | PR + green deploy. Production-blocker cleared.                                            |
+| **D. Fix audit #5 remainder**                 | Mirror `SET LOCAL app.app_user_role_name = 'app_user'` into `withWorkspace` + `withOrganization`. Decide between this and the pgbouncer `connect_query` approach. | PR                                                                                        |
+| **E. Fix audits #3, #6, #7, #8, #9, #12**     | UX cropper reset, delete-user.ts guard hole, bastion CMD generalization, error key rename, deploy param rename, init.d numbering                                  | ✅ #7, #8, #12 shipped in PR #146 (pending bastion apply for #12). Remaining: #3, #6, #9. |
+| **F. Cleanup project close-outs**             | E16, E16a, E16b security hardening                                                                                                                                | PRs                                                                                       |
 
 Each session can be opened cold by reading this file + the linked references.
 
 ---
 
-_Last updated: 2026-05-18 after Linear OAuth complete. Branch `hlebtkachenko/aff-150-auth-audit`._
+_Last updated: 2026-05-19 — audits #7, #8, #12 shipped in PR #146. AFF-150 closed 2026-05-18._

@@ -636,6 +636,45 @@ jobs:
               >/dev/null
           fi
 
+      - name: Ensure Better Auth + app-token signing secrets exist in Secrets Manager [stack=all|app-only]
+        if: env.SKIP_IMAGE_BUILD != 'true'
+        run: |
+          # AppStack references these by name (Secret.fromSecretNameV2). They
+          # were previously CDK-managed via `new Secret + generateSecretString`,
+          # which produced random-suffix ARNs that drifted across deploys
+          # whenever rollback force-deleted the secret — see deploy run
+          # 26091787153 (2026-05-19 12:59Z). Workflow-managed pattern: the
+          # secret name is deterministic, the 44-char value is generated ONCE
+          # on first creation (idempotent on retry), and PendingDeletion is
+          # auto-restored. We never put a new value into an existing secret —
+          # that would invalidate every active session on staging/production
+          # on each deploy, which is not the intent.
+          for name in better-auth-secret app-token-secret; do
+            SECRET_NAME="monorepo-${ENV_NAME}-${name}"
+            case "$name" in
+              better-auth-secret) DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}" ;;
+              app-token-secret)   DESC="App signup/invite/login-email token signing secret, monorepo ${ENV_NAME}" ;;
+            esac
+            DELETED=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
+            if [ "$DELETED" != "MISSING" ] && [ "$DELETED" != "None" ]; then
+              echo "Secret $SECRET_NAME in PendingDeletion — restoring."
+              aws secretsmanager restore-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null
+            fi
+            if aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "Secret $SECRET_NAME already exists — leaving value untouched."
+            else
+              VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
+              echo "::add-mask::$VALUE"
+              aws secretsmanager create-secret \
+                --name "$SECRET_NAME" \
+                --secret-string "$VALUE" \
+                --description "$DESC" \
+                --region "$AWS_REGION" \
+                >/dev/null
+              echo "Secret $SECRET_NAME created with fresh 44-char value."
+            fi
+          done
+
       # Sanity check: when image_tag_override is set the operator is asking
       # CDK to reuse images that should already be in ECR. Fail fast if any
       # of the three (web, api, admin) is missing — otherwise the App stack

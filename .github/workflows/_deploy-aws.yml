@@ -73,9 +73,156 @@ jobs:
             echo "go=false" >> "$GITHUB_OUTPUT"
           fi
 
-  deploy:
+  # Build the 3 app images in parallel (web, api, admin) on separate
+  # runners. Sequential pre-2026-05-19 build time was web ~5m + api ~4m +
+  # admin ~1.5m ≈ 10.5 min. Matrix wall-clock = max(web) + ~30s setup
+  # overhead ≈ 5.5 min. Net saving ~5 min per deploy.
+  #
+  # `fail-fast: true` so a CRITICAL CVE on web cancels api + admin builds —
+  # the deploy can't run anyway.
+  #
+  # Skipped entirely when stack=infra-only OR image_tag_override is set
+  # (then deploy verifies the override tag against ECR via the existing
+  # "Verify override images exist in ECR" step).
+  build-images:
     needs: guard
-    if: needs.guard.outputs.go == 'true'
+    if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only' && inputs.image_tag_override == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [web, api, admin]
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: ${{ inputs.environment }}
+      IMAGE_TAG: sha-${{ github.sha }}
+      SERVICE: ${{ matrix.service }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging)    echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-build-${{ matrix.service }}-${{ github.run_id }}
+          audience: sts.amazonaws.com
+
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
+
+      # First-deploy chicken-and-egg: Data stack creates the ECR repos, but
+      # the docker push here runs BEFORE `cdk deploy`. Idempotent — does
+      # nothing if the repo already exists. Matches the Data stack config so
+      # the next `cdk deploy Data-*` stays clean (still need a one-time
+      # `stack=infra-only` for brand-new services to seed CFN ownership).
+      - name: Ensure ECR repository exists
+        run: |
+          set -euo pipefail
+          repo="monorepo-${ENV_NAME}-${SERVICE}"
+          if aws ecr describe-repositories --repository-names "$repo" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "OK   ECR repo exists: $repo"
+          else
+            echo "CREATE ECR repo: $repo"
+            aws ecr create-repository \
+              --repository-name "$repo" \
+              --image-tag-mutability IMMUTABLE \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=AES256 \
+              --region "$AWS_REGION" >/dev/null
+          fi
+
+      - name: Build + push ${{ matrix.service }} image
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: apps/${{ matrix.service }}/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-${{ matrix.service }}:${{ env.IMAGE_TAG }}
+          # SLSA L2: in-toto provenance attestation + CycloneDX SBOM.
+          # ~20s build overhead per matrix item; runs in parallel so the
+          # wall-clock cost hides behind the slowest build.
+          provenance: true
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ inputs.environment }}
+          cache-to: type=gha,scope=${{ matrix.service }}-${{ inputs.environment }},mode=max
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            BUILD_VERSION=${{ env.IMAGE_TAG }}
+
+      # CVE gate: wait for ECR's scanOnPush to finish, fail on CRITICAL.
+      # ECR Basic scanning takes ~30-90s after push. The wait + describe
+      # together usually adds ~10s of wall time per matrix item; if the
+      # scan finds nothing CRITICAL the deploy continues.
+      - name: Wait for ECR scan + fail on CRITICAL CVE
+        run: |
+          set -euo pipefail
+          repo="monorepo-${ENV_NAME}-${SERVICE}"
+          tag="${IMAGE_TAG}"
+          echo "Waiting for scan results: $repo:$tag"
+          aws ecr wait image-scan-complete \
+            --repository-name "$repo" \
+            --image-id imageTag="$tag" \
+            --region "$AWS_REGION"
+          findings=$(aws ecr describe-image-scan-findings \
+            --repository-name "$repo" \
+            --image-id imageTag="$tag" \
+            --region "$AWS_REGION" \
+            --query 'imageScanFindings.findingSeverityCounts.CRITICAL' \
+            --output text)
+          if [ "$findings" != "None" ] && [ "$findings" != "0" ] && [ -n "$findings" ]; then
+            echo "::error::$repo:$tag has $findings CRITICAL CVE(s)"
+            echo "Run \`aws ecr describe-image-scan-findings --repository-name $repo --image-id imageTag=$tag --region $AWS_REGION\` to see the full list."
+            exit 1
+          fi
+          echo "OK  No CRITICAL CVEs in $repo:$tag"
+
+  deploy:
+    needs: [guard, build-images]
+    # Run the deploy when guard is green AND build-images either completed
+    # OR was skipped (infra-only / image_tag_override path). `needs.X.result`
+    # values: success | skipped | failure | cancelled.
+    if: |
+      needs.guard.outputs.go == 'true' &&
+      (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: ${{ inputs.environment }}
@@ -174,91 +321,11 @@ jobs:
         if: env.STACK_SCOPE != 'infra-only'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
-      - name: ECR login [stack=all|app-only]
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
-        id: ecr
-
-      # First-deploy chicken-and-egg: Data stack creates the ECR repos, but
-      # `docker push` runs BEFORE `cdk deploy`. On any first deploy of a new
-      # service the push fails with RepositoryNotFoundException. This step
-      # is idempotent — does nothing when the repo already exists (the common
-      # path) — and matches the Data stack's repo configuration so the CDK
-      # diff stays clean. To avoid CFN ResourceAlreadyExistsException on the
-      # very first deploy of a brand-new service, run `stack=infra-only`
-      # once before `stack=all` (see docs/runbooks/AWS-DEPLOY.md).
-      - name: Ensure ECR repositories exist [stack=all|app-only]
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        run: |
-          set -euo pipefail
-          for svc in web api admin; do
-            repo="monorepo-${ENV_NAME}-${svc}"
-            if aws ecr describe-repositories --repository-names "$repo" --region "$AWS_REGION" >/dev/null 2>&1; then
-              echo "OK   ECR repo exists: $repo"
-            else
-              echo "CREATE ECR repo: $repo"
-              aws ecr create-repository \
-                --repository-name "$repo" \
-                --image-tag-mutability IMMUTABLE \
-                --image-scanning-configuration scanOnPush=true \
-                --encryption-configuration encryptionType=AES256 \
-                --region "$AWS_REGION" >/dev/null
-            fi
-          done
-
-      - name: Build + push web image [stack=all|app-only]
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          file: apps/web/Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-web:${{ env.IMAGE_TAG }}
-          provenance: false
-          sbom: false
-          cache-from: type=gha,scope=web-${{ inputs.environment }}
-          cache-to: type=gha,scope=web-${{ inputs.environment }},mode=max
-          build-args: |
-            BUILD_SHA=${{ github.sha }}
-            BUILD_TIME=${{ github.event.repository.updated_at }}
-            BUILD_VERSION=${{ env.IMAGE_TAG }}
-
-      - name: Build + push api image [stack=all|app-only]
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          file: apps/api/Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-api:${{ env.IMAGE_TAG }}
-          provenance: false
-          sbom: false
-          cache-from: type=gha,scope=api-${{ inputs.environment }}
-          cache-to: type=gha,scope=api-${{ inputs.environment }},mode=max
-          build-args: |
-            BUILD_SHA=${{ github.sha }}
-            BUILD_TIME=${{ github.event.repository.updated_at }}
-            BUILD_VERSION=${{ env.IMAGE_TAG }}
-
-      - name: Build + push admin image [stack=all|app-only]
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          file: apps/admin/Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ${{ steps.ecr.outputs.registry }}/monorepo-${{ inputs.environment }}-admin:${{ env.IMAGE_TAG }}
-          provenance: false
-          sbom: false
-          cache-from: type=gha,scope=admin-${{ inputs.environment }}
-          cache-to: type=gha,scope=admin-${{ inputs.environment }},mode=max
-          build-args: |
-            BUILD_SHA=${{ github.sha }}
-            BUILD_TIME=${{ github.event.repository.updated_at }}
-            BUILD_VERSION=${{ env.IMAGE_TAG }}
+      # NOTE: ECR login + the 3 image builds + the CVE gate moved to the
+      # parallel `build-images` matrix job above. This deploy job only runs
+      # AFTER all three images are pushed + scan-clean. Keep QEMU + Buildx
+      # here (above) because cdk deploy ALSO builds arm64 DockerImageAssets
+      # inline for Cerbos (App stack) and the Backup Lambda.
 
       - name: Ensure Cloudflare Tunnel token secret exists in Secrets Manager [stack=all|app-only]
         if: env.SKIP_IMAGE_BUILD != 'true'

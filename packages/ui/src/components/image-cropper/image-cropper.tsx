@@ -34,6 +34,12 @@ interface ImageCropperProps {
   onCancel: () => void
   /** Called with the cropped square image as a Blob. */
   onCropComplete: (result: Blob) => void
+  /**
+   * Optional. When provided, the Reset button calls this callback in addition
+   * to resetting the crop pan/zoom state. Use it to clear the source file from
+   * parent state. Omitting it preserves the previous behavior.
+   */
+  onRemove?: () => void
 }
 
 const MIN_ZOOM = 1
@@ -109,6 +115,7 @@ function ImageCropper({
   title = "Edit avatar",
   onCancel,
   onCropComplete,
+  onRemove,
 }: ImageCropperProps) {
   const [crop, setCrop] = React.useState<Point>(INITIAL_CROP)
   const [zoom, setZoom] = React.useState(MIN_ZOOM)
@@ -153,7 +160,8 @@ function ImageCropper({
   const handleReset = React.useCallback(() => {
     setCrop(INITIAL_CROP)
     setZoom(MIN_ZOOM)
-  }, [])
+    onRemove?.()
+  }, [onRemove])
 
   const handleSave = React.useCallback(async () => {
     if (!imageSrc || !croppedAreaPixels) return

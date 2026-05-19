@@ -138,6 +138,37 @@ describe("ImageCropper", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled()
   })
 
+  it("calls onRemove when Reset is clicked and onRemove is provided", async () => {
+    const user = userEvent.setup()
+    const onRemove = vi.fn()
+    render(
+      <ImageCropper
+        open
+        file={makeFile()}
+        onCancel={vi.fn()}
+        onCropComplete={vi.fn()}
+        onRemove={onRemove}
+      />,
+    )
+    await user.click(screen.getByRole("button", { name: "Reset" }))
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not call any extra handler when Reset is clicked without onRemove", async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+    render(
+      <ImageCropper
+        open
+        file={makeFile()}
+        onCancel={onCancel}
+        onCropComplete={vi.fn()}
+      />,
+    )
+    await user.click(screen.getByRole("button", { name: "Reset" }))
+    expect(onCancel).not.toHaveBeenCalled()
+  })
+
   it("produces a Blob via onCropComplete when Save is clicked", async () => {
     const user = userEvent.setup()
     const onCropComplete = vi.fn()

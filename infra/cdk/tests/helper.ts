@@ -58,6 +58,7 @@ export function buildTestApp(): BuiltApp {
     appSecurityGroup: network.appSecurityGroup,
     database: data.database,
     databaseSecret: data.databaseSecret,
+    appUserSecret: data.appUserSecret,
     appBucket: data.appBucket,
     webRepository: data.webRepository,
     apiRepository: data.apiRepository,

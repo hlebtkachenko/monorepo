@@ -463,6 +463,16 @@
         "exploreAgentsDescription": "See how agents can take routine work off your plate."
       }
     },
+    "revalidate": {
+      "metaTitle": "Confirm your identity",
+      "title": "Confirm your identity",
+      "description": "For your security, please re-enter your password before continuing.",
+      "passwordLabel": "Password",
+      "submit": "Confirm",
+      "submitting": "Confirming…",
+      "invalidCredentials": "Incorrect password. Try again.",
+      "error": "Something went wrong. Try again."
+    },
     "errors": {
       "sessionExpired": "Your onboarding session expired. Sign in to continue.",
       "createAccountFailed": "Could not create your account.",

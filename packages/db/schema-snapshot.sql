@@ -131,19 +131,6 @@ END;
 $$;
 
 --
--- Name: app_auth_invite_email_normalize(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.app_auth_invite_email_normalize() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.email := lower(NEW.email);
-  RETURN NEW;
-END;
-$$;
-
---
 -- Name: app_auth_token_limited_update(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -701,27 +688,6 @@ CREATE TABLE public.auth_account (
 );
 
 --
--- Name: auth_invite; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.auth_invite (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    organization_id uuid NOT NULL,
-    workspace_id uuid NOT NULL,
-    token_hash text NOT NULL,
-    email character varying(320) NOT NULL,
-    role character varying(64) NOT NULL,
-    status public.invite_status DEFAULT 'pending'::public.invite_status NOT NULL,
-    issued_by_user_id uuid,
-    issued_at timestamp with time zone DEFAULT now() NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    accepted_at timestamp with time zone,
-    accepted_by_user_id uuid
-);
-
-ALTER TABLE ONLY public.auth_invite FORCE ROW LEVEL SECURITY;
-
---
 -- Name: auth_session; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1095,20 +1061,6 @@ ALTER TABLE ONLY public.auth_account
     ADD CONSTRAINT auth_account_pkey PRIMARY KEY (id);
 
 --
--- Name: auth_invite auth_invite_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_pkey PRIMARY KEY (id);
-
---
--- Name: auth_invite auth_invite_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_token_hash_key UNIQUE (token_hash);
-
---
 -- Name: auth_session auth_session_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1314,24 +1266,6 @@ CREATE UNIQUE INDEX auth_account_provider_account_unique ON public.auth_account 
 --
 
 CREATE INDEX auth_account_user_idx ON public.auth_account USING btree (user_id);
-
---
--- Name: auth_invite_organization_email_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX auth_invite_organization_email_idx ON public.auth_invite USING btree (organization_id, email);
-
---
--- Name: auth_invite_organization_status_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX auth_invite_organization_status_idx ON public.auth_invite USING btree (organization_id, status);
-
---
--- Name: auth_invite_token_hash_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX auth_invite_token_hash_idx ON public.auth_invite USING btree (token_hash);
 
 --
 -- Name: auth_session_expires_idx; Type: INDEX; Schema: public; Owner: -
@@ -1574,12 +1508,6 @@ CREATE TRIGGER audit_event_no_truncate BEFORE TRUNCATE ON public.audit_event FOR
 CREATE TRIGGER audit_event_ws_org_consistent BEFORE INSERT ON public.audit_event FOR EACH ROW EXECUTE FUNCTION public.app_audit_event_ws_org_consistent();
 
 --
--- Name: auth_invite auth_invite_email_normalize; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER auth_invite_email_normalize BEFORE INSERT OR UPDATE ON public.auth_invite FOR EACH ROW EXECUTE FUNCTION public.app_auth_invite_email_normalize();
-
---
 -- Name: auth_token auth_token_guard_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1711,34 +1639,6 @@ ALTER TABLE ONLY public.audit_event
 
 ALTER TABLE ONLY public.auth_account
     ADD CONSTRAINT auth_account_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
-
---
--- Name: auth_invite auth_invite_accepted_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_accepted_by_user_id_fkey FOREIGN KEY (accepted_by_user_id) REFERENCES public.app_user(id);
-
---
--- Name: auth_invite auth_invite_issued_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_issued_by_user_id_fkey FOREIGN KEY (issued_by_user_id) REFERENCES public.app_user(id);
-
---
--- Name: auth_invite auth_invite_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id) ON DELETE CASCADE;
-
---
--- Name: auth_invite auth_invite_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
 -- Name: auth_session auth_session_impersonated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1959,12 +1859,6 @@ CREATE POLICY audit_event_org_member_read ON public.audit_event FOR SELECT USING
 CREATE POLICY audit_event_ws_admin_read ON public.audit_event FOR SELECT USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
--- Name: auth_invite; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.auth_invite ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: auth_token; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2029,12 +1923,6 @@ ALTER TABLE public.organization ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY organization_isolation ON public.api_key USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
-
---
--- Name: auth_invite organization_isolation; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY organization_isolation ON public.auth_invite USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: organization organization_isolation; Type: POLICY; Schema: public; Owner: -

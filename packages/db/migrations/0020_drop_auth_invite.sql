@@ -21,4 +21,10 @@ BEGIN;
 
 DROP TABLE IF EXISTS auth_invite CASCADE;
 
+-- DROP TABLE ... CASCADE removes the BEFORE-INSERT/UPDATE trigger
+-- attached to the table, but the trigger FUNCTION itself is an
+-- independent object — it survives the drop as an orphan. Remove it
+-- too so the schema-snapshot stays clean.
+DROP FUNCTION IF EXISTS app_auth_invite_email_normalize() CASCADE;
+
 COMMIT;

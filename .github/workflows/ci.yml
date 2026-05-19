@@ -50,6 +50,7 @@ jobs:
     outputs:
       ui: ${{ steps.filter.outputs.ui }}
       infra: ${{ steps.filter.outputs.infra }}
+      code: ${{ steps.filter.outputs.code }}
     steps:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
@@ -67,8 +68,26 @@ jobs:
               - 'infra/cdk/**'
               - 'apps/*/package.json'
               - 'pnpm-lock.yaml'
+            code:
+              - 'apps/**'
+              - 'packages/**'
+              - 'infra/cdk/**'
+              - 'tsconfig*.json'
+              - '**/tsconfig*.json'
+              - 'turbo.json'
+              - '**/turbo.json'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/setup/**'
 
   lint-typecheck:
+    needs: [changes]
+    # Skip the whole runner setup on docs-only PRs (no code = no typecheck/
+    # lint work to do anyway, --affected makes the inside no-op but the
+    # runner setup still costs ~60-90s). Aggregator treats `skipped` as
+    # non-failure so the required `ci` check stays green.
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -126,6 +145,9 @@ jobs:
         run: pnpm turbo synth --ui=stream
 
   unit-test:
+    needs: [changes]
+    # Same rationale as lint-typecheck: skip runner setup on docs-only PRs.
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -255,6 +277,13 @@ jobs:
             "pnpm dlx wait-on tcp:127.0.0.1:6006 && pnpm --filter @workspace/ui test-storybook --url http://127.0.0.1:6006 --shard ${{ matrix.shard }}/2"
 
   build:
+    needs: [changes]
+    # Skip the full build on docs-only PRs. Aggregator treats `skipped` as
+    # non-failure so the required `ci` check still posts green. Build stays
+    # full-graph WHEN it runs (turbo cache restores unchanged outputs); we
+    # only skip the runner setup + cold-cache cost when no buildable code
+    # changed.
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

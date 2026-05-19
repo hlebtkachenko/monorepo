@@ -82,6 +82,7 @@ const appStack = new AppStack(app, `App-${env}`, {
   appSecurityGroup: network.appSecurityGroup,
   database: data.database,
   databaseSecret: data.databaseSecret,
+  appUserSecret: data.appUserSecret,
   appBucket: data.appBucket,
   webRepository: data.webRepository,
   apiRepository: data.apiRepository,

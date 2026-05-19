@@ -259,6 +259,95 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["LISTEN_ADDR"]).toBe("127.0.0.1")
   })
 
+  it("pgbouncer composes DATABASE_URLS (plural) from app_owner + app_user secrets", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Command?: string[]
+      Secrets?: Array<{ Name?: string; ValueFrom?: unknown }>
+    }>
+    const pg = containers.find((c) => c.Name === "pgbouncer")
+    expect(pg).toBeDefined()
+
+    // The edoburu entrypoint reads DATABASE_URLS (plural, comma-separated)
+    // and writes BOTH credentials into userlist.txt. ADR-0010 role split:
+    // app_owner serves api (pg-boss needs master), app_user serves web +
+    // admin (RLS bites).
+    const cmd = pg?.Command?.[0] ?? ""
+    expect(cmd).toContain("DATABASE_URLS=")
+    expect(cmd).toContain("${DB_OWNER_USER}")
+    expect(cmd).toContain("${DB_OWNER_PASSWORD}")
+    expect(cmd).toContain("${DB_USER_USER}")
+    expect(cmd).toContain("${DB_USER_PASSWORD}")
+    // Same RDS host:port:db for both upstream URLs (one pool, one endpoint).
+    const urlMatches = cmd.match(/postgres:\/\/[^,"]+/g) ?? []
+    expect(urlMatches.length).toBe(2)
+    for (const url of urlMatches) {
+      expect(url).toContain("${DB_HOST}")
+      expect(url).toContain("${DB_PORT}")
+      expect(url).toContain("${DB_NAME}")
+    }
+
+    // Both credential pairs must reach the container as secrets, not env.
+    const secretNames = (pg?.Secrets ?? []).map((s) => s.Name)
+    expect(secretNames).toContain("DB_OWNER_USER")
+    expect(secretNames).toContain("DB_OWNER_PASSWORD")
+    expect(secretNames).toContain("DB_USER_USER")
+    expect(secretNames).toContain("DB_USER_PASSWORD")
+  })
+
+  it("web + admin authenticate to pgbouncer via the app_user secret; api stays on app_owner", () => {
+    // Different upstream Secrets Manager ARNs MUST flow into each container.
+    // The exact ARN values aren't asserted (CDK references are CFN tokens
+    // resolved at synth time) — we assert that web + admin point at the
+    // SAME source ARN, and that ARN is DIFFERENT from api's source ARN.
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Secrets?: Array<{ Name?: string; ValueFrom?: unknown }>
+    }>
+    type SecretRef = { Name?: string; ValueFrom?: unknown }
+    type ContainerWithSecrets = { Name?: string; Secrets?: SecretRef[] }
+    const byName: Record<string, ContainerWithSecrets | undefined> =
+      Object.fromEntries(containers.map((c) => [c.Name ?? "", c]))
+
+    // Helper: extract the secret-resource portion of a ValueFrom Fn::Join
+    // (the CDK token shape is { "Fn::Join": [":", [arnPrefix, secretArnLogicalRef, ...]] }).
+    // We stringify the whole structure and compare; structural equality is
+    // enough because EcsSecret.fromSecretsManager produces the SAME shape
+    // for the same source Secret.
+    const dbUserValueFrom = (name: string): string => {
+      const c = byName[name]
+      const secret = (c?.Secrets ?? []).find(
+        (s: SecretRef) => s.Name === "DB_USER",
+      )
+      return JSON.stringify(secret?.ValueFrom ?? null)
+    }
+    const dbPasswordValueFrom = (name: string): string => {
+      const c = byName[name]
+      const secret = (c?.Secrets ?? []).find(
+        (s: SecretRef) => s.Name === "DB_PASSWORD",
+      )
+      return JSON.stringify(secret?.ValueFrom ?? null)
+    }
+
+    // web + admin reference the SAME secret (appUserSecret).
+    expect(dbUserValueFrom("web")).toBe(dbUserValueFrom("admin"))
+    expect(dbPasswordValueFrom("web")).toBe(dbPasswordValueFrom("admin"))
+    // api references a DIFFERENT secret (databaseSecret / app_owner) so
+    // pg-boss + DATABASE_DIRECT_URL keep their master-grade connection.
+    expect(dbUserValueFrom("api")).not.toBe(dbUserValueFrom("web"))
+    expect(dbPasswordValueFrom("api")).not.toBe(dbPasswordValueFrom("web"))
+  })
+
   it("pgbouncer relies on image-owned /etc/pgbouncer (no scratch volume, no /etc mount)", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as

@@ -420,45 +420,47 @@ APP_DOMAIN=app-staging.afframe.com \
 pnpm --filter @workspace/cdk exec cdk destroy App-staging --context env=staging
 ```
 
-## Follow-up: per-tenant role split (open design)
+## Follow-up: per-tenant role split (LANDED — pgbouncer dual-user)
 
-Today the api + pgbouncer sidecar both authenticate against RDS using the
-RDS master credentials (`app_owner`). ADR-0010 specifies a separate
-`app_user` role for runtime queries, with FORCE RLS enforced through GUCs
-(`set_config('app.organization_id', ..., true)`). The role split is
-DEFERRED — and the implementation path is not trivial.
+The role split landed via Linear AFF-206. Web + admin authenticate to
+pgbouncer as `app_user` (LOGIN, RLS applies); api stays on `app_owner`
+direct via `DATABASE_DIRECT_URL` because pg-boss needs advisory locks +
+LISTEN/NOTIFY (incompatible with pgbouncer transaction mode).
 
-The naive "just give api a different secret" sequence does NOT work
-because the edoburu/pgbouncer entrypoint generates `userlist.txt` from
-its OWN `DATABASE_URL` only. If api connects to pgbouncer as `app_user`
-while pgbouncer's own URL is `app_owner`, the SCRAM front-end auth fails
-with `password authentication failed for user "app_user"`.
+Pattern: option 2 — pgbouncer's `DATABASE_URLS=` (plural) comma-separated.
+The edoburu entrypoint's `parse_urls` loop writes both credentials into
+`/etc/pgbouncer/userlist.txt` and emits matching `[databases]` entries.
+Both upstream URLs target the same RDS host:port:db; one pool, one
+endpoint. CDK wiring lives in `infra/cdk/lib/app-stack.ts` (pgbouncer
+container) + `infra/cdk/lib/data-stack.ts` (`appUserSecret`).
 
-Three viable patterns to investigate before implementation:
+Pre-deploy steps (operator, via bastion):
 
-1. **`AUTH_USER` + `AUTH_QUERY`**: pgbouncer authenticates clients by
-   querying RDS for the SCRAM secret on demand. Requires an extra grant
-   on `pg_shadow`/`pg_authid` plus a custom auth query. Most flexible.
-2. **`DATABASE_URLS=` comma-separated**: pass both
-   `postgres://app_owner:...@...` AND `postgres://app_user:...@...` to
-   pgbouncer's entrypoint. The image's `parse_url` loop populates
-   `userlist.txt` with both credentials. Simplest if both passwords are
-   available as secrets at task start.
-3. **Rebake pgbouncer image**: drop edoburu, ship our own image with a
-   custom entrypoint that materialises a multi-user `userlist.txt` from
-   a SCRAM verifier file copied at build time.
+1. After `cdk deploy Data-{env}` creates `monorepo-{env}-app-user-secret`,
+   read its `password` field via `aws secretsmanager get-secret-value`.
+2. On the bastion, set the `app_user` role password to match:
+   ```sql
+   ALTER ROLE app_user PASSWORD '<password-from-secret>';
+   ```
+3. Verify migration `0002_auth.sql` has run, which includes
+   `GRANT app_admin TO app_user`. Without this, `withAdminBypass` fails.
+4. Revert the staging-only `GRANT app_admin TO app_owner` workaround
+   applied earlier (audit #4 mitigation): `REVOKE app_admin FROM app_owner;`.
+   This is no longer required because runtime traffic no longer flows
+   through `app_owner`.
+5. Confirm no migration drift: `_app_migrations.checksum` for
+   `0002_auth.sql` matches the file in this repo.
 
-Before flipping the api secret reference, decide which pattern fits and
-update this section with the concrete CDK + secrets layout.
+Other related notes:
 
-Other deferred dependencies:
-
-- bootstrap chain runs as `app_owner` (CREATE SCHEMA openfga, openfga
-  migrate, drizzle migrate). That continues to use the master credential
-  regardless of which pattern wins.
-- Worker pg-boss queue needs DIRECT (port 5432) RDS access for advisory
-  locks + LISTEN/NOTIFY — it bypasses pgbouncer entirely, so it can use
-  a third secret if needed.
+- Bootstrap chain still runs as `app_owner` (CREATE SCHEMA openfga,
+  openfga migrate, drizzle migrate). This continues to use the master
+  credential — schema creation requires SUPERUSER-equivalent.
+- Worker pg-boss queue still uses direct (port 5432) RDS access as
+  `app_owner` via `DATABASE_DIRECT_URL`. Advisory locks + LISTEN/NOTIFY
+  cannot tolerate transaction-mode pooling.
+- Backup task (BackupStack) keeps `app_owner` direct — `pg_dumpall`
+  globals + role definitions need master.
 
 ## Bootstrap chain: schemas + openfga model (manual one-time)
 

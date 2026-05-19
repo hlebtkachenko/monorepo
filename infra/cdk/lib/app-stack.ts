@@ -42,7 +42,31 @@ export interface AppStackProps extends StackProps {
   readonly publicSubnets: ISubnet[]
   readonly appSecurityGroup: SecurityGroup
   readonly database: DatabaseInstance
+  /**
+   * RDS master credentials (`app_owner`, SUPERUSER on RDS). Used by:
+   *   - the api container's `DATABASE_DIRECT_URL` (pg-boss advisory locks +
+   *     LISTEN/NOTIFY need a session-state-stable, master-equivalent
+   *     connection that pgbouncer transaction mode cannot provide);
+   *   - the api container's `DATABASE_URL` to pgbouncer on :6432 (the API
+   *     surface still drives DDL-adjacent work like extension probes during
+   *     boot, and is the lowest-risk container to keep on master while the
+   *     web + admin role split lands);
+   *   - pgbouncer upstream connection #1 (`app_owner` entry of `DATABASE_URLS`);
+   *   - the openfga sidecar (its built-in datastore migrations run as the
+   *     master role over a direct :5432 connection).
+   */
   readonly databaseSecret: Secret
+  /**
+   * RDS runtime credentials (`app_user`, LOGIN, RLS applies). Used by:
+   *   - the web container's `DATABASE_URL` to pgbouncer on :6432;
+   *   - the admin container's `DATABASE_URL` to pgbouncer on :6432;
+   *   - pgbouncer upstream connection #2 (`app_user` entry of `DATABASE_URLS`).
+   * RLS policies bite for every query that flows through these connections,
+   * which is the production-correct posture. `withAdminBypass` still works
+   * because migration 0002_auth.sql `GRANT app_admin TO app_user` makes
+   * `SET LOCAL ROLE app_admin` reachable from inside an `app_user` session.
+   */
+  readonly appUserSecret: Secret
   readonly appBucket: Bucket
   readonly webRepository: Repository
   readonly apiRepository: Repository
@@ -133,6 +157,7 @@ export class AppStack extends Stack {
       ],
     })
     props.databaseSecret.grantRead(taskExecutionRole)
+    props.appUserSecret.grantRead(taskExecutionRole)
     this.tunnelTokenSecret.grantRead(taskExecutionRole)
 
     const taskRole = new Role(this, "TaskRole", {
@@ -141,6 +166,7 @@ export class AppStack extends Stack {
     })
     props.appBucket.grantReadWrite(taskRole)
     props.databaseSecret.grantRead(taskRole)
+    props.appUserSecret.grantRead(taskRole)
 
     const taskDef = new FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
@@ -363,14 +389,21 @@ export class AppStack extends Stack {
         BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
         APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
         RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
-        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        // app_user (RLS-bound runtime role). pgbouncer accepts the `app_user`
+        // entry from `DATABASE_URLS=` (see pgbouncerContainer below) and
+        // forwards to RDS using the matching upstream credential. RLS
+        // policies bite for every query that flows through this container.
+        // withAdminBypass elevates to app_admin via `SET LOCAL ROLE` —
+        // migration 0002_auth.sql `GRANT app_admin TO app_user` keeps that
+        // path reachable from this connection.
+        DB_USER: EcsSecret.fromSecretsManager(props.appUserSecret, "username"),
         DB_PASSWORD: EcsSecret.fromSecretsManager(
-          props.databaseSecret,
+          props.appUserSecret,
           "password",
         ),
       },
       // Compose DATABASE_URL at container start (same pattern as api) so the
-      // password never lands in an env var. SAFETY: db secret uses
+      // password never lands in an env var. SAFETY: app_user secret uses
       // `excludePunctuation: true` (data-stack.ts), so the password is
       // alphanumeric — no URL-reserved chars require encoding.
       //
@@ -516,15 +549,19 @@ export class AppStack extends Stack {
         APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
         // forgot/reset-password send mail via Resend.
         RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
-        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        // app_user (RLS-bound runtime role). Same role as web — admin's
+        // staff queries are equally RLS-scoped. Any admin operation that
+        // legitimately needs to read across tenants funnels through
+        // withAdminBypass (`SET LOCAL ROLE app_admin`).
+        DB_USER: EcsSecret.fromSecretsManager(props.appUserSecret, "username"),
         DB_PASSWORD: EcsSecret.fromSecretsManager(
-          props.databaseSecret,
+          props.appUserSecret,
           "password",
         ),
       },
       // Same DATABASE_URL shell-compose + forced HOSTNAME as the web
       // container — see that block for the safety note on the unencoded
-      // password (RDS secret uses excludePunctuation: true).
+      // password (app_user secret uses excludePunctuation: true).
       entryPoint: ["/bin/sh", "-c"],
       command: [
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
@@ -580,6 +617,19 @@ export class AppStack extends Stack {
     // pgBouncer SCRAM hash is built by its entrypoint from the plaintext
     // password — the userlist.txt write itself doesn't depend on alpine
     // having any tool other than /bin/sh + awk + sed (all present).
+    //
+    // Dual-user composition (ADR-0010 role split, audit #4 fix):
+    // `DATABASE_URLS=postgres://app_owner:...,postgres://app_user:...`
+    // (plural). The edoburu entrypoint's `parse_urls` loop walks the
+    // comma-separated value and writes BOTH credentials into
+    // /etc/pgbouncer/userlist.txt + emits matching `[databases]` entries.
+    // Result: a single pgbouncer task serves both upstream identities
+    // (api stays on app_owner; web + admin connect as app_user with RLS
+    // applying). Both upstream URLs target the same RDS host:port:db, so
+    // there is no second pool to manage. See
+    // `docs/runbooks/AWS-DEPLOY.md` "Follow-up: per-tenant role split"
+    // for the operator rotation procedure and the
+    // post-deploy `GRANT app_admin TO app_owner` revert.
     const pgbouncerContainer = taskDef.addContainer("pgbouncer", {
       containerName: "pgbouncer",
       image: ContainerImage.fromRegistry("edoburu/pgbouncer:v1.25.1-p0"),
@@ -616,15 +666,39 @@ export class AppStack extends Stack {
         SERVER_TLS_SSLMODE: "require",
       },
       secrets: {
-        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
-        DB_PASSWORD: EcsSecret.fromSecretsManager(
+        // app_owner — upstream connection #1 (api container authenticates
+        // to pgbouncer as this role, and pg-boss's DATABASE_DIRECT_URL also
+        // uses these creds direct to RDS :5432).
+        DB_OWNER_USER: EcsSecret.fromSecretsManager(
           props.databaseSecret,
+          "username",
+        ),
+        DB_OWNER_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+        // app_user — upstream connection #2 (web + admin containers
+        // authenticate to pgbouncer as this role; RLS applies on RDS).
+        DB_USER_USER: EcsSecret.fromSecretsManager(
+          props.appUserSecret,
+          "username",
+        ),
+        DB_USER_PASSWORD: EcsSecret.fromSecretsManager(
+          props.appUserSecret,
           "password",
         ),
       },
       entryPoint: ["/bin/sh", "-c"],
+      // DATABASE_URLS (plural) — comma-separated list. The edoburu
+      // entrypoint parses each URL and emits matching userlist.txt +
+      // [databases] entries. Both URLs MUST target the same DB_HOST:DB_PORT/
+      // DB_NAME so pgbouncer holds one pool against one RDS endpoint.
+      //
+      // SAFETY: both secrets use excludePunctuation: true (data-stack.ts),
+      // so passwords are alphanumeric and shell-interpolation into the URL
+      // is safe without urlencoding.
       command: [
-        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && exec /entrypoint.sh /usr/bin/pgbouncer /etc/pgbouncer/pgbouncer.ini',
+        'export DATABASE_URLS="postgres://${DB_OWNER_USER}:${DB_OWNER_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME},postgres://${DB_USER_USER}:${DB_USER_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && exec /entrypoint.sh /usr/bin/pgbouncer /etc/pgbouncer/pgbouncer.ini',
       ],
       // Simple TCP probe — `nc` is on edoburu/pgbouncer (alpine busybox).
       // Drives apiContainer's addContainerDependencies HEALTHY gate below.

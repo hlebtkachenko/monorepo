@@ -9,12 +9,25 @@
  * across tests.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 import { bootPostgres18 } from "@workspace/testcontainers"
 import type { BootResult } from "@workspace/testcontainers"
 
 process.env["NODE_ENV"] = process.env["NODE_ENV"] ?? "test"
 process.env["AUTH_TOKEN_ENV"] = "dev"
+
+// Cold testcontainer boot + first-call DB pool init can drift over the
+// default 5 s per-test budget on a busy CI runner. Match the limits used
+// by invite-issuer.test.ts and seed-loginable-user.test.ts.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 120_000 })
 
 let boot: BootResult
 

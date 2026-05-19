@@ -47,18 +47,44 @@ export const DEFAULT_TTL_SECONDS: Record<AuthTokenKind, number> = {
  * Resolve the deploy env code. Read once per call so tests can rotate
  * `AUTH_TOKEN_ENV` between cases without `vi.resetModules()`.
  *
- * Fallback chain:
- *   1. `AUTH_TOKEN_ENV`        — explicit, set by CDK per stack
- *   2. derived from `NODE_ENV` — production → prd, otherwise dev
+ * Resolution:
+ *   1. `AUTH_TOKEN_ENV` set + valid (`dev` / `stg` / `prd`) — use it.
+ *   2. `AUTH_TOKEN_ENV` set + invalid — throw. A typo would silently
+ *      stamp tokens with the wrong env code, defeating the cross-env
+ *      replay gate.
+ *   3. `AUTH_TOKEN_ENV` unset AND `NODE_ENV === "production"` — throw.
+ *      Every Fargate container sets `NODE_ENV: "production"` (Next.js
+ *      prod build), so the previous fallback to `prd` here would stamp
+ *      staging tokens with the production checksum envelope. CDK
+ *      (`infra/cdk/lib/app-stack.ts`) sets `AUTH_TOKEN_ENV` per envName
+ *      since AFF-215; a missing value at boot indicates a misconfigured
+ *      task definition, not a routine condition.
+ *   4. `AUTH_TOKEN_ENV` unset AND non-production NODE_ENV — fall back to
+ *      `dev` for local dev + tests. This is the only fallback that
+ *      stays.
  *
- * The string must be one of the three codes the CHECK constraint accepts.
+ * Fail-closed by design. ADR-0022 §"Kind taxonomy" binds the env code
+ * to the deploy environment as part of the security primitive; a silent
+ * default has no place here.
  */
 export function resolveAuthTokenEnv(): AuthTokenEnv {
-  const explicit = process.env.AUTH_TOKEN_ENV?.trim()
-  if (explicit === "dev" || explicit === "stg" || explicit === "prd") {
-    return explicit
+  const raw = process.env.AUTH_TOKEN_ENV?.trim()
+  if (raw !== undefined && raw !== "") {
+    if (raw === "dev" || raw === "stg" || raw === "prd") return raw
+    throw new Error(
+      `AUTH_TOKEN_ENV must be one of 'dev' | 'stg' | 'prd'; got "${raw}". ` +
+        'See ADR-0022 §"Kind taxonomy" and packages/auth/src/tokens/auth-token.ts.',
+    )
   }
-  if (process.env.NODE_ENV === "production") return "prd"
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AUTH_TOKEN_ENV is required when NODE_ENV=production. " +
+        "Set it to 'stg' or 'prd' on the task definition. " +
+        'ADR-0022 §"Kind taxonomy" binds the env code to the deploy environment; ' +
+        "a silent default would stamp tokens with the wrong checksum envelope and " +
+        "defeat cross-env replay protection.",
+    )
+  }
   return "dev"
 }
 

@@ -1,5 +1,11 @@
 import * as path from "node:path"
-import { Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib"
+import {
+  CfnOutput,
+  Duration,
+  RemovalPolicy,
+  Stack,
+  type StackProps,
+} from "aws-cdk-lib"
 import { CfnBudget } from "aws-cdk-lib/aws-budgets"
 import {
   Alarm,
@@ -20,10 +26,7 @@ import {
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
-import {
-  EmailSubscription,
-  LambdaSubscription,
-} from "aws-cdk-lib/aws-sns-subscriptions"
+import { LambdaSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
@@ -33,12 +36,15 @@ export interface SecurityStackProps extends StackProps {
   readonly envName: string
   readonly appStack: AppStack
   readonly dataStack: DataStack
-  /**
-   * Email recipient subscribed to every Budget threshold notification.
-   * Same address as ObservabilityStack.alertEmail.
-   */
-  readonly alertEmail: string
 }
+
+// Operator email subscriptions to the alert SNS topics are managed by the
+// deploy workflow (aws sns subscribe with ::add-mask:: on the value), NOT
+// from CDK. Putting the address into the CfnBudget / SNS Subscription
+// template renders it as plaintext in the CFN template that any account
+// reader (cdk diff, GetTemplate) can fetch. PII out of templates =
+// out of GH Action logs, out of `cdk diff` snapshots, out of cross-acct
+// audit logs that surface the change set.
 
 interface BudgetSpec {
   readonly id: string
@@ -61,6 +67,7 @@ interface BudgetSpec {
  */
 export class SecurityStack extends Stack {
   readonly killSwitchTopic: Topic
+  readonly killSwitchOpsTopic: Topic
   readonly killSwitchFn: LambdaFunction
 
   constructor(scope: Construct, id: string, props: SecurityStackProps) {
@@ -148,19 +155,41 @@ export class SecurityStack extends Stack {
       }),
     )
 
-    // Dedicated ops topic for kill-switch-handler-failure notifications.
-    // Routing the Errors alarm into killSwitchTopic itself would not
-    // notify anyone — that topic's only subscriber is the Lambda, and
-    // the Lambda's allowlist rejects unrecognized alarm names so the
-    // notification gets logged as "unknown-alarm" and dropped.
-    // killSwitchOpsTopic is subscribed directly by the operator email
-    // so a Lambda failure pages the operator. Kept separate from the
-    // primary kill-switch path so it is never accidentally treated as
-    // a trigger source.
-    const killSwitchOpsTopic = new Topic(this, "KillSwitchOpsTopic", {
-      displayName: `monorepo-${props.envName} cost kill-switch failures`,
+    // Dedicated ops topic for ALL operator-facing email alerts:
+    //   - kill-switch Lambda failures (via KillSwitchErrorsAlarm below)
+    //   - every AWS Budget threshold breach (via the SNS subscribers on the
+    //     CfnBudget blocks further down; both 80% and 100% notify here)
+    //
+    // Why not subscribe budgets to killSwitchTopic itself? That topic's
+    // only Lambda subscriber kills the ECS service on receipt, and the
+    // Lambda's allowlist rejects unrecognized alarm names — so a budget
+    // breach delivered there would be logged as "unknown-alarm" and
+    // dropped instead of stopping spend. Ops topic stays alert-only.
+    //
+    // The email subscription itself is managed OUT-OF-BAND by the deploy
+    // workflow (aws sns subscribe --protocol email, with ::add-mask:: on
+    // the address). Keeping the address out of CDK keeps it out of the
+    // CFN template, out of `cdk diff` output, and out of CI logs.
+    this.killSwitchOpsTopic = new Topic(this, "KillSwitchOpsTopic", {
+      displayName: `monorepo-${props.envName} ops alerts`,
     })
-    killSwitchOpsTopic.addSubscription(new EmailSubscription(props.alertEmail))
+
+    // Allow AWS Budgets in this account to publish to the ops topic too.
+    // Mirrors the killSwitchTopic grant below — both topics receive
+    // budget notifications (ops gets every threshold; kill-switch gets
+    // 100% only).
+    this.killSwitchOpsTopic.addToResourcePolicy(
+      new PolicyStatement({
+        sid: "AllowBudgetsToPublishOps",
+        effect: Effect.ALLOW,
+        principals: [new ServicePrincipal("budgets.amazonaws.com")],
+        actions: ["sns:Publish"],
+        resources: [this.killSwitchOpsTopic.topicArn],
+        conditions: {
+          StringEquals: { "aws:SourceAccount": this.account },
+        },
+      }),
+    )
 
     // Errors alarm on the killswitch Lambda itself. If the killswitch
     // throws or times out, the operator gets paged on the ops topic
@@ -184,7 +213,7 @@ export class SecurityStack extends Stack {
       comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       treatMissingData: TreatMissingData.NOT_BREACHING,
     })
-    killSwitchErrorsAlarm.addAlarmAction(new SnsAction(killSwitchOpsTopic))
+    killSwitchErrorsAlarm.addAlarmAction(new SnsAction(this.killSwitchOpsTopic))
 
     // Allow AWS Budgets in this account to publish breach notifications to
     // the kill-switch topic. Scoped with aws:SourceAccount so a different
@@ -289,6 +318,7 @@ export class SecurityStack extends Stack {
           },
         },
         notificationsWithSubscribers: [
+          // 80% threshold: ops topic only (email out-of-band).
           {
             notification: {
               notificationType: "ACTUAL",
@@ -297,9 +327,15 @@ export class SecurityStack extends Stack {
               thresholdType: "PERCENTAGE",
             },
             subscribers: [
-              { subscriptionType: "EMAIL", address: props.alertEmail },
+              {
+                subscriptionType: "SNS",
+                address: this.killSwitchOpsTopic.topicArn,
+              },
             ],
           },
+          // 100% threshold: ops topic (operator alert) + kill-switch topic
+          // (Lambda stops the ECS service). Both publish-grants in place
+          // higher in this stack.
           {
             notification: {
               notificationType: "ACTUAL",
@@ -308,7 +344,10 @@ export class SecurityStack extends Stack {
               thresholdType: "PERCENTAGE",
             },
             subscribers: [
-              { subscriptionType: "EMAIL", address: props.alertEmail },
+              {
+                subscriptionType: "SNS",
+                address: this.killSwitchOpsTopic.topicArn,
+              },
               {
                 subscriptionType: "SNS",
                 address: this.killSwitchTopic.topicArn,
@@ -318,6 +357,23 @@ export class SecurityStack extends Stack {
         ],
       })
     }
+
+    // Stack outputs so the deploy workflow can subscribe the operator
+    // email to both alert topics out-of-band (aws sns subscribe --protocol
+    // email). Keeping the email out of CDK keeps it out of the template +
+    // CI logs. Workflow looks these up via `aws cloudformation describe-stacks`.
+    new CfnOutput(this, "KillSwitchTopicArn", {
+      value: this.killSwitchTopic.topicArn,
+      description:
+        "SNS topic for the cost kill-switch. Lambda subscriber stops ECS on receipt. Budget 100% breaches publish here.",
+      exportName: `Security-${props.envName}-KillSwitchTopicArn`,
+    })
+    new CfnOutput(this, "KillSwitchOpsTopicArn", {
+      value: this.killSwitchOpsTopic.topicArn,
+      description:
+        "SNS topic for operator email alerts (kill-switch Lambda failures, all budget threshold breaches). Email subscriber is workflow-managed.",
+      exportName: `Security-${props.envName}-KillSwitchOpsTopicArn`,
+    })
 
     // ----- CloudTrail -----
     //

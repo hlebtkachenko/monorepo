@@ -1,4 +1,4 @@
-import { Duration, Stack, type StackProps } from "aws-cdk-lib"
+import { CfnOutput, Duration, Stack, type StackProps } from "aws-cdk-lib"
 import {
   Alarm,
   ComparisonOperator,
@@ -9,7 +9,6 @@ import {
 } from "aws-cdk-lib/aws-cloudwatch"
 import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
 import { Topic } from "aws-cdk-lib/aws-sns"
-import { EmailSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { MonitoringFacade } from "cdk-monitoring-constructs"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
@@ -20,15 +19,11 @@ export interface ObservabilityStackProps extends StackProps {
   readonly appStack: AppStack
   readonly dataStack: DataStack
   /**
-   * Email address that receives all CloudWatch alarm notifications produced
-   * by this stack. Subscription is "Pending" until the recipient clicks the
-   * AWS confirmation link after first deploy. See ADR 0016.
-   */
-  readonly alertEmail: string
-  /**
    * Kill-switch SNS topic from SecurityStack. The 5 critical alarms publish
    * to BOTH this topic (which fans out to the kill-switch Lambda) and the
-   * regional BillingTopic (which fans out to email).
+   * regional BillingTopic (which the deploy workflow subscribes the
+   * operator email to, out-of-band — see ADR 0016 + SecurityStack note on
+   * the same pattern for the ops topic).
    */
   readonly killSwitchTopic: Topic
 }
@@ -97,7 +92,10 @@ export class ObservabilityStack extends Stack {
       displayName: `monorepo-${props.envName} regional alerts`,
     })
 
-    this.billingTopic.addSubscription(new EmailSubscription(props.alertEmail))
+    // Email subscriber is workflow-managed (`aws sns subscribe --protocol
+    // email`, with ::add-mask:: on the address). Keeping the email out
+    // of the CDK template keeps it out of `cdk diff` output + CI logs.
+    // Workflow finds this topic via the BillingTopicArn CfnOutput below.
 
     const snsAction = new SnsAction(this.billingTopic)
     const killSwitchAction = new SnsAction(props.killSwitchTopic)
@@ -328,5 +326,15 @@ export class ObservabilityStack extends Stack {
       cwLogsIngest,
       ecrPullAnomaly,
     }
+
+    // Workflow uses this output to look up the topic and subscribe the
+    // operator email via `aws sns subscribe --protocol email`. See the
+    // matching pattern in SecurityStack (KillSwitchOpsTopic).
+    new CfnOutput(this, "BillingTopicArn", {
+      value: this.billingTopic.topicArn,
+      description:
+        "SNS topic for regional CloudWatch alarms. Email subscriber is workflow-managed (out-of-band of CDK to keep the address out of the template).",
+      exportName: `Observability-${props.envName}-BillingTopicArn`,
+    })
   }
 }

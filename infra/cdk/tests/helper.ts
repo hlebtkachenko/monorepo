@@ -12,7 +12,6 @@ export const TEST_DOMAIN = "test.example.com"
 // Deliberately NOT a subdomain of TEST_DOMAIN — proves adminDomain is an
 // independent value, not derived from the web domain.
 export const TEST_ADMIN_DOMAIN = "admin-console.example.net"
-export const TEST_ALERT_EMAIL = "test@example.com"
 export const TEST_ENV_NAME = "test"
 
 interface BuiltApp {
@@ -85,7 +84,6 @@ export function buildTestApp(): BuiltApp {
     envName: TEST_ENV_NAME,
     appStack,
     dataStack: data,
-    alertEmail: TEST_ALERT_EMAIL,
   })
 
   const observability = new ObservabilityStack(
@@ -96,7 +94,6 @@ export function buildTestApp(): BuiltApp {
       envName: TEST_ENV_NAME,
       appStack,
       dataStack: data,
-      alertEmail: TEST_ALERT_EMAIL,
       killSwitchTopic: security.killSwitchTopic,
     },
   )

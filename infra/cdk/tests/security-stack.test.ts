@@ -101,6 +101,51 @@ describe("SecurityStack", () => {
     })
   })
 
+  it("budgets use SNS-only subscribers (no email addresses in CFN template)", () => {
+    // PII guard: subscribers must be SubscriptionType=SNS. Operator email
+    // subscriptions live on the SNS topics themselves and are managed
+    // by the deploy workflow (aws sns subscribe --protocol email) to keep
+    // the address out of `cdk diff` snapshots + CI logs.
+    const budgets = template.findResources("AWS::Budgets::Budget")
+    for (const [logicalId, resource] of Object.entries(budgets)) {
+      const notifications = ((
+        resource as { Properties?: { NotificationsWithSubscribers?: unknown } }
+      ).Properties?.NotificationsWithSubscribers ?? []) as Array<{
+        Subscribers?: Array<{ SubscriptionType?: string; Address?: string }>
+      }>
+      for (const n of notifications) {
+        for (const sub of n.Subscribers ?? []) {
+          expect(
+            sub.SubscriptionType,
+            `${logicalId}: subscriber must be SNS, found ${sub.SubscriptionType}`,
+          ).toBe("SNS")
+          // Address may be a CDK token (e.g. { "Fn::GetAtt": [...] }) or a
+          // string. Stringify and assert no '@' anywhere — that catches any
+          // hard-coded email address sneaking back in.
+          expect(
+            JSON.stringify(sub.Address),
+            `${logicalId}: subscriber Address must NOT contain '@' (no emails in template)`,
+          ).not.toMatch(/@/)
+        }
+      }
+    }
+  })
+
+  it("template contains NO email subscriptions (no SNS::Subscription Protocol=email)", () => {
+    // Hard guard: any AWS::SNS::Subscription with Protocol=email would
+    // reintroduce the PII leak we just removed. The workflow subscribes
+    // emails out-of-band via aws sns subscribe.
+    const subs = template.findResources("AWS::SNS::Subscription", {
+      Properties: { Protocol: "email" },
+    })
+    expect(Object.keys(subs).length).toBe(0)
+  })
+
+  it("exports both alert topic ARNs so the workflow can subscribe email out-of-band", () => {
+    template.hasOutput("KillSwitchTopicArn", {})
+    template.hasOutput("KillSwitchOpsTopicArn", {})
+  })
+
   it("creates a CloudTrail trail with file validation + management events", () => {
     template.hasResourceProperties("AWS::CloudTrail::Trail", {
       TrailName: "monorepo-test-management",

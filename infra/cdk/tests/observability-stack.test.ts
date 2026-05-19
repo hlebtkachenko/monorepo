@@ -1,16 +1,21 @@
 import { Template } from "aws-cdk-lib/assertions"
 import { describe, expect, it } from "vitest"
-import { buildTestApp, TEST_ALERT_EMAIL } from "./helper.js"
+import { buildTestApp } from "./helper.js"
 
 describe("ObservabilityStack", () => {
   const { observability } = buildTestApp()
   const template = Template.fromStack(observability)
 
-  it("subscribes alert email to the BillingTopic", () => {
-    template.hasResourceProperties("AWS::SNS::Subscription", {
-      Protocol: "email",
-      Endpoint: TEST_ALERT_EMAIL,
-    })
+  it("does NOT subscribe an email directly to BillingTopic (workflow-managed)", () => {
+    // PII guard: the operator email address must NOT appear in the CFN
+    // template. The deploy workflow subscribes the address out-of-band
+    // via `aws sns subscribe --protocol email`. Any AWS::SNS::Subscription
+    // with Protocol=email in this template would re-introduce the leak.
+    template.resourceCountIs("AWS::SNS::Subscription", 0)
+  })
+
+  it("exports the BillingTopic ARN so the workflow can subscribe the email out-of-band", () => {
+    template.hasOutput("BillingTopicArn", {})
   })
 
   it("has the 6 attack-vector alarms", () => {

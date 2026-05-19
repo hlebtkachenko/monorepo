@@ -54,12 +54,11 @@ if (!adminDomain) {
   )
 }
 
-const alertEmail = process.env.ALERT_EMAIL
-if (!alertEmail) {
-  throw new Error(
-    "ALERT_EMAIL env var is required. In CI sourced from the EMAIL_FORWARD_TO repo secret; locally set to a real inbox that receives AWS budget + alarm notifications.",
-  )
-}
+// Operator email is no longer a CDK input. The deploy workflow subscribes
+// the EMAIL_FORWARD_TO repo secret to the alert SNS topics out-of-band
+// (aws sns subscribe --protocol email, with ::add-mask:: on the value)
+// so the address never enters CFN templates / `cdk diff` snapshots / CI
+// logs. See SecurityStack.killSwitchOpsTopic + ObservabilityStack.billingTopic.
 
 const network = new NetworkStack(app, `Network-${env}`, {
   env: stackEnv,
@@ -96,7 +95,6 @@ const security = new SecurityStack(app, `Security-${env}`, {
   envName: env,
   appStack,
   dataStack: data,
-  alertEmail,
 })
 
 new ObservabilityStack(app, `Observability-${env}`, {
@@ -104,7 +102,6 @@ new ObservabilityStack(app, `Observability-${env}`, {
   envName: env,
   appStack,
   dataStack: data,
-  alertEmail,
   killSwitchTopic: security.killSwitchTopic,
 })
 

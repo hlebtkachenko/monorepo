@@ -125,10 +125,12 @@ jobs:
           ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
           PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+          ALERT_EMAIL: ${{ secrets.EMAIL_FORWARD_TO }}
         run: |
           echo "::add-mask::$ACCOUNT_ID"
           if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
           if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+          if [ -n "$ALERT_EMAIL" ]; then echo "::add-mask::$ALERT_EMAIL"; fi
 
       - name: Resolve role ARN
         id: env
@@ -265,10 +267,12 @@ jobs:
           ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
           PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+          ALERT_EMAIL: ${{ secrets.EMAIL_FORWARD_TO }}
         run: |
           echo "::add-mask::$ACCOUNT_ID"
           if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
           if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+          if [ -n "$ALERT_EMAIL" ]; then echo "::add-mask::$ALERT_EMAIL"; fi
 
       - name: Resolve role ARN
         id: env
@@ -500,10 +504,18 @@ jobs:
           ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
           PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+          ALERT_EMAIL: ${{ secrets.EMAIL_FORWARD_TO }}
         run: |
           echo "::add-mask::$ACCOUNT_ID"
           if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
           if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+          # Operator email is PII. Mask it so no subsequent `set -x` /
+          # `aws ... --output text` / debug echo leaks it into the run log.
+          # The CDK templates themselves no longer reference this address
+          # (security-stack + observability-stack switched to SNS-only
+          # subscribers); the workflow subscribes it to the alert topics
+          # out-of-band via `aws sns subscribe` further down.
+          if [ -n "$ALERT_EMAIL" ]; then echo "::add-mask::$ALERT_EMAIL"; fi
 
       - name: Resolve role ARN + domains for environment
         id: env
@@ -757,6 +769,132 @@ jobs:
       # handles tear-down on rollback. The combination supersedes the
       # belt-and-braces cleanup.
 
+      # One-time live-state migration for the email-PII removal in
+      # security-stack.ts. The CDK template now uses SNS-only subscribers
+      # on every CfnBudget; live budgets still have EMAIL subscribers
+      # from before. Without this migration, `cdk deploy Security-*`
+      # would force-REPLACE each budget (NotificationsWithSubscribers is
+      # immutable), the CREATE-new step would collide on the budget name,
+      # and the whole stack rolls back. Verified on deploy run 26111357126.
+      #
+      # Idempotent: if a budget is already SNS-only this step is a no-op.
+      # After all 6 budgets are migrated, future deploys skip the work in
+      # ~1s. Orphan `monorepo-${env}-hardcap50` (not yet CFN-owned) is
+      # delete-recreated by CDK in the same deploy — a brief gap on that
+      # one budget, but MonthlyTotal at $40 still covers the spend window.
+      - name: Migrate live AWS Budgets to SNS-only subscribers [pre-Security-deploy]
+        if: env.STACK_SCOPE == 'all' || env.STACK_SCOPE == 'security-only'
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+
+          # Only run when Security stack already exists. First-ever deploy
+          # has no budgets at all; CDK creates them clean.
+          if ! aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Security-${ENV_NAME} not deployed yet — skipping budget migration."
+            exit 0
+          fi
+
+          # Topic ARNs are stack outputs. If the stack was deployed with
+          # the OLD template (no outputs), fall back to constructing the
+          # ARN from the resource physical id.
+          # ANSI-C $'…\x60…\x60…' wraps the JMESPath backtick literals so
+          # quiets SC2016 (intentional, not shell substitution).
+          ops_query=$'Stacks[0].Outputs[?OutputKey==\x60KillSwitchOpsTopicArn\x60].OutputValue'
+          kill_query=$'Stacks[0].Outputs[?OutputKey==\x60KillSwitchTopicArn\x60].OutputValue'
+          OPS_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$ops_query" --output text)
+          KILL_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$kill_query" --output text)
+          if [ -z "$OPS_ARN" ] || [ "$OPS_ARN" = "None" ]; then
+            OPS_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "StackResources[?LogicalResourceId=='KillSwitchOpsTopic'].PhysicalResourceId" --output text)
+          fi
+          if [ -z "$KILL_ARN" ] || [ "$KILL_ARN" = "None" ]; then
+            KILL_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "StackResources[?LogicalResourceId=='KillSwitchTopic'].PhysicalResourceId" --output text)
+          fi
+          if [ -z "$OPS_ARN" ] || [ -z "$KILL_ARN" ]; then
+            echo "::error::Could not resolve KillSwitchOpsTopic / KillSwitchTopic ARNs. Aborting migration."
+            exit 1
+          fi
+          echo "Ops topic:  $OPS_ARN"
+          echo "Kill topic: $KILL_ARN"
+
+          # The 6 CDK-defined budgets. Each has 2 notifications (80% + 100%);
+          # all subscribers must be SNS pointing to OPS (both thresholds)
+          # plus KILL (100% only).
+          BUDGETS=(monthlytotal hardcap50 datatransfer s3 rds ecs)
+
+          # Identify orphans: any CDK-defined name that is NOT a current
+          # CFN-managed resource of Security-${ENV_NAME}. These must be
+          # deleted so the next `cdk deploy` can CREATE them with proper
+          # CFN ownership (the alternative `cdk import` is interactive).
+          CFN_BUDGETS=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "StackResources[?ResourceType=='AWS::Budgets::Budget'].PhysicalResourceId" --output text || true)
+          echo "CFN-owned budgets: $CFN_BUDGETS"
+
+          migrate_subscribers() {
+            local budget="$1" threshold="$2" want_kill="$3"
+            local notif="ComparisonOperator=GREATER_THAN,NotificationType=ACTUAL,Threshold=${threshold},ThresholdType=PERCENTAGE,NotificationState=ALARM"
+
+            # Existing subscribers for this notification.
+            local existing
+            existing=$(aws budgets describe-subscribers-for-notification \
+              --account-id "$AWS_ACCOUNT_ID" \
+              --budget-name "$budget" \
+              --notification "$notif" \
+              --query 'Subscribers[*].[SubscriptionType,Address]' \
+              --output text 2>/dev/null || true)
+
+            local have_ops=0 have_kill=0
+            # Iterate. We do NOT echo the address — it may be a real email.
+            # Process substitution keeps the loop in the current shell so
+            # have_ops / have_kill propagate. A heredoc here would close
+            # the YAML literal scalar block (column-0 body terminator).
+            while IFS=$'\t' read -r kind addr; do
+              [ -z "${kind:-}" ] && continue
+              case "$kind:$addr" in
+                "SNS:$OPS_ARN")  have_ops=1 ;;
+                "SNS:$KILL_ARN") have_kill=1 ;;
+                EMAIL:*)
+                  echo "  - deleting EMAIL subscriber on $budget @ ${threshold}%"
+                  aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=EMAIL,Address=$addr" >/dev/null
+                  ;;
+                SNS:*)
+                  # Some other SNS topic — leave it, not our concern.
+                  ;;
+              esac
+            done < <(printf '%s\n' "$existing")
+
+            if [ "$have_ops" -eq 0 ]; then
+              echo "  - adding SNS ops subscriber on $budget @ ${threshold}%"
+              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
+            fi
+            if [ "$want_kill" = "yes" ] && [ "$have_kill" -eq 0 ]; then
+              echo "  - adding SNS kill-switch subscriber on $budget @ ${threshold}%"
+              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
+            fi
+          }
+
+          for slug in "${BUDGETS[@]}"; do
+            name="monorepo-${ENV_NAME}-${slug}"
+            if ! aws budgets describe-budget --account-id "$AWS_ACCOUNT_ID" --budget-name "$name" >/dev/null 2>&1; then
+              echo "Budget $name does not exist — CDK will create."
+              continue
+            fi
+
+            # Orphan check: live exists but not CFN-owned → delete so the
+            # next `cdk deploy` can CREATE it cleanly.
+            if ! echo "$CFN_BUDGETS" | tr '\t' '\n' | grep -qx "$name"; then
+              echo "Budget $name is orphan (not CFN-owned). Deleting so CDK can recreate."
+              aws budgets delete-budget --account-id "$AWS_ACCOUNT_ID" --budget-name "$name" >/dev/null
+              continue
+            fi
+
+            echo "Aligning subscribers on $name (CFN-owned)…"
+            migrate_subscribers "$name" 80  no
+            migrate_subscribers "$name" 100 yes
+          done
+
+          echo "Live budget subscribers now match CDK template (SNS-only)."
+
       # Single cdk deploy, AFTER images + secrets exist. App and the stacks
       # that depend on it (Security, Observability, Backup) cannot deploy
       # before the web/api images are in ECR and the tunnel/Resend secrets
@@ -776,11 +914,10 @@ jobs:
           # closed (nobody authorized). Set vars.ADMIN_WORKSPACE_ALLOWLIST
           # to grant staff access; changing it is a redeploy.
           ADMIN_WORKSPACE_ALLOWLIST: ${{ vars.ADMIN_WORKSPACE_ALLOWLIST }}
-          # Inbox for AWS Budget breaches + CloudWatch alarms + cost-runaway
-          # kill-switch notifications. Sourced from the EMAIL_FORWARD_TO
-          # repo secret (same address that forwards inbound mail to the
-          # operator's real inbox). bin/app.ts throws if unset.
-          ALERT_EMAIL: ${{ secrets.EMAIL_FORWARD_TO }}
+          # ALERT_EMAIL is intentionally NOT passed to CDK. The operator
+          # email never enters CFN templates / `cdk diff` snapshots / CI
+          # logs. The post-deploy step "Subscribe operator email to alert
+          # SNS topics" handles it out-of-band with ::add-mask::.
           # Full Secrets Manager ARNs captured by the "Ensure workflow-managed
           # Secrets Manager secrets" step. AppStack reads each one from CDK
           # context and instantiates Secret.fromSecretCompleteArn, so the
@@ -831,6 +968,68 @@ jobs:
             --context "imageTag=${IMAGE_TAG}" \
             "${SECRET_CTX[@]}" \
             --require-approval=never
+
+      # Subscribe operator email to the 3 alert SNS topics. CDK does NOT
+      # add the email subscriber from inside the template (would leak the
+      # address as plaintext into the CFN template + `cdk diff` output
+      # that any account-read role can fetch). Workflow does it here,
+      # idempotently, with ::add-mask:: on the address.
+      #
+      # Topics + roles:
+      #   - Security-${env} KillSwitchOpsTopicArn  — operator email lands
+      #     here for budget breaches (80% + 100%) and kill-switch handler
+      #     failures.
+      #   - Security-${env} KillSwitchTopicArn     — Lambda kill-switch
+      #     consumes; we ALSO subscribe the email so the operator gets a
+      #     copy when the kill-switch fires (defense in depth).
+      #   - Observability-${env} BillingTopicArn   — CloudWatch alarm
+      #     fan-out for the 6 attack-vector + 2 Fargate-Critical alarms.
+      #
+      # Idempotent: skip if a CONFIRMED email subscription already exists
+      # on the topic for this address. Pending subscriptions are not
+      # re-subscribed (the recipient has the confirmation link in inbox).
+      - name: Subscribe operator email to alert SNS topics
+        if: env.STACK_SCOPE != 'infra-only'
+        env:
+          ALERT_EMAIL: ${{ secrets.EMAIL_FORWARD_TO }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ALERT_EMAIL:-}" ]; then
+            echo "::error::EMAIL_FORWARD_TO repo secret is empty — no operator alert email to subscribe."
+            exit 1
+          fi
+          echo "::add-mask::$ALERT_EMAIL"
+
+          subscribe_idempotent() {
+            local topic_arn="$1" label="$2"
+            if [ -z "$topic_arn" ] || [ "$topic_arn" = "None" ]; then
+              echo "::warning::$label topic ARN empty — skipping subscription."
+              return 0
+            fi
+            # Look for an existing subscription (any status) where Endpoint
+            # equals the operator email. ListSubscriptionsByTopic returns
+            # PendingConfirmation + Confirmed; either counts as "in flight".
+            local existing
+            existing=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --query "Subscriptions[?Protocol=='email' && Endpoint=='${ALERT_EMAIL}'] | length(@)" --output text)
+            if [ "$existing" != "0" ]; then
+              echo "OK   $label: operator email already subscribed (count=$existing)."
+              return 0
+            fi
+            echo "SUB  $label: subscribing operator email (one-time AWS confirmation email will arrive)."
+            aws sns subscribe --topic-arn "$topic_arn" --protocol email --notification-endpoint "$ALERT_EMAIL" --region "$AWS_REGION" >/dev/null
+          }
+
+          # JMESPath query strings — ANSI-C wrap quiets shellcheck SC2016.
+          ops_query=$'Stacks[0].Outputs[?OutputKey==\x60KillSwitchOpsTopicArn\x60].OutputValue'
+          kill_query=$'Stacks[0].Outputs[?OutputKey==\x60KillSwitchTopicArn\x60].OutputValue'
+          bill_query=$'Stacks[0].Outputs[?OutputKey==\x60BillingTopicArn\x60].OutputValue'
+          OPS_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$ops_query" --output text 2>/dev/null || echo "")
+          KILL_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$kill_query" --output text 2>/dev/null || echo "")
+          BILL_ARN=$(aws cloudformation describe-stacks --stack-name "Observability-${ENV_NAME}" --region "$AWS_REGION" --query "$bill_query" --output text 2>/dev/null || echo "")
+
+          subscribe_idempotent "$OPS_ARN"  "KillSwitchOpsTopic"
+          subscribe_idempotent "$KILL_ARN" "KillSwitchTopic"
+          subscribe_idempotent "$BILL_ARN" "BillingTopic"
 
       # Persist last-deploy state for the next run's detect-changes job.
       # Only writes on a fully-successful deploy. Two parameters:

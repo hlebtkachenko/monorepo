@@ -26,6 +26,8 @@ Decisions worth recording: the ones a future contributor (human or agent) would 
 | [0018](0018-three-layer-authz.md)                 | Three-layer authorization (RLS + OpenFGA + Cerbos)                    | Accepted |
 | [0019](0019-status-page-and-uptime-monitoring.md) | Status page + uptime monitoring (OpenStatus self-hosted on OVH)       | Accepted |
 | [0020](0020-public-api-foundation.md)             | Public API foundation: NestJS-native contracts on a webpack bundle    | Accepted |
+| [0021](0021-turborepo-remote-cache-cloudflare.md) | Turborepo remote cache on Cloudflare                                  | Accepted |
+| [0022](0022-unified-opaque-tokens.md)             | Unified opaque-token design (`auth_token`)                            | Proposed |
 
 Append in commit order, never reshuffled. Numbers are immutable after merge.
 

@@ -831,6 +831,23 @@ jobs:
           CFN_BUDGETS=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "StackResources[?ResourceType=='AWS::Budgets::Budget'].PhysicalResourceId" --output text || true)
           echo "CFN-owned budgets: $CFN_BUDGETS"
 
+          # notification_exists <budget> <threshold> — return 0 if the
+          # live budget has a notification at this threshold, else 1.
+          # Prior failed deploys can leave live budgets with only a subset
+          # of the notifications the CDK template ships (e.g.
+          # monorepo-staging-monthlytotal has only 100% live, not 80%).
+          # Adding a subscriber to a missing notification fails with
+          # `NotFoundException — the notification doesn't exist` even
+          # when the shorthand fields match what CDK will produce.
+          notification_exists() {
+            local budget="$1" threshold="$2"
+            aws budgets describe-notifications-for-budget \
+              --account-id "$AWS_ACCOUNT_ID" \
+              --budget-name "$budget" \
+              --query "Notifications[?Threshold==\`${threshold}\`] | length(@)" \
+              --output text 2>/dev/null | grep -qv '^0$'
+          }
+
           migrate_subscribers() {
             local budget="$1" threshold="$2" want_kill="$3"
             # NotificationState intentionally omitted. CDK's CfnBudget block
@@ -840,6 +857,17 @@ jobs:
             # create-subscriber both fail with "notification doesn't exist"
             # because the state filter excludes the actual stored row.
             local notif="ComparisonOperator=GREATER_THAN,NotificationType=ACTUAL,Threshold=${threshold},ThresholdType=PERCENTAGE"
+
+            # Skip silently when the notification does not exist live.
+            # CDK's next `deploy Security-*` step creates it (with our
+            # SNS-only subscribers as defined in security-stack.ts) — the
+            # whole point of this migration step is just to swap EXISTING
+            # EMAIL subscribers to SNS before CDK's UPDATE forces a
+            # CfnBudget REPLACE on the change of subscriber type.
+            if ! notification_exists "$budget" "$threshold"; then
+              echo "  - skip $budget @ ${threshold}%: notification missing live (CDK will create)"
+              return 0
+            fi
 
             # Existing subscribers for this notification.
             local existing

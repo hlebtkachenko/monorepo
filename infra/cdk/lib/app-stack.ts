@@ -254,24 +254,34 @@ export class AppStack extends Stack {
     // the secret in PendingDeletion state cannot wedge the next deploy
     // at ResourceExistsException. Staging sessions invalidating on a
     // staging rollback is acceptable.
-    const betterAuthSecret = new Secret(this, "BetterAuthSecret", {
-      secretName: `monorepo-${props.envName}-better-auth-secret`,
-      description: `${props.envName} Better Auth session-signing secret (32+ bytes)`,
-      generateSecretString: {
-        passwordLength: 44,
-        excludePunctuation: true,
-      },
-      removalPolicy: ephemeralRemovalPolicy,
-    })
-    const appTokenSecret = new Secret(this, "AppTokenSecret", {
-      secretName: `monorepo-${props.envName}-app-token-secret`,
-      description: `${props.envName} app signup/invite/login-email token signing secret`,
-      generateSecretString: {
-        passwordLength: 44,
-        excludePunctuation: true,
-      },
-      removalPolicy: ephemeralRemovalPolicy,
-    })
+    // Better Auth + app-token signing secrets — workflow-managed (same
+    // pattern as the Cloudflare-tunnel + Resend secrets above). Previously
+    // CDK created them with `new Secret(...) + generateSecretString`,
+    // which produced an AWS-assigned random suffix on the ARN
+    // (`...-better-auth-secret-EQ76ea`). When a CFN rollback force-deleted
+    // the secret, the next deploy created a new suffix but the CFN stack
+    // template + IAM policy still cached the old one, leading to:
+    //
+    //   ResourceInitializationError: unable to retrieve secret ...
+    //   AccessDeniedException: ... not authorized to perform
+    //   secretsmanager:GetSecretValue on resource:
+    //   .../monorepo-staging-better-auth-secret-EQ76ea
+    //
+    // — see deploy run 26091787153 (2026-05-19 12:59Z). Switching to
+    // fromSecretNameV2 references the secret by NAME only, no ARN suffix
+    // drift. The deploy workflow's `Ensure secret exists` steps generate
+    // the random 44-char value on first creation, restore from
+    // PendingDeletion on retry, and never delete the underlying secret.
+    const betterAuthSecret = Secret.fromSecretNameV2(
+      this,
+      "BetterAuthSecret",
+      `monorepo-${props.envName}-better-auth-secret`,
+    )
+    const appTokenSecret = Secret.fromSecretNameV2(
+      this,
+      "AppTokenSecret",
+      `monorepo-${props.envName}-app-token-secret`,
+    )
 
     // Resend API key — populated out-of-band (gh repo secret + deploy
     // workflow `secretsmanager put-secret-value`). CDK only references the

@@ -185,19 +185,26 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["BETTER_AUTH_URL"]).not.toContain("test.example.com")
   })
 
-  it("creates CDK-generated Better Auth + app token secrets", () => {
-    // Two CDK-managed Secrets live in the AppStack itself:
-    //   - monorepo-{env}-better-auth-secret (BetterAuthSecret construct)
-    //   - monorepo-{env}-app-token-secret   (AppTokenSecret construct)
-    // The Cloudflare Tunnel + Resend secrets are fromSecretNameV2 imports;
-    // they don't materialize as CDK resources in this template.
-    template.resourceCountIs("AWS::SecretsManager::Secret", 2)
-    template.hasResourceProperties("AWS::SecretsManager::Secret", {
-      Name: "monorepo-test-better-auth-secret",
+  it("references Better Auth + app-token secrets by name (workflow-managed)", () => {
+    // All four secrets are workflow-managed (fromSecretNameV2 imports), so
+    // none of them materialize as CDK Secret resources in this template.
+    // The workflow's `Ensure ... secret exists` steps create the values
+    // before `cdk deploy App-*` runs.
+    template.resourceCountIs("AWS::SecretsManager::Secret", 0)
+    // The TaskExecutionRole's DefaultPolicy must grant GetSecretValue
+    // against the secret names (not random-suffix ARNs).
+    const policies = template.findResources("AWS::IAM::Policy", {
+      Properties: {
+        PolicyDocument: Match.objectLike({
+          Statement: Match.arrayWith([
+            Match.objectLike({
+              Action: Match.arrayWith(["secretsmanager:GetSecretValue"]),
+            }),
+          ]),
+        }),
+      },
     })
-    template.hasResourceProperties("AWS::SecretsManager::Secret", {
-      Name: "monorepo-test-app-token-secret",
-    })
+    expect(Object.keys(policies).length).toBeGreaterThan(0)
   })
 
   it("api connects to pgbouncer sidecar on localhost:6432", () => {

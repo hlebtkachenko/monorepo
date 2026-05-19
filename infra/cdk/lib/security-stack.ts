@@ -212,14 +212,19 @@ export class SecurityStack extends Stack {
       }),
     )
 
-    // ----- AWS Budgets (5) -----
+    // ----- AWS Budgets (6) -----
     //
-    // Total $40 + Data Transfer $10 + S3 $5 + RDS $20 + ECS $25.
+    // Total $40 + HardCap $50 + Data Transfer $10 + S3 $5 + RDS $20 + ECS $25.
     // 80% threshold -> email warning. 100% threshold -> email + SNS to the
     // kill-switch topic (stops ECS service).
     //
-    // First 2 budgets per account are free. The remaining 3 cost
-    // $0.02/day each = ~$1.80/mo total. Cheap insurance.
+    // HardCap50 is a defense-in-depth ceiling above MonthlyTotal $40. If
+    // MonthlyTotal fires but the kill-switch fails or the operator silences
+    // the alert, HardCap50 fires the same path again at $50 actual spend.
+    // See ADR-0016 Amendment (2026-05-19).
+    //
+    // First 2 budgets per account are free. The remaining 4 cost
+    // $0.02/day each = ~$2.40/mo total. Cheap insurance.
     //
     // NOTE: AWS Budgets Actions (auto-attach IAM-deny, RUN_SSM_DOCUMENTS,
     // APPLY_SCP) are intentionally deferred. They require an execution role
@@ -230,6 +235,10 @@ export class SecurityStack extends Stack {
       {
         id: "MonthlyTotal",
         limitUsd: 40,
+      },
+      {
+        id: "HardCap50",
+        limitUsd: 50,
       },
       {
         id: "DataTransfer",

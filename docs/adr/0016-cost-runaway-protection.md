@@ -37,7 +37,7 @@ Negative / trade-offs:
 - Stopping ECS does not stop in-flight RDS queries; the rds-network-out alarm is alarm-only for that reason.
 - AWS Budgets carry an 8-12h data lag; they are a dollar-cap backstop, not the primary cost signal. The CloudWatch+Lambda path fires within minutes.
 - Web container keeps writable root because Next.js standalone writes to `/app/.next/cache`. A follow-up custom `cacheHandler` PR can flip it.
-- 3 of the 5 budgets are paid ($0.02/day each = ~$1.80/mo).
+- 4 of the 6 budgets are paid ($0.02/day each = ~$2.40/mo).
 
 Follow-up work required:
 
@@ -60,6 +60,16 @@ Dollar-cap enforcement is now solely the `MonthlyTotal` $40 Budget at 100% -> ki
 Correctness still holds without the reservation: the handler is idempotent (`UpdateService desiredCount=0` is a no-op the second time), the SNS subscription has a DLQ (`KillSwitchDlq`), and `KillSwitchErrorsAlarm` pages via `KillSwitchOpsTopic` on any invocation failure. ADR-0016's "three independent defenses" never named concurrency reservation as one of them; the protection was a belt on top of suspenders.
 
 Restore the reservation if and when an AWS service-quota increase for "Concurrent executions" is granted on this account and a measured race justifies re-pinning concurrency.
+
+## Amendment (2026-05-19): HardCap50 budget added
+
+A sixth budget `monorepo-${env}-hardcap50` ($50 monthly actual spend, 100% threshold) has been added alongside `MonthlyTotal` ($40). Its 100% notification subscribers are identical to MonthlyTotal: alert email + `KillSwitchTopic` SNS.
+
+Reason: defense-in-depth. `MonthlyTotal` is the primary $40 trip-wire; if it misfires (subscription `PendingConfirmation`, kill-switch Lambda failure not cleared by DLQ, operator suppressing the alarm), HardCap50 fires the same path again at $50. The two budgets are independent at the AWS Budgets layer; both have to fail for cost to keep climbing.
+
+The earlier "~$50 worst-case ceiling" in Consequences was an estimate derived from MonthlyTotal $40 + budget propagation lag (~6h on a small Fargate task). HardCap50 now codifies that ceiling as an explicit second budget rather than relying on the implicit lag bound. Cost overhead: +$0.60/mo (one additional paid budget beyond the 2 free per account).
+
+Pre-existing manual budget `monorepo-staging-hard-cap-50` (created via CLI 2026-05-19 before this amendment landed) must be deleted before the CDK-managed `monorepo-${env}-hardcap50` deploys, otherwise the two coexist with identical wiring.
 
 ## Alternatives considered
 

@@ -62,12 +62,13 @@ describe("SecurityStack", () => {
     }
   })
 
-  it("creates 5 budgets with expected limits", () => {
+  it("creates 6 budgets with expected limits", () => {
     const budgets = template.findResources("AWS::Budgets::Budget")
-    expect(Object.keys(budgets).length).toBe(5)
+    expect(Object.keys(budgets).length).toBe(6)
 
     const expectedLimits: Record<string, number> = {
       "monorepo-test-monthlytotal": 40,
+      "monorepo-test-hardcap50": 50,
       "monorepo-test-datatransfer": 10,
       "monorepo-test-s3": 5,
       "monorepo-test-rds": 20,

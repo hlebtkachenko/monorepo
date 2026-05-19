@@ -11,7 +11,7 @@ Application-layer infrastructure. Deployed per environment.
 | `NetworkStack`       | VPC, subnets (public + isolated), security groups. Zero NAT gateways (ADR-0008).                                                                           |
 | `DataStack`          | RDS Postgres 18, ECR repos, S3 app bucket, Secrets Manager runtime creds.                                                                                  |
 | `AppStack`           | ECS Fargate (arm64), 3-container task (web + api + cloudflared sidecar). Hardened (capDrop ALL + readonlyRootFilesystem on api/cloudflared + shared /tmp). |
-| `SecurityStack`      | Kill-switch Lambda + 5 budgets + CloudTrail + RDS restart watcher (ADR-0016).                                                                              |
+| `SecurityStack`      | Kill-switch Lambda + 6 budgets + CloudTrail + RDS restart watcher (ADR-0016).                                                                              |
 | `ObservabilityStack` | CloudWatch alarms (6 attack-vector + 2 critical Fargate) wired to email + kill-switch SNS.                                                                 |
 
 Stacks named `<Stack>-<env>` where `env` ∈ {`staging`, `production`}.

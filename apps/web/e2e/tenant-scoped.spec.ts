@@ -81,17 +81,26 @@ async function loginAsSeededOwner(
   await page.locator("input#password").fill(seed.password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
-  // Wait until the password step is left (session established) AND the
-  // resulting navigation finishes loading. Without `waitForLoadState`,
-  // the post-login `router.push("/workspace")` is still in flight when
-  // this helper returns; a subsequent `page.goto("/<orgSlug>")` then
-  // races and Playwright aborts the new navigation with
-  // "interrupted by another navigation to /workspace".
+  // Wait for the post-login redirect chain to fully settle.
+  //
+  // Form's `onNavigate("/workspace")` is a client-side `router.push`.
+  // `/workspace` then server-redirects to the user's first org
+  // (`/<seed-org-slug>`). A naive `waitForURL(url !== /auth/login/password)`
+  // returned as soon as the first push committed, before the bounce
+  // resolved — any subsequent `page.goto(...)` in the test body then
+  // raced the queued bounce and Playwright aborted with "interrupted by
+  // another navigation to /workspace".
+  //
+  // Waiting on the FINAL settled URL (the seeded org dashboard) plus
+  // `networkidle` defeats the race. The helper is now safe to chain with
+  // an explicit `page.goto` in the test body if needed.
   await page.waitForURL(
-    (url) => !url.pathname.includes("/auth/login/password"),
+    (url) =>
+      !url.pathname.includes("/auth/login") &&
+      !url.pathname.startsWith("/workspace"),
     { timeout: 15_000 },
   )
-  await page.waitForLoadState("load")
+  await page.waitForLoadState("networkidle")
 }
 
 // ---------------------------------------------------------------------------

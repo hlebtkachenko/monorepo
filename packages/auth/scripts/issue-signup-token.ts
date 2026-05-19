@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 /**
- * Dev CLI — issue a signup JWT and print the full /auth/signup/start
+ * Dev CLI — issue a signup token and print the full /auth/signup/start
  * link the recipient should open in their browser.
  *
  * Usage:
@@ -10,15 +10,17 @@
  *     [--base-url http://localhost:3000] \
  *     [--ttl 1209600]            # seconds; default 14 days
  *
- * Reads APP_TOKEN_SECRET from process.env (or `apps/web/.env.local`
- * loaded via `--env-file` flag if you prefer). Refuses to run without it.
+ * When USE_AUTH_TOKEN_FOR_SIG=true, issues an opaque afkey token via
+ * mintToken (requires DATABASE_URL). When false (default), issues a
+ * legacy HS256 JWT (requires APP_TOKEN_SECRET).
  *
  * The signup-token cookie path was widened to "/" in Phase 5 so the
  * cookie survives the handoff into /onboarding/*. The recipient opens
- * the printed URL → /auth/signup/start verifies + sets the cookie →
- * 302 to /auth/signup welcome card → onboarding wizard.
+ * the printed URL -> /auth/signup/start -> (new path) /auth/signup/landing
+ * -> POST consumes -> /auth/signup welcome card -> onboarding wizard.
  */
 import { signSignupToken } from "../src/tokens/signup"
+import { mintToken } from "../src/tokens/auth-token"
 
 interface Args {
   email: string
@@ -51,27 +53,48 @@ function parseArgs(argv: string[]): Args {
 }
 
 async function main(): Promise<void> {
-  if (!process.env.APP_TOKEN_SECRET) {
+  const useNewPath = process.env.USE_AUTH_TOKEN_FOR_SIG === "true"
+
+  if (!useNewPath && !process.env.APP_TOKEN_SECRET) {
     console.error(
       "ERROR: APP_TOKEN_SECRET is not set in the environment.\n" +
         "  Set it from apps/web/.env.local, or generate one with:\n" +
         "    bash scripts/generate-env.sh\n" +
-        "  Then re-run with the same secret loaded.",
+        "  Then re-run with the same secret loaded.\n" +
+        "  Alternatively, set USE_AUTH_TOKEN_FOR_SIG=true to use the new\n" +
+        "  opaque-token path (requires DATABASE_URL).",
     )
     process.exit(2)
   }
 
   const args = parseArgs(process.argv.slice(2))
-  const token = await signSignupToken(
-    { email: args.email, workspace: args.workspace },
-    args.ttlSeconds,
-  )
-  const link = `${args.baseUrl}/auth/signup/start?token=${encodeURIComponent(token)}`
+  let token: string
+  let expiresAt: Date
 
-  const expiresAt = new Date(Date.now() + args.ttlSeconds * 1000)
+  if (useNewPath) {
+    const minted = await mintToken({
+      kind: "sig",
+      payload: { email: args.email, workspace: args.workspace },
+      ttlSeconds: args.ttlSeconds,
+    })
+    token = minted.rawToken
+    expiresAt = minted.expiresAt
+  } else {
+    token = await signSignupToken(
+      { email: args.email, workspace: args.workspace },
+      args.ttlSeconds,
+    )
+    expiresAt = new Date(Date.now() + args.ttlSeconds * 1000)
+  }
+
+  const link = `${args.baseUrl}/auth/signup/start?token=${encodeURIComponent(token)}`
 
   console.log("")
   console.log("Signup link issued:")
+  console.log(
+    "  path:       ",
+    useNewPath ? "new (opaque auth_token)" : "legacy (JWT)",
+  )
   console.log("  email:      ", args.email)
   console.log("  workspace:  ", args.workspace)
   console.log("  expires_at: ", expiresAt.toISOString())

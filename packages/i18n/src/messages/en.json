@@ -238,6 +238,18 @@
         "description": "You're signed in as {sessionEmail}. This signup link was issued for {claimEmail}.",
         "instruction": "Sign out to continue with this signup link.",
         "signOut": "Sign out and continue"
+      },
+      "landing": {
+        "metaTitle": "Continue signup",
+        "title": "Your invitation is ready",
+        "description": "Click below to continue setting up your account as {email}.",
+        "descriptionGeneric": "Click the button below to continue.",
+        "continue": "Continue to signup",
+        "invalid": {
+          "title": "This link is invalid or has expired",
+          "description": "The signup link has already been used, expired, or is invalid. Contact support to receive a new invitation.",
+          "contactSupport": "Contact support"
+        }
       }
     },
     "invite": {

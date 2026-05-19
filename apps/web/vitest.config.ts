@@ -32,6 +32,8 @@ export default defineConfig({
       // server-only: use the package's own empty stub (exported as
       // "react-server" condition; we point directly to the file).
       "server-only": resolve("./node_modules/server-only/empty.js"),
+      // @/ — mirrors the tsconfig paths alias (. maps to apps/web/).
+      "@/": resolve("./") + "/",
     },
   },
   test: {

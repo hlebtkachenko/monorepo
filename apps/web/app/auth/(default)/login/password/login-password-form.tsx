@@ -2,10 +2,10 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "@workspace/i18n/client"
-import { authClient } from "@workspace/auth/client"
 import { LoginPasswordForm as LoginPasswordFormBlock } from "@workspace/ui/blocks/auth"
 
 import { clearLoginEmailAction, sendMagicLinkAction } from "../actions"
+import { signInPasswordAction } from "./actions"
 
 interface Props {
   email: string
@@ -19,26 +19,34 @@ export function LoginPasswordForm({ email }: Props) {
   const tValidation = useTranslations("auth.validation")
   const tErrors = useTranslations("auth.errors")
 
+  const nextParam = search.get("next") ?? undefined
+
   return (
     <LoginPasswordFormBlock
       email={email}
       defaultNext="/workspace"
-      next={search.get("next") ?? undefined}
-      onSignIn={async ({ email: e, password, rememberMe, callbackURL }) => {
-        const result = await authClient.signIn.email({
+      next={nextParam}
+      onSignIn={async ({ email: e, password, rememberMe }) => {
+        // Server action: on the success path the action throws NEXT_REDIRECT
+        // and never returns. The block treats a thrown redirect as an
+        // unhandled error from `onSubmit`; the `noopOnSuccess` flag on the
+        // block tells it not to fire its own `onNavigate(next)` after the
+        // action resolves, because we never reach that path on success.
+        const result = await signInPasswordAction({
           email: e,
           password,
           rememberMe,
-          callbackURL,
+          next: nextParam,
         })
         return {
-          error: result.error ?? null,
-          data: result.data as { twoFactorRedirect?: boolean } | null,
+          error: result.error,
+          data: result.data,
         }
       }}
       onClearLoginEmail={clearLoginEmailAction}
       onSendMagicLink={sendMagicLinkAction}
       onNavigate={(href) => router.push(href)}
+      noopOnSuccess
       messages={{
         title: t("title"),
         description: t("description", { brand: tBrand("name") }),

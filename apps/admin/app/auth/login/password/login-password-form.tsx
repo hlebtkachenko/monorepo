@@ -2,11 +2,10 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "@workspace/i18n/client"
-import { authClient } from "@workspace/auth/client"
 import { LoginPasswordForm as LoginPasswordFormBlock } from "@workspace/ui/blocks/auth"
 
 import { clearLoginEmailAction, sendMagicLinkAction } from "../actions"
-import { checkAdminAllowlistAction } from "../check-allowlist-action"
+import { signInPasswordAction } from "./actions"
 
 interface Props {
   email: string
@@ -21,30 +20,33 @@ export function LoginPasswordForm({ email }: Props) {
   const tValidation = useTranslations("auth.validation")
   const tErrors = useTranslations("auth.errors")
 
+  const nextParam = search.get("next") ?? undefined
+
   return (
     <LoginPasswordFormBlock
       email={email}
       defaultNext="/"
-      next={search.get("next") ?? undefined}
-      afterSignInGate={checkAdminAllowlistAction}
-      onSignIn={async ({ email: e, password, rememberMe, callbackURL }) => {
-        const result = await authClient.signIn.email({
+      next={nextParam}
+      onSignIn={async ({ email: e, password, rememberMe }) => {
+        // Admin server action: runs the allowlist gate inline and either
+        // redirects (allowed) or returns an error banner (denied). The
+        // 2FA branch returns `data.twoFactorRedirect` so the form routes
+        // to /auth/login/mfa.
+        const result = await signInPasswordAction({
           email: e,
           password,
           rememberMe,
-          callbackURL,
+          next: nextParam,
         })
         return {
-          error: result.error ?? null,
-          data: result.data as { twoFactorRedirect?: boolean } | null,
+          error: result.error,
+          data: result.data,
         }
       }}
       onClearLoginEmail={clearLoginEmailAction}
       onSendMagicLink={sendMagicLinkAction}
-      onSignOut={async () => {
-        await authClient.signOut()
-      }}
       onNavigate={(href) => router.push(href)}
+      noopOnSuccess
       messages={{
         title: t("title"),
         description: tAdmin("description", { brand: tBrand("name") }),

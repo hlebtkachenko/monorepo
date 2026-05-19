@@ -66,9 +66,15 @@ const NONEXISTENT_ORG_SLUG = "no-such-org-in-this-db"
 // ---------------------------------------------------------------------------
 
 /**
- * Perform the two-step email → password login with the seeded credentials
+ * Perform the two-step email + password login with the seeded credentials
  * and wait until the browser has navigated away from the password step.
  * Returns after a Better Auth session cookie has been set.
+ *
+ * The password submit is a Server Action that calls `redirect()`: the
+ * browser sees one atomic response carrying both the session cookie and
+ * the 303 Location. No client-side `router.push` runs, so `waitForURL`
+ * is sufficient and the prior `networkidle` workaround is no longer
+ * needed.
  */
 async function loginAsSeededOwner(
   page: import("@playwright/test").Page,
@@ -81,24 +87,12 @@ async function loginAsSeededOwner(
   await page.locator("input#password").fill(seed.password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
-  // Wait for the post-login redirect chain to fully settle.
-  //
-  // Form's `onNavigate("/workspace")` is a client-side `router.push`.
-  // `/workspace` then server-redirects to the user's first org
-  // (`/<seed-org-slug>`). A naive `waitForURL(url !== /auth/login/password)`
-  // returned as soon as the first push committed, before the bounce
-  // resolved — any subsequent `page.goto(...)` in the test body then
-  // raced the queued bounce and Playwright aborted with "interrupted by
-  // another navigation to /workspace".
-  //
-  // Post-E1 the workspace chooser at /workspace stays put (no further
-  // redirect to /<orgSlug>), so the helper waits for the URL to leave
-  // /auth/login + networkidle so any explicit page.goto in the test
-  // body navigates from a fully-settled state.
+  // The Server Action's atomic redirect lands the browser on a non-/auth
+  // URL in one shot. Wait for that single navigation to commit and the
+  // helper is done.
   await page.waitForURL((url) => !url.pathname.includes("/auth/login"), {
     timeout: 15_000,
   })
-  await page.waitForLoadState("networkidle")
 }
 
 // ---------------------------------------------------------------------------

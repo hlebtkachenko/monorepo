@@ -1,9 +1,10 @@
 #!/usr/bin/env tsx
 /**
  * Dev CLI — nuke every row tied to a given email so testing can start
- * from scratch. Refuses to run unless DATABASE_DIRECT_URL points at the
- * local dev database — this is a blunt instrument and must not aim at
- * production.
+ * from scratch. Default: refuses unless DATABASE_DIRECT_URL points at the
+ * local dev database (dev-compose port 54322 + loopback after DNS).
+ * Override for intentional staging cleanup requires explicit flags and
+ * still blocks production by typed env name.
  *
  * Connects directly as app_owner (SUPERUSER in dev compose) so the txn
  * can set `session_replication_role = replica` to bypass
@@ -22,13 +23,26 @@
  *      tokens here keyed on the identifier email; no FK to app_user).
  *
  * Usage:
+ *   # local dev (default)
  *   pnpm tsx packages/auth/scripts/delete-user.ts --email direct@hleb.co
+ *
+ *   # intentional non-local (e.g. staging cleanup via SSM port-forward)
+ *   pnpm tsx packages/auth/scripts/delete-user.ts \
+ *     --email direct@hleb.co \
+ *     --i-know-this-is-not-local \
+ *     --typed-env-name staging
  */
 import postgres from "postgres"
+
+import { assertLocalDb } from "../src/local-db-guard"
 
 function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag)
   return i >= 0 ? process.argv[i + 1] : undefined
+}
+
+function hasFlag(flag: string): boolean {
+  return process.argv.includes(flag)
 }
 
 async function main(): Promise<void> {
@@ -43,12 +57,20 @@ async function main(): Promise<void> {
     console.error("ERROR: DATABASE_DIRECT_URL is not set")
     process.exit(2)
   }
-  if (!/localhost|127\.0\.0\.1/.test(url)) {
-    console.error(
-      `ERROR: DATABASE_DIRECT_URL does not look like a local dev database: ${url.replace(/:[^:@]+@/, ":<pw>@")}`,
-    )
+
+  let guard: Awaited<ReturnType<typeof assertLocalDb>>
+  try {
+    guard = await assertLocalDb(url, {
+      iKnowThisIsNotLocal: hasFlag("--i-know-this-is-not-local"),
+      typedEnvName: arg("--typed-env-name"),
+    })
+  } catch (err) {
+    console.error(`ERROR: ${err instanceof Error ? err.message : String(err)}`)
     process.exit(2)
   }
+  console.error(
+    `[guard] branch=${guard.branch} host=${guard.host} port=${guard.port} resolved=${guard.resolvedAddress}`,
+  )
 
   const sql = postgres(url, { max: 1, prepare: false })
 

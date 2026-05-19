@@ -1,0 +1,21 @@
+:80 {
+	@assets path /_next/* /favicon.ico /robots.txt /sitemap.xml /api/*
+	@prefixed path /afframe-status /afframe-status/*
+
+	handle @assets {
+		reverse_proxy status-page:3000 {
+			header_up Host status-page
+		}
+	}
+	handle @prefixed {
+		reverse_proxy status-page:3000 {
+			header_up Host status-page
+		}
+	}
+	handle {
+		rewrite * /afframe-status/en{uri}
+		reverse_proxy status-page:3000 {
+			header_up Host status-page
+		}
+	}
+}

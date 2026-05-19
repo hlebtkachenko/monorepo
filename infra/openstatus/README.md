@@ -16,10 +16,11 @@ an independent failure domain and a true external vantage point. Full rationale:
 
 ## What is in this directory
 
-| File              | Role                                                                                                                                                |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `openstatus.yaml` | Monitors-as-code: the 7 uptime monitors (4 public, 3 private staging), version-controlled and PR-reviewable. Source-of-truth for what's configured. |
-| `README.md`       | This file.                                                                                                                                          |
+| File              | Role                                                                                                                                                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openstatus.yaml` | Monitors-as-code: the 7 uptime monitors (4 public, 3 private staging), version-controlled and PR-reviewable. Source-of-truth for what's configured.                                                                                                  |
+| `deploy/`         | Operator-authored deploy artifacts: patched compose (digest-pinned), `patch-emails.sh`, `caddy/Caddyfile`, `keepalive.sh`, `windows-task.ps1`, `env.docker.template`. Consumed by `.github/workflows/deploy-statuspage.yml`. See `deploy/README.md`. |
+| `README.md`       | This file.                                                                                                                                                                                                                                           |
 
 ## How monitors map to OpenStatus
 
@@ -68,10 +69,12 @@ for status pages; see `STATUS-PAGE.md`.
 
 ## Not a versioned dependency
 
-`openstatus.yaml` pins no image tag and no version. The OpenStatus app version lives on
-the VPS, not in this repo. So `infra/openstatus/` adds no versioned dependency and needs
-no Dependabot entry or update-check workflow under the AGENTS.md "Dependency Update
-Coverage Rule" — this is intentional, not a gap.
+`openstatus.yaml` pins no image tag and no version. The OpenStatus container image
+digests are pinned in `deploy/docker-compose.github-packages.yaml` and are bumped
+manually when an upgrade is performed on the VPS, so they fall under the runbook
+upgrade flow rather than Dependabot. `infra/openstatus/` itself therefore adds no
+auto-tracked versioned dependency under the AGENTS.md "Dependency Update Coverage
+Rule" — this is intentional, not a gap.
 
 ## See also
 

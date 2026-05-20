@@ -19,6 +19,20 @@ const DOMAIN_CODE_STATUS: Record<string, number> = {
   validation_error: HttpStatus.UNPROCESSABLE_ENTITY,
 }
 
+/** Plaid-shape error_type families. Registry in docs/api/ERRORS.md §2. */
+const STATUS_FAMILY: Record<number, string> = {
+  [HttpStatus.BAD_REQUEST]: "INVALID_REQUEST",
+  [HttpStatus.UNAUTHORIZED]: "UNAUTHORIZED",
+  [HttpStatus.FORBIDDEN]: "FORBIDDEN",
+  [HttpStatus.NOT_FOUND]: "NOT_FOUND",
+  [HttpStatus.CONFLICT]: "CONFLICT",
+  [HttpStatus.PAYLOAD_TOO_LARGE]: "PAYLOAD_TOO_LARGE",
+  [HttpStatus.UNPROCESSABLE_ENTITY]: "VALIDATION",
+  [HttpStatus.TOO_MANY_REQUESTS]: "RATE_LIMITED",
+  [HttpStatus.INTERNAL_SERVER_ERROR]: "INTERNAL",
+  [HttpStatus.SERVICE_UNAVAILABLE]: "SERVICE_UNAVAILABLE",
+}
+
 function statusToCode(status: number): string {
   switch (status) {
     case HttpStatus.BAD_REQUEST:
@@ -31,6 +45,8 @@ function statusToCode(status: number): string {
       return "not_found"
     case HttpStatus.CONFLICT:
       return "conflict"
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      return "payload_too_large"
     case HttpStatus.UNPROCESSABLE_ENTITY:
       return "validation_error"
     case HttpStatus.TOO_MANY_REQUESTS:
@@ -41,13 +57,33 @@ function statusToCode(status: number): string {
 }
 
 /**
- * Renders every `/v1` error as the standard envelope:
- *   { "error": { "code", "message", "requestId" } }
+ * Docs base URL for `documentation_url` deep-links. Public API docs live at
+ * `api.afframe.com/docs`; staging mirrors at `api-staging.afframe.com/docs`.
+ * Override via `API_DOCS_BASE_URL` for non-prod test rigs.
+ */
+const docsBaseUrl =
+  process.env.API_DOCS_BASE_URL?.replace(/\/$/, "") ?? "https://api.afframe.com"
+
+/**
+ * Renders every `/v1` error as the Plaid-shape envelope:
  *
- * Maps DomainError (`@workspace/shared/errors`) and NestJS HttpException; unknown
- * errors become a generic 500 with the real cause sent to Sentry. Applied
- * per-controller via `@UseFilters` — `/v1`-scoped, BFF/health responses are
- * untouched.
+ *   {
+ *     "error": {
+ *       "code": "not_found",
+ *       "error_type": "NOT_FOUND",
+ *       "message": "Organization not found",
+ *       "documentation_url": "https://api.afframe.com/docs/errors#not_found",
+ *       "requestId": "..."
+ *     }
+ *   }
+ *
+ * Backwards-compatible extension of the prior envelope: `code`, `message`,
+ * `requestId` retained verbatim. Maps DomainError (`@workspace/shared/errors`)
+ * and NestJS HttpException; unknown errors become a generic 500 with the real
+ * cause sent to Sentry. Applied per-controller via `@UseFilters` — `/v1`-scoped,
+ * BFF/health responses are untouched.
+ *
+ * Per docs/api/ERRORS.md.
  */
 @Catch()
 export class DomainExceptionFilter implements ExceptionFilter {
@@ -90,6 +126,11 @@ export class DomainExceptionFilter implements ExceptionFilter {
       )
     }
 
-    res.status(status).json({ error: { code, message, requestId } })
+    const error_type = STATUS_FAMILY[status] ?? "INVALID_REQUEST"
+    const documentation_url = `${docsBaseUrl}/docs/errors#${code}`
+
+    res.status(status).json({
+      error: { code, error_type, message, documentation_url, requestId },
+    })
   }
 }

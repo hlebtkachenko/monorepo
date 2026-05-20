@@ -28,9 +28,29 @@ describe("DomainExceptionFilter", () => {
     expect(json).toHaveBeenCalledWith({
       error: {
         code: "not_found",
+        error_type: "NOT_FOUND",
         message: "Organization not found",
+        documentation_url: expect.stringMatching(
+          /\/docs\/errors#not_found$/,
+        ) as unknown as string,
         requestId: "req-test",
       },
+    })
+  })
+
+  it("emits the Plaid-shape envelope fields on every error", () => {
+    const { host, json } = makeHost()
+    filter.catch(new ForbiddenError(), host)
+    const body = json.mock.calls[0]?.[0] as {
+      error: Record<string, unknown>
+    }
+    expect(body.error).toMatchObject({
+      code: "forbidden",
+      error_type: "FORBIDDEN",
+      documentation_url: expect.stringContaining(
+        "/docs/errors#forbidden",
+      ) as unknown as string,
+      requestId: "req-test",
     })
   })
 

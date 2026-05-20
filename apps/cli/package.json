@@ -1,0 +1,33 @@
+{
+  "name": "@afframe/cli",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Official command-line client for the Afframe public API.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "afframe": "./bin/afframe.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@afframe/sdk": "workspace:*",
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^10.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

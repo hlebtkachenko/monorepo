@@ -179,6 +179,19 @@ jobs:
       skip_image_build: ${{ steps.decide.outputs.skip_image_build }}
       image_tag: ${{ steps.decide.outputs.image_tag }}
       last_deploy_sha: ${{ steps.decide.outputs.last_deploy_sha }}
+      # Per-service build decision. JSON array of services to build (e.g.
+      # ["web","admin"]). Build-images matrix consumes via fromJSON().
+      # New apps/<name>/Dockerfile is auto-discovered — no workflow edit.
+      services_to_build: ${{ steps.decide.outputs.services_to_build }}
+      # Per-service image tag. Built services → sha-<git>. Skipped services
+      # → last-deploy tag for that service (or legacy fallback). Deploy
+      # passes each as --context <svc>ImageTag=<tag>.
+      image_tag_web: ${{ steps.decide.outputs.image_tag_web }}
+      image_tag_api: ${{ steps.decide.outputs.image_tag_api }}
+      image_tag_admin: ${{ steps.decide.outputs.image_tag_admin }}
+      # True when packages/db/migrations/** changed since last deploy.
+      # Defaults to true on first/unknown/failed-last-deploy (safe).
+      migrations_changed: ${{ steps.decide.outputs.migrations_changed }}
     steps:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
@@ -222,6 +235,8 @@ jobs:
           audience: sts.amazonaws.com
           role-duration-seconds: 3600
 
+      - uses: ./.github/actions/setup
+
       - id: decide
         env:
           IMAGE_TAG_OVERRIDE: ${{ inputs.image_tag_override }}
@@ -230,7 +245,62 @@ jobs:
         run: |
           set -euo pipefail
 
-          emit() {
+          # Discover all deployable services. Convention: a directory
+          # apps/<name>/ with a Dockerfile means "this is a containerized
+          # service the deploy workflow knows how to build". New service
+          # added → auto-included (no workflow edit needed).
+          all_services=()
+          for d in apps/*/; do
+            if [ -f "${d}Dockerfile" ]; then
+              all_services+=("$(basename "$d")")
+            fi
+          done
+          echo "Deployable services discovered: ${all_services[*]}"
+
+          # Per-service last-deploy SSM tag lookup. New per-service key
+          # `/monorepo/<env>/last-deploy/image-tag-<svc>`. Falls back to
+          # the legacy single `image-tag` key for back-compat on the first
+          # deploy after this lands.
+          LAST_TAG=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          last_tag_for() {
+            local svc="$1" v
+            v=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag-${svc}" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+            if [ -z "$v" ] || [ "$v" = "None" ]; then v="$LAST_TAG"; fi
+            echo "$v"
+          }
+
+          # Emit a JSON array of service names.
+          emit_services() {
+            local arr_json
+            if [ "$#" -eq 0 ]; then
+              arr_json='[]'
+            else
+              arr_json=$(printf '%s\n' "$@" | jq -R . | jq -s -c .)
+            fi
+            printf 'services_to_build=%s\n' "$arr_json" >> "$GITHUB_OUTPUT"
+            echo "services_to_build=$arr_json"
+          }
+
+          # Emit per-service image tag context for CDK.
+          emit_per_service_tags() {
+            local default_tag="$1"; shift
+            local built_set=" $* "
+            for svc in "${all_services[@]}"; do
+              local tag
+              if printf '%s' "$built_set" | grep -q " ${svc} "; then
+                tag="$default_tag"
+              else
+                tag="$(last_tag_for "$svc")"
+              fi
+              # Empty fallback: use default_tag (covers first-ever deploy where
+              # the skipped service has no historical tag).
+              if [ -z "$tag" ] || [ "$tag" = "None" ]; then tag="$default_tag"; fi
+              printf 'image_tag_%s=%s\n' "$svc" "$tag" >> "$GITHUB_OUTPUT"
+              echo "image_tag_${svc}=${tag}"
+            done
+          }
+
+          emit_legacy() {
             local skip="$1" tag="$2" base="$3"
             {
               printf 'skip_image_build=%s\n' "$skip"
@@ -239,61 +309,114 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           }
 
-          # Priority 1: explicit image_tag_override → skip build, use that tag.
+          # Default: migrations run on first/unknown/failed-last-deploy.
+          # Overridden below to 'false' only when LAST_SHA is reachable and
+          # the diff has no packages/db/migrations/** entries.
+          MIGRATIONS_CHANGED=true
+
+          # Priority 1: explicit image_tag_override → skip build, use that tag
+          # uniformly for every service (operator pinned a known-good tag).
           if [ -n "$IMAGE_TAG_OVERRIDE" ]; then
             echo "image_tag_override set — skipping build."
-            emit true "$IMAGE_TAG_OVERRIDE" ""
+            emit_legacy true "$IMAGE_TAG_OVERRIDE" ""
+            emit_services
+            emit_per_service_tags "$IMAGE_TAG_OVERRIDE"
+            printf 'migrations_changed=%s\n' "$MIGRATIONS_CHANGED" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Priority 2: operator force-rebuild → build.
+          # Priority 2: operator force-rebuild → build all.
           if [ "$FORCE_REBUILD" = "true" ]; then
-            echo "force_rebuild_images=true — building."
-            emit false "sha-$GITHUB_SHA" ""
+            echo "force_rebuild_images=true — building all services."
+            emit_legacy false "sha-$GITHUB_SHA" ""
+            emit_services "${all_services[@]}"
+            emit_per_service_tags "sha-$GITHUB_SHA" "${all_services[@]}"
+            printf 'migrations_changed=%s\n' "$MIGRATIONS_CHANGED" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           # Priority 3: compare HEAD against SSM last-deploy SHA.
           LAST_SHA=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
-          LAST_TAG=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
           echo "Last deploy SHA: ${LAST_SHA:-<none>}"
           echo "Last image tag:  ${LAST_TAG:-<none>}"
 
           if [ -z "$LAST_SHA" ] || [ "$LAST_SHA" = "None" ] || [ -z "$LAST_TAG" ] || [ "$LAST_TAG" = "None" ]; then
-            echo "First deploy (or wiped state) — full build."
-            emit false "sha-$GITHUB_SHA" ""
+            echo "First deploy (or wiped state) — full build, run migrations."
+            emit_legacy false "sha-$GITHUB_SHA" ""
+            emit_services "${all_services[@]}"
+            emit_per_service_tags "sha-$GITHUB_SHA" "${all_services[@]}"
+            printf 'migrations_changed=true\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           if ! git rev-parse --verify "$LAST_SHA" >/dev/null 2>&1; then
             echo "Last SHA $LAST_SHA not reachable in checkout — full build."
-            emit false "sha-$GITHUB_SHA" ""
+            emit_legacy false "sha-$GITHUB_SHA" ""
+            emit_services "${all_services[@]}"
+            emit_per_service_tags "sha-$GITHUB_SHA" "${all_services[@]}"
+            printf 'migrations_changed=true\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          # Paths that affect image content. Anything else (CDK source,
-          # docs, infra/cerbos handled separately by Cerbos asset hash)
-          # cannot change what's baked into web/api/admin images.
-          APP_PATHS_REGEX='^(apps/(web|api|admin)/|packages/(auth|db|shared|email|ui|testcontainers|i18n|observability)/|pnpm-lock\.yaml$|\.github/actions/setup/)'
 
           diff=$(git diff --name-only "$LAST_SHA" HEAD || true)
           if [ -z "$diff" ]; then
-            echo "No file changes since $LAST_SHA — skipping build, reusing $LAST_TAG."
-            emit true "$LAST_TAG" "$LAST_SHA"
+            echo "No file changes since $LAST_SHA — skip build entirely, no migrations, reuse $LAST_TAG."
+            emit_legacy true "$LAST_TAG" "$LAST_SHA"
+            emit_services
+            emit_per_service_tags "$LAST_TAG"
+            printf 'migrations_changed=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if echo "$diff" | grep -qE "$APP_PATHS_REGEX"; then
-            echo "App source changed since $LAST_SHA — building."
-            echo "Files (first 20):"
-            echo "$diff" | grep -E "$APP_PATHS_REGEX" | head -20
-            emit false "sha-$GITHUB_SHA" "$LAST_SHA"
+          # Migrations gate — independent of the per-service build matrix.
+          if echo "$diff" | grep -qE '^packages/db/migrations/'; then
+            MIGRATIONS_CHANGED=true
+            echo "Migration files changed — migrations step will run."
           else
-            echo "No app source changes since $LAST_SHA — skipping build, reusing $LAST_TAG."
-            echo "Changed files (CDK/docs/other, first 20):"
-            echo "$diff" | head -20
-            emit true "$LAST_TAG" "$LAST_SHA"
+            MIGRATIONS_CHANGED=false
+            echo "No migration file changes — migrations step will skip."
           fi
+          printf 'migrations_changed=%s\n' "$MIGRATIONS_CHANGED" >> "$GITHUB_OUTPUT"
+
+          # Turbo computes "affected" packages and their dependents given
+          # the changeset since LAST_SHA. We then intersect with the
+          # deployable-service set to get the build matrix. This is the
+          # authoritative dep graph — adding a new packages/* or apps/*
+          # consumer auto-picks up.
+          affected_json=$(pnpm turbo run build --filter="...[${LAST_SHA}]" --dry=json 2>/dev/null || echo '{"packages":[]}')
+          affected=$(printf '%s' "$affected_json" | jq -r '.packages[]?' 2>/dev/null || true)
+          echo "Turbo-affected packages:"
+          printf '%s\n' "$affected" | sed 's/^/  /'
+
+          built=()
+          for svc in "${all_services[@]}"; do
+            if printf '%s\n' "$affected" | grep -qx "$svc"; then
+              built+=("$svc")
+            fi
+          done
+
+          # Fallback safety: pnpm-lock.yaml or .github/actions/setup change
+          # affects every service (different node_modules graph). Turbo
+          # picks these up via globalDependencies/inputs but be explicit.
+          if echo "$diff" | grep -qE '^(pnpm-lock\.yaml$|\.github/actions/setup/)'; then
+            echo "Lockfile or setup-action changed — building all services."
+            built=("${all_services[@]}")
+          fi
+
+          if [ "${#built[@]}" -eq 0 ]; then
+            echo "No deployable service affected. Skipping image build entirely; reusing per-service last-deploy tags."
+            emit_legacy true "$LAST_TAG" "$LAST_SHA"
+            emit_services
+            emit_per_service_tags "$LAST_TAG"
+            exit 0
+          fi
+
+          echo "Services to build: ${built[*]}"
+          echo "Files (first 20):"
+          echo "$diff" | head -20
+          emit_legacy false "sha-$GITHUB_SHA" "$LAST_SHA"
+          emit_services "${built[@]}"
+          emit_per_service_tags "sha-$GITHUB_SHA" "${built[@]}"
 
   # Build the 3 app images in parallel (web, api, admin) on separate
   # runners. Sequential pre-2026-05-19 build time was web ~5m + api ~4m +
@@ -306,9 +429,187 @@ jobs:
   # Skipped when stack=infra-only OR image_tag_override is set OR
   # detect-changes determined no app source changed since the last deploy
   # (then deploy reuses the last-deployed image tag from SSM).
+  # Runs in parallel with build-images. Ensures the 3 workflow-managed
+  # Secrets Manager secrets exist + captures their full ARNs, and pre-
+  # creates the ECS log groups CDK references. Both used to live inside
+  # the deploy job; moving them earlier shaves ~25s off wall time by
+  # overlapping with the image build (which doesn't need either output).
+  deploy-prep:
+    needs: [guard, validate-inputs]
+    if: |
+      needs.guard.outputs.go == 'true' &&
+      needs.validate-inputs.result == 'success' &&
+      inputs.stack != 'infra-only'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      cloudflareTunnelSecretArn: ${{ steps.secrets.outputs.cloudflareTunnelSecretArn }}
+      resendApiKeySecretArn: ${{ steps.secrets.outputs.resendApiKeySecretArn }}
+      betterAuthSecretArn: ${{ steps.secrets.outputs.betterAuthSecretArn }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: ${{ inputs.environment }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging)    echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-prep-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Ensure workflow-managed Secrets Manager secrets exist + capture full ARNs
+        id: secrets
+        env:
+          TUNNEL_TOKEN: ${{ secrets[format('CLOUDFLARE_TUNNEL_TOKEN_{0}', inputs.environment)] }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          # See the deploy job's bin/app.ts requiredSecretArn() note: AppStack
+          # references these 3 secrets by FULL ARN. Capture each here so the
+          # ECS task def `valueFrom` and the IAM grantRead policy Resource
+          # match 1:1 at runtime.
+          capture() {
+            local out="$1" name="$2"
+            local arn
+            arn=$(aws secretsmanager describe-secret \
+              --secret-id "$name" \
+              --region "$AWS_REGION" \
+              --query ARN --output text)
+            if [ -z "$arn" ] || [ "$arn" = "None" ]; then
+              echo "::error::Failed to read ARN of secret $name (describe-secret returned empty)"
+              exit 1
+            fi
+            if ! [[ "$arn" =~ -[A-Za-z0-9]{6}$ ]]; then
+              echo "::error::Captured ARN $arn for $name is missing the -XXXXXX suffix. Refusing — would cause IAM/Resource mismatch at task start." >&2
+              exit 1
+            fi
+            echo "$out=$arn" >> "$GITHUB_OUTPUT"
+            echo "captured: $out=$arn"
+          }
+
+          restore_if_pending() {
+            local name="$1"
+            local deleted
+            deleted=$(aws secretsmanager describe-secret --secret-id "$name" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
+            if [ "$deleted" != "MISSING" ] && [ "$deleted" != "None" ]; then
+              echo "Secret $name in PendingDeletion — restoring."
+              aws secretsmanager restore-secret --secret-id "$name" --region "$AWS_REGION" >/dev/null
+            fi
+          }
+
+          # ---------- 1. Cloudflare Tunnel token ----------
+          if [ -z "$TUNNEL_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_TUNNEL_TOKEN_${ENV_NAME^^} secret is not set. Create the tunnel in Cloudflare and store its token."
+            exit 1
+          fi
+          echo "::add-mask::$TUNNEL_TOKEN"
+          NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
+          restore_if_pending "$NAME"
+          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$TUNNEL_TOKEN" --region "$AWS_REGION" >/dev/null
+          else
+            aws secretsmanager create-secret --name "$NAME" --secret-string "$TUNNEL_TOKEN" --description "Cloudflare Tunnel connector token for cloudflared sidecar (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
+          fi
+          capture cloudflareTunnelSecretArn "$NAME"
+
+          # ---------- 2. Resend API key ----------
+          if [ -z "$RESEND_API_KEY" ]; then
+            echo "::error::RESEND_API_KEY repo secret is not set. Create the Resend account + key (docs/runbooks/AWS-DEPLOY.md step 7)."
+            exit 1
+          fi
+          echo "::add-mask::$RESEND_API_KEY"
+          NAME="monorepo-${ENV_NAME}-resend-api-key"
+          restore_if_pending "$NAME"
+          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$RESEND_API_KEY" --region "$AWS_REGION" >/dev/null
+          else
+            aws secretsmanager create-secret --name "$NAME" --secret-string "$RESEND_API_KEY" --description "Resend API key for transactional email (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
+          fi
+          capture resendApiKeySecretArn "$NAME"
+
+          # ---------- 3. Better Auth signing secret ----------
+          # 44-char alphanumeric, generated ONCE on first creation. We never
+          # put a new value into an existing signing secret — that would
+          # invalidate every active session on each deploy.
+          NAME="monorepo-${ENV_NAME}-better-auth-secret"
+          DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}"
+          restore_if_pending "$NAME"
+          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Secret $NAME already exists — leaving value untouched."
+          else
+            VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
+            echo "::add-mask::$VALUE"
+            aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
+            echo "Secret $NAME created with fresh 44-char value."
+          fi
+          capture betterAuthSecretArn "$NAME"
+
+      - name: Pre-create ECS log groups
+        # CFN's AWS::IAM::Policy GetAtt(LogGroup.Arn) hits CloudControl,
+        # which has ~1s read-after-write lag. Brand-new log groups created
+        # within the same UPDATE trigger 'Unable to retrieve Arn attribute
+        # for AWS::Logs::LogGroup ... was not found' on the IAM policy
+        # update. Pre-creating here lets CDK's GetAtt resolve to an
+        # already-propagated ARN. Idempotent on the AWS side.
+        run: |
+          set -euo pipefail
+          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
+            lg="/ecs/monorepo-${ENV_NAME}/${svc}"
+            if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
+              echo "exists: $lg"
+            else
+              aws logs create-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null && echo "created: $lg" || echo "::warning::create-log-group failed for $lg (may be racing)"
+              aws logs put-retention-policy --log-group-name "$lg" --retention-in-days 7 --region "$AWS_REGION" >/dev/null 2>&1 || true
+            fi
+          done
+
   build-images:
     needs: [guard, validate-inputs, detect-changes]
-    if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only' && needs.detect-changes.outputs.skip_image_build != 'true'
+    # `services_to_build` is a JSON array from detect-changes. Empty array
+    # means no service needs a rebuild (e.g. docs-only PR landed on top of
+    # the last good image set) — the whole matrix expansion is then empty
+    # and this job no-ops. New apps/<x>/Dockerfile auto-flows through the
+    # turbo-driven detection in detect-changes; no edit here required.
+    if: |
+      needs.guard.outputs.go == 'true' &&
+      inputs.stack != 'infra-only' &&
+      needs.detect-changes.outputs.skip_image_build != 'true' &&
+      needs.detect-changes.outputs.services_to_build != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: ${{ inputs.environment }}
@@ -318,7 +619,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        service: [web, api, admin]
+        service: ${{ fromJSON(needs.detect-changes.outputs.services_to_build) }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
@@ -520,11 +821,12 @@ jobs:
           echo "Allowlisted: $(echo "$all_criticals" | tr '\n' ' ')"
 
   deploy:
-    needs: [guard, validate-inputs, detect-changes, build-images]
+    needs: [guard, validate-inputs, detect-changes, deploy-prep, build-images]
     # Run the deploy when guard is green AND (build-images succeeded OR was
-    # skipped). build-images is skipped for: infra-only, image_tag_override
-    # set, OR detect-changes determined no app source changed. detect-changes
-    # itself is skipped only on infra-only — its result must be success then.
+    # skipped) AND deploy-prep succeeded (or was skipped on infra-only).
+    # build-images is skipped for: infra-only, image_tag_override set, OR
+    # detect-changes determined no app source changed. detect-changes is
+    # skipped only on infra-only — its result must be success then.
     # `needs.X.result` values: success | skipped | failure | cancelled.
     #
     # The `!cancelled()` prefix is REQUIRED — without it GitHub Actions
@@ -538,6 +840,7 @@ jobs:
       needs.guard.outputs.go == 'true' &&
       needs.validate-inputs.result == 'success' &&
       (needs.detect-changes.result == 'success' || needs.detect-changes.result == 'skipped') &&
+      (needs.deploy-prep.result == 'success' || needs.deploy-prep.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -563,6 +866,13 @@ jobs:
       #   3. sha-<github.sha> (default: build fresh)
       # detect-changes is skipped for infra-only — fall back to sha tag.
       IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      # Per-service image tags. Built services → sha-<git>. Skipped
+      # services → their last-deploy tag (or IMAGE_TAG fallback if no
+      # history). Defaults to the global IMAGE_TAG when detect-changes
+      # is skipped (stack=infra-only path), keeping back-compat.
+      IMAGE_TAG_WEB: ${{ needs.detect-changes.outputs.image_tag_web || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_API: ${{ needs.detect-changes.outputs.image_tag_api || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_ADMIN: ${{ needs.detect-changes.outputs.image_tag_admin || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
       # Truthy when image build path was skipped (infra-only, override, or
       # no-app-change). The secret-ensure steps still need to run if any
       # app container will be deployed; the only path that truly skips
@@ -665,114 +975,9 @@ jobs:
       # here (above) because cdk deploy ALSO builds arm64 DockerImageAssets
       # inline for Cerbos (App stack) and the Backup Lambda.
 
-      - name: Ensure workflow-managed Secrets Manager secrets exist + capture full ARNs
-        id: secrets
-        if: env.SKIP_IMAGE_BUILD != 'true'
-        env:
-          TUNNEL_TOKEN: ${{ secrets[format('CLOUDFLARE_TUNNEL_TOKEN_{0}', inputs.environment)] }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: |
-          set -euo pipefail
-
-          # AppStack references 4 workflow-managed Secrets Manager secrets by
-          # FULL ARN (Secret.fromSecretCompleteArn — see app-stack.ts for the
-          # bare-vs-full-ARN rationale). Each secret is ensured here BEFORE
-          # `cdk deploy` runs, then its full ARN is captured into a step
-          # output and passed to CDK via --context flags below. This keeps
-          # the ECS task def `valueFrom` and the IAM grantRead policy
-          # Resource pinned to the SAME exact full ARN, so Secrets Manager's
-          # GetSecretValue auth always matches 1:1.
-          #
-          # Idempotent shape per secret:
-          #   1. describe-secret to detect PendingDeletion → restore-secret
-          #   2. describe-secret → if exists, optionally put-secret-value
-          #      (only for value-driven secrets; signing secrets keep value)
-          #   3. else create-secret with the appropriate value
-          #   4. describe-secret --query ARN → step output
-          #
-          # capture <output-name> <secret-name>: emit the live full ARN as a
-          # GitHub Actions step output (consumed by cdk deploy --context).
-          capture() {
-            local out="$1" name="$2"
-            local arn
-            arn=$(aws secretsmanager describe-secret \
-              --secret-id "$name" \
-              --region "$AWS_REGION" \
-              --query ARN --output text)
-            if [ -z "$arn" ] || [ "$arn" = "None" ]; then
-              echo "::error::Failed to read ARN of secret $name (describe-secret returned empty)"
-              exit 1
-            fi
-            # Secrets Manager ARNs always carry a 6-char alphanumeric suffix
-            # (e.g. `-AbCdEf`). A bare ARN here means describe-secret returned
-            # an unexpected shape; passing it to CDK produces partial IAM
-            # reads that fail at ECS task start with AccessDenied. Refuse it.
-            if ! [[ "$arn" =~ -[A-Za-z0-9]{6}$ ]]; then
-              echo "::error::Captured ARN $arn for $name is missing the -XXXXXX suffix. Refusing — would cause IAM/Resource mismatch at task start." >&2
-              exit 1
-            fi
-            echo "$out=$arn" >> "$GITHUB_OUTPUT"
-            echo "captured: $out=$arn"
-          }
-
-          # restore_if_pending <secret-name>: undo a prior delete-secret so
-          # subsequent describe / put / create steps see an active secret.
-          restore_if_pending() {
-            local name="$1"
-            local deleted
-            deleted=$(aws secretsmanager describe-secret --secret-id "$name" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
-            if [ "$deleted" != "MISSING" ] && [ "$deleted" != "None" ]; then
-              echo "Secret $name in PendingDeletion — restoring."
-              aws secretsmanager restore-secret --secret-id "$name" --region "$AWS_REGION" >/dev/null
-            fi
-          }
-
-          # ---------- 1. Cloudflare Tunnel token ----------
-          if [ -z "$TUNNEL_TOKEN" ]; then
-            echo "::error::CLOUDFLARE_TUNNEL_TOKEN_${ENV_NAME^^} secret is not set. Create the tunnel in Cloudflare and store its token."
-            exit 1
-          fi
-          echo "::add-mask::$TUNNEL_TOKEN"
-          NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
-          restore_if_pending "$NAME"
-          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$TUNNEL_TOKEN" --region "$AWS_REGION" >/dev/null
-          else
-            aws secretsmanager create-secret --name "$NAME" --secret-string "$TUNNEL_TOKEN" --description "Cloudflare Tunnel connector token for cloudflared sidecar (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
-          fi
-          capture cloudflareTunnelSecretArn "$NAME"
-
-          # ---------- 2. Resend API key ----------
-          if [ -z "$RESEND_API_KEY" ]; then
-            echo "::error::RESEND_API_KEY repo secret is not set. Create the Resend account + key (docs/runbooks/AWS-DEPLOY.md step 7)."
-            exit 1
-          fi
-          echo "::add-mask::$RESEND_API_KEY"
-          NAME="monorepo-${ENV_NAME}-resend-api-key"
-          restore_if_pending "$NAME"
-          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$RESEND_API_KEY" --region "$AWS_REGION" >/dev/null
-          else
-            aws secretsmanager create-secret --name "$NAME" --secret-string "$RESEND_API_KEY" --description "Resend API key for transactional email (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
-          fi
-          capture resendApiKeySecretArn "$NAME"
-
-          # ---------- 3. Better Auth signing secret ----------
-          # 44-char alphanumeric, generated ONCE on first creation. We never
-          # put a new value into an existing signing secret — that would
-          # invalidate every active session on each deploy.
-          NAME="monorepo-${ENV_NAME}-better-auth-secret"
-          DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}"
-          restore_if_pending "$NAME"
-          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "Secret $NAME already exists — leaving value untouched."
-          else
-            VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
-            echo "::add-mask::$VALUE"
-            aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
-            echo "Secret $NAME created with fresh 44-char value."
-          fi
-          capture betterAuthSecretArn "$NAME"
+      # Secret ensure + capture lives in the `deploy-prep` job now —
+      # runs parallel with build-images for ~25s wall saving. ARNs flow
+      # in via needs.deploy-prep.outputs.* (see env block at top of job).
 
       # Sanity check: when image_tag_override is set the operator is asking
       # CDK to reuse images that should already be in ECR. Fail fast if any
@@ -801,38 +1006,8 @@ jobs:
             exit 1
           fi
 
-      # Pre-create the 7 ECS log groups idempotently.
-      #
-      # CFN's AWS::IAM::Policy GetAtt(LogGroup.Arn) hits CloudControl, which
-      # has ~1s read-after-write lag. Brand-new log groups (created within
-      # the same UPDATE) trigger 'Unable to retrieve Arn attribute for
-      # AWS::Logs::LogGroup ... was not found' on the IAM policy update.
-      # See deploy run 26089910853 (2026-05-19 10:03Z) — that's the failure
-      # mode this step prevents.
-      #
-      # By pre-creating with the same names CDK uses, CDK's stack template
-      # sees them as "existing, no-op" and the IAM policy's GetAtt resolves
-      # to an already-propagated ARN. CloudFormation's import-by-name
-      # semantics treat these as CDK-managed once the stack is in sync.
-      #
-      # Idempotent on the AWS side (ResourceAlreadyExistsException is
-      # suppressed). Retention is set to ONE_WEEK to match app-stack.ts.
-      - name: Pre-create ECS log groups
-        # Symmetric across envs — first prod deploy hits the same
-        # AWS::Logs::LogGroup IAM/GetAtt race that staging exposed in
-        # run 26089910853 if this step is skipped.
-        if: env.STACK_SCOPE != 'infra-only'
-        run: |
-          set -euo pipefail
-          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
-            lg="/ecs/monorepo-${ENV_NAME}/${svc}"
-            if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
-              echo "exists: $lg"
-            else
-              aws logs create-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null && echo "created: $lg" || echo "::warning::create-log-group failed for $lg (may be racing)"
-              aws logs put-retention-policy --log-group-name "$lg" --retention-in-days 7 --region "$AWS_REGION" >/dev/null 2>&1 || true
-            fi
-          done
+      # Pre-create ECS log groups lives in the `deploy-prep` job now —
+      # runs parallel with build-images.
 
       # The 'Pre-deploy cleanup (staging only)' step that USED to live here
       # is gone entirely. It force-deleted the generated BetterAuth +
@@ -883,7 +1058,15 @@ jobs:
       # and skipped on re-run. The script also no-ops cleanly when
       # `packages/db/migrations/` is empty.
       - name: Apply DB migrations via one-off ECS task
-        if: env.STACK_SCOPE != 'infra-only'
+        # Gated on detect-changes — when no migration files changed since
+        # the last successful deploy, skip the ECS one-off task entirely
+        # (saves ~2 min wall on app-only PRs). Default-runs on first
+        # deploy / unknown last-SHA / image_tag_override / force-rebuild.
+        # The underlying script remains idempotent against `_app_migrations`
+        # so manual reruns are still safe.
+        if: |
+          env.STACK_SCOPE != 'infra-only' &&
+          needs.detect-changes.outputs.migrations_changed != 'false'
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         run: bash infra/scripts/apply-migrations-via-ecs.sh
@@ -921,9 +1104,9 @@ jobs:
           # Secrets Manager secrets" step. AppStack reads each one from CDK
           # context and instantiates Secret.fromSecretCompleteArn, so the
           # task def + grantRead policy resource share one exact full ARN.
-          CLOUDFLARE_TUNNEL_SECRET_ARN: ${{ steps.secrets.outputs.cloudflareTunnelSecretArn }}
-          RESEND_API_KEY_SECRET_ARN: ${{ steps.secrets.outputs.resendApiKeySecretArn }}
-          BETTER_AUTH_SECRET_ARN: ${{ steps.secrets.outputs.betterAuthSecretArn }}
+          CLOUDFLARE_TUNNEL_SECRET_ARN: ${{ needs.deploy-prep.outputs.cloudflareTunnelSecretArn }}
+          RESEND_API_KEY_SECRET_ARN: ${{ needs.deploy-prep.outputs.resendApiKeySecretArn }}
+          BETTER_AUTH_SECRET_ARN: ${{ needs.deploy-prep.outputs.betterAuthSecretArn }}
         run: |
           case "$STACK_SCOPE" in
             all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;
@@ -963,6 +1146,9 @@ jobs:
             --concurrency 3 \
             --context "env=${ENV_NAME}" \
             --context "imageTag=${IMAGE_TAG}" \
+            --context "webImageTag=${IMAGE_TAG_WEB}" \
+            --context "apiImageTag=${IMAGE_TAG_API}" \
+            --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
             "${SECRET_CTX[@]}" \
             --require-approval=never
 
@@ -1040,12 +1226,16 @@ jobs:
           subscribe_idempotent "$BILL_ARN" "BillingTopic"
 
       # Persist last-deploy state for the next run's detect-changes job.
-      # Only writes on a fully-successful deploy. Two parameters:
-      #   - git-sha   : current commit, the baseline for the next diff
-      #   - image-tag : the tag actually deployed (may be the SSM-reused
-      #                 last tag when changeset-aware skip fired)
-      # Failure to write SSM is non-fatal — the next run will fall through
-      # to a full rebuild (safe default).
+      # Only writes on a fully-successful deploy. Parameters:
+      #   - git-sha               : current commit, baseline for next diff
+      #   - image-tag             : legacy uniform tag (back-compat for any
+      #                             SSM consumer that hasn't been updated)
+      #   - image-tag-<service>   : per-service tag (web/api/admin). On the
+      #                             next deploy, skipped services reuse
+      #                             these tags via the per-service CDK
+      #                             context (webImageTag, apiImageTag, …).
+      # Failure to write SSM is non-fatal — next run falls back to full
+      # rebuild (safe default).
       - name: Record last-deploy state in SSM
         if: env.STACK_SCOPE != 'infra-only'
         env:
@@ -1064,7 +1254,17 @@ jobs:
             --value "$IMAGE_TAG" \
             --overwrite \
             --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag"
-          echo "Recorded: sha=$GITHUB_SHA tag=$IMAGE_TAG (env=$ENV_NAME)"
+          for pair in "web=$IMAGE_TAG_WEB" "api=$IMAGE_TAG_API" "admin=$IMAGE_TAG_ADMIN"; do
+            svc="${pair%%=*}"
+            tag="${pair#*=}"
+            aws ssm put-parameter \
+              --name "/monorepo/${ENV_NAME}/last-deploy/image-tag-${svc}" \
+              --type String \
+              --value "$tag" \
+              --overwrite \
+              --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag-${svc}"
+          done
+          echo "Recorded: sha=$GITHUB_SHA web=$IMAGE_TAG_WEB api=$IMAGE_TAG_API admin=$IMAGE_TAG_ADMIN (env=$ENV_NAME)"
 
       - id: summary
         run: echo "deployed=true" >> "$GITHUB_OUTPUT"

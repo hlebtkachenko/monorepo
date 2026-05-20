@@ -87,10 +87,34 @@ Domain endpoints (invoices, accounts, journals) land with AFF-71. Authz (Cerbos 
 - Zod schemas in `@workspace/shared/api` — source of truth for request/response validation
 - OpenAPI document emitted at build time via `apps/api/src/openapi.ts`
 
+## Developer platform docs
+
+The Scalar reference is one surface. The public-launch story is broader — narrative docs, CLI, MCP, SDK, webhooks, sandbox. Each lives in its own file:
+
+| Doc                                      | Purpose                                                      | Status                    |
+| ---------------------------------------- | ------------------------------------------------------------ | ------------------------- |
+| [`API-REFERENCE.md`](./API-REFERENCE.md) | Rules for the `/v1/docs` Scalar surface                      | Live                      |
+| [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md) | Master launch checklist (security, legal, comms, surfaces)   | Wip                       |
+| [`DEV-PORTAL.md`](./DEV-PORTAL.md)       | Page map + sidebar IA for `api.afframe.com/docs`             | Concept                   |
+| [`ERRORS.md`](./ERRORS.md)               | Error envelope + code registry                               | Live + concept extension  |
+| [`RATE-LIMITS.md`](./RATE-LIMITS.md)     | Throttle contract, `RateLimit-*` headers, 429                | Live + concept upgrades   |
+| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes         | Concept                   |
+| [`VERSIONING.md`](./VERSIONING.md)       | URL-path versioning, RFC 8594 Sunset, deprecation policy     | Live + concept signalling |
+| [`SANDBOX.md`](./SANDBOX.md)             | `affk_test_…` keys, seeded fixtures, force-trigger endpoints | Concept                   |
+| [`WEBHOOKS.md`](./WEBHOOKS.md)           | Standard Webhooks contract, Svix Cloud backend               | Concept                   |
+| [`SDK.md`](./SDK.md)                     | `@afframe/sdk` TypeScript design (`hey-api/openapi-ts`)      | Concept                   |
+| [`CLI.md`](./CLI.md)                     | `afframe` CLI (oclif + Homebrew tap)                         | Concept                   |
+| [`MCP.md`](./MCP.md)                     | `@afframe/mcp` server (npx + hosted)                         | Concept                   |
+| [`CHANGELOG.md`](./CHANGELOG.md)         | Public changelog format + entries                            | Wip                       |
+
+The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-public-api-developer-platform.md).
+
 ## Related
 
 - [ADR-0020](../adr/0020-public-api-foundation.md) — public API foundation decision
+- [ADR-0023](../adr/0023-public-api-developer-platform.md) — developer platform (pages, CLI, MCP, SDK, webhooks)
 - [ADR-0008](../adr/0008-cloudflare-tunnel-and-email.md) — Cloudflare tunnel + domain routing
 - [ADR-0018](../adr/0018-three-layer-authorization.md) — authz layers (deferred to AFF-46/71)
 - [env-vars.md](../env-vars.md) — all environment variables
 - [AWS-DEPLOY.md](../runbooks/AWS-DEPLOY.md) — deploy procedure + tunnel config
+- [PUBLIC-REPO-CHECKLIST.md](../runbooks/PUBLIC-REPO-CHECKLIST.md) — repo-side public hardening (separate from API launch)

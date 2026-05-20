@@ -1,7 +1,21 @@
+# gitleaks config — extends the upstream default ruleset with rules specific to
+# Afframe (HAPD) and the Czech finance domain. The CI workflow
+# (.github/workflows/ci.yml) runs:
+#   gitleaks detect --source . --no-banner --redact --log-level info --exit-code 1
+# from the repo root; this file is auto-discovered.
+#
+# Extends rather than replaces — the upstream covers AWS keys, GitHub PATs,
+# private keys, Slack tokens, Stripe keys, etc. Adding our domain on top.
+#
+# Tracked: docs/adr/0022-unified-opaque-tokens.md (auth_token format),
+#          docs/adr/0023-public-api-developer-platform.md §6 (Czech finance rules).
+
 [extend]
 useDefault = true
 
-# Custom rule: Afframe opaque auth_token credential (ADR-0022).
+# ---------- Afframe credentials ----------
+
+# Afframe opaque auth_token credential (ADR-0022).
 # Format: afkey-<43 base62>-<8 hex>. Token body has 256 bits of entropy;
 # checksum is unkeyed and bound to (kind, env). Mirrors AFKEY_REGEX in
 # packages/auth/src/tokens/format.ts and the no-leaked-afkey ESLint rule.
@@ -12,6 +26,93 @@ regex = '''afkey-[0-9A-Za-z]{43}-[0-9a-f]{8}'''
 keywords = ["afkey-"]
 tags = ["secret", "afframe"]
 
+# Public API keys — post-AFF-73 prefix split.
+# Live keys = production credentials; test keys = sandbox credentials (still gated).
+[[rules]]
+id = "afframe-live-key"
+description = "Afframe live API key (affk_live_…) — production credential"
+regex = '''\baffk_live_[A-Za-z0-9_/+\-]{32,}\b'''
+keywords = ["affk_live_"]
+tags = ["secret", "afframe", "production"]
+
+[[rules]]
+id = "afframe-test-key"
+description = "Afframe test API key (affk_test_…) — sandbox credential"
+regex = '''\baffk_test_[A-Za-z0-9_/+\-]{32,}\b'''
+keywords = ["affk_test_"]
+tags = ["secret", "afframe", "sandbox"]
+
+# Legacy prefix from the foundation (ADR-0020); migrated to affk_live_ in AFF-73.
+[[rules]]
+id = "afframe-legacy-key"
+description = "Legacy Afframe API key (afk_…) — pre-AFF-73 prefix; production credential"
+regex = '''\bafk_[A-Za-z0-9_/+\-]{40,}\b'''
+keywords = ["afk_"]
+tags = ["secret", "afframe", "legacy"]
+
+# Standard Webhooks signing secret.
+[[rules]]
+id = "afframe-webhook-secret"
+description = "Afframe webhook signing secret (whsec_…)"
+regex = '''\bwhsec_[A-Za-z0-9+/=]{32,}\b'''
+keywords = ["whsec_"]
+tags = ["secret", "afframe", "webhooks"]
+
+# ---------- Czech / EU finance + PII ----------
+
+[[rules]]
+id = "czech-iban"
+description = "Czech IBAN"
+regex = '''\bCZ\d{2}[ ]?(?:\d{4}[ ]?){4}\d{4}\b'''
+tags = ["pii", "finance", "cz"]
+
+[[rules]]
+id = "slovak-iban"
+description = "Slovak IBAN (frequent cross-border invoicing partner)"
+regex = '''\bSK\d{2}[ ]?(?:\d{4}[ ]?){4}\d{4}\b'''
+tags = ["pii", "finance", "sk"]
+
+[[rules]]
+id = "german-iban"
+description = "German IBAN (frequent cross-border invoicing partner)"
+regex = '''\bDE\d{2}[ ]?(?:\d{4}[ ]?){4}\d{2}\b'''
+tags = ["pii", "finance", "de"]
+
+[[rules]]
+id = "austrian-iban"
+description = "Austrian IBAN (frequent cross-border invoicing partner)"
+regex = '''\bAT\d{2}[ ]?(?:\d{4}[ ]?){4}\d{4}\b'''
+tags = ["pii", "finance", "at"]
+
+[[rules]]
+id = "czech-vat-dic"
+description = "Czech VAT / DIČ"
+regex = '''\bCZ\d{8,10}\b'''
+tags = ["pii", "finance", "cz"]
+
+[[rules]]
+id = "czech-ico"
+description = "Czech business ID (IČO) — 8 digits, contextual"
+regex = '''(?i)(?:i[čc]o|company[\s_-]*number)\s*[:=]\s*\d{8}\b'''
+tags = ["pii", "finance", "cz", "contextual"]
+
+[[rules]]
+id = "czech-rc-birth-number"
+description = "Czech rodné číslo (GDPR-sensitive personal ID)"
+regex = '''\b\d{6}/\d{3,4}\b'''
+tags = ["pii", "cz", "gdpr-sensitive"]
+
+# Czech bank-account format: optional 1-6 digit prefix, dash, 2-10 digit account,
+# slash, 4-digit bank code from the CNB-issued list. Restricting to known codes
+# avoids matching random `1234/5678` strings.
+[[rules]]
+id = "czech-account-number"
+description = "Czech bank account (prefix-number/bankcode)"
+regex = '''\b(?:\d{1,6}-)?\d{2,10}/(?:0100|0300|0600|0710|0800|2010|2020|2060|2070|2100|2200|2250|2260|2275|2600|2700|3030|3050|3060|3500|4000|4300|5500|5800|6000|6100|6200|6210|6300|6700|6800|7910|7940|7950|7960|7970|7980|7990|8030|8040|8060|8090|8150|8190|8198|8199|8200|8220|8230|8240|8250|8255|8260|8265|8270|8280|8290|8291|8292|8293|8294|8295|8296|8297|8298|8299)\b'''
+tags = ["finance", "cz"]
+
+# ---------- Repo-wide allowlist ----------
+
 [allowlist]
 description = "Repo-wide allowlist for known-safe matches"
 
@@ -21,10 +122,37 @@ paths = [
   '''(^|/)_junk/''',
   '''(^|/)docs/plans/''',
   '''(^|/)docs/runbooks/AWS-BOOTSTRAP\.md$''',
+  # Documented contracts referencing example secret prefixes (not real values).
+  '''(^|/)docs/api/[^/]+\.md$''',
+  '''(^|/)docs/api/SANDBOX\.md$''',
+  '''(^|/)docs/runbooks/SECRETS\.md$''',
+  '''(^|/)CLAUDE\.md$''',
+  '''(^|/)SECURITY\.md$''',
+  '''(^|/)\.gitleaks\.toml$''',
+  # Test fixtures + committed OpenAPI snapshots.
+  '''(^|/)tests?/''',
+  '''(^|/)__fixtures__/''',
+  '''(^|/)fixtures/''',
+  '''(^|/).*\.test\.tsx?$''',
+  '''(^|/).*\.spec\.tsx?$''',
+  '''(^|/)openapi/.*\.json$''',
 ]
 
 regexes = [
   '''<TBD[^>]*>''',
   '''ghp_xxx''',
   '''AKIA[A-Z0-9]{0,3}EXAMPLE''',
+  # Canonical doc / showcase fixtures. `12345678` is the well-known fake
+  # company-id used across Czech accounting examples (matches the fixture
+  # IČO + VAT both); allow-listing it stops the contextual rule firing
+  # on typography demos and seed scripts.
+  '''CZ12345678''',                                              # fixture VAT
+  '''(?i)i[čc]o\s*[:=]\s*12345678\b''',                          # fixture IČO with the ICO: prefix
+  '''CZ65[ ]?9999[ ]?0000[ ]?0000[ ]?1234[ ]?5670''',            # fixture IBAN — succeeds
+  '''CZ69[ ]?9998[ ]?0000[ ]?0000[ ]?9999[ ]?9990''',            # fixture IBAN — not found
+  '''affk_(live|test)_(…|\.\.\.)''',                             # ellipsis in docs
+  '''affk_test_e7f1\.\.\.''',
+  '''whsec_(BASE64SECRET|TESTONLY)\.\.\.''',
 ]
+
+stopwords = []

@@ -1,0 +1,67 @@
+# Ask AI evaluation gate. Runs `scripts/governance/run-ask-ai-eval.mjs`
+# against a preview docs deploy on every PR that touches the corpus
+# (`apps/docs/lib/ai/**`, `apps/docs/content/**`, or the committed spec),
+# and on a daily cron so model regressions surface within 24 h.
+#
+# Advisory until the first green PR cycle.
+
+name: Ask AI eval
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/docs/lib/ai/**"
+      - "apps/docs/content/**"
+      - "apps/api/openapi/**"
+      - "scripts/governance/run-ask-ai-eval.mjs"
+      - ".github/workflows/ask-ai-eval.yml"
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ask-ai-eval-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  eval:
+    name: Score eval set
+    runs-on: ubuntu-latest
+    continue-on-error: true # ADVISORY
+    permissions:
+      contents: read
+    env:
+      ASK_AI_URL: ${{ vars.ASK_AI_PREVIEW_URL }}
+      ASK_AI_THRESHOLD: "0.85"
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Skip when preview URL not configured
+        id: probe
+        run: |
+          if [ -z "$ASK_AI_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "vars.ASK_AI_PREVIEW_URL is not set — skipping eval."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run eval
+        if: steps.probe.outputs.configured == 'true'
+        run: node scripts/governance/run-ask-ai-eval.mjs > eval-report.json
+
+      - name: Upload report
+        if: steps.probe.outputs.configured == 'true' && always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ask-ai-eval-report
+          path: eval-report.json
+          retention-days: 30

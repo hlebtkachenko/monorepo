@@ -128,11 +128,23 @@ Email:
 - Runbook: [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - Config: `infra/cloudflare/wrangler.jsonc`
 
-### docs.afframe.com (planned)
+### docs.afframe.com
 
-- Status: not yet live
-- DNS: not provisioned
-- Tracking: [AFF-88](https://linear.app/hapddev/issue/AFF-88)
+- Hosts: `apps/docs` (Next.js 16, port 3300) on the App-{env} Fargate task
+- Routed via Cloudflare Tunnel → `localhost:3300`. Add ingress block in the
+  Zero Trust dashboard for each env:
+  ```yaml
+  - hostname: docs.afframe.com
+    service: http://localhost:3300
+  - hostname: docs-staging.afframe.com
+    service: http://localhost:3300
+  ```
+- CDK: `infra/cdk/lib/app-stack.ts` defines the `docs` container; env var
+  `DOCS_DOMAIN` (per-env GitHub Actions repo variable) feeds the bin entry.
+- Ask AI: optional. Provision `monorepo-{env}-anthropic-key` in Secrets
+  Manager; the deploy workflow passes the ARN to CDK context
+  `anthropicApiKeySecretArn`. Without the secret the `/api/ask` route
+  returns `503 feature_not_enabled`.
 
 ---
 

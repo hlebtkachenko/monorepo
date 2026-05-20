@@ -241,3 +241,38 @@ When importing from upstream, rewrite anything that violates these rules. The up
 - `docs/runbooks/` — operational runbooks
 - `docs/specs/` — design specifications
 - `docs/INVENTORY.md` — DORA Article 8 ICT asset register
+
+## Endpoint Addition Rules
+
+Every public API endpoint flows through the same seven steps. CI gates
+(`openapi-lint`, `sdk-drift`, `mcp-coverage`, `docs-coverage`,
+`pr-checklist`) catch deviations; the pre-push `endpoint-checklist`
+lefthook hook catches the most common one (registry edited, codegen not
+regenerated).
+
+1. **Author the Zod schema** in `packages/shared/src/api/<resource>.ts`.
+   Chain `.openapi({ description, example })` on every public field.
+2. **Register the operation** via `registry.registerPath({ ... })` in
+   `packages/shared/src/api/registry.ts`. Reference the schema by name.
+   Spread `ERROR_RESPONSE_REFS` into the `responses` map.
+3. **Implement the controller** under `apps/api/src/v1/<resource>/`,
+   mounted on `V1Module`. Read principal from the API key guard; never
+   accept `organization_id` / `workspace_id` / `role` as input.
+4. **Run `pnpm gen:all`** from the repo root. Commit the regenerated
+   `apps/api/openapi/v1.json`, `packages/sdk/src/generated/`, and
+   `apps/mcp/src/tools/generated/`.
+5. **Write an E2E test** with tenant isolation. Co-locate under
+   `apps/api/src/**/*.test.ts` (NestJS testing module) or
+   `apps/web/e2e/` (Playwright auth-bound flow).
+6. **Add a changeset** entry under `.changeset/` summarising the
+   surface change.
+7. **`pnpm verify` green** locally (typecheck + lint + test +
+   boundaries + openapi-lint).
+
+Full procedure with diffs: `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`.
+Convention reference: `docs/conventions/ENDPOINT-ADDITION.md`.
+Canonical fresh-session entry: `docs/START-HERE.md`.
+
+The `/add-endpoint <resource>` Claude skill at `.claude/skills/add-endpoint/`
+walks a contributor through the steps with the exact paths and refuses
+hand-edits of files under any `generated/` directory.

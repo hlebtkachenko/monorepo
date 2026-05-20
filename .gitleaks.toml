@@ -105,6 +105,28 @@ tags = ["pii", "cz", "gdpr-sensitive"]
 # Czech bank-account format: optional 1-6 digit prefix, dash, 2-10 digit account,
 # slash, 4-digit bank code from the CNB-issued list. Restricting to known codes
 # avoids matching random `1234/5678` strings.
+# Anthropic API key. Format `sk-ant-<api|admin>-<base62>`. Read by
+# `apps/docs/app/api/ask/route.ts` and provisioned in AWS Secrets Manager
+# as `monorepo-{env}-anthropic-key`. The upstream gitleaks default ruleset
+# carries a generic `anthropic-api-key` rule but the regex has been brittle
+# across releases; pin our own.
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key (sk-ant-…)"
+regex = '''\bsk-ant-(api|admin)\d{2}-[A-Za-z0-9_\-]{60,}\b'''
+keywords = ["sk-ant-"]
+tags = ["secret", "anthropic"]
+
+# Standard Webhooks signing secret. Partners receive these out-of-band; the
+# SDK's `verifyWebhook` consumes them. Format chosen to match the
+# `whsec_` prefix the rest of the ecosystem uses (Svix, Stripe webhooks).
+[[rules]]
+id = "afframe-webhook-secret"
+description = "Afframe Standard Webhooks signing secret (whsec_…)"
+regex = '''\bwhsec_[A-Za-z0-9_\-]{32,}\b'''
+keywords = ["whsec_"]
+tags = ["secret", "afframe", "webhook"]
+
 [[rules]]
 id = "czech-account-number"
 description = "Czech bank account (prefix-number/bankcode)"

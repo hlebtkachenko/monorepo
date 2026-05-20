@@ -71,8 +71,10 @@ export interface AppStackProps extends StackProps {
   readonly webRepository: Repository
   readonly apiRepository: Repository
   readonly adminRepository: Repository
+  readonly docsRepository: Repository
   readonly domain: string
   readonly adminDomain: string
+  readonly docsDomain: string
 }
 
 /**
@@ -117,6 +119,7 @@ export class AppStack extends Stack {
   readonly webLogGroup: LogGroup
   readonly adminLogGroup: LogGroup
   readonly apiLogGroup: LogGroup
+  readonly docsLogGroup: LogGroup
   readonly tunnelLogGroup: LogGroup
   readonly pgbouncerLogGroup: LogGroup
   readonly cerbosLogGroup: LogGroup
@@ -275,6 +278,11 @@ export class AppStack extends Stack {
     })
     this.apiLogGroup = new LogGroup(this, "ApiLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/api`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: ephemeralRemovalPolicy,
+    })
+    this.docsLogGroup = new LogGroup(this, "DocsLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/docs`,
       retention: RetentionDays.ONE_WEEK,
       removalPolicy: ephemeralRemovalPolicy,
     })
@@ -598,6 +606,54 @@ export class AppStack extends Stack {
       linuxParameters: linuxParams("AdminLinuxParams"),
     })
     adminContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    // Docs sidecar — `docs.afframe.com` developer hub. Static Next.js +
+    // Ask AI dynamic route. No DB, no Better Auth, no Resend. Optional
+    // Anthropic key (out-of-band-managed secret) enables Ask AI; without
+    // it the route returns 503 feature_not_enabled. Routed by the
+    // cloudflared sidecar (ingress block below).
+    const anthropicSecretArn = props.envName
+      ? this.node.tryGetContext("anthropicApiKeySecretArn")
+      : undefined
+    const anthropicSecret =
+      typeof anthropicSecretArn === "string" && anthropicSecretArn.length > 0
+        ? Secret.fromSecretCompleteArn(
+            this,
+            "AnthropicApiKeySecret",
+            anthropicSecretArn,
+          )
+        : undefined
+    if (anthropicSecret) anthropicSecret.grantRead(taskExecutionRole)
+
+    const docsContainer = taskDef.addContainer("docs", {
+      containerName: "docs",
+      image: ContainerImage.fromEcrRepository(props.docsRepository, imageTag),
+      portMappings: [{ containerPort: 3300 }],
+      essential: true,
+      logging: LogDriver.awsLogs({
+        streamPrefix: "docs",
+        logGroup: this.docsLogGroup,
+      }),
+      environment: {
+        NODE_ENV: "production",
+        APP_ENV: props.envName,
+        PORT: "3300",
+        NEXT_PUBLIC_AFFRAME_API_BASE: `https://${props.domain.replace(
+          "app.",
+          "api.",
+        )}`,
+      },
+      secrets: anthropicSecret
+        ? { ANTHROPIC_API_KEY: EcsSecret.fromSecretsManager(anthropicSecret) }
+        : undefined,
+      memoryReservationMiB: 256,
+      linuxParameters: linuxParams("DocsLinuxParams"),
+    })
+    docsContainer.addMountPoints({
       containerPath: "/tmp",
       sourceVolume: "tmp",
       readOnly: false,

@@ -2,6 +2,8 @@
 
 This is a closed-beta product. External contributions are not accepted yet. This document exists for the core team and any human or AI agent doing planned work in the repo.
 
+**Start here**: [`docs/START-HERE.md`](docs/START-HERE.md) is the canonical entry point. It indexes every runbook and convention you'll need.
+
 ## Hard Rules (project-wide)
 
 These rules are enforced by ESLint, Git hooks, and reviewer judgement. See the full list in `AGENTS.md`.
@@ -11,7 +13,7 @@ These rules are enforced by ESLint, Git hooks, and reviewer judgement. See the f
 3. Never permanently delete files. Move to `_junk/`.
 4. Never display or log secrets. `.env*`, `*.key`, `*.enc` are gitignored.
 5. TypeScript 6.0+ across every package.
-6. PostgreSQL 18, snake_case for tables and columns, full words only (`account_`, `invoice_`, never `acc_`, `inv_`).
+6. PostgreSQL 18, snake*case for tables and columns, full words only (`account*`, `invoice*`, never `acc*`, `inv\_`).
 7. All amounts in CZK by default. Stored as `numeric(19, 4)` in Postgres and `bigint` minor units in TypeScript via `Money<Currency>`. Never use native `number` for money.
 8. AI tool input schemas must NOT declare `organization_id` / `user_id` / `role`. Server-side injection is the only path.
 
@@ -78,15 +80,15 @@ pnpm test         # all tests
 
 Every PR triggers (advisory until promoted to required-status):
 
-| Check | What it does |
-|---|---|
-| `ci` | typecheck, lint, test, storybook build, build |
-| `gitleaks` | secret scan |
-| `commitlint` | conventional commits enforcement |
-| `codeql` | JS/TS SAST |
-| `dependency-review` | CVE + license check on PR diff |
-| `osv-scanner` | dependency CVE scan |
-| `size-limit` | bundle budget on `apps/web` |
+| Check               | What it does                                  |
+| ------------------- | --------------------------------------------- |
+| `ci`                | typecheck, lint, test, storybook build, build |
+| `gitleaks`          | secret scan                                   |
+| `commitlint`        | conventional commits enforcement              |
+| `codeql`            | JS/TS SAST                                    |
+| `dependency-review` | CVE + license check on PR diff                |
+| `osv-scanner`       | dependency CVE scan                           |
+| `size-limit`        | bundle budget on `apps/web`                   |
 
 ## License
 

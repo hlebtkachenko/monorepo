@@ -36,6 +36,10 @@ allowBuilds:
   # (napi-postinstall can't resolve its own package.json). JS fallback is
   # transparent; only build-time resolution is marginally slower.
   unrs-resolver: false
+  # vue-demi pulled in transitively by @scalar/api-reference-react (Scalar
+  # mounts a Vue 3 tree under the hood). The postinstall is a Vue 2 / 3
+  # compatibility switch; pnpm-isolated install doesn't need it.
+  vue-demi: false
   # Cloudflare's official Worker runtime. Used by wrangler dev for local
   # iteration; CI deploys don't depend on the native binary so the build
   # script could be 'false' here, but local dev breaks without it.

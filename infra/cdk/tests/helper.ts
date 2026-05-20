@@ -9,6 +9,8 @@ import { SecurityStack } from "../lib/security-stack.js"
 export const TEST_ACCOUNT = "123456789012"
 export const TEST_REGION = "eu-central-1"
 export const TEST_DOMAIN = "test.example.com"
+// Deliberately distinct host. Same rationale as TEST_ADMIN_DOMAIN below.
+export const TEST_DOCS_DOMAIN = "developer.example.net"
 // Deliberately NOT a subdomain of TEST_DOMAIN — proves adminDomain is an
 // independent value, not derived from the web domain.
 export const TEST_ADMIN_DOMAIN = "admin-console.example.net"
@@ -73,8 +75,10 @@ export function buildTestApp(): BuiltApp {
     webRepository: data.webRepository,
     apiRepository: data.apiRepository,
     adminRepository: data.adminRepository,
+    docsRepository: data.docsRepository,
     domain: TEST_DOMAIN,
     adminDomain: TEST_ADMIN_DOMAIN,
+    docsDomain: TEST_DOCS_DOMAIN,
   })
 
   const security = new SecurityStack(app, `Security-${TEST_ENV_NAME}`, {

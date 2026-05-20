@@ -81,6 +81,57 @@ Role ARNs contain the account ID, so they are stored as secrets (single-account 
 | KMS CMKs                          | annual rotation enabled at key creation |
 | GitHub App private keys           | 12 months                               |
 | Cosign                            | n/a (keyless)                           |
+| Anthropic API key (Ask AI)        | annual, plus rotate on suspected leak   |
+| Linear API key (CI write-back)    | annual                                  |
+
+## Ask AI Anthropic key provisioning
+
+Phase D5 (`apps/docs` Ask AI). One-time setup per env.
+
+1. Open the [Anthropic Console](https://console.anthropic.com/settings/keys).
+2. **Create the runtime key.** Workspace: `monorepo`; environment label:
+   `production` or `staging`. Save the `sk-ant-api…` value.
+3. **Set the spend cap** at the Console workspace level — $10 / month is
+   the platform default for the docs site. The cap is enforced
+   server-side by Anthropic; the docs container never sees a bill
+   exceeding it.
+4. **Set a token-based rate limit** on the same workspace (default:
+   30 RPM, 100k input tokens / minute). The route handler also runs an
+   in-process token bucket per client IP as defence-in-depth.
+5. **Store the runtime key in AWS Secrets Manager**:
+
+   ```bash
+   aws secretsmanager create-secret \
+     --name monorepo-staging-anthropic-key \
+     --secret-string '{"value":"sk-ant-api…"}'
+   ```
+
+6. **Pass the secret ARN to CDK** as context. The deploy workflow reads
+   it from a repo secret and forwards it:
+
+   ```bash
+   pnpm --filter @workspace/cdk cdk deploy \
+     -c anthropicApiKeySecretArn="$ANTHROPIC_API_KEY_SECRET_ARN"
+   ```
+
+7. The dev key from the project handoff is used ONLY to confirm the
+   Console wiring (cap + rate limit + workspace label). Never check it
+   into the deploy workflow; the runtime key is a separate value.
+
+Verification: `curl https://docs.afframe.com/api/ask` with a real
+question — non-empty SSE stream. Without the secret, the route returns
+`503 feature_not_enabled`.
+
+## Linear API key (CI write-back)
+
+Phase D5 also provisions `LINEAR_API_KEY` for the future
+`linear-sync.yml` workflow (branch → ticket lookup + status update).
+Until that workflow ships, the key is unused; create it lazily.
+
+1. [Linear OAuth applications](https://linear.app/afframe/settings/api/applications)
+   → "Create personal API key", scope `read,write`.
+2. Store as a GitHub Actions repo secret named `LINEAR_API_KEY`.
+3. Rotate annually.
 
 ## Break-glass procedure
 

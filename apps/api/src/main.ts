@@ -4,7 +4,9 @@ import * as Sentry from "@sentry/node"
 import helmet from "helmet"
 import { AppModule } from "./app.module"
 import { registerDocsRoutes } from "./docs"
+import { registerEditorRoutes } from "./editor"
 import { buildOpenApiDocument } from "./openapi"
+import { registerVoidRoutes } from "./void"
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -46,6 +48,8 @@ async function bootstrap() {
   // Nest app instance is no longer required to emit it.
   const document = buildOpenApiDocument()
   registerDocsRoutes(app, document)
+  registerEditorRoutes(app)
+  registerVoidRoutes(app)
 
   const port = Number(process.env.PORT ?? 3001)
   const host = process.env.HOST ?? "0.0.0.0"

@@ -319,10 +319,10 @@ export const auth = betterAuth({
       // delegating to Drizzle.
       generateId: "uuid",
     },
-    // Cross-subdomain cookies. Once the spec editor (Phase D1) and other
-    // admin-gated surfaces land under their own subdomains, the session
-    // cookie needs to be readable from `app.`, `admin.`, `api.`, and
-    // `docs.afframe.com`. A leading-dot domain covers every subdomain.
+    // Cross-subdomain cookies. The session cookie needs to be readable
+    // from `app.`, `admin.`, and `api.afframe.com` (web, admin, and any
+    // future api-side admin-gated routes). A leading-dot domain covers
+    // every subdomain.
     //
     // The block is enabled only when `BETTER_AUTH_COOKIE_DOMAIN` is set —
     // local dev on `localhost` still gets a host-only cookie. CI / staging

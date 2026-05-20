@@ -105,11 +105,13 @@ tags = ["pii", "cz", "gdpr-sensitive"]
 # Czech bank-account format: optional 1-6 digit prefix, dash, 2-10 digit account,
 # slash, 4-digit bank code from the CNB-issued list. Restricting to known codes
 # avoids matching random `1234/5678` strings.
-# Anthropic API key. Format `sk-ant-<api|admin>-<base62>`. Read by
-# `apps/docs/app/api/ask/route.ts` and provisioned in AWS Secrets Manager
-# as `monorepo-{env}-anthropic-key`. The upstream gitleaks default ruleset
-# carries a generic `anthropic-api-key` rule but the regex has been brittle
-# across releases; pin our own.
+# Anthropic API key. Format `sk-ant-<api|admin>-<base62>`. The Ask AI route
+# that consumed this key was archived to
+# `.context/archive/apps-docs-2026-05-21/` on 2026-05-21 alongside the rest
+# of `apps/docs`. The detection rule stays — even with no live consumer, a
+# leaked Anthropic key in any file is a paid-API exfil risk worth catching.
+# The upstream gitleaks default ruleset carries a generic `anthropic-api-key`
+# rule but the regex has been brittle across releases; pin our own.
 [[rules]]
 id = "anthropic-api-key"
 description = "Anthropic API key (sk-ant-…)"

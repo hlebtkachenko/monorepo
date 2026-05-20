@@ -3,17 +3,14 @@
   "info": {
     "title": "Afframe Public API",
     "version": "0.0.0",
-    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape envelope; rate limits are surfaced via IETF `RateLimit-*` headers. Full developer documentation: https://docs.afframe.com.",
+    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape envelope; rate limits are surfaced via IETF `RateLimit-*` headers.",
     "contact": {
       "name": "Afframe support",
-      "url": "https://docs.afframe.com/help/contact",
       "email": "support@afframe.com"
     },
     "license": {
-      "name": "Proprietary — Terms of Service",
-      "url": "https://docs.afframe.com/help/terms"
-    },
-    "termsOfService": "https://docs.afframe.com/help/terms"
+      "name": "Proprietary — see Terms of Service"
+    }
   },
   "servers": [
     {
@@ -35,10 +32,6 @@
       "description": "The API key's own organization"
     }
   ],
-  "externalDocs": {
-    "description": "Developer guides, recipes, and the help center.",
-    "url": "https://docs.afframe.com"
-  },
   "components": {
     "securitySchemes": {
       "bearer": {
@@ -61,7 +54,6 @@
                 "code": "unauthorized",
                 "error_type": "UNAUTHORIZED",
                 "message": "Missing or invalid API key.",
-                "documentation_url": "https://api.afframe.com/docs/errors#unauthorized",
                 "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
               }
             }
@@ -80,7 +72,6 @@
                 "code": "forbidden",
                 "error_type": "FORBIDDEN",
                 "message": "The API key is not allowed to perform this action.",
-                "documentation_url": "https://api.afframe.com/docs/errors#forbidden",
                 "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
               }
             }
@@ -99,7 +90,6 @@
                 "code": "not_found",
                 "error_type": "NOT_FOUND",
                 "message": "Resource not found.",
-                "documentation_url": "https://api.afframe.com/docs/errors#not_found",
                 "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
               }
             }
@@ -118,7 +108,6 @@
                 "code": "conflict",
                 "error_type": "CONFLICT",
                 "message": "Resource is in a state that conflicts with the request.",
-                "documentation_url": "https://api.afframe.com/docs/errors#conflict",
                 "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
               }
             }
@@ -137,7 +126,6 @@
                 "code": "validation_error",
                 "error_type": "VALIDATION",
                 "message": "Request body failed validation.",
-                "documentation_url": "https://api.afframe.com/docs/errors#validation_error",
                 "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14",
                 "details": [
                   {
@@ -163,7 +151,6 @@
                 "code": "rate_limited",
                 "error_type": "RATE_LIMITED",
                 "message": "Too many requests. See the RateLimit-* headers for the reset window.",
-                "documentation_url": "https://api.afframe.com/docs/errors#rate_limited",
                 "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
               }
             }
@@ -277,7 +264,7 @@
               "documentation_url": {
                 "type": "string",
                 "format": "uri",
-                "description": "Deep-link into the error registry, e.g. `https://api.afframe.com/docs/errors#not_found`."
+                "description": "Optional deep-link into a hosted error registry. Reserved for future use; the api does not emit this field today."
               },
               "requestId": {
                 "type": "string",
@@ -317,7 +304,7 @@
         "required": [
           "error"
         ],
-        "description": "Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object. See https://docs.afframe.com/developers/errors."
+        "description": "Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object."
       },
       "ApiPrincipal": {
         "type": "object",

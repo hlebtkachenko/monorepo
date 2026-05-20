@@ -57,14 +57,6 @@ function statusToCode(status: number): string {
 }
 
 /**
- * Docs base URL for `documentation_url` deep-links. Public API docs live at
- * `api.afframe.com/docs`; staging mirrors at `api-staging.afframe.com/docs`.
- * Override via `API_DOCS_BASE_URL` for non-prod test rigs.
- */
-const docsBaseUrl =
-  process.env.API_DOCS_BASE_URL?.replace(/\/$/, "") ?? "https://api.afframe.com"
-
-/**
  * Renders every `/v1` error as the Plaid-shape envelope:
  *
  *   {
@@ -72,16 +64,20 @@ const docsBaseUrl =
  *       "code": "not_found",
  *       "error_type": "NOT_FOUND",
  *       "message": "Organization not found",
- *       "documentation_url": "https://api.afframe.com/docs/errors#not_found",
  *       "requestId": "..."
  *     }
  *   }
  *
  * Backwards-compatible extension of the prior envelope: `code`, `message`,
- * `requestId` retained verbatim. Maps DomainError (`@workspace/shared/errors`)
- * and NestJS HttpException; unknown errors become a generic 500 with the real
- * cause sent to Sentry. Applied per-controller via `@UseFilters` — `/v1`-scoped,
- * BFF/health responses are untouched.
+ * `requestId` retained verbatim. The `documentation_url` field stays
+ * optional in the schema (consumers may parse it on inbound responses) but
+ * is not emitted today — the developer hub it pointed to was archived to
+ * `.context/archive/apps-docs-2026-05-21/` on 2026-05-21.
+ *
+ * Maps DomainError (`@workspace/shared/errors`) and NestJS HttpException;
+ * unknown errors become a generic 500 with the real cause sent to Sentry.
+ * Applied per-controller via `@UseFilters` — `/v1`-scoped, BFF / health
+ * responses are untouched.
  *
  * Per docs/api/ERRORS.md.
  */
@@ -127,10 +123,9 @@ export class DomainExceptionFilter implements ExceptionFilter {
     }
 
     const error_type = STATUS_FAMILY[status] ?? "INVALID_REQUEST"
-    const documentation_url = `${docsBaseUrl}/docs/errors#${code}`
 
     res.status(status).json({
-      error: { code, error_type, message, documentation_url, requestId },
+      error: { code, error_type, message, requestId },
     })
   }
 }

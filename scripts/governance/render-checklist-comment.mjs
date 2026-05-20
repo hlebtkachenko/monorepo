@@ -58,17 +58,6 @@ if (data.scopes.includes("mcp") && !data.scopes.includes("api-endpoint")) {
   })
 }
 
-if (data.scopes.includes("docs")) {
-  sections.push({
-    title: "Docs changed",
-    items: [
-      "Every developer-facing resource has a matching `apps/docs/content/developers/<resource>.mdx`.",
-      "If a guide / recipe was added, link it from `apps/docs/content/developers/index.mdx`.",
-      "Run `pnpm --filter docs build` locally and verify Pagefind picks up new pages.",
-    ],
-  })
-}
-
 if (data.scopes.includes("infra")) {
   sections.push({
     title: "Infrastructure changed",

@@ -8,7 +8,7 @@ import type { ApiOpenApiDocument } from "./openapi"
  *
  * - `GET /v1/openapi.json` — raw OpenAPI 3.1 spec, canonical machine-readable
  *   document consumed by CI drift checks, Spectral lint, and SDK / MCP /
- *   `apps/docs` codegen.
+ *   SDK + MCP codegen.
  * - `GET /` — Scalar API Reference. Mounted at the host root (FINMAP-style:
  *   a direct hit on `api.afframe.com` lands the public surface). Scalar
  *   bootstraps from the jsDelivr CDN; the document is inlined into the page

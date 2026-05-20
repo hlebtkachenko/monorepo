@@ -36,8 +36,8 @@ Before writing any code:
 ## Hard rules (refuse if violated)
 
 1. **Never hand-edit a `generated/` file.** Paths to refuse:
-   `packages/sdk/src/generated/**`, `apps/mcp/src/tools/generated/**`,
-   `apps/docs/content/reference/**`. Regenerate via `pnpm gen:all`.
+   `packages/sdk/src/generated/**`, `apps/mcp/src/tools/generated/**`.
+   Regenerate via `pnpm gen:all`.
 2. **Never declare `organization_id`, `workspace_id`, or `role`** as
    request input. The server injects from the API key principal. AI
    tool input schemas, request bodies, and query parameters all forbid
@@ -58,8 +58,7 @@ runbook. The steps in order:
 | 3   | NestJS controller  | `apps/api/src/v1/<resource>/<resource>.controller.ts` |
 | 4   | Codegen            | `pnpm gen:all` (regenerates spec + SDK + MCP)         |
 | 5   | E2E test           | `apps/api/src/**/*.test.ts` or `apps/web/e2e/**`      |
-| 6   | Docs page          | `apps/docs/content/developers/<resource>.mdx`         |
-| 7   | Changeset          | `pnpm changeset`                                      |
+| 6   | Changeset          | `pnpm changeset`                                      |
 
 Then: `pnpm verify` green locally.
 

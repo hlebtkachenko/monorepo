@@ -95,7 +95,6 @@ const ERROR_RESPONSES: ErrorResponseDef[] = [
       code: "unauthorized",
       error_type: "UNAUTHORIZED",
       message: "Missing or invalid API key.",
-      documentation_url: "https://api.afframe.com/docs/errors#unauthorized",
       requestId: REQUEST_ID,
     },
   },
@@ -109,7 +108,6 @@ const ERROR_RESPONSES: ErrorResponseDef[] = [
       code: "forbidden",
       error_type: "FORBIDDEN",
       message: "The API key is not allowed to perform this action.",
-      documentation_url: "https://api.afframe.com/docs/errors#forbidden",
       requestId: REQUEST_ID,
     },
   },
@@ -124,7 +122,6 @@ const ERROR_RESPONSES: ErrorResponseDef[] = [
       code: "not_found",
       error_type: "NOT_FOUND",
       message: "Resource not found.",
-      documentation_url: "https://api.afframe.com/docs/errors#not_found",
       requestId: REQUEST_ID,
     },
   },
@@ -138,7 +135,6 @@ const ERROR_RESPONSES: ErrorResponseDef[] = [
       code: "conflict",
       error_type: "CONFLICT",
       message: "Resource is in a state that conflicts with the request.",
-      documentation_url: "https://api.afframe.com/docs/errors#conflict",
       requestId: REQUEST_ID,
     },
   },
@@ -152,7 +148,6 @@ const ERROR_RESPONSES: ErrorResponseDef[] = [
       code: "validation_error",
       error_type: "VALIDATION",
       message: "Request body failed validation.",
-      documentation_url: "https://api.afframe.com/docs/errors#validation_error",
       requestId: REQUEST_ID,
       details: [
         {
@@ -174,7 +169,6 @@ const ERROR_RESPONSES: ErrorResponseDef[] = [
       error_type: "RATE_LIMITED",
       message:
         "Too many requests. See the RateLimit-* headers for the reset window.",
-      documentation_url: "https://api.afframe.com/docs/errors#rate_limited",
       requestId: REQUEST_ID,
     },
   },
@@ -241,12 +235,17 @@ registry.registerPath({
   },
 })
 
-const DEV_DOCS_URL = "https://docs.afframe.com"
-
 /**
  * Emit the full OpenAPI 3.1 document. The api process and the codegen
  * scripts both go through this single call — drop adapters here, not in
  * downstream consumers.
+ *
+ * The Scalar API Reference mounted at `api.afframe.com/` is the single
+ * developer-facing surface. There is no separate docs site today; the
+ * earlier `apps/docs/` developer hub is archived to
+ * `.context/archive/apps-docs-2026-05-21/`. `info.contact` / `license` /
+ * `termsOfService` therefore omit `url` fields (no public hub to deep-link
+ * to) and `externalDocs` is omitted entirely.
  */
 export function buildOpenApiDocument(
   opts: { version?: string } = {},
@@ -261,18 +260,14 @@ export function buildOpenApiDocument(
         "Public API for the Afframe accounting platform. Authenticate with " +
         "an API key as a bearer token in the form `affk_live_…` (production) " +
         "or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape " +
-        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers. " +
-        `Full developer documentation: ${DEV_DOCS_URL}.`,
+        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers.",
       contact: {
         name: "Afframe support",
-        url: `${DEV_DOCS_URL}/help/contact`,
         email: "support@afframe.com",
       },
       license: {
-        name: "Proprietary — Terms of Service",
-        url: `${DEV_DOCS_URL}/help/terms`,
+        name: "Proprietary — see Terms of Service",
       },
-      termsOfService: `${DEV_DOCS_URL}/help/terms`,
     },
     servers: [
       { url: "https://api.afframe.com", description: "Production" },
@@ -282,9 +277,5 @@ export function buildOpenApiDocument(
       { name: "Meta", description: "Service metadata and auth smoke tests" },
       { name: "Organization", description: "The API key's own organization" },
     ],
-    externalDocs: {
-      description: "Developer guides, recipes, and the help center.",
-      url: DEV_DOCS_URL,
-    },
   })
 }

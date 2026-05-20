@@ -127,7 +127,7 @@ export const ProblemDetailsSchema = z
   .object({
     type: z.url().openapi({
       description: "URI identifying the problem type.",
-      example: "https://docs.afframe.com/developers/errors#validation_error",
+      example: "https://example.com/probs/validation",
     }),
     title: z.string(),
     status: z.number().int().min(100).max(599),

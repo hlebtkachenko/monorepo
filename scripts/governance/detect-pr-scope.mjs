@@ -34,7 +34,6 @@ const SCOPE_RULES = [
   { key: "sdk", match: (f) => f.startsWith("packages/sdk/") },
   { key: "mcp", match: (f) => f.startsWith("apps/mcp/") },
   { key: "cli", match: (f) => f.startsWith("apps/cli/") },
-  { key: "docs", match: (f) => f.startsWith("apps/docs/") },
   { key: "auth", match: (f) => f.startsWith("packages/auth/") },
   { key: "db", match: (f) => f.startsWith("packages/db/") },
   { key: "infra", match: (f) => f.startsWith("infra/") },

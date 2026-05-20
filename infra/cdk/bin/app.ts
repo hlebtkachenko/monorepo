@@ -54,27 +54,6 @@ if (!adminDomain) {
   )
 }
 
-// Developer hub at docs.afframe.com (prod) / docs-staging.afframe.com
-// (staging). Cloudflare-Tunnel ingress maps the host to the docs container
-// on port 3300.
-const docsDomain = process.env.DOCS_DOMAIN
-if (!docsDomain) {
-  throw new Error(
-    `DOCS_DOMAIN env var is required for env=${env}. In CI it comes from the DOCS_DOMAIN_${env.toUpperCase()} repo variable.`,
-  )
-}
-
-// Public API host (api.afframe.com / api-staging.afframe.com). Threaded
-// explicitly so the docs container's NEXT_PUBLIC_AFFRAME_API_BASE points
-// at the right host without substring-replacing `app.` → `api.` (that
-// pattern breaks on edge cases like `appliance.afframe.com`).
-const apiDomain = process.env.API_DOMAIN
-if (!apiDomain) {
-  throw new Error(
-    `API_DOMAIN env var is required for env=${env}. In CI it comes from the API_DOMAIN_${env.toUpperCase()} repo variable.`,
-  )
-}
-
 // Operator email is no longer a CDK input. The deploy workflow subscribes
 // the EMAIL_FORWARD_TO repo secret to the alert SNS topics out-of-band
 // (aws sns subscribe --protocol email, with ::add-mask:: on the value)
@@ -107,11 +86,8 @@ const appStack = new AppStack(app, `App-${env}`, {
   webRepository: data.webRepository,
   apiRepository: data.apiRepository,
   adminRepository: data.adminRepository,
-  docsRepository: data.docsRepository,
   domain,
   adminDomain,
-  docsDomain,
-  apiDomain,
 })
 
 const security = new SecurityStack(app, `Security-${env}`, {

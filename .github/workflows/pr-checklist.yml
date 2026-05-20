@@ -1,6 +1,6 @@
 # Scope-aware PR checklist comment.
 #
-# Detects what the PR diff touches (api endpoint, SDK, MCP, docs, infra, …)
+# Detects what the PR diff touches (api endpoint, SDK, MCP, infra, …)
 # and posts a sticky comment listing the required follow-up steps for each
 # scope. Re-runs on push so the comment stays in sync with the diff.
 #

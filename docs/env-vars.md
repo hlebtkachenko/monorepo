@@ -34,23 +34,14 @@ Build-time identity (set by Dockerfile ARG; empty in local dev is fine):
 
 Public API contract:
 
-| Var                 | Required | Notes                                                                                                                                                                                                                                                                                         |
-| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `API_DOCS_BASE_URL` | no       | Base URL for the `documentation_url` deep-link emitted in every `/v1/*` error envelope. Default `https://api.afframe.com`. Override in non-prod test rigs to avoid cross-env links. Read by `apps/api/src/v1/domain-exception.filter.ts`.                                                     |
-| `AFFRAME_MCP_URL`   | no       | Public URL of a Streamable-HTTP MCP server. When set, the Scalar reference at `/` advertises it through `mcp.url`; when unset, the MCP slot stays disabled. `apps/mcp` ships as stdio today, so this is empty for prod / staging until an HTTP wrapper lands. Read by `apps/api/src/docs.ts`. |
+| Var               | Required | Notes                                                                                                                                                                                                                                                                                         |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AFFRAME_MCP_URL` | no       | Public URL of a Streamable-HTTP MCP server. When set, the Scalar reference at `/` advertises it through `mcp.url`; when unset, the MCP slot stays disabled. `apps/mcp` ships as stdio today, so this is empty for prod / staging until an HTTP wrapper lands. Read by `apps/api/src/docs.ts`. |
 
-## Developer Hub (apps/docs)
-
-Listens on port 3300. `DOCS_DOMAIN` is per-env (`docs.afframe.com` /
-`docs-staging.afframe.com`); the Cloudflare Tunnel ingress maps the host
-onto the container.
-
-| Var                            | Required  | Notes                                                                                                                                                                                                                                                                               |
-| ------------------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DOCS_DOMAIN`                  | yes (CDK) | Public hostname (no protocol). Required by `infra/cdk/bin/app.ts`. In CI it comes from the `DOCS_DOMAIN_{ENV}` GitHub Actions variable.                                                                                                                                             |
-| `ANTHROPIC_API_KEY`            | no        | Enables the `/api/ask` Ask AI route. Provisioned in AWS Secrets Manager as `monorepo-{env}-anthropic-key` and surfaced into the container by `app-stack.ts`. Without it the route returns `503 feature_not_enabled`. $10/mo cap enforced on the Anthropic Console key, not in code. |
-| `AFFRAME_OPENAPI_PATH`         | no        | Absolute path to the OpenAPI spec the Ask AI corpus reads. Default in the runner image is `/app/apps/api/openapi/v1.json` (copied in by `apps/docs/Dockerfile`). Override only when running the dev server in an unusual layout.                                                    |
-| `NEXT_PUBLIC_AFFRAME_API_BASE` | no        | Base URL the docs site points the Scalar reference / client widget at. Default `https://api.afframe.com`. Override for staging or a local API container.                                                                                                                            |
+The `EDITOR_ENABLED` gate on `/editor` was dropped on 2026-05-21 (the
+redirect target `editor.scalar.com` is public; the spec it points at is
+also public via `/v1/openapi.json`, so the gate was defensive without
+adding exposure). The route now redirects unconditionally.
 
 ## Public API surfaces (apps/cli, apps/mcp, packages/sdk)
 

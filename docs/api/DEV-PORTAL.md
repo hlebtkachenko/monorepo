@@ -1,5 +1,13 @@
 # Developer Portal — Page Map
 
+> **Status note (2026-05-21):** the multi-page developer portal described
+> below was descoped to a single surface — the Scalar API Reference at
+> `api.afframe.com/`. The narrative pages, Pagefind search, Ask AI, and
+> `llms.txt` items remain `[Concept]` and are not in scope for v0. See
+> [ADR-0024 Amendment 2026-05-21](../adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted)
+> and [AFF-88](https://linear.app/hapddev/issue/AFF-88) for the open
+> question on if/when to revisit.
+
 > Sitemap and rules for the public developer portal at `api.afframe.com/docs` (narrative) and `api.afframe.com/v1/docs` (Scalar reference). Backs [`ADR-0023`](../adr/0023-public-api-developer-platform.md).
 >
 > Markers: **[Live]** done, **[Wip]** in flight, **[Concept]** planned. Universal = appears in every B2B portal we surveyed (Stripe, Linear, Resend, Plaid, Mercury, Vercel, Twilio); finance-specific = mandatory for an accountancy API; nice-to-have = ship when content exists.

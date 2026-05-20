@@ -2,6 +2,13 @@
 
 > Master tracker for moving `api.afframe.com/v1` from "the foundation works" to "publicly documented + ready for paying partners". Pair with [`ADR-0023`](../adr/0023-public-api-developer-platform.md) (the platform decision) and [`docs/runbooks/PUBLIC-REPO-CHECKLIST.md`](../runbooks/PUBLIC-REPO-CHECKLIST.md) (repo-side hardening — different concern).
 >
+> **2026-05-21 amendment:** Phase 1 narrative-docs surface (`apps/docs`)
+> was built and archived to `.context/archive/apps-docs-2026-05-21/` —
+> see [ADR-0024 Amendment 2026-05-21](../adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted).
+> Phase 10 (`llms.txt` + per-page `.md` mirrors) is descoped to v1.
+> Public launch now rides on the Scalar API Reference at
+> `api.afframe.com/` plus the per-package npm READMEs (CLI, SDK, MCP).
+>
 > Items are tagged: **[Live]** done today, **[Wip]** in flight, **[Concept]** planned but not built. Every concept item links to a Linear issue or a design doc.
 
 ---

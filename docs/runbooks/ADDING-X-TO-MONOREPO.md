@@ -34,8 +34,10 @@ vitest.config.ts, scripts/emit-openapi.ts}`.
 
 ## A new runbook
 
-1. `apps/docs/content/help/<topic>.mdx` for end-user help, or
-   `docs/runbooks/<TOPIC>.md` for operator-facing.
+1. `docs/runbooks/<TOPIC>.md` for operator-facing material. End-user
+   help no longer has a hosted surface (ADR-0024 Amendment 2026-05-21);
+   put end-user-facing copy in the relevant Next.js page or wait for a
+   future docs surface.
 2. Link from `docs/START-HERE.md` and from any related runbook.
 3. If the runbook covers an incident class, also link from
    `docs/runbooks/INCIDENT.md`.
@@ -55,7 +57,7 @@ vitest.config.ts, scripts/emit-openapi.ts}`.
 1. Start from `.github/workflows/_template-update-check.yml.example`
    when the workflow gates a versioned dependency.
 2. Otherwise clone the closest existing workflow:
-   - Coverage check → `mcp-coverage.yml` / `docs-coverage.yml`.
+   - Coverage check → `mcp-coverage.yml`.
    - Drift gate → `openapi-lint.yml` / `sdk-drift.yml`.
    - Scheduled audit → `osv-scanner-nightly.yml`.
 3. Required workflow hardening (every new workflow):
@@ -78,10 +80,8 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
 
 1. Extend `AfframeClientOptions` in `packages/sdk/src/client.ts`.
 2. Wire the option through `createAfframeClient`.
-3. Document in `apps/docs/content/developers/sdks.mdx`.
-4. Add a corpus entry in `apps/docs/lib/ai/corpus.ts` so Ask AI surfaces
-   the new option.
-5. Changeset entry.
+3. Document in `packages/sdk/README.md`.
+4. Changeset entry.
 
 ## A new env var
 
@@ -90,7 +90,7 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
    appropriate.
 2. Declare in `turbo.json` `globalEnv`.
 3. Document in `docs/env-vars.md` under the section matching the
-   consumer (web / api / admin / docs / db / auth / etc.).
+   consumer (web / api / admin / db / auth / etc.).
 4. If CI / production needs it, add the corresponding GitHub Actions
    repo variable or Secrets Manager entry. Cross-reference from
    `docs/runbooks/SECRETS.md` and `docs/runbooks/AWS-DEPLOY.md`.

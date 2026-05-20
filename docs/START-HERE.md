@@ -7,10 +7,12 @@ file first; every link below leads to a single source of truth.
 
 Self-hosted accounting platform for Czech regulated workflows. Stripe-shape
 REST API, Plaid-shape error envelope, IETF RateLimit headers, first-class
-TypeScript SDK / CLI / MCP, public developer hub.
+TypeScript SDK / CLI / MCP. The Scalar API Reference at
+`api.afframe.com/` is the public developer surface; there is no separate
+docs site (see [ADR-0024](adr/0024-developer-platform-codegen-pipeline.md)
+Amendment 2026-05-21).
 
-- Production: `app.afframe.com`, `api.afframe.com`, `admin.afframe.com`,
-  `docs.afframe.com`
+- Production: `app.afframe.com`, `api.afframe.com`, `admin.afframe.com`
 - Staging mirrors at `*-staging.afframe.com`
 - Status: `status.afframe.com` (OVH VPS, not AWS)
 

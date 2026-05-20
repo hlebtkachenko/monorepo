@@ -38,7 +38,6 @@ pnpm-lock.yaml      linguist-generated=true
 **/dist/**          linguist-generated=true -diff
 
 # Codegen output — drift-gated by .github/workflows/sdk-drift.yml +
-# mcp-coverage.yml + docs-coverage.yml. Never hand-edit these files.
+# mcp-coverage.yml. Never hand-edit these files.
 packages/sdk/src/generated/**     linguist-generated=true -diff
 apps/mcp/src/tools/generated/**   linguist-generated=true -diff
-apps/docs/content/reference/**    linguist-generated=true -diff

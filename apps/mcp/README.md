@@ -47,7 +47,7 @@ STDIO. Streamable HTTP (the hosted `mcp.afframe.com`) is documented in `docs/api
 
 ## Errors
 
-Every tool error returns `isError: true` with the Plaid envelope quoted verbatim — LLMs (and end users) see `code`, `status`, `request_id`, and the `documentation_url` deep link. Rate-limit errors include `retry_after`.
+Every tool error returns `isError: true` with the Plaid envelope quoted verbatim — LLMs (and end users) see `code`, `status`, and `request_id`. `documentation_url` is appended when present (the api does not emit it today; reserved field). Rate-limit errors include `retry_after`.
 
 ## Dev
 

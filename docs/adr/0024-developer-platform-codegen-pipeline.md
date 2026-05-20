@@ -1,7 +1,7 @@
 # 24. Developer platform codegen pipeline
 
-- Status: Accepted
-- Date: 2026-05-20
+- Status: Accepted (Amendment 2026-05-21 — see below)
+- Date: 2026-05-20 / Amendment 2026-05-21
 - Deciders: Hleb Tkachenko
 - Supersedes parts of: [ADR-0023](0023-public-api-developer-platform.md) (SDK generator, MCP tool source, docs hosting)
 
@@ -25,12 +25,6 @@ Two months in, observing how new endpoints actually land:
   typing, and ships a clean middleware surface. The size + edge story
   is decisive for partners running on Cloudflare Workers and Vercel
   Edge.
-- ADR-0023 planned the docs portal as Fumadocs-style Markdown served
-  under `api.afframe.com/docs`. In practice the public surface that
-  developers reach for is a separate host (`docs.afframe.com`), the
-  content authoring model is MDX + React (so Scalar widgets, Ask AI,
-  and live components compose), and the team can ship Pagefind +
-  llms.txt + per-page `.md` mirrors for free with that stack.
 
 ## Decision
 
@@ -47,11 +41,10 @@ Two months in, observing how new endpoints actually land:
    1. `pnpm --filter api emit:openapi` → `apps/api/openapi/v1.json`
    2. `pnpm --filter @afframe/sdk gen` → `packages/sdk/src/generated/openapi.ts`
    3. `pnpm --filter @afframe/mcp gen` → `apps/mcp/src/tools/generated/*.ts`
-   4. `pnpm --filter docs gen:reference` → `apps/docs/content/reference/*.md`
 
    Stages without a `gen` script skip cleanly. CI's `sdk-drift`,
-   `mcp-coverage`, `docs-coverage`, and `openapi-lint` workflows re-run
-   the same pipeline and fail on any uncommitted diff.
+   `mcp-coverage`, and `openapi-lint` workflows re-run the same
+   pipeline and fail on any uncommitted diff.
 
 3. **SDK generator: `openapi-typescript` + `openapi-fetch`** (revises
    ADR-0023 §4). Generated `paths` interface; tiny runtime client with
@@ -66,13 +59,13 @@ Two months in, observing how new endpoints actually land:
    verb alone can't capture (destructive POSTs, idempotent POSTs with
    `Idempotency-Key`).
 
-5. **Developer hub: `apps/docs` at `docs.afframe.com`** (revises
-   ADR-0023 §1 / supersedes the Fumadocs decision tracked in AFF-88).
-   Next.js 16 + Tailwind + shadcn + MDX. Embeds `@scalar/api-reference`
-   at `/reference` and `@scalar/api-client` at `/client`. Includes
-   Ask AI (`/api/ask`) with Anthropic Haiku 4.5 grounded against a
-   build-time corpus (OpenAPI spec + narrative summaries). Eval set of
-   ~50 questions drives the `ask-ai-eval.yml` advisory gate.
+5. **Developer surface = the Scalar API Reference at api root** (revised
+   2026-05-21 — see Amendment below). `api.afframe.com/` IS the
+   documentation. There is no separate `docs.afframe.com` host. Partner
+   developers reach for the Reference + the npm package READMEs (CLI,
+   SDK, MCP). Narrative guides (quickstart, errors deep-dive, webhooks
+   signing) live in `info.description` markdown rendered by Scalar's
+   modern layout, not on a separate site.
 
 6. **Scalar widget at host root.** `api.afframe.com/` (not `/v1/docs`)
    serves the Scalar API Reference with the full configuration surface
@@ -84,18 +77,19 @@ Two months in, observing how new endpoints actually land:
    API route by returning HTML.
 
 7. **Editor + Void.** Spec editor at `/editor` redirects to the hosted
-   `editor.scalar.com` (no embeddable Scalar Editor npm package
-   exists today) gated by an `EDITOR_ENABLED` env var until the admin
-   session-gate lands. Void mock-server at `/void/*` echoes request
-   shape via an inline Express handler (`@scalar/void-server` ships as
-   a Hono app; bridging would be more glue than this 30-line echo).
+   `editor.scalar.com` (no embeddable Scalar Editor npm package exists
+   today). The redirect target is public; no auth gate, because the
+   spec it points at is also public via `/v1/openapi.json`. Void
+   mock-server at `/void/*` echoes request shape via an inline Express
+   handler (`@scalar/void-server` ships as a Hono app; bridging would
+   be more glue than this 30-line echo).
 
 8. **Governance.** Pre-push `endpoint-checklist` lefthook hook +
-   advisory CI workflows (`sdk-drift`, `mcp-coverage`, `docs-coverage`,
-   `pr-checklist`) catch the most common "I edited the registry and
-   forgot to regen" mistakes. Scope-aware sticky PR comment summarises
-   per-PR follow-ups. `.claude/skills/add-endpoint/` skill walks
-   contributors through the seven-step endpoint runbook.
+   advisory CI workflows (`sdk-drift`, `mcp-coverage`, `pr-checklist`)
+   catch the most common "I edited the registry and forgot to regen"
+   mistakes. Scope-aware sticky PR comment summarises per-PR
+   follow-ups. `.claude/skills/add-endpoint/` skill walks contributors
+   through the seven-step endpoint runbook.
 
 9. **Webhooks signature verifier ships with the SDK** as
    `verifyWebhook` (Standard Webhooks v1, HMAC-SHA-256 via Web Crypto),
@@ -110,9 +104,9 @@ Positive:
 
 - Adding an endpoint = one PR, one set of registry edits, one
   `pnpm gen:all` run. Every downstream surface stays in lock-step.
-- The Scalar widget at root + the Ask AI grounded reference give
-  developers two complementary surfaces: machine-readable + narrative
-  - conversational. Stripe-grade DX without a dedicated docs team.
+- The Scalar Reference is the single canonical developer entrypoint.
+  No second surface to keep in sync, no MDX/Next.js maintenance, no
+  Anthropic key cost, no per-month SaaS bill.
 - The SDK's edge-native footprint (6 KB) unlocks Cloudflare Workers /
   Vercel Edge as supported targets without a separate isomorphic
   build.
@@ -121,8 +115,8 @@ Negative / tradeoffs:
 
 - The shared registry is a single point of failure for the entire
   developer platform. A broken `registry.ts` breaks api emit, SDK
-  gen, MCP gen, docs reference, and the Ask AI corpus simultaneously.
-  Compensated by the CI drift gates and the pre-push hook.
+  gen, and MCP gen simultaneously. Compensated by the CI drift gates
+  and the pre-push hook.
 - `@asteasolutions/zod-to-openapi` is a smaller ecosystem than
   `@hono/zod-openapi` or the OpenAPI 3.1 generators built into
   `tRPC` / `Hono`. Acceptable: the registry surface used here is
@@ -131,8 +125,10 @@ Negative / tradeoffs:
 - The legacy `Afframe` class in the SDK runs in parallel with the new
   `createAfframeClient` for one release; bridging callers cost time
   the first time they upgrade.
-- The docs site adds a sixth Fargate container to the App task. ~$3-5/mo
-  marginal cost (no DB, no Redis, no SES, no Anthropic without a key).
+- Narrative guides (CLI install walkthrough, SDK quickstart, webhooks
+  signing) can only ride in `info.description` markdown. That panel
+  is functional but not the polished docs portal a Stripe-grade
+  competitor ships. Revisit if partner feedback flags this gap.
 
 ## Alternatives considered
 
@@ -144,27 +140,100 @@ Negative / tradeoffs:
   opinionated about Axios. Kept as a fallback.
 - **Fern OSS self-hosted** for Python / Go SDKs. Punt until paying
   partners ask for non-TS SDKs.
-- **Fumadocs-based docs portal** (ADR-0023 plan). Markdown-first +
-  Scalar widget worked for static reference, but Ask AI + interactive
-  TryIt + cross-linked narrative wanted a React MDX runtime; Next.js
-  paid for itself once we wired Ask AI + Pagefind + per-page `.md`
-  mirrors all on the same toolchain.
 - **`cnoe-io/openapi-mcp-codegen` for MCP tools.** Python-only;
   bridging to a TS MCP server is more friction than re-implementing
   the 100-line codegen in TS.
+- **Scalar Cloud Docs Pro at $72/mo + $24/seat** for the docs site.
+  Drops Decision 10 in the v3 plan (no Scalar Cloud); locks content
+  authoring into a separate GitHub repo synced to Scalar SaaS, with
+  no control over the rendering pipeline. Out of scope for v0; revisit
+  when partner traffic justifies the cost.
+- **Custom Next.js + MDX docs site at `docs.afframe.com`** (the
+  original Phase C scope, see Amendment below). Built and reverted.
 
 ## Migration
 
 - Phase A: configure existing surfaces (Scalar root mount + spec
-  enrichment).
-- Phase B: registry cutover + SDK / MCP / CI codegen wired.
-- Phase C: `apps/docs` scaffold + content + Ask AI + Dockerfile + CDK
-  Fargate.
+  enrichment). **Shipped.**
+- Phase B: registry cutover + SDK / MCP / CI codegen wired. **Shipped.**
+- Phase C: `apps/docs` self-hosted Next.js + MDX hub. **Built then
+  archived 2026-05-21** — see Amendment.
 - Phase D: editor / void + governance docs + secrets hygiene + Linear
-  pivot on AFF-88.
+  pivot on AFF-88. **Shipped except cross-subdomain cookie span for
+  the docs host, which is moot now.**
 
 ADR-0023 stays accepted for the items not revised here (CLI design,
 sandbox model, Plaid envelope, idempotency contract, key prefix
 split, versioning policy, changelog feeds). The supersession is
 strictly: SDK generator (§4), MCP tool source (§3), docs portal
 hosting (§1).
+
+## Amendment 2026-05-21 — `apps/docs` reverted
+
+The Phase C `apps/docs` self-hosted Next.js + MDX hub at
+`docs.afframe.com` was built, reviewed, and shipped to branch on
+2026-05-20. On 2026-05-21 we walked it back to a Reference-only end
+state. Captured here so the rationale persists alongside the rest of
+the ADR.
+
+Why the revert:
+
+- The v3 plan locked Decision 8 ("self-hosted apps/docs Next.js + MDX
+  - shadcn + Pagefind + Ask AI"). Decision 10 ("No Cloud Scalar
+    anywhere. OSS pieces only") foreclosed the only Scalar-native
+    docs path. The plan therefore described "Scalar everywhere" in
+    spirit but specified a custom MDX site in fact — the same
+    authoring model AFF-88's Fumadocs decision had picked, just on a
+    different framework.
+- The implementation was correct against the plan but missed the
+  user's actual intent, which was to _use Scalar_ for the docs
+  surface end-to-end. Scalar OSS does not ship a guides product
+  (only the API Reference / Client / Editor / Void / Mock widgets);
+  the guides product is Cloud-only ($72/mo Pro + $24/mo per editor
+  seat) and was foreclosed by Decision 10.
+- Faced with the three choices — drop Decision 10 and pay Scalar
+  Cloud, keep the custom Next.js + MDX site, or accept that the API
+  Reference IS the docs — we picked door three. Lower cost, no
+  parallel-surface drift, and the Reference's `info.description`
+  panel covers the narrative we need today.
+
+What was kept from Phase C/D:
+
+- Phase A + B unchanged: Scalar at api root, registry + codegen
+  pipeline, SDK + MCP regeneration.
+- D1 Editor (`/editor` redirect, gate dropped) + Void (`/void/*`
+  echo) kept on `apps/api`.
+- D3 governance kept: ADRs, runbooks, START-HERE.md, the
+  `/add-endpoint` skill, the `endpoint-checklist` lefthook hook, the
+  scope-aware PR checklist.
+- D5 gitleaks rules for Anthropic key + Standard Webhooks secret
+  kept (defensive, no live consumer for Anthropic today).
+
+What was archived:
+
+- `apps/docs/` moved to `.context/archive/apps-docs-2026-05-21/`.
+  Source preserved with git history; the directory is no longer a
+  workspace package, no longer built, no longer deployed.
+- `.github/workflows/docs-coverage.yml` and `ask-ai-eval.yml` deleted.
+- `scripts/governance/check-docs-coverage.mjs` and
+  `run-ask-ai-eval.mjs` deleted.
+- `infra/cdk` `DocsRepo` + docs Fargate container + `anthropicApiKeySecretArn`
+  context input + `DOCS_DOMAIN` + `API_DOMAIN` env vars + `docsLogGroup`
+  removed.
+- `documentation_url` field stopped being emitted by
+  `DomainExceptionFilter` (kept optional in the Plaid envelope
+  schema for future use; SDK still parses on inbound responses).
+- `info.contact.url`, `info.license.url`, `termsOfService`, and
+  `externalDocs` stripped from the OpenAPI document — they pointed
+  at `docs.afframe.com` paths that no longer exist.
+
+Future option (deferred, not in scope here):
+
+- Re-evaluate Scalar Cloud Docs Pro vs. status quo when partner
+  traffic appears, when narrative authoring outgrows
+  `info.description` markdown, or when a hosted docs partner asks
+  for one. Linear AFF-88 stays open as the tracking ticket.
+- Linear AFF-226 (accounting body content) and AFF-227 (help-center
+  copy) closed as not-doing under the current end state. Their
+  source MDX lives in the archived `apps/docs/content/` and can be
+  re-imported if a future docs surface lands.

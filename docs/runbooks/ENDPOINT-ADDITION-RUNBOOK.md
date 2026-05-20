@@ -19,8 +19,7 @@ $EDITOR apps/api/src/v1/v1.module.ts
 pnpm gen:all
 pnpm --filter @workspace/shared --filter api --filter @afframe/sdk --filter @afframe/mcp test
 
-# 4. Add the docs page + changeset
-$EDITOR apps/docs/content/developers/invoices.mdx
+# 4. Write the E2E test + changeset
 pnpm changeset
 
 # 5. Verify everything
@@ -59,7 +58,7 @@ export type GetInvoiceResponse = z.infer<typeof GetInvoiceResponseSchema>
 ```
 
 Every public field carries `.openapi({ description, example })`. The
-SDK / docs / Ask AI all surface these.
+SDK + the Scalar Reference at `api.afframe.com/` both surface these.
 
 ## Step 2. Register the path
 
@@ -172,14 +171,7 @@ it("404s when the invoice belongs to a different tenant", async () => {
 Confirms RLS isolation. Skipping this is the single most common cause
 of cross-tenant data leaks.
 
-## Step 6. Documentation
-
-`apps/docs/content/developers/invoices.mdx` — narrative page covered by
-`docs-coverage.yml`. Add a short Ask AI corpus entry in
-`apps/docs/lib/ai/corpus.ts` so the model can ground answers about the
-new resource.
-
-## Step 7. Changeset + verify
+## Step 6. Changeset + verify
 
 ```bash
 pnpm changeset      # describe the surface change
@@ -195,6 +187,5 @@ pnpm verify         # typecheck + lint + test + boundaries + openapi-lint
   principal. The AI tool input schemas explicitly forbid this; the
   Cerbos policy bind would reject a request anyway.
 - **Inlining error responses.** Always spread `ERROR_RESPONSE_REFS`.
-- **Forgetting the MDX page.** `docs-coverage.yml` will fail the PR.
 - **Skipping the changeset.** `pnpm changeset status` fails the
   release pipeline.

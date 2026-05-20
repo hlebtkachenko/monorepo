@@ -71,11 +71,8 @@ export interface AppStackProps extends StackProps {
   readonly webRepository: Repository
   readonly apiRepository: Repository
   readonly adminRepository: Repository
-  readonly docsRepository: Repository
   readonly domain: string
   readonly adminDomain: string
-  readonly docsDomain: string
-  readonly apiDomain: string
 }
 
 /**
@@ -89,7 +86,8 @@ export interface AppStackProps extends StackProps {
  *                   localhost:3593 for Cerbos L3, localhost:8080 for
  *                   OpenFGA L2; also hosts the pg-boss worker pool
  *                   which connects to RDS direct :5432 for advisory
- *                   locks + LISTEN/NOTIFY)
+ *                   locks + LISTEN/NOTIFY). Also hosts the Scalar API
+ *                   Reference at `/` — there is no separate docs site.
  *   - pgbouncer   : connection pool, listens on 127.0.0.1:6432, forwards
  *                   to RDS :5432 (ADR-0012 amendment 2026-05-14, E.2)
  *   - cerbos      : PDP sidecar, listens on 127.0.0.1:3593 gRPC. Policies
@@ -116,8 +114,8 @@ export interface AppStackProps extends StackProps {
 
 /**
  * Derive the leading-dot cookie domain that scopes the Better Auth
- * session across every subdomain of the apex (afframe.com). Strips the
- * left-most label and prepends a `.` per RFC 6265.
+ * session across every subdomain of the apex (afframe.com — web, admin,
+ * api). Strips the left-most label and prepends a `.` per RFC 6265.
  *
  *   app.afframe.com         -> .afframe.com
  *   app-staging.afframe.com -> .afframe.com
@@ -142,7 +140,6 @@ export class AppStack extends Stack {
   readonly webLogGroup: LogGroup
   readonly adminLogGroup: LogGroup
   readonly apiLogGroup: LogGroup
-  readonly docsLogGroup: LogGroup
   readonly tunnelLogGroup: LogGroup
   readonly pgbouncerLogGroup: LogGroup
   readonly cerbosLogGroup: LogGroup
@@ -304,11 +301,6 @@ export class AppStack extends Stack {
       retention: RetentionDays.ONE_WEEK,
       removalPolicy: ephemeralRemovalPolicy,
     })
-    this.docsLogGroup = new LogGroup(this, "DocsLogs", {
-      logGroupName: `/ecs/monorepo-${props.envName}/docs`,
-      retention: RetentionDays.ONE_WEEK,
-      removalPolicy: ephemeralRemovalPolicy,
-    })
     this.tunnelLogGroup = new LogGroup(this, "TunnelLogs", {
       logGroupName: `/ecs/monorepo-${props.envName}/cloudflared`,
       retention: RetentionDays.ONE_WEEK,
@@ -421,12 +413,11 @@ export class AppStack extends Stack {
         // CSV of origins allowed to call /api/auth/*. Add www / aliases here.
         BETTER_AUTH_TRUSTED_ORIGINS: trustedOrigins,
         // Cross-subdomain session cookie. Leading-dot domain so the
-        // session is readable from `app.`, `admin.`, `api.`, and
-        // `docs.afframe.com`. `packages/auth/src/server.ts` only enables
-        // the cross-subdomain block when this var is non-empty (host-only
-        // cookie on localhost dev). The value is derived from the two-
-        // level domain to keep it correct on both `app.afframe.com` and
-        // `app-staging.afframe.com`.
+        // session is readable from `app.`, `admin.`, and `api.afframe.com`.
+        // `packages/auth/src/server.ts` only enables the cross-subdomain
+        // block when this var is non-empty (host-only cookie on localhost
+        // dev). Derived from the two-level domain to stay correct on both
+        // `app.afframe.com` and `app-staging.afframe.com`.
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.domain),
         // Outbound email from-address. Must be on a Resend/SES-verified
         // domain — otherwise the transport rejects the send.
@@ -641,55 +632,6 @@ export class AppStack extends Stack {
       linuxParameters: linuxParams("AdminLinuxParams"),
     })
     adminContainer.addMountPoints({
-      containerPath: "/tmp",
-      sourceVolume: "tmp",
-      readOnly: false,
-    })
-
-    // Docs sidecar — `docs.afframe.com` developer hub. Static Next.js +
-    // Ask AI dynamic route. No DB, no Better Auth, no Resend. Optional
-    // Anthropic key (out-of-band-managed secret) enables Ask AI; without
-    // it the route returns 503 feature_not_enabled. Routed by the
-    // cloudflared sidecar (ingress block below).
-    // Workflow passes the secret ARN via `-c anthropicApiKeySecretArn=...`
-    // when the env has been provisioned in AWS Secrets Manager. Missing
-    // context = no Anthropic env on the docs container; the Ask AI route
-    // returns 503 feature_not_enabled.
-    const anthropicSecretArn = this.node.tryGetContext(
-      "anthropicApiKeySecretArn",
-    )
-    const anthropicSecret =
-      typeof anthropicSecretArn === "string" && anthropicSecretArn.length > 0
-        ? Secret.fromSecretCompleteArn(
-            this,
-            "AnthropicApiKeySecret",
-            anthropicSecretArn,
-          )
-        : undefined
-    if (anthropicSecret) anthropicSecret.grantRead(taskExecutionRole)
-
-    const docsContainer = taskDef.addContainer("docs", {
-      containerName: "docs",
-      image: ContainerImage.fromEcrRepository(props.docsRepository, imageTag),
-      portMappings: [{ containerPort: 3300 }],
-      essential: true,
-      logging: LogDriver.awsLogs({
-        streamPrefix: "docs",
-        logGroup: this.docsLogGroup,
-      }),
-      environment: {
-        NODE_ENV: "production",
-        APP_ENV: props.envName,
-        PORT: "3300",
-        NEXT_PUBLIC_AFFRAME_API_BASE: `https://${props.apiDomain}`,
-      },
-      secrets: anthropicSecret
-        ? { ANTHROPIC_API_KEY: EcsSecret.fromSecretsManager(anthropicSecret) }
-        : undefined,
-      memoryReservationMiB: 256,
-      linuxParameters: linuxParams("DocsLinuxParams"),
-    })
-    docsContainer.addMountPoints({
       containerPath: "/tmp",
       sourceVolume: "tmp",
       readOnly: false,

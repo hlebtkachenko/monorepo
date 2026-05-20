@@ -28,7 +28,13 @@ Hosts:
 - `status.afframe.com` — public status page
 - `monitoring.afframe.com` — internal monitoring dashboard
 - `cache.afframe.com` — Turborepo remote cache
-- `docs.afframe.com` — planned, not live ([AFF-88](https://linear.app/hapddev/issue/AFF-88))
+
+A dedicated `docs.afframe.com` host was planned and reverted on
+2026-05-21. The Scalar API Reference mounted at `api.afframe.com/` IS
+the developer documentation. See
+[ADR-0024 Amendment 2026-05-21](adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted)
+and [AFF-88](https://linear.app/hapddev/issue/AFF-88) for the open
+question on if/when to revisit.
 
 Email:
 
@@ -128,24 +134,6 @@ Email:
 - Runbook: [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - Config: `infra/cloudflare/wrangler.jsonc`
 
-### docs.afframe.com
-
-- Hosts: `apps/docs` (Next.js 16, port 3300) on the App-{env} Fargate task
-- Routed via Cloudflare Tunnel → `localhost:3300`. Add ingress block in the
-  Zero Trust dashboard for each env:
-  ```yaml
-  - hostname: docs.afframe.com
-    service: http://localhost:3300
-  - hostname: docs-staging.afframe.com
-    service: http://localhost:3300
-  ```
-- CDK: `infra/cdk/lib/app-stack.ts` defines the `docs` container; env var
-  `DOCS_DOMAIN` (per-env GitHub Actions repo variable) feeds the bin entry.
-- Ask AI: optional. Provision `monorepo-{env}-anthropic-key` in Secrets
-  Manager; the deploy workflow passes the ARN to CDK context
-  `anthropicApiKeySecretArn`. Without the secret the `/api/ask` route
-  returns `503 feature_not_enabled`.
-
 ---
 
 ## Email
@@ -185,7 +173,7 @@ Procedures live in the runbooks — they have the exact file-by-file steps and
 authorization gates. Pick by host class:
 
 - **AWS Fargate host** (web / api / admin): [AWS-DEPLOY.md](runbooks/AWS-DEPLOY.md) §§ 8-9
-- **OVH-served host** (status / monitoring / future docs): [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
+- **OVH-served host** (status / monitoring): [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
 - **Cloudflare Worker host** (cache / future workers): [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - **Inbound email alias**: Cloudflare dashboard → Email → Routing Rules
 - **Outbound sender**: add identity in Resend, update relevant container env

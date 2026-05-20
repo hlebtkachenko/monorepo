@@ -42,8 +42,8 @@ export const ApiErrorSchema = z
         .optional()
         .openapi({
           description:
-            "Deep-link into the error registry, e.g. " +
-            "`https://api.afframe.com/docs/errors#not_found`.",
+            "Optional deep-link into a hosted error registry. Reserved " +
+            "for future use; the api does not emit this field today.",
         }),
       requestId: z.string().openapi({
         description: "Echoes the `X-Request-Id` header for support tickets.",
@@ -67,7 +67,7 @@ export const ApiErrorSchema = z
   .openapi({
     description:
       "Plaid-shape error envelope. Every non-2xx response from `/v1/*` is " +
-      "wrapped in this object. See https://docs.afframe.com/developers/errors.",
+      "wrapped in this object.",
   })
 export type ApiError = z.infer<typeof ApiErrorSchema>
 

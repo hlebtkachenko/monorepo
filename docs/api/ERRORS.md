@@ -1,6 +1,13 @@
 # Error Envelope + Code Registry
 
 > Public-facing rules for how `api.afframe.com/v1` reports errors. Mix of **[Live]** behaviour (`DomainExceptionFilter`) and **[Concept]** Plaid-shape extension planned before public launch.
+>
+> **2026-05-21 note:** `documentation_url` was emitted in earlier
+> envelopes pointing at `api.afframe.com/docs/errors#<code>`. That
+> surface never existed and was archived alongside `apps/docs`; the
+> field is no longer emitted by `DomainExceptionFilter`. It remains
+> optional on the Plaid envelope schema and the SDK still parses it on
+> inbound responses for forward compatibility.
 
 ---
 
@@ -31,7 +38,6 @@ Backwards-compatible extension that adopts Plaid's richer shape:
     "error_type": "INVALID_REQUEST",
     "message": "Invoice is already in state 'finalized' and cannot be edited.",
     "display_message": "This invoice has been finalized. Create a credit note to amend it.",
-    "documentation_url": "https://api.afframe.com/docs/errors#invoice_already_finalized",
     "requestId": "ab544b02-…"
   }
 }

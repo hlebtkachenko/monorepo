@@ -7,8 +7,8 @@ import { buildOpenApiDocument as buildFromRegistry } from "@workspace/shared/api
  * not the `@nestjs/swagger` reflector — is the single source of truth for
  * the spec: every schema, route, response, server, and tag is authored in
  * `packages/shared/src/api/`. The api process and `scripts/emit-openapi.ts`
- * share this single emit path; SDK / MCP / `apps/docs` codegen reads the
- * resulting `apps/api/openapi/v1.json` file.
+ * share this single emit path; SDK + MCP codegen reads the resulting
+ * `apps/api/openapi/v1.json` file.
  *
  * The `@nestjs/swagger` decorators on the v1 controllers are intentionally
  * left in place; they are inert here (the reflector no longer runs) but

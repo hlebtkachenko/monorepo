@@ -13,13 +13,11 @@ import { resolve } from "node:path"
  *      `packages/sdk/src/generated/`.
  *   3. `pnpm --filter @afframe/mcp gen` — regenerates
  *      `apps/mcp/src/tools/generated/`.
- *   4. `pnpm --filter docs gen:reference` — regenerates
- *      `apps/docs/content/reference/`.
  *
  * Stages whose target package isn't scaffolded (or hasn't wired a `gen`
  * script yet) are skipped, not failed, so the pipeline grows as new
- * consumers come online. CI's `sdk-drift`, `mcp-coverage`, `docs-coverage`,
- * and `openapi-lint` gates re-run this and fail on any uncommitted diff.
+ * consumers come online. CI's `sdk-drift`, `mcp-coverage`, and
+ * `openapi-lint` gates re-run this and fail on any uncommitted diff.
  */
 
 const ROOT = resolve(__dirname, "..")
@@ -48,11 +46,6 @@ const STAGES: Stage[] = [
     label: "MCP tools",
     args: ["--filter", "@afframe/mcp", "gen"],
     requires: { pkg: "apps/mcp/package.json", script: "gen" },
-  },
-  {
-    label: "Docs reference",
-    args: ["--filter", "docs", "gen:reference"],
-    requires: { pkg: "apps/docs/package.json", script: "gen:reference" },
   },
 ]
 

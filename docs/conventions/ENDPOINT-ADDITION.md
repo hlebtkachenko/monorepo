@@ -90,12 +90,12 @@ Breaking changes require a major SDK bump + a migration note in
 
 ## Documentation
 
-- One MDX page per resource at `apps/docs/content/developers/<resource>.mdx`.
-  Covered by `docs-coverage.yml`.
 - Every developer-facing field carries `.openapi({ description, example })`
-  in the Zod schema.
-- The Ask AI corpus reads narrative summaries from
-  `apps/docs/lib/ai/corpus.ts` — add an entry when the resource lands.
+  in the Zod schema. Scalar renders these as the per-field copy in the
+  Reference at `api.afframe.com/` — there is no separate narrative MDX
+  surface today (ADR-0024 Amendment 2026-05-21).
+- Resource-level prose (when needed) belongs in the operation's
+  `description` field on `registry.registerPath({...})`.
 
 ## Tests
 
@@ -116,8 +116,7 @@ Adding one endpoint touches:
 5. `apps/api/openapi/v1.json` — regenerated, drift-gated
 6. `packages/sdk/src/generated/openapi.ts` — regenerated, drift-gated
 7. `apps/mcp/src/tools/generated/<operationId>.ts` — regenerated
-8. `apps/docs/content/developers/<resource>.mdx` — narrative page
-9. `.changeset/<slug>.md` — release note
-10. `apps/api/src/**/*.test.ts` or `apps/web/e2e/**` — E2E test
+8. `.changeset/<slug>.md` — release note
+9. `apps/api/src/**/*.test.ts` or `apps/web/e2e/**` — E2E test
 
 Steps 5–7 are codegen output of `pnpm gen:all`. Never hand-edit them.

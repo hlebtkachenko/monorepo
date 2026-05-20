@@ -10,8 +10,9 @@ export function renderResult(payload: unknown): CallToolResult {
 
 /**
  * Render an SDK error as a structured MCP tool error. Keeps the
- * Plaid envelope intact so the LLM (or end user) sees `code`,
- * `request_id`, and `documentation_url`.
+ * Plaid envelope intact so the LLM (or end user) sees `code` and
+ * `request_id`. `documentation_url` is appended when present (the api
+ * does not emit it today; reserved field).
  */
 export function toolError(err: unknown): CallToolResult {
   if (err instanceof RateLimitError) {

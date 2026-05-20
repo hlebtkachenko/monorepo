@@ -95,7 +95,7 @@ export interface components {
         fiscalYearStartMonth: number
       }
     }
-    /** @description Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object. See https://docs.afframe.com/developers/errors. */
+    /** @description Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object. */
     ApiError: {
       error: {
         /** @description Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`. */
@@ -108,7 +108,7 @@ export interface components {
         display_message?: string
         /**
          * Format: uri
-         * @description Deep-link into the error registry, e.g. `https://api.afframe.com/docs/errors#not_found`.
+         * @description Optional deep-link into a hosted error registry. Reserved for future use; the api does not emit this field today.
          */
         documentation_url?: string
         /** @description Echoes the `X-Request-Id` header for support tickets. */
@@ -171,7 +171,6 @@ export interface components {
          *         "code": "unauthorized",
          *         "error_type": "UNAUTHORIZED",
          *         "message": "Missing or invalid API key.",
-         *         "documentation_url": "https://api.afframe.com/docs/errors#unauthorized",
          *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
          *       }
          *     }
@@ -191,7 +190,6 @@ export interface components {
          *         "code": "forbidden",
          *         "error_type": "FORBIDDEN",
          *         "message": "The API key is not allowed to perform this action.",
-         *         "documentation_url": "https://api.afframe.com/docs/errors#forbidden",
          *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
          *       }
          *     }
@@ -211,7 +209,6 @@ export interface components {
          *         "code": "not_found",
          *         "error_type": "NOT_FOUND",
          *         "message": "Resource not found.",
-         *         "documentation_url": "https://api.afframe.com/docs/errors#not_found",
          *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
          *       }
          *     }
@@ -231,7 +228,6 @@ export interface components {
          *         "code": "conflict",
          *         "error_type": "CONFLICT",
          *         "message": "Resource is in a state that conflicts with the request.",
-         *         "documentation_url": "https://api.afframe.com/docs/errors#conflict",
          *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
          *       }
          *     }
@@ -251,7 +247,6 @@ export interface components {
          *         "code": "validation_error",
          *         "error_type": "VALIDATION",
          *         "message": "Request body failed validation.",
-         *         "documentation_url": "https://api.afframe.com/docs/errors#validation_error",
          *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14",
          *         "details": [
          *           {
@@ -278,7 +273,6 @@ export interface components {
          *         "code": "rate_limited",
          *         "error_type": "RATE_LIMITED",
          *         "message": "Too many requests. See the RateLimit-* headers for the reset window.",
-         *         "documentation_url": "https://api.afframe.com/docs/errors#rate_limited",
          *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
          *       }
          *     }

@@ -475,6 +475,21 @@ export class AppStack extends Stack {
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
           "HOSTNAME=0.0.0.0 exec node apps/web/server.js",
       ],
+      // Fargate ignores Dockerfile HEALTHCHECK unless it's set in the
+      // task definition. Wiring this here makes Circuit Breaker (above)
+      // observe real readiness, not just process-up, so a broken deploy
+      // trips rollback fast instead of after the gracePeriod elapses.
+      // wget is shipped in the base image (used by the Dockerfile HEALTHCHECK).
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "wget -q -O- http://127.0.0.1:3000/api/version >/dev/null || exit 1",
+        ],
+        interval: Duration.seconds(30),
+        timeout: Duration.seconds(5),
+        retries: 3,
+        startPeriod: Duration.seconds(20),
+      },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("WebLinuxParams"),
     })
@@ -635,6 +650,18 @@ export class AppStack extends Stack {
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
           "HOSTNAME=0.0.0.0 exec node apps/admin/server.js",
       ],
+      // Mirror of the web healthCheck — see that block for rationale.
+      // Admin uses port 3100 and exposes /api/health (it has no /api/version).
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "wget -q -O- http://127.0.0.1:3100/api/health >/dev/null || exit 1",
+        ],
+        interval: Duration.seconds(30),
+        timeout: Duration.seconds(5),
+        retries: 3,
+        startPeriod: Duration.seconds(20),
+      },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("AdminLinuxParams"),
     })
@@ -975,12 +1002,12 @@ export class AppStack extends Stack {
       // Matches AWS re:Post zero-downtime guidance.
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
-      // Rollback on production so a broken deploy auto-reverts. Disable on
-      // staging so a failed deploy leaves the task state intact for log
-      // forensics (we are usually the operator + investigator). The
-      // pre-deploy cleanup step in _deploy-aws.yml clears stale state
-      // before the next staging deploy attempt.
-      circuitBreaker: { rollback: props.envName === "production" },
+      // Symmetric across envs: staging dogfoods the rollback path so any
+      // regression in the auto-rollback flow surfaces before prod hits it.
+      // Past failure forensics show ECS Circuit Breaker as 5/20 of recent
+      // staging fails — exercising the rollback there is the goal, not
+      // a hindrance.
+      circuitBreaker: { rollback: true },
       // 180s: cold-start budget. Cold pull of six arm64 images + chained
       // sidecar HEALTHY gates measured ~150s worst case. 180s gives ~20%
       // headroom; the previous 300s over-budgeted and added 2 min to every

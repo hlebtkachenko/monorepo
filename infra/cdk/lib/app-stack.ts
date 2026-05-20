@@ -133,8 +133,18 @@ export class AppStack extends Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props)
 
+    // Global fallback tag. Each service can override via its own context
+    // key (webImageTag / apiImageTag / adminImageTag) so the deploy workflow
+    // can skip rebuilding a service whose dependencies didn't change AND
+    // pin its container to the previously-deployed image — without forcing
+    // the other services to use the stale tag.
     const imageTag =
       (this.node.tryGetContext("imageTag") as string | undefined) ?? "bootstrap"
+    const perServiceTag = (key: string): string =>
+      (this.node.tryGetContext(key) as string | undefined) ?? imageTag
+    const webImageTag = perServiceTag("webImageTag")
+    const apiImageTag = perServiceTag("apiImageTag")
+    const adminImageTag = perServiceTag("adminImageTag")
 
     // Workflow-managed secrets (cloudflare-tunnel, resend-api-key,
     // better-auth-secret, app-token-secret) are created + populated by the
@@ -374,7 +384,7 @@ export class AppStack extends Stack {
     // blocks crypto-miner payloads. Tmpfs mount is harmless extra capacity.
     const webContainer = taskDef.addContainer("web", {
       containerName: "web",
-      image: ContainerImage.fromEcrRepository(props.webRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(props.webRepository, webImageTag),
       portMappings: [{ containerPort: 3000 }],
       essential: true,
       logging: LogDriver.awsLogs({
@@ -516,7 +526,7 @@ export class AppStack extends Stack {
     // (e.g., via `printf %s "$DB_PASSWORD" | jq -sRr @uri`).
     const apiContainer = taskDef.addContainer("api", {
       containerName: "api",
-      image: ContainerImage.fromEcrRepository(props.apiRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(props.apiRepository, apiImageTag),
       portMappings: [{ containerPort: 3001 }],
       essential: true,
       logging: LogDriver.awsLogs({
@@ -589,7 +599,10 @@ export class AppStack extends Stack {
     const adminOrigin = `https://${props.adminDomain}`
     const adminContainer = taskDef.addContainer("admin", {
       containerName: "admin",
-      image: ContainerImage.fromEcrRepository(props.adminRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(
+        props.adminRepository,
+        adminImageTag,
+      ),
       portMappings: [{ containerPort: 3100 }],
       essential: false,
       logging: LogDriver.awsLogs({

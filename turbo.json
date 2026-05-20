@@ -72,7 +72,8 @@
         "AWS_REGION",
         "APP_DOMAIN",
         "ADMIN_DOMAIN",
-        "ALERT_EMAIL"
+        "ALERT_EMAIL",
+        "MAIL_FROM_ADDRESS"
       ]
     },
     "dev": {

@@ -178,6 +178,47 @@ GitHub repo secret into Secrets Manager as
 `Secret.fromSecretNameV2`). Rotation: `gh secret set RESEND_API_KEY ...`,
 then re-deploy.
 
+#### Email sender verification — Resend is per-EXACT-domain
+
+Subdomains are **NOT** auto-trusted from a parent verification. A verified
+`afframe.com` does NOT cover `app-staging.afframe.com` or `app.afframe.com`
+as senders — Resend rejects sends from any unverified sender domain with
+`validation_error … domain is not verified`.
+
+Three options:
+
+1. **Centralise on the verified parent** (current default). Every env sends
+   from `no-reply@afframe.com`. Set `MAIL_FROM_ADDRESS` repo var/secret to
+   `no-reply@afframe.com` (or leave unset — `infra/cdk/bin/app.ts` falls
+   back to this). Simple, but staging and prod share the same sender — no
+   visual distinction in the recipient inbox.
+
+2. **Per-env subdomain verification.** Verify `app-staging.afframe.com`
+   and `app.afframe.com` independently in Resend, add their DNS records at
+   Cloudflare, then set `MAIL_FROM_ADDRESS=no-reply@app-staging.afframe.com`
+   (and `no-reply@app.afframe.com` for prod). Cleanest DMARC posture +
+   inbox-side distinction; costs an extra round of DNS for every env.
+
+3. **Dedicated mail subdomain.** Verify a single `mail.afframe.com` once,
+   send staging from `no-reply-staging@mail.afframe.com` and prod from
+   `no-reply@mail.afframe.com`. One verification, two distinguishable
+   senders. **Recommended once we leave MVP.** Plumbs through the same
+   `MAIL_FROM_ADDRESS` env wired to `AppStack.mailFromAddress`.
+
+Symptom of misalignment (from `2026-05-19` incident): every Better-Auth
+background task (`forgot-password`, `verify-email`) and every
+`onboarding/team/issueInvite` Resend call logs:
+
+```
+resend.send failed: validation_error The <subdomain> domain is not verified.
+```
+
+The Server Action that triggered the send still returns `{ ok: true }` to
+the client (intentional, to avoid email-enumeration leaks), so the UI shows
+a "Reset link sent" toast despite the silent failure. Always check the
+web container logs for `resend.send failed` before debugging anywhere else
+when "the email never arrived".
+
 ### 8. AWS SES (outbound transactional, larger free tier - wait 24-48h for approval)
 
 ```bash
@@ -207,10 +248,25 @@ Per env, open the tunnel (Connectors → click `monorepo-{env}` → Edit →
 **Published application routes** / Public Hostname) and add — `monorepo-staging`
 shown, substitute the production hosts for `monorepo-production`:
 
-- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
-- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000`
-- **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
+- **Subdomain** `app.staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000` — the web app. Includes `/api/*` (Next.js native API routes: Better Auth, avatar upload, version, dev outbox).
+- **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public NestJS API (`api.afframe.com` in production). Same container; $0 infra.
 - **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK reads from the `ADMIN_DOMAIN` variable (`admin-staging.afframe.com` for staging).
+
+> ~~Path-prefix rule `app-staging.afframe.com /api/.*` → `localhost:3001`~~ —
+> **REMOVED 2026-05-20**, both envs. The earlier topology mounted the
+> public API at `app-staging.afframe.com/api/*` (shared host with the web
+> app). After API moved to its own subdomain (`api-staging.afframe.com` /
+> `api.afframe.com`), the path-prefix rule became actively harmful: it
+> intercepted Next.js' native `/api/*` routes (Better Auth catch-all
+> `apps/web/app/api/auth/[...all]/route.ts`, avatar upload
+> `apps/web/app/api/upload/avatar/route.ts`, dev outbox, version) and
+> shipped them to the NestJS api container, which only mounts
+> `/api/health` + `/v1/*` and returns a NestJS-style 404 for everything
+> else. Symptom: avatar upload "Could not upload your profile photo",
+> 2FA "Cannot POST /api/auth/two-factor/enable", silent password-reset
+> failures via Better Auth's `/api/auth/forgot-password`. Fix is a single
+> click — delete the rule in the Cloudflare dashboard; cloudflared picks
+> up the new config in seconds, no redeploy. Do NOT re-add this rule.
 
 Production: same on `monorepo-production` with `app.afframe.com`,
 `api.afframe.com`, and **`admin.afframe.com`** — note the production admin host

@@ -139,7 +139,7 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["BETTER_AUTH_TRUSTED_ORIGINS"]).toContain(
       "https://test.example.com",
     )
-    expect(envByName["EMAIL_FROM"]).toBe("no-reply@test.example.com")
+    expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
     expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
     // Hard-coded loopback path to the pgBouncer sidecar — same pattern as api.
     expect(envByName["DB_HOST"]).toBe("localhost")

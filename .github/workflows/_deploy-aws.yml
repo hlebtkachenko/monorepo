@@ -1020,6 +1020,12 @@ jobs:
           # closed (nobody authorized). Set vars.ADMIN_WORKSPACE_ALLOWLIST
           # to grant staff access; changing it is a redeploy.
           ADMIN_WORKSPACE_ALLOWLIST: ${{ vars.ADMIN_WORKSPACE_ALLOWLIST }}
+          # Outbound email "From" address. Optional override; bin/app.ts
+          # falls back to no-reply@afframe.com (the Resend-verified parent
+          # domain). Set vars.MAIL_FROM_ADDRESS_{ENV} to override per-env
+          # once you verify a per-env subdomain on Resend. See
+          # docs/runbooks/AWS-DEPLOY.md "Email sender verification".
+          MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS }}
           # ALERT_EMAIL is intentionally NOT passed to CDK. The operator
           # email never enters CFN templates / `cdk diff` snapshots / CI
           # logs. The post-deploy step "Subscribe operator email to alert

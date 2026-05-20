@@ -73,6 +73,14 @@ export interface AppStackProps extends StackProps {
   readonly adminRepository: Repository
   readonly domain: string
   readonly adminDomain: string
+  /**
+   * Outbound email "From" address. MUST be on a Resend-verified domain
+   * (see `docs/runbooks/AWS-DEPLOY.md` "Email sender verification"). The
+   * web + admin containers both send from this address. Defaults via the
+   * `MAIL_FROM_ADDRESS` env var in `bin/app.ts`, with a hard fallback to
+   * `no-reply@afframe.com` (the currently-verified parent domain).
+   */
+  readonly mailFromAddress: string
 }
 
 /**
@@ -391,7 +399,18 @@ export class AppStack extends Stack {
         BETTER_AUTH_TRUSTED_ORIGINS: trustedOrigins,
         // Outbound email from-address. Must be on a Resend/SES-verified
         // domain — otherwise the transport rejects the send.
-        EMAIL_FROM: `no-reply@${props.domain}`,
+        //
+        // Why the parent `afframe.com` (not `${props.domain}`)? Resend's
+        // verification is per-EXACT-domain — a verified `afframe.com` does
+        // NOT auto-trust `app-staging.afframe.com` or `app.afframe.com` as
+        // senders. Every per-env subdomain we want to send from would need
+        // its own verification + DNS records. To unblock both envs on one
+        // verified domain, we centralise on the parent. Per-env senders
+        // (e.g. `no-reply-staging@…`) is a future tightening once the
+        // subdomains are independently verified — DMARC posture improves
+        // and inbox-side distinction becomes possible. Documented in
+        // `docs/runbooks/AWS-DEPLOY.md` "Email sender verification".
+        EMAIL_FROM: props.mailFromAddress,
         // Force the Resend transport. Without this, packages/email's
         // pickTransport() would also accept SES via AWS_REGION; in MVP we
         // want every deploy on the same provider until SES production
@@ -568,7 +587,9 @@ export class AppStack extends Stack {
         // so the next admin feature doesn't trip the same 500 the web app hit.
         APP_BUCKET: props.appBucket.bucketName,
         AWS_REGION: this.region,
-        EMAIL_FROM: `no-reply@${props.domain}`,
+        // See the long note in the web container above re. Resend per-domain
+        // verification. Admin sends from the same parent address.
+        EMAIL_FROM: props.mailFromAddress,
         EMAIL_TRANSPORT: "resend",
       },
       secrets: {

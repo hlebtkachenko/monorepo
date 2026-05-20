@@ -86,6 +86,73 @@ jobs:
             echo "go=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # Pre-deploy fast-fail on missing repo vars / secrets. CDK throws on the
+  # same conditions ~8 min into the deploy job; surfacing them here turns
+  # an opaque half-deploy failure into a 30-second guard step.
+  validate-inputs:
+    needs: guard
+    if: needs.guard.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    environment: ${{ inputs.environment }}
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      APP_DOMAIN_STAGING: ${{ vars.APP_DOMAIN_STAGING }}
+      APP_DOMAIN_PRODUCTION: ${{ vars.APP_DOMAIN_PRODUCTION }}
+      ADMIN_DOMAIN_STAGING: ${{ vars.ADMIN_DOMAIN_STAGING }}
+      ADMIN_DOMAIN_PRODUCTION: ${{ vars.ADMIN_DOMAIN_PRODUCTION }}
+      STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+      PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+      STAGING_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_STAGING }}
+      PRODUCTION_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_PRODUCTION }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - name: Assert required vars + secrets are present
+        run: |
+          set -euo pipefail
+          fail=0
+          check() {
+            local label="$1" value="$2"
+            if [ -z "${value:-}" ] || [[ "$value" =~ ^[[:space:]]*$ ]]; then
+              echo "::error::Required input '${label}' is empty for env=${ENV_NAME}"
+              fail=1
+            fi
+          }
+          check AWS_REGION "$AWS_REGION"
+          check AWS_ACCOUNT_ID "$AWS_ACCOUNT_ID"
+          check RESEND_API_KEY "$RESEND_API_KEY"
+          check EMAIL_FORWARD_TO "$EMAIL_FORWARD_TO"
+          case "$ENV_NAME" in
+            staging)
+              check APP_DOMAIN_STAGING "$APP_DOMAIN_STAGING"
+              check ADMIN_DOMAIN_STAGING "$ADMIN_DOMAIN_STAGING"
+              check AWS_DEPLOY_ROLE_ARN_STAGING "$STAGING_ROLE"
+              check CLOUDFLARE_TUNNEL_TOKEN_STAGING "$STAGING_TUNNEL_TOKEN"
+              ;;
+            production)
+              check APP_DOMAIN_PRODUCTION "$APP_DOMAIN_PRODUCTION"
+              check ADMIN_DOMAIN_PRODUCTION "$ADMIN_DOMAIN_PRODUCTION"
+              check AWS_DEPLOY_ROLE_ARN_PRODUCTION "$PRODUCTION_ROLE"
+              check CLOUDFLARE_TUNNEL_TOKEN_PRODUCTION "$PRODUCTION_TUNNEL_TOKEN"
+              ;;
+            *)
+              echo "::error::Unknown environment: $ENV_NAME"
+              exit 1
+              ;;
+          esac
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more required deploy inputs are empty. Set them in repo settings (Variables / Secrets) for the '${ENV_NAME}' environment before re-running."
+            exit "$fail"
+          fi
+          echo "All required deploy inputs present for env=${ENV_NAME}."
+
   # Detect whether app source changed since the last successful deploy to
   # this environment. Outputs drive the `build-images` skip decision and
   # the IMAGE_TAG handed to `cdk deploy`. SSM Parameter Store
@@ -97,7 +164,7 @@ jobs:
   # workflow_dispatch-compatible comparison against an arbitrary past
   # commit (the last deploy), which is a plain `git diff --name-only`.
   detect-changes:
-    needs: guard
+    needs: [guard, validate-inputs]
     if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -240,7 +307,7 @@ jobs:
   # detect-changes determined no app source changed since the last deploy
   # (then deploy reuses the last-deployed image tag from SSM).
   build-images:
-    needs: [guard, detect-changes]
+    needs: [guard, validate-inputs, detect-changes]
     if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only' && needs.detect-changes.outputs.skip_image_build != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -453,7 +520,7 @@ jobs:
           echo "Allowlisted: $(echo "$all_criticals" | tr '\n' ' ')"
 
   deploy:
-    needs: [guard, detect-changes, build-images]
+    needs: [guard, validate-inputs, detect-changes, build-images]
     # Run the deploy when guard is green AND (build-images succeeded OR was
     # skipped). build-images is skipped for: infra-only, image_tag_override
     # set, OR detect-changes determined no app source changed. detect-changes
@@ -469,6 +536,7 @@ jobs:
     if: |
       !cancelled() &&
       needs.guard.outputs.go == 'true' &&
+      needs.validate-inputs.result == 'success' &&
       (needs.detect-changes.result == 'success' || needs.detect-changes.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest

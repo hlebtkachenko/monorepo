@@ -94,6 +94,21 @@ jobs:
           # SC1091 = "can't follow non-constant source" — fine in trap setup.
           # SC2317 = "appears unreachable" — false-positive on trap handlers.
           shellcheck -x -e SC1091,SC2317 "${files[@]}"
+      - name: Run inline test harnesses
+        shell: bash
+        run: |
+          shopt -s nullglob
+          tests=(infra/scripts/tests/test-*.sh)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "No test harnesses to run"; exit 0
+          fi
+          fail=0
+          for t in "${tests[@]}"; do
+            echo "::group::$t"
+            if bash "$t"; then echo "ok: $t"; else echo "::error::failed: $t"; fail=1; fi
+            echo "::endgroup::"
+          done
+          exit "$fail"
 
   cdk-synth-strict:
     strategy:

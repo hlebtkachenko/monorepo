@@ -236,15 +236,25 @@ if [ "$size" -gt 8192 ]; then
   exit 1
 fi
 
-task_arn=$(aws ecs run-task \
+run_output=$(aws ecs run-task \
   --cluster "$cluster" \
   --task-definition "$taskdef" \
   --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[${public_subnets}],securityGroups=[${app_sg}],assignPublicIp=ENABLED}" \
   --overrides file:///tmp/_apply-migrations-overrides.json \
   --region "$AWS_REGION" \
-  --query 'tasks[0].taskArn' \
-  --output text)
+  --output json)
+
+# `run-task` exits 0 even when scheduling fails (no capacity, AccessDenied
+# on task role, image pull failure, subnet routing). Without this guard
+# the next describe-tasks call uses an empty task id and the migration
+# loop silent-succeeds.
+task_arn=$(echo "$run_output" | jq -r '.tasks[0].taskArn // empty')
+if [ -z "$task_arn" ]; then
+  failures=$(echo "$run_output" | jq -r '.failures[]? | "\(.arn // "n/a") \(.reason): \(.detail // "")"')
+  echo "::error::run-task returned no tasks. Failures: ${failures:-unknown}" >&2
+  exit 2
+fi
 task_id=${task_arn##*/}
 echo "Task: $task_id"
 

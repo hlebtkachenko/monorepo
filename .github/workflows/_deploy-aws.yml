@@ -58,7 +58,10 @@ on:
 permissions: {}
 
 concurrency:
-  group: deploy-aws-${{ inputs.environment }}-${{ inputs.stack }}
+  # Per-env, scope-independent. `stack=app-only` and `stack=infra-only`
+  # touch overlapping CFN/ECS state; sequencing them per env prevents
+  # races on shared resources (log groups, secrets, services).
+  group: deploy-aws-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -150,6 +153,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-detect-${{ github.run_id }}
           audience: sts.amazonaws.com
+          role-duration-seconds: 3600
 
       - id: decide
         env:
@@ -292,6 +296,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-build-${{ matrix.service }}-${{ github.run_id }}
           audience: sts.amazonaws.com
+          role-duration-seconds: 3600
 
       - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
@@ -547,6 +552,10 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.run_id }}
           audience: sts.amazonaws.com
+          # Long deploys: CDK + migrations + secret captures + budget
+          # reconciliation. 3600s is the standard IAM-role default; raise
+          # MaxSessionDuration on the role if your deploy regularly nears it.
+          role-duration-seconds: 3600
 
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
@@ -619,6 +628,14 @@ jobs:
               --query ARN --output text)
             if [ -z "$arn" ] || [ "$arn" = "None" ]; then
               echo "::error::Failed to read ARN of secret $name (describe-secret returned empty)"
+              exit 1
+            fi
+            # Secrets Manager ARNs always carry a 6-char alphanumeric suffix
+            # (e.g. `-AbCdEf`). A bare ARN here means describe-secret returned
+            # an unexpected shape; passing it to CDK produces partial IAM
+            # reads that fail at ECS task start with AccessDenied. Refuse it.
+            if ! [[ "$arn" =~ -[A-Za-z0-9]{6}$ ]]; then
+              echo "::error::Captured ARN $arn for $name is missing the -XXXXXX suffix. Refusing — would cause IAM/Resource mismatch at task start." >&2
               exit 1
             fi
             echo "$out=$arn" >> "$GITHUB_OUTPUT"
@@ -727,8 +744,11 @@ jobs:
       #
       # Idempotent on the AWS side (ResourceAlreadyExistsException is
       # suppressed). Retention is set to ONE_WEEK to match app-stack.ts.
-      - name: Pre-create ECS log groups (staging only)
-        if: env.ENV_NAME == 'staging' && env.STACK_SCOPE != 'infra-only'
+      - name: Pre-create ECS log groups
+        # Symmetric across envs — first prod deploy hits the same
+        # AWS::Logs::LogGroup IAM/GetAtt race that staging exposed in
+        # run 26089910853 if this step is skipped.
+        if: env.STACK_SCOPE != 'infra-only'
         run: |
           set -euo pipefail
           for svc in web admin api cloudflared pgbouncer cerbos openfga; do
@@ -1117,11 +1137,22 @@ jobs:
               return 0
             fi
             # Look for an existing subscription (any status) where Endpoint
-            # equals the operator email. ListSubscriptionsByTopic returns
-            # PendingConfirmation + Confirmed; either counts as "in flight".
-            local existing
-            existing=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --query "Subscriptions[?Protocol=='email' && Endpoint=='${ALERT_EMAIL}'] | length(@)" --output text)
-            if [ "$existing" != "0" ]; then
+            # equals the operator email. ListSubscriptionsByTopic caps at
+            # 100 results per page, so we paginate via NextToken until empty
+            # to avoid creating duplicate subscriptions once the page fills.
+            local existing=0 next_token="" page match
+            while :; do
+              if [ -n "$next_token" ]; then
+                page=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --starting-token "$next_token" --output json)
+              else
+                page=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --output json)
+              fi
+              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e)] | length')
+              existing=$((existing + match))
+              next_token=$(echo "$page" | jq -r '.NextToken // ""')
+              [ -z "$next_token" ] && break
+            done
+            if [ "$existing" -gt 0 ]; then
               echo "OK   $label: operator email already subscribed (count=$existing)."
               return 0
             fi

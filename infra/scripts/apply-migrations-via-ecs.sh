@@ -98,8 +98,14 @@ fi
 public_subnets=$(aws cloudformation describe-stack-resources \
   --stack-name "Network-${ENV_NAME}" \
   --region "$AWS_REGION" \
-  --query "StackResources[?ResourceType=='AWS::EC2::Subnet' && contains(LogicalResourceId, 'Public')].PhysicalResourceId" \
+  --query "StackResources[?ResourceType=='AWS::EC2::Subnet' && (contains(LogicalResourceId, 'public') || contains(LogicalResourceId, 'Public'))].PhysicalResourceId" \
   --output text | tr '\t' ',' )
+# CDK's L2 Vpc names subnet groups after the subnet-group name. Ours is
+# created with `subnetType: PUBLIC` + name "public", producing logical IDs
+# `VpcpublicSubnet1Subnet…` — lowercase. Older CDK versions sometimes
+# title-case it (`VpcPublicSubnet…`). The OR-contains above survives both
+# without depending on JMESPath case-insensitive matching (which the
+# language does not provide).
 if [ -z "$app_sg" ] || [ -z "$public_subnets" ]; then
   echo "::error::Could not resolve AppSecurityGroup or public subnets from Network-${ENV_NAME}"
   exit 1

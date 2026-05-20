@@ -1063,3 +1063,121 @@ jobs:
 
       - id: summary
         run: echo "deployed=true" >> "$GITHUB_OUTPUT"
+
+  # Post-deploy smoke test of the live URL + auto-rollback on failure.
+  # Probes the web /api/version + admin /api/health endpoints through
+  # Cloudflare Tunnel. If either fails to reach 200 within ~150s, we
+  # roll the ECS service back to the previous task-definition revision
+  # and exit the workflow non-zero. Covers Bucket 1 of past failures
+  # (ECS Circuit Breaker on App-staging, 5/20 fails) by giving the
+  # operator an automatic recovery path instead of a wedged service.
+  smoke:
+    needs: [guard, validate-inputs, deploy]
+    if: |
+      !cancelled() &&
+      needs.guard.outputs.go == 'true' &&
+      needs.validate-inputs.result == 'success' &&
+      needs.deploy.result == 'success' &&
+      inputs.stack != 'infra-only'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+      PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+      STAGING_APP_DOMAIN: ${{ vars.APP_DOMAIN_STAGING }}
+      PRODUCTION_APP_DOMAIN: ${{ vars.APP_DOMAIN_PRODUCTION }}
+      STAGING_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_STAGING }}
+      PRODUCTION_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_PRODUCTION }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - id: env
+        run: |
+          set -euo pipefail
+          case "$ENV_NAME" in
+            staging)
+              echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT"
+              echo "app=https://$STAGING_APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "admin=https://$STAGING_ADMIN_DOMAIN" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT"
+              echo "app=https://$PRODUCTION_APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "admin=https://$PRODUCTION_ADMIN_DOMAIN" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unknown environment: $ENV_NAME"
+              exit 1
+              ;;
+          esac
+      - id: smoke
+        name: Smoke probe (web + admin)
+        env:
+          APP_URL: ${{ steps.env.outputs.app }}
+          ADMIN_URL: ${{ steps.env.outputs.admin }}
+        run: |
+          set -euo pipefail
+          # 30 attempts x 5s = 150s ceiling. Aligns with healthCheckGracePeriod
+          # (180s) so the probe gives ECS a chance to settle.
+          for i in $(seq 1 30); do
+            v=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/version" || true)
+            h=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$ADMIN_URL/api/health" || true)
+            # /api/auth/me returns 200 (signed-in) or 401 (anonymous) — both
+            # prove the auth handler is wired. Anything else = broken.
+            m=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/auth/me" || true)
+            if [ "$v" = "200" ] && [ "$h" = "200" ] && { [ "$m" = "200" ] || [ "$m" = "401" ]; }; then
+              echo "smoke: PASS  version=$v admin-health=$h auth-me=$m  (attempt $i)"
+              exit 0
+            fi
+            echo "smoke: try=$i  version=$v admin-health=$h auth-me=$m"
+            sleep 5
+          done
+          echo "::error::smoke failed after 30 attempts"
+          exit 1
+      - name: Configure AWS credentials for rollback
+        if: failure() && steps.smoke.conclusion == 'failure'
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-smoke-rollback-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 1800
+      - name: Roll back ECS service to previous task-definition revision
+        if: failure() && steps.smoke.conclusion == 'failure'
+        run: |
+          set -euo pipefail
+          CLUSTER="monorepo-${ENV_NAME}"
+          # Single FargateService per env (app-stack.ts). Discover it instead
+          # of hard-coding a CDK-generated logical name.
+          SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
+          if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
+            echo "::error::no service in cluster $CLUSTER — cannot roll back"
+            exit 1
+          fi
+          SERVICE_NAME=${SERVICE_ARN##*/}
+          CURRENT_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+          FAMILY="${CURRENT_TD##*/}"
+          FAMILY="${FAMILY%:*}"
+          echo "Rolling back service=$SERVICE_NAME family=$FAMILY current=$CURRENT_TD"
+          PREV_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns[1]' --output text)
+          if [ -z "$PREV_TD" ] || [ "$PREV_TD" = "None" ]; then
+            echo "::error::no previous ACTIVE task-def revision in family $FAMILY — cannot roll back automatically"
+            exit 1
+          fi
+          echo "Target previous revision: $PREV_TD"
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE_NAME" \
+            --task-definition "$PREV_TD" \
+            --force-new-deployment \
+            --region "$AWS_REGION" >/dev/null
+          echo "::error::smoke failed; rollback issued to $PREV_TD; exiting non-zero"
+          exit 1

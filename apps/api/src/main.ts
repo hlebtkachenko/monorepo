@@ -1,9 +1,9 @@
 import { VersioningType } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
-import { SwaggerModule } from "@nestjs/swagger"
 import * as Sentry from "@sentry/node"
 import helmet from "helmet"
 import { AppModule } from "./app.module"
+import { registerDocsRoutes } from "./docs"
 import { buildOpenApiDocument } from "./openapi"
 
 Sentry.init({
@@ -17,16 +17,20 @@ Sentry.init({
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
 
-  // CSP stays enabled (helmet's strict defaults), with one relaxation:
-  // SwaggerModule injects an inline initializer <script> on /v1/docs and
-  // `script-src 'self'` would block it. helmet's default style-src already
-  // allows 'unsafe-inline' and img-src allows data:, which covers the rest
-  // of the Swagger UI assets. Everything else this process serves is JSON.
+  // CSP stays on helmet's strict defaults, with one relaxation: Scalar's
+  // docs page boots from the jsDelivr CDN and runs an inline
+  // `Scalar.createApiReference(...)` initializer, so `script-src` adds the
+  // CDN host plus `'unsafe-inline'`. Everything else this process serves is
+  // JSON, so no further directive widening is needed.
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
-          "script-src": ["'self'", "'unsafe-inline'"],
+          "script-src": [
+            "'self'",
+            "'unsafe-inline'",
+            "https://cdn.jsdelivr.net",
+          ],
         },
       },
     }),
@@ -37,11 +41,9 @@ async function bootstrap() {
   app.enableVersioning({ type: VersioningType.URI, prefix: "v" })
 
   // Public API docs — available in production (this documents a public API).
-  // Swagger UI at /v1/docs, raw OpenAPI 3.1 spec at /v1/openapi.json.
+  // Scalar API Reference at /v1/docs, raw OpenAPI 3.1 spec at /v1/openapi.json.
   const document = buildOpenApiDocument(app)
-  SwaggerModule.setup("v1/docs", app, document, {
-    jsonDocumentUrl: "v1/openapi.json",
-  })
+  registerDocsRoutes(app, document)
 
   const port = Number(process.env.PORT ?? 3001)
   const host = process.env.HOST ?? "0.0.0.0"

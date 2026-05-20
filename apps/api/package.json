@@ -23,6 +23,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@openfga/sdk": "^0.9.6",
     "@openfga/syntax-transformer": "^0.2.1",
+    "@scalar/nestjs-api-reference": "^1.1.16",
     "@sentry/node": "^10.52.0",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",

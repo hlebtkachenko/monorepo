@@ -41,8 +41,10 @@ async function bootstrap() {
   app.enableVersioning({ type: VersioningType.URI, prefix: "v" })
 
   // Public API docs — available in production (this documents a public API).
-  // Scalar API Reference at /v1/docs, raw OpenAPI 3.1 spec at /v1/openapi.json.
-  const document = buildOpenApiDocument(app)
+  // Scalar API Reference at `/`, raw OpenAPI 3.1 spec at `/v1/openapi.json`.
+  // The document is built from the shared registry (see `openapi.ts`); the
+  // Nest app instance is no longer required to emit it.
+  const document = buildOpenApiDocument()
   registerDocsRoutes(app, document)
 
   const port = Number(process.env.PORT ?? 3001)

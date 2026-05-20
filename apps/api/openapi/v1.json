@@ -1,69 +1,30 @@
 {
   "openapi": "3.1.0",
-  "paths": {
-    "/v1/ping": {
-      "get": {
-        "description": "Zero-DB smoke test. Returns the resolved principal — confirms the API key authenticated.",
-        "operationId": "PingController_ping_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PingResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Ping",
-        "tags": [
-          "Meta"
-        ]
-      }
-    },
-    "/v1/organization": {
-      "get": {
-        "description": "Returns the organization the authenticated API key belongs to.",
-        "operationId": "OrganizationController_get_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetOrganizationResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get organization",
-        "tags": [
-          "Organization"
-        ]
-      }
-    }
-  },
   "info": {
     "title": "Afframe Public API",
-    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token.",
     "version": "0.0.0",
-    "contact": {}
+    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape envelope; rate limits are surfaced via IETF `RateLimit-*` headers. Full developer documentation: https://docs.afframe.com.",
+    "contact": {
+      "name": "Afframe support",
+      "url": "https://docs.afframe.com/help/contact",
+      "email": "support@afframe.com"
+    },
+    "license": {
+      "name": "Proprietary — Terms of Service",
+      "url": "https://docs.afframe.com/help/terms"
+    },
+    "termsOfService": "https://docs.afframe.com/help/terms"
   },
+  "servers": [
+    {
+      "url": "https://api.afframe.com",
+      "description": "Production"
+    },
+    {
+      "url": "https://api-staging.afframe.com",
+      "description": "Staging"
+    }
+  ],
   "tags": [
     {
       "name": "Meta",
@@ -74,27 +35,152 @@
       "description": "The API key's own organization"
     }
   ],
-  "servers": [
-    {
-      "url": "https://api.afframe.com"
-    }
-  ],
+  "externalDocs": {
+    "description": "Developer guides, recipes, and the help center.",
+    "url": "https://docs.afframe.com"
+  },
   "components": {
     "securitySchemes": {
       "bearer": {
+        "type": "http",
         "scheme": "bearer",
         "bearerFormat": "API key",
-        "type": "http",
-        "description": "API key in the form affk_live_..."
+        "description": "API key in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Send as `Authorization: Bearer <key>`."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "API key missing, malformed, revoked, or pointing at a different environment than the host.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "unauthorized",
+                "error_type": "UNAUTHORIZED",
+                "message": "Missing or invalid API key.",
+                "documentation_url": "https://api.afframe.com/docs/errors#unauthorized",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "API key authenticated but lacks the scope required for this operation, or the target resource belongs to a different tenant.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "forbidden",
+                "error_type": "FORBIDDEN",
+                "message": "The API key is not allowed to perform this action.",
+                "documentation_url": "https://api.afframe.com/docs/errors#forbidden",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The resource referenced by the request URL does not exist (or does not exist within the authenticated tenant — Afframe never leaks cross-tenant existence).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "not_found",
+                "error_type": "NOT_FOUND",
+                "message": "Resource not found.",
+                "documentation_url": "https://api.afframe.com/docs/errors#not_found",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Idempotency conflict, optimistic-concurrency mismatch, or business-rule conflict.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "conflict",
+                "error_type": "CONFLICT",
+                "message": "Resource is in a state that conflicts with the request.",
+                "documentation_url": "https://api.afframe.com/docs/errors#conflict",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Request body parsed but failed schema validation. The `details` array carries one entry per offending field.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "validation_error",
+                "error_type": "VALIDATION",
+                "message": "Request body failed validation.",
+                "documentation_url": "https://api.afframe.com/docs/errors#validation_error",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14",
+                "details": [
+                  {
+                    "path": "$.legalName",
+                    "code": "required",
+                    "message": "legalName is required."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Caller exceeded the API-key rate limit. The response carries IETF `RateLimit-*` headers indicating the reset window.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "rate_limited",
+                "error_type": "RATE_LIMITED",
+                "message": "Too many requests. See the RateLimit-* headers for the reset window.",
+                "documentation_url": "https://api.afframe.com/docs/errors#rate_limited",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
       }
     },
     "schemas": {
-      "PingResponseDto": {
+      "PingResponse": {
         "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "const": true
+            "enum": [
+              true
+            ],
+            "description": "Always `true` on a 2xx response."
           },
           "principal": {
             "type": "object",
@@ -102,26 +188,28 @@
               "organizationId": {
                 "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "description": "The organization the API key is scoped to."
               },
               "workspaceId": {
                 "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "description": "The workspace (accountant's office) hosting the org."
               }
             },
             "required": [
               "organizationId",
               "workspaceId"
-            ]
+            ],
+            "description": "Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`)."
           }
         },
         "required": [
           "ok",
           "principal"
-        ]
+        ],
+        "description": "Confirms the API key authenticated and reveals the resolved tenancy."
       },
-      "GetOrganizationResponseDto": {
+      "GetOrganizationResponse": {
         "type": "object",
         "properties": {
           "organization": {
@@ -130,18 +218,24 @@
               "id": {
                 "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "description": "Opaque organization identifier (UUID)."
               },
               "slug": {
-                "type": "string"
+                "type": "string",
+                "description": "URL-safe organization handle, e.g. `acme-cz`.",
+                "example": "acme-cz"
               },
               "legalName": {
-                "type": "string"
+                "type": "string",
+                "description": "Registered legal name, e.g. `Acme Czechia s.r.o.`",
+                "example": "Acme Czechia s.r.o."
               },
               "fiscalYearStartMonth": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 12
+                "maximum": 12,
+                "description": "Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).",
+                "example": 1
               }
             },
             "required": [
@@ -149,13 +243,230 @@
               "slug",
               "legalName",
               "fiscalYearStartMonth"
-            ]
+            ],
+            "description": "Public-API summary of an organization (tenant)."
           }
         },
         "required": [
           "organization"
-        ]
+        ],
+        "description": "The organization the API key belongs to. Single-tenant view; future multi-org-per-key tokens will return a list endpoint instead."
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`."
+              },
+              "error_type": {
+                "type": "string",
+                "description": "Plaid-shape family (INVALID_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, VALIDATION, RATE_LIMITED, INTERNAL, …)."
+              },
+              "message": {
+                "type": "string",
+                "description": "Developer-facing message. Safe to log."
+              },
+              "display_message": {
+                "type": "string",
+                "description": "Optional end-user-facing message. Present when the cause is safe to surface in a UI; absent for 5xx / unknown errors."
+              },
+              "documentation_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Deep-link into the error registry, e.g. `https://api.afframe.com/docs/errors#not_found`."
+              },
+              "requestId": {
+                "type": "string",
+                "description": "Echoes the `X-Request-Id` header for support tickets."
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "code",
+                    "message"
+                  ]
+                },
+                "description": "Field-level error breakdown. Present on `422 validation_error`; absent on most other codes."
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "requestId"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object. See https://docs.afframe.com/developers/errors."
+      },
+      "ApiPrincipal": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The organization the API key is scoped to."
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The workspace (accountant's office) hosting the org."
+          }
+        },
+        "required": [
+          "organizationId",
+          "workspaceId"
+        ],
+        "description": "Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`)."
+      },
+      "OrganizationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe organization handle, e.g. `acme-cz`.",
+            "example": "acme-cz"
+          },
+          "legalName": {
+            "type": "string",
+            "description": "Registered legal name, e.g. `Acme Czechia s.r.o.`",
+            "example": "Acme Czechia s.r.o."
+          },
+          "fiscalYearStartMonth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12,
+            "description": "Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).",
+            "example": 1
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "legalName",
+          "fiscalYearStartMonth"
+        ],
+        "description": "Public-API summary of an organization (tenant)."
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/v1/ping": {
+      "get": {
+        "operationId": "ping",
+        "summary": "Ping",
+        "description": "Zero-DB smoke test. Returns the resolved principal — confirms the API key authenticated.",
+        "tags": [
+          "Meta"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key authenticated and the principal resolved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/organization": {
+      "get": {
+        "operationId": "getOrganization",
+        "summary": "Get organization",
+        "description": "Returns the organization the authenticated API key belongs to.",
+        "tags": [
+          "Organization"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authenticated principal's organization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetOrganizationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
       }
     }
-  }
+  },
+  "webhooks": {}
 }

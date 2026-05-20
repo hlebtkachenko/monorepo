@@ -1,0 +1,73 @@
+# MCP tool coverage gate.
+#
+# Two checks:
+#   1. Drift — regenerate apps/mcp/src/tools/generated/ and fail on any diff.
+#   2. Coverage — every committed spec operationId must have a corresponding
+#      file under apps/mcp/src/tools/generated/. Catches a contributor adding
+#      an endpoint, regenerating the SDK, but skipping `pnpm --filter @afframe/mcp gen`.
+#
+# Advisory until the first green PR cycle.
+
+name: MCP coverage
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/openapi/**"
+      - "packages/shared/src/api/**"
+      - "apps/mcp/src/tools/generated/**"
+      - "apps/mcp/scripts/gen-tools.ts"
+      - "apps/mcp/package.json"
+      - ".github/workflows/mcp-coverage.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/mcp/src/tools/generated/**"
+
+permissions: {}
+
+concurrency:
+  group: mcp-coverage-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  coverage:
+    name: Regenerate + cover
+    runs-on: ubuntu-latest
+    continue-on-error: true # ADVISORY
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Re-emit OpenAPI spec (input)
+        run: pnpm --filter api emit:openapi
+
+      - name: Regenerate MCP tools
+        run: pnpm --filter @afframe/mcp gen
+
+      - name: Drift gate
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- apps/mcp/src/tools/generated/; then
+            echo "::error::MCP generated drift. Run locally:"
+            echo "  pnpm gen:all"
+            echo "and commit the regenerated files."
+            exit 1
+          fi
+
+      - name: Coverage gate
+        run: |
+          set -euo pipefail
+          if ! node scripts/governance/check-mcp-coverage.mjs; then
+            echo "::error::MCP coverage gap. Run 'pnpm gen:all' and commit."
+            exit 1
+          fi
+          echo "Every spec operation has a generated MCP tool."

@@ -1,0 +1,62 @@
+# SDK generated-types drift gate.
+#
+# `pnpm --filter @afframe/sdk gen` re-emits packages/sdk/src/generated/ from
+# the committed apps/api/openapi/v1.json. A diff after that step means a
+# contributor edited the registry / spec without running `pnpm gen:all`.
+#
+# Advisory until the first green PR cycle (see docs/conventions/CI-POLICY.md).
+
+name: SDK drift
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/openapi/**"
+      - "packages/shared/src/api/**"
+      - "packages/sdk/src/generated/**"
+      - "packages/sdk/package.json"
+      - ".github/workflows/sdk-drift.yml"
+  push:
+    branches: [main]
+    paths:
+      - "packages/sdk/src/generated/**"
+
+permissions: {}
+
+concurrency:
+  group: sdk-drift-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  drift:
+    name: Regenerate SDK + diff
+    runs-on: ubuntu-latest
+    continue-on-error: true # ADVISORY
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Re-emit OpenAPI spec (input)
+        run: pnpm --filter api emit:openapi
+
+      - name: Regenerate SDK types
+        run: pnpm --filter @afframe/sdk gen
+
+      - name: Drift gate
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- packages/sdk/src/generated/; then
+            echo "::error::SDK generated drift. Run locally:"
+            echo "  pnpm gen:all"
+            echo "and commit the regenerated files under packages/sdk/src/generated/."
+            exit 1
+          fi
+          echo "SDK generated types match the committed spec."

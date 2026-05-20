@@ -8,6 +8,16 @@ import {
 import { errorFromResponse } from "./errors"
 
 export * from "./errors"
+export * from "./brands"
+export { createAfframeClient } from "./client"
+export type {
+  AfframeClient,
+  AfframeClientOptions,
+  DeprecationInfo,
+} from "./client"
+export { verifyWebhook, WebhookVerificationError } from "./webhooks"
+export type { VerifyWebhookInput } from "./webhooks"
+export type { paths, components, operations } from "./generated/openapi"
 
 /** SDK client configuration. */
 export interface AfframeOptions {
@@ -33,11 +43,16 @@ interface RequestOptions {
 /**
  * Thin TypeScript client for the Afframe public API.
  *
- * Today: `meta.ping()`, `organization.get()`. New endpoints land here as
- * the API grows (see docs/api/SDK.md). Errors throw typed
- * {@link AfframeApiError} subclasses (`UnauthorizedError`, `RateLimitError`,
- * …) — every subclass carries `requestId` + `documentationUrl` from the
- * Plaid-shape envelope.
+ * @deprecated Use `createAfframeClient(...)` from `@afframe/sdk` instead.
+ * That client is generated from the committed OpenAPI spec, surfaces every
+ * registered operation with full path + body typing, and shares one error
+ * envelope path with the rest of the SDK. The class below is kept for one
+ * release cycle to preserve the previous public shape (`meta.ping()`,
+ * `organization.get()`); new code should not import it.
+ *
+ * Errors throw typed {@link AfframeApiError} subclasses
+ * (`UnauthorizedError`, `RateLimitError`, …) — every subclass carries
+ * `requestId` + `documentationUrl` from the Plaid-shape envelope.
  */
 export class Afframe {
   readonly meta: MetaResource

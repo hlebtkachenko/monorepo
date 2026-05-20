@@ -1,17 +1,20 @@
-import { Afframe, type AfframeOptions } from "@afframe/sdk"
+import { createAfframeClient, type AfframeClient } from "@afframe/sdk"
 
 /**
- * Build the Afframe SDK client used by every tool handler.
+ * Build the Afframe SDK client used by every generated tool handler.
  *
- * - `AFFRAME_API_KEY` is required at startup; the server fails fast if absent
- *   with a one-line stderr message (no MCP-tool error chatter).
+ * - `AFFRAME_API_KEY` is required at startup; the server fails fast with a
+ *   one-line stderr message (no MCP-tool error chatter on auth issues).
  * - `AFFRAME_API_BASE` overrides the base URL — point at staging or a local
  *   container without changing the config.
  *
  * The client is created once and shared across tool calls. Stateless server,
- * stateless client.
+ * stateless client. Returns the openapi-fetch surface (`@afframe/sdk`'s
+ * `createAfframeClient`) so the generated tools can `client.GET(...)` /
+ * `client.POST(...)` directly against the typed paths from
+ * `apps/api/openapi/v1.json`.
  */
-export function buildClient(): Afframe {
+export function buildClient(): AfframeClient {
   const apiKey = process.env.AFFRAME_API_KEY
   if (!apiKey) {
     process.stderr.write(
@@ -19,11 +22,9 @@ export function buildClient(): Afframe {
     )
     process.exit(1)
   }
-  const options: AfframeOptions = {
+  return createAfframeClient({
     apiKey,
+    baseUrl: process.env.AFFRAME_API_BASE,
     userAgent: "mcp",
-  }
-  const baseUrl = process.env.AFFRAME_API_BASE
-  if (baseUrl) options.baseUrl = baseUrl
-  return new Afframe(options)
+  })
 }

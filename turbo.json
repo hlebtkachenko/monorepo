@@ -28,6 +28,7 @@
     "AFFRAME_API_KEY",
     "AFFRAME_API_BASE",
     "AFFRAME_PROFILE",
+    "AFFRAME_MCP_URL",
     "API_DOCS_BASE_URL"
   ],
   "remoteCache": {

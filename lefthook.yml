@@ -140,6 +140,21 @@ pre-push:
         else
           echo "[lefthook osv-scanner] not installed — skipping. brew install osv-scanner to enable local CVE scan."
         fi
+    endpoint-checklist:
+      # Catches the most common "added an endpoint, forgot to run codegen"
+      # mistake before the push reaches CI. Fires when the registry, an api
+      # controller, or the committed OpenAPI spec changed but the generated
+      # SDK / MCP outputs did not. The full 7-step checklist lives in
+      # `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md` — this hook only flags
+      # the codegen step, which is the failure mode CI gates `sdk-drift`
+      # and `mcp-coverage` would otherwise catch ~5 min later.
+      glob:
+        - "packages/shared/src/api/**"
+        - "apps/api/src/v1/**"
+        - "apps/api/openapi/v1.json"
+        - "packages/sdk/src/generated/**"
+        - "apps/mcp/src/tools/generated/**"
+      run: node scripts/governance/check-endpoint-checklist.mjs {push_files}
     db-smoke:
       # Mirrors `.github/workflows/db-tests.yml` smoke job:
       #   - migration filenames match NNNN_<snake>.sql

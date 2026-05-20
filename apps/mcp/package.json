@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen": "tsx scripts/gen-tools.ts"
   },
   "dependencies": {
     "@afframe/sdk": "workspace:*",

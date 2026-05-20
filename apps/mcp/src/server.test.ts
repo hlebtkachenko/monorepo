@@ -1,36 +1,34 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { describe, expect, it } from "vitest"
-import { Afframe } from "@afframe/sdk"
-import { registerGetOrganization } from "./tools/get_organization"
-import { registerPing } from "./tools/ping"
+import { createAfframeClient } from "@afframe/sdk"
+import {
+  GENERATED_TOOL_OPERATION_IDS,
+  registerGeneratedTools,
+} from "./tools/generated"
 
 describe("@afframe/mcp tool registry", () => {
   function buildServer() {
     return new McpServer({ name: "@afframe/mcp", version: "0.0.1-test" })
   }
   function buildClient() {
-    return new Afframe({ apiKey: "affk_test_fixture" })
+    return createAfframeClient({ apiKey: "affk_test_fixture" })
   }
 
-  it("registers `ping` exactly once with read-only + idempotent annotations", () => {
-    const server = buildServer()
-    expect(() => registerPing(server, buildClient())).not.toThrow()
-    // Re-registering the same tool name must throw — surfaces accidental dupes.
-    expect(() => registerPing(server, buildClient())).toThrow()
+  it("generated codegen covers every committed operationId", () => {
+    // Smoke: the table emitted by `pnpm --filter @afframe/mcp gen` carries
+    // every operation in `apps/api/openapi/v1.json`. If a contributor adds an
+    // op to the registry without re-running `gen:all`, the list shrinks and
+    // CI's `mcp-coverage` gate fails.
+    expect(GENERATED_TOOL_OPERATION_IDS.length).toBeGreaterThan(0)
+    expect(GENERATED_TOOL_OPERATION_IDS).toContain("ping")
+    expect(GENERATED_TOOL_OPERATION_IDS).toContain("getOrganization")
   })
 
-  it("registers `get_organization` exactly once", () => {
-    const server = buildServer()
-    expect(() => registerGetOrganization(server, buildClient())).not.toThrow()
-    expect(() => registerGetOrganization(server, buildClient())).toThrow()
-  })
-
-  it("both tools coexist on the same server", () => {
+  it("registers every generated tool exactly once", () => {
     const server = buildServer()
     const client = buildClient()
-    registerPing(server, client)
-    registerGetOrganization(server, client)
-    // No throw = tool name registry has both unique entries.
-    expect(true).toBe(true)
+    expect(() => registerGeneratedTools(server, client)).not.toThrow()
+    // Re-registering must throw — surfaces accidental dupes.
+    expect(() => registerGeneratedTools(server, client)).toThrow()
   })
 })

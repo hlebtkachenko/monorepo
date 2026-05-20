@@ -14,16 +14,19 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen": "openapi-typescript ../../apps/api/openapi/v1.json -o ./src/generated/openapi.ts"
   },
   "dependencies": {
     "@workspace/shared": "workspace:*",
+    "openapi-fetch": "^0.17.0",
     "zod": "^4.4.2"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^10.3.0",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
   }

@@ -1,8 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { buildClient } from "./client"
-import { registerGetOrganization } from "./tools/get_organization"
-import { registerPing } from "./tools/ping"
+import { registerGeneratedTools } from "./tools/generated"
 
 const VERSION = "0.0.1"
 
@@ -10,14 +9,20 @@ const VERSION = "0.0.1"
  * `@afframe/mcp` — MCP server exposing the Afframe public API to LLM clients
  * (Claude Desktop, Claude Code, Cursor, …).
  *
- * v0.1 surface: two read tools wrapping the foundation endpoints. New tools
- * land per docs/api/MCP.md as the API grows. Transport is STDIO for the
- * npx-install path; the hosted Streamable HTTP server at mcp.afframe.com is a
- * separate deployment using the same tool registry.
+ * Tools are codegen'd from `apps/api/openapi/v1.json` into
+ * `src/tools/generated/` by `pnpm --filter @afframe/mcp gen`. The hand-curated
+ * `tools/_curate.ts` lookup table layers in per-operation annotations
+ * (read-only / destructive / idempotent) the spec can't express. The surface
+ * grows automatically as the shared registry grows — no manual tool
+ * registration except for curation entries.
  *
- * Auth: AFFRAME_API_KEY env var (Bearer). Validated lazily — first tool call
- * surfaces an UnauthorizedError if the key is rejected; the server itself
- * boots offline.
+ * Transport is STDIO for the npx-install path; the hosted Streamable HTTP
+ * server (mcp.afframe.com, once deployed) is a separate process backed by
+ * the same generated table.
+ *
+ * Auth: `AFFRAME_API_KEY` env var (Bearer). Validated lazily — the first
+ * tool call surfaces an `UnauthorizedError` if the key is rejected; the
+ * server itself boots offline.
  */
 async function main(): Promise<void> {
   const client = buildClient()
@@ -26,8 +31,7 @@ async function main(): Promise<void> {
     version: VERSION,
   })
 
-  registerPing(server, client)
-  registerGetOrganization(server, client)
+  registerGeneratedTools(server, client)
 
   const transport = new StdioServerTransport()
   await server.connect(transport)

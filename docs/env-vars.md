@@ -34,9 +34,10 @@ Build-time identity (set by Dockerfile ARG; empty in local dev is fine):
 
 Public API contract:
 
-| Var                 | Required | Notes                                                                                                                                                                                                                                     |
-| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `API_DOCS_BASE_URL` | no       | Base URL for the `documentation_url` deep-link emitted in every `/v1/*` error envelope. Default `https://api.afframe.com`. Override in non-prod test rigs to avoid cross-env links. Read by `apps/api/src/v1/domain-exception.filter.ts`. |
+| Var                 | Required | Notes                                                                                                                                                                                                                                                                                         |
+| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_DOCS_BASE_URL` | no       | Base URL for the `documentation_url` deep-link emitted in every `/v1/*` error envelope. Default `https://api.afframe.com`. Override in non-prod test rigs to avoid cross-env links. Read by `apps/api/src/v1/domain-exception.filter.ts`.                                                     |
+| `AFFRAME_MCP_URL`   | no       | Public URL of a Streamable-HTTP MCP server. When set, the Scalar reference at `/` advertises it through `mcp.url`; when unset, the MCP slot stays disabled. `apps/mcp` ships as stdio today, so this is empty for prod / staging until an HTTP wrapper lands. Read by `apps/api/src/docs.ts`. |
 
 ## Public API surfaces (apps/cli, apps/mcp, packages/sdk)
 

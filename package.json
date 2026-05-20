@@ -12,6 +12,7 @@
     "knip": "knip",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "check:pr-title": "node scripts/check-pr-title.mjs",
+    "gen:all": "tsx scripts/gen-all.ts",
     "prepare": "lefthook install --force || true"
   },
   "devDependencies": {
@@ -30,6 +31,7 @@
     "shadcn": "^4.7.0",
     "supertest": "^7.1.0",
     "testcontainers": "^11.14.0",
+    "tsx": "^4.21.0",
     "turbo": "^2.8.17",
     "typescript": "^6.0.3"
   },

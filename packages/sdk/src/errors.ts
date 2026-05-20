@@ -80,6 +80,26 @@ export class ServerError extends AfframeApiError {
   }
 }
 
+/**
+ * Parse an HTTP `Retry-After` header value into milliseconds. Supports both
+ * formats accepted by the spec:
+ *   - delta-seconds: a non-negative integer (`"120"` → 120 000 ms).
+ *   - HTTP-date: an RFC 7231 date (`"Wed, 21 Oct 2026 07:28:00 GMT"`) — the
+ *     return value is `max(0, target - Date.now())`.
+ *
+ * Returns `null` when the input is absent or unparseable. Shared by the
+ * client's retry-loop and the `RateLimitError` factory below so the two
+ * agree on what "retry after" means.
+ */
+export function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null
+  const seconds = Number(value)
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000)
+  const dateMs = Date.parse(value)
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now())
+  return null
+}
+
 /** Map an envelope + HTTP status to the concrete typed Error subclass. */
 export function errorFromResponse(
   envelope: ApiError["error"],
@@ -98,11 +118,10 @@ export function errorFromResponse(
     case 422:
       return new ValidationError(envelope)
     case 429: {
-      const ra = headers.get("retry-after")
-      const retryAfter = ra ? Number(ra) : undefined
+      const ms = parseRetryAfterMs(headers.get("retry-after"))
       return new RateLimitError(
         envelope,
-        Number.isFinite(retryAfter) ? retryAfter : undefined,
+        ms === null ? undefined : Math.ceil(ms / 1000),
       )
     }
     default:

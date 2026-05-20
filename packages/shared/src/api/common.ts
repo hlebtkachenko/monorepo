@@ -2,13 +2,29 @@ import { z } from "zod"
 
 /**
  * Standard error envelope for every `api.afframe.com/v1/*` response.
- * Emitted by the api's DomainExceptionFilter.
+ * Emitted by the api's DomainExceptionFilter. Plaid-shape per ADR-0023.
+ *
+ * `error_type` + `documentation_url` are present on every response from
+ * 2026-05-20 onwards. Marked optional so older SDK builds still validate
+ * the prior envelope without an error.
  */
 export const ApiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
+    error_type: z.string().optional(),
     message: z.string(),
+    display_message: z.string().optional(),
+    documentation_url: z.url().optional(),
     requestId: z.string(),
+    details: z
+      .array(
+        z.object({
+          path: z.string(),
+          code: z.string(),
+          message: z.string(),
+        }),
+      )
+      .optional(),
   }),
 })
 export type ApiError = z.infer<typeof ApiErrorSchema>

@@ -377,6 +377,52 @@ gh workflow run _deploy-aws.yml \
 
 Production deploys use a SEPARATE OIDC role (`AWS_DEPLOY_ROLE_ARN_PRODUCTION` secret) and the `app.afframe.com` Cloudflare tunnel. Same code, separate runtime.
 
+#### Production deploy approval gate
+
+The `deploy` job in `_deploy-aws.yml` references `environment: ${{ inputs.environment }}`. For production this resolves to the `production` GitHub Environment, which has a deployment-protection-rule requiring a human reviewer before the `deploy` job starts. Staging has no such rule, so it flows through.
+
+Lifecycle of a production deploy:
+
+1. Operator triggers `_deploy-aws.yml -f environment=production` (CLI or repo Actions tab).
+2. `guard` + `validate-inputs` + `detect-changes` + `build-images` all run normally.
+3. `deploy` enters **"Waiting for review"** in the GitHub Actions UI.
+4. Approver opens the run, clicks "Review deployments", selects `production`, approves.
+5. `deploy` proceeds; `smoke` runs after; if smoke fails the rollback step fires.
+
+One-time operator setup of the protection rule (run from a machine with `gh` configured):
+
+```bash
+# Get your own user id once
+HLEB_ID=$(gh api user --jq .id)
+
+# Configure the protection rule
+gh api -X PUT "/repos/hlebtkachenko/monorepo/environments/production" \
+  -f wait_timer=0 \
+  -F prevent_self_review=false \
+  -F deployment_branch_policy='{"protected_branches":true,"custom_branch_policies":false}'
+
+gh api -X PUT "/repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules" \
+  --input - <<JSON
+{ "reviewers": [ { "type": "User", "id": $HLEB_ID } ] }
+JSON
+```
+
+Sanity check the deploy role's `MaxSessionDuration` is at least 3600 (the workflow asks for that on every STS assume):
+
+```bash
+aws iam get-role --role-name <prod-deploy-role-name> --query Role.MaxSessionDuration
+# If 3600: leave as is. If you want more headroom on long deploys:
+# aws iam update-role --role-name <prod-deploy-role-name> --max-session-duration 7200
+```
+
+Remove the protection rule (rare; e.g. switching to a deploy bot):
+
+```bash
+gh api /repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules \
+  --jq '.custom_deployment_protection_rules[].id' \
+  | xargs -I {} gh api -X DELETE "/repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules/{}"
+```
+
 ### Rollback (revert a bad deploy)
 
 The deploy workflow tags images with the git SHA (`sha-<commit>`). To roll back, either:

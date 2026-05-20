@@ -189,9 +189,6 @@ importers:
       '@scalar/nestjs-api-reference':
         specifier: ^1.1.16
         version: 1.1.16
-      '@scalar/void-server':
-        specifier: ^2.4.13
-        version: 2.4.13
       '@sentry/node':
         specifier: ^10.52.0
         version: 10.52.0
@@ -5341,10 +5338,6 @@ packages:
   '@scalar/validation@0.5.0':
     resolution: {integrity: sha512-48CS1B0C7im57RQCHhS0GKt+qDLxB34IX8rO91jZj9D+Y/OosQZG3Gy57gJdHqZoD7l0sPUZtF8tVYry3BxRtw==}
     engines: {node: '>=20'}
-
-  '@scalar/void-server@2.4.13':
-    resolution: {integrity: sha512-7rVA6HBrLdYYCxTUuzUT1j2g/WohEzD/tGYM5LKQFqXHJUJnLCBZgv95SUCg9nEeh9eB6bpaMAleiSqF2V1KQQ==}
-    engines: {node: '>=22'}
 
   '@scalar/workspace-store@0.51.0':
     resolution: {integrity: sha512-+eKUdPrDzUFSEmDd5gdEf1XUEPVPDH4r9iySW8T2tHF7S7ostpFwszDBhkl8qiQjxpw8DYs/aMaeSCl33/7k6w==}
@@ -18482,13 +18475,6 @@ snapshots:
       - typescript
 
   '@scalar/validation@0.5.0': {}
-
-  '@scalar/void-server@2.4.13':
-    dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.18)
-      '@scalar/helpers': 0.8.0
-      hono: 4.12.18
-      js-base64: 3.7.8
 
   '@scalar/workspace-store@0.51.0(typescript@6.0.3)':
     dependencies:

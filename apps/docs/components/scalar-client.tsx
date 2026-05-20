@@ -4,24 +4,22 @@ import { ApiReferenceReact } from "@scalar/api-reference-react"
 
 import "@scalar/api-reference-react/style.css"
 
+import { BASE_SCALAR_CONFIG } from "./scalar-config"
+
 /**
- * Scalar API Client widget — same Scalar React entry as the Reference,
- * but mounted in a layout-only-the-client mode (hide the marketing sidebar,
- * focus on the request builder). When `@scalar/api-client-react` ships as
- * its own export, swap this component over for a cleaner UI.
+ * Scalar API Client widget. Same Scalar React entry as the Reference but
+ * mounted in client mode (hide the marketing sidebar, focus on the
+ * request builder). When `@scalar/api-client-react` ships as its own
+ * export, swap this component over.
  */
 export function ScalarClient({ specUrl }: { specUrl: string }) {
   return (
     <ApiReferenceReact
       configuration={{
+        ...BASE_SCALAR_CONFIG,
         url: specUrl,
-        theme: "default",
-        layout: "modern",
-        persistAuth: true,
         hideModels: true,
         hideTestRequestButton: false,
-        authentication: { preferredSecurityScheme: "bearer" },
-        defaultHttpClient: { targetKey: "shell", clientKey: "curl" },
       }}
     />
   )

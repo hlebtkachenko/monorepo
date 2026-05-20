@@ -5,7 +5,7 @@ export const dynamic = "force-static"
 export const metadata = {
   title: "API Client",
   description:
-    "Interactive request builder for the Afframe public API — generated " +
+    "Interactive request builder for the Afframe public API, generated " +
     "from the live OpenAPI spec.",
 }
 

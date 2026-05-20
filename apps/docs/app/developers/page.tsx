@@ -41,7 +41,7 @@ const SECTIONS = [
   {
     href: "/developers/cli",
     title: "CLI",
-    blurb: "`@afframe/cli` — invoke any endpoint from the shell.",
+    blurb: "`@afframe/cli`: invoke any endpoint from the shell.",
   },
   {
     href: "/developers/mcp",

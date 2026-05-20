@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     template: "%s · Afframe Developer Hub",
   },
   description:
-    "Build accounting integrations on Afframe — REST API, SDK, MCP server, " +
+    "Build accounting integrations on Afframe. REST API, SDK, MCP server, " +
     "Czech-specific domain primitives.",
   openGraph: {
     type: "website",
@@ -36,7 +36,7 @@ export default function RootLayout({
           fontSans.variable,
         )}
       >
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider>
           <TopNav />
           <main className="mx-auto w-full max-w-7xl px-6 py-10">
             {children}

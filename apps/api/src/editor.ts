@@ -10,10 +10,14 @@ import type { Request, Response } from "express"
  * and writes back to a Scalar-side draft; we ingest changes via the
  * existing registry-driven workflow rather than a server-side save.
  *
- * Session gate: matches `apps/admin`'s allowlist. Until Better Auth's
- * cross-subdomain cookie ships (Phase D2), the route is opt-in via the
- * `EDITOR_ENABLED=true` env var and falls back to 503 otherwise — no
- * accidental public exposure during the rollout window.
+ * Session gate is NOT yet wired. The route is opt-in via the
+ * `EDITOR_ENABLED=true` env var until the admin session check lands.
+ * Cross-subdomain cookies are in place; what's missing is the
+ * `withAdmin(req)` helper that reads the Better Auth session and
+ * confirms membership in `ADMIN_WORKSPACE_ALLOWLIST`. Once that helper
+ * exists, drop `EDITOR_ENABLED` and run the check unconditionally. Do
+ * not flip `EDITOR_ENABLED=true` in production before then; that would
+ * publish the redirect openly.
  */
 const SPEC_URL = "https://api.afframe.com/v1/openapi.json"
 
@@ -24,10 +28,7 @@ export function registerEditorRoutes(app: INestApplication): void {
       res.status(503).json({
         error: {
           code: "feature_not_enabled",
-          message:
-            "The spec editor is not enabled in this environment. " +
-            "Set EDITOR_ENABLED=true on the api task once the admin " +
-            "session-gate (Phase D2) is in place.",
+          message: "The spec editor is not enabled in this environment.",
         },
       })
       return

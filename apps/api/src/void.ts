@@ -1,21 +1,29 @@
 import type { INestApplication } from "@nestjs/common"
-import type { NextFunction, Request, Response } from "express"
+import express from "express"
+import type { Request, Response } from "express"
 
 /**
  * Mock-server mount at `/void/*`. Echoes the request shape back —
- * method, path, headers (minus auth), query, body — so partners can
- * exercise SDK / CLI / MCP request builders without hitting the live
+ * method, path, headers (minus auth / cookies), query, body — so partners
+ * can exercise SDK / CLI / MCP request builders without hitting the live
  * api. Any verb, any path, status 200.
  *
- * The same behaviour ships as a standalone Hono app in
- * `@scalar/void-server`. The plan called for that package, but
- * `@scalar/void-server` exports a Hono app rather than an Express
- * middleware; bridging Web `Request`/`Response` into Express's
- * imperative `(req, res)` model is more glue than this 30-line echo
- * handler. Re-implemented inline.
+ * Body parsers are mounted locally on `/void` so JSON / text / urlencoded
+ * payloads land in `req.body`. Nest's global parsers don't reach this
+ * route because it's wired below the controller stack via `app.use`. The
+ * 100 KB cap matches the rest of the API.
  */
+const BODY_LIMIT = "100kb"
+
 export function registerVoidRoutes(app: INestApplication): void {
-  app.use("/void", (req: Request, res: Response, next: NextFunction) => {
+  app.use(
+    "/void",
+    express.json({ limit: BODY_LIMIT }),
+    express.text({ limit: BODY_LIMIT }),
+    express.urlencoded({ extended: true, limit: BODY_LIMIT }),
+  )
+
+  app.use("/void", (req: Request, res: Response) => {
     if (req.method === "OPTIONS") {
       res
         .status(204)
@@ -25,14 +33,11 @@ export function registerVoidRoutes(app: INestApplication): void {
         .end()
       return
     }
-    if (typeof req.url !== "string") {
-      next()
-      return
-    }
     const safeHeaders: Record<string, string | string[] | undefined> = {}
     for (const [k, v] of Object.entries(req.headers)) {
-      if (k.toLowerCase() === "authorization") continue
-      if (k.toLowerCase() === "cookie") continue
+      const lower = k.toLowerCase()
+      if (lower === "authorization") continue
+      if (lower === "cookie") continue
       safeHeaders[k] = v
     }
     res

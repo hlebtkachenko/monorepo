@@ -16,7 +16,7 @@ export default function HelpIndex() {
       <header className="flex flex-col gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">Help Center</h1>
         <p className="text-muted-foreground">
-          End-user support. Topics ship as MDX in Phase C3.
+          End-user support. Articles below are in progress.
         </p>
       </header>
       <div className="grid gap-4 md:grid-cols-2">

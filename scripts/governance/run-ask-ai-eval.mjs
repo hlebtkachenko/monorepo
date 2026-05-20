@@ -10,12 +10,17 @@
  * and on docs PRs.
  *
  * Env:
- *   ASK_AI_URL   — base URL of the preview deploy (e.g.
- *                  https://docs-preview.afframe.com). Required.
+ *   ASK_AI_URL       — base URL of the preview deploy. Required.
  *   ASK_AI_THRESHOLD — citation pass-rate, default 0.85.
+ *   ASK_AI_CONCURRENCY — parallel cases, default 5.
+ *
+ * Cases are imported from the canonical `EVAL_SET` in `apps/docs/lib/ai/
+ * eval.ts` via `tsx`. A regex-based parser was tried first but broke on
+ * questions containing escaped quotes — importing the TS gives us a
+ * single source of truth and no shape brittleness.
  */
 
-import { readFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
 import { resolve } from "node:path"
 
 const URL_BASE = process.env.ASK_AI_URL
@@ -24,17 +29,29 @@ if (!URL_BASE) {
   process.exit(2)
 }
 const THRESHOLD = Number(process.env.ASK_AI_THRESHOLD ?? "0.85")
+const CONCURRENCY = Math.max(1, Number(process.env.ASK_AI_CONCURRENCY ?? "5"))
 
-const evalPath = resolve(process.cwd(), "apps/docs/lib/ai/eval.ts")
-const evalSource = readFileSync(evalPath, "utf8")
-const cases = extractCases(evalSource)
+// Load EVAL_SET via tsx so the TS module evaluates with its type elision.
+// `process.argv0` is node; spawn tsx as a child to emit JSON we can read.
+const dumpScript = `
+import { EVAL_SET } from "${resolve(process.cwd(), "apps/docs/lib/ai/eval.ts").replace(/\\\\/g, "\\\\\\\\")}"
+process.stdout.write(JSON.stringify(EVAL_SET))
+`
+const dump = spawnSync("npx", ["--no-install", "tsx", "-e", dumpScript], {
+  encoding: "utf8",
+})
+if (dump.status !== 0) {
+  process.stderr.write(`Failed to load EVAL_SET via tsx:\n${dump.stderr}\n`)
+  process.exit(2)
+}
+const cases = JSON.parse(dump.stdout)
 
 let cited = 0
 let containsHits = 0
 let containsExpected = 0
 const failures = []
 
-for (const c of cases) {
+async function scoreOne(c) {
   const res = await fetch(`${URL_BASE}/api/ask`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -42,19 +59,35 @@ for (const c of cases) {
   })
   const text = await readStream(res)
   const hasCitation = c.cite.every((p) => text.includes(p))
-  if (hasCitation) cited++
   let hits = 0
   for (const sub of c.contains ?? []) {
     if (text.toLowerCase().includes(sub.toLowerCase())) hits++
   }
-  containsHits += hits
-  containsExpected += c.contains?.length ?? 0
-  if (!hasCitation || hits < (c.contains?.length ?? 0)) {
-    failures.push({ q: c.q, want_cite: c.cite, got: text.slice(0, 200) })
-  }
+  return { c, text, hasCitation, hits, expected: c.contains?.length ?? 0 }
 }
 
-const citeRate = cited / cases.length
+// Bounded-concurrency pool. 50 cases × 5 workers = 10 batches.
+const queue = [...cases]
+const workers = Array.from({ length: CONCURRENCY }, async () => {
+  while (queue.length) {
+    const c = queue.shift()
+    if (!c) return
+    const r = await scoreOne(c)
+    if (r.hasCitation) cited++
+    containsHits += r.hits
+    containsExpected += r.expected
+    if (!r.hasCitation || r.hits < r.expected) {
+      failures.push({
+        q: r.c.q,
+        want_cite: r.c.cite,
+        got: r.text.slice(0, 200),
+      })
+    }
+  }
+})
+await Promise.all(workers)
+
+const citeRate = cases.length ? cited / cases.length : 1
 const containRate = containsExpected ? containsHits / containsExpected : 1
 const passed = citeRate >= THRESHOLD && containRate >= THRESHOLD
 process.stdout.write(
@@ -94,29 +127,4 @@ async function readStream(res) {
     }
   }
   return acc
-}
-
-function extractCases(src) {
-  // Trivial parser: `eval.ts` exports `EVAL_SET: EvalCase[] = [...]`. We
-  // pull each `{ q: "...", cite: [...], contains?: [...] }` block by
-  // regex — good enough for a known-shape table maintained in this repo.
-  const out = []
-  const re =
-    /\{\s*q:\s*"([^"]+)",\s*cite:\s*\[([^\]]*)\](?:,\s*contains:\s*\[([^\]]*)\])?\s*\}/g
-  let m
-  while ((m = re.exec(src)) !== null) {
-    out.push({
-      q: m[1],
-      cite: parseList(m[2]),
-      contains: m[3] ? parseList(m[3]) : undefined,
-    })
-  }
-  return out
-}
-
-function parseList(s) {
-  return s
-    .split(",")
-    .map((x) => x.trim().replace(/^"/, "").replace(/"$/, ""))
-    .filter(Boolean)
 }

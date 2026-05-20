@@ -1,6 +1,6 @@
 import "server-only"
 
-import { assembleCorpus, specPath } from "@/lib/ai/corpus"
+import { getCorpus, specPath } from "@/lib/ai/corpus"
 
 export const dynamic = "force-static"
 
@@ -10,7 +10,7 @@ export const dynamic = "force-static"
  * Single fetch for any agent that wants the full ground truth.
  */
 export function GET(): Response {
-  return new Response(assembleCorpus(specPath()), {
+  return new Response(getCorpus(specPath()), {
     headers: {
       "content-type": "text/plain; charset=utf-8",
       "cache-control": "public, max-age=300, s-maxage=3600",

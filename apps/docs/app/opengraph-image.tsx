@@ -1,6 +1,10 @@
 import { ImageResponse } from "next/og"
 
 export const runtime = "edge"
+// Static for the lifetime of the deploy. The image has no dynamic
+// inputs; without this, every share-card preview hit fires a fresh edge
+// invocation + JSX render.
+export const revalidate = false
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 export const alt = "Afframe Developer Hub"

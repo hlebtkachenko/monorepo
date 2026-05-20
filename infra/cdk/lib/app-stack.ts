@@ -75,6 +75,7 @@ export interface AppStackProps extends StackProps {
   readonly domain: string
   readonly adminDomain: string
   readonly docsDomain: string
+  readonly apiDomain: string
 }
 
 /**
@@ -112,6 +113,28 @@ export interface AppStackProps extends StackProps {
  * The deploy workflow writes the actual token value (from the GitHub repo
  * secret) into the AWS secret before each deploy.
  */
+
+/**
+ * Derive the leading-dot cookie domain that scopes the Better Auth
+ * session across every subdomain of the apex (afframe.com). Strips the
+ * left-most label and prepends a `.` per RFC 6265.
+ *
+ *   app.afframe.com         -> .afframe.com
+ *   app-staging.afframe.com -> .afframe.com
+ *   admin.afframe.com       -> .afframe.com
+ *   afframe.com             -> .afframe.com (already apex)
+ *
+ * Returns an empty string for a single-label host (test fixtures use
+ * `test` or similar). An empty value makes the consumer's optional block
+ * skip the cross-subdomain config — exactly what we want in tests.
+ */
+function deriveCookieDomain(host: string): string {
+  const labels = host.split(".")
+  if (labels.length < 2) return ""
+  const apex = labels.slice(-2).join(".")
+  return `.${apex}`
+}
+
 export class AppStack extends Stack {
   readonly cluster: Cluster
   readonly service: FargateService
@@ -397,6 +420,14 @@ export class AppStack extends Stack {
         NEXT_PUBLIC_BETTER_AUTH_URL: publicOrigin,
         // CSV of origins allowed to call /api/auth/*. Add www / aliases here.
         BETTER_AUTH_TRUSTED_ORIGINS: trustedOrigins,
+        // Cross-subdomain session cookie. Leading-dot domain so the
+        // session is readable from `app.`, `admin.`, `api.`, and
+        // `docs.afframe.com`. `packages/auth/src/server.ts` only enables
+        // the cross-subdomain block when this var is non-empty (host-only
+        // cookie on localhost dev). The value is derived from the two-
+        // level domain to keep it correct on both `app.afframe.com` and
+        // `app-staging.afframe.com`.
+        BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.domain),
         // Outbound email from-address. Must be on a Resend/SES-verified
         // domain — otherwise the transport rejects the send.
         EMAIL_FROM: `no-reply@${props.domain}`,
@@ -564,6 +595,10 @@ export class AppStack extends Stack {
         PORT: "3100",
         BETTER_AUTH_URL: adminOrigin,
         BETTER_AUTH_TRUSTED_ORIGINS: adminOrigin,
+        // Same cross-subdomain cookie domain as the web container so an
+        // operator signed into `app.afframe.com` carries the session to
+        // `admin.afframe.com`. See web container comment above.
+        BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.adminDomain),
         // Comma-separated workspace ids whose members may sign into admin.
         // Empty => nobody is authorized (the gate fails closed). Changing
         // staff access is a redeploy. Sourced from the deploy environment.
@@ -616,9 +651,13 @@ export class AppStack extends Stack {
     // Anthropic key (out-of-band-managed secret) enables Ask AI; without
     // it the route returns 503 feature_not_enabled. Routed by the
     // cloudflared sidecar (ingress block below).
-    const anthropicSecretArn = props.envName
-      ? this.node.tryGetContext("anthropicApiKeySecretArn")
-      : undefined
+    // Workflow passes the secret ARN via `-c anthropicApiKeySecretArn=...`
+    // when the env has been provisioned in AWS Secrets Manager. Missing
+    // context = no Anthropic env on the docs container; the Ask AI route
+    // returns 503 feature_not_enabled.
+    const anthropicSecretArn = this.node.tryGetContext(
+      "anthropicApiKeySecretArn",
+    )
     const anthropicSecret =
       typeof anthropicSecretArn === "string" && anthropicSecretArn.length > 0
         ? Secret.fromSecretCompleteArn(
@@ -642,10 +681,7 @@ export class AppStack extends Stack {
         NODE_ENV: "production",
         APP_ENV: props.envName,
         PORT: "3300",
-        NEXT_PUBLIC_AFFRAME_API_BASE: `https://${props.domain.replace(
-          "app.",
-          "api.",
-        )}`,
+        NEXT_PUBLIC_AFFRAME_API_BASE: `https://${props.apiDomain}`,
       },
       secrets: anthropicSecret
         ? { ANTHROPIC_API_KEY: EcsSecret.fromSecretsManager(anthropicSecret) }

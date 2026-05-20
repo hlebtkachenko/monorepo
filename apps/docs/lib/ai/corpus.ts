@@ -95,9 +95,18 @@ const NARRATIVE: { path: string; summary: string }[] = [
   },
 ]
 
+// Process-wide cache. The corpus is identical for every request in a
+// running container (the spec is baked into the image; narrative is
+// module-level), so a single assembly per process is what we want.
+// Restart the container to pick up a fresh spec.
 let cached: string | null = null
 
-export function assembleCorpus(specPath: string): string {
+/**
+ * Lazy-assemble the Ask AI corpus from the on-disk OpenAPI spec + the
+ * `NARRATIVE` table. First call reads + concatenates; subsequent calls
+ * return the cached string.
+ */
+export function getCorpus(specPath: string): string {
   if (cached !== null) return cached
   const spec = readFileSync(specPath, "utf8")
   const narrative = NARRATIVE.map((n) => `## ${n.path}\n${n.summary}`).join(

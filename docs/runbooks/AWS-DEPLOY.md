@@ -459,6 +459,22 @@ gh api /repos/hlebtkachenko/monorepo/environments/production/deployment-protecti
   | xargs -I {} gh api -X DELETE "/repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules/{}"
 ```
 
+#### Staging deploy-branch policy
+
+Staging environment is also gated by a deployment-branch-policy. Default allowed branches: `main` only. Any deploy triggered with `--ref <other-branch>` fails immediately at `validate-inputs` with:
+
+> Branch "X" is not allowed to deploy to staging due to environment protection rules.
+
+The `verify/*` pattern is permanently allowed so the F4 negative test (broken-container deploy → smoke rollback) can run without touching policy:
+
+```bash
+# One-time setup, already done:
+gh api -X POST /repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies \
+  -f name='verify/*' -f type=branch
+```
+
+Branch convention: any local branch you intend to deploy to staging without merging to main MUST be prefixed `verify/` (e.g. `verify/m2-broken-container`). Any other prefix gets rejected.
+
 ### Rollback (revert a bad deploy)
 
 The deploy workflow tags images with the git SHA (`sha-<commit>`). To roll back, either:

@@ -20,7 +20,16 @@
     "pnpm-workspace.yaml",
     ".npmrc"
   ],
-  "globalEnv": ["CI", "NODE_ENV", "TESTCONTAINERS_REUSE_ENABLE"],
+  "globalEnv": [
+    "CI",
+    "HOME",
+    "NODE_ENV",
+    "TESTCONTAINERS_REUSE_ENABLE",
+    "AFFRAME_API_KEY",
+    "AFFRAME_API_BASE",
+    "AFFRAME_PROFILE",
+    "API_DOCS_BASE_URL"
+  ],
   "remoteCache": {
     "signature": true
   },

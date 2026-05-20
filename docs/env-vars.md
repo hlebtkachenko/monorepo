@@ -32,6 +32,24 @@ Build-time identity (set by Dockerfile ARG; empty in local dev is fine):
 | `BUILD_TIME`    | image build                          |
 | `BUILD_VERSION` | image build (used as Sentry release) |
 
+Public API contract:
+
+| Var                 | Required | Notes                                                                                                                                                                                                                                     |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_DOCS_BASE_URL` | no       | Base URL for the `documentation_url` deep-link emitted in every `/v1/*` error envelope. Default `https://api.afframe.com`. Override in non-prod test rigs to avoid cross-env links. Read by `apps/api/src/v1/domain-exception.filter.ts`. |
+
+## Public API surfaces (apps/cli, apps/mcp, packages/sdk)
+
+`@afframe/sdk` reads no env vars directly — every option is passed to the
+`Afframe` constructor. The CLI and MCP server share one config contract so a
+partner can flip between live and sandbox with two exports:
+
+| Var                | Required                      | Notes                                                                                                                                                                                                           |
+| ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AFFRAME_API_KEY`  | CLI: yes (unless `--api-key`) | Bearer token in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Overrides whatever profile lives in `~/.config/afframe/config.toml`. Required by the MCP server at boot (fails fast otherwise). |
+| `AFFRAME_API_BASE` | no                            | Override the API base URL. Default `https://api.afframe.com`. Useful for staging (`https://api-staging.afframe.com`) or a local container.                                                                      |
+| `AFFRAME_PROFILE`  | no                            | CLI only. Selects which profile to read from `~/.config/afframe/config.toml`. Default `default`. Lets a partner keep `default` + `staging` side by side.                                                        |
+
 ## Admin (apps/admin, NestJS-free Next.js staff surface)
 
 `apps/admin` runs its own Better Auth wiring under the admin origin and reuses

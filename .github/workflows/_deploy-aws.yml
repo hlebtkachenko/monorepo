@@ -1153,6 +1153,24 @@ jobs:
             done
           fi
 
+          # Staging: --hotswap-fallback bypasses CFN for supported resource
+          # types (ECS Service, Lambda, S3 assets, CodeBuild, Step Functions).
+          # On app-only deploys this drops App-stack from ~130s to ~30s by
+          # updating ECS::Service directly via the AWS API instead of waiting
+          # for the CFN UPDATE wait-for-stable cycle. Falls back to standard
+          # CFN automatically when a non-hotswappable change is in scope
+          # (any IAM / Network / TaskDefinition CPU/memory change).
+          #
+          # Production stays vanilla CFN — hotswap leaves CFN state stale
+          # relative to live resources until the next non-hotswap deploy
+          # reconciles, which is fine for staging but breaks drift detection
+          # + audit guarantees we want on prod. Verified by `cdk diff` after
+          # hotswap: change set present until next full deploy.
+          HOTSWAP_FLAGS=()
+          if [ "$ENV_NAME" = "staging" ]; then
+            HOTSWAP_FLAGS+=(--hotswap-fallback)
+          fi
+
           pnpm --filter @workspace/cdk exec cdk deploy "${STACKS[@]}" \
             --exclusively \
             --concurrency 3 \
@@ -1162,6 +1180,7 @@ jobs:
             --context "apiImageTag=${IMAGE_TAG_API}" \
             --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
             "${SECRET_CTX[@]}" \
+            "${HOTSWAP_FLAGS[@]}" \
             --require-approval=never
 
       # Subscribe operator email to the 3 alert SNS topics. CDK does NOT

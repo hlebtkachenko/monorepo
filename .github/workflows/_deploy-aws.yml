@@ -541,6 +541,11 @@ jobs:
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Production deploys pause here for human approval. Configured on the
+    # `production` GitHub Environment via deployment-protection-rules
+    # (required-reviewers). Staging has no protection rule so deploys
+    # flow through. See docs/runbooks/AWS-DEPLOY.md "Production deploy
+    # approval".
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write

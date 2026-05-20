@@ -337,7 +337,7 @@ curl -s https://app-staging.afframe.com/api/health | jq '.'
 
 ### Retry a partially-failed deploy — use `gh run rerun --failed`
 
-**Default:** when `_deploy-aws.yml` fails AFTER `build-images` succeeded (e.g. only the `deploy` job tripped a CFN race), use:
+**Default:** when `_deploy-aws.yml` fails AFTER `build-images` succeeded (e.g. only the `deploy` job tripped a CFN race, or only `smoke` flapped), use:
 
 ```bash
 gh run rerun <run-id> --failed
@@ -347,13 +347,41 @@ NOT `gh workflow run` (which spawns a fresh run rebuilding all 3 images for ~5-6
 
 `--failed` re-runs only the failed jobs in place, reusing the successful `build-images` matrix outputs already in ECR. Inputs (`environment`, `stack`, `image_tag_override`, `force_rebuild_images`) are preserved from the original run.
 
+Common failure-only rerun scenarios:
+
+| Failed job(s)          | `--failed` rerun does                             | Wall time  |
+| ---------------------- | ------------------------------------------------- | ---------- |
+| `smoke` only           | Reruns smoke (and rollback step if it fires) only | ~3 min     |
+| `deploy` only          | Reruns CDK deploy + everything after              | ~10-15 min |
+| `validate-inputs` only | Reruns one fast guard step                        | <1 min     |
+| `build-images` matrix  | Reruns only the failed image build                | ~5 min     |
+
 **When to trigger a new run instead:**
 
 - The failure root cause is upstream of `build-images` (e.g. a Dockerfile bug).
 - A new commit landed on `main` and you want the latest code, not the previous attempt's images.
 - ECR has a half-pushed image at the same SHA tag (`IMAGE_TAG_MUTABILITY: IMMUTABLE`) — either `--failed` reuses the existing valid image, or `aws ecr batch-delete-image` cleans it first.
+- The smoke job auto-rolled the service back. The previous task-def is now live; if you want the rolled-back-to revision to be the steady-state, no action needed. If you want the NEW code back, fix the actual cause first then run a fresh deploy.
 
 **Anti-pattern:** Triggering a fresh `gh workflow run` after every `deploy`-job failure rebuilds all 3 images each time, eating ~5-6 min per attempt. Use `--failed` instead.
+
+### Smoke probe failure — root-cause first
+
+The `smoke` job (post-deploy) probes URLs through Cloudflare Tunnel. Each probed endpoint MUST exist in the build — a probe of a non-existent route 404s forever and trips rollback on every deploy (lived experience: 2026-05-20, `/api/auth/me` was probed but Better Auth exposes only catch-all routes at `[...all]/route.ts`).
+
+Preflight `workflow-lint / shellcheck` runs `infra/scripts/tests/test-smoke-routes-exist.sh` which asserts every URL the smoke step probes maps to a real `apps/<web|admin>/app/**/route.ts` (handles Next.js catch-alls). Adding or changing a smoke probe? Verify the test still passes locally before pushing:
+
+```bash
+bash infra/scripts/tests/test-smoke-routes-exist.sh
+```
+
+When smoke fails on a real deploy, look at the job log for the per-attempt status:
+
+```
+smoke: try=N  version=<code> admin-health=<code> auth-session=<code>
+```
+
+A consistent non-2xx on one column points at the broken endpoint. If all columns are 2xx and the job still failed, the bug is in the assertion, not the deploy.
 
 ### When to use which `stack` value
 

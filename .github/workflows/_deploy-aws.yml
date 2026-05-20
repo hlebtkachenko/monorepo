@@ -1131,17 +1131,28 @@ jobs:
           set -euo pipefail
           # 30 attempts x 5s = 150s ceiling. Aligns with healthCheckGracePeriod
           # (180s) so the probe gives ECS a chance to settle.
+          #
+          # Probes only routes that are guaranteed to exist in the current
+          # build:
+          #   - /api/version (apps/web/app/api/version/route.ts) → 200
+          #   - /api/health  (apps/admin/app/api/health/route.ts) → 200
+          #   - /api/auth/get-session (Better Auth canonical endpoint via
+          #     apps/web/app/api/auth/[...all]/route.ts catch-all) →
+          #     200 with body "null" for anonymous, session JSON for
+          #     signed-in. Any 2xx proves the auth handler is wired.
+          #
+          # Adding a probe? Verify the route exists in the source first
+          # (`find apps/*/app/api -name route.ts`). A probe of a non-existent
+          # endpoint will 404 forever and trip rollback every deploy.
           for i in $(seq 1 30); do
             v=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/version" || true)
             h=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$ADMIN_URL/api/health" || true)
-            # /api/auth/me returns 200 (signed-in) or 401 (anonymous) — both
-            # prove the auth handler is wired. Anything else = broken.
-            m=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/auth/me" || true)
-            if [ "$v" = "200" ] && [ "$h" = "200" ] && { [ "$m" = "200" ] || [ "$m" = "401" ]; }; then
-              echo "smoke: PASS  version=$v admin-health=$h auth-me=$m  (attempt $i)"
+            s=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/auth/get-session" || true)
+            if [ "$v" = "200" ] && [ "$h" = "200" ] && [[ "$s" =~ ^2 ]]; then
+              echo "smoke: PASS  version=$v admin-health=$h auth-session=$s  (attempt $i)"
               exit 0
             fi
-            echo "smoke: try=$i  version=$v admin-health=$h auth-me=$m"
+            echo "smoke: try=$i  version=$v admin-health=$h auth-session=$s"
             sleep 5
           done
           echo "::error::smoke failed after 30 attempts"

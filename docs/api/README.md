@@ -52,10 +52,11 @@ Default: 100 requests / 60s per API key. Configurable via `THROTTLE_TTL` / `THRO
 
 ## OpenAPI
 
-- Spec emitted at build time: `apps/api/scripts/emit-openapi.ts` → `apps/api/openapi.json`.
+- Spec emitted at build time: `apps/api/scripts/emit-openapi.ts` → `apps/api/openapi/v1.json`.
 - Spectral lint: `.spectral.yaml` at repo root.
 - CI: `.github/workflows/openapi-lint.yml` (advisory) — catches spec drift (re-emits + `git diff --exit-code`) and Spectral violations.
-- Swagger UI: served at `api.afframe.com/` (root) when a Swagger plugin is wired.
+- Spec served live at `api.afframe.com/v1/openapi.json` (same document, same path on staging under `api-staging.afframe.com`).
+- Interactive API reference (Scalar): `api.afframe.com/v1/docs` — see [`API-REFERENCE.md`](./API-REFERENCE.md) for the full rules + extension guide.
 
 ## Build
 

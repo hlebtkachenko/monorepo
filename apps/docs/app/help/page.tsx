@@ -1,32 +1,36 @@
 import Link from "next/link"
 
-const SECTIONS = [
-  { href: "/help/getting-started", title: "Getting started" },
-  { href: "/help/faq", title: "FAQ" },
-  { href: "/help/billing", title: "Billing" },
-  { href: "/help/data", title: "Data import / export" },
-  { href: "/help/troubleshooting", title: "Troubleshooting" },
-  { href: "/help/contact", title: "Contact support" },
-  { href: "/help/terms", title: "Terms of service" },
-] as const
+import { listContent } from "@/lib/content"
+
+export const dynamic = "force-static"
 
 export default function HelpIndex() {
+  const pages = listContent("help")
   return (
     <section className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">Help Center</h1>
         <p className="text-muted-foreground">
-          End-user support. Articles below are in progress.
+          End-user support. Articles below; reach the team at{" "}
+          <Link href="/help/contact" className="underline">
+            /help/contact
+          </Link>
+          .
         </p>
       </header>
       <div className="grid gap-4 md:grid-cols-2">
-        {SECTIONS.map((s) => (
+        {pages.map((p) => (
           <Link
-            key={s.href}
-            href={s.href}
+            key={p.slug}
+            href={`/help/${p.slug}`}
             className="rounded-lg border border-border bg-card p-5 transition hover:border-foreground/30"
           >
-            <h2 className="text-base font-semibold">{s.title}</h2>
+            <h2 className="text-base font-semibold">{p.frontmatter.title}</h2>
+            {p.frontmatter.description ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {p.frontmatter.description}
+              </p>
+            ) : null}
           </Link>
         ))}
       </div>

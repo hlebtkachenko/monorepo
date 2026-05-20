@@ -1,0 +1,57 @@
+---
+title: FAQ
+description: Frequent questions about Afframe billing, security, data ownership.
+intro: Quick answers to the questions support handles most often. If something is missing, [contact support](/help/contact).
+---
+
+## What does Afframe cost?
+
+A free tier (one workspace, two users, up to 50 invoices / month) plus paid
+tiers from 290 Kč / user / month. Full pricing: [pricing page](https://afframe.com/pricing).
+
+## Is my data my data?
+
+Yes. Every workspace can export a full ZIP of its database (JSON + ISDOC +
+PDF invoices) from _Settings → Data → Export_. The export is generated within
+~5 minutes for typical workspaces. Deletion is permanent and immediate.
+
+## Where is data stored?
+
+EU. AWS Frankfurt (eu-central-1). The dev / staging environments are isolated
+in the same region; nothing leaves the EU.
+
+## Does Afframe replace my accountant?
+
+No. Afframe is bookkeeping software; your accountant signs the tax return.
+Afframe provides the export bundle your accountant feeds into their software
+(Pohoda / Money S3 / Helios / Premier).
+
+## Can I cancel any time?
+
+Yes. The active workspace stays accessible for 30 days after cancellation;
+during that window you can export your data, after which the workspace is
+deleted.
+
+## Is there a trial?
+
+The free tier is the trial. No credit card required.
+
+## Do you support multi-currency?
+
+Yes. Source-currency entries are stored as-is; period revaluation uses the
+ČNB daily rate. See [FX conversion](/accounting/fx).
+
+## What about GDPR?
+
+Afframe is the data processor; the workspace owner is the controller. The
+DPA template is on the security page (TBD).
+
+## Who do I contact about a security issue?
+
+`security@afframe.com`. PGP key on the security page.
+
+## Why don't I see my counterparty in ARES?
+
+ARES indexes the obchodní rejstřík + the živnostenský rejstřík. Sole-trader
+(OSVČ) records sometimes propagate slowly. Add the counterparty manually —
+Afframe will reconcile on the next ARES sync.

@@ -1,0 +1,48 @@
+---
+title: Getting started
+description: Sign up, set up your organization, send your first invoice.
+intro: Five steps to a working Afframe workspace. The whole flow takes around 10 minutes.
+---
+
+## 1. Create your workspace
+
+Sign up at [app.afframe.com](https://app.afframe.com) with your work email. The
+first sign-up under a domain becomes the workspace owner; teammates join via
+invite from _Settings → Members_.
+
+## 2. Add your organization
+
+Open _Settings → Organization_. Required fields:
+
+- **Legal name** (must match the entry in the obchodní rejstřík).
+- **IČO** (8-digit business identifier).
+- **DIČ** (VAT number; prefix `CZ` for Czech payers).
+- **Fiscal year start** (default January; switch if you use hospodářský rok).
+
+Afframe validates IČO + DIČ against the ARES public registry; mismatches block
+saving.
+
+## 3. Connect your bank
+
+_Settings → Banking_ supports a per-account upload (CSV / GPC / ABO) and a live
+connection through CSAS / Fio / KB / Raiffeisen open banking APIs. Live
+connections refresh every 4 hours; uploads are idempotent on transaction ID.
+
+## 4. Send your first invoice
+
+_Invoices → New_. Fill in the counterparty (Afframe auto-completes from ARES),
+items, VAT rate. Save as _draft_ to keep editing or _issue_ to lock and send.
+Issued invoices are immutable; corrections go through a credit note.
+
+## 5. Invite your accountant
+
+_Settings → Members → Invite_. Pick the **accountant** role; they get the
+read-only views into your books plus the export bundle. They can flip back to
+their own workspace from the top-left switcher.
+
+## What's next?
+
+- [How billing works](/help/billing)
+- [Importing data from Pohoda or Money S3](/help/data)
+- [FAQ](/help/faq)
+- Need a human? [Contact support](/help/contact).

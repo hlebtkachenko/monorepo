@@ -1,0 +1,56 @@
+---
+title: Troubleshooting
+description: Common problems and fixes.
+intro: The 90 % of support tickets boil down to a handful of issues. Try these first; if nothing matches, [contact support](/help/contact).
+---
+
+## "Invoice won't save: legalName is required"
+
+The counterparty entry is missing the registered legal name. Open the
+counterparty, fill in `legalName` (the entry that matches the obchodní
+rejstřík). Afframe auto-populates this from ARES when you enter an IČO;
+sole-trader (OSVČ) records sometimes need manual entry.
+
+## "Bank import shows zero transactions"
+
+Most common cause: the bank file ends at a date the workspace already
+imported. Afframe is idempotent on transaction ID; re-uploading a file
+covering an already-imported period is a no-op. Pick a fresh date range
+and try again.
+
+## "DIČ validation failed: not in ARES"
+
+ARES indexes the obchodní rejstřík + the živnostenský rejstřík. OSVČ
+records propagate within hours of registration, not minutes. Add the
+counterparty manually; Afframe reconciles on the next ARES sync.
+
+## "Lost access — can't sign in"
+
+Check the magic-link email landed in spam. If it did not arrive at all
+within 5 minutes, try the password-reset flow. Still stuck? Email
+`support@afframe.com` from the registered address.
+
+## "API key returns 401 even though it looks right"
+
+Three things to check:
+
+1. The key was rotated. Generate a fresh one in _Settings → API keys_.
+2. The key prefix matches the environment. `affk_live_…` hits production;
+   `affk_test_…` hits sandbox. Mismatched environment returns 403.
+3. The key was copied with a trailing newline. Strip whitespace.
+
+## "Webhook signature mismatch"
+
+The signing algorithm follows the [Standard Webhooks v1
+spec](https://standardwebhooks.com). Common pitfalls: signing the parsed
+JSON instead of the raw body, or normalising line endings on receive.
+The SDK's `verifyWebhook()` handles both correctly — see
+[Webhooks](/developers/webhooks).
+
+## "Cmd-K search returns no results"
+
+The search index ships with each deploy. If you self-host and search is
+empty, the post-build `pnpm --filter docs build:pagefind` step did not
+run.
+
+Still stuck? `support@afframe.com`.

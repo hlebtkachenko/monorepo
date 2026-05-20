@@ -1,0 +1,50 @@
+---
+title: Data import / export
+description: Move data into and out of Afframe at any time.
+intro: Your books are portable. Afframe supports a one-click full export, ISDOC invoice exchange, and per-section imports from Pohoda, Money S3, Helios, and Premier.
+---
+
+## Export
+
+_Settings → Data → Export_ generates a ZIP containing:
+
+- `accounts.csv` — chart of accounts.
+- `transactions.csv` — every booked transaction with debit / credit pairs.
+- `invoices/*.pdf` — issued invoices.
+- `invoices/*.isdoc` — same invoices in ISDOC 6.0.1.
+- `attachments/*` — uploaded files (receipts, contracts).
+- `audit.csv` — every modification with user + timestamp.
+- `manifest.json` — workspace metadata + checksums.
+
+Generation takes ~30 seconds per 10 000 transactions. The link is valid
+for 7 days; deliver to your accountant via the Linear comment box on the
+ticket or upload to your file-share.
+
+## Import
+
+The import wizard at _Settings → Data → Import_ accepts:
+
+- **Pohoda** — XML export (faktury, banka, pokladna, sklad).
+- **Money S3** — XML export + accounts.dbf.
+- **Helios** — CSV with the standard Helios column set.
+- **Premier** — CSV per module.
+- **Generic CSV** — column-mapping UI.
+- **ISDOC** — single invoice or zipped batch.
+
+Each import is a dry-run first: Afframe shows the planned changes before
+committing. Imports are idempotent on source-system ID; re-running an
+import that already partially landed picks up where it left off.
+
+## ARES sync
+
+Counterparty IČO / DIČ data refreshes from the ARES public registry
+nightly. New counterparties auto-populate from ARES the moment you type
+an IČO into the form.
+
+## Backups
+
+Every workspace is backed up daily; restores require a support ticket
+with your workspace ID and target timestamp (any point in the last 30
+days). Self-serve restore lands later.
+
+Questions: `support@afframe.com`.

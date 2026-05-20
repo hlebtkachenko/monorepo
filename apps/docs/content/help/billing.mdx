@@ -1,0 +1,53 @@
+---
+title: Billing
+description: Plans, invoicing, payment methods, cancellation.
+intro: Plans bill monthly per active user. Invoices are issued on the 1st of every month for the previous period; due in 14 days.
+---
+
+## Plans
+
+| Plan       | Users         | Invoices / mo | Price                  |
+| ---------- | ------------- | ------------- | ---------------------- |
+| Free       | 2             | 50            | 0 Kč                   |
+| Standard   | up to 10      | unlimited     | 290 Kč / user / month  |
+| Pro        | up to 50      | unlimited     | 490 Kč / user / month  |
+| Enterprise | custom        | unlimited     | contact sales          |
+
+Storage, API, MCP, and webhooks are included on every paid plan. The free
+tier caps API calls at 1 000 / month; paid tiers carry generous quotas.
+
+## What counts as an active user?
+
+A user who signed in at least once during the billing month. Accountants
+invited as cross-workspace read-only viewers count once, even when they
+access multiple client workspaces.
+
+## Payment methods
+
+Card (Stripe) for monthly invoices. Yearly invoices are issued for bank
+transfer (CZK / EUR) by default; card is available on request. VAT is
+added per the customer's tax status (B2B EU: reverse-charge; B2B CZ: 21 %;
+B2C: per country).
+
+## Invoices
+
+Every monthly bill ships as PDF + ISDOC 6.0.1 to the billing email on the
+1st of the month. Due in 14 days. Late payment triggers a soft suspension
+(read-only access) after 14 days, hard suspension at 30, deletion at 60.
+
+## Switching plans
+
+Up- and downgrades take effect on the next billing cycle. Pro-rata refunds
+are issued automatically for downgrades.
+
+## Cancellation
+
+_Settings → Billing → Cancel plan_. Workspace stays active until the end
+of the paid period; data export remains available for 30 days afterwards.
+
+## Refund policy
+
+Pro-rata refund within 14 days of purchase. After that, no refund on past
+periods.
+
+Questions: `billing@afframe.com`.

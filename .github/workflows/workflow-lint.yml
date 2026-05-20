@@ -8,12 +8,16 @@ on:
       - ".github/actions/**"
       - "**/action.yml"
       - "**/action.yaml"
+      - "infra/scripts/**"
+      - "infra/cdk/**"
   pull_request:
     paths:
       - ".github/workflows/**"
       - ".github/actions/**"
       - "**/action.yml"
       - "**/action.yaml"
+      - "infra/scripts/**"
+      - "infra/cdk/**"
 
 permissions: {}
 
@@ -67,3 +71,63 @@ jobs:
           advanced-security: true
           min-severity: error
           min-confidence: high
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - name: Run shellcheck on infra scripts
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(infra/scripts/*.sh infra/scripts/tests/*.sh)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No infra shell scripts to lint"; exit 0
+          fi
+          # SC1091 = "can't follow non-constant source" — fine in trap setup.
+          # SC2317 = "appears unreachable" — false-positive on trap handlers.
+          shellcheck -x -e SC1091,SC2317 "${files[@]}"
+
+  cdk-synth-strict:
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [staging, production]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Dummy values keep `cdk synth --strict` deterministic and offline.
+      # AWS_ACCOUNT_ID=000000000000 reuses the AZ context cached in
+      # `cdk.context.json`, so synth never reaches AWS. The deploy workflow
+      # ALWAYS overrides the 3 secret ARNs + AWS_ACCOUNT_ID at deploy time.
+      AWS_REGION: eu-central-1
+      AWS_ACCOUNT_ID: "000000000000"
+      APP_DOMAIN: app.example.invalid
+      ADMIN_DOMAIN: admin.example.invalid
+      MAIL_FROM_ADDRESS: no-reply@example.invalid
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: cdk synth --strict (${{ matrix.env }})
+        shell: bash
+        working-directory: infra/cdk
+        run: |
+          pnpm exec cdk synth --strict \
+            --context "env=${{ matrix.env }}" \
+            --context "cloudflareTunnelSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-cf-AAAAAA" \
+            --context "resendApiKeySecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-resend-BBBBBB" \
+            --context "betterAuthSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-ba-CCCCCC" \
+            --context "imageTag=sha-dummy"

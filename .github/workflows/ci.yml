@@ -102,18 +102,6 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
 
-      - id: filter
-        # In-job paths-filter for the CDK Synth step gate below. Keeps
-        # lint-typecheck from serializing behind the `changes` job — the
-        # cdk gate is only one step, not the whole job.
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        with:
-          filters: |
-            infra:
-              - 'infra/cdk/**'
-              - 'apps/*/package.json'
-              - 'pnpm-lock.yaml'
-
       - name: Typecheck
         # --affected scopes to packages touched vs the PR base. Empty diff
         # = no-op. Full graph still runs on push to main (HEAD^ base).
@@ -128,21 +116,8 @@ jobs:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
         run: pnpm turbo lint --affected --ui=stream --continue
 
-      - name: CDK Synth
-        # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
-        # Real account ID + domains + region + alert email come from repo
-        # secrets at deploy time; here we use dummy placeholders just to
-        # satisfy infra/cdk/bin/app.ts's required-env guards.
-        # Gated on infra/** changes — saves ~20-40s on PRs that don't
-        # touch CDK or dependency surfaces it reads.
-        if: steps.filter.outputs.infra == 'true'
-        env:
-          AWS_ACCOUNT_ID: "000000000000"
-          AWS_REGION: eu-central-1
-          APP_DOMAIN: example.com
-          ADMIN_DOMAIN: admin.example.com
-          ALERT_EMAIL: ci-synth@example.com
-        run: pnpm turbo synth --ui=stream
+      # `cdk synth` coverage moved to `workflow-lint / cdk-synth-strict` —
+      # per-env + --strict mode + offline. See .github/workflows/workflow-lint.yml.
 
   unit-test:
     needs: [changes]

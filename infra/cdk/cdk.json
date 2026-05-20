@@ -24,10 +24,6 @@
     "@aws-cdk/core:newStyleStackSynthesis": true,
     "homeRegion": "eu-central-1",
     "drRegion": "eu-west-1",
-    "validEnvironments": ["staging", "production"],
-    "_secret-arn-placeholders": "Synth/CI fallbacks for the 3 workflow-managed secrets. The deploy workflow ALWAYS overrides these with --context flags carrying the real captured ARNs (see _deploy-aws.yml's Deploy step). Account 000000000000 makes any leak loud in the template. Never deploy without the workflow's --context overrides.",
-    "cloudflareTunnelSecretArn": "arn:aws:secretsmanager:eu-central-1:000000000000:secret:placeholder-cloudflare-tunnel-token-AAAAAA",
-    "resendApiKeySecretArn": "arn:aws:secretsmanager:eu-central-1:000000000000:secret:placeholder-resend-api-key-BBBBBB",
-    "betterAuthSecretArn": "arn:aws:secretsmanager:eu-central-1:000000000000:secret:placeholder-better-auth-secret-CCCCCC"
+    "validEnvironments": ["staging", "production"]
   }
 }

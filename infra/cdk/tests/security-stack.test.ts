@@ -66,19 +66,25 @@ describe("SecurityStack", () => {
     const budgets = template.findResources("AWS::Budgets::Budget")
     expect(Object.keys(budgets).length).toBe(6)
 
-    const expectedLimits: Record<string, number> = {
-      "monorepo-test-monthlytotal": 40,
-      "monorepo-test-hardcap50": 50,
-      "monorepo-test-datatransfer": 10,
-      "monorepo-test-s3": 5,
-      "monorepo-test-rds": 20,
-      "monorepo-test-ecs": 25,
+    // Budget names carry a deterministic 8-char hash suffix derived from
+    // the spec (security-stack.ts) so CFN treats subscriber/threshold edits
+    // as CREATE(new)+DELETE(old) instead of an immutable REPLACE. Match
+    // the stable prefix + suffix shape, not the literal name.
+    const expectedSlugs: Record<string, number> = {
+      monthlytotal: 40,
+      hardcap50: 50,
+      datatransfer: 10,
+      s3: 5,
+      rds: 20,
+      ecs: 25,
     }
 
-    for (const [name, limit] of Object.entries(expectedLimits)) {
+    for (const [slug, limit] of Object.entries(expectedSlugs)) {
       template.hasResourceProperties("AWS::Budgets::Budget", {
         Budget: {
-          BudgetName: name,
+          BudgetName: Match.stringLikeRegexp(
+            `^monorepo-test-${slug}-[0-9a-f]{8}$`,
+          ),
           BudgetLimit: {
             Amount: limit,
             Unit: "USD",

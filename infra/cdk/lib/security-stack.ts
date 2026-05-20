@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import * as path from "node:path"
 import {
   CfnOutput,
@@ -294,9 +295,71 @@ export class SecurityStack extends Stack {
     ]
 
     for (const spec of budgets) {
+      const notificationsWithSubscribers = [
+        // 80% threshold: ops topic only (email out-of-band).
+        {
+          notification: {
+            notificationType: "ACTUAL",
+            comparisonOperator: "GREATER_THAN",
+            threshold: 80,
+            thresholdType: "PERCENTAGE",
+          },
+          subscribers: [
+            {
+              subscriptionType: "SNS",
+              address: this.killSwitchOpsTopic.topicArn,
+            },
+          ],
+        },
+        // 100% threshold: kill-switch topic ONLY. AWS Budgets caps
+        // subscribers per notification at 1 SNS + 10 EMAIL — two SNS
+        // here fails with "one notification can only have 1 subscribers
+        // with type of SNS" (verified deploy run 26127290021). Operator
+        // visibility on 100% is preserved via three other paths:
+        //   1. ECS desiredCount drops 1→0 when kill-switch fires →
+        //      CloudWatch alarm on RunningCount → email via BillingTopic.
+        //   2. killSwitchErrorsAlarm fires email on ops topic if the
+        //      kill-switch Lambda itself errors (so a silent failure of
+        //      the kill-switch handler still pages).
+        //   3. 80% threshold (above) already publishes to ops topic, so
+        //      a runaway budget surfaces in the operator inbox before
+        //      it reaches 100%.
+        {
+          notification: {
+            notificationType: "ACTUAL",
+            comparisonOperator: "GREATER_THAN",
+            threshold: 100,
+            thresholdType: "PERCENTAGE",
+          },
+          subscribers: [
+            {
+              subscriptionType: "SNS",
+              address: this.killSwitchTopic.topicArn,
+            },
+          ],
+        },
+      ]
+      // Deterministic 8-char suffix derived from the cost filters +
+      // notifications shape. AWS::Budgets is immutable on most attributes
+      // (subscriber adds, threshold changes, costFilter edits) and any
+      // such change forces a REPLACE that fails because the old budget
+      // name still exists. By baking the spec into the budget name we get
+      // CFN to CREATE(new) + DELETE(old) cleanly on any meaningful change,
+      // and noop-rename otherwise. Lets us delete the 200-line REPLACE
+      // migration block from the deploy workflow.
+      const suffix = createHash("sha256")
+        .update(
+          JSON.stringify({
+            costFilters: spec.costFilters,
+            notifications: notificationsWithSubscribers,
+            limitUsd: spec.limitUsd,
+          }),
+        )
+        .digest("hex")
+        .slice(0, 8)
       new CfnBudget(this, `Budget${spec.id}`, {
         budget: {
-          budgetName: `monorepo-${props.envName}-${spec.id.toLowerCase()}`,
+          budgetName: `monorepo-${props.envName}-${spec.id.toLowerCase()}-${suffix}`,
           budgetType: "COST",
           timeUnit: "MONTHLY",
           budgetLimit: {
@@ -317,50 +380,7 @@ export class SecurityStack extends Stack {
             useBlended: false,
           },
         },
-        notificationsWithSubscribers: [
-          // 80% threshold: ops topic only (email out-of-band).
-          {
-            notification: {
-              notificationType: "ACTUAL",
-              comparisonOperator: "GREATER_THAN",
-              threshold: 80,
-              thresholdType: "PERCENTAGE",
-            },
-            subscribers: [
-              {
-                subscriptionType: "SNS",
-                address: this.killSwitchOpsTopic.topicArn,
-              },
-            ],
-          },
-          // 100% threshold: kill-switch topic ONLY. AWS Budgets caps
-          // subscribers per notification at 1 SNS + 10 EMAIL — two SNS
-          // here fails with "one notification can only have 1 subscribers
-          // with type of SNS" (verified deploy run 26127290021). Operator
-          // visibility on 100% is preserved via three other paths:
-          //   1. ECS desiredCount drops 1→0 when kill-switch fires →
-          //      CloudWatch alarm on RunningCount → email via BillingTopic.
-          //   2. killSwitchErrorsAlarm fires email on ops topic if the
-          //      kill-switch Lambda itself errors (so a silent failure of
-          //      the kill-switch handler still pages).
-          //   3. 80% threshold (above) already publishes to ops topic, so
-          //      a runaway budget surfaces in the operator inbox before
-          //      it reaches 100%.
-          {
-            notification: {
-              notificationType: "ACTUAL",
-              comparisonOperator: "GREATER_THAN",
-              threshold: 100,
-              thresholdType: "PERCENTAGE",
-            },
-            subscribers: [
-              {
-                subscriptionType: "SNS",
-                address: this.killSwitchTopic.topicArn,
-              },
-            ],
-          },
-        ],
+        notificationsWithSubscribers,
       })
     }
 

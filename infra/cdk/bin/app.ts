@@ -67,8 +67,14 @@ if (!adminDomain) {
 // need their own DNS + verification). We centralise on the verified parent
 // until per-env subdomain verification lands. Override via the
 // `MAIL_FROM_ADDRESS` repo secret/var if you want a different sender per env.
+//
+// `||` (not `??`) is deliberate: the deploy workflow passes
+// `MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS }}`, and when the repo
+// var is unset GitHub Actions exports an empty string — `??` only
+// fires on null/undefined, so an empty value would slip through and
+// trip the regex below. `||` falls back on empty too.
 const mailFromAddress =
-  process.env.MAIL_FROM_ADDRESS?.trim() ?? "no-reply@afframe.com"
+  process.env.MAIL_FROM_ADDRESS?.trim() || "no-reply@afframe.com"
 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailFromAddress)) {
   throw new Error(
     `MAIL_FROM_ADDRESS must be an email address; got "${mailFromAddress}".`,

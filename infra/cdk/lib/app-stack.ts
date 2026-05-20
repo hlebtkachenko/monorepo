@@ -422,6 +422,19 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // The packages/db startup probe asserts that app.app_user_role_name
+        // is persisted on the connecting role (it underpins the last-owner
+        // demotion trigger — ADR-0010). AWS RDS rejects the matching
+        // `ALTER ROLE app_user SET app.app_user_role_name = …` because
+        // custom-GUC ALTER requires true SUPERUSER (and `rds_superuser`
+        // is not enough — AFF-150 §5). The production paths instead set
+        // the GUC per-transaction via withAdminBypass / withOrganization
+        // / withWorkspace (PR #142), so the missing role-default is
+        // expected. Downgrade the probe's throw to a single one-time
+        // warn here so the unhandled rejection does not surface as a
+        // flash error overlay on the user's first cold-start render.
+        // Local dev keeps the strict throw (this env var is unset there).
+        DB_STARTUP_PROBE_LENIENT: "1",
         // Avatar upload + presigned-read chain in apps/web requires this. The
         // api container already has it (below); the web container's
         // /api/upload/avatar route and presignAvatarRead() call returned 500
@@ -582,6 +595,13 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // Admin connects as app_user (same as web — see DataStackProps
+        // doc) so the packages/db startup probe applies. Use the lenient
+        // mode for the same reason as web: AWS RDS rejects `ALTER ROLE
+        // SET app.app_user_role_name`, so the missing role-default is
+        // expected and downstream per-transaction SET LOCAL carries the
+        // contract. See the long note in the web container env above.
+        DB_STARTUP_PROBE_LENIENT: "1",
         // Admin doesn't upload avatars today, but staff user-management views
         // call presignAvatarRead() to render user profile photos. Wire it now
         // so the next admin feature doesn't trip the same 500 the web app hit.

@@ -145,6 +145,13 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["DB_HOST"]).toBe("localhost")
     expect(envByName["DB_PORT"]).toBe("6432")
     expect(envByName["DB_NAME"]).toBe("monorepo")
+    // Lenient probe is mandatory on RDS-backed deploys — the GUC cannot
+    // be persisted on the role via ALTER ROLE SET (AFF-150 §5), so the
+    // probe would otherwise throw an unhandled rejection on every cold
+    // start and surface as a flash error overlay. Per-transaction SET
+    // LOCAL (PR #142) is the actual enforcement. Both web + admin
+    // connect as app_user and must carry this flag.
+    expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
     // AUTH_TOKEN_ENV must be explicitly mapped from envName so the
     // resolveAuthTokenEnv() fallback (NODE_ENV='production' -> 'prd')
     // does not stamp staging tokens with the production checksum code.
@@ -215,6 +222,9 @@ describe("AppStack Fargate hardening", () => {
     // Must NOT contain the web domain — guards against a regression to the
     // old `admin.${props.domain}` derivation.
     expect(envByName["BETTER_AUTH_URL"]).not.toContain("test.example.com")
+    // Admin connects as app_user too and needs the lenient startup-probe
+    // mode — RDS rejects ALTER ROLE SET for custom GUCs (AFF-150 §5).
+    expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
   })
 
   it("references the 4 workflow-managed secrets by FULL ARN (with random suffix)", () => {

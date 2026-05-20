@@ -14,6 +14,20 @@
  * `infra/compose/postgres/init.d/00-roles.sql`. If it is absent and the current
  * role is `app_user`, the last-owner-demotion trigger will fail closed on the
  * first workspace_membership write — see ADR-0010.
+ *
+ * Probe strictness: by default the probe THROWS on missing GUC (local-dev
+ * fast-fail). On AWS RDS the GUC cannot be persisted on the role via
+ * `ALTER ROLE … SET app.app_user_role_name = …` — that statement requires
+ * true SUPERUSER, and `rds_superuser` is not enough (AFF-150 finding,
+ * documented in `docs/plans/AFF-150-AUDIT-CONTEXT.md` §5). On those
+ * deploys the production paths set the GUC per-transaction via
+ * `withAdminBypass` / `withOrganization` / `withWorkspace` (PR #142), so
+ * a missing role-default is expected and the throw becomes pure log
+ * noise + a flash error overlay in the user's browser on cold-start.
+ * Set `DB_STARTUP_PROBE_LENIENT=1` (we set this in `infra/cdk/lib/app-stack.ts`
+ * on every container reading via pgbouncer) to downgrade the throw to a
+ * single one-time `console.warn`. Local dev keeps the strict throw so a
+ * `pnpm db:bootstrap`-without-roles.sql still fails loudly.
  */
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
@@ -139,12 +153,23 @@ async function runStartupProbe(): Promise<void> {
 
     // For app_user (or any other application role), the GUC must be set.
     if (!guc_value) {
-      throw new Error(
+      const message =
         `app.app_user_role_name GUC is not set on the "${current_role}" role. ` +
-          `Run infra/compose/postgres/init.d/00-roles.sql to configure it, or ` +
-          `execute: ALTER ROLE ${current_role} SET app.app_user_role_name = '${current_role}'; ` +
-          `See ADR-0010.`,
-      )
+        `Run infra/compose/postgres/init.d/00-roles.sql to configure it, or ` +
+        `execute: ALTER ROLE ${current_role} SET app.app_user_role_name = '${current_role}'; ` +
+        `See ADR-0010.`
+      // Lenient mode: per-transaction SET LOCAL (PR #142) carries the
+      // contract in production where ALTER ROLE SET cannot persist the
+      // GUC (AWS RDS rejects custom-GUC ALTER for non-true-SUPERUSER
+      // roles — AFF-150 §5). Log once and continue; downstream
+      // withAdminBypass / withOrganization / withWorkspace still set
+      // the GUC before any RLS-bound query, and the last-owner-demotion
+      // trigger fail-closes anyway if a path slips through.
+      if (process.env["DB_STARTUP_PROBE_LENIENT"] === "1") {
+        console.warn(`[db/client] startup probe (lenient): ${message}`)
+        return
+      }
+      throw new Error(message)
     }
   } catch (err) {
     if (

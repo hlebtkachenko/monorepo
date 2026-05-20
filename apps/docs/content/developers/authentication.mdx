@@ -1,0 +1,38 @@
+---
+title: Authentication
+description: API keys, scopes, environments.
+intro: Every /v1 request authenticates with a bearer API key. No OAuth, no session cookies.
+---
+
+## Key formats
+
+- `affk_live_…`: production. Points at `api.afframe.com`.
+- `affk_test_…`: sandbox. Same host; the server resolves the
+  environment from the prefix.
+
+## Sending the key
+
+```http
+Authorization: Bearer affk_live_…
+```
+
+Missing, malformed, or revoked keys return `401 unauthorized`. Keys with
+the wrong environment prefix return `403 forbidden`.
+
+## Rotation
+
+Create a new key in the dashboard, swap clients, revoke the old one.
+Revocation is immediate; in-flight requests with the old key complete
+normally, the next attempt fails fast.
+
+## Scopes
+
+Keys carry a scope set (read, write, admin). Scope mismatches return
+`403 forbidden` with the missing scope name in the error
+`display_message`. The minimum-privilege default is _read_.
+
+## Tenancy
+
+Each key is bound to one `organizationId` plus one `workspaceId`. The
+server injects them at the request boundary; they are never an input
+field on an API operation.

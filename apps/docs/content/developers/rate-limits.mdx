@@ -1,0 +1,31 @@
+---
+title: Rate limits
+description: IETF RateLimit headers + per-key buckets.
+intro: Every response carries IETF `RateLimit-*` headers. On 429, the server also returns `Retry-After`.
+---
+
+## Headers
+
+- `RateLimit-Limit`: total tokens in the window.
+- `RateLimit-Remaining`: tokens left right now.
+- `RateLimit-Reset`: seconds until the window resets.
+- `Retry-After`: present on 429. Seconds, or HTTP-date.
+
+## Retry policy
+
+The SDK retries 429 + 5xx once by default, capped at 5 s, honouring
+`Retry-After`. Idempotent verbs (GET / HEAD / OPTIONS) always retry;
+mutations retry only when the caller passed `Idempotency-Key`. Disable
+with `createAfframeClient({ retry: false })`.
+
+## Buckets
+
+Buckets are per API key. A leaky-bucket implementation refills
+continuously; the headers reflect the steady state.
+
+## What to do on 429
+
+1. Read `Retry-After`.
+2. Sleep that long.
+3. Retry the same request.
+4. If the same key sees repeated 429s, slow down the caller. Don't fan out.

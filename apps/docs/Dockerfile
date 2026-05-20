@@ -75,6 +75,11 @@ WORKDIR /app
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/docs/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/docs/.next/static ./apps/docs/.next/static
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/docs/public ./apps/docs/public
+# MDX content loaded at runtime by `lib/content.ts` via fs.readFileSync.
+# Next standalone does not auto-copy runtime-read files, so explicit COPY.
+# The `/api/raw/[...path]` Markdown-mirror route + the dynamic
+# `/developers/[slug]` page both depend on this directory.
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/docs/content ./apps/docs/content
 # The Ask AI corpus reads the committed OpenAPI spec at runtime. Copy it
 # into the image so the route handler can find it without a network hop.
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/api/openapi/v1.json ./apps/api/openapi/v1.json

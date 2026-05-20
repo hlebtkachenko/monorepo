@@ -1,0 +1,45 @@
+---
+title: Quickstart
+description: First request against the Afframe API in 60 seconds.
+intro: Send your first authenticated request. Get a key, set a header, hit /v1/ping.
+---
+
+## 1. Get an API key
+
+Sign in to [app.afframe.com](https://app.afframe.com), open _Settings → API
+keys_, and create a key. Production keys are prefixed `affk_live_…`;
+sandbox keys are `affk_test_…`.
+
+## 2. Send a ping
+
+```bash
+curl https://api.afframe.com/v1/ping \
+  -H "Authorization: Bearer affk_live_…"
+```
+
+On success you'll see your resolved tenancy:
+
+```json
+{
+  "ok": true,
+  "principal": {
+    "organizationId": "01H...",
+    "workspaceId": "01H..."
+  }
+}
+```
+
+## 3. Use the SDK
+
+```ts
+import { createAfframeClient } from "@afframe/sdk"
+
+const client = createAfframeClient({ apiKey: process.env.AFFRAME_API_KEY! })
+const { data } = await client.GET("/v1/ping")
+```
+
+## What's next?
+
+- [Authentication](/developers/authentication)
+- [Error envelope](/developers/errors)
+- [Full API reference](/reference)

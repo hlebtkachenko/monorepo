@@ -1,0 +1,39 @@
+---
+title: MCP
+description: "@afframe/mcp: expose every endpoint as an MCP tool to LLM clients."
+intro: "`@afframe/mcp` is a Model Context Protocol server. Every endpoint in the OpenAPI spec becomes a tool callable from Claude Desktop, Claude Code, Cursor, or any MCP-aware host."
+---
+
+## Claude Desktop
+
+Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "afframe": {
+      "command": "npx",
+      "args": ["-y", "@afframe/mcp"],
+      "env": { "AFFRAME_API_KEY": "affk_live_..." }
+    }
+  }
+}
+```
+
+## Cursor / Claude Code
+
+Same package, same env contract. Drop the equivalent block into the
+host's MCP config.
+
+## Tool annotations
+
+Each generated tool ships a method-derived annotation
+(`readOnlyHint`, `idempotentHint`, `destructiveHint`). Curated
+overrides live in `apps/mcp/src/tools/_curate.ts` for operations where
+the verb alone doesn't capture the side-effect (e.g. a POST that sends
+an email is destructive, not just write).
+
+## Hosted
+
+A Streamable-HTTP MCP server at `mcp.afframe.com` ships later. Same
+tool table, no stdio bootstrap, OAuth instead of a long-lived API key.

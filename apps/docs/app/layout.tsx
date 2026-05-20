@@ -5,11 +5,13 @@ import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { CmdK } from "@/components/cmd-k"
 import { TopNav } from "@/components/top-nav"
 
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://docs.afframe.com"),
   title: {
     default: "Afframe Developer Hub",
     template: "%s · Afframe Developer Hub",
@@ -41,6 +43,7 @@ export default function RootLayout({
           <main className="mx-auto w-full max-w-7xl px-6 py-10">
             {children}
           </main>
+          <CmdK />
         </ThemeProvider>
       </body>
     </html>

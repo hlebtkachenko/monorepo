@@ -28,6 +28,9 @@ export function TopNav() {
             </Link>
           ))}
         </nav>
+        <kbd className="hidden items-center gap-1 rounded border border-border bg-muted px-2 py-1 text-xs text-muted-foreground md:flex">
+          <span>⌘</span>K
+        </kbd>
       </div>
     </header>
   )

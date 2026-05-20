@@ -1,0 +1,66 @@
+---
+title: Errors
+description: Plaid-shape error envelope. Every code, what it means, how to recover.
+intro: Every non-2xx response from /v1 is wrapped in the same envelope. SDKs map `code` to typed Error subclasses.
+---
+
+## Envelope
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "error_type": "VALIDATION",
+    "message": "Request body failed validation.",
+    "documentation_url": "https://api.afframe.com/docs/errors#validation_error",
+    "requestId": "req_1f5a...",
+    "details": [
+      { "path": "$.legalName", "code": "required", "message": "legalName is required." }
+    ]
+  }
+}
+```
+
+- `code`: stable machine-readable. Switch on this, not `message`.
+- `error_type`: Plaid-shape family.
+- `message`: developer-facing. Safe to log.
+- `display_message`: optional end-user-safe.
+- `documentation_url`: deep-link to this page anchor.
+- `requestId`: echoes `X-Request-Id`. Quote it in support tickets.
+- `details[]`: present on `validation_error`; absent on most other codes.
+
+## Registry
+
+| Code                    | Status | Family            | Meaning                                                                   |
+| ----------------------- | ------ | ----------------- | ------------------------------------------------------------------------- |
+| `bad_request`           | 400    | INVALID_REQUEST   | Generic parse / shape problem.                                            |
+| `unauthorized`          | 401    | UNAUTHORIZED      | Key missing, malformed, revoked, or wrong env.                            |
+| `forbidden`             | 403    | FORBIDDEN         | Scope or tenancy mismatch.                                                |
+| `not_found`             | 404    | NOT_FOUND         | No such resource in the authenticated tenant.                             |
+| `conflict`              | 409    | CONFLICT          | Idempotency or business-rule conflict.                                    |
+| `idempotency_conflict`  | 409    | CONFLICT          | Same Idempotency-Key reused with a different body.                        |
+| `stale_resource`        | 409    | CONFLICT          | Optimistic-concurrency mismatch. Re-read, re-apply.                       |
+| `feature_not_enabled`   | 403    | FORBIDDEN         | Feature gated to an entitlement this key doesn't have.                    |
+| `payload_too_large`     | 413    | PAYLOAD_TOO_LARGE | Body exceeded per-endpoint cap.                                           |
+| `validation_error`      | 422    | VALIDATION        | Body parsed but failed schema validation. `details[]` carries fields.     |
+| `rate_limited`          | 429    | RATE_LIMITED      | Bucket exhausted. See `RateLimit-*` + `Retry-After` headers.              |
+| `internal_error`        | 500    | INTERNAL          | Server error. Retry safe operations; report the `requestId` to support.   |
+
+## SDK error classes
+
+```ts
+import {
+  AfframeApiError,
+  UnauthorizedError,
+  RateLimitError,
+  ValidationError,
+} from "@afframe/sdk"
+
+try {
+  await client.GET("/v1/organization")
+} catch (err) {
+  if (err instanceof RateLimitError) await sleep((err.retryAfter ?? 1) * 1000)
+  if (err instanceof ValidationError) renderFieldErrors(err)
+  throw err
+}
+```

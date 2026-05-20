@@ -1,0 +1,65 @@
+---
+title: SDKs
+description: "@afframe/sdk: TypeScript client generated from OpenAPI."
+intro: The TypeScript SDK is generated from `apps/api/openapi/v1.json`. Every operation is typed end-to-end; the SDK is the api's wire shape, with helpers for auth, retries, idempotency, and webhook verification.
+---
+
+## Install
+
+```bash
+npm i @afframe/sdk
+```
+
+## Create a client
+
+```ts
+import { createAfframeClient } from "@afframe/sdk"
+
+const client = createAfframeClient({
+  apiKey: process.env.AFFRAME_API_KEY!,
+  // Optional:
+  // baseUrl: "https://api-staging.afframe.com",
+  // timeoutMs: 30_000,
+  // retry: { maxAttempts: 1, maxDelayMs: 5_000 },
+  // onDeprecation: (info) => console.warn(info),
+})
+```
+
+## Call an endpoint
+
+```ts
+const { data, error, response } = await client.GET("/v1/organization")
+if (error) throw error
+console.log(data.organization.legalName)
+```
+
+## Idempotency
+
+```ts
+await client.POST("/v1/invoices", {
+  headers: { "idempotency-key": crypto.randomUUID() },
+  body: { /* ... */ },
+})
+```
+
+## Brands
+
+The SDK ships compile-time brands so a function expecting `Money<"CZK">`
+can't be called with `Money<"EUR">`. Mirrors the server-side
+`@workspace/db` contract.
+
+```ts
+import { Money } from "@afframe/sdk"
+
+const total = Money.of(125000n, "CZK")
+const wire = total.toWire()
+```
+
+## Errors
+
+Every non-2xx throws a subclass of `AfframeApiError`. See
+[Errors](/developers/errors).
+
+## Webhooks
+
+`verifyWebhook` ships with the SDK. See [Webhooks](/developers/webhooks).

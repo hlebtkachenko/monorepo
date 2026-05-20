@@ -1,19 +1,12 @@
 import type { MetadataRoute } from "next"
 
+import { listContent } from "@/lib/content"
+
 const BASE = "https://docs.afframe.com"
 
-const ROUTES = [
+const STATIC_ROUTES = [
   "/",
   "/developers",
-  "/developers/quickstart",
-  "/developers/authentication",
-  "/developers/errors",
-  "/developers/rate-limits",
-  "/developers/idempotency",
-  "/developers/webhooks",
-  "/developers/sdks",
-  "/developers/cli",
-  "/developers/mcp",
   "/reference",
   "/client",
   "/accounting",
@@ -24,7 +17,8 @@ const ROUTES = [
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date()
-  return ROUTES.map((path) => ({
+  const dynamic = listContent("developers").map((p) => `/developers/${p.slug}`)
+  return [...STATIC_ROUTES, ...dynamic].map((path) => ({
     url: `${BASE}${path}`,
     lastModified,
     changeFrequency: "weekly",

@@ -1,0 +1,41 @@
+---
+title: CLI
+description: "@afframe/cli: call any endpoint from the shell."
+intro: "`@afframe/cli` is a thin command-line wrapper over the SDK. One binary, every endpoint, profile-based config."
+---
+
+## Install
+
+```bash
+npm i -g @afframe/cli
+```
+
+## Configure
+
+```toml
+# ~/.config/afframe/config.toml
+[default]
+api_key = "affk_live_..."
+
+[staging]
+api_key  = "affk_test_..."
+api_base = "https://api-staging.afframe.com"
+```
+
+Or set `AFFRAME_API_KEY` / `AFFRAME_API_BASE` / `AFFRAME_PROFILE`
+directly in the env.
+
+## Commands
+
+```bash
+afframe ping
+afframe organization
+afframe --profile staging ping
+afframe --api-key affk_test_... ping
+```
+
+## Output
+
+JSON to stdout, exit code 0 on success, 1 on any `AfframeApiError`, 2
+on transport. Errors print the Plaid envelope verbatim to stderr;
+`requestId` at the top so support can find the request in logs.

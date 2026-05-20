@@ -1,0 +1,28 @@
+---
+title: Idempotency
+description: Safe retries for mutations via Idempotency-Key.
+intro: Send `Idempotency-Key` on any mutation. Same key + same body returns the same response; same key + different body returns 409 idempotency_conflict.
+---
+
+## How
+
+```ts
+await client.POST("/v1/invoices", {
+  headers: { "idempotency-key": crypto.randomUUID() },
+  body: { /* ... */ },
+})
+```
+
+## Rules
+
+- Required: client-generated, opaque, 1–255 chars. UUIDv4 recommended.
+- Server caches the first response under the key for 24 hours.
+- Replay with the same body: cached response, same status.
+- Replay with a different body: `409 idempotency_conflict`.
+- Don't reuse keys across distinct logical actions.
+
+## SDK retry policy
+
+Mutations retry on 429 / 5xx _only_ when an `Idempotency-Key` is
+present. Without one, the SDK lets the error bubble; the caller must
+decide whether re-sending is safe.

@@ -1,53 +1,11 @@
 import Link from "next/link"
 
 import { AskAI } from "@/components/ask-ai"
+import { listContent } from "@/lib/content"
 
-const SECTIONS = [
-  {
-    href: "/developers/quickstart",
-    title: "Quickstart",
-    blurb: "Send your first request in 60 seconds.",
-  },
-  {
-    href: "/developers/authentication",
-    title: "Authentication",
-    blurb: "API keys, scopes, environments.",
-  },
-  {
-    href: "/developers/errors",
-    title: "Errors",
-    blurb: "Plaid-shape envelope, every code documented.",
-  },
-  {
-    href: "/developers/rate-limits",
-    title: "Rate limits",
-    blurb: "IETF `RateLimit-*` headers, retry conventions.",
-  },
-  {
-    href: "/developers/idempotency",
-    title: "Idempotency",
-    blurb: "Safe retries for mutations.",
-  },
-  {
-    href: "/developers/webhooks",
-    title: "Webhooks",
-    blurb: "Standard Webhooks v1 signature verification.",
-  },
-  {
-    href: "/developers/sdks",
-    title: "SDKs",
-    blurb: "TypeScript SDK, generated from the OpenAPI spec.",
-  },
-  {
-    href: "/developers/cli",
-    title: "CLI",
-    blurb: "`@afframe/cli`: invoke any endpoint from the shell.",
-  },
-  {
-    href: "/developers/mcp",
-    title: "MCP",
-    blurb: "Expose every endpoint as a tool to Claude, Cursor, others.",
-  },
+export const dynamic = "force-static"
+
+const EXTRA_LINKS = [
   {
     href: "/reference",
     title: "API Reference",
@@ -56,6 +14,7 @@ const SECTIONS = [
 ] as const
 
 export default function DevelopersIndex() {
+  const pages = listContent("developers")
   return (
     <section className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -65,14 +24,28 @@ export default function DevelopersIndex() {
         </p>
       </header>
       <div className="grid gap-4 md:grid-cols-2">
-        {SECTIONS.map((s) => (
+        {pages.map((p) => (
           <Link
-            key={s.href}
-            href={s.href}
+            key={p.slug}
+            href={`/developers/${p.slug}`}
             className="rounded-lg border border-border bg-card p-5 transition hover:border-foreground/30"
           >
-            <h2 className="text-base font-semibold">{s.title}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{s.blurb}</p>
+            <h2 className="text-base font-semibold">{p.frontmatter.title}</h2>
+            {p.frontmatter.description ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {p.frontmatter.description}
+              </p>
+            ) : null}
+          </Link>
+        ))}
+        {EXTRA_LINKS.map((l) => (
+          <Link
+            key={l.href}
+            href={l.href}
+            className="rounded-lg border border-border bg-card p-5 transition hover:border-foreground/30"
+          >
+            <h2 className="text-base font-semibold">{l.title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{l.blurb}</p>
           </Link>
         ))}
       </div>

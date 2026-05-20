@@ -1,0 +1,46 @@
+---
+title: Webhooks
+description: Standard Webhooks v1 signature verification.
+intro: Afframe ships webhooks per the Standard Webhooks v1 spec. Three headers, one HMAC-SHA-256 over a fixed message, constant-time comparison.
+---
+
+## Headers
+
+- `webhook-id`: opaque per-delivery ID.
+- `webhook-timestamp`: Unix seconds of dispatch.
+- `webhook-signature`: space-separated list of `v1,<base64>`. Multiple
+  entries during secret rotation.
+
+## Verify in one line
+
+```ts
+import { verifyWebhook } from "@afframe/sdk"
+
+await verifyWebhook({
+  payload: rawBody,
+  headers: req.headers,
+  secret: process.env.WEBHOOK_SECRET!,
+})
+```
+
+Throws `WebhookVerificationError` with one of:
+
+- `missing_header`
+- `invalid_timestamp`: header is not numeric.
+- `stale_timestamp`: drift &gt; 5 minutes (configurable).
+- `invalid_signature`: no `v1,…` entry matched.
+
+## Algorithm
+
+1. Concatenate `id . timestamp . body`.
+2. HMAC-SHA-256 with the partner secret.
+3. Base64-encode, prefix `v1,`.
+4. Compare every entry in `webhook-signature` with constant-time equality.
+5. Reject when the timestamp drifts more than `toleranceSec` from now
+   (default 300).
+
+## Rotation
+
+Issue a new secret and emit both old and new signatures during the
+cutover. The verifier accepts any matching entry; remove the old secret
+once caller traffic confirms the new one works.

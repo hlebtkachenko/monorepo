@@ -1,0 +1,46 @@
+# Linear write-back. On every PR open / sync, posts (or updates) a
+# comment on the linked Linear issue carrying the PR URL + title. Issue
+# is inferred from the branch name via the convention documented in
+# `docs/conventions/COMMITS.md` (branch must contain `aff-NNN`).
+#
+# No-op when `LINEAR_API_KEY` is unset, when the branch carries no
+# AFF-NNN identifier, or when the issue lookup fails. Advisory until the
+# first green PR cycle.
+
+name: Linear sync
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions: {}
+
+concurrency:
+  group: linear-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Post / update Linear comment
+    runs-on: ubuntu-latest
+    continue-on-error: true # ADVISORY
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Apply Linear context
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node scripts/governance/apply-linear-context.mjs \
+            "$BRANCH" "$PR_URL" "$PR_TITLE"

@@ -317,7 +317,15 @@ gh workflow run _deploy-aws.yml \
   --ref main
 ```
 
-`app-only` skips Network + Data deploy. Use this for any change that's purely in code (`apps/**`, `packages/**`, app config). Takes ~8-12 min: image build + ECR push + CDK App stack update + ECS rolling deploy.
+`app-only` skips Network + Data deploy. Use this for any change that's purely in code (`apps/**`, `packages/**`, app config). Takes ~6-10 min: image build + ECR push + CDK App stack update + ECS rolling deploy.
+
+#### Staging vs production deploy modes
+
+Staging runs `cdk deploy --hotswap-fallback`. When the changeset is limited to ECS Service, Lambda, S3 assets, CodeBuild, or Step Functions, CDK bypasses CloudFormation and updates AWS resources directly. Saves ~150-180s per app-only staging deploy. **Side effect:** CFN stack state lags behind live until the next non-hotswap deploy reconciles it. Acceptable for staging.
+
+Production runs vanilla `cdk deploy` (no hotswap). Full CFN change set, drift detection intact, audit trail in CloudTrail. Wall time ~3-4 min longer than the equivalent staging deploy.
+
+The mode switch is automatic in `_deploy-aws.yml` keyed on `inputs.environment`. No knob to turn.
 
 Watch progress:
 

@@ -295,3 +295,5 @@ fi
 aws s3 rm "s3://${bucket}/${s3_prefix}/" --recursive --region "$AWS_REGION" --only-show-errors || true
 
 echo "Migrations applied successfully."
+
+broken=$(

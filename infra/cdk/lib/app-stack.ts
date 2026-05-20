@@ -490,15 +490,22 @@ export class AppStack extends Stack {
       // observe real readiness, not just process-up, so a broken deploy
       // trips rollback fast instead of after the gracePeriod elapses.
       // wget is shipped in the base image (used by the Dockerfile HEALTHCHECK).
+      //
+      // Timings tightened from 30s→10s interval + 20s→15s startPeriod so
+      // ECS sees HEALTHY at ~25s instead of ~110s. Next.js standalone
+      // server boots in <5s; /api/version is a cheap JSON return — three
+      // 10s-interval probes still gives ~30s before declaring unhealthy.
+      // healthCheckGracePeriod (180s, see service config below) keeps
+      // a wide safety margin over the new convergence time.
       healthCheck: {
         command: [
           "CMD-SHELL",
           "wget -q -O- http://127.0.0.1:3000/api/version >/dev/null || exit 1",
         ],
-        interval: Duration.seconds(30),
-        timeout: Duration.seconds(5),
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
         retries: 3,
-        startPeriod: Duration.seconds(20),
+        startPeriod: Duration.seconds(15),
       },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("WebLinuxParams"),
@@ -670,10 +677,10 @@ export class AppStack extends Stack {
           "CMD-SHELL",
           "wget -q -O- http://127.0.0.1:3100/api/health >/dev/null || exit 1",
         ],
-        interval: Duration.seconds(30),
-        timeout: Duration.seconds(5),
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
         retries: 3,
-        startPeriod: Duration.seconds(20),
+        startPeriod: Duration.seconds(15),
       },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("AdminLinuxParams"),

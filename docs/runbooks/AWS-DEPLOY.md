@@ -501,6 +501,31 @@ gh workflow run _deploy-aws.yml -f environment=staging -f stack=app-only --repo 
 
 **Option 3 - ECS circuit breaker** auto-rolls back if new tasks fail health checks during a deploy. No manual action needed in that case; just check CloudWatch logs to understand the failure.
 
+### Migration rollback recovery
+
+The smoke-failure auto-rollback (workflow's "Roll back ECS service to last-known-good task-definition" step) **refuses to run when migrations were applied this deploy**. Rolling ECS back to the previous task def would put the OLD container image (old code) in front of NEW schema. Reads/writes against new columns or migrated row shapes would either crash (column does not exist on the OLD code's expectations) or silently corrupt data.
+
+When you see `::error::smoke failed AND migrations were applied this deploy`:
+
+1. **Inspect what landed.** Connect via the tunnel (`### 1. Open a tunnel to RDS` above) and read `_app_migrations`:
+
+   ```sql
+   SELECT filename, applied_at
+   FROM _app_migrations
+   ORDER BY applied_at DESC
+   LIMIT 10;
+   ```
+
+   Cross-reference with `packages/db/migrations/` at the failed deploy's commit.
+
+2. **Decide forward-fix vs PITR.**
+   - **Forward-fix (default):** smoke probably failed on a code-side bug. Fix the code in a new commit, push, deploy again. The fresh deploy's migrate step is a no-op (journal already populated), ECS rolls forward to the corrected image.
+   - **PITR + manual task-def revert:** only when the migration itself is destructive AND the new code is unrecoverable. PITR restores RDS to a point before the migration; you then manually `aws ecs update-service --task-definition <previous-rev>`. **This is a last resort** — it loses everything written since the migration applied. The runbook author's preferred order: forward-fix → forward-fix → PITR.
+
+3. **Never** `aws ecs update-service --task-definition <previous-rev>` without confirming the schema is backward-compatible with that revision's image. Check `_app_migrations` against `packages/db/migrations/` at the previous deploy's SHA.
+
+To keep this gate sharp: write destructive migrations (DROP TABLE, DROP COLUMN, NOT NULL on an existing column without default, type change that loses range) only when the deploy can be paused for human review. The expand/contract pattern (add new column, dual-write, switch reads, then drop old) makes auto-rollback safe again at the cost of two deploys per schema change.
+
 ### What blocks a deploy
 
 The workflow short-circuits with `go=false` and exits success if `vars.AWS_BOOTSTRAPPED != "true"`. It is currently `true` (set 2026-05-11); check with `gh variable list`. To change it:

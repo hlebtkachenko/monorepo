@@ -531,7 +531,11 @@ jobs:
             echo "App-${ENV_NAME} stack does not exist yet — skipping log-group pre-create on first-deploy. CDK creates the log groups cleanly; next deploy this step runs (idempotent) for the CloudControl race fix."
             exit 0
           fi
-          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
+          # Includes the two init-container log groups (db-migrate,
+          # openfga-migrate) added in PR K — same CloudControl race that
+          # this step exists to neutralise (LogGroup created with explicit
+          # name + GetAtt into an IAM policy → read-after-write race).
+          for svc in web admin api cloudflared pgbouncer cerbos openfga db-migrate openfga-migrate; do
             lg="/ecs/monorepo-${ENV_NAME}/${svc}"
             if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
               echo "exists: $lg"
@@ -798,6 +802,14 @@ jobs:
       contents: read
     outputs:
       deployed: ${{ steps.summary.outputs.deployed }}
+      # 'true' iff the "Apply DB migrations" step actually ran THIS deploy.
+      # Consumed by the smoke job's rollback guard: when migrations were
+      # applied, rolling the ECS service back to the previous task def
+      # would put OLD code in front of NEW schema — same shape as the PR F
+      # bug. The rollback step refuses and pages the operator instead.
+      # `steps.<id>.conclusion` is 'skipped' when the if: gate filtered the
+      # step (no migrations changed), 'success' when it ran cleanly.
+      migrations_applied: ${{ steps.migrate.conclusion == 'success' && 'true' || 'false' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
@@ -1010,15 +1022,17 @@ jobs:
           if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "Secret $NAME already exists — leaving value untouched."
           else
-            # tr -dc | head -c with bash `set -o pipefail` makes the
-            # whole pipeline fail: head closes its stdin after 44 bytes,
-            # tr writes to the closed pipe and exits non-zero (SIGPIPE).
-            # Read a fixed buffer from urandom first (head terminates by
-            # itself, no SIGPIPE source remains) then filter + truncate.
-            # 4096 bytes of urandom yields >2700 alphanumeric bytes after
-            # the [A-Za-z0-9] filter — far more than the 44 needed.
-            # First-prod-deploy failure mode verified in run 26210479351.
-            VALUE=$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 44)
+            # PR G replaced infinite /dev/urandom with a 4096-byte buffer
+            # to defuse the tr|head SIGPIPE. The remaining tr|head chain
+            # still relies on pipe-buffer timing — works today but is
+            # bash/kernel/locale-version dependent. node is already on the
+            # runner (used elsewhere in this workflow), zero new deps, no
+            # pipes: crypto.randomBytes(22).toString("hex") yields 44 hex
+            # chars [0-9a-f] (strict subset of the old [A-Za-z0-9] output —
+            # any consumer pattern-validating the secret still matches).
+            # 176 bits of entropy > 128-bit security floor for an HMAC key.
+            # First-prod-deploy SIGPIPE failure: run 26210479351.
+            VALUE=$(node -e 'process.stdout.write(require("crypto").randomBytes(22).toString("hex"))')
             echo "::add-mask::$VALUE"
             aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
             echo "Secret $NAME created with fresh 44-char value."
@@ -1027,15 +1041,26 @@ jobs:
 
       # Sanity check: when image_tag_override is set the operator is asking
       # CDK to reuse images that should already be in ECR. Fail fast if any
-      # of the three (web, api, admin) is missing — otherwise the App stack
-      # will deploy and ECS will start crash-looping on `ImagePullFailure`
-      # ~5 min from now.
+      # service image is missing — otherwise the App stack will deploy and
+      # ECS will start crash-looping on `ImagePullFailure` ~5 min from now.
+      #
+      # Service list is discovered from apps/*/Dockerfile (mirrors the
+      # turbo-driven detect-changes job) so adding apps/foo/Dockerfile
+      # auto-flows through here. No hardcoded triple.
       - name: Verify override images exist in ECR
         if: inputs.image_tag_override != '' && env.STACK_SCOPE != 'infra-only'
         run: |
           set -euo pipefail
+          all_services=()
+          for d in apps/*/; do
+            [ -f "${d}Dockerfile" ] && all_services+=("$(basename "$d")")
+          done
+          if [ "${#all_services[@]}" -eq 0 ]; then
+            echo "::error::no apps/*/Dockerfile found — repo layout changed?"
+            exit 1
+          fi
           missing=0
-          for svc in web api admin; do
+          for svc in "${all_services[@]}"; do
             repo="monorepo-${ENV_NAME}-${svc}"
             if aws ecr describe-images \
                 --repository-name "$repo" \
@@ -1103,13 +1128,20 @@ jobs:
       # Idempotent: every applied SQL file is journaled in `_app_migrations`
       # and skipped on re-run. The script also no-ops cleanly when
       # `packages/db/migrations/` is empty.
-      - name: Apply DB migrations via one-off ECS task
+      - id: migrate
+        name: Apply DB migrations via one-off ECS task
         # Gated on detect-changes — when no migration files changed since
         # the last successful deploy, skip the ECS one-off task entirely
         # (saves ~2 min wall on app-only PRs). Default-runs on first
         # deploy / unknown last-SHA / image_tag_override / force-rebuild.
         # The underlying script remains idempotent against `_app_migrations`
         # so manual reruns are still safe.
+        #
+        # `id: migrate` is consumed by the deploy job's
+        # `migrations_applied` output and by smoke's rollback guard. When
+        # this step is skipped (no migration files changed), conclusion is
+        # 'skipped' and rollback proceeds as normal. When this step ran,
+        # conclusion is 'success' and rollback refuses — see smoke job.
         if: |
           env.STACK_SCOPE != 'infra-only' &&
           needs.detect-changes.outputs.migrations_changed != 'false'
@@ -1219,6 +1251,60 @@ jobs:
             HOTSWAP_FLAGS+=(--hotswap-fallback)
           fi
 
+          # Production: cdk diff guard against destructive REPLACE of stateful
+          # resources. `--require-approval=never` (required for unattended CI)
+          # bypasses CDK's destructive-change prompt, so a typo'd construct-id
+          # rename on RDS/S3/KMS/Secret/IAM/DynamoDB/EFS/LogGroup would
+          # silently REPLACE the resource (e.g. RDS rename = new DB, data
+          # gone; S3 bucket rename = new bucket, files gone). Even RETAIN
+          # removal policy only blocks `cdk destroy`, not REPLACE-on-Update.
+          #
+          # The PR-L class (account-global name CREATE collision) also shows
+          # up here as `[+] AWS::CloudWatch::Dashboard` on a new logical id;
+          # we don't gate on that one because dashboards have no state, but
+          # the same diff machinery would catch it for the stateful set.
+          #
+          # Override: include `[allow-replace]` in the head commit message
+          # for a legitimately-intended rename. Staging is unfiltered (free
+          # to move).
+          if [ "$ENV_NAME" = "production" ]; then
+            echo "::group::cdk diff replace-guard (production)"
+            DIFF_FILE=$(mktemp)
+            # --method=change-set asks CloudFormation what would REPLACE on
+            # update (more accurate than the local template diff which can
+            # miss physical-replacement signals). Best-effort: pipe to tee +
+            # `|| true` so we don't abort on diff exit codes (cdk diff exits
+            # 1 when changes exist; we want the text, not the exit code).
+            pnpm --filter @workspace/cdk exec cdk diff "${STACKS[@]}" \
+              --exclusively \
+              --method=change-set \
+              --context "env=${ENV_NAME}" \
+              --context "imageTag=${IMAGE_TAG}" \
+              --context "webImageTag=${IMAGE_TAG_WEB}" \
+              --context "apiImageTag=${IMAGE_TAG_API}" \
+              --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
+              "${SECRET_CTX[@]}" 2>&1 | tee "$DIFF_FILE" || true
+            STATEFUL_TYPES='AWS::(RDS::DB(Instance|Cluster|ClusterParameterGroup|ParameterGroup|SubnetGroup)|S3::Bucket|KMS::Key|SecretsManager::Secret|IAM::(Role|User)|DynamoDB::Table|EFS::FileSystem|Logs::LogGroup)'
+            # `[~] <Type> <LogicalId> <PhysicalId> replace` = REPLACE-on-Update
+            # `[+] <Type>` = CREATE of a new logical id (catches typo'd renames
+            # of a stateful resource into a new construct id — the resource
+            # is detached from CFN's perspective, original retained but
+            # orphaned, new resource created alongside; for a stateful
+            # resource that's silent data loss).
+            REPLACE_LINES=$(grep -E "^\[~\] ${STATEFUL_TYPES}.* replace$|^\[\+\] ${STATEFUL_TYPES}\b" "$DIFF_FILE" || true)
+            echo "::endgroup::"
+            if [ -n "$REPLACE_LINES" ]; then
+              if git log -1 --pretty=%B | grep -qF '[allow-replace]'; then
+                echo "::warning::Destructive REPLACE detected on stateful resource(s) — proceeding because head commit has [allow-replace] override."
+                echo "$REPLACE_LINES"
+              else
+                echo "::error::Destructive REPLACE detected on stateful resource(s). Refusing to deploy. Add [allow-replace] to the head commit message to override (use ONLY for an intentional rename that you've audited)."
+                echo "$REPLACE_LINES"
+                exit 1
+              fi
+            fi
+          fi
+
           pnpm --filter @workspace/cdk exec cdk deploy "${STACKS[@]}" \
             --exclusively \
             --concurrency 3 \
@@ -1268,10 +1354,21 @@ jobs:
               echo "::warning::$label topic ARN empty — skipping subscription."
               return 0
             fi
-            # Look for an existing subscription (any status) where Endpoint
+            # Look for an existing CONFIRMED subscription where Endpoint
             # equals the operator email. ListSubscriptionsByTopic caps at
             # 100 results per page, so we paginate via NextToken until empty
             # to avoid creating duplicate subscriptions once the page fills.
+            #
+            # Status filter rationale: AWS retains cancelled subscriptions
+            # as `SubscriptionArn=="Deleted"` for up to 2 days, and
+            # unconfirmed ones as `"PendingConfirmation"` for up to 3 days
+            # (https://repost.aws/knowledge-center/sns-cannot-delete-topic-subscription).
+            # Without filtering both out, a stale entry counts as "already
+            # subscribed" and we'd silently skip re-subscribing — operator
+            # never gets a confirmation email and prod alerts go dark.
+            # PendingConfirmation is intentionally re-sent: re-issuing the
+            # confirmation costs one extra email; permanent un-subscribe
+            # would be invisible until something fails to page.
             local existing=0 next_token="" page match
             while :; do
               if [ -n "$next_token" ]; then
@@ -1279,7 +1376,7 @@ jobs:
               else
                 page=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --output json)
               fi
-              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e)] | length')
+              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e and .SubscriptionArn != "Deleted" and .SubscriptionArn != "PendingConfirmation")] | length')
               existing=$((existing + match))
               next_token=$(echo "$page" | jq -r '.NextToken // ""')
               [ -z "$next_token" ] && break
@@ -1447,8 +1544,24 @@ jobs:
           echo "Recorded last-known-good: sha=$GITHUB_SHA task-def=$GOOD_TD web=$IMAGE_TAG_WEB api=$IMAGE_TAG_API admin=$IMAGE_TAG_ADMIN (env=$ENV_NAME)"
       - name: Roll back ECS service to last-known-good task-definition
         if: failure() && steps.smoke.conclusion == 'failure'
+        env:
+          MIGRATIONS_APPLIED: ${{ needs.deploy.outputs.migrations_applied }}
         run: |
           set -euo pipefail
+          # HI-05 safety gate: when migrations ran THIS deploy, the new
+          # task def expects new schema. Rolling ECS back to the previous
+          # task def puts OLD code in front of NEW schema → reads/writes
+          # against columns that don't exist yet (or do exist but mean
+          # something different post-migration). Pattern is identical to
+          # the PR F bug (SSM tag poisoning): automation does the right
+          # thing in steady state but the wrong thing when state has
+          # moved. Refuse to roll back, page the operator, point them at
+          # the runbook (docs/runbooks/AWS-DEPLOY.md "Migration rollback
+          # recovery"). Recovery is forward-fix in nearly all cases.
+          if [ "${MIGRATIONS_APPLIED:-false}" = "true" ]; then
+            echo "::error::smoke failed AND migrations were applied this deploy. Auto-rollback is unsafe — old task def would meet new schema. Aborting rollback. See docs/runbooks/AWS-DEPLOY.md#migration-rollback-recovery for the manual path (forward-fix or PITR + manual task-def revert)."
+            exit 1
+          fi
           CLUSTER="monorepo-${ENV_NAME}"
           SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
@@ -1470,13 +1583,21 @@ jobs:
             FAMILY="${FAMILY%:*}"
             TARGET_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns' --output json | jq -r '.[1] // empty')
             if [ -z "$TARGET_TD" ] || [ "$TARGET_TD" = "null" ]; then
-              echo "::error::no rollback target — neither SSM last-known-good nor a previous ACTIVE revision available"
+              # First-deploy smoke fail: no SSM record yet, and only ONE
+              # revision in the family. There is genuinely nowhere to roll
+              # back to. Cap cost immediately by scaling the service to 0
+              # (manual remediation required afterward — likely the deploy
+              # never reached steady state, e.g. Cloudflare Tunnel ingress
+              # not yet wired). Surface clearly so the operator knows the
+              # next step.
+              echo "::warning::first-deploy smoke failure — no rollback target exists. Scaling service to 0 to cap cost; manual remediation required."
+              aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE_NAME" --desired-count 0 --region "$AWS_REGION" >/dev/null || echo "::warning::scale-to-0 failed; service may still be running"
+              echo "::error::smoke failed on first deploy; service scaled to 0. Investigate ingress + container logs, then redeploy to retry."
               exit 1
             fi
           fi
           if [ "$TARGET_TD" = "$CURRENT_TD" ]; then
-            echo "::warning::Rollback target equals current revision ($TARGET_TD). Nothing to do — service already on last-known-good."
-            echo "::error::smoke failed; current revision IS the last-known-good. Investigate live state."
+            echo "::error::smoke failed but rollback target ($TARGET_TD) equals current — no earlier revision to roll to. Live state is the last-known-good; investigate logs (smoke probably hit a transient or external issue)."
             exit 1
           fi
           echo "Target last-known-good: $TARGET_TD"

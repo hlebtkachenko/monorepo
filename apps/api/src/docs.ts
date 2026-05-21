@@ -147,108 +147,112 @@ const CUSTOM_CSS = `
 }
 
 /*
- * Brand logo (horizontal wordmark) inlined as a data-URI from
- * \`packages/ui/src/brand-assets/source/primary-{light,dark}/horizontal.svg\`
- * — the brand-assets directory stays the single source of truth.
- * Painted onto the sidebar header. If Scalar changes its sidebar DOM
- * in a future bump, the logo hides silently (the background-image just
- * paints nothing). Falls back to the favicon-served URL if the inline
- * read failed at boot.
+ * Top navbar — rendered ABOVE Scalar's UI via HTML injection at the
+ * start of <body>. Mirrors the Next.js "host layout owns the nav"
+ * pattern documented at
+ * https://scalar.com/products/api-references/integrations/nextjs:
+ * Scalar's React component renders inside a parent layout that owns
+ * the navbar. We can't import the React component into a NestJS host,
+ * so we inject the topbar as plain HTML around Scalar's static
+ * response — same shape, different mechanism.
+ *
+ * Layout: 64px tall, sticky to viewport top, brand mark left, links
+ * right. Body padding-top pushes Scalar's content below so the navbar
+ * never overlaps the reference.
  */
-.afframe-logo {
+body {
+  padding-top: 64px;
+}
+.afframe-topnav {
   position: fixed;
-  top: 14px;
-  left: 18px;
-  width: 132px;
-  height: 28px;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  z-index: 1000;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+.dark-mode .afframe-topnav,
+html.dark .afframe-topnav {
+  background: #0A1F1A;
+  border-bottom-color: #1f3b34;
+}
+.afframe-topnav-brand {
+  display: flex;
+  align-items: center;
+}
+.afframe-topnav-brand a {
+  display: block;
+  width: 200px;
+  height: 40px;
   background-repeat: no-repeat;
   background-position: left center;
   background-size: contain;
-  z-index: 50;
-  pointer-events: none;
+  text-indent: -9999px;
 }
-.afframe-logo.light {
+.afframe-topnav-brand a.light {
   background-image: ${BRAND_LIGHT_SVG_DATA_URI || 'url("/favicon.svg")'};
 }
-.afframe-logo.dark {
+.afframe-topnav-brand a.dark {
   background-image: ${BRAND_DARK_SVG_DATA_URI || 'url("/favicon.svg")'};
   display: none;
 }
-.dark-mode .afframe-logo.light,
-html.dark .afframe-logo.light {
+.dark-mode .afframe-topnav-brand a.light,
+html.dark .afframe-topnav-brand a.light {
   display: none;
 }
-.dark-mode .afframe-logo.dark,
-html.dark .afframe-logo.dark {
+.dark-mode .afframe-topnav-brand a.dark,
+html.dark .afframe-topnav-brand a.dark {
   display: block;
 }
-
-/*
- * Sidebar bottom-pinned action buttons. Scalar OSS doesn't expose
- * configurable nav links, so we inject two anchors at the bottom-left
- * of the viewport — mirroring the position the "Open API Client"
- * button used to occupy. Styled with the brand green, square corners
- * (border-radius: 0) per the design ask, and high z-index so they sit
- * above Scalar's own footer mark.
- */
-.afframe-sidebar-actions {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 260px;
+.afframe-topnav-links {
   display: flex;
-  flex-direction: column;
-  background: var(--scalar-background-2, #f8fafc);
-  border-right: 1px solid var(--scalar-border-color, #e2e8f0);
-  border-top: 1px solid var(--scalar-border-color, #e2e8f0);
-  z-index: 40;
+  align-items: center;
+  gap: 4px;
 }
-.afframe-sidebar-actions a {
-  display: block;
-  padding: 12px 16px;
-  font-family: inherit;
-  font-size: 13px;
+.afframe-topnav-links a {
+  display: inline-block;
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--scalar-color-1, #0A1F1A);
-  text-decoration: none;
-  border-radius: 0;
-  border-top: 1px solid var(--scalar-border-color, #e2e8f0);
-  transition: background-color 120ms ease, color 120ms ease;
-}
-.afframe-sidebar-actions a:first-child {
-  border-top: 0;
-}
-.afframe-sidebar-actions a:hover {
-  background: var(--scalar-color-accent, #009473);
-  color: #ffffff;
-}
-.dark-mode .afframe-sidebar-actions,
-html.dark .afframe-sidebar-actions {
-  background: var(--scalar-background-2, #0f2823);
-  border-color: var(--scalar-border-color, #1f3b34);
-}
-.dark-mode .afframe-sidebar-actions a,
-html.dark .afframe-sidebar-actions a {
-  color: var(--scalar-color-1, #F3F4F6);
-  border-color: var(--scalar-border-color, #1f3b34);
-}
-.dark-mode .afframe-sidebar-actions a:hover,
-html.dark .afframe-sidebar-actions a:hover {
-  background: var(--scalar-color-accent, #28DCB1);
   color: #0A1F1A;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 0;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.afframe-topnav-links a:hover {
+  background: #009473;
+  color: #ffffff;
+  border-color: #009473;
+}
+.dark-mode .afframe-topnav-links a,
+html.dark .afframe-topnav-links a {
+  color: #F3F4F6;
+}
+.dark-mode .afframe-topnav-links a:hover,
+html.dark .afframe-topnav-links a:hover {
+  background: #28DCB1;
+  color: #0A1F1A;
+  border-color: #28DCB1;
 }
 
-/* Reserve space at the sidebar bottom so the action buttons don't
- * cover the last items in the Models list, and at the top so the
- * brand logo has its own slot. Scalar's confirmed sidebar class is
- * \`.t-doc__sidebar\` (verified against
- * @scalar/nestjs-api-reference v1.1.16); the fallback selectors
- * survive a Scalar DOM rename. */
+/* Push Scalar's own sidebar / topbar down below our navbar. Without
+ * this, Scalar paints its sticky header behind/under the topnav.
+ * Scalar's confirmed sidebar class is \`.t-doc__sidebar\` (verified
+ * against @scalar/nestjs-api-reference v1.1.16). */
 .scalar-app .t-doc__sidebar,
 .scalar-app aside[class*="sidebar"],
 .scalar-app .sidebar {
-  padding-bottom: 90px;
-  padding-top: 56px;
+  top: 64px !important;
 }
 `
 
@@ -282,19 +286,25 @@ export function registerDocsRoutes(
     res.redirect(301, "/")
   })
 
-  // HTML fragment injected into Scalar's response just before </body>.
-  // Adds the brand logo (top-left) and two sidebar-bottom buttons
-  // (Open Developer Docs + Report Bug) at the position the prior
-  // "Open API Client" button occupied. Scalar OSS has no native
-  // headerLinks / apiClientButton config, so injection is the only
-  // route — see AFF-237 and AFF-238 for the upstream tracking issues.
+  // Top navbar injected at the start of <body>, ABOVE Scalar's UI.
+  // Mirrors the Next.js "host layout owns the nav" pattern documented
+  // at https://scalar.com/products/api-references/integrations/nextjs
+  // — Scalar's React component renders inside a parent layout that
+  // owns the navbar. We can't host the React component in NestJS, so
+  // the topnav rides as plain HTML around Scalar's response. Brand
+  // mark left, custom links right. See customCss above for the
+  // styling + body padding-top offset.
   const injectedHtml = `
-    <div class="afframe-logo light"></div>
-    <div class="afframe-logo dark"></div>
-    <nav class="afframe-sidebar-actions" aria-label="Afframe quick links">
-      <a href="https://docs.afframe.com/developer" target="_blank" rel="noreferrer noopener">Open Developer Docs</a>
-      <a href="mailto:support+feedback@afframe.com?subject=%5Bbug%5D%20" target="_blank" rel="noreferrer noopener">Report a bug</a>
-    </nav>
+    <header class="afframe-topnav" role="navigation" aria-label="Afframe">
+      <div class="afframe-topnav-brand">
+        <a class="light" href="https://afframe.com" target="_blank" rel="noreferrer noopener">Afframe</a>
+        <a class="dark" href="https://afframe.com" target="_blank" rel="noreferrer noopener">Afframe</a>
+      </div>
+      <nav class="afframe-topnav-links" aria-label="Afframe quick links">
+        <a href="https://docs.afframe.com/developer" target="_blank" rel="noreferrer noopener">Open Developer Docs</a>
+        <a href="mailto:support+feedback@afframe.com?subject=%5Bbug%5D%20" target="_blank" rel="noreferrer noopener">Report a bug</a>
+      </nav>
+    </header>
   `
 
   // Bind Scalar to GET `/` exactly. Using `app.use("/", apiReference(...))`
@@ -360,18 +370,26 @@ export function registerDocsRoutes(
 
   adapter.get("/", (req: Request, res: Response) => {
     // Wrap res.send so we can splice our injectedHtml into Scalar's HTML
-    // response before </body>. Scalar's middleware (verified against
+    // response immediately after <body>. Placing the topnav at the start
+    // of <body> (not before </body>) so it lands ABOVE Scalar's mount
+    // point in the DOM — Scalar's UI is then offset downward via the
+    // body padding-top rule in customCss.
+    //
+    // Scalar's middleware (verified against
     // @scalar/nestjs-api-reference v1.1.16 source: signature is
     // (req, res) => void, no next) calls res.send(html) synchronously
     // — wrapping res.send BEFORE the middleware runs is the safe
-    // pattern. If Scalar ever switches to res.write + res.end the wrap
-    // below becomes a no-op and the logo + bottom buttons just don't
-    // show — degrades gracefully.
+    // pattern. If Scalar ever switches to res.write + res.end the
+    // wrap becomes a no-op and the topnav just doesn't show —
+    // degrades gracefully without breaking the page.
     const origSend = res.send.bind(res)
     res.send = (body: unknown): Response => {
-      if (typeof body === "string" && body.includes("</body>")) {
-        const patched = body.replace("</body>", `${injectedHtml}</body>`)
-        return origSend(patched)
+      if (typeof body === "string") {
+        const match = body.match(/<body[^>]*>/i)
+        if (match) {
+          const patched = body.replace(match[0], `${match[0]}${injectedHtml}`)
+          return origSend(patched)
+        }
       }
       return origSend(body)
     }

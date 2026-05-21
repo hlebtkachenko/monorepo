@@ -377,14 +377,15 @@ export function buildOpenApiDocument(): OpenAPIDocument {
         "Public API for the Afframe accounting platform. Authenticate with " +
         "an API key as a bearer token in the form `affk_live_…` (production) " +
         "or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape " +
-        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers. " +
+        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers." +
+        "\n\n" +
         "Service status: [status.afframe.com](https://status.afframe.com) " +
         "(programmatic at `GET /v1/status`).",
       // Native Scalar OSS header badges only — `support` (info.contact)
-      // and `terms` (info.license). info.termsOfService gives the terms
-      // badge a clickable URL. The Open Developer Docs + Report Bug
-      // buttons land in the sidebar bottom via custom HTML injection
-      // (see registerDocsRoutes in apps/api/src/docs.ts).
+      // and `terms` (info.license). `info.termsOfService` is omitted on
+      // purpose: setting BOTH `license.url` and `termsOfService` renders
+      // two Terms badges in the header. The license.url is the clickable
+      // landing page; one badge is enough.
       contact: {
         name: "Afframe support",
         email: "support@afframe.com",
@@ -394,7 +395,6 @@ export function buildOpenApiDocument(): OpenAPIDocument {
         name: "Proprietary — see Terms of Service",
         url: "https://afframe.com/terms",
       },
-      termsOfService: "https://afframe.com/terms",
     },
     servers: resolveServers(),
     tags: [

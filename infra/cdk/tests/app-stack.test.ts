@@ -152,6 +152,11 @@ describe("AppStack Fargate hardening", () => {
     // LOCAL (PR #142) is the actual enforcement. Both web + admin
     // connect as app_user and must carry this flag.
     expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
+    // BETTER_AUTH_COOKIE_DOMAIN derived from props.domain via
+    // `deriveCookieDomain`. For TEST_DOMAIN="test.example.com" the
+    // expected scope is `.example.com`. Asserts the cross-subdomain
+    // session-sharing wiring is intact on the web container.
+    expect(envByName["BETTER_AUTH_COOKIE_DOMAIN"]).toBe(".example.com")
     // AUTH_TOKEN_ENV must be explicitly mapped from envName so the
     // resolveAuthTokenEnv() fallback (NODE_ENV='production' -> 'prd')
     // does not stamp staging tokens with the production checksum code.
@@ -225,6 +230,12 @@ describe("AppStack Fargate hardening", () => {
     // Admin connects as app_user too and needs the lenient startup-probe
     // mode — RDS rejects ALTER ROLE SET for custom GUCs (AFF-150 §5).
     expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
+    // BETTER_AUTH_COOKIE_DOMAIN derived from props.adminDomain (NOT
+    // props.domain). TEST_ADMIN_DOMAIN="admin-console.example.net" so
+    // the expected scope is `.example.net`. Asserts the admin container
+    // gets its OWN cookie scope (the two test domains are deliberately
+    // on different apex domains).
+    expect(envByName["BETTER_AUTH_COOKIE_DOMAIN"]).toBe(".example.net")
   })
 
   it("references the 4 workflow-managed secrets by FULL ARN (with random suffix)", () => {

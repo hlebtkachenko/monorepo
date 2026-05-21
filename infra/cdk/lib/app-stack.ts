@@ -135,11 +135,13 @@ export interface AppStackProps extends StackProps {
  *   admin.afframe.com       -> .afframe.com
  *   afframe.com             -> .afframe.com (already apex)
  *
- * Returns an empty string for a single-label host (test fixtures use
- * `test` or similar). An empty value makes the consumer's optional block
- * skip the cross-subdomain config — exactly what we want in tests.
+ * Returns an empty string for a single-label host. An empty value makes
+ * the consumer's optional block skip the cross-subdomain config — useful
+ * when a deploy points at an internal host that isn't part of the apex.
+ *
+ * Exported for unit testing — see `tests/app-stack.test.ts`.
  */
-function deriveCookieDomain(host: string): string {
+export function deriveCookieDomain(host: string): string {
   const labels = host.split(".")
   if (labels.length < 2) return ""
   const apex = labels.slice(-2).join(".")
@@ -280,14 +282,18 @@ export class AppStack extends Stack {
 
     const taskDef = new FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
-      // 2048: 7 containers reserve 1736 MiB total. Observed MemoryUtilized
-      // peak ~327 MiB over the first 7 days of running (admin/web mostly
-      // idle), so 2048 leaves ~310 MiB above the reservation sum and ~6x
-      // headroom on observed usage. Next valid notch at cpu=512 is 1024
-      // (below reservations — would force evictions) or 3072 (the prior
-      // setting, $3.50/mo more gross at arm64). Re-check MemoryUtilized
-      // 24-48h after first real traffic. CPU stays the watch item —
-      // see ADR-0008 amendment.
+      // 2048: the 7 long-running containers reserve 1736 MiB total. Three
+      // init containers (db-migrate 64, openfga-migrate 64,
+      // openfga-bootstrap 128) push the boot-time peak to ~1992 MiB
+      // before the inits exit — 56 MiB below the limit. Observed
+      // MemoryUtilized peak ~327 MiB over the first 7 days of running
+      // (admin/web mostly idle), so 2048 leaves ~310 MiB above the
+      // steady-state reservation sum and ~6x headroom on observed usage.
+      // Next valid notch at cpu=512 is 1024 (below reservations — would
+      // force evictions) or 3072 (the prior setting, $3.50/mo more
+      // gross at arm64). Re-check MemoryUtilized 24-48h after first
+      // real traffic. CPU stays the watch item — see ADR-0008
+      // amendment.
       memoryLimitMiB: 2048,
       runtimePlatform: {
         cpuArchitecture: CpuArchitecture.ARM64,
@@ -677,11 +683,14 @@ export class AppStack extends Stack {
     // Next.js standalone server on port 3100. essential:false so a
     // crash-looping admin does NOT fail the whole task (web + api stay up).
     //
-    // It runs its own Better Auth wiring under the admin origin, so the
-    // session cookie is host-scoped — admin login is independent of web.
-    // Same shared signing secrets as web (sessions/tokens must verify across
-    // both). Access is gated solely in-app by the ADMIN_WORKSPACE_ALLOWLIST
-    // check (apps/admin/app/(gated)/layout.tsx) — no Cloudflare Access.
+    // It runs its own Better Auth wiring under the admin origin, but the
+    // session cookie scope is `.afframe.com` (set via
+    // `BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.adminDomain)`
+    // below), so an operator signed into `app.afframe.com` carries the
+    // session here automatically. Same shared signing secrets as web
+    // (sessions/tokens must verify across both). Access is gated solely
+    // in-app by the ADMIN_WORKSPACE_ALLOWLIST check
+    // (apps/admin/app/(gated)/layout.tsx) — no Cloudflare Access.
     //
     // adminOrigin is an explicit per-env host (ADMIN_DOMAIN), NOT derived
     // from props.domain: production admin is admin.afframe.com while web is

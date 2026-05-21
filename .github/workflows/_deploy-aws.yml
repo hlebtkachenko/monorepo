@@ -153,6 +153,31 @@ jobs:
           fi
           echo "All required deploy inputs present for env=${ENV_NAME}."
 
+  # Brand surface guard for production deploys only. Staging is allowed to
+  # ship with <BRAND-*> placeholders in i18n messages + constants so brand
+  # copy can be iterated against a real deploy without blocking; production
+  # must not. Kept in a dedicated job (not inside validate-inputs) so it
+  # has its own `contents: read` permission for actions/checkout — the
+  # validate-inputs job intentionally runs at `permissions: {}`.
+  brand-placeholder-guard:
+    needs: guard
+    if: needs.guard.outputs.go == 'true' && inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - name: Brand placeholder check
+        env:
+          CHECK_BRAND_STRICT: "true"
+        run: node scripts/check-brand-placeholders.mjs
+
   # Detect whether app source changed since the last successful deploy to
   # this environment. Outputs drive the `build-images` skip decision and
   # the IMAGE_TAG handed to `cdk deploy`. SSM Parameter Store
@@ -754,13 +779,23 @@ jobs:
           echo "Allowlisted: $(echo "$all_criticals" | tr '\n' ' ')"
 
   deploy:
-    needs: [guard, validate-inputs, detect-changes, deploy-prep, build-images]
+    needs:
+      [
+        guard,
+        validate-inputs,
+        brand-placeholder-guard,
+        detect-changes,
+        deploy-prep,
+        build-images,
+      ]
     # Run the deploy when guard is green AND (build-images succeeded OR was
     # skipped) AND deploy-prep succeeded (or was skipped on infra-only).
     # build-images is skipped for: infra-only, image_tag_override set, OR
     # detect-changes determined no app source changed. detect-changes is
     # skipped only on infra-only — its result must be success then.
-    # `needs.X.result` values: success | skipped | failure | cancelled.
+    # brand-placeholder-guard is skipped on staging (production-only); on
+    # production it must be success. `needs.X.result` values: success |
+    # skipped | failure | cancelled.
     #
     # The `!cancelled()` prefix is REQUIRED — without it GitHub Actions
     # applies an implicit `success()` over `needs:`, and a SKIPPED ancestor
@@ -772,6 +807,7 @@ jobs:
       !cancelled() &&
       needs.guard.outputs.go == 'true' &&
       needs.validate-inputs.result == 'success' &&
+      (needs.brand-placeholder-guard.result == 'success' || needs.brand-placeholder-guard.result == 'skipped') &&
       (needs.detect-changes.result == 'success' || needs.detect-changes.result == 'skipped') &&
       (needs.deploy-prep.result == 'success' || needs.deploy-prep.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')

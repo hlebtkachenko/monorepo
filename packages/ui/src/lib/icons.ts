@@ -112,7 +112,6 @@ export {
   UserIcon,
   UserPlus,
   Volume2,
-  WalletMinimal,
   Wifi,
   X,
   XCircle,

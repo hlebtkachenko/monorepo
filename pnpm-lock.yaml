@@ -192,6 +192,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -802,6 +805,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.13.24
         version: 3.13.24(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@workspace/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@workspace/shared':
         specifier: workspace:*
         version: link:../shared

@@ -93,6 +93,10 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 WORKDIR /app
 
 COPY --from=builder --chown=nestjs:nodejs /prod ./
+# Brand static assets — served by useStaticAssets() at runtime. pnpm deploy
+# does not include arbitrary non-source files in its default copy set, so
+# carry public/ across explicitly. Runtime resolves it via process.cwd().
+COPY --from=builder --chown=nestjs:nodejs /repo/apps/api/public ./public
 
 USER nestjs:nodejs
 EXPOSE 3001

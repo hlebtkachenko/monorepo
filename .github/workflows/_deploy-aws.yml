@@ -1008,15 +1008,17 @@ jobs:
           if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "Secret $NAME already exists — leaving value untouched."
           else
-            # tr -dc | head -c with bash `set -o pipefail` makes the
-            # whole pipeline fail: head closes its stdin after 44 bytes,
-            # tr writes to the closed pipe and exits non-zero (SIGPIPE).
-            # Read a fixed buffer from urandom first (head terminates by
-            # itself, no SIGPIPE source remains) then filter + truncate.
-            # 4096 bytes of urandom yields >2700 alphanumeric bytes after
-            # the [A-Za-z0-9] filter — far more than the 44 needed.
-            # First-prod-deploy failure mode verified in run 26210479351.
-            VALUE=$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 44)
+            # PR G replaced infinite /dev/urandom with a 4096-byte buffer
+            # to defuse the tr|head SIGPIPE. The remaining tr|head chain
+            # still relies on pipe-buffer timing — works today but is
+            # bash/kernel/locale-version dependent. node is already on the
+            # runner (used elsewhere in this workflow), zero new deps, no
+            # pipes: crypto.randomBytes(22).toString("hex") yields 44 hex
+            # chars [0-9a-f] (strict subset of the old [A-Za-z0-9] output —
+            # any consumer pattern-validating the secret still matches).
+            # 176 bits of entropy > 128-bit security floor for an HMAC key.
+            # First-prod-deploy SIGPIPE failure: run 26210479351.
+            VALUE=$(node -e 'process.stdout.write(require("crypto").randomBytes(22).toString("hex"))')
             echo "::add-mask::$VALUE"
             aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
             echo "Secret $NAME created with fresh 44-char value."
@@ -1235,6 +1237,60 @@ jobs:
             HOTSWAP_FLAGS+=(--hotswap-fallback)
           fi
 
+          # Production: cdk diff guard against destructive REPLACE of stateful
+          # resources. `--require-approval=never` (required for unattended CI)
+          # bypasses CDK's destructive-change prompt, so a typo'd construct-id
+          # rename on RDS/S3/KMS/Secret/IAM/DynamoDB/EFS/LogGroup would
+          # silently REPLACE the resource (e.g. RDS rename = new DB, data
+          # gone; S3 bucket rename = new bucket, files gone). Even RETAIN
+          # removal policy only blocks `cdk destroy`, not REPLACE-on-Update.
+          #
+          # The PR-L class (account-global name CREATE collision) also shows
+          # up here as `[+] AWS::CloudWatch::Dashboard` on a new logical id;
+          # we don't gate on that one because dashboards have no state, but
+          # the same diff machinery would catch it for the stateful set.
+          #
+          # Override: include `[allow-replace]` in the head commit message
+          # for a legitimately-intended rename. Staging is unfiltered (free
+          # to move).
+          if [ "$ENV_NAME" = "production" ]; then
+            echo "::group::cdk diff replace-guard (production)"
+            DIFF_FILE=$(mktemp)
+            # --method=change-set asks CloudFormation what would REPLACE on
+            # update (more accurate than the local template diff which can
+            # miss physical-replacement signals). Best-effort: pipe to tee +
+            # `|| true` so we don't abort on diff exit codes (cdk diff exits
+            # 1 when changes exist; we want the text, not the exit code).
+            pnpm --filter @workspace/cdk exec cdk diff "${STACKS[@]}" \
+              --exclusively \
+              --method=change-set \
+              --context "env=${ENV_NAME}" \
+              --context "imageTag=${IMAGE_TAG}" \
+              --context "webImageTag=${IMAGE_TAG_WEB}" \
+              --context "apiImageTag=${IMAGE_TAG_API}" \
+              --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
+              "${SECRET_CTX[@]}" 2>&1 | tee "$DIFF_FILE" || true
+            STATEFUL_TYPES='AWS::(RDS::DB(Instance|Cluster|ClusterParameterGroup|ParameterGroup|SubnetGroup)|S3::Bucket|KMS::Key|SecretsManager::Secret|IAM::(Role|User)|DynamoDB::Table|EFS::FileSystem|Logs::LogGroup)'
+            # `[~] <Type> <LogicalId> <PhysicalId> replace` = REPLACE-on-Update
+            # `[+] <Type>` = CREATE of a new logical id (catches typo'd renames
+            # of a stateful resource into a new construct id — the resource
+            # is detached from CFN's perspective, original retained but
+            # orphaned, new resource created alongside; for a stateful
+            # resource that's silent data loss).
+            REPLACE_LINES=$(grep -E "^\[~\] ${STATEFUL_TYPES}.* replace$|^\[\+\] ${STATEFUL_TYPES}\b" "$DIFF_FILE" || true)
+            echo "::endgroup::"
+            if [ -n "$REPLACE_LINES" ]; then
+              if git log -1 --pretty=%B | grep -qF '[allow-replace]'; then
+                echo "::warning::Destructive REPLACE detected on stateful resource(s) — proceeding because head commit has [allow-replace] override."
+                echo "$REPLACE_LINES"
+              else
+                echo "::error::Destructive REPLACE detected on stateful resource(s). Refusing to deploy. Add [allow-replace] to the head commit message to override (use ONLY for an intentional rename that you've audited)."
+                echo "$REPLACE_LINES"
+                exit 1
+              fi
+            fi
+          fi
+
           pnpm --filter @workspace/cdk exec cdk deploy "${STACKS[@]}" \
             --exclusively \
             --concurrency 3 \
@@ -1284,10 +1340,21 @@ jobs:
               echo "::warning::$label topic ARN empty — skipping subscription."
               return 0
             fi
-            # Look for an existing subscription (any status) where Endpoint
+            # Look for an existing CONFIRMED subscription where Endpoint
             # equals the operator email. ListSubscriptionsByTopic caps at
             # 100 results per page, so we paginate via NextToken until empty
             # to avoid creating duplicate subscriptions once the page fills.
+            #
+            # Status filter rationale: AWS retains cancelled subscriptions
+            # as `SubscriptionArn=="Deleted"` for up to 2 days, and
+            # unconfirmed ones as `"PendingConfirmation"` for up to 3 days
+            # (https://repost.aws/knowledge-center/sns-cannot-delete-topic-subscription).
+            # Without filtering both out, a stale entry counts as "already
+            # subscribed" and we'd silently skip re-subscribing — operator
+            # never gets a confirmation email and prod alerts go dark.
+            # PendingConfirmation is intentionally re-sent: re-issuing the
+            # confirmation costs one extra email; permanent un-subscribe
+            # would be invisible until something fails to page.
             local existing=0 next_token="" page match
             while :; do
               if [ -n "$next_token" ]; then
@@ -1295,7 +1362,7 @@ jobs:
               else
                 page=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --output json)
               fi
-              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e)] | length')
+              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e and .SubscriptionArn != "Deleted" and .SubscriptionArn != "PendingConfirmation")] | length')
               existing=$((existing + match))
               next_token=$(echo "$page" | jq -r '.NextToken // ""')
               [ -z "$next_token" ] && break
@@ -1516,8 +1583,7 @@ jobs:
             fi
           fi
           if [ "$TARGET_TD" = "$CURRENT_TD" ]; then
-            echo "::warning::Rollback target equals current revision ($TARGET_TD). Nothing to do — service already on last-known-good."
-            echo "::error::smoke failed; current revision IS the last-known-good. Investigate live state."
+            echo "::error::smoke failed but rollback target ($TARGET_TD) equals current — no earlier revision to roll to. Live state is the last-known-good; investigate logs (smoke probably hit a transient or external issue)."
             exit 1
           fi
           echo "Target last-known-good: $TARGET_TD"

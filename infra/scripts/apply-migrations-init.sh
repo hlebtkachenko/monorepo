@@ -89,9 +89,15 @@ echo "init: migrations applied=${applied} skipped=${skipped}"
 #    migration was just applied, app_user exists with a random/NULL
 #    password and CDK secret is the source of truth. Quote-escape the
 #    password by doubling any single-quote inside it before interpolating.
+#    IF EXISTS guard: bare `ALTER ROLE app_user` would crash with the
+#    misleading `role "app_user" does not exist` if 0002_auth.sql is ever
+#    renamed/removed in a future change. Step 1's `set -e` already aborts
+#    on a real migration failure; this guard turns the still-clean "role
+#    not yet provisioned" state into a NOTICE so step 3 (openfga schema)
+#    can still run.
 escaped_pw=${APP_USER_PASSWORD//\'/\'\'}
-"${PSQL_BASE[@]}" -c "ALTER ROLE app_user PASSWORD '${escaped_pw}'"
-echo "init: app_user role password synced from appUserSecret."
+"${PSQL_BASE[@]}" -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN EXECUTE format('ALTER ROLE app_user PASSWORD %L', '${escaped_pw}'); ELSE RAISE NOTICE 'app_user role missing — skipping password sync (0002_auth.sql expected to create it)'; END IF; END \$\$"
+echo "init: app_user role password sync attempted (skipped silently if role absent)."
 
 # 3. CREATE SCHEMA openfga so the sibling openfga-migrate container can
 #    apply its goose migrations into it. OpenFGA does NOT create the

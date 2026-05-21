@@ -1269,10 +1269,21 @@ jobs:
               echo "::warning::$label topic ARN empty — skipping subscription."
               return 0
             fi
-            # Look for an existing subscription (any status) where Endpoint
+            # Look for an existing CONFIRMED subscription where Endpoint
             # equals the operator email. ListSubscriptionsByTopic caps at
             # 100 results per page, so we paginate via NextToken until empty
             # to avoid creating duplicate subscriptions once the page fills.
+            #
+            # Status filter rationale: AWS retains cancelled subscriptions
+            # as `SubscriptionArn=="Deleted"` for up to 2 days, and
+            # unconfirmed ones as `"PendingConfirmation"` for up to 3 days
+            # (https://repost.aws/knowledge-center/sns-cannot-delete-topic-subscription).
+            # Without filtering both out, a stale entry counts as "already
+            # subscribed" and we'd silently skip re-subscribing — operator
+            # never gets a confirmation email and prod alerts go dark.
+            # PendingConfirmation is intentionally re-sent: re-issuing the
+            # confirmation costs one extra email; permanent un-subscribe
+            # would be invisible until something fails to page.
             local existing=0 next_token="" page match
             while :; do
               if [ -n "$next_token" ]; then
@@ -1280,7 +1291,7 @@ jobs:
               else
                 page=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --output json)
               fi
-              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e)] | length')
+              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e and .SubscriptionArn != "Deleted" and .SubscriptionArn != "PendingConfirmation")] | length')
               existing=$((existing + match))
               next_token=$(echo "$page" | jq -r '.NextToken // ""')
               [ -z "$next_token" ] && break

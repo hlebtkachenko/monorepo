@@ -56,7 +56,7 @@ Default: 100 requests / 60s per API key. Configurable via `THROTTLE_TTL` / `THRO
 - Spectral lint: `.spectral.yaml` at repo root.
 - CI: `.github/workflows/openapi-lint.yml` (advisory) — catches spec drift (re-emits + `git diff --exit-code`) and Spectral violations.
 - Spec served live at `api.afframe.com/v1/openapi.json` (same document, same path on staging under `api-staging.afframe.com`).
-- Interactive API reference (Scalar): `api.afframe.com/v1/docs` — see [`API-REFERENCE.md`](./API-REFERENCE.md) for the full rules + extension guide.
+- Interactive API reference (Scalar): `api.afframe.com/` — see [`API-REFERENCE.md`](./API-REFERENCE.md) for the full rules + extension guide. (`/v1/docs` 301-redirects here.)
 
 ## Build
 

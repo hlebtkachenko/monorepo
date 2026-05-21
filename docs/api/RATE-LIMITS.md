@@ -42,6 +42,7 @@ RateLimit-Reset: 32
     "code": "rate_limited",
     "error_type": "RATE_LIMITED",
     "message": "Rate limit exceeded for this API key. Retry after 32 seconds.",
+    // [Concept — contingent on future docs surface]
     "documentation_url": "https://api.afframe.com/docs/rate-limits",
     "requestId": "ab544b02-…"
   }

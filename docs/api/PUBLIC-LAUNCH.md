@@ -248,7 +248,7 @@ Concrete pass/fail items, derived from the rest of this doc. The gate fires when
 - [ ] `RateLimit-*` headers + `Retry-After` on 429.
 - [ ] Idempotency required on money-mutating POSTs.
 - [ ] `X-Request-Id` round-trips and appears in every error.
-- [ ] Plaid-shape error envelope live (`error_type`, `display_message`, `documentation_url`).
+- [ ] Plaid-shape error envelope live (`error_type`, `display_message`). `documentation_url` stays optional — pending docs surface.
 - [ ] Audit log table + retention.
 - [ ] `.gitleaks.toml` custom rules merged + advisory CI green (done in this change).
 - [ ] `/.well-known/security.txt` live on `afframe.com`.
@@ -256,7 +256,7 @@ Concrete pass/fail items, derived from the rest of this doc. The gate fires when
 - [ ] Deprecation policy ([`VERSIONING.md`](./VERSIONING.md)) published.
 - [ ] Status page lists `Public API`, `Webhooks`, `Auth`, `Docs` components.
 - [ ] Changelog page + RSS + JSON feeds live.
-- [ ] Narrative docs (Get Started, Auth, Errors, Rate limits, Pagination, Idempotency, Versioning, Webhooks, Sandbox) at `api.afframe.com/docs`.
+- [ ] Public launch rides on Scalar reference at `api.afframe.com/` + per-package npm READMEs (CLI, SDK, MCP). Narrative docs at a dedicated path are contingent on a future docs surface (per ADR-0024 amendment 2026-05-21).
 - [ ] `llms.txt` + per-page `.md` mirrors.
 
 ### Should-have

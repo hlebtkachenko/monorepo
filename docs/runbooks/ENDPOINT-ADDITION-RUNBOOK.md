@@ -19,10 +19,12 @@ $EDITOR apps/api/src/v1/v1.module.ts
 pnpm gen:all
 pnpm --filter @workspace/shared --filter api --filter @afframe/sdk --filter @afframe/mcp test
 
-# 4. Write the E2E test + changeset
+# 4. Write the E2E test
+
+# 5. Changeset
 pnpm changeset
 
-# 5. Verify everything
+# 6. Verify everything
 pnpm verify
 ```
 
@@ -171,10 +173,19 @@ it("404s when the invoice belongs to a different tenant", async () => {
 Confirms RLS isolation. Skipping this is the single most common cause
 of cross-tenant data leaks.
 
-## Step 6. Changeset + verify
+## Step 6. Changeset
 
 ```bash
 pnpm changeset      # describe the surface change
+```
+
+Add a `.changeset/` entry summarising the surface change (new endpoint,
+response field additions, etc.). `pnpm changeset status` fails the
+release pipeline if this is missing.
+
+## Step 7. Verify
+
+```bash
 pnpm verify         # typecheck + lint + test + boundaries + openapi-lint
 ```
 

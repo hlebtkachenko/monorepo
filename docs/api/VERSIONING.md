@@ -49,6 +49,8 @@ Sunset: Wed, 01 Jan 2027 00:00:00 GMT
 Link: <https://api.afframe.com/docs/migrations/v1-to-v2>; rel="deprecation"
 ```
 
+> **[Concept]** The `Link` header migration URL (`/docs/migrations/v1-to-v2`) is contingent on a future narrative docs surface. Use the Scalar reference at `api.afframe.com/` + changelog entries as the interim migration resource.
+
 - `Deprecation` — Unix timestamp when the deprecation was announced.
 - `Sunset` — RFC 7231 date when the endpoint will return `410 Gone`.
 - `Link` (rel=`deprecation`) — points to the migration guide.
@@ -112,6 +114,7 @@ Calls to removed endpoints return `410 Gone` with:
     "code": "endpoint_sunset",
     "error_type": "NOT_FOUND",
     "message": "GET /v1/legacy_invoices was sunset on 2027-01-01. Use GET /v1/invoices.",
+    // [Concept — contingent on future docs surface]
     "documentation_url": "https://api.afframe.com/docs/migrations/v1-to-v2",
     "requestId": "…"
   }

@@ -47,7 +47,7 @@ Backwards-compatible extension that adopts Plaid's richer shape:
 - `error_type` (UPPER_SNAKE) — high-level family. Drives generic UI handling for unknown codes.
 - `message` — developer-facing, English, machine-grep-friendly.
 - `display_message` — end-user-facing, localizable. Safe to surface verbatim in a partner's UI.
-- `documentation_url` — deep link into the docs Errors page. Anchor matches `code`.
+- `documentation_url` — **[Concept — not emitted today]** deep link into the docs Errors page. Anchor matches `code`. Field is optional on the schema; `DomainExceptionFilter` does not emit it until a docs surface exists.
 - `requestId` — round-trips with `X-Request-Id`.
 
 Optional `details` array carries field-level breakdown for validation failures:

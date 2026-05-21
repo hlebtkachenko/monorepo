@@ -18,15 +18,17 @@ This document is the **single source of truth** for everything about the docs su
 
 ## 1. Overview
 
-### What lives at `/v1/docs`
+### What lives at `/` (host root)
 
-A single-page, client-side rendered, OpenAPI-driven interactive reference. From a user's perspective:
+A single-page, client-side rendered, OpenAPI-driven interactive reference. This is the primary docs surface for `api.afframe.com`. From a user's perspective:
 
 - Browseable list of every public endpoint, grouped by `ApiTags`.
 - Per-operation: HTTP method, path, parameters, request body schema, response schema, error envelopes.
 - Live "Try it out" against the real `api.afframe.com` server (or staging), with the bearer token remembered for the session.
 - Code snippets in curl, Node (undici/fetch), JavaScript (fetch), Python, Go, and a dozen others — generated from the spec, no manual upkeep.
 - Light/dark mode, full-text search, deep-linkable URLs per operation.
+
+`GET /v1/docs` is a 301 redirect to `/`. Do not link to `/v1/docs` directly.
 
 ### What lives at `/v1/openapi.json`
 
@@ -39,7 +41,8 @@ NestJS controllers + Zod schemas
    ─► buildOpenApiDocument()  (apps/api/src/openapi.ts)
         ─► OpenAPI 3.1 document
               ├─► GET /v1/openapi.json  (raw spec, machine-readable)
-              └─► GET /v1/docs           (Scalar interactive UI, human-readable)
+              ├─► GET /                  (Scalar interactive UI, human-readable — primary)
+              └─► GET /v1/docs           (301 redirect → /)
 ```
 
 The same document feeds both routes. There is no second-source spec, no hand-written doc page, and no manual sync step.

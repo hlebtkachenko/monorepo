@@ -18,7 +18,7 @@ import {
   AuthAsideSubtitle,
   AuthAsideTop,
 } from "@workspace/ui/blocks/auth-aside"
-import { Logo } from "@workspace/ui/brand-assets"
+import { getBuildVersion, Logo } from "@workspace/ui/brand-assets"
 
 import { LanguagePicker } from "../_components/language-picker"
 import { AuthHeaderLinkProvider } from "./_components/auth-header-link"
@@ -77,7 +77,7 @@ export default async function AuthLayout({
           <AuthShellFooter>
             <div className="flex w-full flex-wrap items-center justify-between gap-3 text-sm">
               <span>
-                © {year} {brand}
+                © {year} {brand}. {getBuildVersion()}
               </span>
               <div className="flex items-center gap-4">
                 <Link

@@ -22,6 +22,7 @@ export type { LogoProps, LogoVariant, LogoTone } from "./logo"
 
 export * from "./text"
 export * from "./constants"
+export * from "./version"
 
 // Server-side helpers live in a separate entry so client bundles don't
 // drag in next-intl/server. Import from "@workspace/ui/brand-assets/server".

@@ -1,7 +1,11 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { getTranslations } from "@workspace/i18n/server"
-import { Logo, PARTNER_PLACEHOLDER_NAMES } from "@workspace/ui/brand-assets"
+import {
+  getBuildVersion,
+  Logo,
+  PARTNER_PLACEHOLDER_NAMES,
+} from "@workspace/ui/brand-assets"
 import {
   AuthShell,
   AuthShellAside,
@@ -57,7 +61,7 @@ export default async function AuthDefaultLayout({
           <AuthShellFooter>
             <div className="flex w-full flex-wrap items-center justify-between gap-3 text-sm">
               <span>
-                © {year} {brand}
+                © {year} {brand}. {getBuildVersion()}
               </span>
               <div className="flex items-center gap-4">
                 <Link

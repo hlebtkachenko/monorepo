@@ -62,6 +62,9 @@ import {
   BRAND_PHONE_SALES,
   BRAND_FOUNDED_YEAR,
   PARTNER_PLACEHOLDER_NAMES,
+
+  // Build version (server-side; reads BUILD_VERSION env)
+  getBuildVersion,
 } from "@workspace/ui/brand-assets"
 
 // Server-only helper for Metadata API / server actions / log lines
@@ -153,6 +156,24 @@ Non-localizable identifiers — emails, URLs, social handles, phone numbers. Sam
 <a href={`mailto:${BRAND_SUPPORT_EMAIL}`}>Contact support</a>
 <a href={BRAND_DOCS_URL}>Documentation</a>
 ```
+
+## Build version
+
+`getBuildVersion()` reads `process.env.BUILD_VERSION` (set at Docker image build time by `docker/metadata-action` in `_build-image.yml`) and formats it for display:
+
+- Tagged release → `v0.2.0`
+- Branch / sha build → `sha-abc1234`, `branch-main`
+- Local dev (env unset) → `dev`
+
+Server-only — the env is not in the client bundle. Used in every auth/onboarding footer so the deployed version is visible at a glance. For runtime client-side reads, use `GET /api/version` instead.
+
+```tsx
+<span>
+  © {year} <BrandName />. {getBuildVersion()}
+</span>
+```
+
+See `docs/conventions/RELEASES.md` for the full release flow + tag conventions.
 
 ## Placeholder pattern + production guard
 

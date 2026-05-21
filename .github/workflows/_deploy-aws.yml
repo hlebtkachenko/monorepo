@@ -1414,8 +1414,14 @@ jobs:
           FAMILY="${CURRENT_TD##*/}"
           FAMILY="${FAMILY%:*}"
           echo "Rolling back service=$SERVICE_NAME family=$FAMILY current=$CURRENT_TD"
-          PREV_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns[1]' --output text)
-          if [ -z "$PREV_TD" ] || [ "$PREV_TD" = "None" ]; then
+          # AWS CLI v2 quirk: `--max-items N --output text` appends the
+          # client-side-pagination NextToken on a NEW LINE after the query
+          # result. PREV_TD would then contain literally "ARN\nNone" and
+          # the next update-service call rejects it with "Invalid revision
+          # number" (verified live in run 26209592079, smoke rollback step).
+          # Switch to --output json + jq so the result is exactly one ARN.
+          PREV_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns' --output json | jq -r '.[1] // empty')
+          if [ -z "$PREV_TD" ] || [ "$PREV_TD" = "null" ]; then
             echo "::error::no previous ACTIVE task-def revision in family $FAMILY — cannot roll back automatically"
             exit 1
           fi

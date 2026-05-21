@@ -23,4 +23,9 @@ function main(): void {
   process.stdout.write("Wrote apps/api/openapi/v1.json\n")
 }
 
-main()
+try {
+  main()
+} catch (err) {
+  console.error(err)
+  process.exit(1)
+}

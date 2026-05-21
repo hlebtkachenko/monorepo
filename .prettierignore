@@ -11,6 +11,7 @@ storybook-static/
 # prettier's markdown emphasis parser mangles (snake_case -> snake*case).
 AGENTS.md
 CLAUDE.md
+CONTRIBUTING.md
 
 # Generated OpenAPI spec — emitted by `pnpm --filter api emit:openapi`
 # (JSON.stringify format). Prettier must not reformat it or the CI drift

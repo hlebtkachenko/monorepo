@@ -153,6 +153,20 @@ jobs:
           fi
           echo "All required deploy inputs present for env=${ENV_NAME}."
 
+      # Brand surface guard: production must not ship with <BRAND-*>
+      # placeholders left in i18n messages or constants. Staging is allowed
+      # to ship with placeholders so brand copy can be iterated against a
+      # real deploy without blocking. See scripts/check-brand-placeholders.mjs.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        if: env.ENV_NAME == 'production'
+        with:
+          persist-credentials: false
+      - name: Brand placeholder guard (production only)
+        if: env.ENV_NAME == 'production'
+        env:
+          CHECK_BRAND_STRICT: "true"
+        run: node scripts/check-brand-placeholders.mjs
+
   # Detect whether app source changed since the last successful deploy to
   # this environment. Outputs drive the `build-images` skip decision and
   # the IMAGE_TAG handed to `cdk deploy`. SSM Parameter Store

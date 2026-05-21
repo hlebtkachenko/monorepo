@@ -10,6 +10,7 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "knip": "knip",
+    "check:brand-placeholders": "node scripts/check-brand-placeholders.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "check:pr-title": "node scripts/check-pr-title.mjs",
     "prepare": "lefthook install --force || true"

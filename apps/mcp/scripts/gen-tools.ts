@@ -125,6 +125,12 @@ function main(): void {
     for (const method of HTTP_METHODS) {
       const op = pathItem[method]
       if (!op?.operationId) continue
+      // Skip non-GET methods for now. openapi-fetch requires `{ body }` as
+      // the second argument for POST/PUT/PATCH; wiring the body schema +
+      // MCP inputSchema is a separate feature (tracked in Linear). Until
+      // then, only read-only operations become MCP tools — they are the
+      // common case anyway (LLMs reading state, not writing it).
+      if (method !== "get") continue
       const out = emitTool(op.operationId, method, path, op)
       writeFileSync(resolve(OUT_DIR, `${op.operationId}.ts`), out)
       registered.push({

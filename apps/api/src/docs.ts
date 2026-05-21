@@ -1,7 +1,58 @@
+import { readFileSync } from "node:fs"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import type { INestApplication } from "@nestjs/common"
 import { apiReference } from "@scalar/nestjs-api-reference"
 import type { Request, Response } from "express"
 import type { ApiOpenApiDocument } from "./openapi"
+
+/**
+ * Brand SVG inlined at boot so the brand-assets directory in
+ * packages/ui stays the single source of truth. Resolves relative to
+ * this file rather than process.cwd() so the bundle works both in dev
+ * (cwd = apps/api) and in the production image (the brand-assets
+ * package is bundled by webpack as referenced source). Read errors
+ * fail open: the page renders without a logo rather than failing the
+ * route. The width:height proportion in customCss assumes the
+ * horizontal logo; the SVGs in source/primary-{light,dark}/ are
+ * 1194 × 242 (≈ 4.93:1).
+ */
+function readBrandSvg(variant: "primary-light" | "primary-dark"): string {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url))
+    const path = resolve(
+      here,
+      "../../../packages/ui/src/brand-assets/source",
+      variant,
+      "horizontal.svg",
+    )
+    return readFileSync(path, "utf8")
+  } catch {
+    return ""
+  }
+}
+
+const BRAND_LIGHT_SVG_DATA_URI = encodeBrandSvgDataUri("primary-light")
+const BRAND_DARK_SVG_DATA_URI = encodeBrandSvgDataUri("primary-dark")
+
+function encodeBrandSvgDataUri(
+  variant: "primary-light" | "primary-dark",
+): string {
+  const svg = readBrandSvg(variant)
+  if (!svg) return ""
+  // URL-encoded data URI (not base64) — smaller payload and lets the
+  // browser cache the SVG path-by-path. Each `#` and `<` must be escaped
+  // so the URI survives CSS parsing.
+  const encoded = svg
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/"/g, "'")
+    .replace(/#/g, "%23")
+    .replace(/</g, "%3C")
+    .replace(/>/g, "%3E")
+    .trim()
+  return `url("data:image/svg+xml;charset=utf-8,${encoded}")`
+}
 
 /**
  * Public API docs routes for the `/v1` surface.
@@ -23,36 +74,189 @@ import type { ApiOpenApiDocument } from "./openapi"
  */
 
 /**
- * shadcn-aligned CSS variables. This page renders outside Next.js, so the
- * tokens can't be shared from `packages/ui`; the values mirror our `:root`
- * + `.dark` palette in `app/globals.css`. Update both files together if the
- * brand palette moves.
+ * Brand-aligned CSS variables. This page renders outside Next.js so the
+ * tokens can't be shared from `packages/ui`; the values mirror the brand
+ * palette extracted from `packages/ui/src/brand-assets/source/*.svg`:
+ *
+ *   --primary-green : #009473  (logomark, primary-light)
+ *   --accent-green  : #28DCB1  (primary-dark accent)
+ *   --ink           : #0A1F1A  (dark text on light)
+ *
+ * Neutrals mirror our shadcn palette (`packages/ui/src/styles/globals.css`).
+ * If the brand palette moves, update brand-assets first and reflect here.
+ *
+ * Additional CSS rules hide Scalar's workspace topbar (Configure / Share /
+ * Deploy buttons) which we don't use — those are Scalar Cloud features
+ * (see ADR-0024 Amendment, no Cloud Scalar). Selectors are best-effort
+ * against Scalar v1.1.16's DOM; refine if Scalar changes its class names.
  */
 const CUSTOM_CSS = `
-.light-mode {
-  --scalar-color-1: hsl(222.2 47.4% 11.2%);
-  --scalar-color-2: hsl(215.4 16.3% 46.9%);
-  --scalar-color-3: hsl(215.4 16.3% 56.9%);
-  --scalar-color-accent: hsl(221.2 83.2% 53.3%);
-  --scalar-background-1: hsl(0 0% 100%);
-  --scalar-background-2: hsl(210 40% 98%);
-  --scalar-background-3: hsl(210 40% 94%);
-  --scalar-border-color: hsl(214.3 31.8% 91.4%);
+/*
+ * Brand color tokens. Scalar wraps its UI in .scalar-app and applies
+ * its own theme inside :where() (specificity 0). Our overrides target
+ * .light-mode and .dark-mode at the same scope plus :root as a
+ * belt-and-braces fallback for any element that escapes the scoping.
+ * Without the duplication the Scalar default theme wins on some
+ * cascade paths.
+ */
+:root,
+.light-mode,
+.scalar-app.light-mode,
+.scalar-app .light-mode {
+  --scalar-color-1: #0A1F1A;
+  --scalar-color-2: #475569;
+  --scalar-color-3: #64748b;
+  --scalar-color-accent: #009473;
+  --scalar-background-1: #ffffff;
+  --scalar-background-2: #f8fafc;
+  --scalar-background-3: #f1f5f9;
+  --scalar-border-color: #e2e8f0;
 }
-.dark-mode {
-  --scalar-color-1: hsl(210 40% 98%);
-  --scalar-color-2: hsl(215 20.2% 65.1%);
-  --scalar-color-3: hsl(215 20.2% 55.1%);
-  --scalar-color-accent: hsl(217.2 91.2% 59.8%);
-  --scalar-background-1: hsl(222.2 84% 4.9%);
-  --scalar-background-2: hsl(217.2 32.6% 12%);
-  --scalar-background-3: hsl(217.2 32.6% 17.5%);
-  --scalar-border-color: hsl(217.2 32.6% 17.5%);
+.dark-mode,
+.scalar-app.dark-mode,
+.scalar-app .dark-mode {
+  --scalar-color-1: #F3F4F6;
+  --scalar-color-2: #94a3b8;
+  --scalar-color-3: #64748b;
+  --scalar-color-accent: #28DCB1;
+  --scalar-background-1: #0A1F1A;
+  --scalar-background-2: #0f2823;
+  --scalar-background-3: #143630;
+  --scalar-border-color: #1f3b34;
 }
 .scalar-app {
   font-family:
     -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Hide Scalar workspace topbar elements (Configure / Share / Deploy /
+ * Ask AI). The Ask AI button is also disabled in config via
+ * \`agent.disabled\`; this CSS is a belt-and-braces for any version
+ * where the agent flag doesn't suppress the rendered button.
+ */
+.scalar-app [data-action="share"],
+.scalar-app [data-action="deploy"],
+.scalar-app [data-action="configure"],
+.scalar-app [data-feature="ask-ai"],
+.scalar-app .ask-ai-button,
+.scalar-app .scalar-topbar-actions,
+.scalar-app .scalar-workspace-actions {
+  display: none !important;
+}
+
+/*
+ * Top navbar — rendered ABOVE Scalar's UI via HTML injection at the
+ * start of the document body. (Comment text deliberately avoids the
+ * literal lt-body-gt HTML tag string because the response-wrap regex
+ * in registerDocsRoutes matches the FIRST occurrence in the response
+ * — a comment that mentioned the tag was the bug that prevented the
+ * navbar from rendering once.) Mirrors the Next.js "host layout owns
+ * the nav" pattern documented at
+ * https://scalar.com/products/api-references/integrations/nextjs:
+ * Scalar's React component renders inside a parent layout that owns
+ * the navbar. We can't import the React component into a NestJS host,
+ * so we inject the topbar as plain HTML around Scalar's static
+ * response — same shape, different mechanism.
+ *
+ * Layout: 64px tall, sticky to viewport top, brand mark left, links
+ * right. Body padding-top pushes Scalar's content below so the navbar
+ * never overlaps the reference.
+ */
+body {
+  padding-top: 64px;
+}
+.afframe-topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  z-index: 1000;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+.dark-mode .afframe-topnav,
+html.dark .afframe-topnav {
+  background: #0A1F1A;
+  border-bottom-color: #1f3b34;
+}
+.afframe-topnav-brand {
+  display: flex;
+  align-items: center;
+}
+.afframe-topnav-brand a {
+  display: block;
+  width: 200px;
+  height: 40px;
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: contain;
+  text-indent: -9999px;
+}
+.afframe-topnav-brand a.light {
+  background-image: ${BRAND_LIGHT_SVG_DATA_URI || 'url("/favicon.svg")'};
+}
+.afframe-topnav-brand a.dark {
+  background-image: ${BRAND_DARK_SVG_DATA_URI || 'url("/favicon.svg")'};
+  display: none;
+}
+.dark-mode .afframe-topnav-brand a.light,
+html.dark .afframe-topnav-brand a.light {
+  display: none;
+}
+.dark-mode .afframe-topnav-brand a.dark,
+html.dark .afframe-topnav-brand a.dark {
+  display: block;
+}
+.afframe-topnav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.afframe-topnav-links a {
+  display: inline-block;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0A1F1A;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 0;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.afframe-topnav-links a:hover {
+  background: #009473;
+  color: #ffffff;
+  border-color: #009473;
+}
+.dark-mode .afframe-topnav-links a,
+html.dark .afframe-topnav-links a {
+  color: #F3F4F6;
+}
+.dark-mode .afframe-topnav-links a:hover,
+html.dark .afframe-topnav-links a:hover {
+  background: #28DCB1;
+  color: #0A1F1A;
+  border-color: #28DCB1;
+}
+
+/* Push Scalar's own sidebar / topbar down below our navbar. Without
+ * this, Scalar paints its sticky header behind/under the topnav.
+ * Scalar's confirmed sidebar class is \`.t-doc__sidebar\` (verified
+ * against @scalar/nestjs-api-reference v1.1.16). */
+.scalar-app .t-doc__sidebar,
+.scalar-app aside[class*="sidebar"],
+.scalar-app .sidebar {
+  top: 64px !important;
 }
 `
 
@@ -86,58 +290,119 @@ export function registerDocsRoutes(
     res.redirect(301, "/")
   })
 
+  // Top navbar injected at the start of <body>, ABOVE Scalar's UI.
+  // Mirrors the Next.js "host layout owns the nav" pattern documented
+  // at https://scalar.com/products/api-references/integrations/nextjs
+  // — Scalar's React component renders inside a parent layout that
+  // owns the navbar. We can't host the React component in NestJS, so
+  // the topnav rides as plain HTML around Scalar's response. Brand
+  // mark left, custom links right. See customCss above for the
+  // styling + body padding-top offset.
+  const injectedHtml = `
+    <header class="afframe-topnav" role="navigation" aria-label="Afframe">
+      <div class="afframe-topnav-brand">
+        <a class="light" href="https://afframe.com" target="_blank" rel="noreferrer noopener">Afframe</a>
+        <a class="dark" href="https://afframe.com" target="_blank" rel="noreferrer noopener">Afframe</a>
+      </div>
+      <nav class="afframe-topnav-links" aria-label="Afframe quick links">
+        <a href="https://docs.afframe.com/developer" target="_blank" rel="noreferrer noopener">Open Developer Docs</a>
+        <a href="mailto:support+feedback@afframe.com?subject=%5Bbug%5D%20" target="_blank" rel="noreferrer noopener">Report a bug</a>
+      </nav>
+    </header>
+  `
+
   // Bind Scalar to GET `/` exactly. Using `app.use("/", apiReference(...))`
   // would catch every request — the Scalar handler responds unconditionally
   // (no `next()` call), so it would intercept `/v1/ping`, `/api/health`,
   // and every other route, silently breaking the entire API surface.
-  adapter.get(
-    "/",
-    apiReference({
-      content: document,
-      pageTitle: "Afframe Public API · Reference",
-      theme: "default",
-      layout: "modern",
-      persistAuth: true,
-      defaultOpenAllTags: true,
-      hideDarkModeToggle: false,
-      showOperationId: false,
-      authentication: {
-        preferredSecurityScheme: "bearer",
-      },
-      defaultHttpClient: {
-        targetKey: "shell",
-        clientKey: "curl",
-      },
-      // Prune verbose generated snippets we don't write docs for. Keeps the
-      // request-builder dropdown to languages the SDK / CLI actually back.
-      hiddenClients: {
-        c: true,
-        clojure: true,
-        csharp: true,
-        dart: true,
-        fsharp: true,
-        kotlin: true,
-        objc: true,
-        ocaml: true,
-        powershell: true,
-        r: true,
-        swift: true,
-      },
-      // Servers are intentionally NOT set here. Scalar inherits them from
-      // the OpenAPI document's `servers` array (registered in
-      // `packages/shared/src/api/registry.ts`), so the spec is the single
-      // source of truth — no chance of the docs page and the spec drifting.
-      metaData: {
-        title: "Afframe Public API · Reference",
-        description:
-          "Self-hosted accounting API for Czech regulated workflows. Stripe-shape REST, Plaid-shape errors, IETF RateLimit headers.",
-        ogTitle: "Afframe Public API",
-        ogDescription: "Public REST API for the Afframe accounting platform.",
-        ogImage: "https://api.afframe.com/og.png",
-        twitterCard: "summary_large_image",
-      },
-      mcp: mcpConfig(),
-      customCss: CUSTOM_CSS,
-    }),
-  )
+  const scalarHandler = apiReference({
+    content: document,
+    pageTitle: "Afframe Public API · Reference",
+    theme: "default",
+    layout: "modern",
+    persistAuth: true,
+    defaultOpenAllTags: true,
+    hideDarkModeToggle: false,
+    showOperationId: false,
+    // Workspace + AI features off — we run Scalar OSS without Cloud
+    // integration (ADR-0024 Amendment 2026-05-21). Agent.disabled
+    // hides the Ask AI button (otherwise enabled by default on
+    // localhost with 10 free messages). showDeveloperTools "never"
+    // hides the top-right Developer Tools button. hideClientButton
+    // hides the bottom-left "Open API Client" launcher.
+    agent: { disabled: true },
+    showDeveloperTools: "never",
+    hideClientButton: true,
+    authentication: {
+      preferredSecurityScheme: "bearer",
+    },
+    defaultHttpClient: {
+      targetKey: "shell",
+      clientKey: "curl",
+    },
+    // Prune verbose generated snippets we don't write docs for. Keeps the
+    // request-builder dropdown to languages the SDK / CLI actually back.
+    hiddenClients: {
+      c: true,
+      clojure: true,
+      csharp: true,
+      dart: true,
+      fsharp: true,
+      kotlin: true,
+      objc: true,
+      ocaml: true,
+      powershell: true,
+      r: true,
+      swift: true,
+    },
+    // Servers are intentionally NOT set here. Scalar inherits them from
+    // the OpenAPI document's `servers` array (registered in
+    // `packages/shared/src/api/registry.ts`), so the spec is the single
+    // source of truth — no chance of the docs page and the spec drifting.
+    metaData: {
+      title: "Afframe Public API · Reference",
+      description:
+        "Self-hosted accounting API for Czech regulated workflows. Stripe-shape REST, Plaid-shape errors, IETF RateLimit headers.",
+      ogTitle: "Afframe Public API",
+      ogDescription: "Public REST API for the Afframe accounting platform.",
+      ogImage: "https://api.afframe.com/og.png",
+      twitterCard: "summary_large_image",
+    },
+    mcp: mcpConfig(),
+    customCss: CUSTOM_CSS,
+  })
+
+  adapter.get("/", (req: Request, res: Response) => {
+    // Wrap res.send so we can splice our injectedHtml into Scalar's HTML
+    // response immediately after the body open tag. Inserts at start of
+    // body so the navbar lands ABOVE Scalar's mount point in the DOM —
+    // Scalar's UI is then offset downward via the body padding-top rule
+    // in customCss.
+    //
+    // The regex matches `</head>` + whitespace + `<body...>` as a single
+    // unit. Anchoring on `</head>` is critical — a bare `<body>` regex
+    // would also match literal text inside a CSS or HTML comment (we
+    // hit this bug: the customCss block mentioned the body tag in
+    // prose and got the injection spliced into the style block).
+    //
+    // Scalar's middleware (verified against
+    // @scalar/nestjs-api-reference v1.1.16 source: signature is
+    // (req, res) => void, no next) calls res.send(html) synchronously
+    // — wrapping res.send BEFORE the middleware runs is the safe
+    // pattern. If Scalar ever switches to res.write + res.end the
+    // wrap becomes a no-op and the topnav just doesn't show —
+    // degrades gracefully without breaking the page.
+    const origSend = res.send.bind(res)
+    res.send = (body: unknown): Response => {
+      if (typeof body === "string") {
+        const match = body.match(/<\/head>\s*<body[^>]*>/i)
+        if (match) {
+          const patched = body.replace(match[0], `${match[0]}${injectedHtml}`)
+          return origSend(patched)
+        }
+      }
+      return origSend(body)
+    }
+    scalarHandler(req, res)
+  })
 }

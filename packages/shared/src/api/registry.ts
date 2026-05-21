@@ -11,9 +11,19 @@ import {
   PingResponseSchema,
 } from "./common"
 import {
+  CreateFeedbackRequestSchema,
+  CreateFeedbackResponseSchema,
+  FeedbackTypeSchema,
+} from "./feedback"
+import {
   GetOrganizationResponseSchema,
   OrganizationSummarySchema,
 } from "./organizations"
+import {
+  ComponentStatusSchema,
+  ServiceStatusSchema,
+  StatusResponseSchema,
+} from "./status"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
 
@@ -56,6 +66,18 @@ const GetOrganizationResponse = registry.register(
 registry.register("ApiError", ApiErrorSchema)
 registry.register("ApiPrincipal", ApiPrincipalSchema)
 registry.register("OrganizationSummary", OrganizationSummarySchema)
+const StatusResponse = registry.register("StatusResponse", StatusResponseSchema)
+registry.register("ServiceStatus", ServiceStatusSchema)
+registry.register("ComponentStatus", ComponentStatusSchema)
+const CreateFeedbackRequest = registry.register(
+  "CreateFeedbackRequest",
+  CreateFeedbackRequestSchema,
+)
+const CreateFeedbackResponse = registry.register(
+  "CreateFeedbackResponse",
+  CreateFeedbackResponseSchema,
+)
+registry.register("FeedbackType", FeedbackTypeSchema)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -235,6 +257,51 @@ registry.registerPath({
   },
 })
 
+registry.registerPath({
+  method: "get",
+  path: "/v1/status",
+  operationId: "getStatus",
+  summary: "Service status",
+  description:
+    "Returns the service health summary. Proxies `status.afframe.com` " +
+    "(OpenStatus) when reachable; otherwise synthesizes an operational " +
+    "fallback. Public — no API key required.",
+  tags: ["Status"],
+  responses: {
+    "200": {
+      description: "Service status snapshot.",
+      content: { "application/json": { schema: StatusResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/feedback",
+  operationId: "createFeedback",
+  summary: "Send feedback",
+  description:
+    "Submit a bug report, feature request, process issue, or question. " +
+    "The api forwards every submission to `support+feedback@afframe.com` " +
+    "and creates a Linear issue tagged with the feedback type. Public — " +
+    "no API key required.",
+  tags: ["Feedback"],
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: CreateFeedbackRequest } },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Feedback accepted for downstream dispatch.",
+      content: { "application/json": { schema: CreateFeedbackResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
 /**
  * Emit the full OpenAPI 3.1 document. The api process and the codegen
  * scripts both go through this single call — drop adapters here, not in
@@ -247,35 +314,97 @@ registry.registerPath({
  * `termsOfService` therefore omit `url` fields (no public hub to deep-link
  * to) and `externalDocs` is omitted entirely.
  */
-export function buildOpenApiDocument(
-  opts: { version?: string } = {},
-): OpenAPIDocument {
+/**
+ * API contract version. NOT tied to the monorepo's release tag or
+ * deployment artifact version — `info.version` in OpenAPI is the
+ * **contract** version. Stripe, GitHub, Twilio, Plaid all decouple
+ * the same way.
+ *
+ * Bump rules:
+ *   - PATCH (1.0.1) — backward-compat schema or wording fixes
+ *   - MINOR (1.1.0) — backward-compat additions (new endpoint, new
+ *                     optional field, new error code)
+ *   - MAJOR (2.0.0) — breaking change. Also bumps the URL prefix to
+ *                     `/v2/` and triggers an ADR + sunset window for `/v1/`.
+ *
+ * Edit this constant in the SAME commit that introduces the contract
+ * change. CI (`openapi-lint` Spectral rule) does not gate this today;
+ * code review is the enforcement.
+ *
+ * Documented in `docs/api/VERSIONING.md` and
+ * `docs/conventions/ENDPOINT-ADDITION.md`.
+ */
+export const API_VERSION = "1.0.0" as const
+
+/**
+ * Returns the list of `servers` for the OpenAPI spec. The staging entry
+ * is environment-gated — staging contributors opening
+ * `api-staging.afframe.com/` see staging as a server option, but the
+ * production spec at `api.afframe.com/` only advertises production.
+ * Keeps the public-facing surface focused; staging is dev-only.
+ */
+function resolveServers(): { url: string; description: string }[] {
+  const servers = [
+    { url: "https://api.afframe.com", description: "Production" },
+  ]
+  // `process` typed via globalThis cast — @workspace/shared is consumed by
+  // both Node (api, codegen) and browser-targeted bundles (sdk); avoiding
+  // @types/node here keeps the runtime contract neutral. APP_ENV is set on
+  // the api container; everywhere else it's `undefined` and we ship the
+  // production-only servers array.
+  const env = (
+    globalThis as {
+      process?: { env?: Record<string, string | undefined> }
+    }
+  ).process?.env?.APP_ENV?.toLowerCase()
+  if (env === "staging" || env === "development" || env === "test") {
+    servers.push({
+      url: "https://api-staging.afframe.com",
+      description: "Staging",
+    })
+  }
+  return servers
+}
+
+export function buildOpenApiDocument(): OpenAPIDocument {
   const generator = new OpenApiGeneratorV31(registry.definitions)
   return generator.generateDocument({
     openapi: "3.1.0",
     info: {
       title: "Afframe Public API",
-      version: opts.version ?? "0.0.0",
+      version: API_VERSION,
       description:
         "Public API for the Afframe accounting platform. Authenticate with " +
         "an API key as a bearer token in the form `affk_live_…` (production) " +
         "or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape " +
-        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers.",
+        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers." +
+        "\n\n" +
+        "Service status: [status.afframe.com](https://status.afframe.com) " +
+        "(programmatic at `GET /v1/status`).",
+      // Native Scalar OSS header badges only — `support` (info.contact)
+      // and `terms` (info.license). `info.termsOfService` is omitted on
+      // purpose: setting BOTH `license.url` and `termsOfService` renders
+      // two Terms badges in the header. The license.url is the clickable
+      // landing page; one badge is enough.
       contact: {
         name: "Afframe support",
         email: "support@afframe.com",
+        url: "mailto:support@afframe.com",
       },
       license: {
         name: "Proprietary — see Terms of Service",
+        url: "https://afframe.com/terms",
       },
     },
-    servers: [
-      { url: "https://api.afframe.com", description: "Production" },
-      { url: "https://api-staging.afframe.com", description: "Staging" },
-    ],
+    servers: resolveServers(),
     tags: [
       { name: "Meta", description: "Service metadata and auth smoke tests" },
       { name: "Organization", description: "The API key's own organization" },
+      { name: "Status", description: "Service status and component health" },
+      {
+        name: "Feedback",
+        description: "Send bug reports, requests, and questions",
+      },
     ],
   })
 }

@@ -16,6 +16,24 @@ Amendment 2026-05-21).
 - Staging mirrors at `*-staging.afframe.com`
 - Status: `status.afframe.com` (OVH VPS, not AWS)
 
+## Public API surface (apps/api)
+
+Single NestJS process on `:3001` serves these routes — full reference
+in [`docs/api/README.md`](api/README.md) and [`docs/api/API-REFERENCE.md`](api/API-REFERENCE.md):
+
+| Route              | Auth    | Purpose                                                            |
+| ------------------ | ------- | ------------------------------------------------------------------ |
+| `/`                | None    | Scalar API Reference — interactive developer docs                  |
+| `/v1/openapi.json` | None    | Canonical OpenAPI 3.1 spec                                         |
+| `/v1/docs`         | None    | 301 redirect to `/` (legacy bookmark)                              |
+| `/editor`          | None    | 302 redirect to `editor.scalar.com` pre-filled with the env's spec |
+| `/void/*`          | None    | Mock-server echo (no credentials echoed back) for SDK / CLI tests  |
+| `/api/health`      | None    | Container health probe (ECS + Cloudflare)                          |
+| `/v1/ping`         | API key | Connectivity smoke; returns the resolved principal                 |
+| `/v1/organization` | API key | Authenticated principal's organization summary                     |
+
+Domain endpoints (invoices, accounts, journal entries) land with AFF-71.
+
 ## Read these, in order
 
 1. **[AGENTS.md](../AGENTS.md)** — repo rules for AI agents. Architecture

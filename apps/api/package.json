@@ -27,6 +27,7 @@
     "@sentry/node": "^10.52.0",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
     "exceljs": "^4.4.0",

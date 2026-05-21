@@ -44,6 +44,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Service status
+         * @description Returns the service health summary. Proxies `status.afframe.com` (OpenStatus) when reachable; otherwise synthesizes an operational fallback. Public — no API key required.
+         */
+        get: operations["getStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send feedback
+         * @description Submit a bug report, feature request, process issue, or question. The api forwards every submission to `support+feedback@afframe.com` and creates a Linear issue tagged with the feedback type. Public — no API key required.
+         */
+        post: operations["createFeedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -157,6 +197,106 @@ export interface components {
              */
             fiscalYearStartMonth: number;
         };
+        /** @description Service status summary. Programmatic equivalent of status.afframe.com — cache for 30s on the client side. */
+        StatusResponse: {
+            /**
+             * @description Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.
+             * @example operational
+             * @enum {string}
+             */
+            status: "operational" | "degraded_performance" | "partial_outage" | "major_outage";
+            /** @description Per-component health snapshots. Empty array when the status page is offline and the api falls back to a synthesized response. */
+            components: {
+                /**
+                 * @description Component label, e.g. `Public API`, `Web app`, `Database`.
+                 * @example Public API
+                 */
+                name: string;
+                /**
+                 * @description Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.
+                 * @example operational
+                 * @enum {string}
+                 */
+                status: "operational" | "degraded_performance" | "partial_outage" | "major_outage";
+            }[];
+            /**
+             * Format: uri
+             * @description Canonical status page URL. Always `https://status.afframe.com` — included so SDK consumers can deep-link end users to the live page.
+             * @example https://status.afframe.com
+             */
+            statusPageUrl: string;
+            /**
+             * Format: date-time
+             * @description ISO-8601 timestamp of when this status was fetched.
+             * @example 2026-05-21T18:00:00.000Z
+             */
+            fetchedAt: string;
+            /**
+             * @description `openstatus` when the response came from the live status page; `fallback` when status.afframe.com was unreachable and the api synthesized an operational default.
+             * @example fallback
+             * @enum {string}
+             */
+            source: "openstatus" | "fallback";
+        };
+        /**
+         * @description Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.
+         * @example operational
+         * @enum {string}
+         */
+        ServiceStatus: "operational" | "degraded_performance" | "partial_outage" | "major_outage";
+        /** @description Per-component health entry. Mirrors the components shown on status.afframe.com. */
+        ComponentStatus: {
+            /**
+             * @description Component label, e.g. `Public API`, `Web app`, `Database`.
+             * @example Public API
+             */
+            name: string;
+            /**
+             * @description Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.
+             * @example operational
+             * @enum {string}
+             */
+            status: "operational" | "degraded_performance" | "partial_outage" | "major_outage";
+        };
+        /** @description Partner feedback submission. Idempotency is not enforced — duplicate submissions create duplicate Linear issues. Clients should rate-limit themselves to one submission per minute. */
+        CreateFeedbackRequest: {
+            /**
+             * @description Feedback category. `bug` = something broken; `request` = new feature ask; `issue` = process / UX / docs problem; `question` = support question that didn't fit the FAQ.
+             * @example bug
+             * @enum {string}
+             */
+            type: "bug" | "request" | "issue" | "question";
+            /**
+             * @description Free-form feedback text. 1–4000 characters. Markdown allowed but not rendered — the Linear issue treats this as plain text.
+             * @example The /v1/organization endpoint returned a 500 when my API key was created in the last 60 seconds. Retried after a minute and it worked.
+             */
+            message: string;
+            /**
+             * Format: email
+             * @description Optional contact email. If provided, support will reply here; otherwise the response is filed without a return path. Already-authenticated keys carry an org contact so this is purely for users who want a direct reply.
+             * @example dev@partner.example
+             */
+            email?: string;
+        };
+        /** @description Confirmation that feedback was accepted. Acceptance does NOT guarantee a reply — `question` submissions get one, the others are reviewed without acknowledgement unless an email is provided. */
+        CreateFeedbackResponse: {
+            /**
+             * @description Always `true` on a 2xx response. Confirms the api accepted the submission for downstream dispatch (email + Linear issue).
+             * @enum {boolean}
+             */
+            received: true;
+            /**
+             * @description Opaque submission reference. Quote this in any follow-up email — it links the support reply back to the Linear issue.
+             * @example fb_2ZdAk5x
+             */
+            referenceId: string;
+        };
+        /**
+         * @description Feedback category. `bug` = something broken; `request` = new feature ask; `issue` = process / UX / docs problem; `question` = support question that didn't fit the FAQ.
+         * @example bug
+         * @enum {string}
+         */
+        FeedbackType: "bug" | "request" | "issue" | "question";
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -330,6 +470,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetOrganizationResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service status snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Feedback accepted for downstream dispatch. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateFeedbackResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

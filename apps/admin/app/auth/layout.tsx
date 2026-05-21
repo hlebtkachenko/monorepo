@@ -18,7 +18,7 @@ import {
   AuthAsideSubtitle,
   AuthAsideTop,
 } from "@workspace/ui/blocks/auth-aside"
-import { WalletMinimal } from "@workspace/ui/lib/icons"
+import { Logo } from "@workspace/ui/brand-assets"
 
 import { LanguagePicker } from "../_components/language-picker"
 import { AuthHeaderLinkProvider } from "./_components/auth-header-link"
@@ -61,13 +61,12 @@ export default async function AuthLayout({
         <AuthShellLeft>
           <AuthShellHeader>
             <div className="flex w-full items-center justify-between gap-4">
-              <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
-                <WalletMinimal
-                  className="size-5 text-foreground"
-                  aria-hidden="true"
-                />
-                {brand}
-              </span>
+              <Logo
+                variant="horizontal"
+                tone="admin"
+                className="h-6 w-auto"
+                aria-label={brand}
+              />
               <AuthHeaderRight
                 defaultHref={tBrand("returnLinkHref")}
                 defaultLabel={tBrand("returnLinkLabel")}

@@ -47,3 +47,19 @@ export const BRAND_PHONE_SALES = "<BRAND-PHONE-SALES>"
 
 // Other
 export const BRAND_FOUNDED_YEAR = 2025
+
+/**
+ * Placeholder partner names shown in the auth/onboarding aside marquee
+ * until real partner brands are commissioned. Proper-noun strings — not
+ * translatable, not branded. Swap to `{ src, alt }[]` SVG items when
+ * real logos arrive (AuthAside.LogoMarquee already accepts that shape).
+ */
+export const PARTNER_PLACEHOLDER_NAMES = [
+  "Northwind",
+  "Helix",
+  "Atrium",
+  "Lumen",
+  "Parallel",
+  "Vantage",
+  "Cobalt",
+] as const

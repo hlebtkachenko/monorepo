@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@workspace/auth/server"
 import { getTranslations } from "@workspace/i18n/server"
-import { AUTH_ASIDE_LOGOS } from "@workspace/shared"
+import { Logo, PARTNER_PLACEHOLDER_NAMES } from "@workspace/ui/brand-assets"
 import {
   AuthShell,
   AuthShellAside,
@@ -23,8 +23,6 @@ import {
   AuthAsideTop,
 } from "@workspace/ui/blocks/auth-aside"
 import { Marquee } from "@workspace/ui/components/marquee"
-import { WalletMinimal } from "@workspace/ui/lib/icons"
-
 import { ArrowLeft } from "@workspace/ui/lib/icons"
 
 import { isDevPreview } from "@/lib/dev-preview"
@@ -65,13 +63,12 @@ export default async function AuthMfaLayout({
       <AuthShellLeft>
         <AuthShellHeader>
           <div className="flex w-full items-center justify-between gap-4">
-            <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
-              <WalletMinimal
-                className="size-5 text-foreground"
-                aria-hidden="true"
-              />
-              {brand}
-            </span>
+            <Logo
+              variant="horizontal"
+              tone="primary"
+              className="h-6 w-auto"
+              aria-label={brand}
+            />
             <Link
               href="/workspace/profile"
               className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -131,9 +128,9 @@ export default async function AuthMfaLayout({
                 pauseOnHover
                 repeat={3}
                 className="mt-2 [--duration:32s] [--gap:2.25rem]"
-                aria-label="Companies using Afframe"
+                aria-label={tAside("partnersLabel", { brand })}
               >
-                {AUTH_ASIDE_LOGOS.map((name) => (
+                {PARTNER_PLACEHOLDER_NAMES.map((name) => (
                   <span
                     key={name}
                     className="font-heading text-sm font-semibold tracking-tight opacity-70"

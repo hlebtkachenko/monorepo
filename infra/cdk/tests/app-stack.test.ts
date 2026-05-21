@@ -482,4 +482,84 @@ describe("AppStack Fargate hardening", () => {
       expect(tmpMount?.SourceVolume).toBe("tmp")
     }
   })
+
+  it("init chain: openfga-bootstrap dependsOn openfga-migrate; api dependsOn openfga-bootstrap", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      DependsOn?: Array<{ ContainerName?: string; Condition?: string }>
+    }>
+    const byName = Object.fromEntries(
+      containers.map((c) => [c.Name ?? "", c.DependsOn ?? []]),
+    )
+
+    expect(byName["openfga-bootstrap"]).toContainEqual({
+      ContainerName: "openfga-migrate",
+      Condition: "SUCCESS",
+    })
+    expect(byName["api"]).toContainEqual({
+      ContainerName: "openfga-bootstrap",
+      Condition: "SUCCESS",
+    })
+    // Sanity: web/admin do NOT wait on openfga-bootstrap (they don't read
+    // OPENFGA_* SSM params). Catches accidental over-wiring.
+    expect(
+      byName["web"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
+    ).toBe(false)
+    expect(
+      byName["admin"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
+    ).toBe(false)
+  })
+
+  it("TaskRole has ssm:PutParameter scoped to /monorepo/<env>/openfga/{store-id,model-id}", () => {
+    const policies = template.findResources("AWS::IAM::Policy")
+    const taskRolePolicy = Object.values(policies).find((p) => {
+      const stmts = (
+        p as {
+          Properties?: {
+            PolicyDocument?: {
+              Statement?: Array<{ Action?: string | string[] }>
+            }
+          }
+        }
+      ).Properties?.PolicyDocument?.Statement
+      return stmts?.some(
+        (s) =>
+          s.Action === "ssm:PutParameter" ||
+          (Array.isArray(s.Action) && s.Action.includes("ssm:PutParameter")),
+      )
+    }) as
+      | {
+          Properties?: {
+            PolicyDocument?: {
+              Statement?: Array<{
+                Action?: string | string[]
+                Resource?: string | string[]
+              }>
+            }
+          }
+        }
+      | undefined
+    expect(taskRolePolicy).toBeDefined()
+    const putStmt = taskRolePolicy?.Properties?.PolicyDocument?.Statement?.find(
+      (s) =>
+        s.Action === "ssm:PutParameter" ||
+        (Array.isArray(s.Action) && s.Action.includes("ssm:PutParameter")),
+    )
+    const resources = Array.isArray(putStmt?.Resource)
+      ? putStmt.Resource
+      : putStmt?.Resource
+        ? [putStmt.Resource]
+        : []
+    const joined = resources.join(",")
+    expect(joined).toContain("/monorepo/test/openfga/store-id")
+    expect(joined).toContain("/monorepo/test/openfga/model-id")
+    // Guardrail: no wildcards, no unrelated SSM paths.
+    expect(joined).not.toContain("*")
+    expect(resources.length).toBe(2)
+  })
 })

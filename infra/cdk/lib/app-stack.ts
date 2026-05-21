@@ -1227,7 +1227,6 @@ export class AppStack extends Stack {
         // can take ~10-15s. Lift the timeout in line with the other inits so
         // dependsOn-SUCCESS doesn't trip on slow boots.
         startTimeout: Duration.minutes(5),
-        command: [],
         logging: LogDriver.awsLogs({
           streamPrefix: "openfga-bootstrap",
           logGroup: openfgaBootstrapLogGroup,
@@ -1267,40 +1266,34 @@ export class AppStack extends Stack {
       condition: ContainerDependencyCondition.SUCCESS,
     })
 
-    // Every essential container waits for BOTH init containers to exit
-    // success before starting. Listed explicitly so a future container
-    // additions remember to wire the dep — workflow-lint catches this
-    // via cdk-synth-strict if a dep is missed (no, it doesn't — but a
-    // single missing dep would only fail on first-ever deploy of a new
-    // env; the staging path is already idempotent).
-    for (const c of [
+    // Essential-container dependsOn wiring. Three init containers run in
+    // a strict chain: db-migrate → openfga-migrate → openfga-bootstrap.
+    // Essentials wait on the appropriate prefix:
+    //   - All essentials need db-migrate (creates app_user role, schemas).
+    //   - openfga + api need openfga-migrate (goose schema tables exist).
+    //   - api alone needs openfga-bootstrap (its SSM-sourced OPENFGA_STORE_ID
+    //     + OPENFGA_MODEL_ID must resolve to the freshly-written values,
+    //     not the previous deploy's snapshot or the seed placeholders).
+    const allEssentials = [
       pgbouncerContainer,
       cerbosContainer,
       openfgaContainer,
       apiContainer,
       webContainer,
       adminContainer,
-    ]) {
+    ]
+    for (const c of allEssentials) {
       c.addContainerDependencies({
         container: dbMigrateContainer,
         condition: ContainerDependencyCondition.SUCCESS,
       })
     }
-    // Only openfga + api need openfga-migrate completion specifically
-    // (the others don't touch the openfga schema), but adding the dep
-    // everywhere is harmless and keeps the wiring uniform.
     for (const c of [openfgaContainer, apiContainer]) {
       c.addContainerDependencies({
         container: openfgaMigrateContainer,
         condition: ContainerDependencyCondition.SUCCESS,
       })
     }
-    // api reads OPENFGA_STORE_ID + OPENFGA_MODEL_ID from SSM at startup
-    // via EcsSecret.fromSsmParameter. ECS resolves those values when the
-    // api container starts. openfga-bootstrap writes them earlier in the
-    // init chain — api MUST wait for SUCCESS so the values it picks up
-    // are the real bootstrapped UUIDs, not the previous deploy's snapshot
-    // (or, on first deploy, the placeholder strings the operator seeded).
     apiContainer.addContainerDependencies({
       container: openfgaBootstrapContainer,
       condition: ContainerDependencyCondition.SUCCESS,

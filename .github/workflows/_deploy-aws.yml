@@ -503,8 +503,20 @@ jobs:
         # for AWS::Logs::LogGroup ... was not found' on the IAM policy
         # update. Pre-creating here lets CDK's GetAtt resolve to an
         # already-propagated ARN. Idempotent on the AWS side.
+        #
+        # First-deploy guard: skip when App-<env> stack does not exist yet.
+        # On first-ever deploy CDK's App stack creates these log groups
+        # via `new LogGroup(...)` with explicit names — if the workflow
+        # has already created them outside CFN the CDK create fails with
+        # ResourceAlreadyExistsException. Subsequent deploys hit the
+        # CloudControl race that this step was designed for, so the
+        # step still runs after the App stack exists.
         run: |
           set -euo pipefail
+          if ! aws cloudformation describe-stacks --stack-name "App-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "App-${ENV_NAME} stack does not exist yet — skipping log-group pre-create on first-deploy. CDK creates the log groups cleanly; next deploy this step runs (idempotent) for the CloudControl race fix."
+            exit 0
+          fi
           for svc in web admin api cloudflared pgbouncer cerbos openfga; do
             lg="/ecs/monorepo-${ENV_NAME}/${svc}"
             if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then

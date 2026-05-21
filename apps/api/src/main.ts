@@ -3,6 +3,7 @@ import { VersioningType } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
 import type { NestExpressApplication } from "@nestjs/platform-express"
 import * as Sentry from "@sentry/node"
+import express from "express"
 import helmet from "helmet"
 import { AppModule } from "./app.module"
 import { registerDocsRoutes } from "./docs"
@@ -42,6 +43,15 @@ async function bootstrap() {
       },
     }),
   )
+
+  // JSON + urlencoded body parsing for `/v1/*` POST endpoints. Nest's
+  // default body-parser registration depends on init order with the
+  // helmet/static-assets middleware; mounting explicitly here guarantees
+  // controller `@Body()` receives a parsed object. 100 KB matches the
+  // existing `/void/*` cap and is plenty for a feedback / future
+  // resource payload.
+  app.use(express.json({ limit: "100kb" }))
+  app.use(express.urlencoded({ extended: true, limit: "100kb" }))
 
   // Brand assets (favicon, manifest, PWA icons) served from apps/api/public.
   // Resolved against process.cwd() so it works both in dev (cwd = apps/api)

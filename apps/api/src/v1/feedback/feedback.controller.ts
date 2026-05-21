@@ -1,4 +1,6 @@
+import { randomBytes } from "node:crypto"
 import {
+  BadRequestException,
   Body,
   Controller,
   HttpCode,
@@ -7,6 +9,7 @@ import {
   Post,
   UseFilters,
 } from "@nestjs/common"
+import { CreateFeedbackRequestSchema } from "@workspace/shared/api"
 import { ApiCreatedResponse, ApiOperation, ApiTags } from "@nestjs/swagger"
 import { sendEmail } from "@workspace/email"
 import type {
@@ -45,9 +48,10 @@ const LINEAR_API = "https://api.linear.app/graphql"
 function generateReferenceId(): string {
   // 9 random bytes -> 12 base64url chars. Collision-free for any realistic
   // submission volume; the id is opaque (not used as a primary key).
-  const bytes = new Uint8Array(9)
-  crypto.getRandomValues(bytes)
-  const b64 = Buffer.from(bytes)
+  // node:crypto used directly so the symbol resolves cleanly under the
+  // webpack-bundled Nest build (the global `crypto` works in plain Node
+  // but webpack's externals handling can drop it).
+  const b64 = randomBytes(9)
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -150,9 +154,23 @@ export class FeedbackController {
   @ApiCreatedResponse({
     description: "Feedback accepted for downstream dispatch.",
   })
-  async create(
-    @Body() body: CreateFeedbackRequest,
-  ): Promise<CreateFeedbackResponse> {
+  async create(@Body() rawBody: unknown): Promise<CreateFeedbackResponse> {
+    // Validate the body shape explicitly. The global ZodValidationPipe in
+    // V1Module only fires when a controller parameter carries a
+    // createZodDto class type — interfaces alone do not, so guard here.
+    const parsed = CreateFeedbackRequestSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      this.logger.warn(
+        `[feedback] body rejected: ${JSON.stringify(rawBody)} issues=${JSON.stringify(parsed.error.issues)}`,
+      )
+      throw new BadRequestException({
+        code: "validation_error",
+        message: `Invalid feedback payload: ${parsed.error.issues
+          .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
+          .join("; ")}`,
+      })
+    }
+    const body: CreateFeedbackRequest = parsed.data
     const referenceId = generateReferenceId()
     const { subject, html, text } = buildEmail(body, referenceId)
 

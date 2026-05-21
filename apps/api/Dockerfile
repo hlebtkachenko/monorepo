@@ -61,11 +61,6 @@ RUN pnpm --filter api build
 # See ADR-0020.
 RUN pnpm --filter api --config.node-linker=hoisted deploy --prod --legacy /prod
 
-# Brand static assets — served by useStaticAssets() at runtime. pnpm deploy
-# does not include arbitrary non-source files in its default copy set, so
-# carry public/ across explicitly. Runtime resolves it via process.cwd().
-COPY --from=builder /repo/apps/api/public /prod/public
-
 # ---------- runner ----------
 FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim AS runner
 ARG BUILD_SHA=unknown
@@ -98,6 +93,10 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 WORKDIR /app
 
 COPY --from=builder --chown=nestjs:nodejs /prod ./
+# Brand static assets — served by useStaticAssets() at runtime. pnpm deploy
+# does not include arbitrary non-source files in its default copy set, so
+# carry public/ across explicitly. Runtime resolves it via process.cwd().
+COPY --from=builder --chown=nestjs:nodejs /repo/apps/api/public ./public
 
 USER nestjs:nodejs
 EXPOSE 3001

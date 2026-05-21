@@ -22,14 +22,8 @@
   ],
   "globalEnv": [
     "CI",
-    "HOME",
     "NODE_ENV",
     "TESTCONTAINERS_REUSE_ENABLE",
-    "AFFRAME_API_KEY",
-    "AFFRAME_API_BASE",
-    "AFFRAME_PROFILE",
-    "AFFRAME_MCP_URL",
-    "AFFRAME_OPENAPI_PATH",
     "BETTER_AUTH_COOKIE_DOMAIN"
   ],
   "remoteCache": {
@@ -55,7 +49,8 @@
       "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN"]
     },
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"]
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "env": ["HOME"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
@@ -90,7 +85,14 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "interruptible": true
+      "interruptible": true,
+      "env": [
+        "AFFRAME_API_KEY",
+        "AFFRAME_API_BASE",
+        "AFFRAME_PROFILE",
+        "AFFRAME_MCP_URL",
+        "PUBLIC_API_URL"
+      ]
     }
   }
 }

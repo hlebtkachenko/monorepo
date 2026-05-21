@@ -20,6 +20,11 @@ on:
         required: false
         type: boolean
         default: false
+      artifact-source:
+        description: "Name of the workflow artifact to download into the workspace before processing. Set when artifact-path is produced by a sibling job (e.g. release.yml's build job uploads as 'web-tarball'). When empty, the artifact must already exist in the checked-out tree."
+        required: false
+        type: string
+        default: ""
     outputs:
       sbom-artifact-name:
         description: "Name of the uploaded SBOM artifact"
@@ -50,6 +55,15 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
           persist-credentials: false
+
+      # Pull the upstream job's artifact into the workspace when this
+      # workflow is called cross-job (e.g. release.yml -> supply-chain).
+      # Without this, "Compute artifact digest" can't see the tarball
+      # and sha256sum fails with "No such file or directory".
+      - if: inputs.artifact-source != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.artifact-source }}
 
       - name: Compute artifact digest
         id: hash

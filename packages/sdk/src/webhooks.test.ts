@@ -15,7 +15,9 @@ import { verifyWebhook, WebhookVerificationError } from "./webhooks"
  *      fail (the whole point of signing).
  */
 
-const SECRET = "whsec_fixture_e2e_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+// Valid Standard Webhooks v1 secret: `whsec_` + base64 of 32 raw key bytes.
+// Decoded key is the ASCII string "afframe-webhook-test-key-32bytes".
+const SECRET = "whsec_YWZmcmFtZS13ZWJob29rLXRlc3Qta2V5LTMyYnl0ZXM="
 const ID = "msg_2ZdAk5x"
 const NOW_SEC = 1_700_000_000
 const TIMESTAMP = String(NOW_SEC)
@@ -25,19 +27,25 @@ async function expectedSignature(
   secret: string,
   message: string,
 ): Promise<string> {
+  // Mirrors `decodeSecret` in webhooks.ts: strip prefix, base64-decode to
+  // recover raw HMAC key bytes per Standard Webhooks v1.
+  const b64 = secret.slice("whsec_".length)
+  const bin = atob(b64)
+  const keyBytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) keyBytes[i] = bin.charCodeAt(i)
   const enc = new TextEncoder()
   const key = await crypto.subtle.importKey(
     "raw",
-    enc.encode(secret),
+    keyBytes,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
   )
   const buf = await crypto.subtle.sign("HMAC", key, enc.encode(message))
   const bytes = new Uint8Array(buf)
-  let bin = ""
-  for (const b of bytes) bin += String.fromCharCode(b)
-  return `v1,${btoa(bin)}`
+  let mac = ""
+  for (const b of bytes) mac += String.fromCharCode(b)
+  return `v1,${btoa(mac)}`
 }
 
 const now = () => NOW_SEC * 1000
@@ -152,6 +160,42 @@ describe("verifyWebhook (Standard Webhooks v1)", () => {
         now,
       }),
     ).rejects.toBeInstanceOf(WebhookVerificationError)
+  })
+
+  it("rejects a secret missing the whsec_ prefix", async () => {
+    await expect(
+      verifyWebhook({
+        payload: PAYLOAD,
+        headers: {
+          "webhook-id": ID,
+          "webhook-timestamp": TIMESTAMP,
+          "webhook-signature": "v1,XXXX",
+        },
+        secret: "raw-secret-without-prefix",
+        now,
+      }),
+    ).rejects.toMatchObject({
+      name: "WebhookVerificationError",
+      code: "invalid_secret",
+    })
+  })
+
+  it("rejects a secret whose payload is not valid base64", async () => {
+    await expect(
+      verifyWebhook({
+        payload: PAYLOAD,
+        headers: {
+          "webhook-id": ID,
+          "webhook-timestamp": TIMESTAMP,
+          "webhook-signature": "v1,XXXX",
+        },
+        secret: "whsec_not_base64!!!",
+        now,
+      }),
+    ).rejects.toMatchObject({
+      name: "WebhookVerificationError",
+      code: "invalid_secret",
+    })
   })
 
   it("rejects a non-numeric timestamp before any signature work", async () => {

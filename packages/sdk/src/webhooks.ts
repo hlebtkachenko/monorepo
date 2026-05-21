@@ -9,13 +9,16 @@
  *
  * Algorithm:
  *
- *   1. Concatenate `webhook-id`, ".", `webhook-timestamp`, ".", body.
- *   2. HMAC-SHA-256 the result with the partner's webhook secret.
- *   3. Base64-encode the digest, prefix with `v1,`.
- *   4. Compare every `v1,...` entry in `webhook-signature` (space-
+ *   1. Strip the `whsec_` prefix from the secret and base64-decode the
+ *      remainder to recover the raw HMAC key bytes (Standard Webhooks
+ *      stores secrets as `whsec_<base64-of-raw-key>`).
+ *   2. Concatenate `webhook-id`, ".", `webhook-timestamp`, ".", body.
+ *   3. HMAC-SHA-256 the concatenation with the raw key.
+ *   4. Base64-encode the digest, prefix with `v1,`.
+ *   5. Compare every `v1,...` entry in `webhook-signature` (space-
  *      separated) against the expected signature using constant-time
  *      comparison.
- *   5. Reject any payload whose timestamp drifts more than `toleranceSec`
+ *   6. Reject any payload whose timestamp drifts more than `toleranceSec`
  *      from now (default 5 minutes) — defends against replay.
  *
  * Implementation uses the Web Crypto API so it runs identically on Node,
@@ -46,6 +49,7 @@ export class WebhookVerificationError extends Error {
     | "stale_timestamp"
     | "invalid_signature"
     | "missing_header"
+    | "invalid_secret"
 
   constructor(code: WebhookVerificationError["code"], message: string) {
     super(message)
@@ -56,6 +60,7 @@ export class WebhookVerificationError extends Error {
 
 const DEFAULT_TOLERANCE_SEC = 300
 const SIG_VERSION_PREFIX = "v1,"
+const SECRET_PREFIX = "whsec_"
 
 export async function verifyWebhook(input: VerifyWebhookInput): Promise<void> {
   const id = input.headers["webhook-id"]
@@ -101,16 +106,38 @@ export async function verifyWebhook(input: VerifyWebhookInput): Promise<void> {
 }
 
 async function sign(secret: string, message: string): Promise<string> {
+  const keyBytes = decodeSecret(secret)
   const enc = new TextEncoder()
   const key = await crypto.subtle.importKey(
     "raw",
-    enc.encode(secret),
+    keyBytes,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
   )
   const buf = await crypto.subtle.sign("HMAC", key, enc.encode(message))
   return base64(new Uint8Array(buf))
+}
+
+function decodeSecret(secret: string): Uint8Array {
+  if (!secret.startsWith(SECRET_PREFIX)) {
+    throw new WebhookVerificationError(
+      "invalid_secret",
+      `Webhook secret must start with "${SECRET_PREFIX}" (Standard Webhooks v1).`,
+    )
+  }
+  const b64 = secret.slice(SECRET_PREFIX.length)
+  try {
+    const bin = atob(b64)
+    const out = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+    return out
+  } catch {
+    throw new WebhookVerificationError(
+      "invalid_secret",
+      "Webhook secret payload after the prefix is not valid base64.",
+    )
+  }
 }
 
 function base64(bytes: Uint8Array): string {

@@ -22,8 +22,9 @@ What makes a public-API endpoint good enough to merge. Pairs with
 
 ## Tenancy
 
-- **Never** declare `organization_id`, `workspace_id`, or `role` as
-  input. The server-side guard injects them from the API key.
+- **Never** declare `organization_id`, `user_id`, `workspace_id`, or
+  `role` as request input. The server-side guard injects all four from
+  the API-key principal.
 - Reads / writes go through `withWorkspace(…)`, `withOrganization(…)`,
   or `withAdminBypass(…)`. Raw queries violate RLS.
 - Cross-tenant existence is never leaked: a resource the caller can't

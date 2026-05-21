@@ -44,7 +44,12 @@ Before writing any code:
    parameters all forbid these.
 3. **Never inline error responses.** Always spread `ERROR_RESPONSE_REFS`
    into the operation's `responses` map.
-4. **Never skip the E2E test.** Cross-tenant isolation must be exercised.
+4. **Never skip the test triplet.** Per `docs/conventions/ENDPOINT-ADDITION.md`
+   "Tests" section, every new operation needs (a) an E2E test that
+   exercises cross-tenant isolation, (b) a per-error-code test for every
+   variant the operation can emit (`not_found`, `forbidden`,
+   `validation_error`, …), and (c) an SDK roundtrip test that calls the
+   endpoint through `@afframe/sdk`.
 
 ## Seven-step workflow
 
@@ -78,7 +83,9 @@ Refuse and report when:
 
 - The diff would hand-edit a `generated/` file.
 - The Zod schema declares `organization_id` / `user_id` / `workspace_id` / `role`.
-- The user wants to ship without an E2E test that exercises tenancy.
+- The user wants to ship without the test triplet (E2E tenancy test +
+  per-error-code tests + SDK roundtrip test) defined in
+  `docs/conventions/ENDPOINT-ADDITION.md`.
 - The change is breaking (per
   `docs/conventions/ENDPOINT-ADDITION.md` § Breaking changes) and no
   major SDK bump or deprecation window is planned.

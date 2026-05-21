@@ -6,6 +6,19 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.2.3] — 2026-05-21
+
+Supply-chain follow-up to v0.2.2. No app surface changes.
+
+### Fixed
+
+- `_supply-chain.yml` now **extracts the release tarball before SBOM scan**. v0.2.2's SBOM was 497 bytes with a single opaque "file" component because `anchore/sbom-action` was passed `file: <tarball>` and syft never descended into the archive. v0.2.3 unpacks the tarball into `sbom-target/`, then runs syft against the directory tree — the JS cataloger walks every `package.json` under `node_modules/` in the Next.js standalone bundle and emits the full component list. (#246, AFF-229)
+- `_supply-chain.yml` dropped the explicit `sbom.cdx.json.cosign.bundle` entry from the `gh release upload` list. The `./*.cosign.bundle` glob already matches it, and the duplicate listing raced with `--clobber` on v0.2.2 → HTTP 404 → the SBOM cosign signature never attached. (#246, AFF-229)
+
+### Added
+
+- `_supply-chain.yml` post-upload verification step. Asserts the GitHub Release has `sbom.cdx.json`, `sbom.cdx.json.cosign.bundle`, and `<package>-<version>.cosign.bundle` attached after the release-mode upload, fails the job if any is missing. Silent missing-asset bugs (as on v0.2.2) now fail loud instead of waiting for the next release attempt.
+
 ## [v0.2.2] — 2026-05-21
 
 CI + observability follow-ups to v0.2.0. No app surface changes.

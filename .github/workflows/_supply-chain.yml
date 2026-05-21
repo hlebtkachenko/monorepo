@@ -81,15 +81,33 @@ jobs:
 
       # 1. SBOM (CycloneDX 1.6) via syft
       #
-      # anchore/sbom-action's `path:` input scans a DIRECTORY (`syft dir:…`)
-      # and rejects a `.tar.gz` with "not a directory". For a single file
-      # artifact use `file:` — syft auto-handles `.tar.gz` decomposition.
-      # Surfaced on v0.2.1; PR #240 fixed the earlier sha256sum failure but
-      # this anchore/sbom-action call was still wrong. See AFF-229 follow-up.
+      # When artifact-path is a .tar.gz, extract it first so syft's JS
+      # cataloger can walk the unpacked node_modules tree and enumerate
+      # every package. Scanning the tarball directly (path: <file>.tar.gz)
+      # emits a single opaque "file" component with no package list —
+      # surfaced on v0.2.2's 497-byte SBOM. When artifact-path is already
+      # a directory, scan it as-is. See AFF-229 follow-up.
+      - name: Prepare SBOM scan target
+        id: scan
+        env:
+          ARTIFACT_PATH: ${{ inputs.artifact-path }}
+        run: |
+          set -euo pipefail
+          if [ -f "$ARTIFACT_PATH" ] && [[ "$ARTIFACT_PATH" == *.tar.gz ]]; then
+            mkdir -p sbom-target
+            tar -xzf "$ARTIFACT_PATH" -C sbom-target
+            if [ -z "$(find sbom-target -maxdepth 4 -name package.json -print -quit)" ]; then
+              echo "::warning::No package.json found under sbom-target — SBOM will be sparse."
+            fi
+            echo "target=sbom-target" >> "$GITHUB_OUTPUT"
+          else
+            echo "target=$ARTIFACT_PATH" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Generate SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
-          file: ${{ inputs.artifact-path }}
+          path: ${{ steps.scan.outputs.target }}
           format: cyclonedx-json
           artifact-name: sbom-${{ inputs.package-name }}-${{ inputs.version }}.cdx.json
           output-file: ./sbom.cdx.json
@@ -142,6 +160,13 @@ jobs:
           if-no-files-found: warn
 
       # 5. Release-mode: attach to the GitHub Release
+      #
+      # `./*.cosign.bundle` glob catches BOTH the SBOM signature
+      # (sbom.cdx.json.cosign.bundle) and the artifact signature
+      # (<package>-<version>.cosign.bundle). Do NOT list
+      # sbom.cdx.json.cosign.bundle explicitly — duplicating it with the
+      # glob raced with --clobber on v0.2.2 and the second occurrence
+      # returned HTTP 404, dropping the SBOM signature from the release.
       - name: Attach to release
         if: ${{ inputs.release-mode }}
         env:
@@ -151,9 +176,33 @@ jobs:
           set -euo pipefail
           gh release upload "$VERSION" \
             sbom.cdx.json \
-            sbom.cdx.json.cosign.bundle \
             ./*.cosign.bundle \
             --clobber
+
+      # 6. Sanity-check the GitHub Release got every expected asset.
+      # Silent missing-asset bugs (v0.2.2 dropped sbom.cdx.json.cosign.bundle)
+      # are caught here instead of in the next release attempt.
+      - name: Verify release assets
+        if: ${{ inputs.release-mode }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          PACKAGE_NAME: ${{ inputs.package-name }}
+        run: |
+          set -euo pipefail
+          assets=$(gh release view "$VERSION" --json assets --jq '.assets[].name')
+          echo "Attached assets:"
+          while IFS= read -r asset; do echo "  $asset"; done <<<"$assets"
+          for expected in \
+            "sbom.cdx.json" \
+            "sbom.cdx.json.cosign.bundle" \
+            "${PACKAGE_NAME}-${VERSION}.cosign.bundle"; do
+            if ! echo "$assets" | grep -Fxq "$expected"; then
+              echo "::error::Release $VERSION is missing required asset: $expected"
+              exit 1
+            fi
+          done
+          echo "All required supply-chain assets attached to $VERSION."
 
   license-check:
     runs-on: ubuntu-24.04

@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import localFont from "next/font/local"
 import { NextIntlClientProvider } from "next-intl"
@@ -7,11 +7,17 @@ import { getLocale, getMessages } from "next-intl/server"
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
+import { BRAND_ICONS, BRAND_THEME_COLOR } from "@workspace/ui/lib/brand"
 import { cn } from "@workspace/ui/lib/utils"
 
+export const viewport: Viewport = {
+  themeColor: BRAND_THEME_COLOR,
+}
+
 export const metadata: Metadata = {
-  title: "Admin",
+  title: { default: "Afframe Admin", template: "%s · Afframe Admin" },
   description: "Design system tools",
+  icons: BRAND_ICONS,
 }
 
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })

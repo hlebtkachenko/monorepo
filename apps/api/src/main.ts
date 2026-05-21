@@ -1,5 +1,7 @@
+import { join } from "node:path"
 import { VersioningType } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
+import type { NestExpressApplication } from "@nestjs/platform-express"
 import { SwaggerModule } from "@nestjs/swagger"
 import * as Sentry from "@sentry/node"
 import helmet from "helmet"
@@ -15,7 +17,12 @@ Sentry.init({
 })
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule)
+  const app = await NestFactory.create<NestExpressApplication>(AppModule)
+
+  // Brand assets (favicon, manifest, PWA icons) served from apps/api/public.
+  // Resolved against process.cwd() so it works both in dev (cwd = apps/api)
+  // and in the production image (cwd = /app, public copied via Dockerfile).
+  app.useStaticAssets(join(process.cwd(), "public"))
 
   // CSP stays enabled (helmet's strict defaults), with one relaxation:
   // SwaggerModule injects an inline initializer <script> on /v1/docs and
@@ -41,6 +48,8 @@ async function bootstrap() {
   const document = buildOpenApiDocument(app)
   SwaggerModule.setup("v1/docs", app, document, {
     jsonDocumentUrl: "v1/openapi.json",
+    customSiteTitle: "Afframe API",
+    customfavIcon: "/favicon.svg",
   })
 
   const port = Number(process.env.PORT ?? 3001)

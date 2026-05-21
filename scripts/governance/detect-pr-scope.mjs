@@ -10,7 +10,7 @@
  * keep this script aligned with that table.
  */
 
-import { execSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 
 const [base, head] = process.argv.slice(2)
 if (!base || !head) {
@@ -18,11 +18,27 @@ if (!base || !head) {
   process.exit(2)
 }
 
-const files = execSync(`git diff --name-only ${base}...${head}`, {
+// Validate SHA shape — git accepts short SHAs and refs, but in CI both
+// arguments come from `github.event.pull_request.{base,head}.sha`
+// which are always 40-char hex. Reject anything else so a hostile PR
+// title or branch name cannot reach the git command via this path.
+const SHA_RE = /^[0-9a-f]{7,40}$/i
+if (!SHA_RE.test(base) || !SHA_RE.test(head)) {
+  process.stderr.write(`refusing to run with non-SHA argv: ${base} ${head}\n`)
+  process.exit(2)
+}
+
+// spawnSync with an argv array — never a shell-interpolated template
+// literal — eliminates the command-injection vector even before the
+// SHA-shape validation above.
+const diff = spawnSync("git", ["diff", "--name-only", `${base}...${head}`], {
   encoding: "utf8",
 })
-  .split("\n")
-  .filter(Boolean)
+if (diff.status !== 0) {
+  process.stderr.write(`git diff exited ${diff.status}: ${diff.stderr}\n`)
+  process.exit(1)
+}
+const files = (diff.stdout ?? "").split("\n").filter(Boolean)
 
 const SCOPE_RULES = [
   {

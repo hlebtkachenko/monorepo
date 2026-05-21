@@ -15,7 +15,7 @@
  * Exits 0 silently when LINEAR_API_KEY is unset (workflow degrades).
  */
 
-import { execSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import { resolve } from "node:path"
 
 const [branch, prUrl, prTitle] = process.argv.slice(2)
@@ -36,9 +36,19 @@ const fetchScript = resolve(
   process.cwd(),
   "scripts/governance/linear-fetch.mjs",
 )
-const issueJson = execSync(`node ${fetchScript} "${branch}"`, {
+// spawnSync with argv array — never a shell-interpolated template
+// literal — so a branch name containing shell metacharacters cannot
+// inject a command. The branch name reaches this script verbatim from
+// the GitHub Actions context, which is operator-controlled in trusted
+// CI but the safe pattern costs nothing.
+const fetchResult = spawnSync("node", [fetchScript, branch], {
   encoding: "utf8",
-}).trim()
+})
+if (fetchResult.status !== 0) {
+  process.stderr.write(`linear-fetch.mjs exited ${fetchResult.status}\n`)
+  process.exit(0)
+}
+const issueJson = (fetchResult.stdout ?? "").trim()
 const issue = issueJson === "null" ? null : JSON.parse(issueJson)
 if (!issue) {
   process.stdout.write("No Linear issue linked to branch.\n")
@@ -49,16 +59,18 @@ const body = `PR: [${prTitle}](${prUrl})`
 
 const existing = await graphql(
   `
-    query IssueComments($id: String!) {
+    query IssueComments($id: String!, $needle: String!) {
       issue(id: $id) {
         id
-        comments(filter: { body: { contains: "${prUrl}" } }) {
-          nodes { id }
+        comments(filter: { body: { contains: $needle } }) {
+          nodes {
+            id
+          }
         }
       }
     }
   `,
-  { id: issue.identifier },
+  { id: issue.identifier, needle: prUrl },
 )
 const issueId = existing?.data?.issue?.id
 const commentId = existing?.data?.issue?.comments?.nodes?.[0]?.id

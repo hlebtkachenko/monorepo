@@ -377,15 +377,14 @@ export function buildOpenApiDocument(): OpenAPIDocument {
         "Public API for the Afframe accounting platform. Authenticate with " +
         "an API key as a bearer token in the form `affk_live_…` (production) " +
         "or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape " +
-        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers.",
-      // OpenAPI `info.contact` / `info.license` / `info.termsOfService` are
-      // the only header-badge slots Scalar OSS exposes from the spec.
-      // - contact.url → makes "Afframe support" a mailto link
-      // - license.url → makes the license badge clickable
-      // - termsOfService → adds a "Terms" link badge alongside the others
-      // Scalar Cloud has a free-form `navigation.header` array; OSS does
-      // not (ADR-0024 declined Cloud). Status surfaces via `externalDocs`
-      // below — Scalar OSS renders it as one extra clickable badge.
+        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers. " +
+        "Service status: [status.afframe.com](https://status.afframe.com) " +
+        "(programmatic at `GET /v1/status`).",
+      // Native Scalar OSS header badges only — `support` (info.contact)
+      // and `terms` (info.license). info.termsOfService gives the terms
+      // badge a clickable URL. The Open Developer Docs + Report Bug
+      // buttons land in the sidebar bottom via custom HTML injection
+      // (see registerDocsRoutes in apps/api/src/docs.ts).
       contact: {
         name: "Afframe support",
         email: "support@afframe.com",
@@ -396,10 +395,6 @@ export function buildOpenApiDocument(): OpenAPIDocument {
         url: "https://afframe.com/terms",
       },
       termsOfService: "https://afframe.com/terms",
-    },
-    externalDocs: {
-      description: "Service status",
-      url: "https://status.afframe.com",
     },
     servers: resolveServers(),
     tags: [

@@ -112,6 +112,8 @@ export {
   UserIcon,
   UserPlus,
   Volume2,
+  Bug,
+  MessageSquare,
   Wifi,
   X,
   XCircle,

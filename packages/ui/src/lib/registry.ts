@@ -11,6 +11,14 @@ type ComponentMeta = {
 }
 
 export const registry: Record<string, ComponentMeta> = {
+  "app-shell": {
+    source: "src/blocks/app-shell",
+    sourceType: "custom",
+    description:
+      "Block — placeholder home for the future app shell (top bar + left nav + page body + status + right drawer) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Currently exposes only ShellSkeleton (for loading.tsx) and ErrorShell (for error.tsx / not-found.tsx) — visible chrome is intentionally not implemented yet.",
+    categories: ["block", "layout", "app"],
+    dependencies: ["button", "skeleton"],
+  },
   "auth-shell": {
     source: "src/blocks/auth-shell",
     sourceType: "custom",

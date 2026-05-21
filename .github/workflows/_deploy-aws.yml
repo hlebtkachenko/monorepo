@@ -1171,6 +1171,20 @@ jobs:
               fi
               SECRET_CTX+=(--context "$pair")
             done
+          else
+            # cdk synthesizes ALL stacks regardless of --exclusively, and
+            # App-stack throws at synth if `cloudflareTunnelSecretArn` /
+            # `resendApiKeySecretArn` / `betterAuthSecretArn` context keys
+            # are missing (requiredSecretArn() guard). For infra-only we
+            # never deploy App, but synth has to succeed — pass dummy ARNs
+            # with the same -XXXXXX suffix the capture() validation expects.
+            # Same pattern as cdk-synth-strict in workflow-lint.yml.
+            # Verified missing-context failure in run 26213235112.
+            SECRET_CTX=(
+              --context "cloudflareTunnelSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-cf-AAAAAA"
+              --context "resendApiKeySecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-resend-BBBBBB"
+              --context "betterAuthSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-ba-CCCCCC"
+            )
           fi
 
           # Staging: --hotswap-fallback bypasses CFN for supported resource

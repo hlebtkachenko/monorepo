@@ -54,6 +54,19 @@ case "$ENV_NAME" in
   *)          token_env=dev ;;
 esac
 
+# First-deploy guard. On the very first deploy of an environment the
+# Backup-<env> stack does not exist yet — CDK creates it later in this
+# same job. The workflow runs migrations BEFORE cdk deploy so the new
+# app code sees the new schema on rollout; on first-ever-deploy that
+# ordering means there's no backup task-def to piggyback on. Skip
+# silently: operator runs migrations after the first deploy (or the
+# next regular deploy picks them up since they're idempotent against
+# _app_migrations). Verified first-prod-deploy run 26212256761.
+if ! aws cloudformation describe-stacks --stack-name "Backup-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+  echo "Backup-${ENV_NAME} stack does not exist yet — skipping migrations on this first-deploy. Re-run the workflow after the CDK stacks land OR run packages/db/scripts/apply-migrations.ts manually with the production DATABASE_URL."
+  exit 0
+fi
+
 # Backup stack outputs give us the bucket + task-def we need.
 bucket=$(aws cloudformation describe-stacks \
   --stack-name "Backup-${ENV_NAME}" \

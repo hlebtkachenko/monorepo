@@ -30,6 +30,7 @@
     "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
     "exceljs": "^4.4.0",
+    "express": "^5.2.1",
     "helmet": "^8.1.0",
     "nestjs-zod": "^5.4.0",
     "papaparse": "^5.5.3",

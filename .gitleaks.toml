@@ -50,14 +50,6 @@ regex = '''\bafk_[A-Za-z0-9_/+\-]{40,}\b'''
 keywords = ["afk_"]
 tags = ["secret", "afframe", "legacy"]
 
-# Standard Webhooks signing secret.
-[[rules]]
-id = "afframe-webhook-secret"
-description = "Afframe webhook signing secret (whsec_…)"
-regex = '''\bwhsec_[A-Za-z0-9+/=]{32,}\b'''
-keywords = ["whsec_"]
-tags = ["secret", "afframe", "webhooks"]
-
 # ---------- Czech / EU finance + PII ----------
 
 [[rules]]
@@ -100,11 +92,9 @@ tags = ["pii", "finance", "cz", "contextual"]
 id = "czech-rc-birth-number"
 description = "Czech rodné číslo (GDPR-sensitive personal ID)"
 regex = '''\b\d{6}/\d{3,4}\b'''
+keywords = ["rc", "rodne", "birth"]
 tags = ["pii", "cz", "gdpr-sensitive"]
 
-# Czech bank-account format: optional 1-6 digit prefix, dash, 2-10 digit account,
-# slash, 4-digit bank code from the CNB-issued list. Restricting to known codes
-# avoids matching random `1234/5678` strings.
 # Anthropic API key. Format `sk-ant-<api|admin>-<base62>`. The Ask AI route
 # that consumed this key was archived to
 # `.context/archive/apps-docs-2026-05-21/` on 2026-05-21 alongside the rest
@@ -120,15 +110,20 @@ keywords = ["sk-ant-"]
 tags = ["secret", "anthropic"]
 
 # Standard Webhooks signing secret. Partners receive these out-of-band; the
-# SDK's `verifyWebhook` consumes them. Format chosen to match the
-# `whsec_` prefix the rest of the ecosystem uses (Svix, Stripe webhooks).
+# SDK's `verifyWebhook` consumes them. Format mirrors the `whsec_` prefix
+# the rest of the ecosystem uses (Svix, Stripe webhooks). Character class
+# covers both base64 standard (`+/=`) and URL-safe (`-_`) alphabets to
+# match whatever encoding a partner emits.
 [[rules]]
 id = "afframe-webhook-secret"
 description = "Afframe Standard Webhooks signing secret (whsec_…)"
-regex = '''\bwhsec_[A-Za-z0-9_\-]{32,}\b'''
+regex = '''\bwhsec_[A-Za-z0-9+/=_\-]{32,}\b'''
 keywords = ["whsec_"]
 tags = ["secret", "afframe", "webhook"]
 
+# Czech bank-account format: optional 1-6 digit prefix, dash, 2-10 digit
+# account, slash, 4-digit bank code from the CNB-issued list. Restricting
+# to known codes avoids matching random `1234/5678` strings.
 [[rules]]
 id = "czech-account-number"
 description = "Czech bank account (prefix-number/bankcode)"

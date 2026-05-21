@@ -79,8 +79,14 @@ export function BrandVatId() {
 export function BrandRegistrationId() {
   return <BrandText k="registrationId" />
 }
-export function BrandCopyrightHolder() {
-  return <BrandText k="copyrightHolder" />
+/**
+ * Resolves the brand copyright string with the current year substituted.
+ * The i18n value contains `{year}` — never render this component without
+ * the substitution, or "© {year} Afframe" leaks to users.
+ */
+export function BrandCopyrightHolder({ year }: { year?: number } = {}) {
+  const t = useTranslations("brand")
+  return <>{t("copyrightHolder", { year: year ?? new Date().getFullYear() })}</>
 }
 export function BrandOgTitle() {
   return <BrandText k="ogTitle" />

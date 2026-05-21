@@ -30,7 +30,28 @@ index.ts            # re-exports (export * from "./{name}")
 - Components: `import { Button } from "@workspace/ui/components/button"`
 - Utilities: `import { cn } from "@workspace/ui/lib/utils"`
 - Hooks: `import { useIsMobile } from "@workspace/ui/hooks/use-mobile"`
+- Brand surface: `import { Logo, BrandName, BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"` (+ `getBrandText` from `@workspace/ui/brand-assets/server`)
 - Never use `@/components/ui/` (wrong path for monorepo)
+
+## Brand Assets
+
+The Afframe brand surface — logo SVGs, product name, tagline, legal info, support emails, marketing URLs, social handles — lives in **`packages/ui/src/brand-assets/`** as the single source of truth. Read `packages/ui/src/brand-assets/README.md` for the full reference.
+
+Three layers, one home:
+
+| Layer | Lives in | What it gives you |
+|-------|----------|-------------------|
+| `<Logo>` SVG component | `packages/ui/src/brand-assets/logo.tsx` | 4 variants × 9 tones, callable from anywhere |
+| `<BrandName>`, `<BrandTagline>`, ... + `getBrandText()` | `packages/ui/src/brand-assets/text.tsx` + `text-server.ts` | i18n-localized brand strings — values in `packages/i18n/src/messages/<locale>.json` under `brand.*` |
+| `BRAND_SUPPORT_EMAIL`, `BRAND_MARKETING_URL`, ... | `packages/ui/src/brand-assets/constants.ts` | Non-localized identifiers (emails, URLs, phones, socials) |
+
+Brand color hex values live in **`packages/ui/src/styles/globals.css`** as `--brand-primary-light/dark`, `--brand-admin-light/dark`, `--brand-mono-light/dark`. Tailwind exposes them as utility classes (`text-brand-primary-light`, etc.).
+
+Favicon files live per-app in `apps/<app>/app/` (Next file conventions) + `apps/<app>/public/` (manifest icons), regenerated from the color tokens via `python3 scripts/build-favicons.py`.
+
+When a brand value isn't decided yet, the slot ships with an explicit `<BRAND-...>` placeholder. Staging deploys allow placeholders; production deploys block on any remaining one. Run `pnpm check:brand-placeholders` locally, or trust the deploy workflow's `CHECK_BRAND_STRICT=true` step on production.
+
+Never hardcode product name, brand color, support email, or any brand URL outside this surface. Never re-introduce `WalletMinimal` or any other Lucide icon as a brand-mark placeholder. Never duplicate brand strings in app code — always go through `<Brand*>` components, `getBrandText()`, or `BRAND_*` constants.
 
 ## Before Importing a Component
 

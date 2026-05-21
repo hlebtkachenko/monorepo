@@ -10,8 +10,9 @@
  */
 import { getTranslations } from "@workspace/i18n/server"
 
-export async function getBrandText() {
+export async function getBrandText({ year }: { year?: number } = {}) {
   const t = await getTranslations("brand")
+  const yearValue = year ?? new Date().getFullYear()
   return {
     name: t("name"),
     tagline: t("tagline"),
@@ -26,7 +27,7 @@ export async function getBrandText() {
     mailingAddress: t("mailingAddress"),
     vatId: t("vatId"),
     registrationId: t("registrationId"),
-    copyrightHolder: t("copyrightHolder"),
+    copyrightHolder: t("copyrightHolder", { year: yearValue }),
     ogTitle: t("ogTitle"),
     ogDescription: t("ogDescription"),
     metaKeywords: t("metaKeywords"),

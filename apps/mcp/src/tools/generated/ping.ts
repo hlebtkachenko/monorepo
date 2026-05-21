@@ -5,7 +5,10 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
 import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
-export function registerPing(server: McpServer, client: AfframeClient): void {
+export function registerPing(
+  server: McpServer,
+  client: AfframeClient,
+): void {
   server.registerTool(
     "ping",
     {

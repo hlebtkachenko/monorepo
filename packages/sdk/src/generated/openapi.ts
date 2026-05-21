@@ -4,340 +4,340 @@
  */
 
 export interface paths {
-  "/v1/ping": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Ping
-     * @description Zero-DB smoke test. Returns the resolved principal — confirms the API key authenticated.
-     */
-    get: operations["ping"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/v1/organization": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Get organization
-     * @description Returns the organization the authenticated API key belongs to.
-     */
-    get: operations["getOrganization"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
+    "/v1/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ping
+         * @description Zero-DB smoke test. Returns the resolved principal — confirms the API key authenticated.
+         */
+        get: operations["ping"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/organization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get organization
+         * @description Returns the organization the authenticated API key belongs to.
+         */
+        get: operations["getOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
-export type webhooks = Record<string, never>
+export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /** @description Confirms the API key authenticated and reveals the resolved tenancy. */
-    PingResponse: {
-      /**
-       * @description Always `true` on a 2xx response.
-       * @enum {boolean}
-       */
-      ok: true
-      /** @description Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`). */
-      principal: {
-        /**
-         * Format: uuid
-         * @description The organization the API key is scoped to.
-         */
-        organizationId: string
-        /**
-         * Format: uuid
-         * @description The workspace (accountant's office) hosting the org.
-         */
-        workspaceId: string
-      }
-    }
-    /** @description The organization the API key belongs to. Single-tenant view; future multi-org-per-key tokens will return a list endpoint instead. */
-    GetOrganizationResponse: {
-      /** @description Public-API summary of an organization (tenant). */
-      organization: {
-        /**
-         * Format: uuid
-         * @description Opaque organization identifier (UUID).
-         */
-        id: string
-        /**
-         * @description URL-safe organization handle, e.g. `acme-cz`.
-         * @example acme-cz
-         */
-        slug: string
-        /**
-         * @description Registered legal name, e.g. `Acme Czechia s.r.o.`
-         * @example Acme Czechia s.r.o.
-         */
-        legalName: string
-        /**
-         * @description Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).
-         * @example 1
-         */
-        fiscalYearStartMonth: number
-      }
-    }
-    /** @description Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object. */
-    ApiError: {
-      error: {
-        /** @description Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`. */
-        code: string
-        /** @description Plaid-shape family (INVALID_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, VALIDATION, RATE_LIMITED, INTERNAL, …). */
-        error_type?: string
-        /** @description Developer-facing message. Safe to log. */
-        message: string
-        /** @description Optional end-user-facing message. Present when the cause is safe to surface in a UI; absent for 5xx / unknown errors. */
-        display_message?: string
-        /**
-         * Format: uri
-         * @description Optional deep-link into a hosted error registry. Reserved for future use; the api does not emit this field today.
-         */
-        documentation_url?: string
-        /** @description Echoes the `X-Request-Id` header for support tickets. */
-        requestId: string
-        /** @description Field-level error breakdown. Present on `422 validation_error`; absent on most other codes. */
-        details?: {
-          path: string
-          code: string
-          message: string
-        }[]
-      }
-    }
-    /** @description Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`). */
-    ApiPrincipal: {
-      /**
-       * Format: uuid
-       * @description The organization the API key is scoped to.
-       */
-      organizationId: string
-      /**
-       * Format: uuid
-       * @description The workspace (accountant's office) hosting the org.
-       */
-      workspaceId: string
-    }
-    /** @description Public-API summary of an organization (tenant). */
-    OrganizationSummary: {
-      /**
-       * Format: uuid
-       * @description Opaque organization identifier (UUID).
-       */
-      id: string
-      /**
-       * @description URL-safe organization handle, e.g. `acme-cz`.
-       * @example acme-cz
-       */
-      slug: string
-      /**
-       * @description Registered legal name, e.g. `Acme Czechia s.r.o.`
-       * @example Acme Czechia s.r.o.
-       */
-      legalName: string
-      /**
-       * @description Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).
-       * @example 1
-       */
-      fiscalYearStartMonth: number
-    }
-  }
-  responses: {
-    /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
-    Unauthorized: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        /**
-         * @example {
-         *       "error": {
-         *         "code": "unauthorized",
-         *         "error_type": "UNAUTHORIZED",
-         *         "message": "Missing or invalid API key.",
-         *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
-         *       }
-         *     }
-         */
-        "application/json": components["schemas"]["ApiError"]
-      }
-    }
-    /** @description API key authenticated but lacks the scope required for this operation, or the target resource belongs to a different tenant. */
-    Forbidden: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        /**
-         * @example {
-         *       "error": {
-         *         "code": "forbidden",
-         *         "error_type": "FORBIDDEN",
-         *         "message": "The API key is not allowed to perform this action.",
-         *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
-         *       }
-         *     }
-         */
-        "application/json": components["schemas"]["ApiError"]
-      }
-    }
-    /** @description The resource referenced by the request URL does not exist (or does not exist within the authenticated tenant — Afframe never leaks cross-tenant existence). */
-    NotFound: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        /**
-         * @example {
-         *       "error": {
-         *         "code": "not_found",
-         *         "error_type": "NOT_FOUND",
-         *         "message": "Resource not found.",
-         *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
-         *       }
-         *     }
-         */
-        "application/json": components["schemas"]["ApiError"]
-      }
-    }
-    /** @description Idempotency conflict, optimistic-concurrency mismatch, or business-rule conflict. */
-    Conflict: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        /**
-         * @example {
-         *       "error": {
-         *         "code": "conflict",
-         *         "error_type": "CONFLICT",
-         *         "message": "Resource is in a state that conflicts with the request.",
-         *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
-         *       }
-         *     }
-         */
-        "application/json": components["schemas"]["ApiError"]
-      }
-    }
-    /** @description Request body parsed but failed schema validation. The `details` array carries one entry per offending field. */
-    ValidationError: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        /**
-         * @example {
-         *       "error": {
-         *         "code": "validation_error",
-         *         "error_type": "VALIDATION",
-         *         "message": "Request body failed validation.",
-         *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14",
-         *         "details": [
-         *           {
-         *             "path": "$.legalName",
-         *             "code": "required",
-         *             "message": "legalName is required."
-         *           }
-         *         ]
-         *       }
-         *     }
-         */
-        "application/json": components["schemas"]["ApiError"]
-      }
-    }
-    /** @description Caller exceeded the API-key rate limit. The response carries IETF `RateLimit-*` headers indicating the reset window. */
-    RateLimited: {
-      headers: {
-        [name: string]: unknown
-      }
-      content: {
-        /**
-         * @example {
-         *       "error": {
-         *         "code": "rate_limited",
-         *         "error_type": "RATE_LIMITED",
-         *         "message": "Too many requests. See the RateLimit-* headers for the reset window.",
-         *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
-         *       }
-         *     }
-         */
-        "application/json": components["schemas"]["ApiError"]
-      }
-    }
-  }
-  parameters: never
-  requestBodies: never
-  headers: never
-  pathItems: never
+    schemas: {
+        /** @description Confirms the API key authenticated and reveals the resolved tenancy. */
+        PingResponse: {
+            /**
+             * @description Always `true` on a 2xx response.
+             * @enum {boolean}
+             */
+            ok: true;
+            /** @description Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`). */
+            principal: {
+                /**
+                 * Format: uuid
+                 * @description The organization the API key is scoped to.
+                 */
+                organizationId: string;
+                /**
+                 * Format: uuid
+                 * @description The workspace (accountant's office) hosting the org.
+                 */
+                workspaceId: string;
+            };
+        };
+        /** @description The organization the API key belongs to. Single-tenant view; future multi-org-per-key tokens will return a list endpoint instead. */
+        GetOrganizationResponse: {
+            /** @description Public-API summary of an organization (tenant). */
+            organization: {
+                /**
+                 * Format: uuid
+                 * @description Opaque organization identifier (UUID).
+                 */
+                id: string;
+                /**
+                 * @description URL-safe organization handle, e.g. `acme-cz`.
+                 * @example acme-cz
+                 */
+                slug: string;
+                /**
+                 * @description Registered legal name, e.g. `Acme Czechia s.r.o.`
+                 * @example Acme Czechia s.r.o.
+                 */
+                legalName: string;
+                /**
+                 * @description Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).
+                 * @example 1
+                 */
+                fiscalYearStartMonth: number;
+            };
+        };
+        /** @description Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object. */
+        ApiError: {
+            error: {
+                /** @description Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`. */
+                code: string;
+                /** @description Plaid-shape family (INVALID_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, VALIDATION, RATE_LIMITED, INTERNAL, …). */
+                error_type?: string;
+                /** @description Developer-facing message. Safe to log. */
+                message: string;
+                /** @description Optional end-user-facing message. Present when the cause is safe to surface in a UI; absent for 5xx / unknown errors. */
+                display_message?: string;
+                /**
+                 * Format: uri
+                 * @description Optional deep-link into a hosted error registry. Reserved for future use; the api does not emit this field today.
+                 */
+                documentation_url?: string;
+                /** @description Echoes the `X-Request-Id` header for support tickets. */
+                requestId: string;
+                /** @description Field-level error breakdown. Present on `422 validation_error`; absent on most other codes. */
+                details?: {
+                    path: string;
+                    code: string;
+                    message: string;
+                }[];
+            };
+        };
+        /** @description Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`). */
+        ApiPrincipal: {
+            /**
+             * Format: uuid
+             * @description The organization the API key is scoped to.
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description The workspace (accountant's office) hosting the org.
+             */
+            workspaceId: string;
+        };
+        /** @description Public-API summary of an organization (tenant). */
+        OrganizationSummary: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            id: string;
+            /**
+             * @description URL-safe organization handle, e.g. `acme-cz`.
+             * @example acme-cz
+             */
+            slug: string;
+            /**
+             * @description Registered legal name, e.g. `Acme Czechia s.r.o.`
+             * @example Acme Czechia s.r.o.
+             */
+            legalName: string;
+            /**
+             * @description Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).
+             * @example 1
+             */
+            fiscalYearStartMonth: number;
+        };
+    };
+    responses: {
+        /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "unauthorized",
+                 *         "error_type": "UNAUTHORIZED",
+                 *         "message": "Missing or invalid API key.",
+                 *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description API key authenticated but lacks the scope required for this operation, or the target resource belongs to a different tenant. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "forbidden",
+                 *         "error_type": "FORBIDDEN",
+                 *         "message": "The API key is not allowed to perform this action.",
+                 *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description The resource referenced by the request URL does not exist (or does not exist within the authenticated tenant — Afframe never leaks cross-tenant existence). */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "not_found",
+                 *         "error_type": "NOT_FOUND",
+                 *         "message": "Resource not found.",
+                 *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description Idempotency conflict, optimistic-concurrency mismatch, or business-rule conflict. */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "conflict",
+                 *         "error_type": "CONFLICT",
+                 *         "message": "Resource is in a state that conflicts with the request.",
+                 *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description Request body parsed but failed schema validation. The `details` array carries one entry per offending field. */
+        ValidationError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "validation_error",
+                 *         "error_type": "VALIDATION",
+                 *         "message": "Request body failed validation.",
+                 *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14",
+                 *         "details": [
+                 *           {
+                 *             "path": "$.legalName",
+                 *             "code": "required",
+                 *             "message": "legalName is required."
+                 *           }
+                 *         ]
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+        /** @description Caller exceeded the API-key rate limit. The response carries IETF `RateLimit-*` headers indicating the reset window. */
+        RateLimited: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "rate_limited",
+                 *         "error_type": "RATE_LIMITED",
+                 *         "message": "Too many requests. See the RateLimit-* headers for the reset window.",
+                 *         "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
+    };
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
-export type $defs = Record<string, never>
+export type $defs = Record<string, never>;
 export interface operations {
-  ping: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description API key authenticated and the principal resolved. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PingResponse"]
-        }
-      }
-      401: components["responses"]["Unauthorized"]
-      403: components["responses"]["Forbidden"]
-      404: components["responses"]["NotFound"]
-      409: components["responses"]["Conflict"]
-      422: components["responses"]["ValidationError"]
-      429: components["responses"]["RateLimited"]
-    }
-  }
-  getOrganization: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description The authenticated principal's organization. */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["GetOrganizationResponse"]
-        }
-      }
-      401: components["responses"]["Unauthorized"]
-      403: components["responses"]["Forbidden"]
-      404: components["responses"]["NotFound"]
-      409: components["responses"]["Conflict"]
-      422: components["responses"]["ValidationError"]
-      429: components["responses"]["RateLimited"]
-    }
-  }
+    ping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description API key authenticated and the principal resolved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The authenticated principal's organization. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetOrganizationResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
 }

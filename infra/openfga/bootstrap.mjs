@@ -26,9 +26,11 @@
  */
 
 import { readFileSync } from "node:fs"
-import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 import { join, dirname } from "node:path"
+
+import { OpenFgaClient } from "@openfga/sdk"
+import { transformer } from "@openfga/syntax-transformer"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -61,30 +63,14 @@ function log(level, message, extra = {}) {
   )
 }
 
-// ─── OpenFGA SDK import ──────────────────────────────────────────────────────
-
-// pnpm workspace hoisting puts @openfga/* into apps/api/node_modules, not
-// repo-root node_modules. Resolve from there explicitly so this script runs
-// the same way regardless of cwd.
-let OpenFgaClient, CredentialsMethod, transformer
-try {
-  const require = createRequire(
-    join(__dirname, "..", "..", "apps", "api", "package.json"),
-  )
-  ;({ OpenFgaClient, CredentialsMethod } = require("@openfga/sdk"))
-  ;({ transformer } = require("@openfga/syntax-transformer"))
-} catch (err) {
-  log(
-    "error",
-    "Cannot import @openfga/sdk + @openfga/syntax-transformer from apps/api. " +
-      "Run: pnpm install (from repo root) first.",
-    { error: String(err) },
-  )
-  process.exit(1)
-}
-
 // ─── OpenFGA client ───────────────────────────────────────────────────────────
 
+// @openfga/sdk + @openfga/syntax-transformer are declared as dependencies
+// of THIS package (infra/openfga/package.json). Plain ES imports above
+// resolve via the standard node_modules lookup whether the script runs
+// from a developer's pnpm install or inside the openfga-bootstrap init
+// container's Docker image. The previous createRequire(apps/api/...)
+// hack tied this script to apps/api's hoisting layout — removed.
 const fga = new OpenFgaClient({
   apiUrl: OPENFGA_API_URL,
 })

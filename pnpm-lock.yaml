@@ -440,6 +440,18 @@ importers:
         specifier: ^4.59.2
         version: 4.92.0(@cloudflare/workers-types@4.20260516.1)
 
+  infra/openfga:
+    dependencies:
+      '@aws-sdk/client-ssm':
+        specifier: ^3.821.0
+        version: 3.1045.0
+      '@openfga/sdk':
+        specifier: ^0.9.6
+        version: 0.9.6
+      '@openfga/syntax-transformer':
+        specifier: ^0.2.1
+        version: 0.2.1
+
   packages/auth:
     dependencies:
       '@workspace/db':

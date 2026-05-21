@@ -1,0 +1,86 @@
+# syntax=docker/dockerfile:1.10
+#
+# Init-container image for the App TaskDef's `openfga-bootstrap` sidecar.
+#
+# Runs on every task cold start AFTER db-migrate + openfga-migrate complete,
+# BEFORE the essential containers start. Idempotently:
+#   1. Boots the OpenFGA server in the background, pointed at the same RDS
+#      the openfga sidecar uses.
+#   2. Waits for /healthz.
+#   3. Runs `node bootstrap.mjs --env $MONOREPO_ENV` against the local server:
+#      - findOrCreateStore("monorepo-${env}") — reuses existing store by name.
+#      - writeAuthorizationModel(model.fga) — produces a fresh model_id.
+#      - Writes /monorepo/${env}/openfga/{store-id,model-id} to SSM via the
+#        task role (IAM permission scoped in app-stack.ts).
+#   4. Stops the OpenFGA subprocess and exits 0.
+#
+# Idempotent re-runs: same store reused, model re-written with same DSL
+# content (model_id may change but the api reads SSM at every cold start
+# so it's always synced).
+#
+# Pinned per ADR-0015. Bump via Dependabot docker ecosystem.
+
+ARG NODE_VERSION=24
+ARG OPENFGA_VERSION=v1.15.1
+ARG PNPM_VERSION=11.0.9
+
+# ---------- openfga-bin: extract the standalone OpenFGA server binary -------
+# The official image ships a static `/openfga` binary; we copy only that out.
+FROM openfga/openfga:${OPENFGA_VERSION} AS openfga-bin
+
+# ---------- pruner: turbo prune to a minimal subtree for the package --------
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY . .
+RUN pnpm dlx turbo@2.9.12 prune @workspace/openfga-bootstrap --docker
+
+# ---------- deps: pnpm install + deploy the pruned subtree ------------------
+# pnpm deploy emits a fully-flat node_modules under /prod, so the runner
+# stage doesn't need to carry the workspace's .pnpm symlink store. Same
+# pattern as apps/api's Dockerfile (see ADR-0020).
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS deps
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY --from=pruner /repo/out/json/ ./
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --filter=@workspace/openfga-bootstrap
+# Copy the source for the pruned package so deploy can package it.
+COPY --from=pruner /repo/out/full/infra/openfga/ ./infra/openfga/
+RUN pnpm --filter @workspace/openfga-bootstrap --config.node-linker=hoisted deploy --prod --legacy /prod
+
+# ---------- runner: small image with openfga binary + node + script ---------
+FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim AS runner
+ARG OPENFGA_VERSION
+
+LABEL org.opencontainers.image.title="monorepo-openfga-bootstrap" \
+      org.opencontainers.image.source="https://github.com/hlebtkachenko/monorepo" \
+      org.opencontainers.image.licenses="UNLICENSED" \
+      org.opencontainers.image.description="OpenFGA store+model bootstrap init container (pins openfga ${OPENFGA_VERSION})"
+
+# ca-certificates for AWS SDK HTTPS; curl for the /healthz probe in the
+# init script. No more — image stays slim.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf /usr/local/lib/node_modules/npm \
+            /usr/local/bin/npm \
+            /usr/local/bin/npx \
+            /usr/local/bin/corepack
+
+WORKDIR /app
+
+# OpenFGA binary — pinned exactly to the runtime sidecar's image tag in
+# app-stack.ts so the embedded schema versions match the live server's.
+COPY --from=openfga-bin /openfga /usr/local/bin/openfga
+RUN chmod +x /usr/local/bin/openfga
+
+# Bootstrap script + model DSL + flat node_modules from pnpm deploy.
+COPY --from=deps /prod/ ./openfga/
+COPY infra/scripts/openfga-bootstrap-init.sh /usr/local/bin/openfga-bootstrap-init
+RUN chmod +x /usr/local/bin/openfga-bootstrap-init
+
+# Defense in depth: non-root.
+USER 65532:65532
+
+ENTRYPOINT ["/usr/local/bin/openfga-bootstrap-init"]

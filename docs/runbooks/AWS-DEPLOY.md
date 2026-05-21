@@ -642,119 +642,56 @@ Other related notes:
 - Backup task (BackupStack) keeps `app_owner` direct — `pg_dumpall`
   globals + role definitions need master.
 
-## Bootstrap chain: schemas + openfga model (manual one-time)
+## Bootstrap chain: schemas + openfga model (automated)
 
-Before the first `cdk deploy App-{env}` lands real app containers, the operator
-must seed three things in the freshly-created RDS instance: the `openfga`
-schema, the OpenFGA migration history, and the OpenFGA store + authorization
-model. The `app` schema for application tables (drizzle migrations) is the
-fourth step. All four run as `app_owner` (the RDS master credential) via a
-temporary bastion / port-forward — there is no in-cluster bootstrap task yet
-(see "Drizzle migration ECS task" in deferred work below).
+All four bootstrap steps run as **init containers** inside App-{env}'s ECS task on every cold start. No operator action, no bastion, no port-forward.
 
-This chain ships once per env. Re-runs are safe but produce a fresh
-`authorization_model_id` and SSM-write it (per `infra/openfga/README.md`).
+| Step                                                                       | Init container      | Source                                                                           |
+| -------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------- |
+| 1. Drizzle migrations + `app_user` role password + create `openfga` schema | `db-migrate`        | `infra/Dockerfile.migrate` + `infra/scripts/apply-migrations-init.sh` (PR K)     |
+| 2. `openfga migrate` (goose tables)                                        | `openfga-migrate`   | upstream `openfga/openfga:v1.15.1` (PR K)                                        |
+| 3. OpenFGA store + authorization model + SSM write                         | `openfga-bootstrap` | `infra/Dockerfile.openfga-bootstrap` + `infra/scripts/openfga-bootstrap-init.sh` |
+| 4. (n/a — folded into step 1)                                              |                     |                                                                                  |
 
-### 1. Open a tunnel to RDS
+Container dependency chain: `db-migrate` → `openfga-migrate` → `openfga-bootstrap` → essential containers (`api` waits explicitly for `openfga-bootstrap` SUCCESS so its `EcsSecret.fromSsmParameter` resolves to the freshly-written values, not stale ones).
 
-The RDS instance is in private subnets. The simplest path is a SSM Session
-Manager tunnel through any task in the cluster, or an SSH bastion. Either way
-the operator ends with a local port forward to `5432` on RDS:
+All three init containers are idempotent. Re-runs:
 
-```bash
-# Substitute the actual RDS endpoint + a free local port.
-aws rds describe-db-instances \
-  --db-instance-identifier monorepo-{env} \
-  --query 'DBInstances[0].Endpoint.Address' --output text
-# → e.g. monorepo-staging.xxxx.eu-central-1.rds.amazonaws.com
+- `db-migrate`: journal `_app_migrations` skips already-applied files.
+- `openfga-migrate`: goose schema migrations skip up-to-date schema.
+- `openfga-bootstrap`: store reused by name; new `model_id` written; SSM overwritten. The api container reads SSM at every cold start, so the new model_id is picked up automatically.
 
-# Open a forward. Operator picks transport (SSM, SSH bastion, EC2 tunnel).
-# Forward localhost:55432 → <rds-endpoint>:5432.
-```
+Required SSM parameters (`/monorepo/{env}/openfga/store-id`, `/monorepo/{env}/openfga/model-id`) must EXIST at `cdk deploy` time because `StringParameter.fromStringParameterName` resolves at synth/deploy. For first-ever deploys the operator seeds them with placeholder strings (`placeholder-bootstrap-after-first-deploy`); the `openfga-bootstrap` init container replaces them with real UUIDs on the first task cold start of that deploy.
 
-Fetch the `app_owner` password from Secrets Manager:
+### Seeding the SSM placeholders on a brand-new env (one-time per env)
 
 ```bash
-DB_PASSWORD=$(aws secretsmanager get-secret-value \
-  --secret-id /monorepo/{env}/rds/master \
-  --query SecretString --output text | jq -r .password)
+AWS_REGION=eu-central-1
+ENV=production  # or staging, or whatever new env you're spinning up
+aws ssm put-parameter --name "/monorepo/${ENV}/openfga/store-id" \
+  --value "placeholder-bootstrap-after-first-deploy" \
+  --type String --region "$AWS_REGION"
+aws ssm put-parameter --name "/monorepo/${ENV}/openfga/model-id" \
+  --value "placeholder-bootstrap-after-first-deploy" \
+  --type String --region "$AWS_REGION"
 ```
 
-### 2. Create the `openfga` schema
+Then `cdk deploy App-{env}` proceeds normally. The init container fixes the values on the first task start.
+
+### Forcing a model_id rotation (when the FGA model.fga changes)
+
+The init container runs on every task cold start and rewrites the model. To force a rotation without a code change, force-deploy:
 
 ```bash
-psql "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
-  -c 'CREATE SCHEMA IF NOT EXISTS openfga AUTHORIZATION app_owner;'
+aws ecs update-service --cluster monorepo-{env} \
+  --service $(aws ecs list-services --cluster monorepo-{env} --region eu-central-1 \
+    --query 'serviceArns[0]' --output text | awk -F/ '{print $NF}') \
+  --force-new-deployment --region eu-central-1
 ```
 
-Idempotent — safe to re-run.
+### Manual bootstrap (escape hatch only)
 
-### 3. Run `openfga migrate`
-
-```bash
-docker run --rm --network host \
-  openfga/openfga:v1.15.1 \
-  migrate \
-    --datastore-engine postgres \
-    --datastore-uri "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga"
-```
-
-Pin the OpenFGA image to the SAME tag deployed in the task definition
-(`infra/cdk/lib/app-stack.ts` — currently `v1.15.1`) so the schema version
-matches what the running server will expect.
-
-### 4. Boot a TEMPORARY OpenFGA server + run bootstrap.mjs
-
-This step MUST happen BEFORE the first `cdk deploy App-{env}`. CDK references
-SSM parameters `/monorepo/{env}/openfga/{store-id,model-id}` via
-`StringParameter.fromStringParameterName`, which resolves at deploy time —
-if the parameters do not exist, the deploy fails. There is no chicken-and-egg
-in the chain because we boot OpenFGA LOCALLY in docker (still pointed at the
-real RDS via the same port-forward) just long enough to populate the store
-and write SSM.
-
-```bash
-# Boot a throwaway OpenFGA server pointing at the migrated RDS schema.
-# Background; we'll stop it after bootstrap.mjs returns.
-docker run --rm -d --name openfga-bootstrap --network host \
-  -e OPENFGA_DATASTORE_ENGINE=postgres \
-  -e OPENFGA_DATASTORE_URI="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga&sslmode=disable" \
-  -e OPENFGA_HTTP_ADDR="127.0.0.1:8080" \
-  openfga/openfga:v1.15.1 run
-
-# Wait for /healthz to come up (grpc_health_probe ships in the image).
-docker exec openfga-bootstrap /usr/local/bin/grpc_health_probe -addr=127.0.0.1:8081
-
-# Populate SSM (creates the store, writes the auth model, sets
-# /monorepo/{env}/openfga/store-id + model-id under your AWS profile).
-AWS_REGION=eu-central-1 \
-OPENFGA_API_URL=http://localhost:8080 \
-node infra/openfga/bootstrap.mjs --env {env}
-
-docker stop openfga-bootstrap
-```
-
-`bootstrap.mjs` is idempotent: it looks up the store by name and reuses it.
-Each run writes a fresh authorization model and overwrites the SSM parameter
-`/monorepo/{env}/openfga/model-id`. The api container reads this parameter at
-boot, so a deploy following a bootstrap re-run picks up the new model ID
-automatically.
-
-### 5. Run schema migrations for the `app` schema
-
-The application tables (organizations, users, audit log, etc.) live in the
-`app` schema and are managed by drizzle. Until the in-cluster migration ECS
-task ships, this runs through the same tunnel:
-
-```bash
-DATABASE_URL="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
-pnpm db:migrate
-```
-
-The `pnpm db:migrate` script lives in `packages/db` and applies all pending
-drizzle migrations under `packages/db/migrations/`. Re-running against an
-already-current database is a no-op. Once `packages/db/src/migrate.ts` plus
-the migration ECS task land, this manual step folds into the CDK pipeline.
+If the init container chain is wedged and you need to bootstrap manually from a laptop, you'd need (a) network access to the RDS instance (no bastion exists today) and (b) the openfga binary + `node bootstrap.mjs` toolchain locally. The prior version of this section described that flow; it has been removed because the in-cluster automation supersedes it. Resurrect from git history if ever needed.
 
 ### 6. Tear down the tunnel
 

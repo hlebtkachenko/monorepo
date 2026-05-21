@@ -21,7 +21,7 @@ Each entry:
 - Same OpenAPI 3.1 document; no spec drift.
 - New CSP additions: `script-src` allows `https://cdn.jsdelivr.net`.
 
-Refs: [AFF-220](https://linear.app/...), [API-REFERENCE.md](./API-REFERENCE.md).
+Refs: [AFF-220](https://linear.app/hapddev/issue/AFF-220), [API-REFERENCE.md](./API-REFERENCE.md).
 ```
 
 Rules:
@@ -60,7 +60,7 @@ Rules:
 - New CSP additions: `script-src` allows `https://cdn.jsdelivr.net` and retains `'unsafe-inline'` for the Scalar initializer.
 - No production flip in this change — staging first per the deploy policy.
 
-Refs: [AFF-220](https://linear.app/), [`API-REFERENCE.md`](./API-REFERENCE.md).
+Refs: [AFF-220](https://linear.app/hapddev/issue/AFF-220), [`API-REFERENCE.md`](./API-REFERENCE.md).
 
 ---
 

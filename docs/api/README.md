@@ -91,21 +91,21 @@ Domain endpoints (invoices, accounts, journals) land with AFF-71. Authz (Cerbos 
 
 The Scalar reference is one surface. The public-launch story is broader — narrative docs, CLI, MCP, SDK, webhooks, sandbox. Each lives in its own file:
 
-| Doc                                      | Purpose                                                      | Status                    |
-| ---------------------------------------- | ------------------------------------------------------------ | ------------------------- |
-| [`API-REFERENCE.md`](./API-REFERENCE.md) | Rules for the `/v1/docs` Scalar surface                      | Live                      |
-| [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md) | Master launch checklist (security, legal, comms, surfaces)   | Wip                       |
-| [`DEV-PORTAL.md`](./DEV-PORTAL.md)       | Page map + sidebar IA for `api.afframe.com/docs`             | Concept                   |
-| [`ERRORS.md`](./ERRORS.md)               | Error envelope + code registry                               | Live + concept extension  |
-| [`RATE-LIMITS.md`](./RATE-LIMITS.md)     | Throttle contract, `RateLimit-*` headers, 429                | Live + concept upgrades   |
-| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes         | Concept                   |
-| [`VERSIONING.md`](./VERSIONING.md)       | URL-path versioning, RFC 8594 Sunset, deprecation policy     | Live + concept signalling |
-| [`SANDBOX.md`](./SANDBOX.md)             | `affk_test_…` keys, seeded fixtures, force-trigger endpoints | Concept                   |
-| [`WEBHOOKS.md`](./WEBHOOKS.md)           | Standard Webhooks contract, Svix Cloud backend               | Concept                   |
-| [`SDK.md`](./SDK.md)                     | `@afframe/sdk` TypeScript design (`hey-api/openapi-ts`)      | Concept                   |
-| [`CLI.md`](./CLI.md)                     | `afframe` CLI (oclif + Homebrew tap)                         | Concept                   |
-| [`MCP.md`](./MCP.md)                     | `@afframe/mcp` server (npx + hosted)                         | Concept                   |
-| [`CHANGELOG.md`](./CHANGELOG.md)         | Public changelog format + entries                            | Wip                       |
+| Doc                                      | Purpose                                                                   | Status                    |
+| ---------------------------------------- | ------------------------------------------------------------------------- | ------------------------- |
+| [`API-REFERENCE.md`](./API-REFERENCE.md) | Rules for the `/v1/docs` Scalar surface                                   | Live                      |
+| [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md) | Master launch checklist (security, legal, comms, surfaces)                | Wip                       |
+| [`DEV-PORTAL.md`](./DEV-PORTAL.md)       | Page map + sidebar IA for `api.afframe.com/docs`                          | Concept                   |
+| [`ERRORS.md`](./ERRORS.md)               | Error envelope + code registry                                            | Live + concept extension  |
+| [`RATE-LIMITS.md`](./RATE-LIMITS.md)     | Throttle contract, `RateLimit-*` headers, 429                             | Live + concept upgrades   |
+| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes                      | Concept                   |
+| [`VERSIONING.md`](./VERSIONING.md)       | URL-path versioning, RFC 8594 Sunset, deprecation policy                  | Live + concept signalling |
+| [`SANDBOX.md`](./SANDBOX.md)             | `affk_test_…` keys, seeded fixtures, force-trigger endpoints              | Concept                   |
+| [`WEBHOOKS.md`](./WEBHOOKS.md)           | Standard Webhooks contract, Svix Cloud backend                            | Concept                   |
+| [`SDK.md`](./SDK.md)                     | `@afframe/sdk` TypeScript design (`openapi-typescript` + `openapi-fetch`) | Concept                   |
+| [`CLI.md`](./CLI.md)                     | `afframe` CLI (oclif + Homebrew tap)                                      | Concept                   |
+| [`MCP.md`](./MCP.md)                     | `@afframe/mcp` server (npx + hosted)                                      | Concept                   |
+| [`CHANGELOG.md`](./CHANGELOG.md)         | Public changelog format + entries                                         | Wip                       |
 
 The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-public-api-developer-platform.md).
 

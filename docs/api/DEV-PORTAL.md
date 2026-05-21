@@ -170,9 +170,7 @@ Three options surveyed. Decision deferred to the developer-platform initiative b
 - Same origin as the API (`api.afframe.com/docs` not a separate `docs.afframe.com`) — keeps the auth lock-icon trick (Scalar auto-fills `affk_test_` keys for logged-in users).
 - Static export (the docs surface should not block the NestJS container).
 
-Likely shape: a Next.js app at `apps/docs` serving `api.afframe.com/docs/*`, behind the same Cloudflare Tunnel as `apps/api`, routed by path. Or a Scalar-hosted setup (Scalar Cloud) for `/docs` if the freeze on first-party hosting becomes a blocker.
-
-Concrete decision happens in a follow-up phase before launch.
+Note: `apps/docs` was archived per ADR-0024 Amendment 2026-05-21; the Next.js docs app is no longer an active approach. Future shape is undecided — decision deferred to a follow-up phase before launch.
 
 ---
 

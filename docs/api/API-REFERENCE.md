@@ -1,14 +1,14 @@
-# Public API Reference — `/v1/docs`
+# Public API Reference — api.afframe.com/
 
 > Sibling docs: [`docs/api/README.md`](./README.md) (overall public API architecture), [`ADR-0020`](../adr/0020-public-api-foundation.md) (foundation decision).
 
 The Afframe Public API ships with a live, interactive reference at:
 
-| Environment | URL                                       |
-| ----------- | ----------------------------------------- |
-| Production  | `https://api.afframe.com/v1/docs`         |
-| Staging     | `https://api-staging.afframe.com/v1/docs` |
-| Local dev   | `http://127.0.0.1:3001/v1/docs`           |
+| Environment | URL                                |
+| ----------- | ---------------------------------- |
+| Production  | `https://api.afframe.com/`         |
+| Staging     | `https://api-staging.afframe.com/` |
+| Local dev   | `http://127.0.0.1:3001/`           |
 
 The reference is rendered by [Scalar API Reference](https://scalar.com). It replaces the prior NestJS Swagger UI mount (AFF-220, May 2026). The OpenAPI 3.1 document — the actual contract — is unchanged and still served at `/v1/openapi.json`.
 
@@ -60,7 +60,7 @@ Recorded for posterity so the decision isn't relitigated.
 | OpenAPI 3.1 support | Partial                                      | Full                                                      |
 | Maintenance         | Bundled, version-pinned by `@nestjs/swagger` | Decoupled — Scalar can move forward without a NestJS bump |
 
-What did _not_ change: the OpenAPI generator (`@nestjs/swagger` `DocumentBuilder` + `SwaggerModule.createDocument` + `cleanupOpenApiDoc`). Scalar is a renderer, not a generator.
+What changed in ADR-0024: the spec is now driven by `packages/shared/src/api/registry.ts` via `@asteasolutions/zod-to-openapi`. The `@ApiTags` / `@ApiOperation` decorators on controllers are retained for IDE hints only — they are inert at spec-emit time. Scalar remains a renderer, not a generator.
 
 ---
 
@@ -81,7 +81,7 @@ You're adding an endpoint, changing a schema, debugging CSP, or evolving the doc
 ## 4. Quickstart for API consumers
 
 1. **Get a key.** API keys are issued manually today; ask `info@hapd.cz`. Key format: `affk_live_<random>`. The platform stores only the SHA-256 hash; the raw value is shown to you once.
-2. **Open the reference.** `https://api.afframe.com/v1/docs`.
+2. **Open the reference.** `https://api.afframe.com/`.
 3. **Authorize.** Top-right authentication panel → `BearerAuth` → paste your key. Scalar remembers it for the session (cookieless, in-memory).
 4. **Try a call.** Hit `GET /v1/ping` first — it's a zero-DB smoke endpoint that confirms your key authenticated.
 5. **Read the schemas.** Every request and response has a Zod-backed schema. Scroll the "Models" section.
@@ -229,38 +229,21 @@ The only allowed `script-src` additions are `'self'`, `'unsafe-inline'`, and `ht
 
 ### R10 — Don't hand-edit the OpenAPI document at runtime
 
-Mutating `document` after `buildOpenApiDocument` returns is forbidden. If you need different output, fix the controllers, the Zod schemas, or `DocumentBuilder` config. Runtime mutation has bitten teams in production; the document object is treated as immutable downstream.
+Mutating `document` after `buildOpenApiDocument` returns is forbidden. If you need different output, fix the controllers, the Zod schemas, or `packages/shared/src/api/registry.ts`. Runtime mutation has bitten teams in production; the document object is treated as immutable downstream.
 
 ---
 
 ## 7. Adding or changing endpoints
 
-The minimal-correct path for an engineer.
+Every public API endpoint flows through seven steps. See `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md` for the full procedure with exact paths and diffs.
 
-1. **Define the schemas** in `@workspace/shared/api` (Zod). Request schema + response schema.
-2. **Wrap in DTOs** in `apps/api/src/v1/dto.ts`:
-   ```ts
-   export class MyResponseDto extends createZodDto(MyResponseSchema) {}
-   ```
-3. **Add the controller** under `apps/api/src/v1/<feature>/`:
-   ```ts
-   @ApiTags("Feature")              // R4
-   @ApiBearerAuth()                  // R5
-   @UseGuards(ApiKeyGuard)
-   @UseFilters(DomainExceptionFilter)
-   @Controller({ path: "feature", version: "1" })  // R3
-   export class FeatureController {
-     @Get()
-     @ApiOperation({ summary: "…", description: "…" })
-     @ApiOkResponse({ type: MyResponseDto })
-     async handler(@CurrentPrincipal() principal: ApiKeyPrincipal) { … }
-   }
-   ```
-4. **Register** the controller in `V1Module`.
-5. **Add a new tag** in `buildOpenApiDocument` if the controller introduces one.
-6. **Re-emit the spec**: `pnpm --filter api emit:openapi`. Commit the diff. (R7)
-7. **Add a controller test** (the existing pattern — `Test.createTestingModule` + supertest). The `docs.test.ts` smoke test does not need updating; it verifies the docs _surface_, not individual operations.
-8. **Verify locally**: `pnpm --filter api dev`, hit `/v1/docs`, confirm the operation appears under the right tag with the right schemas.
+1. **Author the Zod schema** in `packages/shared/src/api/<resource>.ts`. Chain `.openapi({ description, example })` on every public field.
+2. **Register the operation** via `registry.registerPath({ ... })` in `packages/shared/src/api/registry.ts`. Reference the schema by name. Spread `ERROR_RESPONSE_REFS` into the `responses` map.
+3. **Implement the controller** under `apps/api/src/v1/<resource>/`, mounted on `V1Module`. Read principal from the API key guard; never accept `organization_id` / `workspace_id` / `role` as input.
+4. **Run `pnpm gen:all`** from the repo root. Commit the regenerated `apps/api/openapi/v1.json`, `packages/sdk/src/generated/`, and `apps/mcp/src/tools/generated/`.
+5. **Write an E2E test** with tenant isolation. Co-locate under `apps/api/src/**/*.test.ts` (NestJS testing module) or `apps/web/e2e/` (Playwright auth-bound flow).
+6. **Add a changeset** entry under `.changeset/` summarising the surface change.
+7. **`pnpm verify` green** locally (typecheck + lint + test + boundaries + openapi-lint).
 
 ---
 
@@ -270,7 +253,7 @@ The minimal-correct path for an engineer.
 # from repo root
 pnpm install
 pnpm --filter api dev          # nest start --watch on :3001
-open http://127.0.0.1:3001/v1/docs
+open http://127.0.0.1:3001/
 ```
 
 Useful one-offs:
@@ -395,7 +378,7 @@ No query-string, no cookie, no basic auth. The lock icon in the Scalar UI maps t
 
 ### "Try it out" requests fail with CORS
 
-- The docs page is hosted on the same domain as the API (`api.afframe.com/v1/docs` → `api.afframe.com/v1/<route>`). Same origin, no CORS preflight involved.
+- The docs page is hosted on the same domain as the API (`api.afframe.com/` → `api.afframe.com/v1/<route>`). Same origin, no CORS preflight involved.
 - If a partner hosts a _copy_ of the spec on their own domain, that's their proxy / CORS problem, not ours.
 
 ### Spec drift in CI (`openapi-lint`)
@@ -472,7 +455,7 @@ Useful for partners who need to mirror the platform's FX convention exactly (e.g
 
 ### `[Concept]` SDK distribution
 
-`/v1/openapi.json` is enough to generate a client today. A planned future addition: a CI job that runs `openapi-generator-cli` against the committed `apps/api/openapi/v1.json` and publishes typed clients to npm under `@afframe/sdk` (TypeScript first, Python second). Out of scope for now.
+`/v1/openapi.json` is enough to generate a client today. A planned future addition: a CI job that runs `openapi-typescript` + `openapi-fetch` against the committed `apps/api/openapi/v1.json` and publishes typed clients to npm under `@afframe/sdk` (TypeScript first, Python second). Out of scope for now.
 
 ### `[Concept]` Docs surface evolution
 

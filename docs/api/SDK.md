@@ -8,20 +8,20 @@ Reference design for the official TypeScript client of `api.afframe.com/v1`.
 
 ## 1. Decisions
 
-| Question                     | Answer                                                                                                                                                                                          | Why                                                                                                                 |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Generator                    | [`hey-api/openapi-ts`](https://github.com/hey-api/openapi-ts)                                                                                                                                   | MIT, plugin architecture (TS types, Zod, fetch/axios, TanStack Query). Used by Vercel, PayPal. Tree-shake-friendly. |
-| Languages                    | TypeScript at launch. Python via Speakeasy when a paying partner asks. Go on first partner ask.                                                                                                 | Don't fan out languages until there's demand                                                                        |
-| Runtime client               | `fetch` (built-in, edge-compatible)                                                                                                                                                             | No `axios` dep. Works on Node 18+, Workers, Deno, browser.                                                          |
-| Module format                | ESM-first, CJS shim via `tsup`                                                                                                                                                                  | Modern Node, Workers, edge runtimes                                                                                 |
-| Package name                 | `@afframe/sdk` on npm                                                                                                                                                                           | Standard org-prefixed                                                                                               |
-| Semver vs API version        | **Independent**. API path = `/v1`; SDK = its own MAJOR/MINOR/PATCH                                                                                                                              | A new `/v2` doesn't auto-bump the SDK MAJOR                                                                         |
-| Validation                   | Zod schemas re-exported from `@workspace/shared/api`                                                                                                                                            | One source of truth, server and client agree                                                                        |
-| Branded types (`Money<CZK>`) | `x-typescript-type` extension on OpenAPI + post-codegen `tsmorph` pass                                                                                                                          | OpenAPI alone can't express brand; rewrite fields tagged `x-brand: Money`                                           |
-| Dates                        | Wire as ISO-8601 string. Opt-in `Date` transformer.                                                                                                                                             | Avoid hidden `JSON.parse` reviver footguns                                                                          |
-| Discriminated unions         | `parseEvent()` helper using `z.discriminatedUnion` until [hey-api #3270](https://github.com/hey-api/openapi-ts/issues/3270) lands. Switch to Speakeasy if needed for Event union strict typing. | Webhook event union needs strict typing                                                                             |
-| Tree-shake                   | `sideEffects: false`, top-level `exports` map per environment                                                                                                                                   | Modern bundler-friendly                                                                                             |
-| Repo location                | `packages/sdk` (internal source) + published as `@afframe/sdk`                                                                                                                                  | Monorepo-co-located; published artefact only                                                                        |
+| Question                     | Answer                                                                                                                                                                          | Why                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Generator                    | [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) + [`openapi-fetch`](https://github.com/openapi-ts/openapi-typescript/tree/main/packages/openapi-fetch) | MIT, zero-runtime-overhead type generation + fully-typed fetch client. Tree-shake-friendly, edge-compatible. |
+| Languages                    | TypeScript at launch. Python via Speakeasy when a paying partner asks. Go on first partner ask.                                                                                 | Don't fan out languages until there's demand                                                                 |
+| Runtime client               | `fetch` (built-in, edge-compatible)                                                                                                                                             | No `axios` dep. Works on Node 18+, Workers, Deno, browser.                                                   |
+| Module format                | ESM-first, CJS shim via `tsup`                                                                                                                                                  | Modern Node, Workers, edge runtimes                                                                          |
+| Package name                 | `@afframe/sdk` on npm                                                                                                                                                           | Standard org-prefixed                                                                                        |
+| Semver vs API version        | **Independent**. API path = `/v1`; SDK = its own MAJOR/MINOR/PATCH                                                                                                              | A new `/v2` doesn't auto-bump the SDK MAJOR                                                                  |
+| Validation                   | Zod schemas re-exported from `@workspace/shared/api`                                                                                                                            | One source of truth, server and client agree                                                                 |
+| Branded types (`Money<CZK>`) | `x-typescript-type` extension on OpenAPI + post-codegen `tsmorph` pass                                                                                                          | OpenAPI alone can't express brand; rewrite fields tagged `x-brand: Money`                                    |
+| Dates                        | Wire as ISO-8601 string. Opt-in `Date` transformer.                                                                                                                             | Avoid hidden `JSON.parse` reviver footguns                                                                   |
+| Discriminated unions         | `parseEvent()` helper using `z.discriminatedUnion`. Re-exported Zod schemas validate webhook event unions with strict typing.                                                   | Webhook event union needs strict typing                                                                      |
+| Tree-shake                   | `sideEffects: false`, top-level `exports` map per environment                                                                                                                   | Modern bundler-friendly                                                                                      |
+| Repo location                | `packages/sdk` (internal source) + published as `@afframe/sdk`                                                                                                                  | Monorepo-co-located; published artefact only                                                                 |
 
 ---
 
@@ -135,12 +135,12 @@ Document the matrix in `packages/sdk/README.md`.
 ## 7. Generation pipeline
 
 1. `pnpm --filter api emit:openapi` produces `apps/api/openapi/v1.json`.
-2. `pnpm --filter @afframe/sdk codegen` runs `hey-api/openapi-ts` against the spec, emits to `packages/sdk/src/generated/`.
+2. `pnpm gen:all` from the repo root runs `openapi-typescript` against the spec and emits to `packages/sdk/src/generated/`.
 3. Post-codegen `tsmorph` pass rewrites `x-brand` fields to branded types.
 4. `pnpm --filter @afframe/sdk build` (`tsup`) emits ESM + CJS + `.d.ts`.
 5. Release: tag `sdk-v*` → `.github/workflows/sdk-release.yml` (concept) publishes to npm with provenance (`npm publish --provenance`).
 
-The codegen step is part of `pnpm --filter api emit:openapi`'s CI check — if codegen output diffs, CI fails (mirrors the OpenAPI drift gate).
+The codegen step is part of the CI drift gate — if `packages/sdk/src/generated/` diffs after `pnpm gen:all`, CI fails.
 
 ---
 
@@ -157,7 +157,7 @@ The codegen step is part of `pnpm --filter api emit:openapi`'s CI check — if c
 
 ## 9. Out of scope (deliberately)
 
-- **Caching**. The SDK is a thin wire client. Callers wire their own caching (React Query, Apollo, Tanstack Query, …). The TanStack Query plugin in hey-api gives them helpers.
+- **Caching**. The SDK is a thin wire client. Callers wire their own caching (React Query, Apollo, TanStack Query, …). The `openapi-fetch` middleware API lets callers intercept requests to add caching layers.
 - **Background sync**. Out of scope until partner ask.
 - **CLI wrapping**. `apps/cli` is its own product — see [`CLI.md`](./CLI.md).
 - **Schema-only export**. We export Zod schemas under `@afframe/sdk/schemas` for partners who want to validate without the client.
@@ -166,8 +166,8 @@ The codegen step is part of `pnpm --filter api emit:openapi`'s CI check — if c
 
 ## 10. References
 
-- [`hey-api/openapi-ts`](https://github.com/hey-api/openapi-ts)
-- [Speakeasy SDK comparison](https://www.speakeasy.com/blog/comparison-sdk-generators-openapi)
+- [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript)
+- [`openapi-fetch`](https://github.com/openapi-ts/openapi-typescript/tree/main/packages/openapi-fetch)
 - [Standard Webhooks](https://www.standardwebhooks.com/) — webhook verifier
 - [Semantic Versioning](https://semver.org/)
-- [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`ERRORS.md`](./ERRORS.md), [`WEBHOOKS.md`](./WEBHOOKS.md)
+- [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`ADR-0024`](../adr/0024-developer-platform-codegen-pipeline.md), [`ERRORS.md`](./ERRORS.md), [`WEBHOOKS.md`](./WEBHOOKS.md)

@@ -521,36 +521,65 @@ jobs:
           audience: sts.amazonaws.com
           role-duration-seconds: 3600
 
-      - name: Pre-create ECS log groups
+      - name: Pre-create ECS log groups (only when CFN already owns them)
         # CFN's AWS::IAM::Policy GetAtt(LogGroup.Arn) hits CloudControl,
-        # which has ~1s read-after-write lag. Brand-new log groups created
-        # within the same UPDATE trigger 'Unable to retrieve Arn attribute
-        # for AWS::Logs::LogGroup ... was not found' on the IAM policy
-        # update. Pre-creating here lets CDK's GetAtt resolve to an
-        # already-propagated ARN. Idempotent on the AWS side.
+        # which has ~1s read-after-write lag. On a steady-state deploy
+        # this manifests as 'Unable to retrieve Arn attribute for
+        # AWS::Logs::LogGroup ... was not found' when CFN re-resolves the
+        # ARN during the IAM::Policy update. Pre-creating the log group
+        # OUTSIDE CFN (idempotent describe-then-create) gives the IAM
+        # policy a stable ARN to GetAtt against.
         #
-        # First-deploy guard: skip when App-<env> stack does not exist yet.
-        # On first-ever deploy CDK's App stack creates these log groups
-        # via `new LogGroup(...)` with explicit names — if the workflow
-        # has already created them outside CFN the CDK create fails with
-        # ResourceAlreadyExistsException. Subsequent deploys hit the
-        # CloudControl race that this step was designed for, so the
-        # step still runs after the App stack exists.
+        # CRITICAL INVARIANT: only pre-create log groups CFN ALREADY OWNS.
+        # If a log group is in the CDK template but NOT yet in the deployed
+        # stack (new resource — e.g. PR K's db-migrate/openfga-migrate
+        # added to an env where App-stack already existed), pre-creating
+        # it externally makes CFN's own CREATE fail with
+        # AlreadyExistsException at the next stack UPDATE. Symptom from
+        # run 26227049301 staging deploy: `Resource of type
+        # 'AWS::Logs::LogGroup' with identifier '/ecs/monorepo-staging/
+        # db-migrate' already exists`. Accept the small CloudControl-race
+        # window on the very first CFN CREATE of a new log group; CDK
+        # retries it. Subsequent deploys see CFN owning the new log
+        # group, this step pre-creates it (no-op since it exists), race
+        # protection restored.
+        #
+        # First-deploy guard: skip entire step when App-<env> stack does
+        # not exist yet. CDK's first CREATE has its own ordering graph;
+        # nothing to pre-protect.
         run: |
           set -euo pipefail
           if ! aws cloudformation describe-stacks --stack-name "App-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "App-${ENV_NAME} stack does not exist yet — skipping log-group pre-create on first-deploy. CDK creates the log groups cleanly; next deploy this step runs (idempotent) for the CloudControl race fix."
+            echo "App-${ENV_NAME} stack does not exist yet — skipping log-group pre-create on first-deploy."
             exit 0
           fi
-          # Includes the two init-container log groups (db-migrate,
-          # openfga-migrate) added in PR K — same CloudControl race that
-          # this step exists to neutralise (LogGroup created with explicit
-          # name + GetAtt into an IAM policy → read-after-write race).
+          # Snapshot the log groups CFN currently OWNS in App-<env>.
+          # PhysicalResourceId for AWS::Logs::LogGroup is the log group
+          # name. New log groups added in the CDK template but not yet in
+          # the deployed stack are absent here — by design.
+          # JSON + jq instead of --output text avoids tab/space tr parsing.
+          owned=$(aws cloudformation describe-stack-resources \
+            --stack-name "App-${ENV_NAME}" \
+            --region "$AWS_REGION" \
+            --query "StackResources[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
+            --output json 2>/dev/null | jq -r '.[]' || true)
+          echo "App-${ENV_NAME} CFN-owned log groups:"
+          if [ -n "$owned" ]; then
+            while IFS= read -r name; do echo "  $name"; done <<<"$owned"
+          else
+            echo "  (none)"
+          fi
           for svc in web admin api cloudflared pgbouncer cerbos openfga db-migrate openfga-migrate; do
             lg="/ecs/monorepo-${ENV_NAME}/${svc}"
+            if ! printf '%s\n' "$owned" | grep -Fxq "$lg"; then
+              echo "skip:   $lg — not yet in App-${ENV_NAME} stack. CFN will CREATE on the next stack UPDATE."
+              continue
+            fi
             if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
               echo "exists: $lg"
             else
+              # CFN owns it but it's missing on the AWS side (out-of-band
+              # delete). Recreate so the IAM::Policy GetAtt resolves.
               aws logs create-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null && echo "created: $lg" || echo "::warning::create-log-group failed for $lg (may be racing)"
               aws logs put-retention-policy --log-group-name "$lg" --retention-in-days 7 --region "$AWS_REGION" >/dev/null 2>&1 || true
             fi

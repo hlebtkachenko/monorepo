@@ -1381,13 +1381,19 @@ jobs:
               --context "apiImageTag=${IMAGE_TAG_API}" \
               --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
               "${SECRET_CTX[@]}" 2>&1 | tee "$DIFF_FILE" || true
-            STATEFUL_TYPES='AWS::(RDS::DB(Instance|Cluster|ClusterParameterGroup|ParameterGroup|SubnetGroup)|S3::Bucket|KMS::Key|SecretsManager::Secret|IAM::(Role|User)|DynamoDB::Table|EFS::FileSystem|Logs::LogGroup)'
+            STATEFUL_TYPES='AWS::(RDS::DB(Instance|Cluster|ClusterParameterGroup|ParameterGroup|SubnetGroup)|S3::Bucket|KMS::Key|SecretsManager::Secret|IAM::(Role|User)|DynamoDB::Table|EFS::FileSystem)'
             # `[~] <Type> <LogicalId> <PhysicalId> replace` = REPLACE-on-Update
             # `[+] <Type>` = CREATE of a new logical id (catches typo'd renames
             # of a stateful resource into a new construct id — the resource
             # is detached from CFN's perspective, original retained but
             # orphaned, new resource created alongside; for a stateful
             # resource that's silent data loss).
+            #
+            # Logs::LogGroup intentionally omitted: log groups are not
+            # stateful here (1-week retention, removalPolicy=DESTROY). Init
+            # containers like openfga-bootstrap legitimately add new log
+            # groups on cdk deploy; treating those as destructive blocked
+            # PR #243's prod deploy (run 26235464860) for zero safety gain.
             REPLACE_LINES=$(grep -E "^\[~\] ${STATEFUL_TYPES}.* replace$|^\[\+\] ${STATEFUL_TYPES}\b" "$DIFF_FILE" || true)
             echo "::endgroup::"
             if [ -n "$REPLACE_LINES" ]; then

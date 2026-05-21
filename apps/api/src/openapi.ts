@@ -10,6 +10,12 @@ import { buildOpenApiDocument as buildFromRegistry } from "@workspace/shared/api
  * share this single emit path; SDK + MCP codegen reads the resulting
  * `apps/api/openapi/v1.json` file.
  *
+ * `info.version` (the API CONTRACT version) is owned by `API_VERSION` in
+ * the registry — NOT derived from `process.env.BUILD_VERSION`. The
+ * deployment artifact version (release tag, container build hash) is
+ * separate and lives in `/api/health`. See `docs/api/VERSIONING.md` for
+ * the contract-versioning rules.
+ *
  * The `@nestjs/swagger` decorators on the v1 controllers are intentionally
  * left in place; they are inert here (the reflector no longer runs) but
  * still document each route in IDEs and during code review. Phase B6's
@@ -18,7 +24,5 @@ import { buildOpenApiDocument as buildFromRegistry } from "@workspace/shared/api
 export type ApiOpenApiDocument = ReturnType<typeof buildFromRegistry>
 
 export function buildOpenApiDocument(): ApiOpenApiDocument {
-  return buildFromRegistry({
-    version: process.env.BUILD_VERSION ?? "0.0.0",
-  })
+  return buildFromRegistry()
 }

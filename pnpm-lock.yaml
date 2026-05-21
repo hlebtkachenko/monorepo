@@ -198,6 +198,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@workspace/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

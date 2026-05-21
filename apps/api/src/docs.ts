@@ -23,36 +23,63 @@ import type { ApiOpenApiDocument } from "./openapi"
  */
 
 /**
- * shadcn-aligned CSS variables. This page renders outside Next.js, so the
- * tokens can't be shared from `packages/ui`; the values mirror our `:root`
- * + `.dark` palette in `app/globals.css`. Update both files together if the
- * brand palette moves.
+ * Brand-aligned CSS variables. This page renders outside Next.js so the
+ * tokens can't be shared from `packages/ui`; the values mirror the brand
+ * palette extracted from `packages/ui/src/brand-assets/source/*.svg`:
+ *
+ *   --primary-green : #009473  (logomark, primary-light)
+ *   --accent-green  : #28DCB1  (primary-dark accent)
+ *   --ink           : #0A1F1A  (dark text on light)
+ *
+ * Neutrals mirror our shadcn palette (`packages/ui/src/styles/globals.css`).
+ * If the brand palette moves, update brand-assets first and reflect here.
+ *
+ * Additional CSS rules hide Scalar's workspace topbar (Configure / Share /
+ * Deploy buttons) which we don't use — those are Scalar Cloud features
+ * (see ADR-0024 Amendment, no Cloud Scalar). Selectors are best-effort
+ * against Scalar v1.1.16's DOM; refine if Scalar changes its class names.
  */
 const CUSTOM_CSS = `
 .light-mode {
-  --scalar-color-1: hsl(222.2 47.4% 11.2%);
-  --scalar-color-2: hsl(215.4 16.3% 46.9%);
-  --scalar-color-3: hsl(215.4 16.3% 56.9%);
-  --scalar-color-accent: hsl(221.2 83.2% 53.3%);
-  --scalar-background-1: hsl(0 0% 100%);
-  --scalar-background-2: hsl(210 40% 98%);
-  --scalar-background-3: hsl(210 40% 94%);
-  --scalar-border-color: hsl(214.3 31.8% 91.4%);
+  --scalar-color-1: #0A1F1A;
+  --scalar-color-2: #475569;
+  --scalar-color-3: #64748b;
+  --scalar-color-accent: #009473;
+  --scalar-background-1: #ffffff;
+  --scalar-background-2: #f8fafc;
+  --scalar-background-3: #f1f5f9;
+  --scalar-border-color: #e2e8f0;
 }
 .dark-mode {
-  --scalar-color-1: hsl(210 40% 98%);
-  --scalar-color-2: hsl(215 20.2% 65.1%);
-  --scalar-color-3: hsl(215 20.2% 55.1%);
-  --scalar-color-accent: hsl(217.2 91.2% 59.8%);
-  --scalar-background-1: hsl(222.2 84% 4.9%);
-  --scalar-background-2: hsl(217.2 32.6% 12%);
-  --scalar-background-3: hsl(217.2 32.6% 17.5%);
-  --scalar-border-color: hsl(217.2 32.6% 17.5%);
+  --scalar-color-1: #F3F4F6;
+  --scalar-color-2: #94a3b8;
+  --scalar-color-3: #64748b;
+  --scalar-color-accent: #28DCB1;
+  --scalar-background-1: #0A1F1A;
+  --scalar-background-2: #0f2823;
+  --scalar-background-3: #143630;
+  --scalar-border-color: #1f3b34;
 }
 .scalar-app {
   font-family:
     -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Hide Scalar workspace topbar elements (Configure / Share / Deploy /
+ * Ask AI). The Ask AI button is also disabled in config via
+ * \`agent.disabled\`; this CSS is a belt-and-braces for any version
+ * where the agent flag doesn't suppress the rendered button.
+ */
+.scalar-app [data-action="share"],
+.scalar-app [data-action="deploy"],
+.scalar-app [data-action="configure"],
+.scalar-app [data-feature="ask-ai"],
+.scalar-app .ask-ai-button,
+.scalar-app .scalar-topbar-actions,
+.scalar-app .scalar-workspace-actions {
+  display: none !important;
 }
 `
 
@@ -101,6 +128,15 @@ export function registerDocsRoutes(
       defaultOpenAllTags: true,
       hideDarkModeToggle: false,
       showOperationId: false,
+      // Workspace + AI features off — we run Scalar OSS without Cloud
+      // integration (ADR-0024 Amendment 2026-05-21). Agent.disabled
+      // hides the Ask AI button (otherwise enabled by default on
+      // localhost with 10 free messages). showDeveloperTools "never"
+      // hides the top-right Developer Tools button. hideClientButton
+      // hides the bottom-left "Open API Client" launcher.
+      agent: { disabled: true },
+      showDeveloperTools: "never",
+      hideClientButton: true,
       authentication: {
         preferredSecurityScheme: "bearer",
       },

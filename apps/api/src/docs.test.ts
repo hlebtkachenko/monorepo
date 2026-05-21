@@ -101,6 +101,11 @@ describe("Public API docs surface", () => {
     expect(response.text).toContain('"targetKey": "shell"')
     expect(response.text).toContain('"clientKey": "curl"')
     expect(response.text).toContain("api.afframe.com")
-    expect(response.text).toContain("api-staging.afframe.com")
+    // The staging server entry is env-gated: only registered when
+    // APP_ENV ∈ {staging, development, test}. The test environment is
+    // not the *api process's* APP_ENV (we don't set it here), so staging
+    // is absent — and that's the correct production behaviour. Asserting
+    // both ways guards against an accidental ungate.
+    expect(response.text).not.toContain("api-staging.afframe.com")
   })
 })

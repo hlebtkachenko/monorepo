@@ -40,8 +40,12 @@ set -euo pipefail
 : "${APP_USER_PASSWORD:?required}"
 
 export PGPASSWORD="$DB_ADMIN_PASSWORD"
-PSQL_BASE=(psql --host="$DB_HOST" --port="$DB_PORT" --username="$DB_ADMIN_USER" --dbname="$DB_NAME" --no-psqlrc --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1 --set=sslmode=require)
-PSQL_VERBOSE=(psql --host="$DB_HOST" --port="$DB_PORT" --username="$DB_ADMIN_USER" --dbname="$DB_NAME" --no-psqlrc --set=ON_ERROR_STOP=1 --set=sslmode=require)
+# PGSSLMODE is the libpq connection parameter; --set=sslmode=require on the
+# psql command-line is a psql VARIABLE, not a TLS toggle. Force SSL on the
+# wire via the env var (matches pgbouncer SERVER_TLS_SSLMODE=require).
+export PGSSLMODE=require
+PSQL_BASE=(psql --host="$DB_HOST" --port="$DB_PORT" --username="$DB_ADMIN_USER" --dbname="$DB_NAME" --no-psqlrc --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1)
+PSQL_VERBOSE=(psql --host="$DB_HOST" --port="$DB_PORT" --username="$DB_ADMIN_USER" --dbname="$DB_NAME" --no-psqlrc --set=ON_ERROR_STOP=1)
 
 echo "init: connecting to ${DB_HOST}:${DB_PORT}/${DB_NAME} as ${DB_ADMIN_USER}"
 "${PSQL_BASE[@]}" -c "SELECT 1" >/dev/null
@@ -50,9 +54,17 @@ echo "init: connected."
 # 1. Apply pending SQL migrations from /migrations/.
 "${PSQL_BASE[@]}" -c "CREATE TABLE IF NOT EXISTS _app_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
 
+# Sanity: at least one migration file must be COPY'd into the image. Drop
+# `2>/dev/null` so a missing /migrations directory fails loud (broken build).
+mig_files=$(find /migrations -maxdepth 1 -name '*.sql' | sort)
+if [ -z "$mig_files" ]; then
+  echo "init: ERROR — no migration files under /migrations. Broken image build?" >&2
+  exit 1
+fi
+
 applied=0
 skipped=0
-for f in $(find /migrations -maxdepth 1 -name '*.sql' 2>/dev/null | sort); do
+for f in $mig_files; do
   name=$(basename "$f")
   already=$("${PSQL_BASE[@]}" -c "SELECT 1 FROM _app_migrations WHERE filename = '${name}'" || echo "")
   if [ "$already" = "1" ]; then
@@ -61,7 +73,13 @@ for f in $(find /migrations -maxdepth 1 -name '*.sql' 2>/dev/null | sort); do
   fi
   echo "init: applying $name"
   "${PSQL_VERBOSE[@]}" -f "$f"
-  "${PSQL_BASE[@]}" -c "INSERT INTO _app_migrations (filename) VALUES ('${name}')"
+  # ON CONFLICT DO NOTHING converts the narrow concurrent-runner race
+  # (two init containers seeing empty journal then both INSERTing) from a
+  # PK-violation crash into a benign no-op. The SELECT above is the fast
+  # path; this is the safety net. Practical race window is small because
+  # the workflow runs apply-migrations-via-ecs BEFORE cdk deploy
+  # serially, but ECS rolling deploys + manual run-task can still overlap.
+  "${PSQL_BASE[@]}" -c "INSERT INTO _app_migrations (filename) VALUES ('${name}') ON CONFLICT (filename) DO NOTHING"
   applied=$((applied + 1))
 done
 echo "init: migrations applied=${applied} skipped=${skipped}"

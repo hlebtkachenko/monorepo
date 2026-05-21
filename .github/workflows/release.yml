@@ -32,6 +32,23 @@ jobs:
         with:
           egress-policy: audit
 
+      # Fail fast on tag-format typos. Convention is documented at
+      # docs/conventions/RELEASES.md. A bad tag would otherwise produce a
+      # half-built release with weird artifact names + Sigstore entries
+      # that can't be revoked.
+      - name: Validate tag format
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' does not match the release convention."
+            echo "Expected: v<MAJOR>.<MINOR>.<PATCH>  or  v<MAJOR>.<MINOR>.<PATCH>-rc.<N>"
+            echo "Examples: v0.2.0   v0.2.1-rc.1   v1.0.0-rc.3"
+            echo "See docs/conventions/RELEASES.md"
+            exit 1
+          fi
+          echo "Tag '${GITHUB_REF_NAME}' is valid."
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
           persist-credentials: false
@@ -87,10 +104,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # `-rc.N` tags ship as Pre-release; stable tags become Latest.
+          # See docs/conventions/RELEASES.md.
+          PRERELEASE_FLAG=""
+          if [[ "${GITHUB_REF_NAME}" =~ -rc\. ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
           if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release create "${GITHUB_REF_NAME}" \
               --title "${GITHUB_REF_NAME}" \
-              --generate-notes
+              --generate-notes \
+              ${PRERELEASE_FLAG}
           fi
           gh release upload "${GITHUB_REF_NAME}" \
             "${{ steps.pack.outputs.tarball }}" \
@@ -111,6 +135,11 @@ jobs:
       provenance-name: web-${{ github.ref_name }}.intoto.jsonl
 
   # SBOM + L2 provenance + cosign + license check via the shared orchestrator.
+  # `artifact-source` names the workflow artifact uploaded by the `build`
+  # job above (see the `actions/upload-artifact` step — name: web-tarball).
+  # Without it, the supply-chain job runs in a fresh runner that has no
+  # access to the tarball and sha256sum fails. Surfaced on v0.2.0 first
+  # release. See AFF-229.
   supply-chain:
     needs: [build]
     permissions:
@@ -122,6 +151,7 @@ jobs:
     uses: ./.github/workflows/_supply-chain.yml
     with:
       artifact-path: ${{ needs.build.outputs.tarball-name }}
+      artifact-source: web-tarball
       package-name: web
       version: ${{ github.ref_name }}
       release-mode: true

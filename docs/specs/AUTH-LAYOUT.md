@@ -17,6 +17,7 @@ Pages render ONLY their form content. All chrome (header, footer, aside) lives
 in the layout. Never duplicate chrome in a page file.
 
 Blocks live in `packages/ui/src/blocks/`:
+
 - `auth-shell/` — grid container, header, body, footer, aside, left-column
 - `auth-aside/` — photo aside with scrim, headline, subtitle, quote, marquee
 
@@ -36,12 +37,12 @@ md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]
 
 All values in px. `p-10` = 40px in Tailwind.
 
-| Slot | Padding | Rule |
-|------|---------|------|
-| Header | `px-10 pt-10 pb-0` | Same horizontal as body |
-| Body | `px-10 py-10` | Primary safe zone |
-| Footer | `px-10 py-10` | Same as header horizontal |
-| Aside | `p-10` | Matches body safe zone exactly |
+| Slot   | Padding            | Rule                           |
+| ------ | ------------------ | ------------------------------ |
+| Header | `px-10 pt-10 pb-0` | Same horizontal as body        |
+| Body   | `px-10 py-10`      | Primary safe zone              |
+| Footer | `px-10 py-10`      | Same as header horizontal      |
+| Aside  | `p-10`             | Matches body safe zone exactly |
 
 Header, footer, and aside horizontal padding MUST equal body horizontal padding.
 Never use different values. Form content is centered within body via `max-w-md`.
@@ -49,11 +50,13 @@ Never use different values. Form content is centered within body via `max-w-md`.
 ## Header Row
 
 Left: brand mark + brand name
-- Icon: `WalletMinimal` from `@workspace/ui/lib/icons` (placeholder until real SVG)
+
+- Logo: `<Logo variant="horizontal" tone="primary" />` from `@workspace/ui/brand-assets` (web) / `tone="admin"` (admin)
 - Text: `text-base font-semibold tracking-tight`
 - No background on icon, just the icon itself
 
 Right: return-to-marketing link
+
 - Icon: `ArrowUpRight` + "Return to afframe.com"
 - Style: `text-sm text-muted-foreground hover:text-foreground`
 
@@ -62,6 +65,7 @@ Right: return-to-marketing link
 Left: `© {year} {brand}`
 
 Right (flex, gap-4):
+
 - Privacy / Terms / Status links (`href="#"` until legal provides URLs)
 - `LanguagePicker` component
 
@@ -87,6 +91,7 @@ Bottom gradient: ellipse 55% 30% at 25% 82%
 Color stops (each gradient): `rgba(0,0,0, 0.55 → 0.35 → 0.15 → 0.05 → 0)`
 
 Rules:
+
 - NO `backdrop-blur` — only radial gradient darkness
 - NO `border-radius` on scrim
 - NO per-slot scrim containers (creates visible boundary lines)
@@ -111,15 +116,18 @@ Inner wrapper: `flex-1 justify-between` when slots are present.
 Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 
 ### Headline
+
 - `<Heading level={1}>` with className override `font-semibold lg:text-4xl`
 - Override is necessary: level=1 defaults to `font-bold`, design wants semibold
 - Color: inherited (white on photo aside)
 
 ### Subtitle
+
 - `<Text variant="muted">` with `text-current opacity-80`
 - `text-current` overrides muted-foreground color for white-on-photo context
 
 ### Quote
+
 - `<Text variant="lead">` rendered as `<blockquote>` via `asChild`
 - Curly quotes via CSS `before:content-['“'] after:content-['”']`
 - `text-current opacity-95`
@@ -127,6 +135,7 @@ Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 - Author: `font-medium`, Role: `font-normal opacity-80`
 
 ### Logo Marquee
+
 - Text placeholders from `AUTH_ASIDE_LOGOS` constant (`@workspace/shared`)
 - `font-heading text-sm font-semibold tracking-tight opacity-70`
 - Edge fade: `mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent)`
@@ -135,15 +144,15 @@ Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 
 ## Form Column Typography
 
-| Element | Component | Props / className |
-|---------|-----------|-------------------|
-| Page heading | `<Heading level={2}>` | `className="mt-0"` |
-| Description | `<Text variant="muted">` | — |
-| Input | `<Input>` | `inputSize="xl"` (h-11) |
-| Primary CTA | `<Button>` | `size="xl"` (h-11) |
-| Secondary CTA | `<Button variant="outline">` | `size="xl"` |
-| Divider | `<FieldSeparator>` | — |
-| Error text | `<Text variant="small">` | `className="text-destructive"` |
+| Element       | Component                    | Props / className              |
+| ------------- | ---------------------------- | ------------------------------ |
+| Page heading  | `<Heading level={2}>`        | `className="mt-0"`             |
+| Description   | `<Text variant="muted">`     | —                              |
+| Input         | `<Input>`                    | `inputSize="xl"` (h-11)        |
+| Primary CTA   | `<Button>`                   | `size="xl"` (h-11)             |
+| Secondary CTA | `<Button variant="outline">` | `size="xl"`                    |
+| Divider       | `<FieldSeparator>`           | —                              |
+| Error text    | `<Text variant="small">`     | `className="text-destructive"` |
 
 ## Rules for New Screens
 
@@ -160,6 +169,7 @@ Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 ## Outstanding (Not Yet Implemented)
 
 See `docs/plans/AUTH-OUTSTANDING.md` for remaining gaps:
+
 - Real brand SVG (currently placeholder icon)
 - Footer legal URLs (currently `href="#"`)
 - `Heading` weight prop (to avoid className override for semibold + text-4xl)

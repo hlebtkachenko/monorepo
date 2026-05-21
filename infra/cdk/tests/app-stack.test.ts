@@ -12,13 +12,13 @@ describe("AppStack Fargate hardening", () => {
     })
   })
 
-  it("all 7 containers drop ALL Linux capabilities", () => {
+  it("all 10 containers drop ALL Linux capabilities", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
       | undefined
     const containers = taskDef?.Properties?.ContainerDefinitions ?? []
-    expect(containers.length).toBe(7)
+    expect(containers.length).toBe(10)
     for (const container of containers as Array<{
       LinuxParameters?: { Capabilities?: { Drop?: string[] } }
       Name?: string
@@ -139,12 +139,19 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["BETTER_AUTH_TRUSTED_ORIGINS"]).toContain(
       "https://test.example.com",
     )
-    expect(envByName["EMAIL_FROM"]).toBe("no-reply@test.example.com")
+    expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
     expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
     // Hard-coded loopback path to the pgBouncer sidecar — same pattern as api.
     expect(envByName["DB_HOST"]).toBe("localhost")
     expect(envByName["DB_PORT"]).toBe("6432")
     expect(envByName["DB_NAME"]).toBe("monorepo")
+    // Lenient probe is mandatory on RDS-backed deploys — the GUC cannot
+    // be persisted on the role via ALTER ROLE SET (AFF-150 §5), so the
+    // probe would otherwise throw an unhandled rejection on every cold
+    // start and surface as a flash error overlay. Per-transaction SET
+    // LOCAL (PR #142) is the actual enforcement. Both web + admin
+    // connect as app_user and must carry this flag.
+    expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
     // AUTH_TOKEN_ENV must be explicitly mapped from envName so the
     // resolveAuthTokenEnv() fallback (NODE_ENV='production' -> 'prd')
     // does not stamp staging tokens with the production checksum code.
@@ -215,6 +222,9 @@ describe("AppStack Fargate hardening", () => {
     // Must NOT contain the web domain — guards against a regression to the
     // old `admin.${props.domain}` derivation.
     expect(envByName["BETTER_AUTH_URL"]).not.toContain("test.example.com")
+    // Admin connects as app_user too and needs the lenient startup-probe
+    // mode — RDS rejects ALTER ROLE SET for custom GUCs (AFF-150 §5).
+    expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
   })
 
   it("references the 4 workflow-managed secrets by FULL ARN (with random suffix)", () => {
@@ -463,7 +473,7 @@ describe("AppStack Fargate hardening", () => {
         SourceVolume?: string
       }>
     }>
-    expect(containers.length).toBe(7)
+    expect(containers.length).toBe(10)
     for (const container of containers) {
       const tmpMount = container.MountPoints?.find(
         (m) => m.ContainerPath === "/tmp",
@@ -471,5 +481,85 @@ describe("AppStack Fargate hardening", () => {
       expect(tmpMount).toBeDefined()
       expect(tmpMount?.SourceVolume).toBe("tmp")
     }
+  })
+
+  it("init chain: openfga-bootstrap dependsOn openfga-migrate; api dependsOn openfga-bootstrap", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      DependsOn?: Array<{ ContainerName?: string; Condition?: string }>
+    }>
+    const byName = Object.fromEntries(
+      containers.map((c) => [c.Name ?? "", c.DependsOn ?? []]),
+    )
+
+    expect(byName["openfga-bootstrap"]).toContainEqual({
+      ContainerName: "openfga-migrate",
+      Condition: "SUCCESS",
+    })
+    expect(byName["api"]).toContainEqual({
+      ContainerName: "openfga-bootstrap",
+      Condition: "SUCCESS",
+    })
+    // Sanity: web/admin do NOT wait on openfga-bootstrap (they don't read
+    // OPENFGA_* SSM params). Catches accidental over-wiring.
+    expect(
+      byName["web"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
+    ).toBe(false)
+    expect(
+      byName["admin"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
+    ).toBe(false)
+  })
+
+  it("TaskRole has ssm:PutParameter scoped to /monorepo/<env>/openfga/{store-id,model-id}", () => {
+    const policies = template.findResources("AWS::IAM::Policy")
+    const taskRolePolicy = Object.values(policies).find((p) => {
+      const stmts = (
+        p as {
+          Properties?: {
+            PolicyDocument?: {
+              Statement?: Array<{ Action?: string | string[] }>
+            }
+          }
+        }
+      ).Properties?.PolicyDocument?.Statement
+      return stmts?.some(
+        (s) =>
+          s.Action === "ssm:PutParameter" ||
+          (Array.isArray(s.Action) && s.Action.includes("ssm:PutParameter")),
+      )
+    }) as
+      | {
+          Properties?: {
+            PolicyDocument?: {
+              Statement?: Array<{
+                Action?: string | string[]
+                Resource?: string | string[]
+              }>
+            }
+          }
+        }
+      | undefined
+    expect(taskRolePolicy).toBeDefined()
+    const putStmt = taskRolePolicy?.Properties?.PolicyDocument?.Statement?.find(
+      (s) =>
+        s.Action === "ssm:PutParameter" ||
+        (Array.isArray(s.Action) && s.Action.includes("ssm:PutParameter")),
+    )
+    const resources = Array.isArray(putStmt?.Resource)
+      ? putStmt.Resource
+      : putStmt?.Resource
+        ? [putStmt.Resource]
+        : []
+    const joined = resources.join(",")
+    expect(joined).toContain("/monorepo/test/openfga/store-id")
+    expect(joined).toContain("/monorepo/test/openfga/model-id")
+    // Guardrail: no wildcards, no unrelated SSM paths.
+    expect(joined).not.toContain("*")
+    expect(resources.length).toBe(2)
   })
 })

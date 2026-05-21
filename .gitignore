@@ -54,6 +54,12 @@ test-results
 .playwright-mcp
 apps/web/e2e/.results/
 
+# CDK context cache — populated by `cdk synth` from AWS API calls
+# (availability-zones, hosted-zone lookups). Treating it as committed
+# bakes the AWS account ID into the public repo for no operational gain;
+# CDK regenerates the file on demand on every synth.
+infra/cdk/cdk.context.json
+
 # Misc
 .DS_Store
 *.pem

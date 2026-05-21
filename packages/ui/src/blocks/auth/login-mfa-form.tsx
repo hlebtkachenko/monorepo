@@ -114,6 +114,7 @@ export function LoginMfaForm({
       await onClearLoginEmail()
       onNavigate(next)
     } catch (err) {
+      if (isNextRedirectError(err)) throw err
       setServerError((err as Error).message ?? messages.invalidCode)
     }
   }
@@ -136,9 +137,20 @@ export function LoginMfaForm({
       await onClearLoginEmail()
       onNavigate(next)
     } catch (err) {
+      if (isNextRedirectError(err)) throw err
       setServerError((err as Error).message ?? messages.invalidCode)
       setRecoverySubmitting(false)
     }
+  }
+
+  function isNextRedirectError(err: unknown): boolean {
+    return (
+      typeof err === "object" &&
+      err !== null &&
+      "digest" in err &&
+      typeof (err as { digest?: unknown }).digest === "string" &&
+      (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    )
   }
 
   const code = totpForm.watch("code")

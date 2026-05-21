@@ -1,7 +1,22 @@
 {
   "brand": {
     "name": "Afframe",
-    "tagline": "A calmer place to manage accounting. Now with agents.",
+    "tagline": "Agent-native accounting platform",
+    "shortDescription": "<BRAND-SHORT-DESCRIPTION>",
+    "description": "<BRAND-DESCRIPTION>",
+    "elevatorPitch": "<BRAND-ELEVATOR-PITCH>",
+    "mission": "<BRAND-MISSION>",
+    "vision": "<BRAND-VISION>",
+    "valueProp": "<BRAND-VALUE-PROP>",
+    "legalName": "H&A PD LIMITED",
+    "legalAddress": "West Kensington Court, Edith Villas, London, England, W14 9AB",
+    "mailingAddress": "West Kensington Court, Edith Villas, London, England, W14 9AB",
+    "vatId": "<BRAND-VAT-ID>",
+    "registrationId": "14381245",
+    "copyrightHolder": "© {year} Afframe",
+    "ogTitle": "<BRAND-OG-TITLE>",
+    "ogDescription": "<BRAND-OG-DESCRIPTION>",
+    "metaKeywords": "<BRAND-META-KEYWORDS>",
     "returnLinkLabel": "Return to afframe.com",
     "returnLinkHref": "https://afframe.com"
   },
@@ -26,6 +41,7 @@
     "aside": {
       "headline": "A calmer place to manage accounting. Now with agents.",
       "subtitle": "{brand} brings documents, postings, and reports into one workspace where accountants and AI agents can work together.",
+      "partnersLabel": "Companies using {brand}",
       "quote": {
         "text": "Afframe replaced five tools and gave us back our Friday nights. Our team finally has time to advise clients, not chase receipts.",
         "author": "Lukáš Krejčí",

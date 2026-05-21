@@ -3,6 +3,7 @@ packages:
   - "packages/*"
   - "infra/cdk"
   - "infra/cloudflare"
+  - "infra/openfga"
 overrides:
   # Force >=5.3.1: 4 CVEs in transitive 5.0.5 (path traversal, CRLF injection, 2x DoS)
   basic-ftp: ">=5.3.1"

@@ -1,14 +1,29 @@
+import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import localFont from "next/font/local"
 import { NextIntlClientProvider } from "next-intl"
-import { getLocale, getMessages } from "next-intl/server"
+import { getLocale, getMessages, getTranslations } from "next-intl/server"
 
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
+import { BRAND_ICONS, BRAND_THEME_COLOR } from "@workspace/ui/lib/brand"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { InstallNextLinkInUi } from "./_install-link"
+
+export const viewport: Viewport = {
+  themeColor: BRAND_THEME_COLOR,
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const tBrand = await getTranslations("brand")
+  const brand = tBrand("name")
+  return {
+    title: { default: brand, template: `%s · ${brand}` },
+    icons: BRAND_ICONS,
+  }
+}
 
 const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
 

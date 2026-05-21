@@ -1,0 +1,16 @@
+{
+  "name": "@workspace/openfga-bootstrap",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "OpenFGA store + auth model bootstrap. Runs inside the App-<env> task as an init container; declares its own deps so the standalone Docker image does not depend on apps/api's node_modules.",
+  "files": [
+    "bootstrap.mjs",
+    "model.fga"
+  ],
+  "dependencies": {
+    "@aws-sdk/client-ssm": "^3.821.0",
+    "@openfga/sdk": "^0.9.6",
+    "@openfga/syntax-transformer": "^0.2.1"
+  }
+}

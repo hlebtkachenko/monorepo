@@ -22,6 +22,11 @@ on:
         required: false
         type: boolean
         default: false
+      build_version:
+        description: "Value to bake into the image's BUILD_VERSION env (drives the runtime footer + /api/version + OpenAPI info.version + Sentry release tag). Strip-leading-v applied. Empty = auto-detect: a git tag at HEAD wins (e.g. v0.2.0 -> 0.2.0); otherwise short SHA (e.g. sha-3793b59). For release deploys: leave empty after tagging — the tag context is picked up automatically. Set explicitly only for hotfix / cosmetic relabel scenarios."
+        required: false
+        type: string
+        default: ""
     outputs:
       deployed:
         description: "Whether the deploy step actually ran"
@@ -54,11 +59,19 @@ on:
         required: false
         type: boolean
         default: false
+      build_version:
+        description: "Override BUILD_VERSION baked into the image. Empty = auto-detect (git tag at HEAD, else short SHA). Set for hotfix relabel only."
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
 concurrency:
-  group: deploy-aws-${{ inputs.environment }}-${{ inputs.stack }}
+  # Per-env, scope-independent. `stack=app-only` and `stack=infra-only`
+  # touch overlapping CFN/ECS state; sequencing them per env prevents
+  # races on shared resources (log groups, secrets, services).
+  group: deploy-aws-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -83,6 +96,98 @@ jobs:
             echo "go=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # Pre-deploy fast-fail on missing repo vars / secrets. CDK throws on the
+  # same conditions ~8 min into the deploy job; surfacing them here turns
+  # an opaque half-deploy failure into a 30-second guard step.
+  validate-inputs:
+    needs: guard
+    if: needs.guard.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    environment: ${{ inputs.environment }}
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      APP_DOMAIN_STAGING: ${{ vars.APP_DOMAIN_STAGING }}
+      APP_DOMAIN_PRODUCTION: ${{ vars.APP_DOMAIN_PRODUCTION }}
+      ADMIN_DOMAIN_STAGING: ${{ vars.ADMIN_DOMAIN_STAGING }}
+      ADMIN_DOMAIN_PRODUCTION: ${{ vars.ADMIN_DOMAIN_PRODUCTION }}
+      STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+      PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+      STAGING_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_STAGING }}
+      PRODUCTION_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_PRODUCTION }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - name: Assert required vars + secrets are present
+        run: |
+          set -euo pipefail
+          fail=0
+          check() {
+            local label="$1" value="$2"
+            if [ -z "${value:-}" ] || [[ "$value" =~ ^[[:space:]]*$ ]]; then
+              echo "::error::Required input '${label}' is empty for env=${ENV_NAME}"
+              fail=1
+            fi
+          }
+          check AWS_REGION "$AWS_REGION"
+          check AWS_ACCOUNT_ID "$AWS_ACCOUNT_ID"
+          check RESEND_API_KEY "$RESEND_API_KEY"
+          check EMAIL_FORWARD_TO "$EMAIL_FORWARD_TO"
+          case "$ENV_NAME" in
+            staging)
+              check APP_DOMAIN_STAGING "$APP_DOMAIN_STAGING"
+              check ADMIN_DOMAIN_STAGING "$ADMIN_DOMAIN_STAGING"
+              check AWS_DEPLOY_ROLE_ARN_STAGING "$STAGING_ROLE"
+              check CLOUDFLARE_TUNNEL_TOKEN_STAGING "$STAGING_TUNNEL_TOKEN"
+              ;;
+            production)
+              check APP_DOMAIN_PRODUCTION "$APP_DOMAIN_PRODUCTION"
+              check ADMIN_DOMAIN_PRODUCTION "$ADMIN_DOMAIN_PRODUCTION"
+              check AWS_DEPLOY_ROLE_ARN_PRODUCTION "$PRODUCTION_ROLE"
+              check CLOUDFLARE_TUNNEL_TOKEN_PRODUCTION "$PRODUCTION_TUNNEL_TOKEN"
+              ;;
+            *)
+              echo "::error::Unknown environment: $ENV_NAME"
+              exit 1
+              ;;
+          esac
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more required deploy inputs are empty. Set them in repo settings (Variables / Secrets) for the '${ENV_NAME}' environment before re-running."
+            exit "$fail"
+          fi
+          echo "All required deploy inputs present for env=${ENV_NAME}."
+
+  # Brand surface guard for production deploys only. Staging is allowed to
+  # ship with <BRAND-*> placeholders in i18n messages + constants so brand
+  # copy can be iterated against a real deploy without blocking; production
+  # must not. Kept in a dedicated job (not inside validate-inputs) so it
+  # has its own `contents: read` permission for actions/checkout — the
+  # validate-inputs job intentionally runs at `permissions: {}`.
+  brand-placeholder-guard:
+    needs: guard
+    if: needs.guard.outputs.go == 'true' && inputs.environment == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+      - name: Brand placeholder check
+        env:
+          CHECK_BRAND_STRICT: "false"
+        run: node scripts/check-brand-placeholders.mjs
+
   # Detect whether app source changed since the last successful deploy to
   # this environment. Outputs drive the `build-images` skip decision and
   # the IMAGE_TAG handed to `cdk deploy`. SSM Parameter Store
@@ -94,7 +199,7 @@ jobs:
   # workflow_dispatch-compatible comparison against an arbitrary past
   # commit (the last deploy), which is a plain `git diff --name-only`.
   detect-changes:
-    needs: guard
+    needs: [guard, validate-inputs]
     if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -109,6 +214,19 @@ jobs:
       skip_image_build: ${{ steps.decide.outputs.skip_image_build }}
       image_tag: ${{ steps.decide.outputs.image_tag }}
       last_deploy_sha: ${{ steps.decide.outputs.last_deploy_sha }}
+      # Per-service build decision. JSON array of services to build (e.g.
+      # ["web","admin"]). Build-images matrix consumes via fromJSON().
+      # New apps/<name>/Dockerfile is auto-discovered — no workflow edit.
+      services_to_build: ${{ steps.decide.outputs.services_to_build }}
+      # Per-service image tag. Built services → sha-<git>. Skipped services
+      # → last-deploy tag for that service (or legacy fallback). Deploy
+      # passes each as --context <svc>ImageTag=<tag>.
+      image_tag_web: ${{ steps.decide.outputs.image_tag_web }}
+      image_tag_api: ${{ steps.decide.outputs.image_tag_api }}
+      image_tag_admin: ${{ steps.decide.outputs.image_tag_admin }}
+      # True when packages/db/migrations/** changed since last deploy.
+      # Defaults to true on first/unknown/failed-last-deploy (safe).
+      migrations_changed: ${{ steps.decide.outputs.migrations_changed }}
     steps:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
@@ -150,6 +268,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-detect-${{ github.run_id }}
           audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - uses: ./.github/actions/setup
 
       - id: decide
         env:
@@ -159,7 +280,62 @@ jobs:
         run: |
           set -euo pipefail
 
-          emit() {
+          # Discover all deployable services. Convention: a directory
+          # apps/<name>/ with a Dockerfile means "this is a containerized
+          # service the deploy workflow knows how to build". New service
+          # added → auto-included (no workflow edit needed).
+          all_services=()
+          for d in apps/*/; do
+            if [ -f "${d}Dockerfile" ]; then
+              all_services+=("$(basename "$d")")
+            fi
+          done
+          echo "Deployable services discovered: ${all_services[*]}"
+
+          # Per-service last-deploy SSM tag lookup. New per-service key
+          # `/monorepo/<env>/last-deploy/image-tag-<svc>`. Falls back to
+          # the legacy single `image-tag` key for back-compat on the first
+          # deploy after this lands.
+          LAST_TAG=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          last_tag_for() {
+            local svc="$1" v
+            v=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag-${svc}" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+            if [ -z "$v" ] || [ "$v" = "None" ]; then v="$LAST_TAG"; fi
+            echo "$v"
+          }
+
+          # Emit a JSON array of service names.
+          emit_services() {
+            local arr_json
+            if [ "$#" -eq 0 ]; then
+              arr_json='[]'
+            else
+              arr_json=$(printf '%s\n' "$@" | jq -R . | jq -s -c .)
+            fi
+            printf 'services_to_build=%s\n' "$arr_json" >> "$GITHUB_OUTPUT"
+            echo "services_to_build=$arr_json"
+          }
+
+          # Emit per-service image tag context for CDK.
+          emit_per_service_tags() {
+            local default_tag="$1"; shift
+            local built_set=" $* "
+            for svc in "${all_services[@]}"; do
+              local tag
+              if printf '%s' "$built_set" | grep -q " ${svc} "; then
+                tag="$default_tag"
+              else
+                tag="$(last_tag_for "$svc")"
+              fi
+              # Empty fallback: use default_tag (covers first-ever deploy where
+              # the skipped service has no historical tag).
+              if [ -z "$tag" ] || [ "$tag" = "None" ]; then tag="$default_tag"; fi
+              printf 'image_tag_%s=%s\n' "$svc" "$tag" >> "$GITHUB_OUTPUT"
+              echo "image_tag_${svc}=${tag}"
+            done
+          }
+
+          emit_legacy() {
             local skip="$1" tag="$2" base="$3"
             {
               printf 'skip_image_build=%s\n' "$skip"
@@ -168,61 +344,114 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           }
 
-          # Priority 1: explicit image_tag_override → skip build, use that tag.
+          # Default: migrations run on first/unknown/failed-last-deploy.
+          # Overridden below to 'false' only when LAST_SHA is reachable and
+          # the diff has no packages/db/migrations/** entries.
+          MIGRATIONS_CHANGED=true
+
+          # Priority 1: explicit image_tag_override → skip build, use that tag
+          # uniformly for every service (operator pinned a known-good tag).
           if [ -n "$IMAGE_TAG_OVERRIDE" ]; then
             echo "image_tag_override set — skipping build."
-            emit true "$IMAGE_TAG_OVERRIDE" ""
+            emit_legacy true "$IMAGE_TAG_OVERRIDE" ""
+            emit_services
+            emit_per_service_tags "$IMAGE_TAG_OVERRIDE"
+            printf 'migrations_changed=%s\n' "$MIGRATIONS_CHANGED" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Priority 2: operator force-rebuild → build.
+          # Priority 2: operator force-rebuild → build all.
           if [ "$FORCE_REBUILD" = "true" ]; then
-            echo "force_rebuild_images=true — building."
-            emit false "sha-$GITHUB_SHA" ""
+            echo "force_rebuild_images=true — building all services."
+            emit_legacy false "sha-$GITHUB_SHA" ""
+            emit_services "${all_services[@]}"
+            emit_per_service_tags "sha-$GITHUB_SHA" "${all_services[@]}"
+            printf 'migrations_changed=%s\n' "$MIGRATIONS_CHANGED" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           # Priority 3: compare HEAD against SSM last-deploy SHA.
           LAST_SHA=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
-          LAST_TAG=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
           echo "Last deploy SHA: ${LAST_SHA:-<none>}"
           echo "Last image tag:  ${LAST_TAG:-<none>}"
 
           if [ -z "$LAST_SHA" ] || [ "$LAST_SHA" = "None" ] || [ -z "$LAST_TAG" ] || [ "$LAST_TAG" = "None" ]; then
-            echo "First deploy (or wiped state) — full build."
-            emit false "sha-$GITHUB_SHA" ""
+            echo "First deploy (or wiped state) — full build, run migrations."
+            emit_legacy false "sha-$GITHUB_SHA" ""
+            emit_services "${all_services[@]}"
+            emit_per_service_tags "sha-$GITHUB_SHA" "${all_services[@]}"
+            printf 'migrations_changed=true\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           if ! git rev-parse --verify "$LAST_SHA" >/dev/null 2>&1; then
             echo "Last SHA $LAST_SHA not reachable in checkout — full build."
-            emit false "sha-$GITHUB_SHA" ""
+            emit_legacy false "sha-$GITHUB_SHA" ""
+            emit_services "${all_services[@]}"
+            emit_per_service_tags "sha-$GITHUB_SHA" "${all_services[@]}"
+            printf 'migrations_changed=true\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          # Paths that affect image content. Anything else (CDK source,
-          # docs, infra/cerbos handled separately by Cerbos asset hash)
-          # cannot change what's baked into web/api/admin images.
-          APP_PATHS_REGEX='^(apps/(web|api|admin)/|packages/(auth|db|shared|email|ui|testcontainers|i18n|observability)/|pnpm-lock\.yaml$|\.github/actions/setup/)'
 
           diff=$(git diff --name-only "$LAST_SHA" HEAD || true)
           if [ -z "$diff" ]; then
-            echo "No file changes since $LAST_SHA — skipping build, reusing $LAST_TAG."
-            emit true "$LAST_TAG" "$LAST_SHA"
+            echo "No file changes since $LAST_SHA — skip build entirely, no migrations, reuse $LAST_TAG."
+            emit_legacy true "$LAST_TAG" "$LAST_SHA"
+            emit_services
+            emit_per_service_tags "$LAST_TAG"
+            printf 'migrations_changed=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if echo "$diff" | grep -qE "$APP_PATHS_REGEX"; then
-            echo "App source changed since $LAST_SHA — building."
-            echo "Files (first 20):"
-            echo "$diff" | grep -E "$APP_PATHS_REGEX" | head -20
-            emit false "sha-$GITHUB_SHA" "$LAST_SHA"
+          # Migrations gate — independent of the per-service build matrix.
+          if echo "$diff" | grep -qE '^packages/db/migrations/'; then
+            MIGRATIONS_CHANGED=true
+            echo "Migration files changed — migrations step will run."
           else
-            echo "No app source changes since $LAST_SHA — skipping build, reusing $LAST_TAG."
-            echo "Changed files (CDK/docs/other, first 20):"
-            echo "$diff" | head -20
-            emit true "$LAST_TAG" "$LAST_SHA"
+            MIGRATIONS_CHANGED=false
+            echo "No migration file changes — migrations step will skip."
           fi
+          printf 'migrations_changed=%s\n' "$MIGRATIONS_CHANGED" >> "$GITHUB_OUTPUT"
+
+          # Turbo computes "affected" packages and their dependents given
+          # the changeset since LAST_SHA. We then intersect with the
+          # deployable-service set to get the build matrix. This is the
+          # authoritative dep graph — adding a new packages/* or apps/*
+          # consumer auto-picks up.
+          affected_json=$(pnpm turbo run build --filter="...[${LAST_SHA}]" --dry=json 2>/dev/null || echo '{"packages":[]}')
+          affected=$(printf '%s' "$affected_json" | jq -r '.packages[]?' 2>/dev/null || true)
+          echo "Turbo-affected packages:"
+          printf '%s\n' "$affected" | sed 's/^/  /'
+
+          built=()
+          for svc in "${all_services[@]}"; do
+            if printf '%s\n' "$affected" | grep -qx "$svc"; then
+              built+=("$svc")
+            fi
+          done
+
+          # Fallback safety: pnpm-lock.yaml or .github/actions/setup change
+          # affects every service (different node_modules graph). Turbo
+          # picks these up via globalDependencies/inputs but be explicit.
+          if echo "$diff" | grep -qE '^(pnpm-lock\.yaml$|\.github/actions/setup/)'; then
+            echo "Lockfile or setup-action changed — building all services."
+            built=("${all_services[@]}")
+          fi
+
+          if [ "${#built[@]}" -eq 0 ]; then
+            echo "No deployable service affected. Skipping image build entirely; reusing per-service last-deploy tags."
+            emit_legacy true "$LAST_TAG" "$LAST_SHA"
+            emit_services
+            emit_per_service_tags "$LAST_TAG"
+            exit 0
+          fi
+
+          echo "Services to build: ${built[*]}"
+          echo "Files (first 20):"
+          echo "$diff" | head -20
+          emit_legacy false "sha-$GITHUB_SHA" "$LAST_SHA"
+          emit_services "${built[@]}"
+          emit_per_service_tags "sha-$GITHUB_SHA" "${built[@]}"
 
   # Build the 3 app images in parallel (web, api, admin) on separate
   # runners. Sequential pre-2026-05-19 build time was web ~5m + api ~4m +
@@ -235,9 +464,149 @@ jobs:
   # Skipped when stack=infra-only OR image_tag_override is set OR
   # detect-changes determined no app source changed since the last deploy
   # (then deploy reuses the last-deployed image tag from SSM).
+  # Runs in parallel with build-images. Pre-creates the ECS log groups
+  # that CDK references, overlapping the work with the image build so
+  # ~9s comes off the deploy critical path.
+  #
+  # Why not also the secret-ensure step? GitHub Actions masks the account
+  # ID in logs via ::add-mask:: (good — keeps PII out of public logs),
+  # but cross-job output propagation refuses to pass values containing
+  # masked substrings — they arrive as empty strings at the consuming
+  # job. Secrets Manager ARNs contain the account ID, so capturing them
+  # here and reading via `needs.deploy-prep.outputs.*` would deliver
+  # empty ARNs to `deploy` (verified in run 26194109206). Secret-ensure
+  # therefore stays inside the deploy job where step→step output access
+  # works fine within the same job. ~15s of parallel saving deferred to
+  # a future workflow change (e.g. artifact-encoded ARN pass).
+  deploy-prep:
+    needs: [guard, validate-inputs]
+    if: |
+      needs.guard.outputs.go == 'true' &&
+      needs.validate-inputs.result == 'success' &&
+      inputs.stack != 'infra-only'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: ${{ inputs.environment }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging)    echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-prep-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Pre-create ECS log groups (only when CFN already owns them)
+        # CFN's AWS::IAM::Policy GetAtt(LogGroup.Arn) hits CloudControl,
+        # which has ~1s read-after-write lag. On a steady-state deploy
+        # this manifests as 'Unable to retrieve Arn attribute for
+        # AWS::Logs::LogGroup ... was not found' when CFN re-resolves the
+        # ARN during the IAM::Policy update. Pre-creating the log group
+        # OUTSIDE CFN (idempotent describe-then-create) gives the IAM
+        # policy a stable ARN to GetAtt against.
+        #
+        # CRITICAL INVARIANT: only pre-create log groups CFN ALREADY OWNS.
+        # If a log group is in the CDK template but NOT yet in the deployed
+        # stack (new resource — e.g. PR K's db-migrate/openfga-migrate
+        # added to an env where App-stack already existed), pre-creating
+        # it externally makes CFN's own CREATE fail with
+        # AlreadyExistsException at the next stack UPDATE. Symptom from
+        # run 26227049301 staging deploy: `Resource of type
+        # 'AWS::Logs::LogGroup' with identifier '/ecs/monorepo-staging/
+        # db-migrate' already exists`. Accept the small CloudControl-race
+        # window on the very first CFN CREATE of a new log group; CDK
+        # retries it. Subsequent deploys see CFN owning the new log
+        # group, this step pre-creates it (no-op since it exists), race
+        # protection restored.
+        #
+        # First-deploy guard: skip entire step when App-<env> stack does
+        # not exist yet. CDK's first CREATE has its own ordering graph;
+        # nothing to pre-protect.
+        run: |
+          set -euo pipefail
+          if ! aws cloudformation describe-stacks --stack-name "App-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "App-${ENV_NAME} stack does not exist yet — skipping log-group pre-create on first-deploy."
+            exit 0
+          fi
+          # Snapshot the log groups CFN currently OWNS in App-<env>.
+          # PhysicalResourceId for AWS::Logs::LogGroup is the log group
+          # name. New log groups added in the CDK template but not yet in
+          # the deployed stack are absent here — by design.
+          # JSON + jq instead of --output text avoids tab/space tr parsing.
+          owned=$(aws cloudformation describe-stack-resources \
+            --stack-name "App-${ENV_NAME}" \
+            --region "$AWS_REGION" \
+            --query "StackResources[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
+            --output json 2>/dev/null | jq -r '.[]' || true)
+          echo "App-${ENV_NAME} CFN-owned log groups:"
+          if [ -n "$owned" ]; then
+            while IFS= read -r name; do echo "  $name"; done <<<"$owned"
+          else
+            echo "  (none)"
+          fi
+          for svc in web admin api cloudflared pgbouncer cerbos openfga db-migrate openfga-migrate; do
+            lg="/ecs/monorepo-${ENV_NAME}/${svc}"
+            if ! printf '%s\n' "$owned" | grep -Fxq "$lg"; then
+              echo "skip:   $lg — not yet in App-${ENV_NAME} stack. CFN will CREATE on the next stack UPDATE."
+              continue
+            fi
+            if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
+              echo "exists: $lg"
+            else
+              # CFN owns it but it's missing on the AWS side (out-of-band
+              # delete). Recreate so the IAM::Policy GetAtt resolves.
+              aws logs create-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null && echo "created: $lg" || echo "::warning::create-log-group failed for $lg (may be racing)"
+              aws logs put-retention-policy --log-group-name "$lg" --retention-in-days 7 --region "$AWS_REGION" >/dev/null 2>&1 || true
+            fi
+          done
+
   build-images:
-    needs: [guard, detect-changes]
-    if: needs.guard.outputs.go == 'true' && inputs.stack != 'infra-only' && needs.detect-changes.outputs.skip_image_build != 'true'
+    needs: [guard, validate-inputs, detect-changes]
+    # `services_to_build` is a JSON array from detect-changes. Empty array
+    # means no service needs a rebuild (e.g. docs-only PR landed on top of
+    # the last good image set) — the whole matrix expansion is then empty
+    # and this job no-ops. New apps/<x>/Dockerfile auto-flows through the
+    # turbo-driven detection in detect-changes; no edit here required.
+    if: |
+      needs.guard.outputs.go == 'true' &&
+      inputs.stack != 'infra-only' &&
+      needs.detect-changes.outputs.skip_image_build != 'true' &&
+      needs.detect-changes.outputs.services_to_build != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: ${{ inputs.environment }}
@@ -247,7 +616,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        service: [web, api, admin]
+        service: ${{ fromJSON(needs.detect-changes.outputs.services_to_build) }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
@@ -261,6 +630,42 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
           persist-credentials: false
+          # Needed by the "Compute BUILD_VERSION" step below — `git describe
+          # --exact-match` walks tag history. Default fetch-depth=1 is too
+          # shallow to discover tags pointing at HEAD.
+          fetch-depth: 0
+
+      # Decouples the image's BUILD_VERSION env (display + observability:
+      # footer, /api/version, OpenAPI info.version, Sentry release) from
+      # IMAGE_TAG (ECR pin: stays sha-<full> for deterministic uniqueness
+      # and the existing rollback / image_tag_override flow).
+      #
+      # Resolution order:
+      #   1. inputs.build_version (explicit override; strip leading "v")
+      #   2. git describe --exact-match (tag at HEAD; strip leading "v")
+      #   3. fallback: sha-<short-7-char>
+      #
+      # Plain semver gets the "v" prefix re-added at render time by
+      # getBuildVersion() in packages/ui/src/brand-assets/version.ts.
+      - id: ver
+        name: Compute BUILD_VERSION
+        env:
+          BUILD_VERSION_INPUT: ${{ inputs.build_version }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BUILD_VERSION_INPUT" ]; then
+            VALUE="${BUILD_VERSION_INPUT#v}"
+            SOURCE="input"
+          elif TAG=$(git describe --exact-match --tags HEAD 2>/dev/null); then
+            VALUE="${TAG#v}"
+            SOURCE="git-tag"
+          else
+            VALUE="sha-${SHA:0:7}"
+            SOURCE="short-sha"
+          fi
+          echo "BUILD_VERSION resolved via ${SOURCE}: ${VALUE}"
+          echo "value=${VALUE}" >> "$GITHUB_OUTPUT"
 
       - name: Mask account-bearing inputs in logs
         env:
@@ -292,6 +697,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-build-${{ matrix.service }}-${{ github.run_id }}
           audience: sts.amazonaws.com
+          role-duration-seconds: 3600
 
       - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
@@ -345,7 +751,7 @@ jobs:
           build-args: |
             BUILD_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.repository.updated_at }}
-            BUILD_VERSION=${{ env.IMAGE_TAG }}
+            BUILD_VERSION=${{ steps.ver.outputs.value }}
 
       # CVE gate: wait for ECR's scanOnPush to finish, fail on CRITICAL.
       # ECR Basic scanning takes ~30-90s after push. The wait + describe
@@ -448,12 +854,23 @@ jobs:
           echo "Allowlisted: $(echo "$all_criticals" | tr '\n' ' ')"
 
   deploy:
-    needs: [guard, detect-changes, build-images]
+    needs:
+      [
+        guard,
+        validate-inputs,
+        brand-placeholder-guard,
+        detect-changes,
+        deploy-prep,
+        build-images,
+      ]
     # Run the deploy when guard is green AND (build-images succeeded OR was
-    # skipped). build-images is skipped for: infra-only, image_tag_override
-    # set, OR detect-changes determined no app source changed. detect-changes
-    # itself is skipped only on infra-only — its result must be success then.
-    # `needs.X.result` values: success | skipped | failure | cancelled.
+    # skipped) AND deploy-prep succeeded (or was skipped on infra-only).
+    # build-images is skipped for: infra-only, image_tag_override set, OR
+    # detect-changes determined no app source changed. detect-changes is
+    # skipped only on infra-only — its result must be success then.
+    # brand-placeholder-guard is skipped on staging (production-only); on
+    # production it must be success. `needs.X.result` values: success |
+    # skipped | failure | cancelled.
     #
     # The `!cancelled()` prefix is REQUIRED — without it GitHub Actions
     # applies an implicit `success()` over `needs:`, and a SKIPPED ancestor
@@ -464,16 +881,32 @@ jobs:
     if: |
       !cancelled() &&
       needs.guard.outputs.go == 'true' &&
+      needs.validate-inputs.result == 'success' &&
+      (needs.brand-placeholder-guard.result == 'success' || needs.brand-placeholder-guard.result == 'skipped') &&
       (needs.detect-changes.result == 'success' || needs.detect-changes.result == 'skipped') &&
+      (needs.deploy-prep.result == 'success' || needs.deploy-prep.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Production deploys pause here for human approval. Configured on the
+    # `production` GitHub Environment via deployment-protection-rules
+    # (required-reviewers). Staging has no protection rule so deploys
+    # flow through. See docs/runbooks/AWS-DEPLOY.md "Production deploy
+    # approval".
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write
       contents: read
     outputs:
       deployed: ${{ steps.summary.outputs.deployed }}
+      # 'true' iff the "Apply DB migrations" step actually ran THIS deploy.
+      # Consumed by the smoke job's rollback guard: when migrations were
+      # applied, rolling the ECS service back to the previous task def
+      # would put OLD code in front of NEW schema — same shape as the PR F
+      # bug. The rollback step refuses and pages the operator instead.
+      # `steps.<id>.conclusion` is 'skipped' when the if: gate filtered the
+      # step (no migrations changed), 'success' when it ran cleanly.
+      migrations_applied: ${{ steps.migrate.conclusion == 'success' && 'true' || 'false' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
@@ -485,6 +918,13 @@ jobs:
       #   3. sha-<github.sha> (default: build fresh)
       # detect-changes is skipped for infra-only — fall back to sha tag.
       IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      # Per-service image tags. Built services → sha-<git>. Skipped
+      # services → their last-deploy tag (or IMAGE_TAG fallback if no
+      # history). Defaults to the global IMAGE_TAG when detect-changes
+      # is skipped (stack=infra-only path), keeping back-compat.
+      IMAGE_TAG_WEB: ${{ needs.detect-changes.outputs.image_tag_web || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_API: ${{ needs.detect-changes.outputs.image_tag_api || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_ADMIN: ${{ needs.detect-changes.outputs.image_tag_admin || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
       # Truthy when image build path was skipped (infra-only, override, or
       # no-app-change). The secret-ensure steps still need to run if any
       # app container will be deployed; the only path that truly skips
@@ -547,6 +987,10 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.run_id }}
           audience: sts.amazonaws.com
+          # Long deploys: CDK + migrations + secret captures + budget
+          # reconciliation. 3600s is the standard IAM-role default; raise
+          # MaxSessionDuration on the role if your deploy regularly nears it.
+          role-duration-seconds: 3600
 
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
@@ -592,7 +1036,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # AppStack references 4 workflow-managed Secrets Manager secrets by
+          # AppStack references 3 workflow-managed Secrets Manager secrets by
           # FULL ARN (Secret.fromSecretCompleteArn — see app-stack.ts for the
           # bare-vs-full-ARN rationale). Each secret is ensured here BEFORE
           # `cdk deploy` runs, then its full ARN is captured into a step
@@ -601,15 +1045,11 @@ jobs:
           # Resource pinned to the SAME exact full ARN, so Secrets Manager's
           # GetSecretValue auth always matches 1:1.
           #
-          # Idempotent shape per secret:
-          #   1. describe-secret to detect PendingDeletion → restore-secret
-          #   2. describe-secret → if exists, optionally put-secret-value
-          #      (only for value-driven secrets; signing secrets keep value)
-          #   3. else create-secret with the appropriate value
-          #   4. describe-secret --query ARN → step output
-          #
-          # capture <output-name> <secret-name>: emit the live full ARN as a
-          # GitHub Actions step output (consumed by cdk deploy --context).
+          # Stays in the deploy job (not deploy-prep) because the captured
+          # ARNs contain the masked account ID. GitHub Actions delivers
+          # masked-substring-containing values as empty strings across job
+          # boundaries (verified run 26194109206). Step→step output access
+          # inside the same job is fine.
           capture() {
             local out="$1" name="$2"
             local arn
@@ -621,12 +1061,14 @@ jobs:
               echo "::error::Failed to read ARN of secret $name (describe-secret returned empty)"
               exit 1
             fi
+            if ! [[ "$arn" =~ -[A-Za-z0-9]{6}$ ]]; then
+              echo "::error::Captured ARN $arn for $name is missing the -XXXXXX suffix. Refusing — would cause IAM/Resource mismatch at task start." >&2
+              exit 1
+            fi
             echo "$out=$arn" >> "$GITHUB_OUTPUT"
             echo "captured: $out=$arn"
           }
 
-          # restore_if_pending <secret-name>: undo a prior delete-secret so
-          # subsequent describe / put / create steps see an active secret.
           restore_if_pending() {
             local name="$1"
             local deleted
@@ -677,7 +1119,17 @@ jobs:
           if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "Secret $NAME already exists — leaving value untouched."
           else
-            VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
+            # PR G replaced infinite /dev/urandom with a 4096-byte buffer
+            # to defuse the tr|head SIGPIPE. The remaining tr|head chain
+            # still relies on pipe-buffer timing — works today but is
+            # bash/kernel/locale-version dependent. node is already on the
+            # runner (used elsewhere in this workflow), zero new deps, no
+            # pipes: crypto.randomBytes(22).toString("hex") yields 44 hex
+            # chars [0-9a-f] (strict subset of the old [A-Za-z0-9] output —
+            # any consumer pattern-validating the secret still matches).
+            # 176 bits of entropy > 128-bit security floor for an HMAC key.
+            # First-prod-deploy SIGPIPE failure: run 26210479351.
+            VALUE=$(node -e 'process.stdout.write(require("crypto").randomBytes(22).toString("hex"))')
             echo "::add-mask::$VALUE"
             aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
             echo "Secret $NAME created with fresh 44-char value."
@@ -686,15 +1138,26 @@ jobs:
 
       # Sanity check: when image_tag_override is set the operator is asking
       # CDK to reuse images that should already be in ECR. Fail fast if any
-      # of the three (web, api, admin) is missing — otherwise the App stack
-      # will deploy and ECS will start crash-looping on `ImagePullFailure`
-      # ~5 min from now.
+      # service image is missing — otherwise the App stack will deploy and
+      # ECS will start crash-looping on `ImagePullFailure` ~5 min from now.
+      #
+      # Service list is discovered from apps/*/Dockerfile (mirrors the
+      # turbo-driven detect-changes job) so adding apps/foo/Dockerfile
+      # auto-flows through here. No hardcoded triple.
       - name: Verify override images exist in ECR
         if: inputs.image_tag_override != '' && env.STACK_SCOPE != 'infra-only'
         run: |
           set -euo pipefail
+          all_services=()
+          for d in apps/*/; do
+            [ -f "${d}Dockerfile" ] && all_services+=("$(basename "$d")")
+          done
+          if [ "${#all_services[@]}" -eq 0 ]; then
+            echo "::error::no apps/*/Dockerfile found — repo layout changed?"
+            exit 1
+          fi
           missing=0
-          for svc in web api admin; do
+          for svc in "${all_services[@]}"; do
             repo="monorepo-${ENV_NAME}-${svc}"
             if aws ecr describe-images \
                 --repository-name "$repo" \
@@ -711,35 +1174,8 @@ jobs:
             exit 1
           fi
 
-      # Pre-create the 7 ECS log groups idempotently.
-      #
-      # CFN's AWS::IAM::Policy GetAtt(LogGroup.Arn) hits CloudControl, which
-      # has ~1s read-after-write lag. Brand-new log groups (created within
-      # the same UPDATE) trigger 'Unable to retrieve Arn attribute for
-      # AWS::Logs::LogGroup ... was not found' on the IAM policy update.
-      # See deploy run 26089910853 (2026-05-19 10:03Z) — that's the failure
-      # mode this step prevents.
-      #
-      # By pre-creating with the same names CDK uses, CDK's stack template
-      # sees them as "existing, no-op" and the IAM policy's GetAtt resolves
-      # to an already-propagated ARN. CloudFormation's import-by-name
-      # semantics treat these as CDK-managed once the stack is in sync.
-      #
-      # Idempotent on the AWS side (ResourceAlreadyExistsException is
-      # suppressed). Retention is set to ONE_WEEK to match app-stack.ts.
-      - name: Pre-create ECS log groups (staging only)
-        if: env.ENV_NAME == 'staging' && env.STACK_SCOPE != 'infra-only'
-        run: |
-          set -euo pipefail
-          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
-            lg="/ecs/monorepo-${ENV_NAME}/${svc}"
-            if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
-              echo "exists: $lg"
-            else
-              aws logs create-log-group --log-group-name "$lg" --region "$AWS_REGION" 2>/dev/null && echo "created: $lg" || echo "::warning::create-log-group failed for $lg (may be racing)"
-              aws logs put-retention-policy --log-group-name "$lg" --retention-in-days 7 --region "$AWS_REGION" >/dev/null 2>&1 || true
-            fi
-          done
+      # Pre-create ECS log groups lives in the `deploy-prep` job now —
+      # runs parallel with build-images.
 
       # The 'Pre-deploy cleanup (staging only)' step that USED to live here
       # is gone entirely. It force-deleted the generated BetterAuth +
@@ -763,220 +1199,14 @@ jobs:
       # handles tear-down on rollback. The combination supersedes the
       # belt-and-braces cleanup.
 
-      # One-time live-state migration for the email-PII removal in
-      # security-stack.ts. The CDK template now uses SNS-only subscribers
-      # on every CfnBudget; live budgets still have EMAIL subscribers
-      # from before. Without this migration, `cdk deploy Security-*`
-      # would force-REPLACE each budget (NotificationsWithSubscribers is
-      # immutable), the CREATE-new step would collide on the budget name,
-      # and the whole stack rolls back. Verified on deploy run 26111357126.
-      #
-      # Idempotent: if a budget is already SNS-only this step is a no-op.
-      # After all 6 budgets are migrated, future deploys skip the work in
-      # ~1s. Orphan `monorepo-${env}-hardcap50` (not yet CFN-owned) is
-      # delete-recreated by CDK in the same deploy — a brief gap on that
-      # one budget, but MonthlyTotal at $40 still covers the spend window.
-      - name: Migrate live AWS Budgets to SNS-only subscribers [pre-Security-deploy]
-        if: env.STACK_SCOPE == 'all' || env.STACK_SCOPE == 'security-only'
-        env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-
-          # Only run when Security stack already exists. First-ever deploy
-          # has no budgets at all; CDK creates them clean.
-          if ! aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "Security-${ENV_NAME} not deployed yet — skipping budget migration."
-            exit 0
-          fi
-
-          # Topic ARNs are stack outputs. If the stack was deployed with
-          # the OLD template (no outputs), fall back to constructing the
-          # ARN from the resource physical id.
-          # ANSI-C $'…\x60…\x60…' wraps the JMESPath backtick literals so
-          # quiets SC2016 (intentional, not shell substitution).
-          ops_query=$'Stacks[0].Outputs[?OutputKey==\x60KillSwitchOpsTopicArn\x60].OutputValue'
-          kill_query=$'Stacks[0].Outputs[?OutputKey==\x60KillSwitchTopicArn\x60].OutputValue'
-          OPS_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$ops_query" --output text)
-          KILL_ARN=$(aws cloudformation describe-stacks --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$kill_query" --output text)
-          # Fallback for stacks deployed with the pre-PR-#186 template (no
-          # outputs yet). CDK appends an 8-char hash suffix to logical ids
-          # ("KillSwitchOpsTopicFFD7A2C2"), so the filter uses starts_with
-          # against the SNS::Topic resources rather than an exact match.
-          # ANSI-C wraps the JMESPath backtick literals here too.
-          ops_resource_query=$'StackResources[?ResourceType==\x60AWS::SNS::Topic\x60 && starts_with(LogicalResourceId, \x60KillSwitchOpsTopic\x60)].PhysicalResourceId'
-          kill_resource_query=$'StackResources[?ResourceType==\x60AWS::SNS::Topic\x60 && LogicalResourceId!=\x60\x60 && starts_with(LogicalResourceId, \x60KillSwitchTopic\x60) && !starts_with(LogicalResourceId, \x60KillSwitchOpsTopic\x60)].PhysicalResourceId'
-          if [ -z "$OPS_ARN" ] || [ "$OPS_ARN" = "None" ]; then
-            OPS_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$ops_resource_query" --output text)
-          fi
-          if [ -z "$KILL_ARN" ] || [ "$KILL_ARN" = "None" ]; then
-            KILL_ARN=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "$kill_resource_query" --output text)
-          fi
-          if [ -z "$OPS_ARN" ] || [ "$OPS_ARN" = "None" ] || [ -z "$KILL_ARN" ] || [ "$KILL_ARN" = "None" ]; then
-            echo "::error::Could not resolve KillSwitchOpsTopic / KillSwitchTopic ARNs (OPS=$OPS_ARN KILL=$KILL_ARN). Aborting migration."
-            exit 1
-          fi
-          echo "Ops topic:  $OPS_ARN"
-          echo "Kill topic: $KILL_ARN"
-
-          # The 6 CDK-defined budgets. Each has 2 notifications (80% + 100%);
-          # all subscribers must be SNS pointing to OPS (both thresholds)
-          # plus KILL (100% only).
-          BUDGETS=(monthlytotal hardcap50 datatransfer s3 rds ecs)
-
-          # Identify orphans: any CDK-defined name that is NOT a current
-          # CFN-managed resource of Security-${ENV_NAME}. These must be
-          # deleted so the next `cdk deploy` can CREATE them with proper
-          # CFN ownership (the alternative `cdk import` is interactive).
-          CFN_BUDGETS=$(aws cloudformation describe-stack-resources --stack-name "Security-${ENV_NAME}" --region "$AWS_REGION" --query "StackResources[?ResourceType=='AWS::Budgets::Budget'].PhysicalResourceId" --output text || true)
-          echo "CFN-owned budgets: $CFN_BUDGETS"
-
-          # notification_exists <budget> <threshold> — return 0 if the
-          # live budget has a notification at this threshold, else 1.
-          # Prior failed deploys can leave live budgets with only a subset
-          # of the notifications the CDK template ships (e.g.
-          # monorepo-staging-monthlytotal has only 100% live, not 80%).
-          # Adding a subscriber to a missing notification fails with
-          # `NotFoundException — the notification doesn't exist` even
-          # when the shorthand fields match what CDK will produce.
-          notification_exists() {
-            local budget="$1" threshold="$2"
-            aws budgets describe-notifications-for-budget \
-              --account-id "$AWS_ACCOUNT_ID" \
-              --budget-name "$budget" \
-              --query "Notifications[?Threshold==\`${threshold}\`] | length(@)" \
-              --output text 2>/dev/null | grep -qv '^0$'
-          }
-
-          # migrate_subscribers <budget> <threshold> <want_ops> <want_kill>
-          # Match the CDK template exactly: 80% has ops only, 100% has
-          # kill only (AWS Budgets allows max 1 SNS subscriber per
-          # notification — verified deploy run 26127290021 with two SNS
-          # subscribers at 100% failed with CreationLimitExceededException).
-          migrate_subscribers() {
-            local budget="$1" threshold="$2" want_ops="$3" want_kill="$4"
-            # NotificationState intentionally omitted. CDK's CfnBudget block
-            # does not set notification.notificationState, so AWS Budgets
-            # stores the default. Including `NotificationState=ALARM` in this
-            # shorthand makes describe-subscribers-for-notification +
-            # create-subscriber both fail with "notification doesn't exist"
-            # because the state filter excludes the actual stored row.
-            local notif="ComparisonOperator=GREATER_THAN,NotificationType=ACTUAL,Threshold=${threshold},ThresholdType=PERCENTAGE"
-
-            # Skip silently when the notification does not exist live.
-            # CDK's next `deploy Security-*` step creates it (with our
-            # SNS-only subscribers as defined in security-stack.ts) — the
-            # whole point of this migration step is just to swap EXISTING
-            # EMAIL subscribers to SNS before CDK's UPDATE forces a
-            # CfnBudget REPLACE on the change of subscriber type.
-            if ! notification_exists "$budget" "$threshold"; then
-              echo "  - skip $budget @ ${threshold}%: notification missing live (CDK will create)"
-              return 0
-            fi
-
-            # Existing subscribers for this notification.
-            local existing
-            existing=$(aws budgets describe-subscribers-for-notification \
-              --account-id "$AWS_ACCOUNT_ID" \
-              --budget-name "$budget" \
-              --notification "$notif" \
-              --query 'Subscribers[*].[SubscriptionType,Address]' \
-              --output text 2>/dev/null || true)
-
-            local have_ops=0 have_kill=0 emails=()
-            # Iterate. We do NOT echo the address — it may be a real email.
-            # Process substitution keeps the loop in the current shell so
-            # have_ops / have_kill propagate. A heredoc here would close
-            # the YAML literal scalar block (column-0 body terminator).
-            #
-            # Critical: we do NOT delete anything inside the loop. AWS
-            # Budgets removes a notification when its LAST subscriber is
-            # deleted (verified deploy run 26127686345 on
-            # monorepo-staging-datatransfer @ 80%). If we delete the EMAIL
-            # subscriber before adding the SNS replacement, the
-            # notification vanishes and create-subscriber returns
-            # "notification doesn't exist". Buffer the EMAIL addresses
-            # and process all add/remove ops after this loop, with
-            # adds-first ordering preserved below.
-            while IFS=$'\t' read -r kind addr; do
-              [ -z "${kind:-}" ] && continue
-              case "$kind:$addr" in
-                "SNS:$OPS_ARN")  have_ops=1 ;;
-                "SNS:$KILL_ARN") have_kill=1 ;;
-                EMAIL:*)         emails+=("$addr") ;;
-                SNS:*)           ;; # other SNS — leave alone
-              esac
-            done < <(printf '%s\n' "$existing")
-
-            # Phase 1 — ADD the wanted SNS subscribers FIRST so the
-            # notification always has at least one subscriber before any
-            # delete fires. AWS Budgets caps each notification at 1 SNS,
-            # so if a STALE SNS already exists we must remove it before
-            # adding the new one — handled by the swap pair below.
-            if [ "$want_ops" = "yes" ] && [ "$have_ops" -eq 0 ]; then
-              if [ "$have_kill" -eq 1 ] && [ "$want_kill" != "yes" ]; then
-                echo "  - swapping SNS kill-switch → ops on $budget @ ${threshold}%"
-                aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
-                have_kill=0
-              fi
-              echo "  - adding SNS ops subscriber on $budget @ ${threshold}%"
-              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
-              have_ops=1
-            fi
-            if [ "$want_kill" = "yes" ] && [ "$have_kill" -eq 0 ]; then
-              if [ "$have_ops" -eq 1 ] && [ "$want_ops" != "yes" ]; then
-                echo "  - swapping SNS ops → kill-switch on $budget @ ${threshold}%"
-                aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
-                have_ops=0
-              fi
-              echo "  - adding SNS kill-switch subscriber on $budget @ ${threshold}%"
-              aws budgets create-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
-              have_kill=1
-            fi
-
-            # Phase 2 — REMOVE everything we no longer want. Now safe
-            # because the wanted SNS subscriber is in place (or the
-            # notification already had a wanted subscriber going in).
-            if [ "$want_ops" != "yes" ] && [ "$have_ops" -eq 1 ]; then
-              echo "  - removing stale SNS ops subscriber on $budget @ ${threshold}%"
-              aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$OPS_ARN" >/dev/null
-              have_ops=0
-            fi
-            if [ "$want_kill" != "yes" ] && [ "$have_kill" -eq 1 ]; then
-              echo "  - removing stale SNS kill-switch subscriber on $budget @ ${threshold}%"
-              aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=SNS,Address=$KILL_ARN" >/dev/null
-              have_kill=0
-            fi
-            for addr in "${emails[@]}"; do
-              echo "  - deleting EMAIL subscriber on $budget @ ${threshold}%"
-              aws budgets delete-subscriber --account-id "$AWS_ACCOUNT_ID" --budget-name "$budget" --notification "$notif" --subscriber "SubscriptionType=EMAIL,Address=$addr" >/dev/null
-            done
-          }
-
-          for slug in "${BUDGETS[@]}"; do
-            name="monorepo-${ENV_NAME}-${slug}"
-            if ! aws budgets describe-budget --account-id "$AWS_ACCOUNT_ID" --budget-name "$name" >/dev/null 2>&1; then
-              echo "Budget $name does not exist — CDK will create."
-              continue
-            fi
-
-            # Orphan check: live exists but not CFN-owned → delete so the
-            # next `cdk deploy` can CREATE it cleanly.
-            if ! echo "$CFN_BUDGETS" | tr '\t' '\n' | grep -qx "$name"; then
-              echo "Budget $name is orphan (not CFN-owned). Deleting so CDK can recreate."
-              aws budgets delete-budget --account-id "$AWS_ACCOUNT_ID" --budget-name "$name" >/dev/null
-              continue
-            fi
-
-            echo "Aligning subscribers on $name (CFN-owned)…"
-            # 80% threshold: ops only. 100% threshold: kill-switch only.
-            # Matches security-stack.ts CfnBudget subscribers per the
-            # 1-SNS-per-notification AWS Budgets cap.
-            migrate_subscribers "$name" 80  yes no
-            migrate_subscribers "$name" 100 no  yes
-          done
-
-          echo "Live budget subscribers now match CDK template (SNS-only)."
+      # The "Migrate live AWS Budgets to SNS-only subscribers" step lived
+      # here. It existed to work around AWS::Budgets immutability on
+      # NotificationsWithSubscribers: any subscriber/threshold change forced
+      # a REPLACE on the budget name, which collided with the live budget
+      # of the same name. security-stack.ts now appends a deterministic
+      # 8-char hash suffix to every budgetName, so meaningful spec changes
+      # CREATE(new)+DELETE(old) cleanly and the workaround is unnecessary.
+      # If you bring this back, also drop the suffix from security-stack.ts.
 
       # Apply pending `packages/db/migrations/*.sql` to RDS via a one-off
       # ECS Fargate task that reuses the Backup TaskDef (it already has
@@ -995,8 +1225,23 @@ jobs:
       # Idempotent: every applied SQL file is journaled in `_app_migrations`
       # and skipped on re-run. The script also no-ops cleanly when
       # `packages/db/migrations/` is empty.
-      - name: Apply DB migrations via one-off ECS task
-        if: env.STACK_SCOPE != 'infra-only'
+      - id: migrate
+        name: Apply DB migrations via one-off ECS task
+        # Gated on detect-changes — when no migration files changed since
+        # the last successful deploy, skip the ECS one-off task entirely
+        # (saves ~2 min wall on app-only PRs). Default-runs on first
+        # deploy / unknown last-SHA / image_tag_override / force-rebuild.
+        # The underlying script remains idempotent against `_app_migrations`
+        # so manual reruns are still safe.
+        #
+        # `id: migrate` is consumed by the deploy job's
+        # `migrations_applied` output and by smoke's rollback guard. When
+        # this step is skipped (no migration files changed), conclusion is
+        # 'skipped' and rollback proceeds as normal. When this step ran,
+        # conclusion is 'success' and rollback refuses — see smoke job.
+        if: |
+          env.STACK_SCOPE != 'infra-only' &&
+          needs.detect-changes.outputs.migrations_changed != 'false'
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
         run: bash infra/scripts/apply-migrations-via-ecs.sh
@@ -1020,6 +1265,12 @@ jobs:
           # closed (nobody authorized). Set vars.ADMIN_WORKSPACE_ALLOWLIST
           # to grant staff access; changing it is a redeploy.
           ADMIN_WORKSPACE_ALLOWLIST: ${{ vars.ADMIN_WORKSPACE_ALLOWLIST }}
+          # Outbound email "From" address. Optional override; bin/app.ts
+          # falls back to no-reply@afframe.com (the Resend-verified parent
+          # domain). Set vars.MAIL_FROM_ADDRESS_{ENV} to override per-env
+          # once you verify a per-env subdomain on Resend. See
+          # docs/runbooks/AWS-DEPLOY.md "Email sender verification".
+          MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS }}
           # ALERT_EMAIL is intentionally NOT passed to CDK. The operator
           # email never enters CFN templates / `cdk diff` snapshots / CI
           # logs. The post-deploy step "Subscribe operator email to alert
@@ -1063,6 +1314,92 @@ jobs:
               fi
               SECRET_CTX+=(--context "$pair")
             done
+          else
+            # cdk synthesizes ALL stacks regardless of --exclusively, and
+            # App-stack throws at synth if `cloudflareTunnelSecretArn` /
+            # `resendApiKeySecretArn` / `betterAuthSecretArn` context keys
+            # are missing (requiredSecretArn() guard). For infra-only we
+            # never deploy App, but synth has to succeed — pass dummy ARNs
+            # with the same -XXXXXX suffix the capture() validation expects.
+            # Same pattern as cdk-synth-strict in workflow-lint.yml.
+            # Verified missing-context failure in run 26213235112.
+            SECRET_CTX=(
+              --context "cloudflareTunnelSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-cf-AAAAAA"
+              --context "resendApiKeySecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-resend-BBBBBB"
+              --context "betterAuthSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-ba-CCCCCC"
+            )
+          fi
+
+          # Staging: --hotswap-fallback bypasses CFN for supported resource
+          # types (ECS Service, Lambda, S3 assets, CodeBuild, Step Functions).
+          # On app-only deploys this drops App-stack from ~130s to ~30s by
+          # updating ECS::Service directly via the AWS API instead of waiting
+          # for the CFN UPDATE wait-for-stable cycle. Falls back to standard
+          # CFN automatically when a non-hotswappable change is in scope
+          # (any IAM / Network / TaskDefinition CPU/memory change).
+          #
+          # Production stays vanilla CFN — hotswap leaves CFN state stale
+          # relative to live resources until the next non-hotswap deploy
+          # reconciles, which is fine for staging but breaks drift detection
+          # + audit guarantees we want on prod. Verified by `cdk diff` after
+          # hotswap: change set present until next full deploy.
+          HOTSWAP_FLAGS=()
+          if [ "$ENV_NAME" = "staging" ]; then
+            HOTSWAP_FLAGS+=(--hotswap-fallback)
+          fi
+
+          # Production: cdk diff guard against destructive REPLACE of stateful
+          # resources. `--require-approval=never` (required for unattended CI)
+          # bypasses CDK's destructive-change prompt, so a typo'd construct-id
+          # rename on RDS/S3/KMS/Secret/IAM/DynamoDB/EFS/LogGroup would
+          # silently REPLACE the resource (e.g. RDS rename = new DB, data
+          # gone; S3 bucket rename = new bucket, files gone). Even RETAIN
+          # removal policy only blocks `cdk destroy`, not REPLACE-on-Update.
+          #
+          # The PR-L class (account-global name CREATE collision) also shows
+          # up here as `[+] AWS::CloudWatch::Dashboard` on a new logical id;
+          # we don't gate on that one because dashboards have no state, but
+          # the same diff machinery would catch it for the stateful set.
+          #
+          # Override: include `[allow-replace]` in the head commit message
+          # for a legitimately-intended rename. Staging is unfiltered (free
+          # to move).
+          if [ "$ENV_NAME" = "production" ]; then
+            echo "::group::cdk diff replace-guard (production)"
+            DIFF_FILE=$(mktemp)
+            # --method=change-set asks CloudFormation what would REPLACE on
+            # update (more accurate than the local template diff which can
+            # miss physical-replacement signals). Best-effort: pipe to tee +
+            # `|| true` so we don't abort on diff exit codes (cdk diff exits
+            # 1 when changes exist; we want the text, not the exit code).
+            pnpm --filter @workspace/cdk exec cdk diff "${STACKS[@]}" \
+              --exclusively \
+              --method=change-set \
+              --context "env=${ENV_NAME}" \
+              --context "imageTag=${IMAGE_TAG}" \
+              --context "webImageTag=${IMAGE_TAG_WEB}" \
+              --context "apiImageTag=${IMAGE_TAG_API}" \
+              --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
+              "${SECRET_CTX[@]}" 2>&1 | tee "$DIFF_FILE" || true
+            STATEFUL_TYPES='AWS::(RDS::DB(Instance|Cluster|ClusterParameterGroup|ParameterGroup|SubnetGroup)|S3::Bucket|KMS::Key|SecretsManager::Secret|IAM::(Role|User)|DynamoDB::Table|EFS::FileSystem|Logs::LogGroup)'
+            # `[~] <Type> <LogicalId> <PhysicalId> replace` = REPLACE-on-Update
+            # `[+] <Type>` = CREATE of a new logical id (catches typo'd renames
+            # of a stateful resource into a new construct id — the resource
+            # is detached from CFN's perspective, original retained but
+            # orphaned, new resource created alongside; for a stateful
+            # resource that's silent data loss).
+            REPLACE_LINES=$(grep -E "^\[~\] ${STATEFUL_TYPES}.* replace$|^\[\+\] ${STATEFUL_TYPES}\b" "$DIFF_FILE" || true)
+            echo "::endgroup::"
+            if [ -n "$REPLACE_LINES" ]; then
+              if git log -1 --pretty=%B | grep -qF '[allow-replace]'; then
+                echo "::warning::Destructive REPLACE detected on stateful resource(s) — proceeding because head commit has [allow-replace] override."
+                echo "$REPLACE_LINES"
+              else
+                echo "::error::Destructive REPLACE detected on stateful resource(s). Refusing to deploy. Add [allow-replace] to the head commit message to override (use ONLY for an intentional rename that you've audited)."
+                echo "$REPLACE_LINES"
+                exit 1
+              fi
+            fi
           fi
 
           pnpm --filter @workspace/cdk exec cdk deploy "${STACKS[@]}" \
@@ -1070,7 +1407,11 @@ jobs:
             --concurrency 3 \
             --context "env=${ENV_NAME}" \
             --context "imageTag=${IMAGE_TAG}" \
+            --context "webImageTag=${IMAGE_TAG_WEB}" \
+            --context "apiImageTag=${IMAGE_TAG_API}" \
+            --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
             "${SECRET_CTX[@]}" \
+            "${HOTSWAP_FLAGS[@]}" \
             --require-approval=never
 
       # Subscribe operator email to the 3 alert SNS topics. CDK does NOT
@@ -1110,12 +1451,34 @@ jobs:
               echo "::warning::$label topic ARN empty — skipping subscription."
               return 0
             fi
-            # Look for an existing subscription (any status) where Endpoint
-            # equals the operator email. ListSubscriptionsByTopic returns
-            # PendingConfirmation + Confirmed; either counts as "in flight".
-            local existing
-            existing=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --query "Subscriptions[?Protocol=='email' && Endpoint=='${ALERT_EMAIL}'] | length(@)" --output text)
-            if [ "$existing" != "0" ]; then
+            # Look for an existing CONFIRMED subscription where Endpoint
+            # equals the operator email. ListSubscriptionsByTopic caps at
+            # 100 results per page, so we paginate via NextToken until empty
+            # to avoid creating duplicate subscriptions once the page fills.
+            #
+            # Status filter rationale: AWS retains cancelled subscriptions
+            # as `SubscriptionArn=="Deleted"` for up to 2 days, and
+            # unconfirmed ones as `"PendingConfirmation"` for up to 3 days
+            # (https://repost.aws/knowledge-center/sns-cannot-delete-topic-subscription).
+            # Without filtering both out, a stale entry counts as "already
+            # subscribed" and we'd silently skip re-subscribing — operator
+            # never gets a confirmation email and prod alerts go dark.
+            # PendingConfirmation is intentionally re-sent: re-issuing the
+            # confirmation costs one extra email; permanent un-subscribe
+            # would be invisible until something fails to page.
+            local existing=0 next_token="" page match
+            while :; do
+              if [ -n "$next_token" ]; then
+                page=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --starting-token "$next_token" --output json)
+              else
+                page=$(aws sns list-subscriptions-by-topic --topic-arn "$topic_arn" --region "$AWS_REGION" --output json)
+              fi
+              match=$(echo "$page" | jq -r --arg e "$ALERT_EMAIL" '[.Subscriptions[]? | select(.Protocol=="email" and .Endpoint==$e and .SubscriptionArn != "Deleted" and .SubscriptionArn != "PendingConfirmation")] | length')
+              existing=$((existing + match))
+              next_token=$(echo "$page" | jq -r '.NextToken // ""')
+              [ -z "$next_token" ] && break
+            done
+            if [ "$existing" -gt 0 ]; then
               echo "OK   $label: operator email already subscribed (count=$existing)."
               return 0
             fi
@@ -1135,32 +1498,211 @@ jobs:
           subscribe_idempotent "$KILL_ARN" "KillSwitchTopic"
           subscribe_idempotent "$BILL_ARN" "BillingTopic"
 
-      # Persist last-deploy state for the next run's detect-changes job.
-      # Only writes on a fully-successful deploy. Two parameters:
-      #   - git-sha   : current commit, the baseline for the next diff
-      #   - image-tag : the tag actually deployed (may be the SSM-reused
-      #                 last tag when changeset-aware skip fired)
-      # Failure to write SSM is non-fatal — the next run will fall through
-      # to a full rebuild (safe default).
-      - name: Record last-deploy state in SSM
-        if: env.STACK_SCOPE != 'infra-only'
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          aws ssm put-parameter \
-            --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" \
-            --type String \
-            --value "$GITHUB_SHA" \
-            --overwrite \
-            --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/git-sha"
-          aws ssm put-parameter \
-            --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" \
-            --type String \
-            --value "$IMAGE_TAG" \
-            --overwrite \
-            --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag"
-          echo "Recorded: sha=$GITHUB_SHA tag=$IMAGE_TAG (env=$ENV_NAME)"
+      # Last-deploy SSM record was here; moved to the `smoke` job's success
+      # path so a deploy that hotswapped a broken image (and smoke later
+      # rolls back) doesn't poison the per-service `image-tag-<svc>` SSM
+      # the next deploy reads as "last known good". See smoke job below.
 
       - id: summary
         run: echo "deployed=true" >> "$GITHUB_OUTPUT"
+
+  # Post-deploy smoke test of the live URL + auto-rollback on failure.
+  # Probes the web /api/version + admin /api/health endpoints through
+  # Cloudflare Tunnel. If either fails to reach 200 within ~150s, we
+  # roll the ECS service back to the previous task-definition revision
+  # and exit the workflow non-zero. Covers Bucket 1 of past failures
+  # (ECS Circuit Breaker on App-staging, 5/20 fails) by giving the
+  # operator an automatic recovery path instead of a wedged service.
+  smoke:
+    needs: [guard, validate-inputs, detect-changes, deploy]
+    if: |
+      !cancelled() &&
+      needs.guard.outputs.go == 'true' &&
+      needs.validate-inputs.result == 'success' &&
+      needs.deploy.result == 'success' &&
+      inputs.stack != 'infra-only'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+      PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+      STAGING_APP_DOMAIN: ${{ vars.APP_DOMAIN_STAGING }}
+      PRODUCTION_APP_DOMAIN: ${{ vars.APP_DOMAIN_PRODUCTION }}
+      STAGING_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_STAGING }}
+      PRODUCTION_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_PRODUCTION }}
+      # Inputs forwarded from detect-changes so the post-smoke SSM-record
+      # step can pin per-service `last-known-good` tags only when smoke
+      # has actually validated the deploy.
+      GITHUB_SHA: ${{ github.sha }}
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_WEB: ${{ needs.detect-changes.outputs.image_tag_web || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_API: ${{ needs.detect-changes.outputs.image_tag_api || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_ADMIN: ${{ needs.detect-changes.outputs.image_tag_admin || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - id: env
+        run: |
+          set -euo pipefail
+          case "$ENV_NAME" in
+            staging)
+              echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT"
+              echo "app=https://$STAGING_APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "admin=https://$STAGING_ADMIN_DOMAIN" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT"
+              echo "app=https://$PRODUCTION_APP_DOMAIN" >> "$GITHUB_OUTPUT"
+              echo "admin=https://$PRODUCTION_ADMIN_DOMAIN" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Unknown environment: $ENV_NAME"
+              exit 1
+              ;;
+          esac
+      # Configure AWS up-front (was previously only on the failure path).
+      # Both the success record + failure rollback need AWS now; doing it
+      # once keeps the step graph simpler and avoids re-assuming the role
+      # twice on the rollback path.
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-smoke-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 1800
+      - id: smoke
+        name: Smoke probe (web + admin)
+        env:
+          APP_URL: ${{ steps.env.outputs.app }}
+          ADMIN_URL: ${{ steps.env.outputs.admin }}
+        run: |
+          set -euo pipefail
+          # 30 attempts x 5s = 150s ceiling. Aligns with healthCheckGracePeriod
+          # (180s) so the probe gives ECS a chance to settle.
+          #
+          # Probes only routes that are guaranteed to exist in the current
+          # build:
+          #   - /api/version (apps/web/app/api/version/route.ts) → 200
+          #   - /api/health  (apps/admin/app/api/health/route.ts) → 200
+          #   - /api/auth/get-session (Better Auth canonical endpoint via
+          #     apps/web/app/api/auth/[...all]/route.ts catch-all) →
+          #     200 with body "null" for anonymous, session JSON for
+          #     signed-in. Any 2xx proves the auth handler is wired.
+          #
+          # Adding a probe? Verify the route exists in the source first
+          # (`find apps/*/app/api -name route.ts`). A probe of a non-existent
+          # endpoint will 404 forever and trip rollback every deploy.
+          for i in $(seq 1 30); do
+            v=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/version" || true)
+            h=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$ADMIN_URL/api/health" || true)
+            s=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/auth/get-session" || true)
+            if [ "$v" = "200" ] && [ "$h" = "200" ] && [[ "$s" =~ ^2 ]]; then
+              echo "smoke: PASS  version=$v admin-health=$h auth-session=$s  (attempt $i)"
+              exit 0
+            fi
+            echo "smoke: try=$i  version=$v admin-health=$h auth-session=$s"
+            sleep 5
+          done
+          echo "::error::smoke failed after 30 attempts"
+          exit 1
+      # Record last-known-good state in SSM AFTER smoke verifies the deploy.
+      # Before this PR the record was inside the deploy job, which fires
+      # even when smoke later rolls back — poisoning the per-service
+      # `image-tag-<svc>` SSM with a broken-image SHA that the next deploy
+      # then "intelligently" reuses (verified run 26210496331 left staging
+      # serving 503 because rollback target rev26 ALSO had the broken image).
+      # Now the record runs only on green smoke and captures both the per-
+      # service image tags AND the live task-definition ARN, so rollback
+      # has a known-good revision to target instead of "previous ACTIVE".
+      - name: Record last-known-good in SSM
+        if: success()
+        run: |
+          set -euo pipefail
+          CLUSTER="monorepo-${ENV_NAME}"
+          SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
+          SERVICE_NAME=${SERVICE_ARN##*/}
+          GOOD_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" --type String --value "$GITHUB_SHA" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/git-sha"
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --type String --value "$IMAGE_TAG" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag"
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/task-def-arn" --type String --value "$GOOD_TD" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/task-def-arn"
+          for pair in "web=$IMAGE_TAG_WEB" "api=$IMAGE_TAG_API" "admin=$IMAGE_TAG_ADMIN"; do
+            svc="${pair%%=*}"
+            tag="${pair#*=}"
+            aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag-${svc}" --type String --value "$tag" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag-${svc}"
+          done
+          echo "Recorded last-known-good: sha=$GITHUB_SHA task-def=$GOOD_TD web=$IMAGE_TAG_WEB api=$IMAGE_TAG_API admin=$IMAGE_TAG_ADMIN (env=$ENV_NAME)"
+      - name: Roll back ECS service to last-known-good task-definition
+        if: failure() && steps.smoke.conclusion == 'failure'
+        env:
+          MIGRATIONS_APPLIED: ${{ needs.deploy.outputs.migrations_applied }}
+        run: |
+          set -euo pipefail
+          # HI-05 safety gate: when migrations ran THIS deploy, the new
+          # task def expects new schema. Rolling ECS back to the previous
+          # task def puts OLD code in front of NEW schema → reads/writes
+          # against columns that don't exist yet (or do exist but mean
+          # something different post-migration). Pattern is identical to
+          # the PR F bug (SSM tag poisoning): automation does the right
+          # thing in steady state but the wrong thing when state has
+          # moved. Refuse to roll back, page the operator, point them at
+          # the runbook (docs/runbooks/AWS-DEPLOY.md "Migration rollback
+          # recovery"). Recovery is forward-fix in nearly all cases.
+          if [ "${MIGRATIONS_APPLIED:-false}" = "true" ]; then
+            echo "::error::smoke failed AND migrations were applied this deploy. Auto-rollback is unsafe — old task def would meet new schema. Aborting rollback. See docs/runbooks/AWS-DEPLOY.md#migration-rollback-recovery for the manual path (forward-fix or PITR + manual task-def revert)."
+            exit 1
+          fi
+          CLUSTER="monorepo-${ENV_NAME}"
+          SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
+          if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
+            echo "::error::no service in cluster $CLUSTER — cannot roll back"
+            exit 1
+          fi
+          SERVICE_NAME=${SERVICE_ARN##*/}
+          CURRENT_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+          echo "Rolling back service=$SERVICE_NAME current=$CURRENT_TD"
+          # Preferred: last-known-good task-def stored by a prior successful
+          # smoke. This is immune to the "previous ACTIVE was ALSO broken"
+          # case (run 26210496331 rolled back to rev26 which also failed
+          # auth-session because a prior failed-smoke deploy left it
+          # ACTIVE).
+          TARGET_TD=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/task-def-arn" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          if [ -z "$TARGET_TD" ] || [ "$TARGET_TD" = "None" ]; then
+            echo "::warning::SSM last-deploy/task-def-arn empty — falling back to previous ACTIVE revision in the family. This is only safe on the first smoke run after PR F; expect SSM to be populated thereafter."
+            FAMILY="${CURRENT_TD##*/}"
+            FAMILY="${FAMILY%:*}"
+            TARGET_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns' --output json | jq -r '.[1] // empty')
+            if [ -z "$TARGET_TD" ] || [ "$TARGET_TD" = "null" ]; then
+              # First-deploy smoke fail: no SSM record yet, and only ONE
+              # revision in the family. There is genuinely nowhere to roll
+              # back to. Cap cost immediately by scaling the service to 0
+              # (manual remediation required afterward — likely the deploy
+              # never reached steady state, e.g. Cloudflare Tunnel ingress
+              # not yet wired). Surface clearly so the operator knows the
+              # next step.
+              echo "::warning::first-deploy smoke failure — no rollback target exists. Scaling service to 0 to cap cost; manual remediation required."
+              aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE_NAME" --desired-count 0 --region "$AWS_REGION" >/dev/null || echo "::warning::scale-to-0 failed; service may still be running"
+              echo "::error::smoke failed on first deploy; service scaled to 0. Investigate ingress + container logs, then redeploy to retry."
+              exit 1
+            fi
+          fi
+          if [ "$TARGET_TD" = "$CURRENT_TD" ]; then
+            echo "::error::smoke failed but rollback target ($TARGET_TD) equals current — no earlier revision to roll to. Live state is the last-known-good; investigate logs (smoke probably hit a transient or external issue)."
+            exit 1
+          fi
+          echo "Target last-known-good: $TARGET_TD"
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE_NAME" \
+            --task-definition "$TARGET_TD" \
+            --force-new-deployment \
+            --region "$AWS_REGION" >/dev/null
+          echo "::error::smoke failed; rollback issued to $TARGET_TD; exiting non-zero"
+          exit 1

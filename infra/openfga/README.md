@@ -45,6 +45,7 @@ docker compose \
 ```
 
 This starts two containers:
+
 - `openfga-migrate` — one-shot init container that runs `openfga migrate` against Postgres.
 - `openfga` — the OpenFGA server on `http://localhost:8080`.
 
@@ -80,13 +81,13 @@ fga model validate --file infra/openfga/model.fga
 
 Test files:
 
-| File | Scope |
-|------|-------|
-| `00-workspace-roles.fga.yaml` | Workspace role grants and denials |
-| `01-organization-inheritance.fga.yaml` | Workspace to org cascade semantics |
-| `02-resource-grants.fga.yaml` | All 10 resource types x roles x actions matrix |
-| `03-agent-action-gates.fga.yaml` | AI principal action gates |
-| `04-external-shares.fga.yaml` | Ad-hoc viewer grants on invoice + file |
+| File                                   | Scope                                          |
+| -------------------------------------- | ---------------------------------------------- |
+| `00-workspace-roles.fga.yaml`          | Workspace role grants and denials              |
+| `01-organization-inheritance.fga.yaml` | Workspace to org cascade semantics             |
+| `02-resource-grants.fga.yaml`          | All 10 resource types x roles x actions matrix |
+| `03-agent-action-gates.fga.yaml`       | AI principal action gates                      |
+| `04-external-shares.fga.yaml`          | Ad-hoc viewer grants on invoice + file         |
 
 ## Model Versioning
 
@@ -97,30 +98,11 @@ Every call to `writeAuthorizationModel` returns a new `authorization_model_id`. 
 
 Re-running `bootstrap.mjs` is store-safe: the existing store is reused (found by name). But every run writes a fresh authorization model, producing a new `authorization_model_id` and overwriting the SSM `/monorepo/{env}/openfga/model-id` parameter. Old tuples remain valid (OpenFGA preserves tuple compatibility across model versions for additive changes), but **the api must read `OPENFGA_MODEL_ID` from SSM at boot** rather than cache it across deploys — otherwise it will pin to a stale model ID. Commit 9's OpenFGA module follows this contract.
 
-## Production Bootstrap
+## Production Bootstrap (automated)
 
-This is a manual one-time step performed by the operator before the first `cdk deploy App-{env}`:
+All three steps (schema CREATE, `openfga migrate`, `bootstrap.mjs`) run as init containers inside App-{env}'s ECS task on every cold start. No operator action. See `docs/runbooks/AWS-DEPLOY.md` section "Bootstrap chain: schemas + openfga model (automated)" for the per-container breakdown.
 
-1. Create the openfga schema in RDS (via temporary bastion tunnel):
-   ```sql
-   CREATE SCHEMA openfga AUTHORIZATION app_owner;
-   ```
-
-2. Run migration:
-   ```bash
-   openfga migrate \
-     --datastore-engine postgres \
-     --datastore-uri "postgres://app_owner:<password>@<rds-host>:5432/monorepo?search_path=openfga"
-   ```
-
-3. Bootstrap the store and write SSM parameters:
-   ```bash
-   AWS_REGION=eu-central-1 \
-   OPENFGA_API_URL=http://<bastion-forwarded-port>:8080 \
-   node infra/openfga/bootstrap.mjs --env staging
-   ```
-
-See `docs/runbooks/AWS-DEPLOY.md` for the full bootstrap ceremony.
+`bootstrap.mjs` itself is the same script the in-cluster `openfga-bootstrap` container runs. Each task cold start: starts an OpenFGA process locally, calls this script, writes SSM via the task role, exits. Run it from a laptop only as an escape hatch when the init-container chain is wedged.
 
 ## Cross-references
 

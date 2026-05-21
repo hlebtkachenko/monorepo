@@ -27,7 +27,12 @@ import {
   OperatingSystemFamily,
   Secret as EcsSecret,
 } from "aws-cdk-lib/aws-ecs"
-import { ManagedPolicy, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam"
+import {
+  ManagedPolicy,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam"
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import type { DatabaseInstance } from "aws-cdk-lib/aws-rds"
 import type { Bucket } from "aws-cdk-lib/aws-s3"
@@ -73,6 +78,14 @@ export interface AppStackProps extends StackProps {
   readonly adminRepository: Repository
   readonly domain: string
   readonly adminDomain: string
+  /**
+   * Outbound email "From" address. MUST be on a Resend-verified domain
+   * (see `docs/runbooks/AWS-DEPLOY.md` "Email sender verification"). The
+   * web + admin containers both send from this address. Defaults via the
+   * `MAIL_FROM_ADDRESS` env var in `bin/app.ts`, with a hard fallback to
+   * `no-reply@afframe.com` (the currently-verified parent domain).
+   */
+  readonly mailFromAddress: string
 }
 
 /**
@@ -148,8 +161,18 @@ export class AppStack extends Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props)
 
+    // Global fallback tag. Each service can override via its own context
+    // key (webImageTag / apiImageTag / adminImageTag) so the deploy workflow
+    // can skip rebuilding a service whose dependencies didn't change AND
+    // pin its container to the previously-deployed image — without forcing
+    // the other services to use the stale tag.
     const imageTag =
       (this.node.tryGetContext("imageTag") as string | undefined) ?? "bootstrap"
+    const perServiceTag = (key: string): string =>
+      (this.node.tryGetContext(key) as string | undefined) ?? imageTag
+    const webImageTag = perServiceTag("webImageTag")
+    const apiImageTag = perServiceTag("apiImageTag")
+    const adminImageTag = perServiceTag("adminImageTag")
 
     // Workflow-managed secrets (cloudflare-tunnel, resend-api-key,
     // better-auth-secret, app-token-secret) are created + populated by the
@@ -238,6 +261,22 @@ export class AppStack extends Stack {
     props.appBucket.grantReadWrite(taskRole)
     props.databaseSecret.grantRead(taskRole)
     props.appUserSecret.grantRead(taskRole)
+    // openfga-bootstrap init container writes the store + model IDs to SSM
+    // via PutParameter on /monorepo/${envName}/openfga/{store-id,model-id}.
+    // Scoped to those two parameter ARNs — the api/web/admin containers
+    // share this role but never touch SSM at runtime (they only read via
+    // EcsSecret.fromSsmParameter, which goes through the execution role's
+    // ssm:GetParameters, not this task role). Blast radius if compromised
+    // == garbage SSM that gets overwritten on the next deploy.
+    taskRole.addToPolicy(
+      new PolicyStatement({
+        actions: ["ssm:PutParameter"],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/monorepo/${props.envName}/openfga/store-id`,
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/monorepo/${props.envName}/openfga/model-id`,
+        ],
+      }),
+    )
 
     const taskDef = new FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
@@ -389,7 +428,7 @@ export class AppStack extends Stack {
     // blocks crypto-miner payloads. Tmpfs mount is harmless extra capacity.
     const webContainer = taskDef.addContainer("web", {
       containerName: "web",
-      image: ContainerImage.fromEcrRepository(props.webRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(props.webRepository, webImageTag),
       portMappings: [{ containerPort: 3000 }],
       essential: true,
       logging: LogDriver.awsLogs({
@@ -421,7 +460,18 @@ export class AppStack extends Stack {
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.domain),
         // Outbound email from-address. Must be on a Resend/SES-verified
         // domain — otherwise the transport rejects the send.
-        EMAIL_FROM: `no-reply@${props.domain}`,
+        //
+        // Why the parent `afframe.com` (not `${props.domain}`)? Resend's
+        // verification is per-EXACT-domain — a verified `afframe.com` does
+        // NOT auto-trust `app-staging.afframe.com` or `app.afframe.com` as
+        // senders. Every per-env subdomain we want to send from would need
+        // its own verification + DNS records. To unblock both envs on one
+        // verified domain, we centralise on the parent. Per-env senders
+        // (e.g. `no-reply-staging@…`) is a future tightening once the
+        // subdomains are independently verified — DMARC posture improves
+        // and inbox-side distinction becomes possible. Documented in
+        // `docs/runbooks/AWS-DEPLOY.md` "Email sender verification".
+        EMAIL_FROM: props.mailFromAddress,
         // Force the Resend transport. Without this, packages/email's
         // pickTransport() would also accept SES via AWS_REGION; in MVP we
         // want every deploy on the same provider until SES production
@@ -433,6 +483,19 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // The packages/db startup probe asserts that app.app_user_role_name
+        // is persisted on the connecting role (it underpins the last-owner
+        // demotion trigger — ADR-0010). AWS RDS rejects the matching
+        // `ALTER ROLE app_user SET app.app_user_role_name = …` because
+        // custom-GUC ALTER requires true SUPERUSER (and `rds_superuser`
+        // is not enough — AFF-150 §5). The production paths instead set
+        // the GUC per-transaction via withAdminBypass / withOrganization
+        // / withWorkspace (PR #142), so the missing role-default is
+        // expected. Downgrade the probe's throw to a single one-time
+        // warn here so the unhandled rejection does not surface as a
+        // flash error overlay on the user's first cold-start render.
+        // Local dev keeps the strict throw (this env var is unset there).
+        DB_STARTUP_PROBE_LENIENT: "1",
         // Avatar upload + presigned-read chain in apps/web requires this. The
         // api container already has it (below); the web container's
         // /api/upload/avatar route and presignAvatarRead() call returned 500
@@ -473,6 +536,35 @@ export class AppStack extends Stack {
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
           "HOSTNAME=0.0.0.0 exec node apps/web/server.js",
       ],
+      // Fargate ignores Dockerfile HEALTHCHECK unless it's set in the
+      // task definition. Wiring this here makes Circuit Breaker (above)
+      // observe real readiness, not just process-up, so a broken deploy
+      // trips rollback fast instead of after the gracePeriod elapses.
+      //
+      // Healthcheck uses Node's built-in http module (zero dep, always in
+      // the image) so the probe explicitly fails on any non-2xx status.
+      // The previous `wget -q -O- … || exit 1` exited 0 even on HTTP 503
+      // because wget retrieved the error body successfully — verified
+      // live in run 26195661343 where the broken /api/version task served
+      // 503 to users while ECS reported it healthy. Node check returns
+      // exit 1 unless statusCode === 200.
+      //
+      // Timings tightened from 30s→10s interval + 20s→15s startPeriod so
+      // ECS sees HEALTHY at ~25s instead of ~110s. Next.js standalone
+      // server boots in <5s; /api/version is a cheap JSON return — three
+      // 10s-interval probes still gives ~30s before declaring unhealthy.
+      // healthCheckGracePeriod (180s, see service config below) keeps
+      // a wide safety margin over the new convergence time.
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000/api/version',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("WebLinuxParams"),
     })
@@ -499,7 +591,7 @@ export class AppStack extends Stack {
     // (e.g., via `printf %s "$DB_PASSWORD" | jq -sRr @uri`).
     const apiContainer = taskDef.addContainer("api", {
       containerName: "api",
-      image: ContainerImage.fromEcrRepository(props.apiRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(props.apiRepository, apiImageTag),
       portMappings: [{ containerPort: 3001 }],
       essential: true,
       logging: LogDriver.awsLogs({
@@ -545,6 +637,22 @@ export class AppStack extends Stack {
           'export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_DIRECT_HOST}:${DB_DIRECT_PORT}/${DB_NAME}" && ' +
           "exec node dist/main.js",
       ],
+      // Fargate ignores Dockerfile HEALTHCHECK — same rationale as the web
+      // container above. Without an explicit task-def probe a WEDGED api
+      // (process up, requests deadlocked) is invisible to Circuit Breaker;
+      // ECS only replaces on process exit. Smoke catches it post-deploy
+      // via /api/auth/get-session, but in steady state the api could drop
+      // traffic until some other timer fires.
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3001/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 512,
       readonlyRootFilesystem: true,
       linuxParameters: linuxParams("ApiLinuxParams"),
@@ -572,7 +680,10 @@ export class AppStack extends Stack {
     const adminOrigin = `https://${props.adminDomain}`
     const adminContainer = taskDef.addContainer("admin", {
       containerName: "admin",
-      image: ContainerImage.fromEcrRepository(props.adminRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(
+        props.adminRepository,
+        adminImageTag,
+      ),
       portMappings: [{ containerPort: 3100 }],
       essential: false,
       logging: LogDriver.awsLogs({
@@ -597,12 +708,21 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // Admin connects as app_user (same as web — see DataStackProps
+        // doc) so the packages/db startup probe applies. Use the lenient
+        // mode for the same reason as web: AWS RDS rejects `ALTER ROLE
+        // SET app.app_user_role_name`, so the missing role-default is
+        // expected and downstream per-transaction SET LOCAL carries the
+        // contract. See the long note in the web container env above.
+        DB_STARTUP_PROBE_LENIENT: "1",
         // Admin doesn't upload avatars today, but staff user-management views
         // call presignAvatarRead() to render user profile photos. Wire it now
         // so the next admin feature doesn't trip the same 500 the web app hit.
         APP_BUCKET: props.appBucket.bucketName,
         AWS_REGION: this.region,
-        EMAIL_FROM: `no-reply@${props.domain}`,
+        // See the long note in the web container above re. Resend per-domain
+        // verification. Admin sends from the same parent address.
+        EMAIL_FROM: props.mailFromAddress,
         EMAIL_TRANSPORT: "resend",
       },
       secrets: {
@@ -628,6 +748,19 @@ export class AppStack extends Stack {
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
           "HOSTNAME=0.0.0.0 exec node apps/admin/server.js",
       ],
+      // Mirror of the web healthCheck — see that block for rationale + the
+      // wget-vs-node story. Admin uses port 3100 and exposes /api/health
+      // (no /api/version).
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3100/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("AdminLinuxParams"),
     })
@@ -954,6 +1087,252 @@ export class AppStack extends Stack {
       readOnly: false,
     })
 
+    // ─── Bootstrap init containers ───────────────────────────────────────
+    //
+    // First-deploy of a fresh environment needs three DB bootstrap steps
+    // (per docs/runbooks/AWS-DEPLOY.md):
+    //
+    //   1. Apply Drizzle migrations (creates app_user role + all tables)
+    //   2. ALTER ROLE app_user PASSWORD <from-appUserSecret>
+    //   3. CREATE SCHEMA openfga + run `openfga migrate` (goose schema)
+    //
+    // Before this, operators ran them manually via a bastion. That works
+    // once per env then forgotten — and production first-deploy hit it
+    // because nothing automated the bootstrap. The init containers below
+    // run on every cold start; idempotent steps no-op after first success.
+    //
+    // ECS dependsOn ensures essential containers wait until these exit
+    // SUCCESS (exit code 0). On unexpected failure, the whole task fails
+    // → Circuit Breaker rolls back the deploy (deferred to G5's contract).
+
+    const dbMigrateImage = new DockerImageAsset(this, "DbMigrateImage", {
+      // Context is repo root so the Dockerfile can COPY
+      // packages/db/migrations + infra/scripts/apply-migrations-init.sh.
+      directory: path.join(__dirname, "..", "..", ".."),
+      file: "infra/Dockerfile.migrate",
+      platform: Platform.LINUX_ARM64,
+    })
+
+    const dbMigrateLogGroup = new LogGroup(this, "DbMigrateLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/db-migrate`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+
+    const dbMigrateContainer = taskDef.addContainer("db-migrate", {
+      containerName: "db-migrate",
+      image: ContainerImage.fromDockerImageAsset(dbMigrateImage),
+      // essential: false + ECS dependsOn SUCCESS → task waits for clean
+      // exit before starting other containers, but a failure here does
+      // surface (Circuit Breaker treats unhealthy deployment as failure).
+      essential: false,
+      // First-deploy migration set against a cold RDS can exceed the
+      // default 3min startTimeout (DB warmup + N migrations × ~2-3s).
+      // Lift to 10min so dependsOn-SUCCESS doesn't trip prematurely.
+      startTimeout: Duration.minutes(10),
+      logging: LogDriver.awsLogs({
+        streamPrefix: "db-migrate",
+        logGroup: dbMigrateLogGroup,
+      }),
+      environment: {
+        DB_HOST: props.database.dbInstanceEndpointAddress,
+        DB_PORT: props.database.dbInstanceEndpointPort,
+        DB_NAME: "monorepo",
+      },
+      secrets: {
+        DB_ADMIN_USER: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "username",
+        ),
+        DB_ADMIN_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+        APP_USER_PASSWORD: EcsSecret.fromSecretsManager(
+          props.appUserSecret,
+          "password",
+        ),
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("DbMigrateLinuxParams"),
+    })
+    dbMigrateContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    const openfgaMigrateLogGroup = new LogGroup(this, "OpenfgaMigrateLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/openfga-migrate`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+
+    const openfgaMigrateContainer = taskDef.addContainer("openfga-migrate", {
+      containerName: "openfga-migrate",
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.15.1"),
+      essential: false,
+      // Goose migration applier; first-deploy can take a few minutes
+      // against a cold RDS. Match db-migrate's timeout.
+      startTimeout: Duration.minutes(10),
+      command: ["migrate"],
+      logging: LogDriver.awsLogs({
+        streamPrefix: "openfga-migrate",
+        logGroup: openfgaMigrateLogGroup,
+      }),
+      environment: {
+        OPENFGA_DATASTORE_ENGINE: "postgres",
+        OPENFGA_DATASTORE_URI: `postgres://${props.database.dbInstanceEndpointAddress}:${props.database.dbInstanceEndpointPort}/monorepo?search_path=openfga&sslmode=require`,
+        OPENFGA_LOG_FORMAT: "json",
+      },
+      secrets: {
+        // openfga migrate runs as the admin (app_owner) since it needs
+        // DDL inside the openfga schema. Different from the runtime
+        // openfga container which can use a less-privileged role
+        // (we still use admin there for now — refine later).
+        OPENFGA_DATASTORE_USERNAME: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "username",
+        ),
+        OPENFGA_DATASTORE_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("OpenfgaMigrateLinuxParams"),
+    })
+    openfgaMigrateContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    // openfga-migrate depends on db-migrate (needs the openfga schema
+    // created by step #3 of apply-migrations-init.sh).
+    openfgaMigrateContainer.addContainerDependencies({
+      container: dbMigrateContainer,
+      condition: ContainerDependencyCondition.SUCCESS,
+    })
+
+    // openfga-bootstrap (init container): creates/reuses the OpenFGA store,
+    // writes the authorization model, and PutParameter's the resulting
+    // store-id + model-id to SSM. Replaces the manual bastion bootstrap
+    // step the runbook used to require — every env (including DR / new
+    // tenant infra) gets bootstrapped automatically on first deploy.
+    //
+    // Runs AFTER openfga-migrate so the openfga schema goose tables exist.
+    // The container image bundles the openfga binary + node + bootstrap.mjs;
+    // the init script boots openfga locally on 127.0.0.1:8080, polls
+    // /healthz, runs the bootstrap, writes SSM, then exits.
+    //
+    // Idempotent: store reused by name across re-runs; model_id is
+    // rewritten with same DSL content; SSM overwritten. api reads SSM at
+    // every cold start so it always picks up the latest model_id.
+    const openfgaBootstrapImage = new DockerImageAsset(
+      this,
+      "OpenfgaBootstrapImage",
+      {
+        directory: path.join(__dirname, "..", "..", ".."),
+        file: "infra/Dockerfile.openfga-bootstrap",
+        platform: Platform.LINUX_ARM64,
+      },
+    )
+
+    const openfgaBootstrapLogGroup = new LogGroup(
+      this,
+      "OpenfgaBootstrapLogs",
+      {
+        logGroupName: `/ecs/monorepo-${props.envName}/openfga-bootstrap`,
+        retention: RetentionDays.ONE_WEEK,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    )
+
+    const openfgaBootstrapContainer = taskDef.addContainer(
+      "openfga-bootstrap",
+      {
+        containerName: "openfga-bootstrap",
+        image: ContainerImage.fromDockerImageAsset(openfgaBootstrapImage),
+        essential: false,
+        // First-deploy bootstrap against a cold openfga schema + SSM writes
+        // can take ~10-15s. Lift the timeout in line with the other inits so
+        // dependsOn-SUCCESS doesn't trip on slow boots.
+        startTimeout: Duration.minutes(5),
+        logging: LogDriver.awsLogs({
+          streamPrefix: "openfga-bootstrap",
+          logGroup: openfgaBootstrapLogGroup,
+        }),
+        environment: {
+          MONOREPO_ENV: props.envName,
+          AWS_REGION: this.region,
+          DB_HOST: props.database.dbInstanceEndpointAddress,
+          DB_PORT: props.database.dbInstanceEndpointPort,
+          DB_NAME: "monorepo",
+        },
+        secrets: {
+          DB_ADMIN_USER: EcsSecret.fromSecretsManager(
+            props.databaseSecret,
+            "username",
+          ),
+          DB_ADMIN_PASSWORD: EcsSecret.fromSecretsManager(
+            props.databaseSecret,
+            "password",
+          ),
+        },
+        memoryReservationMiB: 128,
+        readonlyRootFilesystem: true,
+        linuxParameters: linuxParams("OpenfgaBootstrapLinuxParams"),
+      },
+    )
+    openfgaBootstrapContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    // openfga-bootstrap must run AFTER openfga-migrate so the openfga
+    // schema's goose tables (store, authorization_model, tuple, ...) exist.
+    openfgaBootstrapContainer.addContainerDependencies({
+      container: openfgaMigrateContainer,
+      condition: ContainerDependencyCondition.SUCCESS,
+    })
+
+    // Essential-container dependsOn wiring. Three init containers run in
+    // a strict chain: db-migrate → openfga-migrate → openfga-bootstrap.
+    // Essentials wait on the appropriate prefix:
+    //   - All essentials need db-migrate (creates app_user role, schemas).
+    //   - openfga + api need openfga-migrate (goose schema tables exist).
+    //   - api alone needs openfga-bootstrap (its SSM-sourced OPENFGA_STORE_ID
+    //     + OPENFGA_MODEL_ID must resolve to the freshly-written values,
+    //     not the previous deploy's snapshot or the seed placeholders).
+    const allEssentials = [
+      pgbouncerContainer,
+      cerbosContainer,
+      openfgaContainer,
+      apiContainer,
+      webContainer,
+      adminContainer,
+    ]
+    for (const c of allEssentials) {
+      c.addContainerDependencies({
+        container: dbMigrateContainer,
+        condition: ContainerDependencyCondition.SUCCESS,
+      })
+    }
+    for (const c of [openfgaContainer, apiContainer]) {
+      c.addContainerDependencies({
+        container: openfgaMigrateContainer,
+        condition: ContainerDependencyCondition.SUCCESS,
+      })
+    }
+    apiContainer.addContainerDependencies({
+      container: openfgaBootstrapContainer,
+      condition: ContainerDependencyCondition.SUCCESS,
+    })
+
     this.service = new FargateService(this, "Service", {
       cluster: this.cluster,
       taskDefinition: taskDef,
@@ -968,12 +1347,12 @@ export class AppStack extends Stack {
       // Matches AWS re:Post zero-downtime guidance.
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
-      // Rollback on production so a broken deploy auto-reverts. Disable on
-      // staging so a failed deploy leaves the task state intact for log
-      // forensics (we are usually the operator + investigator). The
-      // pre-deploy cleanup step in _deploy-aws.yml clears stale state
-      // before the next staging deploy attempt.
-      circuitBreaker: { rollback: props.envName === "production" },
+      // Symmetric across envs: staging dogfoods the rollback path so any
+      // regression in the auto-rollback flow surfaces before prod hits it.
+      // Past failure forensics show ECS Circuit Breaker as 5/20 of recent
+      // staging fails — exercising the rollback there is the goal, not
+      // a hindrance.
+      circuitBreaker: { rollback: true },
       // 180s: cold-start budget. Cold pull of six arm64 images + chained
       // sidecar HEALTHY gates measured ~150s worst case. 180s gives ~20%
       // headroom; the previous 300s over-budgeted and added 2 min to every

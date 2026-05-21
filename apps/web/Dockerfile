@@ -65,7 +65,7 @@ ENV NODE_ENV=production \
     BUILD_VERSION=$BUILD_VERSION
 
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nextjs \
-    && apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+    && apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Strip npm + npx + corepack from the runner. Next.js standalone server.js
@@ -87,7 +87,7 @@ USER nextjs:nodejs
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -q -O- http://127.0.0.1:3000/api/version >/dev/null || exit 1
+  CMD node -e "require('http').get('http://127.0.0.1:3000/api/version',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})" || exit 1
 
 # Force HOSTNAME=0.0.0.0 at exec time. Without this, Fargate/Docker runtime
 # overrides our ENV HOSTNAME with the container's auto-assigned hostname

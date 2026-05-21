@@ -176,6 +176,11 @@ export function LoginPasswordForm({
       await onClearLoginEmail()
       onNavigate(next)
     } catch (err) {
+      // A server-action `redirect()` throws an error whose `digest` starts
+      // with "NEXT_REDIRECT"; the framework must see it to navigate. If we
+      // swallow it the page silently stays on /auth/login and the message
+      // ("NEXT_REDIRECT;…") leaks into the form as a fake error. Re-throw.
+      if (isNextRedirectError(err)) throw err
       setServerError((err as Error).message ?? messages.invalidCredentials)
     }
   }
@@ -325,6 +330,16 @@ export function LoginPasswordForm({
         {magicLinkSending ? messages.submitting : messages.emailMeLink}
       </Button>
     </div>
+  )
+}
+
+function isNextRedirectError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "digest" in err &&
+    typeof (err as { digest?: unknown }).digest === "string" &&
+    (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
   )
 }
 

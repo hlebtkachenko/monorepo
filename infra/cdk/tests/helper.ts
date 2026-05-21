@@ -12,6 +12,10 @@ export const TEST_DOMAIN = "test.example.com"
 // Deliberately NOT a subdomain of TEST_DOMAIN — proves adminDomain is an
 // independent value, not derived from the web domain.
 export const TEST_ADMIN_DOMAIN = "admin-console.example.net"
+// Deliberately on neither TEST_DOMAIN nor TEST_ADMIN_DOMAIN — proves the
+// mail-from address is plumbed independently (a separate Resend-verified
+// domain in real life).
+export const TEST_MAIL_FROM_ADDRESS = "no-reply@mail.example.org"
 export const TEST_ENV_NAME = "test"
 
 interface BuiltApp {
@@ -75,6 +79,7 @@ export function buildTestApp(): BuiltApp {
     adminRepository: data.adminRepository,
     domain: TEST_DOMAIN,
     adminDomain: TEST_ADMIN_DOMAIN,
+    mailFromAddress: TEST_MAIL_FROM_ADDRESS,
   })
 
   const security = new SecurityStack(app, `Security-${TEST_ENV_NAME}`, {

@@ -178,6 +178,47 @@ GitHub repo secret into Secrets Manager as
 `Secret.fromSecretNameV2`). Rotation: `gh secret set RESEND_API_KEY ...`,
 then re-deploy.
 
+#### Email sender verification — Resend is per-EXACT-domain
+
+Subdomains are **NOT** auto-trusted from a parent verification. A verified
+`afframe.com` does NOT cover `app-staging.afframe.com` or `app.afframe.com`
+as senders — Resend rejects sends from any unverified sender domain with
+`validation_error … domain is not verified`.
+
+Three options:
+
+1. **Centralise on the verified parent** (current default). Every env sends
+   from `no-reply@afframe.com`. Set `MAIL_FROM_ADDRESS` repo var/secret to
+   `no-reply@afframe.com` (or leave unset — `infra/cdk/bin/app.ts` falls
+   back to this). Simple, but staging and prod share the same sender — no
+   visual distinction in the recipient inbox.
+
+2. **Per-env subdomain verification.** Verify `app-staging.afframe.com`
+   and `app.afframe.com` independently in Resend, add their DNS records at
+   Cloudflare, then set `MAIL_FROM_ADDRESS=no-reply@app-staging.afframe.com`
+   (and `no-reply@app.afframe.com` for prod). Cleanest DMARC posture +
+   inbox-side distinction; costs an extra round of DNS for every env.
+
+3. **Dedicated mail subdomain.** Verify a single `mail.afframe.com` once,
+   send staging from `no-reply-staging@mail.afframe.com` and prod from
+   `no-reply@mail.afframe.com`. One verification, two distinguishable
+   senders. **Recommended once we leave MVP.** Plumbs through the same
+   `MAIL_FROM_ADDRESS` env wired to `AppStack.mailFromAddress`.
+
+Symptom of misalignment (from `2026-05-19` incident): every Better-Auth
+background task (`forgot-password`, `verify-email`) and every
+`onboarding/team/issueInvite` Resend call logs:
+
+```
+resend.send failed: validation_error The <subdomain> domain is not verified.
+```
+
+The Server Action that triggered the send still returns `{ ok: true }` to
+the client (intentional, to avoid email-enumeration leaks), so the UI shows
+a "Reset link sent" toast despite the silent failure. Always check the
+web container logs for `resend.send failed` before debugging anywhere else
+when "the email never arrived".
+
 ### 8. AWS SES (outbound transactional, larger free tier - wait 24-48h for approval)
 
 ```bash
@@ -207,10 +248,25 @@ Per env, open the tunnel (Connectors → click `monorepo-{env}` → Edit →
 **Published application routes** / Public Hostname) and add — `monorepo-staging`
 shown, substitute the production hosts for `monorepo-production`:
 
-- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** `api/*`, **Service** `HTTP localhost:3001`
-- **Subdomain** `staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000`
-- **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public API (`api.afframe.com` in production). Same NestJS container; $0 infra.
+- **Subdomain** `app.staging`, **Domain** `afframe.com`, **Path** (blank, catch-all), **Service** `HTTP localhost:3000` — the web app. Includes `/api/*` (Next.js native API routes: Better Auth, avatar upload, version, dev outbox).
+- **Subdomain** `api.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3001` — the public NestJS API (`api.afframe.com` in production). Same container; $0 infra.
 - **Subdomain** `admin.staging`, **Domain** `afframe.com`, **Path** (blank), **Service** `HTTP localhost:3100` — the admin surface. This host MUST match the admin container's `BETTER_AUTH_URL`, which CDK reads from the `ADMIN_DOMAIN` variable (`admin-staging.afframe.com` for staging).
+
+> ~~Path-prefix rule `app-staging.afframe.com /api/.*` → `localhost:3001`~~ —
+> **REMOVED 2026-05-20**, both envs. The earlier topology mounted the
+> public API at `app-staging.afframe.com/api/*` (shared host with the web
+> app). After API moved to its own subdomain (`api-staging.afframe.com` /
+> `api.afframe.com`), the path-prefix rule became actively harmful: it
+> intercepted Next.js' native `/api/*` routes (Better Auth catch-all
+> `apps/web/app/api/auth/[...all]/route.ts`, avatar upload
+> `apps/web/app/api/upload/avatar/route.ts`, dev outbox, version) and
+> shipped them to the NestJS api container, which only mounts
+> `/api/health` + `/v1/*` and returns a NestJS-style 404 for everything
+> else. Symptom: avatar upload "Could not upload your profile photo",
+> 2FA "Cannot POST /api/auth/two-factor/enable", silent password-reset
+> failures via Better Auth's `/api/auth/forgot-password`. Fix is a single
+> click — delete the rule in the Cloudflare dashboard; cloudflared picks
+> up the new config in seconds, no redeploy. Do NOT re-add this rule.
 
 Production: same on `monorepo-production` with `app.afframe.com`,
 `api.afframe.com`, and **`admin.afframe.com`** — note the production admin host
@@ -261,7 +317,15 @@ gh workflow run _deploy-aws.yml \
   --ref main
 ```
 
-`app-only` skips Network + Data deploy. Use this for any change that's purely in code (`apps/**`, `packages/**`, app config). Takes ~8-12 min: image build + ECR push + CDK App stack update + ECS rolling deploy.
+`app-only` skips Network + Data deploy. Use this for any change that's purely in code (`apps/**`, `packages/**`, app config). Takes ~6-10 min: image build + ECR push + CDK App stack update + ECS rolling deploy.
+
+#### Staging vs production deploy modes
+
+Staging runs `cdk deploy --hotswap-fallback`. When the changeset is limited to ECS Service, Lambda, S3 assets, CodeBuild, or Step Functions, CDK bypasses CloudFormation and updates AWS resources directly. Saves ~150-180s per app-only staging deploy. **Side effect:** CFN stack state lags behind live until the next non-hotswap deploy reconciles it. Acceptable for staging.
+
+Production runs vanilla `cdk deploy` (no hotswap). Full CFN change set, drift detection intact, audit trail in CloudTrail. Wall time ~3-4 min longer than the equivalent staging deploy.
+
+The mode switch is automatic in `_deploy-aws.yml` keyed on `inputs.environment`. No knob to turn.
 
 Watch progress:
 
@@ -281,7 +345,7 @@ curl -s https://app-staging.afframe.com/api/health | jq '.'
 
 ### Retry a partially-failed deploy — use `gh run rerun --failed`
 
-**Default:** when `_deploy-aws.yml` fails AFTER `build-images` succeeded (e.g. only the `deploy` job tripped a CFN race), use:
+**Default:** when `_deploy-aws.yml` fails AFTER `build-images` succeeded (e.g. only the `deploy` job tripped a CFN race, or only `smoke` flapped), use:
 
 ```bash
 gh run rerun <run-id> --failed
@@ -291,13 +355,41 @@ NOT `gh workflow run` (which spawns a fresh run rebuilding all 3 images for ~5-6
 
 `--failed` re-runs only the failed jobs in place, reusing the successful `build-images` matrix outputs already in ECR. Inputs (`environment`, `stack`, `image_tag_override`, `force_rebuild_images`) are preserved from the original run.
 
+Common failure-only rerun scenarios:
+
+| Failed job(s)          | `--failed` rerun does                             | Wall time  |
+| ---------------------- | ------------------------------------------------- | ---------- |
+| `smoke` only           | Reruns smoke (and rollback step if it fires) only | ~3 min     |
+| `deploy` only          | Reruns CDK deploy + everything after              | ~10-15 min |
+| `validate-inputs` only | Reruns one fast guard step                        | <1 min     |
+| `build-images` matrix  | Reruns only the failed image build                | ~5 min     |
+
 **When to trigger a new run instead:**
 
 - The failure root cause is upstream of `build-images` (e.g. a Dockerfile bug).
 - A new commit landed on `main` and you want the latest code, not the previous attempt's images.
 - ECR has a half-pushed image at the same SHA tag (`IMAGE_TAG_MUTABILITY: IMMUTABLE`) — either `--failed` reuses the existing valid image, or `aws ecr batch-delete-image` cleans it first.
+- The smoke job auto-rolled the service back. The previous task-def is now live; if you want the rolled-back-to revision to be the steady-state, no action needed. If you want the NEW code back, fix the actual cause first then run a fresh deploy.
 
 **Anti-pattern:** Triggering a fresh `gh workflow run` after every `deploy`-job failure rebuilds all 3 images each time, eating ~5-6 min per attempt. Use `--failed` instead.
+
+### Smoke probe failure — root-cause first
+
+The `smoke` job (post-deploy) probes URLs through Cloudflare Tunnel. Each probed endpoint MUST exist in the build — a probe of a non-existent route 404s forever and trips rollback on every deploy (lived experience: 2026-05-20, `/api/auth/me` was probed but Better Auth exposes only catch-all routes at `[...all]/route.ts`).
+
+Preflight `workflow-lint / shellcheck` runs `infra/scripts/tests/test-smoke-routes-exist.sh` which asserts every URL the smoke step probes maps to a real `apps/<web|admin>/app/**/route.ts` (handles Next.js catch-alls). Adding or changing a smoke probe? Verify the test still passes locally before pushing:
+
+```bash
+bash infra/scripts/tests/test-smoke-routes-exist.sh
+```
+
+When smoke fails on a real deploy, look at the job log for the per-attempt status:
+
+```
+smoke: try=N  version=<code> admin-health=<code> auth-session=<code>
+```
+
+A consistent non-2xx on one column points at the broken endpoint. If all columns are 2xx and the job still failed, the bug is in the assertion, not the deploy.
 
 ### When to use which `stack` value
 
@@ -320,6 +412,68 @@ gh workflow run _deploy-aws.yml \
 ```
 
 Production deploys use a SEPARATE OIDC role (`AWS_DEPLOY_ROLE_ARN_PRODUCTION` secret) and the `app.afframe.com` Cloudflare tunnel. Same code, separate runtime.
+
+#### Production deploy approval gate
+
+The `deploy` job in `_deploy-aws.yml` references `environment: ${{ inputs.environment }}`. For production this resolves to the `production` GitHub Environment, which has a deployment-protection-rule requiring a human reviewer before the `deploy` job starts. Staging has no such rule, so it flows through.
+
+Lifecycle of a production deploy:
+
+1. Operator triggers `_deploy-aws.yml -f environment=production` (CLI or repo Actions tab).
+2. `guard` + `validate-inputs` + `detect-changes` + `build-images` all run normally.
+3. `deploy` enters **"Waiting for review"** in the GitHub Actions UI.
+4. Approver opens the run, clicks "Review deployments", selects `production`, approves.
+5. `deploy` proceeds; `smoke` runs after; if smoke fails the rollback step fires.
+
+One-time operator setup of the protection rule (run from a machine with `gh` configured):
+
+```bash
+# Get your own user id once
+HLEB_ID=$(gh api user --jq .id)
+
+# Configure the protection rule
+gh api -X PUT "/repos/hlebtkachenko/monorepo/environments/production" \
+  -f wait_timer=0 \
+  -F prevent_self_review=false \
+  -F deployment_branch_policy='{"protected_branches":true,"custom_branch_policies":false}'
+
+gh api -X PUT "/repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules" \
+  --input - <<JSON
+{ "reviewers": [ { "type": "User", "id": $HLEB_ID } ] }
+JSON
+```
+
+Sanity check the deploy role's `MaxSessionDuration` is at least 3600 (the workflow asks for that on every STS assume):
+
+```bash
+aws iam get-role --role-name <prod-deploy-role-name> --query Role.MaxSessionDuration
+# If 3600: leave as is. If you want more headroom on long deploys:
+# aws iam update-role --role-name <prod-deploy-role-name> --max-session-duration 7200
+```
+
+Remove the protection rule (rare; e.g. switching to a deploy bot):
+
+```bash
+gh api /repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules \
+  --jq '.custom_deployment_protection_rules[].id' \
+  | xargs -I {} gh api -X DELETE "/repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules/{}"
+```
+
+#### Staging deploy-branch policy
+
+Staging environment is also gated by a deployment-branch-policy. Default allowed branches: `main` only. Any deploy triggered with `--ref <other-branch>` fails immediately at `validate-inputs` with:
+
+> Branch "X" is not allowed to deploy to staging due to environment protection rules.
+
+The `verify/*` pattern is permanently allowed so the F4 negative test (broken-container deploy → smoke rollback) can run without touching policy:
+
+```bash
+# One-time setup, already done:
+gh api -X POST /repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies \
+  -f name='verify/*' -f type=branch
+```
+
+Branch convention: any local branch you intend to deploy to staging without merging to main MUST be prefixed `verify/` (e.g. `verify/m2-broken-container`). Any other prefix gets rejected.
 
 ### Rollback (revert a bad deploy)
 
@@ -346,6 +500,31 @@ gh workflow run _deploy-aws.yml -f environment=staging -f stack=app-only --repo 
 ```
 
 **Option 3 - ECS circuit breaker** auto-rolls back if new tasks fail health checks during a deploy. No manual action needed in that case; just check CloudWatch logs to understand the failure.
+
+### Migration rollback recovery
+
+The smoke-failure auto-rollback (workflow's "Roll back ECS service to last-known-good task-definition" step) **refuses to run when migrations were applied this deploy**. Rolling ECS back to the previous task def would put the OLD container image (old code) in front of NEW schema. Reads/writes against new columns or migrated row shapes would either crash (column does not exist on the OLD code's expectations) or silently corrupt data.
+
+When you see `::error::smoke failed AND migrations were applied this deploy`:
+
+1. **Inspect what landed.** Connect via the tunnel (`### 1. Open a tunnel to RDS` above) and read `_app_migrations`:
+
+   ```sql
+   SELECT filename, applied_at
+   FROM _app_migrations
+   ORDER BY applied_at DESC
+   LIMIT 10;
+   ```
+
+   Cross-reference with `packages/db/migrations/` at the failed deploy's commit.
+
+2. **Decide forward-fix vs PITR.**
+   - **Forward-fix (default):** smoke probably failed on a code-side bug. Fix the code in a new commit, push, deploy again. The fresh deploy's migrate step is a no-op (journal already populated), ECS rolls forward to the corrected image.
+   - **PITR + manual task-def revert:** only when the migration itself is destructive AND the new code is unrecoverable. PITR restores RDS to a point before the migration; you then manually `aws ecs update-service --task-definition <previous-rev>`. **This is a last resort** — it loses everything written since the migration applied. The runbook author's preferred order: forward-fix → forward-fix → PITR.
+
+3. **Never** `aws ecs update-service --task-definition <previous-rev>` without confirming the schema is backward-compatible with that revision's image. Check `_app_migrations` against `packages/db/migrations/` at the previous deploy's SHA.
+
+To keep this gate sharp: write destructive migrations (DROP TABLE, DROP COLUMN, NOT NULL on an existing column without default, type change that loses range) only when the deploy can be paused for human review. The expand/contract pattern (add new column, dual-write, switch reads, then drop old) makes auto-rollback safe again at the cost of two deploys per schema change.
 
 ### What blocks a deploy
 
@@ -463,119 +642,56 @@ Other related notes:
 - Backup task (BackupStack) keeps `app_owner` direct — `pg_dumpall`
   globals + role definitions need master.
 
-## Bootstrap chain: schemas + openfga model (manual one-time)
+## Bootstrap chain: schemas + openfga model (automated)
 
-Before the first `cdk deploy App-{env}` lands real app containers, the operator
-must seed three things in the freshly-created RDS instance: the `openfga`
-schema, the OpenFGA migration history, and the OpenFGA store + authorization
-model. The `app` schema for application tables (drizzle migrations) is the
-fourth step. All four run as `app_owner` (the RDS master credential) via a
-temporary bastion / port-forward — there is no in-cluster bootstrap task yet
-(see "Drizzle migration ECS task" in deferred work below).
+All four bootstrap steps run as **init containers** inside App-{env}'s ECS task on every cold start. No operator action, no bastion, no port-forward.
 
-This chain ships once per env. Re-runs are safe but produce a fresh
-`authorization_model_id` and SSM-write it (per `infra/openfga/README.md`).
+| Step                                                                       | Init container      | Source                                                                           |
+| -------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------- |
+| 1. Drizzle migrations + `app_user` role password + create `openfga` schema | `db-migrate`        | `infra/Dockerfile.migrate` + `infra/scripts/apply-migrations-init.sh` (PR K)     |
+| 2. `openfga migrate` (goose tables)                                        | `openfga-migrate`   | upstream `openfga/openfga:v1.15.1` (PR K)                                        |
+| 3. OpenFGA store + authorization model + SSM write                         | `openfga-bootstrap` | `infra/Dockerfile.openfga-bootstrap` + `infra/scripts/openfga-bootstrap-init.sh` |
+| 4. (n/a — folded into step 1)                                              |                     |                                                                                  |
 
-### 1. Open a tunnel to RDS
+Container dependency chain: `db-migrate` → `openfga-migrate` → `openfga-bootstrap` → essential containers (`api` waits explicitly for `openfga-bootstrap` SUCCESS so its `EcsSecret.fromSsmParameter` resolves to the freshly-written values, not stale ones).
 
-The RDS instance is in private subnets. The simplest path is a SSM Session
-Manager tunnel through any task in the cluster, or an SSH bastion. Either way
-the operator ends with a local port forward to `5432` on RDS:
+All three init containers are idempotent. Re-runs:
 
-```bash
-# Substitute the actual RDS endpoint + a free local port.
-aws rds describe-db-instances \
-  --db-instance-identifier monorepo-{env} \
-  --query 'DBInstances[0].Endpoint.Address' --output text
-# → e.g. monorepo-staging.xxxx.eu-central-1.rds.amazonaws.com
+- `db-migrate`: journal `_app_migrations` skips already-applied files.
+- `openfga-migrate`: goose schema migrations skip up-to-date schema.
+- `openfga-bootstrap`: store reused by name; new `model_id` written; SSM overwritten. The api container reads SSM at every cold start, so the new model_id is picked up automatically.
 
-# Open a forward. Operator picks transport (SSM, SSH bastion, EC2 tunnel).
-# Forward localhost:55432 → <rds-endpoint>:5432.
-```
+Required SSM parameters (`/monorepo/{env}/openfga/store-id`, `/monorepo/{env}/openfga/model-id`) must EXIST at `cdk deploy` time because `StringParameter.fromStringParameterName` resolves at synth/deploy. For first-ever deploys the operator seeds them with placeholder strings (`placeholder-bootstrap-after-first-deploy`); the `openfga-bootstrap` init container replaces them with real UUIDs on the first task cold start of that deploy.
 
-Fetch the `app_owner` password from Secrets Manager:
+### Seeding the SSM placeholders on a brand-new env (one-time per env)
 
 ```bash
-DB_PASSWORD=$(aws secretsmanager get-secret-value \
-  --secret-id /monorepo/{env}/rds/master \
-  --query SecretString --output text | jq -r .password)
+AWS_REGION=eu-central-1
+ENV=production  # or staging, or whatever new env you're spinning up
+aws ssm put-parameter --name "/monorepo/${ENV}/openfga/store-id" \
+  --value "placeholder-bootstrap-after-first-deploy" \
+  --type String --region "$AWS_REGION"
+aws ssm put-parameter --name "/monorepo/${ENV}/openfga/model-id" \
+  --value "placeholder-bootstrap-after-first-deploy" \
+  --type String --region "$AWS_REGION"
 ```
 
-### 2. Create the `openfga` schema
+Then `cdk deploy App-{env}` proceeds normally. The init container fixes the values on the first task start.
+
+### Forcing a model_id rotation (when the FGA model.fga changes)
+
+The init container runs on every task cold start and rewrites the model. To force a rotation without a code change, force-deploy:
 
 ```bash
-psql "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
-  -c 'CREATE SCHEMA IF NOT EXISTS openfga AUTHORIZATION app_owner;'
+aws ecs update-service --cluster monorepo-{env} \
+  --service $(aws ecs list-services --cluster monorepo-{env} --region eu-central-1 \
+    --query 'serviceArns[0]' --output text | awk -F/ '{print $NF}') \
+  --force-new-deployment --region eu-central-1
 ```
 
-Idempotent — safe to re-run.
+### Manual bootstrap (escape hatch only)
 
-### 3. Run `openfga migrate`
-
-```bash
-docker run --rm --network host \
-  openfga/openfga:v1.15.1 \
-  migrate \
-    --datastore-engine postgres \
-    --datastore-uri "postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga"
-```
-
-Pin the OpenFGA image to the SAME tag deployed in the task definition
-(`infra/cdk/lib/app-stack.ts` — currently `v1.15.1`) so the schema version
-matches what the running server will expect.
-
-### 4. Boot a TEMPORARY OpenFGA server + run bootstrap.mjs
-
-This step MUST happen BEFORE the first `cdk deploy App-{env}`. CDK references
-SSM parameters `/monorepo/{env}/openfga/{store-id,model-id}` via
-`StringParameter.fromStringParameterName`, which resolves at deploy time —
-if the parameters do not exist, the deploy fails. There is no chicken-and-egg
-in the chain because we boot OpenFGA LOCALLY in docker (still pointed at the
-real RDS via the same port-forward) just long enough to populate the store
-and write SSM.
-
-```bash
-# Boot a throwaway OpenFGA server pointing at the migrated RDS schema.
-# Background; we'll stop it after bootstrap.mjs returns.
-docker run --rm -d --name openfga-bootstrap --network host \
-  -e OPENFGA_DATASTORE_ENGINE=postgres \
-  -e OPENFGA_DATASTORE_URI="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo?search_path=openfga&sslmode=disable" \
-  -e OPENFGA_HTTP_ADDR="127.0.0.1:8080" \
-  openfga/openfga:v1.15.1 run
-
-# Wait for /healthz to come up (grpc_health_probe ships in the image).
-docker exec openfga-bootstrap /usr/local/bin/grpc_health_probe -addr=127.0.0.1:8081
-
-# Populate SSM (creates the store, writes the auth model, sets
-# /monorepo/{env}/openfga/store-id + model-id under your AWS profile).
-AWS_REGION=eu-central-1 \
-OPENFGA_API_URL=http://localhost:8080 \
-node infra/openfga/bootstrap.mjs --env {env}
-
-docker stop openfga-bootstrap
-```
-
-`bootstrap.mjs` is idempotent: it looks up the store by name and reuses it.
-Each run writes a fresh authorization model and overwrites the SSM parameter
-`/monorepo/{env}/openfga/model-id`. The api container reads this parameter at
-boot, so a deploy following a bootstrap re-run picks up the new model ID
-automatically.
-
-### 5. Run schema migrations for the `app` schema
-
-The application tables (organizations, users, audit log, etc.) live in the
-`app` schema and are managed by drizzle. Until the in-cluster migration ECS
-task ships, this runs through the same tunnel:
-
-```bash
-DATABASE_URL="postgres://app_owner:${DB_PASSWORD}@localhost:55432/monorepo" \
-pnpm db:migrate
-```
-
-The `pnpm db:migrate` script lives in `packages/db` and applies all pending
-drizzle migrations under `packages/db/migrations/`. Re-running against an
-already-current database is a no-op. Once `packages/db/src/migrate.ts` plus
-the migration ECS task land, this manual step folds into the CDK pipeline.
+If the init container chain is wedged and you need to bootstrap manually from a laptop, you'd need (a) network access to the RDS instance (no bastion exists today) and (b) the openfga binary + `node bootstrap.mjs` toolchain locally. The prior version of this section described that flow; it has been removed because the in-cluster automation supersedes it. Resurrect from git history if ever needed.
 
 ### 6. Tear down the tunnel
 

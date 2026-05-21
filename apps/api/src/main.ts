@@ -1,5 +1,7 @@
+import { join } from "node:path"
 import { VersioningType } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
+import type { NestExpressApplication } from "@nestjs/platform-express"
 import * as Sentry from "@sentry/node"
 import helmet from "helmet"
 import { AppModule } from "./app.module"
@@ -17,13 +19,16 @@ Sentry.init({
 })
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule)
+  const app = await NestFactory.create<NestExpressApplication>(AppModule)
 
   // CSP stays on helmet's strict defaults, with one relaxation: Scalar's
   // docs page boots from the jsDelivr CDN and runs an inline
   // `Scalar.createApiReference(...)` initializer, so `script-src` adds the
   // CDN host plus `'unsafe-inline'`. Everything else this process serves is
   // JSON, so no further directive widening is needed.
+  //
+  // Helmet registered FIRST so its security headers (X-Content-Type-Options,
+  // X-Frame-Options, HSTS, CSP) attach to the brand asset responses below.
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -37,6 +42,11 @@ async function bootstrap() {
       },
     }),
   )
+
+  // Brand assets (favicon, manifest, PWA icons) served from apps/api/public.
+  // Resolved against process.cwd() so it works both in dev (cwd = apps/api)
+  // and in the production image (cwd = /app, public copied via Dockerfile).
+  app.useStaticAssets(join(process.cwd(), "public"))
 
   // URI versioning: public controllers carry `version: "1"` -> `/v1/*`.
   // The health controller is VERSION_NEUTRAL and stays at `/api/health`.

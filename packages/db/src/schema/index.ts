@@ -1,4 +1,5 @@
 export * from "./_enums"
+export * from "./admin_workspace_allowlist"
 export * from "./api_key"
 export * from "./app_user"
 export * from "./auth_account"

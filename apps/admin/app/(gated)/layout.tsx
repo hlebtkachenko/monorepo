@@ -27,9 +27,9 @@ import { SignOutButton } from "./sign-out-button"
  * here. This layout is the fail-safe for any other path (existing session
  * from another tab, future signup flow, etc.).
  *
- * Staff workspaces are created manually; the allowlist is an env var, so
- * changing staff access is a redeploy. There is no admin-specific role —
- * the existing workspace / workspace_membership tables are reused unchanged.
+ * Staff workspaces are created manually; the allowlist lives in the
+ * `admin_workspace_allowlist` DB table (falls back to the legacy
+ * `ADMIN_WORKSPACE_ALLOWLIST` env var when the table is empty).
  */
 
 export default async function GatedLayout({

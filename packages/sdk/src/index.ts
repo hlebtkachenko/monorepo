@@ -84,9 +84,11 @@ export class Afframe {
   ): Promise<T> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
-    opts.signal?.addEventListener("abort", () => controller.abort(), {
-      once: true,
-    })
+    const onAbort = () => controller.abort()
+    // `{ once: true }` self-cleans only on abort. A caller reusing a
+    // long-lived signal across many requests accumulates the listeners
+    // attached here until GC — explicit removal in the finally block.
+    opts.signal?.addEventListener("abort", onAbort, { once: true })
 
     let response: Response
     try {
@@ -101,6 +103,7 @@ export class Afframe {
       })
     } finally {
       clearTimeout(timer)
+      opts.signal?.removeEventListener("abort", onAbort)
     }
 
     const bodyText = await response.text()

@@ -119,7 +119,7 @@ async function sign(secret: string, message: string): Promise<string> {
   return base64(new Uint8Array(buf))
 }
 
-function decodeSecret(secret: string): Uint8Array {
+function decodeSecret(secret: string): Uint8Array<ArrayBuffer> {
   if (!secret.startsWith(SECRET_PREFIX)) {
     throw new WebhookVerificationError(
       "invalid_secret",
@@ -129,7 +129,10 @@ function decodeSecret(secret: string): Uint8Array {
   const b64 = secret.slice(SECRET_PREFIX.length)
   try {
     const bin = atob(b64)
-    const out = new Uint8Array(bin.length)
+    // Backing buffer pinned to a fresh ArrayBuffer (not the default
+    // ArrayBufferLike) so the typed array satisfies Web Crypto's
+    // `BufferSource` constraint under TypeScript 6 strictness.
+    const out = new Uint8Array(new ArrayBuffer(bin.length))
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
     return out
   } catch {

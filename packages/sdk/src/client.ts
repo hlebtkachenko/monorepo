@@ -187,6 +187,13 @@ function wrapFetch(
       const hasIdempotencyKey = req.headers.has("idempotency-key")
       if (!SAFE_METHODS.has(method) && !hasIdempotencyKey) return response
 
+      // Drain the previous response body before the retry — under
+      // HTTP keep-alive the underlying connection stays open until the
+      // body is consumed or cancelled. Without this, retry storms
+      // starve the connection pool. Errors here mean the connection is
+      // already torn down; nothing to recover.
+      response.body?.cancel().catch(() => undefined)
+
       const delay =
         parseRetryAfterMs(response.headers.get("retry-after")) ?? 1_000
       await sleep(Math.min(delay, config.retry.maxDelayMs))

@@ -74,32 +74,44 @@ The push of the `v*` tag fires `.github/workflows/release.yml`, which:
 6. Attaches the tarball + provenance + SBOM as release assets.
 7. Marks the release as **Pre-release** if the tag matches `-rc.<N>`, otherwise **Latest**.
 
-Docker images get a matching `<semver>` tag automatically via `docker/metadata-action` in `_build-image.yml` when a tagged commit is built.
-
 ## Tag → deploy order (the operational rule)
 
-`release.yml` (tag push) and `_deploy-aws.yml` (manual deploy) are independent. The tag doesn't deploy anything to AWS by itself; it only creates the GitHub Release artifact + signed SBOM. For production to actually run the tagged version, the **tag must exist before the image is built**.
+`release.yml` (tag push) and `_deploy-aws.yml` (manual) are independent workflows. The tag itself only produces the GitHub Release artifact + SLSA provenance + SBOM. **Tagging never touches AWS.** A manual deploy after the tag is what moves staging / production to the new version.
 
-**Production rule:** tag first, then deploy.
+The deploy pipeline does its own Docker image build (it does NOT call `_build-image.yml`). It resolves `BUILD_VERSION` in this order:
+
+1. Explicit `-f build_version=...` input (strips leading `v`)
+2. `git describe --exact-match` — if a git tag points at HEAD, that tag becomes the value
+3. Fallback: `sha-<short-7-char>`
+
+So in the canonical flow, **no extra flag is needed** — just tag, then deploy.
+
+### Production: tag, then deploy
 
 ```bash
-# 1. Tag the commit you're about to ship.
+# 1. Move bullets from [Unreleased] to a new section in CHANGELOG.md
+$EDITOR CHANGELOG.md
+git add CHANGELOG.md
+git commit -m "chore(release): v0.2.0"
+git push origin main
+
+# 2. Tag and push.
 git tag v0.2.0
 git push origin v0.2.0
 #    → release.yml builds the tarball + SLSA + SBOM, creates the GitHub Release
 
-# 2. Then deploy that same commit to production.
+# 3. Deploy the same commit to production. The build-images job runs
+#    `git describe --exact-match HEAD`, picks up v0.2.0, and bakes
+#    BUILD_VERSION=0.2.0 into the image.
 gh workflow run _deploy-aws.yml \
   -f environment=production \
   -f stack=all
-#    → _build-image.yml runs at the tagged commit
-#    → docker/metadata-action sees the v0.2.0 tag, emits BUILD_VERSION=0.2.0
-#    → image gets the `0.2.0` tag in ECR
 #    → footer renders "© 2026 Afframe. v0.2.0"
 #    → /api/version returns 0.2.0
+#    → Sentry release tag = 0.2.0
 ```
 
-**Staging rule:** same flow for RCs.
+### Staging: same flow for RCs
 
 ```bash
 git tag v0.2.0-rc.1
@@ -108,39 +120,64 @@ gh workflow run _deploy-aws.yml -f environment=staging
 #    → footer reads "© 2026 Afframe. v0.2.0-rc.1"
 ```
 
-### Already deployed, want to align footer to the tag?
+### Already deployed, want to align the footer
 
-If you already deployed at a commit + then tagged it (deploy-before-tag), the running image still carries `BUILD_VERSION=sha-<short>`. To swap to the semver-labelled image, rebuild + redeploy from the tagged commit:
+If you deployed an untagged commit and then tagged it (deploy-before-tag), the running image still carries `BUILD_VERSION=sha-<short>`. Two ways to align:
 
 ```bash
-# Force the image build to rerun at the tagged commit. Without
-# force_rebuild_images the detect-changes job will skip image builds
-# (no app source changed since last deploy) and reuse the sha-tagged image.
+# (a) Rebuild at the tagged commit. The auto-detect picks up the tag.
 gh workflow run _deploy-aws.yml \
   -f environment=production \
   -f force_rebuild_images=true
+#    → footer reads v0.2.0 after the deploy
 ```
 
-Or, if the image with the `0.2.0` tag already exists in ECR (e.g. you previously deployed staging from the tag), point production at it directly without a rebuild:
-
 ```bash
+# (b) Skip the rebuild — point production at the tagged image that
+#     already exists in ECR (e.g. staging built it earlier).
 gh workflow run _deploy-aws.yml \
   -f environment=production \
   -f image_tag_override=0.2.0
 ```
 
+Note: `image_tag_override` skips the build-images job entirely. The image already exists with its baked-in BUILD_VERSION; this flow simply repoints CDK at it.
+
+### Explicit override (rare)
+
+`-f build_version=...` is for hotfix / cosmetic-relabel cases when the auto-detect picks the wrong thing, or when you want to deploy an untagged commit but display a specific version string. Almost never needed.
+
+```bash
+gh workflow run _deploy-aws.yml \
+  -f environment=production \
+  -f build_version=v0.2.0
+#    → forces BUILD_VERSION=0.2.0 regardless of git state
+```
+
+### Per-service coherence
+
+`detect-changes` may rebuild only the services whose source actually changed (e.g. only `web`). Unchanged services reuse their last-deployed sha-tagged image. After a `git tag v0.2.0 && deploy`, that means:
+
+- **web** rebuilt from the tagged commit → footer `v0.2.0`
+- **api / admin** reused from the previous deploy → `/api/health` still returns `sha-<oldshort>`
+
+To make all three services show the same version, pair with `force_rebuild_images=true`:
+
+```bash
+gh workflow run _deploy-aws.yml \
+  -f environment=production \
+  -f force_rebuild_images=true
+```
+
 ### What happens if you do it out of order
 
-Order matters because `docker/metadata-action` reads the tag at image-build time, not retroactively:
+| Order                    | Image `BUILD_VERSION` | Footer        | GitHub Release                                    |
+| ------------------------ | --------------------- | ------------- | ------------------------------------------------- |
+| **tag, then deploy**     | `0.2.0`               | `v0.2.0`      | exists ✓                                          |
+| **deploy, then tag**     | `sha-<short>`         | `sha-<short>` | exists, but AWS is out of sync until you redeploy |
+| **only deploy (no tag)** | `sha-<short>`         | `sha-<short>` | no release ever                                   |
+| **only tag (no deploy)** | unchanged             | unchanged     | exists, but no AWS environment runs it            |
 
-| Order                    | Image `BUILD_VERSION` | Footer        | GitHub Release                                     |
-| ------------------------ | --------------------- | ------------- | -------------------------------------------------- |
-| **tag, then deploy**     | `0.2.0`               | `v0.2.0`      | exists ✓                                           |
-| **deploy, then tag**     | `sha-<short>`         | `sha-<short>` | exists, but prod is out of sync until you redeploy |
-| **only deploy (no tag)** | `sha-<short>`         | `sha-<short>` | no release ever                                    |
-| **only tag (no deploy)** | unchanged             | unchanged     | exists, but no AWS environment runs it             |
-
-Mixing is fine for one-off audit snapshots, but the prod-truthful default is **tag → deploy**.
+The prod-truthful default is **tag → deploy**.
 
 ## Version visibility at runtime
 

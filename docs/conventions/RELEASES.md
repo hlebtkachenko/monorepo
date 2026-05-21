@@ -76,6 +76,72 @@ The push of the `v*` tag fires `.github/workflows/release.yml`, which:
 
 Docker images get a matching `<semver>` tag automatically via `docker/metadata-action` in `_build-image.yml` when a tagged commit is built.
 
+## Tag → deploy order (the operational rule)
+
+`release.yml` (tag push) and `_deploy-aws.yml` (manual deploy) are independent. The tag doesn't deploy anything to AWS by itself; it only creates the GitHub Release artifact + signed SBOM. For production to actually run the tagged version, the **tag must exist before the image is built**.
+
+**Production rule:** tag first, then deploy.
+
+```bash
+# 1. Tag the commit you're about to ship.
+git tag v0.2.0
+git push origin v0.2.0
+#    → release.yml builds the tarball + SLSA + SBOM, creates the GitHub Release
+
+# 2. Then deploy that same commit to production.
+gh workflow run _deploy-aws.yml \
+  -f environment=production \
+  -f stack=all
+#    → _build-image.yml runs at the tagged commit
+#    → docker/metadata-action sees the v0.2.0 tag, emits BUILD_VERSION=0.2.0
+#    → image gets the `0.2.0` tag in ECR
+#    → footer renders "© 2026 Afframe. v0.2.0"
+#    → /api/version returns 0.2.0
+```
+
+**Staging rule:** same flow for RCs.
+
+```bash
+git tag v0.2.0-rc.1
+git push origin v0.2.0-rc.1
+gh workflow run _deploy-aws.yml -f environment=staging
+#    → footer reads "© 2026 Afframe. v0.2.0-rc.1"
+```
+
+### Already deployed, want to align footer to the tag?
+
+If you already deployed at a commit + then tagged it (deploy-before-tag), the running image still carries `BUILD_VERSION=sha-<short>`. To swap to the semver-labelled image, rebuild + redeploy from the tagged commit:
+
+```bash
+# Force the image build to rerun at the tagged commit. Without
+# force_rebuild_images the detect-changes job will skip image builds
+# (no app source changed since last deploy) and reuse the sha-tagged image.
+gh workflow run _deploy-aws.yml \
+  -f environment=production \
+  -f force_rebuild_images=true
+```
+
+Or, if the image with the `0.2.0` tag already exists in ECR (e.g. you previously deployed staging from the tag), point production at it directly without a rebuild:
+
+```bash
+gh workflow run _deploy-aws.yml \
+  -f environment=production \
+  -f image_tag_override=0.2.0
+```
+
+### What happens if you do it out of order
+
+Order matters because `docker/metadata-action` reads the tag at image-build time, not retroactively:
+
+| Order                    | Image `BUILD_VERSION` | Footer        | GitHub Release                                     |
+| ------------------------ | --------------------- | ------------- | -------------------------------------------------- |
+| **tag, then deploy**     | `0.2.0`               | `v0.2.0`      | exists ✓                                           |
+| **deploy, then tag**     | `sha-<short>`         | `sha-<short>` | exists, but prod is out of sync until you redeploy |
+| **only deploy (no tag)** | `sha-<short>`         | `sha-<short>` | no release ever                                    |
+| **only tag (no deploy)** | unchanged             | unchanged     | exists, but no AWS environment runs it             |
+
+Mixing is fine for one-off audit snapshots, but the prod-truthful default is **tag → deploy**.
+
 ## Version visibility at runtime
 
 `BUILD_VERSION` flows from the image tag into the running app:

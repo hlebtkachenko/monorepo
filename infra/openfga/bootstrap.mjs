@@ -46,7 +46,10 @@ function parseArgs(argv) {
 
 const { env: envArg } = parseArgs(process.argv)
 const MONOREPO_ENV = envArg ?? process.env.MONOREPO_ENV ?? "dev"
-const ALLOWED_ENVS = new Set(["dev", "staging", "prod"])
+// "production" mirrors AppStack's envName mapping (see app-stack.ts SSM
+// reads at /monorepo/${envName}/openfga/store-id). Earlier "prod" was
+// rejected by CDK because SSM paths use the long form.
+const ALLOWED_ENVS = new Set(["dev", "staging", "production"])
 const OPENFGA_API_URL = process.env.OPENFGA_API_URL ?? "http://localhost:8080"
 const STORE_NAME = `monorepo-${MONOREPO_ENV}`
 
@@ -65,7 +68,9 @@ function log(level, message, extra = {}) {
 // the same way regardless of cwd.
 let OpenFgaClient, CredentialsMethod, transformer
 try {
-  const require = createRequire(join(__dirname, "..", "..", "apps", "api", "package.json"))
+  const require = createRequire(
+    join(__dirname, "..", "..", "apps", "api", "package.json"),
+  )
   ;({ OpenFgaClient, CredentialsMethod } = require("@openfga/sdk"))
   ;({ transformer } = require("@openfga/syntax-transformer"))
 } catch (err) {
@@ -87,7 +92,9 @@ const fga = new OpenFgaClient({
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function findOrCreateStore(name) {
-  log("info", "Listing stores to check for existing store", { store_name: name })
+  log("info", "Listing stores to check for existing store", {
+    store_name: name,
+  })
 
   let continuationToken = undefined
   do {
@@ -193,7 +200,10 @@ async function main() {
   try {
     modelDsl = readFileSync(modelPath, "utf8")
   } catch (err) {
-    log("error", "Cannot read model.fga", { path: modelPath, error: String(err) })
+    log("error", "Cannot read model.fga", {
+      path: modelPath,
+      error: String(err),
+    })
     process.exit(1)
   }
 
@@ -234,7 +244,9 @@ function printOutputs(storeId, modelId) {
     OPENFGA_MODEL_ID: modelId,
   })
   // Also write in a format easy to copy
-  process.stdout.write(`\nOPENFGA_STORE_ID=${storeId}\nOPENFGA_MODEL_ID=${modelId}\n`)
+  process.stdout.write(
+    `\nOPENFGA_STORE_ID=${storeId}\nOPENFGA_MODEL_ID=${modelId}\n`,
+  )
 }
 
 main().catch((err) => {

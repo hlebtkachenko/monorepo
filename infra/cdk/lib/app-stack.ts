@@ -586,6 +586,22 @@ export class AppStack extends Stack {
           'export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_DIRECT_HOST}:${DB_DIRECT_PORT}/${DB_NAME}" && ' +
           "exec node dist/main.js",
       ],
+      // Fargate ignores Dockerfile HEALTHCHECK — same rationale as the web
+      // container above. Without an explicit task-def probe a WEDGED api
+      // (process up, requests deadlocked) is invisible to Circuit Breaker;
+      // ECS only replaces on process exit. Smoke catches it post-deploy
+      // via /api/auth/get-session, but in steady state the api could drop
+      // traffic until some other timer fires.
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3001/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 512,
       readonlyRootFilesystem: true,
       linuxParameters: linuxParams("ApiLinuxParams"),

@@ -65,7 +65,7 @@ ENV NODE_ENV=production \
     BUILD_VERSION=$BUILD_VERSION
 
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nextjs \
-    && apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+    && apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Strip npm + npx + corepack from the runner. Next.js standalone server.js

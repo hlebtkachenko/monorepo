@@ -489,7 +489,14 @@ export class AppStack extends Stack {
       // task definition. Wiring this here makes Circuit Breaker (above)
       // observe real readiness, not just process-up, so a broken deploy
       // trips rollback fast instead of after the gracePeriod elapses.
-      // wget is shipped in the base image (used by the Dockerfile HEALTHCHECK).
+      //
+      // Healthcheck uses Node's built-in http module (zero dep, always in
+      // the image) so the probe explicitly fails on any non-2xx status.
+      // The previous `wget -q -O- … || exit 1` exited 0 even on HTTP 503
+      // because wget retrieved the error body successfully — verified
+      // live in run 26195661343 where the broken /api/version task served
+      // 503 to users while ECS reported it healthy. Node check returns
+      // exit 1 unless statusCode === 200.
       //
       // Timings tightened from 30s→10s interval + 20s→15s startPeriod so
       // ECS sees HEALTHY at ~25s instead of ~110s. Next.js standalone
@@ -500,7 +507,7 @@ export class AppStack extends Stack {
       healthCheck: {
         command: [
           "CMD-SHELL",
-          "wget -q -O- http://127.0.0.1:3000/api/version >/dev/null || exit 1",
+          "node -e \"require('http').get('http://127.0.0.1:3000/api/version',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
         ],
         interval: Duration.seconds(10),
         timeout: Duration.seconds(3),
@@ -670,12 +677,13 @@ export class AppStack extends Stack {
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
           "HOSTNAME=0.0.0.0 exec node apps/admin/server.js",
       ],
-      // Mirror of the web healthCheck — see that block for rationale.
-      // Admin uses port 3100 and exposes /api/health (it has no /api/version).
+      // Mirror of the web healthCheck — see that block for rationale + the
+      // wget-vs-node story. Admin uses port 3100 and exposes /api/health
+      // (no /api/version).
       healthCheck: {
         command: [
           "CMD-SHELL",
-          "wget -q -O- http://127.0.0.1:3100/api/health >/dev/null || exit 1",
+          "node -e \"require('http').get('http://127.0.0.1:3100/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
         ],
         interval: Duration.seconds(10),
         timeout: Duration.seconds(3),

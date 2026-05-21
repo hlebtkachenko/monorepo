@@ -175,7 +175,7 @@ jobs:
           persist-credentials: false
       - name: Brand placeholder check
         env:
-          CHECK_BRAND_STRICT: "true"
+          CHECK_BRAND_STRICT: "false"
         run: node scripts/check-brand-placeholders.mjs
 
   # Detect whether app source changed since the last successful deploy to

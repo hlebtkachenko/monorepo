@@ -615,6 +615,16 @@ export class AppStack extends Stack {
         DB_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
         APP_DOMAIN: props.domain,
+        // Public origin of the API host for this environment. Consumed by
+        // `apps/api/src/editor.ts` to redirect `/editor` to the editor
+        // pre-filled with the right spec URL (so staging `/editor` opens
+        // the staging spec, not prod). Derived from envName by convention:
+        // production -> `api.afframe.com`, anything else -> the matching
+        // staging host. Override via `bin/app.ts` if the convention breaks.
+        PUBLIC_API_URL:
+          props.envName === "production"
+            ? "https://api.afframe.com"
+            : "https://api-staging.afframe.com",
         // L2 OpenFGA sidecar (HTTP). API URL is loopback inside the task.
         OPENFGA_API_URL: "http://localhost:8080",
       },

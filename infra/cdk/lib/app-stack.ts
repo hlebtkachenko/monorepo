@@ -1055,6 +1055,10 @@ export class AppStack extends Stack {
       // exit before starting other containers, but a failure here does
       // surface (Circuit Breaker treats unhealthy deployment as failure).
       essential: false,
+      // First-deploy migration set against a cold RDS can exceed the
+      // default 3min startTimeout (DB warmup + N migrations × ~2-3s).
+      // Lift to 10min so dependsOn-SUCCESS doesn't trip prematurely.
+      startTimeout: Duration.minutes(10),
       logging: LogDriver.awsLogs({
         streamPrefix: "db-migrate",
         logGroup: dbMigrateLogGroup,
@@ -1098,6 +1102,9 @@ export class AppStack extends Stack {
       containerName: "openfga-migrate",
       image: ContainerImage.fromRegistry("openfga/openfga:v1.15.1"),
       essential: false,
+      // Goose migration applier; first-deploy can take a few minutes
+      // against a cold RDS. Match db-migrate's timeout.
+      startTimeout: Duration.minutes(10),
       command: ["migrate"],
       logging: LogDriver.awsLogs({
         streamPrefix: "openfga-migrate",

@@ -517,7 +517,11 @@ jobs:
             echo "App-${ENV_NAME} stack does not exist yet — skipping log-group pre-create on first-deploy. CDK creates the log groups cleanly; next deploy this step runs (idempotent) for the CloudControl race fix."
             exit 0
           fi
-          for svc in web admin api cloudflared pgbouncer cerbos openfga; do
+          # Includes the two init-container log groups (db-migrate,
+          # openfga-migrate) added in PR K — same CloudControl race that
+          # this step exists to neutralise (LogGroup created with explicit
+          # name + GetAtt into an IAM policy → read-after-write race).
+          for svc in web admin api cloudflared pgbouncer cerbos openfga db-migrate openfga-migrate; do
             lg="/ecs/monorepo-${ENV_NAME}/${svc}"
             if aws logs describe-log-groups --log-group-name-prefix "$lg" --region "$AWS_REGION" --query 'logGroups[?logGroupName==`'"$lg"'`]' --output text 2>&1 | grep -q "$lg"; then
               echo "exists: $lg"
@@ -1013,15 +1017,26 @@ jobs:
 
       # Sanity check: when image_tag_override is set the operator is asking
       # CDK to reuse images that should already be in ECR. Fail fast if any
-      # of the three (web, api, admin) is missing — otherwise the App stack
-      # will deploy and ECS will start crash-looping on `ImagePullFailure`
-      # ~5 min from now.
+      # service image is missing — otherwise the App stack will deploy and
+      # ECS will start crash-looping on `ImagePullFailure` ~5 min from now.
+      #
+      # Service list is discovered from apps/*/Dockerfile (mirrors the
+      # turbo-driven detect-changes job) so adding apps/foo/Dockerfile
+      # auto-flows through here. No hardcoded triple.
       - name: Verify override images exist in ECR
         if: inputs.image_tag_override != '' && env.STACK_SCOPE != 'infra-only'
         run: |
           set -euo pipefail
+          all_services=()
+          for d in apps/*/; do
+            [ -f "${d}Dockerfile" ] && all_services+=("$(basename "$d")")
+          done
+          if [ "${#all_services[@]}" -eq 0 ]; then
+            echo "::error::no apps/*/Dockerfile found — repo layout changed?"
+            exit 1
+          fi
           missing=0
-          for svc in web api admin; do
+          for svc in "${all_services[@]}"; do
             repo="monorepo-${ENV_NAME}-${svc}"
             if aws ecr describe-images \
                 --repository-name "$repo" \
@@ -1456,7 +1471,16 @@ jobs:
             FAMILY="${FAMILY%:*}"
             TARGET_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns' --output json | jq -r '.[1] // empty')
             if [ -z "$TARGET_TD" ] || [ "$TARGET_TD" = "null" ]; then
-              echo "::error::no rollback target — neither SSM last-known-good nor a previous ACTIVE revision available"
+              # First-deploy smoke fail: no SSM record yet, and only ONE
+              # revision in the family. There is genuinely nowhere to roll
+              # back to. Cap cost immediately by scaling the service to 0
+              # (manual remediation required afterward — likely the deploy
+              # never reached steady state, e.g. Cloudflare Tunnel ingress
+              # not yet wired). Surface clearly so the operator knows the
+              # next step.
+              echo "::warning::first-deploy smoke failure — no rollback target exists. Scaling service to 0 to cap cost; manual remediation required."
+              aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE_NAME" --desired-count 0 --region "$AWS_REGION" >/dev/null || echo "::warning::scale-to-0 failed; service may still be running"
+              echo "::error::smoke failed on first deploy; service scaled to 0. Investigate ingress + container logs, then redeploy to retry."
               exit 1
             fi
           fi

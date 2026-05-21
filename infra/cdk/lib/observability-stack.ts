@@ -9,7 +9,10 @@ import {
 } from "aws-cdk-lib/aws-cloudwatch"
 import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
 import { Topic } from "aws-cdk-lib/aws-sns"
-import { MonitoringFacade } from "cdk-monitoring-constructs"
+import {
+  DefaultDashboardFactory,
+  MonitoringFacade,
+} from "cdk-monitoring-constructs"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
 import type { DataStack } from "./data-stack.js"
@@ -58,11 +61,18 @@ export class ObservabilityStack extends Stack {
   constructor(scope: Construct, id: string, props: ObservabilityStackProps) {
     super(scope, id, props)
 
+    // CloudWatch Dashboard names are account-global (per-region). The
+    // facade's default DashboardFactory uses the construct id ("MonitoringFacade")
+    // as the dashboard name, which collides across env stacks. Inject an
+    // env-prefixed factory so staging + production own distinct dashboards.
     const monitoring = new MonitoringFacade(this, "MonitoringFacade", {
       alarmFactoryDefaults: {
         actionsEnabled: true,
         alarmNamePrefix: `monorepo-${props.envName}`,
       },
+      dashboardFactory: new DefaultDashboardFactory(this, "Dashboards", {
+        dashboardNamePrefix: `monorepo-${props.envName}`,
+      }),
     })
 
     // Warning thresholds only via the facade; we own the Critical alarms

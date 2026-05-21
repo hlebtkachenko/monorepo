@@ -33,6 +33,12 @@ index.ts            # re-exports (export * from "./{name}")
 - Brand surface: `import { Logo, BrandName, BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"` (+ `getBrandText` from `@workspace/ui/brand-assets/server`)
 - Never use `@/components/ui/` (wrong path for monorepo)
 
+## Releases
+
+Versions follow `v<MAJOR>.<MINOR>.<PATCH>` (e.g. `v0.2.0`) for stable releases and `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` (e.g. `v0.2.1-rc.1`) for release candidates. Tagging is manual and gated to Hleb until v1. Full conventions, bump rules, and the cut workflow live in [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
+
+The current build version is surfaced at runtime via the `BUILD_VERSION` env (injected by the Docker image build), readable through `getBuildVersion()` / `<BuildVersion />` from `@workspace/ui/brand-assets`. It shows in the footer of every auth/onboarding page so the deployed version is always visible.
+
 ## Brand Assets
 
 The Afframe brand surface — logo SVGs, product name, tagline, legal info, support emails, marketing URLs, social handles — lives in **`packages/ui/src/brand-assets/`** as the single source of truth. Read `packages/ui/src/brand-assets/README.md` for the full reference.

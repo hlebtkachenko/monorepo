@@ -2,6 +2,8 @@
 
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` for release candidates. See [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md) for the full rule set + cut workflow.
+
 ## [Unreleased]
 
 ### Added
@@ -21,4 +23,4 @@ All notable changes to this project. Format follows [Keep a Changelog](https://k
 
 - CONTRIBUTING.md rewritten with closed-beta rules and pre-merge gates
 - LICENSE updated to All Rights Reserved (closed beta)
-- .gitignore expanded (_junk/, .claude/, .auth, playwright artifacts)
+- .gitignore expanded (\_junk/, .claude/, .auth, playwright artifacts)

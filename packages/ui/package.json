@@ -29,6 +29,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.24",
     "@hookform/resolvers": "^5.0.0",
+    "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
     "border-beam": "^1.0.1",
     "class-variance-authority": "^0.7.1",
@@ -104,6 +105,8 @@
     ],
     "./components/*": "./src/components/*/index.ts",
     "./blocks/*": "./src/blocks/*/index.ts",
-    "./hooks/*": "./src/hooks/*.ts"
+    "./hooks/*": "./src/hooks/*.ts",
+    "./brand-assets": "./src/brand-assets/index.ts",
+    "./brand-assets/server": "./src/brand-assets/text-server.ts"
   }
 }

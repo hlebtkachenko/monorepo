@@ -788,6 +788,14 @@ jobs:
       contents: read
     outputs:
       deployed: ${{ steps.summary.outputs.deployed }}
+      # 'true' iff the "Apply DB migrations" step actually ran THIS deploy.
+      # Consumed by the smoke job's rollback guard: when migrations were
+      # applied, rolling the ECS service back to the previous task def
+      # would put OLD code in front of NEW schema — same shape as the PR F
+      # bug. The rollback step refuses and pages the operator instead.
+      # `steps.<id>.conclusion` is 'skipped' when the if: gate filtered the
+      # step (no migrations changed), 'success' when it ran cleanly.
+      migrations_applied: ${{ steps.migrate.conclusion == 'success' && 'true' || 'false' }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
@@ -1104,13 +1112,20 @@ jobs:
       # Idempotent: every applied SQL file is journaled in `_app_migrations`
       # and skipped on re-run. The script also no-ops cleanly when
       # `packages/db/migrations/` is empty.
-      - name: Apply DB migrations via one-off ECS task
+      - id: migrate
+        name: Apply DB migrations via one-off ECS task
         # Gated on detect-changes — when no migration files changed since
         # the last successful deploy, skip the ECS one-off task entirely
         # (saves ~2 min wall on app-only PRs). Default-runs on first
         # deploy / unknown last-SHA / image_tag_override / force-rebuild.
         # The underlying script remains idempotent against `_app_migrations`
         # so manual reruns are still safe.
+        #
+        # `id: migrate` is consumed by the deploy job's
+        # `migrations_applied` output and by smoke's rollback guard. When
+        # this step is skipped (no migration files changed), conclusion is
+        # 'skipped' and rollback proceeds as normal. When this step ran,
+        # conclusion is 'success' and rollback refuses — see smoke job.
         if: |
           env.STACK_SCOPE != 'infra-only' &&
           needs.detect-changes.outputs.migrations_changed != 'false'
@@ -1448,8 +1463,24 @@ jobs:
           echo "Recorded last-known-good: sha=$GITHUB_SHA task-def=$GOOD_TD web=$IMAGE_TAG_WEB api=$IMAGE_TAG_API admin=$IMAGE_TAG_ADMIN (env=$ENV_NAME)"
       - name: Roll back ECS service to last-known-good task-definition
         if: failure() && steps.smoke.conclusion == 'failure'
+        env:
+          MIGRATIONS_APPLIED: ${{ needs.deploy.outputs.migrations_applied }}
         run: |
           set -euo pipefail
+          # HI-05 safety gate: when migrations ran THIS deploy, the new
+          # task def expects new schema. Rolling ECS back to the previous
+          # task def puts OLD code in front of NEW schema → reads/writes
+          # against columns that don't exist yet (or do exist but mean
+          # something different post-migration). Pattern is identical to
+          # the PR F bug (SSM tag poisoning): automation does the right
+          # thing in steady state but the wrong thing when state has
+          # moved. Refuse to roll back, page the operator, point them at
+          # the runbook (docs/runbooks/AWS-DEPLOY.md "Migration rollback
+          # recovery"). Recovery is forward-fix in nearly all cases.
+          if [ "${MIGRATIONS_APPLIED:-false}" = "true" ]; then
+            echo "::error::smoke failed AND migrations were applied this deploy. Auto-rollback is unsafe — old task def would meet new schema. Aborting rollback. See docs/runbooks/AWS-DEPLOY.md#migration-rollback-recovery for the manual path (forward-fix or PITR + manual task-def revert)."
+            exit 1
+          fi
           CLUSTER="monorepo-${ENV_NAME}"
           SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then

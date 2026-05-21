@@ -1000,15 +1000,17 @@ jobs:
           if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "Secret $NAME already exists — leaving value untouched."
           else
-            # tr -dc | head -c with bash `set -o pipefail` makes the
-            # whole pipeline fail: head closes its stdin after 44 bytes,
-            # tr writes to the closed pipe and exits non-zero (SIGPIPE).
-            # Read a fixed buffer from urandom first (head terminates by
-            # itself, no SIGPIPE source remains) then filter + truncate.
-            # 4096 bytes of urandom yields >2700 alphanumeric bytes after
-            # the [A-Za-z0-9] filter — far more than the 44 needed.
-            # First-prod-deploy failure mode verified in run 26210479351.
-            VALUE=$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 44)
+            # PR G replaced infinite /dev/urandom with a 4096-byte buffer
+            # to defuse the tr|head SIGPIPE. The remaining tr|head chain
+            # still relies on pipe-buffer timing — works today but is
+            # bash/kernel/locale-version dependent. node is already on the
+            # runner (used elsewhere in this workflow), zero new deps, no
+            # pipes: crypto.randomBytes(22).toString("hex") yields 44 hex
+            # chars [0-9a-f] (strict subset of the old [A-Za-z0-9] output —
+            # any consumer pattern-validating the secret still matches).
+            # 176 bits of entropy > 128-bit security floor for an HMAC key.
+            # First-prod-deploy SIGPIPE failure: run 26210479351.
+            VALUE=$(node -e 'process.stdout.write(require("crypto").randomBytes(22).toString("hex"))')
             echo "::add-mask::$VALUE"
             aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
             echo "Secret $NAME created with fresh 44-char value."
@@ -1485,8 +1487,7 @@ jobs:
             fi
           fi
           if [ "$TARGET_TD" = "$CURRENT_TD" ]; then
-            echo "::warning::Rollback target equals current revision ($TARGET_TD). Nothing to do — service already on last-known-good."
-            echo "::error::smoke failed; current revision IS the last-known-good. Investigate live state."
+            echo "::error::smoke failed but rollback target ($TARGET_TD) equals current — no earlier revision to roll to. Live state is the last-known-good; investigate logs (smoke probably hit a transient or external issue)."
             exit 1
           fi
           echo "Target last-known-good: $TARGET_TD"

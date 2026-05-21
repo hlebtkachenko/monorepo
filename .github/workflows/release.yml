@@ -135,6 +135,11 @@ jobs:
       provenance-name: web-${{ github.ref_name }}.intoto.jsonl
 
   # SBOM + L2 provenance + cosign + license check via the shared orchestrator.
+  # `artifact-source` names the workflow artifact uploaded by the `build`
+  # job above (see the `actions/upload-artifact` step — name: web-tarball).
+  # Without it, the supply-chain job runs in a fresh runner that has no
+  # access to the tarball and sha256sum fails. Surfaced on v0.2.0 first
+  # release. See AFF-229.
   supply-chain:
     needs: [build]
     permissions:
@@ -146,6 +151,7 @@ jobs:
     uses: ./.github/workflows/_supply-chain.yml
     with:
       artifact-path: ${{ needs.build.outputs.tarball-name }}
+      artifact-source: web-tarball
       package-name: web
       version: ${{ github.ref_name }}
       release-mode: true

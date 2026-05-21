@@ -1256,46 +1256,10 @@ jobs:
           subscribe_idempotent "$KILL_ARN" "KillSwitchTopic"
           subscribe_idempotent "$BILL_ARN" "BillingTopic"
 
-      # Persist last-deploy state for the next run's detect-changes job.
-      # Only writes on a fully-successful deploy. Parameters:
-      #   - git-sha               : current commit, baseline for next diff
-      #   - image-tag             : legacy uniform tag (back-compat for any
-      #                             SSM consumer that hasn't been updated)
-      #   - image-tag-<service>   : per-service tag (web/api/admin). On the
-      #                             next deploy, skipped services reuse
-      #                             these tags via the per-service CDK
-      #                             context (webImageTag, apiImageTag, …).
-      # Failure to write SSM is non-fatal — next run falls back to full
-      # rebuild (safe default).
-      - name: Record last-deploy state in SSM
-        if: env.STACK_SCOPE != 'infra-only'
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          aws ssm put-parameter \
-            --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" \
-            --type String \
-            --value "$GITHUB_SHA" \
-            --overwrite \
-            --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/git-sha"
-          aws ssm put-parameter \
-            --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" \
-            --type String \
-            --value "$IMAGE_TAG" \
-            --overwrite \
-            --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag"
-          for pair in "web=$IMAGE_TAG_WEB" "api=$IMAGE_TAG_API" "admin=$IMAGE_TAG_ADMIN"; do
-            svc="${pair%%=*}"
-            tag="${pair#*=}"
-            aws ssm put-parameter \
-              --name "/monorepo/${ENV_NAME}/last-deploy/image-tag-${svc}" \
-              --type String \
-              --value "$tag" \
-              --overwrite \
-              --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag-${svc}"
-          done
-          echo "Recorded: sha=$GITHUB_SHA web=$IMAGE_TAG_WEB api=$IMAGE_TAG_API admin=$IMAGE_TAG_ADMIN (env=$ENV_NAME)"
+      # Last-deploy SSM record was here; moved to the `smoke` job's success
+      # path so a deploy that hotswapped a broken image (and smoke later
+      # rolls back) doesn't poison the per-service `image-tag-<svc>` SSM
+      # the next deploy reads as "last known good". See smoke job below.
 
       - id: summary
         run: echo "deployed=true" >> "$GITHUB_OUTPUT"
@@ -1308,7 +1272,7 @@ jobs:
   # (ECS Circuit Breaker on App-staging, 5/20 fails) by giving the
   # operator an automatic recovery path instead of a wedged service.
   smoke:
-    needs: [guard, validate-inputs, deploy]
+    needs: [guard, validate-inputs, detect-changes, deploy]
     if: |
       !cancelled() &&
       needs.guard.outputs.go == 'true' &&
@@ -1330,6 +1294,14 @@ jobs:
       PRODUCTION_APP_DOMAIN: ${{ vars.APP_DOMAIN_PRODUCTION }}
       STAGING_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_STAGING }}
       PRODUCTION_ADMIN_DOMAIN: ${{ vars.ADMIN_DOMAIN_PRODUCTION }}
+      # Inputs forwarded from detect-changes so the post-smoke SSM-record
+      # step can pin per-service `last-known-good` tags only when smoke
+      # has actually validated the deploy.
+      GITHUB_SHA: ${{ github.sha }}
+      IMAGE_TAG: ${{ needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_WEB: ${{ needs.detect-changes.outputs.image_tag_web || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_API: ${{ needs.detect-changes.outputs.image_tag_api || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
+      IMAGE_TAG_ADMIN: ${{ needs.detect-changes.outputs.image_tag_admin || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
     steps:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
@@ -1353,6 +1325,17 @@ jobs:
               exit 1
               ;;
           esac
+      # Configure AWS up-front (was previously only on the failure path).
+      # Both the success record + failure rollback need AWS now; doing it
+      # once keeps the step graph simpler and avoids re-assuming the role
+      # twice on the rollback path.
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-smoke-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 1800
       - id: smoke
         name: Smoke probe (web + admin)
         env:
@@ -1388,22 +1371,37 @@ jobs:
           done
           echo "::error::smoke failed after 30 attempts"
           exit 1
-      - name: Configure AWS credentials for rollback
-        if: failure() && steps.smoke.conclusion == 'failure'
-        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
-        with:
-          role-to-assume: ${{ steps.env.outputs.role }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: gha-smoke-rollback-${{ github.run_id }}
-          audience: sts.amazonaws.com
-          role-duration-seconds: 1800
-      - name: Roll back ECS service to previous task-definition revision
+      # Record last-known-good state in SSM AFTER smoke verifies the deploy.
+      # Before this PR the record was inside the deploy job, which fires
+      # even when smoke later rolls back — poisoning the per-service
+      # `image-tag-<svc>` SSM with a broken-image SHA that the next deploy
+      # then "intelligently" reuses (verified run 26210496331 left staging
+      # serving 503 because rollback target rev26 ALSO had the broken image).
+      # Now the record runs only on green smoke and captures both the per-
+      # service image tags AND the live task-definition ARN, so rollback
+      # has a known-good revision to target instead of "previous ACTIVE".
+      - name: Record last-known-good in SSM
+        if: success()
+        run: |
+          set -euo pipefail
+          CLUSTER="monorepo-${ENV_NAME}"
+          SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
+          SERVICE_NAME=${SERVICE_ARN##*/}
+          GOOD_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" --type String --value "$GITHUB_SHA" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/git-sha"
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --type String --value "$IMAGE_TAG" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag"
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/task-def-arn" --type String --value "$GOOD_TD" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/task-def-arn"
+          for pair in "web=$IMAGE_TAG_WEB" "api=$IMAGE_TAG_API" "admin=$IMAGE_TAG_ADMIN"; do
+            svc="${pair%%=*}"
+            tag="${pair#*=}"
+            aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag-${svc}" --type String --value "$tag" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag-${svc}"
+          done
+          echo "Recorded last-known-good: sha=$GITHUB_SHA task-def=$GOOD_TD web=$IMAGE_TAG_WEB api=$IMAGE_TAG_API admin=$IMAGE_TAG_ADMIN (env=$ENV_NAME)"
+      - name: Roll back ECS service to last-known-good task-definition
         if: failure() && steps.smoke.conclusion == 'failure'
         run: |
           set -euo pipefail
           CLUSTER="monorepo-${ENV_NAME}"
-          # Single FargateService per env (app-stack.ts). Discover it instead
-          # of hard-coding a CDK-generated logical name.
           SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
           if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
             echo "::error::no service in cluster $CLUSTER — cannot roll back"
@@ -1411,26 +1409,34 @@ jobs:
           fi
           SERVICE_NAME=${SERVICE_ARN##*/}
           CURRENT_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
-          FAMILY="${CURRENT_TD##*/}"
-          FAMILY="${FAMILY%:*}"
-          echo "Rolling back service=$SERVICE_NAME family=$FAMILY current=$CURRENT_TD"
-          # AWS CLI v2 quirk: `--max-items N --output text` appends the
-          # client-side-pagination NextToken on a NEW LINE after the query
-          # result. PREV_TD would then contain literally "ARN\nNone" and
-          # the next update-service call rejects it with "Invalid revision
-          # number" (verified live in run 26209592079, smoke rollback step).
-          # Switch to --output json + jq so the result is exactly one ARN.
-          PREV_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns' --output json | jq -r '.[1] // empty')
-          if [ -z "$PREV_TD" ] || [ "$PREV_TD" = "null" ]; then
-            echo "::error::no previous ACTIVE task-def revision in family $FAMILY — cannot roll back automatically"
+          echo "Rolling back service=$SERVICE_NAME current=$CURRENT_TD"
+          # Preferred: last-known-good task-def stored by a prior successful
+          # smoke. This is immune to the "previous ACTIVE was ALSO broken"
+          # case (run 26210496331 rolled back to rev26 which also failed
+          # auth-session because a prior failed-smoke deploy left it
+          # ACTIVE).
+          TARGET_TD=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/last-deploy/task-def-arn" --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          if [ -z "$TARGET_TD" ] || [ "$TARGET_TD" = "None" ]; then
+            echo "::warning::SSM last-deploy/task-def-arn empty — falling back to previous ACTIVE revision in the family. This is only safe on the first smoke run after PR F; expect SSM to be populated thereafter."
+            FAMILY="${CURRENT_TD##*/}"
+            FAMILY="${FAMILY%:*}"
+            TARGET_TD=$(aws ecs list-task-definitions --family-prefix "$FAMILY" --status ACTIVE --sort DESC --max-items 2 --region "$AWS_REGION" --query 'taskDefinitionArns' --output json | jq -r '.[1] // empty')
+            if [ -z "$TARGET_TD" ] || [ "$TARGET_TD" = "null" ]; then
+              echo "::error::no rollback target — neither SSM last-known-good nor a previous ACTIVE revision available"
+              exit 1
+            fi
+          fi
+          if [ "$TARGET_TD" = "$CURRENT_TD" ]; then
+            echo "::warning::Rollback target equals current revision ($TARGET_TD). Nothing to do — service already on last-known-good."
+            echo "::error::smoke failed; current revision IS the last-known-good. Investigate live state."
             exit 1
           fi
-          echo "Target previous revision: $PREV_TD"
+          echo "Target last-known-good: $TARGET_TD"
           aws ecs update-service \
             --cluster "$CLUSTER" \
             --service "$SERVICE_NAME" \
-            --task-definition "$PREV_TD" \
+            --task-definition "$TARGET_TD" \
             --force-new-deployment \
             --region "$AWS_REGION" >/dev/null
-          echo "::error::smoke failed; rollback issued to $PREV_TD; exiting non-zero"
+          echo "::error::smoke failed; rollback issued to $TARGET_TD; exiting non-zero"
           exit 1

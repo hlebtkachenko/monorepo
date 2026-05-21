@@ -22,6 +22,11 @@ on:
         required: false
         type: boolean
         default: false
+      build_version:
+        description: "Value to bake into the image's BUILD_VERSION env (drives the runtime footer + /api/version + OpenAPI info.version + Sentry release tag). Strip-leading-v applied. Empty = auto-detect: a git tag at HEAD wins (e.g. v0.2.0 -> 0.2.0); otherwise short SHA (e.g. sha-3793b59). For release deploys: leave empty after tagging — the tag context is picked up automatically. Set explicitly only for hotfix / cosmetic relabel scenarios."
+        required: false
+        type: string
+        default: ""
     outputs:
       deployed:
         description: "Whether the deploy step actually ran"
@@ -54,6 +59,11 @@ on:
         required: false
         type: boolean
         default: false
+      build_version:
+        description: "Override BUILD_VERSION baked into the image. Empty = auto-detect (git tag at HEAD, else short SHA). Set for hotfix relabel only."
+        required: false
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -620,6 +630,42 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
           persist-credentials: false
+          # Needed by the "Compute BUILD_VERSION" step below — `git describe
+          # --exact-match` walks tag history. Default fetch-depth=1 is too
+          # shallow to discover tags pointing at HEAD.
+          fetch-depth: 0
+
+      # Decouples the image's BUILD_VERSION env (display + observability:
+      # footer, /api/version, OpenAPI info.version, Sentry release) from
+      # IMAGE_TAG (ECR pin: stays sha-<full> for deterministic uniqueness
+      # and the existing rollback / image_tag_override flow).
+      #
+      # Resolution order:
+      #   1. inputs.build_version (explicit override; strip leading "v")
+      #   2. git describe --exact-match (tag at HEAD; strip leading "v")
+      #   3. fallback: sha-<short-7-char>
+      #
+      # Plain semver gets the "v" prefix re-added at render time by
+      # getBuildVersion() in packages/ui/src/brand-assets/version.ts.
+      - id: ver
+        name: Compute BUILD_VERSION
+        env:
+          BUILD_VERSION_INPUT: ${{ inputs.build_version }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BUILD_VERSION_INPUT" ]; then
+            VALUE="${BUILD_VERSION_INPUT#v}"
+            SOURCE="input"
+          elif TAG=$(git describe --exact-match --tags HEAD 2>/dev/null); then
+            VALUE="${TAG#v}"
+            SOURCE="git-tag"
+          else
+            VALUE="sha-${SHA:0:7}"
+            SOURCE="short-sha"
+          fi
+          echo "BUILD_VERSION resolved via ${SOURCE}: ${VALUE}"
+          echo "value=${VALUE}" >> "$GITHUB_OUTPUT"
 
       - name: Mask account-bearing inputs in logs
         env:
@@ -705,7 +751,7 @@ jobs:
           build-args: |
             BUILD_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.repository.updated_at }}
-            BUILD_VERSION=${{ env.IMAGE_TAG }}
+            BUILD_VERSION=${{ steps.ver.outputs.value }}
 
       # CVE gate: wait for ECR's scanOnPush to finish, fail on CRITICAL.
       # ECR Basic scanning takes ~30-90s after push. The wait + describe

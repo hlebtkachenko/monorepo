@@ -6,11 +6,11 @@ Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` r
 
 ## Trigger matrix
 
-| Trigger                | Behaviour                                                                                                          |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Tag a release `v0.x.x` | `release.yml` builds + signs the image, uploads SBOM, then calls `_deploy-aws.yml env=staging`                     |
-| Push to `main`         | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags.                           |
-| Manual prod            | `gh workflow run _deploy-aws.yml -f environment=production -f stack=App-production`, approve in GitHub environment |
+| Trigger                | Behaviour                                                                                                                                                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tag a release `v0.x.x` | `release.yml` builds the `apps/web` tarball + SLSA L3 provenance + CycloneDX SBOM + cosign signature, creates the GitHub Release. **Does NOT deploy to AWS** — deploy is a separate manual step (see `docs/conventions/RELEASES.md` "Tag → deploy order"). |
+| Push to `main`         | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags.                                                                                                                                                                   |
+| Manual deploy          | `gh workflow run _deploy-aws.yml -f environment=<staging\|production>` (production requires environment approval). After tagging, deploy is what actually moves AWS to the new version.                                                                    |
 
 ## Pre-deploy checklist
 

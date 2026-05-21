@@ -192,6 +192,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared

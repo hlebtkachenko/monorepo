@@ -8,8 +8,8 @@ description: |
   endpoint-addition workflow at
   `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`. The skill enforces the
   drift-gated codegen seam: every step in the right order, no hand-edits
-  of `generated/` directories, no `organization_id` / `workspace_id` /
-  `role` in request bodies.
+  of `generated/` directories, no `organization_id` / `user_id` /
+  `workspace_id` / `role` in request bodies.
 ---
 
 # Add endpoint
@@ -38,10 +38,10 @@ Before writing any code:
 1. **Never hand-edit a `generated/` file.** Paths to refuse:
    `packages/sdk/src/generated/**`, `apps/mcp/src/tools/generated/**`.
    Regenerate via `pnpm gen:all`.
-2. **Never declare `organization_id`, `workspace_id`, or `role`** as
-   request input. The server injects from the API key principal. AI
-   tool input schemas, request bodies, and query parameters all forbid
-   this.
+2. **Never declare `organization_id`, `user_id`, `workspace_id`, or `role`**
+   as request input. The server injects all four from the API-key
+   principal. AI tool input schemas, request bodies, and query
+   parameters all forbid these.
 3. **Never inline error responses.** Always spread `ERROR_RESPONSE_REFS`
    into the operation's `responses` map.
 4. **Never skip the E2E test.** Cross-tenant isolation must be exercised.
@@ -58,9 +58,8 @@ runbook. The steps in order:
 | 3   | NestJS controller  | `apps/api/src/v1/<resource>/<resource>.controller.ts` |
 | 4   | Codegen            | `pnpm gen:all` (regenerates spec + SDK + MCP)         |
 | 5   | E2E test           | `apps/api/src/**/*.test.ts` or `apps/web/e2e/**`      |
-| 6   | Changeset          | `pnpm changeset`                                      |
-
-Then: `pnpm verify` green locally.
+| 6   | Changeset          | `pnpm changeset` (describe the surface change)        |
+| 7   | Verify             | `pnpm verify` (typecheck + lint + test + boundaries)  |
 
 ## Open questions to ask the user before scaffolding
 
@@ -78,7 +77,7 @@ Then: `pnpm verify` green locally.
 Refuse and report when:
 
 - The diff would hand-edit a `generated/` file.
-- The Zod schema declares `organization_id` / `workspace_id` / `role`.
+- The Zod schema declares `organization_id` / `user_id` / `workspace_id` / `role`.
 - The user wants to ship without an E2E test that exercises tenancy.
 - The change is breaking (per
   `docs/conventions/ENDPOINT-ADDITION.md` § Breaking changes) and no

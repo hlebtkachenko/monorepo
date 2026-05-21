@@ -40,7 +40,16 @@ const INDEX_PATH = resolve(OUT_DIR, "index.ts")
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const
 
 function camelToSnake(camel: string): string {
-  return camel.replace(/([A-Z])/g, "_$1").toLowerCase()
+  // Two-pass conversion so multi-character acronyms stay grouped:
+  //   `getOrganization`   -> `get_organization`
+  //   `listAPIKeys`       -> `list_api_keys`   (not `list_a_p_i_keys`)
+  //   `parseEANCheckDigit`-> `parse_ean_check_digit`
+  // First pass splits acronym-then-Capital boundaries; second pass splits
+  // lower-then-Capital boundaries. Final lowercase emits the tool name.
+  return camel
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .replace(/([a-z\d])([A-Z])/g, "$1_$2")
+    .toLowerCase()
 }
 
 function escape(text: string): string {

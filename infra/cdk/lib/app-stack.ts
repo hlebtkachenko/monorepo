@@ -1016,6 +1016,158 @@ export class AppStack extends Stack {
       readOnly: false,
     })
 
+    // ─── Bootstrap init containers ───────────────────────────────────────
+    //
+    // First-deploy of a fresh environment needs three DB bootstrap steps
+    // (per docs/runbooks/AWS-DEPLOY.md):
+    //
+    //   1. Apply Drizzle migrations (creates app_user role + all tables)
+    //   2. ALTER ROLE app_user PASSWORD <from-appUserSecret>
+    //   3. CREATE SCHEMA openfga + run `openfga migrate` (goose schema)
+    //
+    // Before this, operators ran them manually via a bastion. That works
+    // once per env then forgotten — and production first-deploy hit it
+    // because nothing automated the bootstrap. The init containers below
+    // run on every cold start; idempotent steps no-op after first success.
+    //
+    // ECS dependsOn ensures essential containers wait until these exit
+    // SUCCESS (exit code 0). On unexpected failure, the whole task fails
+    // → Circuit Breaker rolls back the deploy (deferred to G5's contract).
+
+    const dbMigrateImage = new DockerImageAsset(this, "DbMigrateImage", {
+      // Context is repo root so the Dockerfile can COPY
+      // packages/db/migrations + infra/scripts/apply-migrations-init.sh.
+      directory: path.join(__dirname, "..", "..", ".."),
+      file: "infra/Dockerfile.migrate",
+      platform: Platform.LINUX_ARM64,
+    })
+
+    const dbMigrateLogGroup = new LogGroup(this, "DbMigrateLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/db-migrate`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+
+    const dbMigrateContainer = taskDef.addContainer("db-migrate", {
+      containerName: "db-migrate",
+      image: ContainerImage.fromDockerImageAsset(dbMigrateImage),
+      // essential: false + ECS dependsOn SUCCESS → task waits for clean
+      // exit before starting other containers, but a failure here does
+      // surface (Circuit Breaker treats unhealthy deployment as failure).
+      essential: false,
+      logging: LogDriver.awsLogs({
+        streamPrefix: "db-migrate",
+        logGroup: dbMigrateLogGroup,
+      }),
+      environment: {
+        DB_HOST: props.database.dbInstanceEndpointAddress,
+        DB_PORT: props.database.dbInstanceEndpointPort,
+        DB_NAME: "monorepo",
+      },
+      secrets: {
+        DB_ADMIN_USER: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "username",
+        ),
+        DB_ADMIN_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+        APP_USER_PASSWORD: EcsSecret.fromSecretsManager(
+          props.appUserSecret,
+          "password",
+        ),
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("DbMigrateLinuxParams"),
+    })
+    dbMigrateContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    const openfgaMigrateLogGroup = new LogGroup(this, "OpenfgaMigrateLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/openfga-migrate`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+
+    const openfgaMigrateContainer = taskDef.addContainer("openfga-migrate", {
+      containerName: "openfga-migrate",
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.15.1"),
+      essential: false,
+      command: ["migrate"],
+      logging: LogDriver.awsLogs({
+        streamPrefix: "openfga-migrate",
+        logGroup: openfgaMigrateLogGroup,
+      }),
+      environment: {
+        OPENFGA_DATASTORE_ENGINE: "postgres",
+        OPENFGA_DATASTORE_URI: `postgres://${props.database.dbInstanceEndpointAddress}:${props.database.dbInstanceEndpointPort}/monorepo?search_path=openfga&sslmode=require`,
+        OPENFGA_LOG_FORMAT: "json",
+      },
+      secrets: {
+        // openfga migrate runs as the admin (app_owner) since it needs
+        // DDL inside the openfga schema. Different from the runtime
+        // openfga container which can use a less-privileged role
+        // (we still use admin there for now — refine later).
+        OPENFGA_DATASTORE_USERNAME: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "username",
+        ),
+        OPENFGA_DATASTORE_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("OpenfgaMigrateLinuxParams"),
+    })
+    openfgaMigrateContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    // openfga-migrate depends on db-migrate (needs the openfga schema
+    // created by step #3 of apply-migrations-init.sh).
+    openfgaMigrateContainer.addContainerDependencies({
+      container: dbMigrateContainer,
+      condition: ContainerDependencyCondition.SUCCESS,
+    })
+
+    // Every essential container waits for BOTH init containers to exit
+    // success before starting. Listed explicitly so a future container
+    // additions remember to wire the dep — workflow-lint catches this
+    // via cdk-synth-strict if a dep is missed (no, it doesn't — but a
+    // single missing dep would only fail on first-ever deploy of a new
+    // env; the staging path is already idempotent).
+    for (const c of [
+      pgbouncerContainer,
+      cerbosContainer,
+      openfgaContainer,
+      apiContainer,
+      webContainer,
+      adminContainer,
+    ]) {
+      c.addContainerDependencies({
+        container: dbMigrateContainer,
+        condition: ContainerDependencyCondition.SUCCESS,
+      })
+    }
+    // Only openfga + api need openfga-migrate completion specifically
+    // (the others don't touch the openfga schema), but adding the dep
+    // everywhere is harmless and keeps the wiring uniform.
+    for (const c of [openfgaContainer, apiContainer]) {
+      c.addContainerDependencies({
+        container: openfgaMigrateContainer,
+        condition: ContainerDependencyCondition.SUCCESS,
+      })
+    }
+
     this.service = new FargateService(this, "Service", {
       cluster: this.cluster,
       taskDefinition: taskDef,

@@ -1,0 +1,30 @@
+# Init-container image for the App TaskDef's `db-migrate` sidecar.
+#
+# Runs on every task cold start BEFORE the essential app containers. Applies
+# `packages/db/migrations/*.sql` against the env's RDS, syncs the app_user
+# role password to the value in appUserSecret, and CREATEs the openfga
+# schema so the sibling openfga-migrate sidecar can run its goose
+# migrations into it.
+#
+# Idempotent: re-runs no-op after first success. Adds ~5-10s to cold-start
+# wall time once schemas exist.
+#
+# Pinned per ADR-0015. Bump via Dependabot docker ecosystem.
+FROM postgres:18-alpine
+
+RUN apk add --no-cache \
+      bash \
+      ca-certificates \
+  && rm -rf /var/cache/apk/*
+
+# Migration SQL files are baked into the image at build time. The CI build
+# context is the repo root (see AppStack DbMigrateImage DockerImageAsset).
+COPY packages/db/migrations /migrations/
+COPY infra/scripts/apply-migrations-init.sh /usr/local/bin/apply-migrations-init
+
+RUN chmod +x /usr/local/bin/apply-migrations-init
+
+# Defense in depth: non-root UID (Chainguard "nobody" convention).
+USER 65532:65532
+
+ENTRYPOINT ["/usr/local/bin/apply-migrations-init"]

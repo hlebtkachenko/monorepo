@@ -148,8 +148,12 @@ const CUSTOM_CSS = `
 
 /*
  * Top navbar — rendered ABOVE Scalar's UI via HTML injection at the
- * start of <body>. Mirrors the Next.js "host layout owns the nav"
- * pattern documented at
+ * start of the document body. (Comment text deliberately avoids the
+ * literal lt-body-gt HTML tag string because the response-wrap regex
+ * in registerDocsRoutes matches the FIRST occurrence in the response
+ * — a comment that mentioned the tag was the bug that prevented the
+ * navbar from rendering once.) Mirrors the Next.js "host layout owns
+ * the nav" pattern documented at
  * https://scalar.com/products/api-references/integrations/nextjs:
  * Scalar's React component renders inside a parent layout that owns
  * the navbar. We can't import the React component into a NestJS host,
@@ -370,10 +374,16 @@ export function registerDocsRoutes(
 
   adapter.get("/", (req: Request, res: Response) => {
     // Wrap res.send so we can splice our injectedHtml into Scalar's HTML
-    // response immediately after <body>. Placing the topnav at the start
-    // of <body> (not before </body>) so it lands ABOVE Scalar's mount
-    // point in the DOM — Scalar's UI is then offset downward via the
-    // body padding-top rule in customCss.
+    // response immediately after the body open tag. Inserts at start of
+    // body so the navbar lands ABOVE Scalar's mount point in the DOM —
+    // Scalar's UI is then offset downward via the body padding-top rule
+    // in customCss.
+    //
+    // The regex matches `</head>` + whitespace + `<body...>` as a single
+    // unit. Anchoring on `</head>` is critical — a bare `<body>` regex
+    // would also match literal text inside a CSS or HTML comment (we
+    // hit this bug: the customCss block mentioned the body tag in
+    // prose and got the injection spliced into the style block).
     //
     // Scalar's middleware (verified against
     // @scalar/nestjs-api-reference v1.1.16 source: signature is
@@ -385,7 +395,7 @@ export function registerDocsRoutes(
     const origSend = res.send.bind(res)
     res.send = (body: unknown): Response => {
       if (typeof body === "string") {
-        const match = body.match(/<body[^>]*>/i)
+        const match = body.match(/<\/head>\s*<body[^>]*>/i)
         if (match) {
           const patched = body.replace(match[0], `${match[0]}${injectedHtml}`)
           return origSend(patched)

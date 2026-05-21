@@ -89,6 +89,11 @@ describe("AppStack Fargate hardening", () => {
       (api?.Environment ?? []).map((e) => [e.Name, e.Value]),
     )
     expect(envByName["OPENFGA_API_URL"]).toBe("http://localhost:8080")
+    // PUBLIC_API_URL derives from envName: production -> api.afframe.com,
+    // anything else -> api-staging.afframe.com. Asserts the editor.ts
+    // redirect target is wired per-env (so staging /editor opens the
+    // staging spec, not prod). TEST_ENV_NAME="test", so expect staging.
+    expect(envByName["PUBLIC_API_URL"]).toBe("https://api-staging.afframe.com")
     const secretNames = (api?.Secrets ?? []).map((s) => s.Name)
     expect(secretNames).toContain("OPENFGA_STORE_ID")
     expect(secretNames).toContain("OPENFGA_MODEL_ID")

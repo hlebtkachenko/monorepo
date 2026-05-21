@@ -6,17 +6,19 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
-## [v0.2.1] — 2026-05-21
+## [v0.2.2] — 2026-05-21
 
 CI + observability follow-ups to v0.2.0. No app surface changes.
 
+> Note: tag `v0.2.1` was burned by a second supply-chain bug in the SBOM generator (`anchore/sbom-action` rejecting `.tar.gz` as a non-directory). The fix bundle ships as v0.2.2 instead. The v0.2.1 tag remains on the remote as a dangling reference with no GitHub Release attached.
+
 ### Fixed
 
-- `_supply-chain.yml` now downloads the tarball workflow artifact before computing its digest. Before this, the supply-chain job ran in a fresh runner with no access to the tarball built in `release.yml`'s `build` job, and `sha256sum` failed with "No such file or directory" — surfaced on the first v0.2.0 release. From v0.2.1 onward, every GitHub Release attaches all four artifacts: tarball, SLSA L3 `.intoto.jsonl`, CycloneDX `sbom.cdx.json`, and `*.cosign.bundle`. (#240, AFF-229)
+- `_supply-chain.yml` now downloads the tarball workflow artifact before computing its digest, AND passes it to `anchore/sbom-action` as `file:` instead of `path:`. `path:` treats the input as a directory (`syft dir:…`) and rejects a `.tar.gz` with "not a directory" — surfaced on both v0.2.0 and the burned v0.2.1 attempts. `file:` lets syft auto-decompose the tarball into a meaningful SBOM. From v0.2.2 onward, every GitHub Release attaches all four artifacts: tarball, SLSA L3 `.intoto.jsonl`, CycloneDX `sbom.cdx.json`, and `*.cosign.bundle`. (#240, this release, AFF-229)
 
 ### Changed
 
-- `_deploy-aws.yml` decouples the image's `BUILD_VERSION` env from `IMAGE_TAG`. The deploy pipeline resolves `BUILD_VERSION` in order: (1) explicit `build_version` input, (2) `git describe --exact-match` to discover a tag at HEAD, (3) fallback `sha-<short-7-char>`. `IMAGE_TAG` stays `sha-<full>` to preserve ECR deterministic pin + rollback semantics + the `image_tag_override` flow. Result: after `git tag v0.2.1` the deploy auto-bakes `BUILD_VERSION=0.2.1` without any extra flag — the runtime footer, `/api/version`, OpenAPI `info.version`, and Sentry `release` tag all read `v0.2.1`. Before this change everything ran on a 40-char full SHA regardless of git tag state. (#241)
+- `_deploy-aws.yml` decouples the image's `BUILD_VERSION` env from `IMAGE_TAG`. The deploy pipeline resolves `BUILD_VERSION` in order: (1) explicit `build_version` input, (2) `git describe --exact-match` to discover a tag at HEAD, (3) fallback `sha-<short-7-char>`. `IMAGE_TAG` stays `sha-<full>` to preserve ECR deterministic pin + rollback semantics + the `image_tag_override` flow. Result: after `git tag v0.2.2` the deploy auto-bakes `BUILD_VERSION=0.2.2` without any extra flag — the runtime footer, `/api/version`, OpenAPI `info.version`, and Sentry `release` tag all read `v0.2.2`. Before this change everything ran on a 40-char full SHA regardless of git tag state. (#241)
 - `docs/conventions/RELEASES.md` rewritten to match actual mechanics: corrected "Tag → deploy order", added per-service-coherence note (`force_rebuild_images=true` to align unchanged services), documented the `build_version` escape hatch. (#241)
 - `docs/runbooks/DEPLOY.md` corrected: `release.yml` does not call `_deploy-aws.yml` — they are independent workflows. (#241)
 

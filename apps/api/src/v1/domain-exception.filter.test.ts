@@ -67,6 +67,19 @@ describe("DomainExceptionFilter", () => {
     })
   })
 
+  it("maps an unmapped 5xx HttpException to the INTERNAL family", () => {
+    const { host, status, json } = makeHost()
+    filter.catch(new HttpException("bad gateway", HttpStatus.BAD_GATEWAY), host)
+    expect(status).toHaveBeenCalledWith(HttpStatus.BAD_GATEWAY)
+    expect(json.mock.calls[0]?.[0]).toMatchObject({
+      error: {
+        code: "internal_error",
+        error_type: "INTERNAL",
+        message: "bad gateway",
+      },
+    })
+  })
+
   it("renders an unknown error as a generic 500", () => {
     const { host, status, json } = makeHost()
     filter.catch(new Error("boom"), host)

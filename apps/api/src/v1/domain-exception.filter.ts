@@ -122,7 +122,11 @@ export class DomainExceptionFilter implements ExceptionFilter {
       )
     }
 
-    const error_type = STATUS_FAMILY[status] ?? "INVALID_REQUEST"
+    // Unmapped 5xx (502/504/etc.) must fall into the INTERNAL family,
+    // not "INVALID_REQUEST" — emitting a server-error status with a
+    // client-error family contradicts the envelope contract.
+    const error_type =
+      STATUS_FAMILY[status] ?? (status >= 500 ? "INTERNAL" : "INVALID_REQUEST")
 
     res.status(status).json({
       error: { code, error_type, message, requestId },

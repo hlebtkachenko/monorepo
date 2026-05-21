@@ -47,6 +47,19 @@ NestJS controllers + Zod schemas
 
 The same document feeds both routes. There is no second-source spec, no hand-written doc page, and no manual sync step.
 
+### Auxiliary developer routes
+
+Two non-spec helper routes ride alongside the Reference for partner
+ergonomics. Neither carries auth; both are intentionally unauthenticated
+because what they expose is already public via `/v1/openapi.json`.
+
+| Route     | Source                   | Behaviour                                                                                                                                                                              |
+| --------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/editor` | `apps/api/src/editor.ts` | 302 redirect to `editor.scalar.com?url=<env-spec>`. The spec URL is derived from `PUBLIC_API_URL`, so staging `/editor` opens the staging spec, prod `/editor` opens the prod spec.    |
+| `/void/*` | `apps/api/src/void.ts`   | Mock-server echo for any verb, any path. Returns `{ method, path, query, headers, body }` with a strict header allowlist (no credentials are echoed back). 100 KB body cap. CORS open. |
+
+Both are documented in [ADR-0024](../adr/0024-developer-platform-codegen-pipeline.md) §7; the implementation policies (allowlist set, CSP additions) live in the source docstrings.
+
 ---
 
 ## 2. Why Scalar (not Swagger UI)

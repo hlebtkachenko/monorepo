@@ -81,6 +81,20 @@ Deployment uses `pnpm deploy --config.node-linker=hoisted` so the bundle's exter
 
 Domain endpoints (invoices, accounts, journals) land with AFF-71. Authz (Cerbos L3 + OpenFGA L2) wires in with the first resource endpoint (AFF-46).
 
+## Auxiliary developer routes
+
+Three non-versioned routes ride alongside `/v1/*` to support the
+developer-platform UX. None of them carries auth; what they expose is
+already public via `/v1/openapi.json`.
+
+| Method | Path               | Source                   | Description                                                                                                                                                                                        |
+| ------ | ------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/`                | `apps/api/src/docs.ts`   | Scalar API Reference (interactive). See [`API-REFERENCE.md`](./API-REFERENCE.md).                                                                                                                  |
+| `GET`  | `/v1/openapi.json` | `apps/api/src/docs.ts`   | Canonical OpenAPI 3.1 spec, byte-stable per build.                                                                                                                                                 |
+| `GET`  | `/v1/docs`         | `apps/api/src/docs.ts`   | 301 redirect to `/`. Preserves legacy AFF-220 bookmarks; do not link to `/v1/docs` in new content.                                                                                                 |
+| `GET`  | `/editor`          | `apps/api/src/editor.ts` | 302 redirect to `editor.scalar.com?url=<env-spec>`. Spec URL is derived from `PUBLIC_API_URL` so staging `/editor` opens the staging spec, prod `/editor` opens the prod spec. No auth gate.       |
+| `ANY`  | `/void/*`          | `apps/api/src/void.ts`   | Mock-server echo. Returns `{ method, path, query, headers, body }`. Strict header allowlist — no credentials echoed (authorization, cookie, x-api-key, etc. stripped). 100 KB body cap. CORS open. |
+
 ## Conventions
 
 - `*.openapi.yaml` — one file per service surface (generated from NestJS `@nestjs/swagger` decorators)

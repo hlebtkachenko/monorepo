@@ -643,7 +643,7 @@ jobs:
       # Resolution order:
       #   1. inputs.build_version (explicit override; strip leading "v")
       #   2. git describe --exact-match (tag at HEAD; strip leading "v")
-      #   3. fallback: sha-<short-7-char>
+      #   3. fallback: <nearest-tag>-<short-sha> (e.g. 0.2.3-dfa7401)
       #
       # Plain semver gets the "v" prefix re-added at render time by
       # getBuildVersion() in packages/ui/src/brand-assets/version.ts.
@@ -660,6 +660,9 @@ jobs:
           elif TAG=$(git describe --exact-match --tags HEAD 2>/dev/null); then
             VALUE="${TAG#v}"
             SOURCE="git-tag"
+          elif NEAREST=$(git describe --tags --abbrev=0 HEAD 2>/dev/null); then
+            VALUE="${NEAREST#v}-${SHA:0:7}"
+            SOURCE="nearest-tag+sha"
           else
             VALUE="sha-${SHA:0:7}"
             SOURCE="short-sha"

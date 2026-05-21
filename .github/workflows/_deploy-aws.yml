@@ -984,7 +984,15 @@ jobs:
           if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "Secret $NAME already exists — leaving value untouched."
           else
-            VALUE=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 44)
+            # tr -dc | head -c with bash `set -o pipefail` makes the
+            # whole pipeline fail: head closes its stdin after 44 bytes,
+            # tr writes to the closed pipe and exits non-zero (SIGPIPE).
+            # Read a fixed buffer from urandom first (head terminates by
+            # itself, no SIGPIPE source remains) then filter + truncate.
+            # 4096 bytes of urandom yields >2700 alphanumeric bytes after
+            # the [A-Za-z0-9] filter — far more than the 44 needed.
+            # First-prod-deploy failure mode verified in run 26210479351.
+            VALUE=$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 44)
             echo "::add-mask::$VALUE"
             aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
             echo "Secret $NAME created with fresh 44-char value."

@@ -373,26 +373,33 @@ export function buildOpenApiDocument(): OpenAPIDocument {
     info: {
       title: "Afframe Public API",
       version: API_VERSION,
-      description: [
-        "Public API for the Afframe accounting platform. Authenticate with",
-        "an API key as a bearer token in the form `affk_live_…` (production)",
-        "or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape",
+      description:
+        "Public API for the Afframe accounting platform. Authenticate with " +
+        "an API key as a bearer token in the form `affk_live_…` (production) " +
+        "or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape " +
         "envelope; rate limits are surfaced via IETF `RateLimit-*` headers.",
-        "",
-        "**Resources**",
-        "",
-        "- Developer docs · [docs.afframe.com](https://docs.afframe.com) _(coming soon)_",
-        "- Service status · [status.afframe.com](https://status.afframe.com) — programmatic at `GET /v1/status`",
-        "- Support · [support@afframe.com](mailto:support@afframe.com)",
-        "- Feedback · `POST /v1/feedback` (bug / request / issue / question)",
-      ].join("\n"),
+      // OpenAPI `info.contact` / `info.license` / `info.termsOfService` are
+      // the only header-badge slots Scalar OSS exposes from the spec.
+      // - contact.url → makes "Afframe support" a mailto link
+      // - license.url → makes the license badge clickable
+      // - termsOfService → adds a "Terms" link badge alongside the others
+      // Scalar Cloud has a free-form `navigation.header` array; OSS does
+      // not (ADR-0024 declined Cloud). Status surfaces via `externalDocs`
+      // below — Scalar OSS renders it as one extra clickable badge.
       contact: {
         name: "Afframe support",
         email: "support@afframe.com",
+        url: "mailto:support@afframe.com",
       },
       license: {
         name: "Proprietary — see Terms of Service",
+        url: "https://afframe.com/terms",
       },
+      termsOfService: "https://afframe.com/terms",
+    },
+    externalDocs: {
+      description: "Service status",
+      url: "https://status.afframe.com",
     },
     servers: resolveServers(),
     tags: [

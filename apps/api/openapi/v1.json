@@ -3,14 +3,21 @@
   "info": {
     "title": "Afframe Public API",
     "version": "1.0.0",
-    "description": "Public API for the Afframe accounting platform. Authenticate with\nan API key as a bearer token in the form `affk_live_…` (production)\nor `affk_test_…` (sandbox). Errors are returned in a Plaid-shape\nenvelope; rate limits are surfaced via IETF `RateLimit-*` headers.\n\n**Resources**\n\n- Developer docs · [docs.afframe.com](https://docs.afframe.com) _(coming soon)_\n- Service status · [status.afframe.com](https://status.afframe.com) — programmatic at `GET /v1/status`\n- Support · [support@afframe.com](mailto:support@afframe.com)\n- Feedback · `POST /v1/feedback` (bug / request / issue / question)",
+    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape envelope; rate limits are surfaced via IETF `RateLimit-*` headers.",
     "contact": {
       "name": "Afframe support",
-      "email": "support@afframe.com"
+      "email": "support@afframe.com",
+      "url": "mailto:support@afframe.com"
     },
     "license": {
-      "name": "Proprietary — see Terms of Service"
-    }
+      "name": "Proprietary — see Terms of Service",
+      "url": "https://afframe.com/terms"
+    },
+    "termsOfService": "https://afframe.com/terms"
+  },
+  "externalDocs": {
+    "description": "Service status",
+    "url": "https://status.afframe.com"
   },
   "servers": [
     {

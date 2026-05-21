@@ -40,7 +40,18 @@ import type { ApiOpenApiDocument } from "./openapi"
  * against Scalar v1.1.16's DOM; refine if Scalar changes its class names.
  */
 const CUSTOM_CSS = `
-.light-mode {
+/*
+ * Brand color tokens. Scalar wraps its UI in .scalar-app and applies
+ * its own theme inside :where() (specificity 0). Our overrides target
+ * .light-mode and .dark-mode at the same scope plus :root as a
+ * belt-and-braces fallback for any element that escapes the scoping.
+ * Without the duplication the Scalar default theme wins on some
+ * cascade paths.
+ */
+:root,
+.light-mode,
+.scalar-app.light-mode,
+.scalar-app .light-mode {
   --scalar-color-1: #0A1F1A;
   --scalar-color-2: #475569;
   --scalar-color-3: #64748b;
@@ -50,7 +61,9 @@ const CUSTOM_CSS = `
   --scalar-background-3: #f1f5f9;
   --scalar-border-color: #e2e8f0;
 }
-.dark-mode {
+.dark-mode,
+.scalar-app.dark-mode,
+.scalar-app .dark-mode {
   --scalar-color-1: #F3F4F6;
   --scalar-color-2: #94a3b8;
   --scalar-color-3: #64748b;
@@ -64,6 +77,26 @@ const CUSTOM_CSS = `
   font-family:
     -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Brand logo on the sidebar. Scalar OSS doesn't expose a logo config
+ * field, so the logo is injected as a background image on the sidebar
+ * top via customCss. SVG is served from apps/api/public/favicon.svg by
+ * the static-assets middleware, so the same asset feeds the browser
+ * favicon AND the Scalar mark.
+ *
+ * The selector targets Scalar's sidebar wrapper. If Scalar changes its
+ * DOM in a future major bump, this hides the logo silently — refresh
+ * the selector against the rendered DOM and re-ship.
+ */
+.scalar-app .sidebar,
+.scalar-app aside[class*="sidebar"] {
+  background-image: url("/favicon.svg");
+  background-repeat: no-repeat;
+  background-position: 12px 12px;
+  background-size: 28px 28px;
+  padding-top: 60px;
 }
 
 /*

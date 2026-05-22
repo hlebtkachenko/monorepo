@@ -75,6 +75,11 @@ export function AppContextMenuClient({
       pathname={pathname ?? "/"}
       orgSlug={orgSlug}
       user={user}
+      appConfig={{
+        appName: "the Afframe accounting platform",
+        repoName: "monorepo",
+        framework: "Next.js 16 (App Router) + Turborepo + pnpm workspaces",
+      }}
       onReportBug={onReportBug}
       onAskSidekick={(_, formatted) =>
         void navigator.clipboard

@@ -141,8 +141,8 @@ paths = [
   '''(^|/)_junk/''',
   # Local-dev env files — gitignored, never reach CI, but if someone runs a scan
   # locally (e.g. infisical scan) we don't want to false-positive their machine.
-  '''(^|/)\.env\.local$''',
-  '''(^|/)\.env(\.local)?\.[a-z]+$''',
+  # Covers .env, .env.local, .env.staging, .env.staging.local, etc.
+  '''(^|/)\.env(\.[a-z]+)*$''',
   '''(^|/)docs/plans/''',
   '''(^|/)docs/runbooks/AWS-BOOTSTRAP\.md$''',
   # Documented contracts referencing example secret prefixes (not real values).

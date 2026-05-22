@@ -352,7 +352,8 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
         with:
-          fetch-depth: 0
+          # --no-git below means history is not scanned; shallow clone is enough.
+          fetch-depth: 1
           persist-credentials: false
       - name: Install infisical CLI
         env:

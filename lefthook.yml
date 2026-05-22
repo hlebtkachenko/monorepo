@@ -42,7 +42,7 @@ pre-commit:
       # infisical CLI is not installed.
       run: |
         if command -v infisical >/dev/null 2>&1; then
-          infisical scan git-changes --staged --verbose
+          infisical scan git-changes --staged
         else
           echo "[lefthook infisical-scan] not installed — skipping. brew install infisical to enable."
         fi

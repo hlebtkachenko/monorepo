@@ -228,6 +228,8 @@ Every component MUST:
 
 When importing from upstream, rewrite anything that violates these rules. The upstream is a reference for WHAT the component does, not HOW it should be implemented.
 
+**App-chrome-level blocks** (anything that draws the outer layout shell — e.g. `blocks/app-shell`) use the **shell token family** declared in `globals.css` instead of the global shadcn tokens: `--canvas` (page bg), `--shell-surface` (card bg — deliberately diverges from `--card` in dark mode), `--border-subtle` (outlines + separators), plus the dimension tokens `--shell-rail-width`, `--shell-header-height`, `--shell-bottom-inset`, `--shell-right-inset`, `--shell-handle-width`. In-flow surfaces (dialogs, dropdowns, cards inside the body) keep using the standard shadcn tokens (`bg-card`, etc.) — the separation is intentional.
+
 ## CI / CD
 
 - Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E), `openapi-lint` (OpenAPI spec drift + Spectral lint).

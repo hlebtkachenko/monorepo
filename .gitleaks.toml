@@ -139,6 +139,10 @@ paths = [
   '''(^|/)pnpm-lock\.yaml$''',
   '''(^|/)\.context/''',
   '''(^|/)_junk/''',
+  # Local-dev env files — gitignored, never reach CI, but if someone runs a scan
+  # locally (e.g. infisical scan) we don't want to false-positive their machine.
+  '''(^|/)\.env\.local$''',
+  '''(^|/)\.env(\.local)?\.[a-z]+$''',
   '''(^|/)docs/plans/''',
   '''(^|/)docs/runbooks/AWS-BOOTSTRAP\.md$''',
   # Documented contracts referencing example secret prefixes (not real values).

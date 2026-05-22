@@ -1,5 +1,12 @@
 # Environment variable registry
 
+> **Migration in progress (2026-05-22 → 2026-06):** `BETTER_AUTH_SECRET`,
+> `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN` are moving from AWS Secrets
+> Manager to AWS SSM Parameter Store SecureString (runtime cache for ECS),
+> sourced from Vault-on-VPS (source of truth). Rows for those three will
+> change in M8 once the migration completes. See
+> [`docs/plans/SECRETS-MIGRATION.md`](plans/SECRETS-MIGRATION.md).
+
 Canonical list of every env var read by the app. Pair with
 `scripts/generate-env.sh` (auto-creates `apps/web/.env.local` with random
 secrets) for local dev, or copy `apps/web/.env.example` and fill in

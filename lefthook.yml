@@ -35,6 +35,17 @@ pre-commit:
         else
           echo "[lefthook gitleaks] not installed — skipping. brew install gitleaks to enable local secret scan."
         fi
+    infisical-scan:
+      # Second secret scanner alongside gitleaks. Different rule set + token
+      # heuristics catches what gitleaks misses (and vice-versa). Authoritative
+      # gate is the CI infisical-scan job; local hook is best-effort. No-ops if
+      # infisical CLI is not installed.
+      run: |
+        if command -v infisical >/dev/null 2>&1; then
+          infisical scan git-changes --staged --verbose
+        else
+          echo "[lefthook infisical-scan] not installed — skipping. brew install infisical to enable."
+        fi
     db-schema-snapshot:
       # Auto-regenerates packages/db/schema-snapshot.sql whenever a migration
       # file is staged. Requires a running local Postgres (see LOCAL-DEV.md

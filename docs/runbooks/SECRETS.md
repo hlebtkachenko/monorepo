@@ -1,5 +1,14 @@
 # Secrets and Variables Convention
 
+> **Migration in progress (2026-05-22 → 2026-06):** the secrets stack is moving
+> to Vault-on-VPS + AWS SSM SecureString (Vault = source of truth, SSM = runtime
+> cache for ECS). See [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md)
+>
+> - [`docs/runbooks/VAULT-OPS.md`](VAULT-OPS.md). This document still describes
+>   the current AWS-SM-backed state; it is rewritten in milestone M8 once Vault is
+>   live. The SOPS+age section toward the bottom is slated for deletion in M8
+>   (SOPS+age was never adopted).
+
 ## Decision matrix
 
 | Value                                                           | Type                  | Where                   | Why                                                                                                                                                                                                                                                                            |

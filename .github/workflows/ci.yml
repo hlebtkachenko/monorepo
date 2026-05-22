@@ -338,3 +338,44 @@ jobs:
           gitleaks version
       - name: Scan
         run: gitleaks detect --source . --no-banner --redact --log-level info --exit-code 1
+
+  infisical-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    # Second secret scanner alongside gitleaks. Different rule set + token
+    # heuristics. Both must pass; either is sufficient to block a leak.
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install infisical CLI
+        env:
+          INFISICAL_VERSION: "0.43.85"
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/Infisical/cli/releases/download/v${INFISICAL_VERSION}/cli_${INFISICAL_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin infisical
+          infisical --version
+      - name: Scan
+        # `--no-git`: scan working tree only (history false positives from pre-allowlist
+        # paths are filtered by gitleaks' own job; this job catches new leaks).
+        # `--config`: reuse the existing .gitleaks.toml allowlist + rules.
+        # infisical CLI's `--exit-code` flag is vestigial (always exits 0), so we
+        # post-process the JSON report and fail on any non-allowlisted finding.
+        run: |
+          set -euo pipefail
+          infisical scan --no-git --config .gitleaks.toml \
+            --report-path infisical-report.json --redact --verbose
+          count=$(jq 'length' infisical-report.json)
+          echo "infisical scan: $count finding(s)"
+          if [ "$count" -gt 0 ]; then
+            echo "::error::infisical-scan found $count secret(s). See report below."
+            jq -r '.[] | "::error file=\(.File),line=\(.Line // 0)::\(.RuleID): \(.Description // "secret detected")"' infisical-report.json
+            exit 1
+          fi

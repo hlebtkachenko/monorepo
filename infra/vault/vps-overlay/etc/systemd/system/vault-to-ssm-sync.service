@@ -1,0 +1,29 @@
+[Unit]
+Description=Vault → AWS SSM SecureString sync (every 5 min)
+Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m4--migrate-2-secrets-to-vault--aws-ssm-securestring-tunnel_token-direct-to-ssm
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/vault-to-ssm-sync
+
+# Logs to journald — view with: journalctl -u vault-to-ssm-sync -n 200
+StandardOutput=journal
+StandardError=journal
+
+# Same sandbox shape as vault-backup.service (M2). /var/run for the
+# failure sentinel; /root for the .env read (read-only).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/var/run
+
+# 5-min runs should complete in ~5s normally; 2-min ceiling guards against
+# hung network calls.
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

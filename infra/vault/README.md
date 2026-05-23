@@ -7,21 +7,25 @@ Linear: [AFF-245](https://linear.app/hapddev/issue/AFF-245).
 
 ## File → VPS path mapping
 
-| Repo path                                             | VPS path                                   | Notes                                                                                                      |
-| ----------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `compose.yaml`                                        | `/srv/secrets/vault/compose.yaml`          | Image tags pinned + digest-locked                                                                          |
-| `vault.hcl`                                           | `/srv/secrets/vault/config/vault.hcl`      | Mounted read-only into the container                                                                       |
-| `env.template`                                        | `/srv/secrets/vault/.env`                  | Copy + fill + `chmod 0600`. NEVER commit filled-in copy                                                    |
-| `logrotate.vault-audit`                               | `/etc/logrotate.d/vault-audit`             | 13 weekly rotations, copytruncate                                                                          |
-| `vps-overlay/usr/local/sbin/vault-backup`             | `/usr/local/sbin/vault-backup`             | Backup script. Mode 0755, root:root. **M2**                                                                |
-| `vps-overlay/etc/systemd/system/vault-backup.service` | `/etc/systemd/system/vault-backup.service` | Oneshot. **M2**                                                                                            |
-| `vps-overlay/etc/systemd/system/vault-backup.timer`   | `/etc/systemd/system/vault-backup.timer`   | Fires every 6h; Sunday tick runs B2 mirror + integrity check. **M2**                                       |
-| `vps-overlay/root/.config/restic/env.template`        | `/root/.config/restic/.env`                | Restic + R2 + B2 + Vault credentials. Mode 0600, root:root. **M2**                                         |
-| `policies/read-staging-secrets.hcl`                   | Vault policy `read-staging-secrets`        | Read-only on `platform/data/staging/*`. **M3**                                                             |
-| `policies/read-production-secrets.hcl`                | Vault policy `read-production-secrets`     | Read-only on `platform/data/production/*`. **M3**                                                          |
-| `setup-aws-auth.sh`                                   | Run once on operator laptop                | Enables `vault auth aws`, writes policies, binds `ecs-{staging,production}` roles to ECS task ARNs. **M3** |
+| Repo path                                                          | VPS path                                                | Notes                                                                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `compose.yaml`                                                     | `/srv/secrets/vault/compose.yaml`                       | Image tags pinned + digest-locked                                                                          |
+| `vault.hcl`                                                        | `/srv/secrets/vault/config/vault.hcl`                   | Mounted read-only into the container                                                                       |
+| `env.template`                                                     | `/srv/secrets/vault/.env`                               | Copy + fill + `chmod 0600`. NEVER commit filled-in copy                                                    |
+| `logrotate.vault-audit`                                            | `/etc/logrotate.d/vault-audit`                          | 13 weekly rotations, copytruncate                                                                          |
+| `vps-overlay/usr/local/sbin/vault-backup`                          | `/usr/local/sbin/vault-backup`                          | Backup script. Mode 0755, root:root. **M2**                                                                |
+| `vps-overlay/etc/systemd/system/vault-backup.service`              | `/etc/systemd/system/vault-backup.service`              | Oneshot. **M2**                                                                                            |
+| `vps-overlay/etc/systemd/system/vault-backup.timer`                | `/etc/systemd/system/vault-backup.timer`                | Fires every 6h; Sunday tick runs B2 mirror + integrity check. **M2**                                       |
+| `vps-overlay/root/.config/restic/env.template`                     | `/root/.config/restic/.env`                             | Restic + R2 + B2 + Vault credentials. Mode 0600, root:root. **M2**                                         |
+| `policies/read-staging-secrets.hcl`                                | Vault policy `read-staging-secrets`                     | Read-only on `platform/data/staging/*`. **M3**                                                             |
+| `policies/read-production-secrets.hcl`                             | Vault policy `read-production-secrets`                  | Read-only on `platform/data/production/*`. **M3**                                                          |
+| `setup-aws-auth.sh`                                                | Run once on operator laptop                             | Enables `vault auth aws`, writes policies, binds `ecs-{staging,production}` roles to ECS task ARNs. **M3** |
+| `vps-overlay/usr/local/sbin/vault-to-ssm-sync`                     | `/usr/local/sbin/vault-to-ssm-sync`                     | Vault → SSM sync (every 5 min). **M4**                                                                     |
+| `vps-overlay/etc/systemd/system/vault-to-ssm-sync.{service,timer}` | `/etc/systemd/system/vault-to-ssm-sync.{service,timer}` | systemd unit + timer. **M4**                                                                               |
+| `vps-overlay/root/.config/vault-to-ssm/env.template`               | `/root/.config/vault-to-ssm/.env`                       | Vault token + AWS creds for sync. Mode 0600, root:root. **M4**                                             |
+| `.github/workflows/secrets-drift.yml`                              | GitHub Actions (daily 08:00 UTC)                        | Diffs Vault vs SSM + checks heartbeat freshness; fails on drift. **M4**                                    |
 
-`vault-to-ssm-sync.sh` ships in PR M4.
+CDK refactor (app-stack.ts ~15 sites → `EcsSecret.fromSsmParameter`) lands in PR-D after operator confirms SSM parameters are populated end-to-end.
 
 ## Deploy procedure
 

@@ -261,6 +261,68 @@ vault audit disable file
 3. Bind the policy to a role with the right principal (IAM role ARN for ECS, `repo:org/repo:environment:env` for GHA).
 4. Token TTL = 1h default; refresh logic at workload side.
 
+### M3 bootstrap — enable AWS IAM Auth method for ECS workloads
+
+One-time procedure after PR-B merges and the `vault-aws-auth-verifier` IAM user has access keys.
+
+```bash
+# 1. Generate verifier access keys (operator laptop, AWS admin creds).
+aws iam create-access-key --user-name vault-aws-auth-verifier
+# Escrow output to macOS Keychain:
+#   afframe-vault-aws-auth-verifier-access-key-id
+#   afframe-vault-aws-auth-verifier-secret-access-key
+# Calendar reminder: rotate 90-day cadence.
+
+# 2. Pull the latest infra/vault/ assets to operator laptop.
+cd ~/Developer/monorepo
+git checkout main && git pull
+
+# 3. Log into Vault as root (or token with sys/auth + sys/policies/acl write).
+export VAULT_ADDR=https://secrets-admin.afframe.com
+vault login   # paste root token at prompt
+
+# 4. Run the setup script — discovers ECS task role ARNs, enables aws auth,
+#    writes policies, binds ecs-{staging,production} roles.
+infra/vault/setup-aws-auth.sh
+# Script prompts for the verifier creds from step 1 (won't echo).
+```
+
+Verify from a throwaway ECS task (inside an `aws ecs run-task` against the staging cluster, using the staging task role):
+
+```bash
+# Inside the task container — uses task-role IAM credentials automatically.
+vault write auth/aws/login role=ecs-staging
+# Returns an `hvs.XXX` token with policy=read-staging-secrets, ttl=1h.
+vault token lookup <issued-token>
+# Audit log: confirm the login event records sub=arn:aws:iam::<acct>:role/App-staging-TaskRole...
+```
+
+Rollback if the auth chain misbehaves:
+
+```bash
+vault auth disable aws    # all ecs-{staging,production} sessions invalidated
+vault policy delete read-staging-secrets
+vault policy delete read-production-secrets
+```
+
+Workloads fall back to AWS Secrets Manager (no change required at the ECS side until M4 refactor lands).
+
+### M3.5 — revoke initial root token (24h after M3 verification)
+
+```bash
+# Pre-check: at least one OIDC login in audit log within last 24h
+sudo tail -200 /srv/secrets/vault/audit/audit.log | jq -r 'select(.request.path == "auth/oidc/oidc/callback") | .time' | head
+
+# Pre-check: at least one ECS task aws auth in audit log within last 24h
+sudo tail -200 /srv/secrets/vault/audit/audit.log | jq -r 'select(.request.path | startswith("auth/aws/login")) | .time' | head
+
+# Both > 0? Safe to revoke.
+vault token revoke <initial-root-token-from-M1-escrow>
+vault token lookup -accessor <root-accessor-from-M1-escrow>   # expect 404
+```
+
+The 5 recovery keys remain in escrow — they regenerate root tokens on demand via `vault operator generate-root` (see "Recovery key procedures" above).
+
 ## Irreversible operations register
 
 See [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md#irreversible-operations-register).

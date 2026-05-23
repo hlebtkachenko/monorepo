@@ -56,11 +56,44 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
     })
   })
 
-  it("creates exactly one IAM user named vault-unseal-vps", () => {
-    template.resourceCountIs("AWS::IAM::User", 1)
+  it("creates two IAM users: vault-unseal-vps + vault-aws-auth-verifier", () => {
+    template.resourceCountIs("AWS::IAM::User", 2)
     template.hasResourceProperties("AWS::IAM::User", {
       UserName: "vault-unseal-vps",
     })
+    template.hasResourceProperties("AWS::IAM::User", {
+      UserName: "vault-aws-auth-verifier",
+    })
+  })
+
+  it("vault-aws-auth-verifier has only the 4 identity-check actions (no KMS / no SSM / no SM)", () => {
+    template.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Sid: "VaultAwsAuthVerifierIdentityChecks",
+            Effect: "Allow",
+            Action: Match.arrayWith([
+              "sts:GetCallerIdentity",
+              "iam:GetUser",
+              "iam:GetRole",
+              "iam:GetInstanceProfile",
+            ]),
+            Resource: "*",
+          }),
+        ]),
+      },
+      Users: Match.arrayWith([
+        Match.objectLike({
+          Ref: Match.stringLikeRegexp("VaultAwsAuthVerifierUser"),
+        }),
+      ]),
+    })
+  })
+
+  it("exposes vault-aws-auth-verifier user on the stack instance + CfnOutput", () => {
+    expect(stack.vaultAwsAuthVerifierUser).toBeDefined()
+    template.hasOutput("VaultAwsAuthVerifierUserName", {})
   })
 
   it("does NOT create an access key in CFN (operator generates out-of-band)", () => {

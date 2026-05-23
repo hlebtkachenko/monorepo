@@ -36,6 +36,7 @@ import type { Construct } from "constructs"
 export class SecretsStack extends Stack {
   readonly vaultUnsealKey: Key
   readonly vaultUnsealUser: User
+  readonly vaultAwsAuthVerifierUser: User
 
   constructor(scope: Construct, id: string, props: StackProps) {
     super(scope, id, props)
@@ -80,6 +81,43 @@ export class SecretsStack extends Stack {
       }),
     )
 
+    // ---- Vault AWS IAM Auth method verifier (M3) --------------------
+    //
+    // The Vault `aws auth` method needs an AWS credential of its own to
+    // VERIFY the identity of incoming task-role auth requests (via
+    // sts:GetCallerIdentity + iam:GetRole). This user is NOT the principal
+    // tasks authenticate AS — tasks authenticate as their ECS task role.
+    // It's the read-only verifier Vault uses to call AWS APIs.
+    //
+    // No KMS access; no Secrets Manager access; no SSM access. Only the
+    // four AWS APIs Vault calls during identity verification.
+    //
+    // Access keys generated out-of-band via
+    //   aws iam create-access-key --user-name vault-aws-auth-verifier
+    // and stored in macOS Keychain. The keys are pasted into Vault via
+    // `vault write auth/aws/config/client access_key=... secret_key=...`
+    // and from then on live only inside Vault's encrypted storage.
+    // Rotate every 90 days.
+    this.vaultAwsAuthVerifierUser = new User(this, "VaultAwsAuthVerifierUser", {
+      userName: "vault-aws-auth-verifier",
+    })
+    this.vaultAwsAuthVerifierUser.addToPolicy(
+      new PolicyStatement({
+        sid: "VaultAwsAuthVerifierIdentityChecks",
+        actions: [
+          "sts:GetCallerIdentity",
+          "iam:GetUser",
+          "iam:GetRole",
+          "iam:GetInstanceProfile",
+        ],
+        // Verifier reads role/user/instance-profile metadata of any
+        // principal that tries to authenticate. Scoping by ARN here would
+        // require predicting future ECS task role ARNs at stack-build
+        // time; the read-only nature of the actions makes `*` acceptable.
+        resources: ["*"],
+      }),
+    )
+
     new CfnOutput(this, "VaultUnsealKeyId", {
       value: this.vaultUnsealKey.keyId,
       description:
@@ -96,6 +134,12 @@ export class SecretsStack extends Stack {
       value: this.vaultUnsealUser.userName,
       description:
         "IAM user name. Generate access keys with `aws iam create-access-key --user-name vault-unseal-vps` after this stack deploys; store output in macOS Keychain + paper-at-safe-deposit.",
+    })
+
+    new CfnOutput(this, "VaultAwsAuthVerifierUserName", {
+      value: this.vaultAwsAuthVerifierUser.userName,
+      description:
+        "IAM user that Vault calls AWS as while verifying incoming ECS task-role auth requests (M3). Generate access keys with `aws iam create-access-key --user-name vault-aws-auth-verifier`; paste into Vault via `vault write auth/aws/config/client`. Rotate every 90 days.",
     })
   }
 }

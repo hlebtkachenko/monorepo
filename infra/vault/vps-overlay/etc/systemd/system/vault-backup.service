@@ -16,9 +16,12 @@ StandardError=journal
 # Sandbox what we can while keeping docker access.
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
+# `read-only` (not `true`) — the script reads /root/.config/restic/.env at
+# startup; `ProtectHome=true` masks /root entirely and the script aborts
+# with "missing .env (mode 0600)" before doing anything.
+ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/srv/secrets/vault /var/run /root/.config/restic
+ReadWritePaths=/srv/secrets/vault /var/run
 
 # Allow up to 30 min — large repos + B2 weekly + integrity check can be slow.
 TimeoutStartSec=1800

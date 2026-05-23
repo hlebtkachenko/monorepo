@@ -1,0 +1,23 @@
+# Vault audit-log rotation. Lives at /etc/logrotate.d/vault-audit on the
+# Hostinger VPS. Tracks: AFF-245 M1 step 4. Plan: docs/plans/SECRETS-MIGRATION.md
+# § "should-fix #10" (advisor Gate 0).
+#
+# Why: the file-based audit device at /srv/secrets/vault/audit/audit.log
+# is the SOC 2 / DORA evidence trail. Vault does not auto-rotate this file
+# (`vault audit enable file` writes append-only). Without rotation it grows
+# unboundedly. `copytruncate` is mandatory — Vault keeps a held fd open and
+# will NOT reopen the file if we move it.
+#
+# 13 weekly rotations match the SOC 2 13-month retention floor (deferred to
+# Loki shipping in AFF-244; the file backend stays as the day-1 evidence).
+
+/srv/secrets/vault/audit/audit.log {
+    weekly
+    rotate 13
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    create 0640 root root
+}

@@ -143,6 +143,15 @@ paths = [
   # locally (e.g. infisical scan) we don't want to false-positive their machine.
   # Covers .env, .env.local, .env.staging, .env.staging.local, etc.
   '''(^|/)\.env(\.[a-z]+)*$''',
+  # CDK synth output — gitignored, walks filesystem on local scans. The S3
+  # asset keys are 40-char hex hashes that trip the generic-api-key heuristic.
+  '''(^|/)cdk\.out/''',
+  # Vault VPS bring-up assets. The HCL embeds a KMS Key ID (a public AWS
+  # resource identifier, gated by IAM — not a secret) and compose.yaml pins
+  # docker image sha256 digests; both trip generic-api-key. Real secrets for
+  # this surface live in `.env` (already path-allowlisted above and gitignored
+  # on the VPS — never committed).
+  '''(^|/)infra/vault/''',
   '''(^|/)docs/plans/''',
   '''(^|/)docs/runbooks/AWS-BOOTSTRAP\.md$''',
   # Documented contracts referencing example secret prefixes (not real values).

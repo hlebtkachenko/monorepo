@@ -6,6 +6,7 @@ import { AppStack } from "../lib/app-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
 import { SecurityStack } from "../lib/security-stack.js"
 import { BackupStack } from "../lib/backup-stack.js"
+import { SecretsStack } from "../lib/secrets-stack.js"
 
 const app = new App()
 
@@ -134,6 +135,12 @@ new BackupStack(app, `Backup-${env}`, {
   dataStack: data,
   appSecurityGroup: network.appSecurityGroup,
 })
+
+// Shared (non-per-env) bootstrap stack. Owns the Vault auto-unseal KMS CMK +
+// the dedicated IAM user. Deploy once, manually: `cdk deploy SecretsBootstrap`.
+// Not wired into the per-env deploy workflow because (a) it spans envs and
+// (b) the per-env workflows must not be able to re-deploy or destroy it.
+new SecretsStack(app, "SecretsBootstrap", { env: stackEnv })
 
 Tags.of(app).add("Environment", env)
 Tags.of(app).add("Repo", "hlebtkachenko/monorepo")

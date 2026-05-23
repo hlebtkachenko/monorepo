@@ -33,7 +33,13 @@ services:
       # Bind to loopback ONLY. Cloudflare Tunnel sidecar reaches Vault via the
       # Docker network; nothing on the public host port should answer.
       - "127.0.0.1:8200:8200"
-    command: server -config=/vault/config/vault.hcl
+    # `vault server` only. The hashicorp/vault entrypoint auto-appends
+    # `-config=$VAULT_CONFIG_DIR` (default /vault/config). Passing
+    # `-config=/vault/config/vault.hcl` here ALSO would make Vault load the
+    # HCL twice and fail at startup with `error: more than one enabled seal
+    # found`. The config dir mount above is read-only and contains only
+    # vault.hcl, so the auto-scan reads exactly one file.
+    command: server
     healthcheck:
       # Vault is healthy when /v1/sys/health returns 200 (initialized + unsealed
       # + active). During boot it returns 501 until the KMS unseal completes,

@@ -59,16 +59,20 @@ SNAP_DIR=$(mktemp -d -t vault-backup.XXXXXXXX)
 trap 'rm -rf "$SNAP_DIR"' EXIT
 SNAP="$SNAP_DIR/vault-snap-$(date -u +%Y%m%dT%H%M%SZ).snap"
 
+# Compose service name (compose.yaml key) vs container name (container_name
+# field) — `docker compose exec` takes a SERVICE; `docker cp` takes a
+# CONTAINER. Keeping both lets us be precise.
+VAULT_SERVICE=vault
 VAULT_CONTAINER=afframe-vault
 COMPOSE_FILE=/srv/secrets/vault/compose.yaml
 
 echo "[vault-backup] taking raft snapshot → $SNAP"
 docker compose -f "$COMPOSE_FILE" exec -T \
   -e VAULT_TOKEN="$VAULT_TOKEN" \
-  "$VAULT_CONTAINER" vault operator raft snapshot save /tmp/snap.snap
+  "$VAULT_SERVICE" vault operator raft snapshot save /tmp/snap.snap
 
 docker cp "$VAULT_CONTAINER:/tmp/snap.snap" "$SNAP"
-docker compose -f "$COMPOSE_FILE" exec -T "$VAULT_CONTAINER" rm -f /tmp/snap.snap
+docker compose -f "$COMPOSE_FILE" exec -T "$VAULT_SERVICE" rm -f /tmp/snap.snap
 
 echo "[vault-backup] snapshot size: $(stat -c %s "$SNAP") bytes"
 

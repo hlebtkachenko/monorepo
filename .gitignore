@@ -60,6 +60,11 @@ apps/web/e2e/.results/
 # CDK regenerates the file on demand on every synth.
 infra/cdk/cdk.context.json
 
+# codegraph / graphify local index + reports (per-worktree, never committed)
+.codegraph/
+graphify-out/
+.graphify/
+
 # Misc
 .DS_Store
 *.pem

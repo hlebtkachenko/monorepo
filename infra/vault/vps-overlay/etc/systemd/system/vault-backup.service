@@ -1,5 +1,5 @@
 [Unit]
-Description=Vault backup → restic → R2 (primary) + B2 (secondary weekly)
+Description=Vault backup → restic → R2 (primary; B2 secondary deferred per AFF-246)
 Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m2--backup-setup-restic--r2--b2--dr-restore-drill
 After=docker.service
 Requires=docker.service
@@ -13,6 +13,15 @@ ExecStart=/usr/local/sbin/vault-backup
 StandardOutput=journal
 StandardError=journal
 
+# Restic cache lives under /var/cache/restic (NOT $HOME/.cache/restic, which
+# would land in /root and trip `ProtectHome=read-only`). The script needs to
+# write here to avoid the `chtimes ...: read-only file system` cosmetic
+# warning + future cache-hit speedups on larger repos.
+Environment=RESTIC_CACHE_DIR=/var/cache/restic
+# Ensure the cache dir exists with the right perms before ExecStart runs.
+ExecStartPre=/bin/mkdir -p /var/cache/restic
+ExecStartPre=/bin/chmod 0700 /var/cache/restic
+
 # Sandbox what we can while keeping docker access.
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -21,7 +30,7 @@ ProtectSystem=strict
 # with "missing .env (mode 0600)" before doing anything.
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/srv/secrets/vault /var/run
+ReadWritePaths=/srv/secrets/vault /var/run /var/cache/restic
 
 # Allow up to 30 min — large repos + B2 weekly + integrity check can be slow.
 TimeoutStartSec=1800

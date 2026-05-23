@@ -1,6 +1,6 @@
 # Vault Operations Runbook
 
-> **Status:** M1 closed 2026-05-23 (advisor Gate 1: GO WITH CHANGES, applied here). Sections grow as M2–M10 of [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md) ship.
+> **Status:** M1 + M2 functional pass 2026-05-23 (M2 backup chain live; 7-day uptime soak underway; DR drill deferred to [AFF-247](https://linear.app/hapddev/issue/AFF-247); B2 secondary deferred to [AFF-246](https://linear.app/hapddev/issue/AFF-246)). Sections grow as M3–M10 of [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md) ship.
 >
 > **Backs:** [AFF-245](https://linear.app/hapddev/issue/AFF-245).
 >
@@ -43,6 +43,55 @@ ssh -t afframe-vps 'sudo tail -1 /srv/secrets/vault/audit/audit.log | jq .time'
 ssh afframe-vps 'df -h /srv/secrets/vault/audit && stat -c "%U:%G %a" /srv/secrets/vault/audit'
 # expect: not tmpfs; ownership UID 100 / GID 1000; mode 700
 ```
+
+## M2 as-built (2026-05-23 functional pass)
+
+| Asset                   | Location                                                                                                                                                               |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backup script           | `/usr/local/sbin/vault-backup` (source: `infra/vault/vps-overlay/usr/local/sbin/vault-backup`); reads `/root/.config/restic/.env` via `set -a`                         |
+| systemd unit            | `/etc/systemd/system/vault-backup.{service,timer}`; `ProtectHome=read-only`, `RESTIC_CACHE_DIR=/var/cache/restic`, `TimeoutStartSec=1800`                              |
+| Restic repo (primary)   | `s3:https://e891323bcdc79af6e2b692027f14674c.eu.r2.cloudflarestorage.com/afframe-vault-backup` (Cloudflare R2, EU region, repo id `5b5e8232`)                          |
+| Restic repo (secondary) | DEFERRED → [AFF-246](https://linear.app/hapddev/issue/AFF-246)                                                                                                         |
+| Restic password         | macOS Keychain item `afframe-vault-restic-password` + paper-at-safe-deposit                                                                                            |
+| R2 token                | macOS Keychain items `afframe-vault-r2-access-key-id` + `afframe-vault-r2-secret-access-key` (S3-compatible, scoped to bucket, TTL 2027-05-23 → rotate 90-day cadence) |
+| Backup cadence          | every 6h UTC (`OnCalendar=*-*-* 00,06,12,18:00:00 UTC`); Sunday < 06:00 UTC tick adds `restic check --read-data-subset=5%`                                             |
+| Retention               | `restic forget --keep-daily 7 --keep-weekly 12 --keep-monthly 12 --prune`                                                                                              |
+| Failure signal          | sentinel file `/var/run/vault-backup.failed` (`test -e` for monitoring) + non-zero systemd exit                                                                        |
+| First snapshot          | `b1988da1` (2026-05-23 14:34:43 UTC, 14.9 KiB raw → 15.5 KiB stored)                                                                                                   |
+| DR drill                | DEFERRED → [AFF-247](https://linear.app/hapddev/issue/AFF-247) — restore is unverified end-to-end                                                                      |
+
+### M2 30-second smoke
+
+```bash
+# Timer queued, last run successful
+ssh -t afframe-vps 'sudo systemctl list-timers vault-backup.timer --no-pager'
+ssh -t afframe-vps 'sudo systemctl status vault-backup.service --no-pager | head -20'
+
+# Snapshots present
+ssh -t afframe-vps 'sudo bash -c "set -a; . /root/.config/restic/.env; set +a; restic -r \"\$RESTIC_REPOSITORY_PRIMARY\" snapshots"'
+
+# Sentinel absent (no recent failures)
+ssh -t afframe-vps 'test -e /var/run/vault-backup.failed && echo FAILED || echo clean'
+
+# Last journalctl line ends with DONE OK
+ssh -t afframe-vps 'sudo journalctl -u vault-backup --no-pager -n 5'
+```
+
+### Ad-hoc manual backup
+
+```bash
+ssh -t afframe-vps 'sudo systemctl start vault-backup.service'
+# Inspect:
+ssh -t afframe-vps 'sudo journalctl -u vault-backup --no-pager -n 30'
+```
+
+### Disable the timer (emergency)
+
+```bash
+ssh -t afframe-vps 'sudo systemctl disable --now vault-backup.timer'
+```
+
+After re-enabling, the missed runs catch up (`Persistent=true`).
 
 ## At a glance
 

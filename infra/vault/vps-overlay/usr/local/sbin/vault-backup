@@ -23,8 +23,14 @@ if [[ ! -r "$CONFIG_FILE" ]]; then
   echo "[vault-backup] missing $CONFIG_FILE (mode 0600); aborting" >&2
   exit 1
 fi
+# `set -a` exports every var assigned by the sourced file so child processes
+# (restic, docker-compose, vault) see them. Without it, only the parent shell
+# has the vars and restic fails with `unable to open config file: Stat:
+# Authorization` (AWS_* not in its env).
+set -a
 # shellcheck disable=SC1090
 source "$CONFIG_FILE"
+set +a
 
 REQUIRED_VARS=(
   RESTIC_PASSWORD

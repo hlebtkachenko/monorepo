@@ -47,6 +47,11 @@ _junk/
 # writes here, the contents belong in a Linear issue or .claude/ — not git)
 .planning/
 
+# Conductor per-workspace agent collab dir (ephemeral, local-only).
+# `.context/` holds scratch docs and archived snapshots agents pass between
+# turns. Belongs in a Linear issue or .claude/ once durable — never on main.
+.context/
+
 # Playwright
 .auth
 playwright-report

@@ -73,7 +73,7 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["OPENFGA_HTTP_ADDR"]).toBe("127.0.0.1:8080")
   })
 
-  it("api receives OPENFGA_API_URL + SSM-backed store/model ids", () => {
+  it("api receives OPENFGA_API_URL + SSM-backed store/model ids + email transport", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -94,9 +94,16 @@ describe("AppStack Fargate hardening", () => {
     // redirect target is wired per-env (so staging /editor opens the
     // staging spec, not prod). TEST_ENV_NAME="test", so expect staging.
     expect(envByName["PUBLIC_API_URL"]).toBe("https://api-staging.afframe.com")
+    // FeedbackController + future v1 handlers send via packages/email. Without
+    // EMAIL_FROM / EMAIL_TRANSPORT / RESEND_API_KEY wired, pickTransport()
+    // silently returns ConsoleTransport and every dispatch drops to CloudWatch.
+    // Mirrors web/admin container assertions below.
+    expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
+    expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
     const secretNames = (api?.Secrets ?? []).map((s) => s.Name)
     expect(secretNames).toContain("OPENFGA_STORE_ID")
     expect(secretNames).toContain("OPENFGA_MODEL_ID")
+    expect(secretNames).toContain("RESEND_API_KEY")
   })
 
   it("cerbos sidecar is present with telemetry disabled", () => {

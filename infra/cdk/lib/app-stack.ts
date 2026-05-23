@@ -633,6 +633,13 @@ export class AppStack extends Stack {
             : "https://api-staging.afframe.com",
         // L2 OpenFGA sidecar (HTTP). API URL is loopback inside the task.
         OPENFGA_API_URL: "http://localhost:8080",
+        // Email — same Resend transport + parent-domain sender as web/admin.
+        // V1Module's FeedbackController dispatches to support+feedback@ via
+        // packages/email; without these vars pickTransport() returns the
+        // ConsoleTransport and every send is silently logged to CloudWatch.
+        AWS_REGION: this.region,
+        EMAIL_FROM: props.mailFromAddress,
+        EMAIL_TRANSPORT: "resend",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
@@ -646,6 +653,7 @@ export class AppStack extends Stack {
         // first App-{env} deploy.
         OPENFGA_STORE_ID: EcsSecret.fromSsmParameter(openfgaStoreIdParam),
         OPENFGA_MODEL_ID: EcsSecret.fromSsmParameter(openfgaModelIdParam),
+        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
       },
       entryPoint: ["/bin/sh", "-c"],
       command: [

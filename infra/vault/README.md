@@ -99,10 +99,12 @@ Pre-requisites:
 - M1 closed: Vault running, sealed false, `vault status` healthy.
 - Cloudflare R2 bucket `afframe-vault-backup` (EU region) created + R2 API
   token scoped read/write to that bucket only.
-- Backblaze B2 bucket `afframe-vault-backup-secondary` created + B2 app key
-  scoped to that bucket only.
 - Restic repo password generated (`openssl rand -base64 32`), escrowed to
   macOS Keychain entry `afframe-vault-restic-password` + paper-at-safe-deposit.
+- **B2 secondary mirror is deferred per [AFF-246](https://linear.app/hapddev/issue/AFF-246)**;
+  ship the R2-only config. The script auto-detects the missing B2 env vars
+  and skips the weekly mirror cleanly — re-enable later by populating
+  `B2_*` + `RESTIC_REPOSITORY_SECONDARY` in `.env`.
 
 ```bash
 # 1. Stage assets to operator home on VPS.
@@ -130,12 +132,13 @@ ssh -t afframe-vps 'sudo apt update && sudo apt install -y restic'
 #    AWS_SECRET_ACCESS_KEY, B2_ACCOUNT_ID, B2_ACCOUNT_KEY, VAULT_TOKEN).
 ssh -t afframe-vps 'sudo nano /root/.config/restic/.env'
 
-# 5. Initialize both restic repos (ONE-TIME).
+# 5. Initialize restic repo (ONE-TIME).
 ssh -t afframe-vps '
   set -e
   set -a; source /root/.config/restic/.env; set +a
   sudo -E restic -r "$RESTIC_REPOSITORY_PRIMARY" init
-  sudo -E restic -r "$RESTIC_REPOSITORY_SECONDARY" init
+  # When AFF-246 lands and B2 is added to .env, also run:
+  # sudo -E restic -r "$RESTIC_REPOSITORY_SECONDARY" init
 '
 
 # 6. First run manually to confirm everything wires.

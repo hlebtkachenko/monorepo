@@ -29,11 +29,8 @@ source "$CONFIG_FILE"
 REQUIRED_VARS=(
   RESTIC_PASSWORD
   RESTIC_REPOSITORY_PRIMARY
-  RESTIC_REPOSITORY_SECONDARY
-  AWS_ACCESS_KEY_ID            # R2 token id  (S3-compatible API)
+  AWS_ACCESS_KEY_ID            # R2 token id (S3-compatible API)
   AWS_SECRET_ACCESS_KEY        # R2 token secret
-  B2_ACCOUNT_ID
-  B2_ACCOUNT_KEY
   VAULT_TOKEN                  # for `vault operator raft snapshot save`
 )
 for v in "${REQUIRED_VARS[@]}"; do
@@ -42,6 +39,15 @@ for v in "${REQUIRED_VARS[@]}"; do
     exit 1
   fi
 done
+
+# B2 (secondary) is optional — deferred to AFF-246. When all three of
+# RESTIC_REPOSITORY_SECONDARY, B2_ACCOUNT_ID, B2_ACCOUNT_KEY are non-empty,
+# the weekly Sunday tick mirrors to B2 + runs `restic check`. Otherwise the
+# script ships R2 only (and skips the weekly B2 leg silently).
+B2_ENABLED=0
+if [[ -n "${RESTIC_REPOSITORY_SECONDARY:-}" && -n "${B2_ACCOUNT_ID:-}" && -n "${B2_ACCOUNT_KEY:-}" ]]; then
+  B2_ENABLED=1
+fi
 
 # Operator-side fail-fast sentinel: monitoring can `test -e` this file to page.
 SENTINEL=/var/run/vault-backup.failed
@@ -79,7 +85,7 @@ RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic forget \
   --keep-daily 7 --keep-weekly 12 --keep-monthly 12 \
   --prune
 
-# --- weekly: secondary + integrity check ---------------------------------
+# --- weekly: secondary mirror (if B2 enabled) + integrity check ----------
 
 # Weekly tick: Sunday + within the first hour of the timer firing
 # (timer fires every 6h so this hits Sunday 00:00–05:59 once a week).
@@ -88,19 +94,24 @@ HOUR=$(date -u +%H)
 WEEKLY_FAILED=0
 
 if [[ "$DAY_OF_WEEK" == "7" && "$HOUR" -lt 6 ]]; then
-  echo "[vault-backup] weekly tick — mirroring to B2 ($RESTIC_REPOSITORY_SECONDARY)"
-  if ! RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic backup \
-       --tag vault --tag weekly --tag "ts=$(date -u +%FT%TZ)" \
-       "$SNAP"; then
-    echo "[vault-backup] B2 backup FAILED (primary R2 still clean)" >&2
-    WEEKLY_FAILED=1
+  if [[ "$B2_ENABLED" == "1" ]]; then
+    echo "[vault-backup] weekly tick — mirroring to B2 ($RESTIC_REPOSITORY_SECONDARY)"
+    if ! RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic backup \
+         --tag vault --tag weekly --tag "ts=$(date -u +%FT%TZ)" \
+         "$SNAP"; then
+      echo "[vault-backup] B2 backup FAILED (primary R2 still clean)" >&2
+      WEEKLY_FAILED=1
+    else
+      RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic forget \
+        --tag vault \
+        --keep-weekly 12 --keep-monthly 12 \
+        --prune || WEEKLY_FAILED=1
+    fi
   else
-    RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic forget \
-      --tag vault \
-      --keep-weekly 12 --keep-monthly 12 \
-      --prune || WEEKLY_FAILED=1
+    echo "[vault-backup] weekly tick — B2 secondary not configured (AFF-246); skipping mirror"
   fi
 
+  # Integrity check runs on R2 regardless of B2 — it's a primary-store check.
   echo "[vault-backup] weekly integrity check on R2 (5% data sample)"
   if ! RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic check \
        --read-data-subset=5%; then

@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Vault backup → restic → Cloudflare R2 (primary) + Backblaze B2 (secondary).
+# Lives at /usr/local/sbin/vault-backup on the Hostinger KVM 2 VPS.
+#
+# Invoked by /etc/systemd/system/vault-backup.service (oneshot), triggered
+# every 6h by vault-backup.timer. The first hourly tick of each Sunday also
+# runs the weekly B2 mirror + `restic check --read-data-subset=5%` integrity
+# pass (advisor Gate 0 should-fix #8).
+#
+# Tracks: AFF-245 M2. Plan: docs/plans/SECRETS-MIGRATION.md § M2 task 3.
+#
+# Exit codes:
+#   0  — at least the primary R2 backup landed cleanly
+#   1  — primary backup failed (or token / env missing)
+#   2  — primary OK but secondary B2 (or check) failed on the weekly tick
+
+set -euo pipefail
+
+# --- config (load credentials only; everything else is inline) -----------
+
+CONFIG_FILE=/root/.config/restic/.env
+if [[ ! -r "$CONFIG_FILE" ]]; then
+  echo "[vault-backup] missing $CONFIG_FILE (mode 0600); aborting" >&2
+  exit 1
+fi
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+
+REQUIRED_VARS=(
+  RESTIC_PASSWORD
+  RESTIC_REPOSITORY_PRIMARY
+  RESTIC_REPOSITORY_SECONDARY
+  AWS_ACCESS_KEY_ID            # R2 token id  (S3-compatible API)
+  AWS_SECRET_ACCESS_KEY        # R2 token secret
+  B2_ACCOUNT_ID
+  B2_ACCOUNT_KEY
+  VAULT_TOKEN                  # for `vault operator raft snapshot save`
+)
+for v in "${REQUIRED_VARS[@]}"; do
+  if [[ -z "${!v:-}" ]]; then
+    echo "[vault-backup] required env var $v is empty; aborting" >&2
+    exit 1
+  fi
+done
+
+# Operator-side fail-fast sentinel: monitoring can `test -e` this file to page.
+SENTINEL=/var/run/vault-backup.failed
+rm -f "$SENTINEL"
+
+# --- snapshot Vault Raft store into a temp file --------------------------
+
+SNAP_DIR=$(mktemp -d -t vault-backup.XXXXXXXX)
+trap 'rm -rf "$SNAP_DIR"' EXIT
+SNAP="$SNAP_DIR/vault-snap-$(date -u +%Y%m%dT%H%M%SZ).snap"
+
+VAULT_CONTAINER=afframe-vault
+COMPOSE_FILE=/srv/secrets/vault/compose.yaml
+
+echo "[vault-backup] taking raft snapshot → $SNAP"
+docker compose -f "$COMPOSE_FILE" exec -T \
+  -e VAULT_TOKEN="$VAULT_TOKEN" \
+  "$VAULT_CONTAINER" vault operator raft snapshot save /tmp/snap.snap
+
+docker cp "$VAULT_CONTAINER:/tmp/snap.snap" "$SNAP"
+docker compose -f "$COMPOSE_FILE" exec -T "$VAULT_CONTAINER" rm -f /tmp/snap.snap
+
+echo "[vault-backup] snapshot size: $(stat -c %s "$SNAP") bytes"
+
+# --- primary backup → R2 -------------------------------------------------
+
+echo "[vault-backup] uploading to R2 ($RESTIC_REPOSITORY_PRIMARY)"
+RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic backup \
+  --tag vault --tag "host=$(hostname)" --tag "ts=$(date -u +%FT%TZ)" \
+  "$SNAP"
+
+echo "[vault-backup] R2 forget+prune (7d/12w/12m retention)"
+RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic forget \
+  --tag vault \
+  --keep-daily 7 --keep-weekly 12 --keep-monthly 12 \
+  --prune
+
+# --- weekly: secondary + integrity check ---------------------------------
+
+# Weekly tick: Sunday + within the first hour of the timer firing
+# (timer fires every 6h so this hits Sunday 00:00–05:59 once a week).
+DAY_OF_WEEK=$(date -u +%u)
+HOUR=$(date -u +%H)
+WEEKLY_FAILED=0
+
+if [[ "$DAY_OF_WEEK" == "7" && "$HOUR" -lt 6 ]]; then
+  echo "[vault-backup] weekly tick — mirroring to B2 ($RESTIC_REPOSITORY_SECONDARY)"
+  if ! RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic backup \
+       --tag vault --tag weekly --tag "ts=$(date -u +%FT%TZ)" \
+       "$SNAP"; then
+    echo "[vault-backup] B2 backup FAILED (primary R2 still clean)" >&2
+    WEEKLY_FAILED=1
+  else
+    RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic forget \
+      --tag vault \
+      --keep-weekly 12 --keep-monthly 12 \
+      --prune || WEEKLY_FAILED=1
+  fi
+
+  echo "[vault-backup] weekly integrity check on R2 (5% data sample)"
+  if ! RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic check \
+       --read-data-subset=5%; then
+    echo "[vault-backup] restic check FAILED on R2" >&2
+    WEEKLY_FAILED=1
+  fi
+fi
+
+if [[ "$WEEKLY_FAILED" == "1" ]]; then
+  touch "$SENTINEL"
+  echo "[vault-backup] DONE with WEEKLY FAILURE — primary backup OK, secondary/check failed"
+  exit 2
+fi
+
+echo "[vault-backup] DONE OK"

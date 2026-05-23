@@ -7,15 +7,18 @@ Linear: [AFF-245](https://linear.app/hapddev/issue/AFF-245).
 
 ## File → VPS path mapping
 
-| Repo path               | VPS path                              | Notes                                                   |
-| ----------------------- | ------------------------------------- | ------------------------------------------------------- |
-| `compose.yaml`          | `/srv/secrets/vault/compose.yaml`     | Image tags pinned + digest-locked                       |
-| `vault.hcl`             | `/srv/secrets/vault/config/vault.hcl` | Mounted read-only into the container                    |
-| `env.template`          | `/srv/secrets/vault/.env`             | Copy + fill + `chmod 0600`. NEVER commit filled-in copy |
-| `logrotate.vault-audit` | `/etc/logrotate.d/vault-audit`        | 13 weekly rotations, copytruncate                       |
+| Repo path                                             | VPS path                                   | Notes                                                                |
+| ----------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------- |
+| `compose.yaml`                                        | `/srv/secrets/vault/compose.yaml`          | Image tags pinned + digest-locked                                    |
+| `vault.hcl`                                           | `/srv/secrets/vault/config/vault.hcl`      | Mounted read-only into the container                                 |
+| `env.template`                                        | `/srv/secrets/vault/.env`                  | Copy + fill + `chmod 0600`. NEVER commit filled-in copy              |
+| `logrotate.vault-audit`                               | `/etc/logrotate.d/vault-audit`             | 13 weekly rotations, copytruncate                                    |
+| `vps-overlay/usr/local/sbin/vault-backup`             | `/usr/local/sbin/vault-backup`             | Backup script. Mode 0755, root:root. **M2**                          |
+| `vps-overlay/etc/systemd/system/vault-backup.service` | `/etc/systemd/system/vault-backup.service` | Oneshot. **M2**                                                      |
+| `vps-overlay/etc/systemd/system/vault-backup.timer`   | `/etc/systemd/system/vault-backup.timer`   | Fires every 6h; Sunday tick runs B2 mirror + integrity check. **M2** |
+| `vps-overlay/root/.config/restic/env.template`        | `/root/.config/restic/.env`                | Restic + R2 + B2 + Vault credentials. Mode 0600, root:root. **M2**   |
 
-Backup script, systemd timer, and `vault-to-ssm-sync.sh` ship in a later PR
-(M2 / M4).
+`vault-to-ssm-sync.sh` ships in PR M4.
 
 ## Deploy procedure
 
@@ -89,11 +92,83 @@ docker images --digests hashicorp/vault:<new-tag>
 # PR; CI runs YAML lint; deploy by re-rsync.
 ```
 
+## M2 — restic backup deploy procedure
+
+Pre-requisites:
+
+- M1 closed: Vault running, sealed false, `vault status` healthy.
+- Cloudflare R2 bucket `afframe-vault-backup` (EU region) created + R2 API
+  token scoped read/write to that bucket only.
+- Backblaze B2 bucket `afframe-vault-backup-secondary` created + B2 app key
+  scoped to that bucket only.
+- Restic repo password generated (`openssl rand -base64 32`), escrowed to
+  macOS Keychain entry `afframe-vault-restic-password` + paper-at-safe-deposit.
+
+```bash
+# 1. Stage assets to operator home on VPS.
+ssh afframe-vps 'mkdir -p ~/vault-stage/{sbin,systemd,restic}'
+rsync -av infra/vault/vps-overlay/usr/local/sbin/vault-backup                       afframe-vps:~/vault-stage/sbin/
+rsync -av infra/vault/vps-overlay/etc/systemd/system/vault-backup.service          afframe-vps:~/vault-stage/systemd/
+rsync -av infra/vault/vps-overlay/etc/systemd/system/vault-backup.timer            afframe-vps:~/vault-stage/systemd/
+rsync -av infra/vault/vps-overlay/root/.config/restic/env.template                 afframe-vps:~/vault-stage/restic/
+
+# 2. Install + permission with sudo.
+ssh -t afframe-vps '
+  set -e
+  sudo install -m 0755 -o root -g root ~/vault-stage/sbin/vault-backup /usr/local/sbin/vault-backup
+  sudo install -m 0644 -o root -g root ~/vault-stage/systemd/vault-backup.service /etc/systemd/system/vault-backup.service
+  sudo install -m 0644 -o root -g root ~/vault-stage/systemd/vault-backup.timer   /etc/systemd/system/vault-backup.timer
+  sudo mkdir -p /root/.config/restic
+  sudo install -m 0600 -o root -g root ~/vault-stage/restic/env.template          /root/.config/restic/.env
+  rm -rf ~/vault-stage
+'
+
+# 3. Install restic.
+ssh -t afframe-vps 'sudo apt update && sudo apt install -y restic'
+
+# 4. Fill /root/.config/restic/.env (5 secrets: RESTIC_PASSWORD, AWS_ACCESS_KEY_ID,
+#    AWS_SECRET_ACCESS_KEY, B2_ACCOUNT_ID, B2_ACCOUNT_KEY, VAULT_TOKEN).
+ssh -t afframe-vps 'sudo nano /root/.config/restic/.env'
+
+# 5. Initialize both restic repos (ONE-TIME).
+ssh -t afframe-vps '
+  set -e
+  set -a; source /root/.config/restic/.env; set +a
+  sudo -E restic -r "$RESTIC_REPOSITORY_PRIMARY" init
+  sudo -E restic -r "$RESTIC_REPOSITORY_SECONDARY" init
+'
+
+# 6. First run manually to confirm everything wires.
+ssh -t afframe-vps 'sudo systemctl start vault-backup.service && sudo journalctl -u vault-backup --no-pager -n 30'
+
+# 7. Enable the timer.
+ssh -t afframe-vps '
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now vault-backup.timer
+  sudo systemctl list-timers vault-backup.timer
+'
+
+# 8. Verify a snapshot landed on R2.
+ssh -t afframe-vps '
+  set -e
+  set -a; source /root/.config/restic/.env; set +a
+  sudo -E restic -r "$RESTIC_REPOSITORY_PRIMARY" snapshots --tag vault | tail -10
+'
+```
+
+## DR drill procedure (M2 advisor checkpoint #2)
+
+Provision a throwaway KVM 1 ($6.49 first month, cancel after). Verify the
+restic snapshot is restorable AND the restored Vault auto-unseals against
+the same KMS CMK. Document RTO + RPO measured during the drill. Decommission
+the throwaway VPS. Procedure outline in
+[`docs/runbooks/VAULT-OPS.md`](../../docs/runbooks/VAULT-OPS.md) §
+"Restore procedure".
+
 ## What this PR does NOT include
 
-- The Cloudflare Tunnel + Access policy (manual until I have a CF API token)
-- The restic backup script + systemd units (PR M1 step 5 / M2)
+- The actual values inside `/srv/secrets/vault/.env` or `/root/.config/restic/.env` (operator pastes after deploy)
 - The Vault → SSM SecureString sync script (PR M4)
-- The actual values inside `.env` (operator pastes after deploy)
+- Live R2 / B2 buckets (operator provisions out-of-band; bucket names + token shapes are in `env.template`)
 
 See the umbrella tracker [AFF-245](https://linear.app/hapddev/issue/AFF-245).

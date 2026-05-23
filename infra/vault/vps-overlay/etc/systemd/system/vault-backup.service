@@ -1,0 +1,27 @@
+[Unit]
+Description=Vault backup → restic → R2 (primary) + B2 (secondary weekly)
+Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m2--backup-setup-restic--r2--b2--dr-restore-drill
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/vault-backup
+
+# Logs to journald — view with: journalctl -u vault-backup -n 200
+StandardOutput=journal
+StandardError=journal
+
+# Sandbox what we can while keeping docker access.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/secrets/vault /var/run /root/.config/restic
+
+# Allow up to 30 min — large repos + B2 weekly + integrity check can be slow.
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

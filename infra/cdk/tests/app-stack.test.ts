@@ -250,23 +250,25 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["BETTER_AUTH_COOKIE_DOMAIN"]).toBe(".example.net")
   })
 
-  it("references the 4 workflow-managed secrets by FULL ARN (with random suffix)", () => {
-    // All four secrets are workflow-managed (fromSecretCompleteArn imports),
-    // so none of them materialize as CDK Secret resources in this template.
-    // The workflow's "Ensure workflow-managed Secrets Manager secrets" step
-    // creates them with the chosen value, captures the AWS-assigned full
-    // ARN (with random 6-char suffix), and passes each ARN to CDK via
-    // --context. App-stack.ts then imports each one via
-    // Secret.fromSecretCompleteArn so the task def `valueFrom` and the
-    // IAM grantRead policy resource share one exact ARN — no wildcards,
-    // no bare-name auth quirks.
+  it("references the 3 workflow-managed secrets via SSM SecureString (M4)", () => {
+    // M4 migrated TUNNEL_TOKEN + BETTER_AUTH_SECRET + RESEND_API_KEY from
+    // Secrets Manager to SSM SecureString — Vault is the source of truth,
+    // VPS sync mirrors to SSM for `better-auth-secret` + `resend-api-key`,
+    // deploy workflow puts `cloudflare-tunnel-token` direct from a GHA
+    // secret. The 4 RDS-managed secrets (databaseSecret + appUserSecret)
+    // stay in Secrets Manager because they need lifecycle integration
+    // (rotation, immediate availability before VPS sync) the SSM channel
+    // does not own at MVP.
+    //
+    // App-stack should not create any new SecretsManager::Secret — the
+    // DB secrets are owned by DataStack. 0 in the App-stack template
+    // confirms no leftover Secrets-Manager imports.
     template.resourceCountIs("AWS::SecretsManager::Secret", 0)
 
-    // Container `valueFrom` must use the full ARN, not the bare name. We
-    // assert the suffix (last segment after the last "-") is present and
-    // 6+ chars — that is the AWS-assigned random suffix. The bare-name
-    // form was the failure mode: ECS task GetSecretValue against bare ARN
-    // returned AccessDenied even with a `name*` wildcard policy.
+    // ECS `valueFrom` for the 3 migrated secrets must point at the SSM
+    // parameter ARN, not Secrets Manager. The CDK token shape is a
+    // Fn::Join over `arn:aws:ssm:<region>:<account>:parameter` + the
+    // hardcoded parameter name (per env).
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -274,36 +276,53 @@ describe("AppStack Fargate hardening", () => {
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
-      Secrets?: Array<{ Name?: string; ValueFrom?: string }>
+      Secrets?: Array<{ Name?: string; ValueFrom?: unknown }>
     }>
-    const web = containers.find((c) => c.Name === "web")
-    const valueFromByName = Object.fromEntries(
-      (web?.Secrets ?? []).map((s) => [s.Name, s.ValueFrom ?? ""]),
-    )
-    for (const key of ["BETTER_AUTH_SECRET", "RESEND_API_KEY"]) {
-      const arn = valueFromByName[key] ?? ""
-      expect(arn).toMatch(/^arn:aws:secretsmanager:/)
-      // Suffix segment after the last "-" must be 6+ alnum (the AWS random
-      // suffix). The bare-name form would not have any suffix.
-      const tail = arn.split(":secret:")[1] ?? ""
-      expect(tail).toMatch(/-[A-Za-z0-9]{6,}$/)
+
+    function assertSsmValueFrom(
+      containerName: string,
+      envVar: string,
+      expectedParamName: string,
+    ): void {
+      const c = containers.find((x) => x.Name === containerName)
+      const ref = (c?.Secrets ?? []).find((s) => s.Name === envVar)
+      const serialized = JSON.stringify(ref?.ValueFrom ?? null)
+      // CDK tokenizes the ARN partition: `arn:` + Fn::Ref(AWS::Partition)
+      // + `:ssm:...`. Check for the segment that appears verbatim in the
+      // template (the literal partition `arn:aws:ssm:` resolves only at
+      // deploy time and never appears in the synthesized JSON).
+      expect(serialized).toContain(":ssm:")
+      expect(serialized).toContain(expectedParamName)
+      // Negative assertion: the SecretsManager ARN prefix must NOT appear.
+      // Catches the regression where a future edit reverts to fromSecretsManager.
+      expect(serialized).not.toContain(":secretsmanager:")
     }
 
-    // TaskExecutionRole's DefaultPolicy grants GetSecretValue. The policy
-    // Resource list now contains exact full ARNs (no `name*` wildcard,
-    // no `name-??????` wildcard).
-    const policies = template.findResources("AWS::IAM::Policy", {
+    assertSsmValueFrom("web", "BETTER_AUTH_SECRET", "/better-auth-secret")
+    assertSsmValueFrom("web", "RESEND_API_KEY", "/resend-api-key")
+    assertSsmValueFrom("admin", "BETTER_AUTH_SECRET", "/better-auth-secret")
+    assertSsmValueFrom("admin", "RESEND_API_KEY", "/resend-api-key")
+    assertSsmValueFrom("api", "RESEND_API_KEY", "/resend-api-key")
+    assertSsmValueFrom(
+      "cloudflared",
+      "TUNNEL_TOKEN",
+      "/cloudflare-tunnel-token",
+    )
+
+    // TaskExecutionRole's DefaultPolicy must grant ssm:GetParameters on
+    // the 3 SSM parameter ARNs. fromSsmParameter emits this automatically.
+    const ssmPolicies = template.findResources("AWS::IAM::Policy", {
       Properties: {
         PolicyDocument: Match.objectLike({
           Statement: Match.arrayWith([
             Match.objectLike({
-              Action: Match.arrayWith(["secretsmanager:GetSecretValue"]),
+              Action: Match.arrayWith(["ssm:GetParameters"]),
             }),
           ]),
         }),
       },
     })
-    expect(Object.keys(policies).length).toBeGreaterThan(0)
+    expect(Object.keys(ssmPolicies).length).toBeGreaterThan(0)
   })
 
   it("api connects to pgbouncer sidecar on localhost:6432", () => {

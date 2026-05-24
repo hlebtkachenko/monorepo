@@ -36,7 +36,7 @@ import {
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import type { DatabaseInstance } from "aws-cdk-lib/aws-rds"
 import type { Bucket } from "aws-cdk-lib/aws-s3"
-import { Secret, type ISecret } from "aws-cdk-lib/aws-secretsmanager"
+import { Secret } from "aws-cdk-lib/aws-secretsmanager"
 import { StringParameter } from "aws-cdk-lib/aws-ssm"
 import type { Repository } from "aws-cdk-lib/aws-ecr"
 import type { Construct } from "constructs"
@@ -151,7 +151,6 @@ export function deriveCookieDomain(host: string): string {
 export class AppStack extends Stack {
   readonly cluster: Cluster
   readonly service: FargateService
-  readonly tunnelTokenSecret: ISecret
   readonly webLogGroup: LogGroup
   readonly adminLogGroup: LogGroup
   readonly apiLogGroup: LogGroup
@@ -176,48 +175,35 @@ export class AppStack extends Stack {
     const apiImageTag = perServiceTag("apiImageTag")
     const adminImageTag = perServiceTag("adminImageTag")
 
-    // Workflow-managed secrets (cloudflare-tunnel, resend-api-key,
-    // better-auth-secret, app-token-secret) are created + populated by the
-    // deploy workflow BEFORE `cdk deploy` runs (see .github/workflows/_deploy-aws.yml's
-    // "Ensure ... secret exists" steps). The workflow then captures each
-    // secret's FULL ARN (the AWS-assigned 6-char random suffix is appended
-    // automatically) and passes it to CDK via --context flags.
+    // Workflow-managed secrets — historically Secrets Manager, migrated to
+    // SSM SecureString in M4 of the secrets-management plan (AFF-245).
+    // Two channels feed `/monorepo/${env}/*`:
     //
-    // Why the full ARN, not the bare name (fromSecretNameV2)? The bare-name
-    // form makes CDK emit two MISMATCHED ARN forms:
-    //   - secretArn (used in ECS task def `valueFrom`):
-    //       arn:...:secret:monorepo-${env}-better-auth-secret   <- NO suffix
-    //   - grantRead() policy resource:
-    //       arn:...:secret:monorepo-${env}-better-auth-secret-??????
+    //   1. Vault → SSM sync (every 5 min, runs on the Hostinger VPS at
+    //      /usr/local/sbin/vault-to-ssm-sync). Source of truth = Vault.
+    //      Covers `better-auth-secret` + `resend-api-key`.
+    //   2. Direct deploy-workflow GHA secret → SSM. Covers
+    //      `cloudflare-tunnel-token` (a Cloudflare-issued connector token
+    //      that never leaves the deploy boundary; not in Vault).
     //
-    // ECS task tries GetSecretValue with the bare ARN; Secrets Manager auth
-    // refuses to match the bare form against any of:
-    //   - the suffix-pinned `-??????` wildcard pattern
-    //   - the trailing-`*` "name*" pattern (verified ALLOWED by IAM simulator
-    //     but DENIED by the live Secrets Manager API — see deploy run
-    //     26108189235, 2026-05-19 18:00Z, task 99b69418fc224e67a633b925f8a2d7fc)
-    // The result is AccessDeniedException → task fails to start → ECS
-    // Deployment Circuit Breaker → stack wedges in UPDATE_ROLLBACK_FAILED.
+    // ECS reads each one via EcsSecret.fromSsmParameter at task start;
+    // the execution role's auto-granted ssm:GetParameters + kms:Decrypt
+    // (on alias/aws/ssm) provide runtime access. `valueFrom` is the
+    // parameter's full ARN — no name-vs-ARN-with-suffix mismatch class
+    // exists for SSM (the resource ARN is the parameter name itself).
     //
-    // fromSecretCompleteArn fixes this end-to-end: the task def `valueFrom`
-    // gets the full ARN (with suffix), the grantRead policy resource gets
-    // the SAME full ARN, and IAM matches an exact-string Resource against
-    // an exact-string request. No wildcards, no mismatch.
-    const requiredSecretArn = (contextKey: string): string => {
-      const value = this.node.tryGetContext(contextKey) as string | undefined
-      if (!value) {
-        throw new Error(
-          `Missing required CDK context: ${contextKey}. The deploy workflow looks up the secret's full ARN after the "Ensure ... secret exists" step and passes it via --context. Locally: pass --context ${contextKey}=$(aws secretsmanager describe-secret --secret-id monorepo-${props.envName}-NAME --query ARN --output text).`,
-        )
-      }
-      return value
-    }
-
-    this.tunnelTokenSecret = Secret.fromSecretCompleteArn(
-      this,
-      "TunnelTokenSecret",
-      requiredSecretArn("cloudflareTunnelSecretArn"),
-    )
+    // Drift detection: `.github/workflows/secrets-drift.yml` runs daily
+    // and fails on Vault ≠ SSM divergence (better-auth-secret + resend-api-key).
+    //
+    // See docs/plans/SECRETS-MIGRATION.md § M4.
+    const tunnelTokenParam =
+      StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "TunnelTokenParam",
+        {
+          parameterName: `/monorepo/${props.envName}/cloudflare-tunnel-token`,
+        },
+      )
 
     // Map CDK envName -> auth_token env code (ADR-0022 §"Kind taxonomy").
     // Tokens carry this code in their checksum so a token minted in
@@ -254,7 +240,6 @@ export class AppStack extends Stack {
     })
     props.databaseSecret.grantRead(taskExecutionRole)
     props.appUserSecret.grantRead(taskExecutionRole)
-    this.tunnelTokenSecret.grantRead(taskExecutionRole)
 
     const taskRole = new Role(this, "TaskRole", {
       assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
@@ -384,39 +369,34 @@ export class AppStack extends Stack {
       `/monorepo/${props.envName}/openfga/model-id`,
     )
 
-    // Better Auth signing secret — workflow-managed, referenced by FULL
-    // ARN via CDK context (see the TunnelTokenSecret block above for the
-    // bare-vs-full-ARN rationale). The deploy workflow's "Ensure ...
-    // secret exists" step generates the random 44-char value on first
-    // creation, restores from PendingDeletion on retry, never overwrites
-    // an existing value, then captures the secret's full ARN and passes
-    // it here.
-    //
-    // SAFETY: the secret is never deleted by CDK (RemovalPolicy is moot
-    // since the construct is `fromSecretCompleteArn`, a reference only).
-    // On production a lost secret invalidates every active session. The
-    // workflow generator path is the only creator; rotation =
-    // put-secret-value out-of-band, not stack churn.
-    const betterAuthSecret = Secret.fromSecretCompleteArn(
-      this,
-      "BetterAuthSecret",
-      requiredSecretArn("betterAuthSecretArn"),
-    )
+    // Better Auth signing secret — Vault is the source of truth; the VPS
+    // sync (M4) mirrors it into SSM SecureString. Rotation = `vault kv put
+    // platform/${env}/better-auth-secret value=…` on the operator laptop;
+    // the next 5-min sync tick + the next ECS task restart picks it up.
+    // SAFETY: lost secret invalidates every active session, so rotation is
+    // a deliberate operator action, never automatic.
+    const betterAuthSecretParam =
+      StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "BetterAuthSecretParam",
+        {
+          parameterName: `/monorepo/${props.envName}/better-auth-secret`,
+        },
+      )
 
-    // Resend API key — populated out-of-band (gh repo secret + deploy
-    // workflow `secretsmanager put-secret-value`). Full ARN comes from
-    // workflow context too.
-    const resendApiKeySecret = Secret.fromSecretCompleteArn(
-      this,
-      "ResendApiKeySecret",
-      requiredSecretArn("resendApiKeySecretArn"),
-    )
+    // Resend API key — Vault is source of truth; VPS sync mirrors to SSM.
+    const resendApiKeyParam =
+      StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "ResendApiKeyParam",
+        {
+          parameterName: `/monorepo/${props.envName}/resend-api-key`,
+        },
+      )
 
-    // grantRead now emits the EXACT full ARN (with random suffix) as the
-    // policy Resource — IAM matches it 1:1 against ECS's GetSecretValue
-    // call. No wildcards, no mismatch, no manual PolicyStatement needed.
-    betterAuthSecret.grantRead(taskExecutionRole)
-    resendApiKeySecret.grantRead(taskExecutionRole)
+    // EcsSecret.fromSsmParameter auto-grants ssm:GetParameters on the
+    // parameter ARN + kms:Decrypt on alias/aws/ssm to the execution role.
+    // No manual grantRead needed.
 
     // The web container speaks to the public origin via Cloudflare Tunnel.
     // `BETTER_AUTH_URL` MUST exactly match what users see in the browser —
@@ -512,8 +492,8 @@ export class AppStack extends Stack {
         AWS_REGION: this.region,
       },
       secrets: {
-        BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
-        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
+        BETTER_AUTH_SECRET: EcsSecret.fromSsmParameter(betterAuthSecretParam),
+        RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
         // app_user (RLS-bound runtime role). pgbouncer accepts the `app_user`
         // entry from `DATABASE_URLS=` (see pgbouncerContainer below) and
         // forwards to RDS using the matching upstream credential. RLS
@@ -653,7 +633,7 @@ export class AppStack extends Stack {
         // first App-{env} deploy.
         OPENFGA_STORE_ID: EcsSecret.fromSsmParameter(openfgaStoreIdParam),
         OPENFGA_MODEL_ID: EcsSecret.fromSsmParameter(openfgaModelIdParam),
-        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
+        RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
       },
       entryPoint: ["/bin/sh", "-c"],
       command: [
@@ -754,9 +734,9 @@ export class AppStack extends Stack {
       },
       secrets: {
         // Shared with web: sessions must verify across both apps.
-        BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
+        BETTER_AUTH_SECRET: EcsSecret.fromSsmParameter(betterAuthSecretParam),
         // forgot/reset-password send mail via Resend.
-        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
+        RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
         // app_user (RLS-bound runtime role). Same role as web — admin's
         // staff queries are equally RLS-scoped. Any admin operation that
         // legitimately needs to read across tenants funnels through
@@ -1102,7 +1082,7 @@ export class AppStack extends Stack {
         logGroup: this.tunnelLogGroup,
       }),
       secrets: {
-        TUNNEL_TOKEN: EcsSecret.fromSecretsManager(this.tunnelTokenSecret),
+        TUNNEL_TOKEN: EcsSecret.fromSsmParameter(tunnelTokenParam),
       },
       memoryReservationMiB: 128,
       readonlyRootFilesystem: true,
@@ -1396,10 +1376,10 @@ export class AppStack extends Stack {
       value: this.cluster.clusterName,
       description: "ECS cluster name for diagnostics",
     })
-    new CfnOutput(this, "TunnelTokenSecretArn", {
-      value: this.tunnelTokenSecret.secretArn,
+    new CfnOutput(this, "TunnelTokenSsmParameterName", {
+      value: tunnelTokenParam.parameterName,
       description:
-        "Secrets Manager ARN where the deploy workflow writes the Cloudflare Tunnel connector token.",
+        "SSM SecureString parameter where the deploy workflow writes the Cloudflare Tunnel connector token (M4). The cloudflared sidecar reads this via EcsSecret.fromSsmParameter.",
     })
   }
 }

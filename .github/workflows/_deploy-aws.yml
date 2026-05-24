@@ -1030,114 +1030,40 @@ jobs:
       # here (above) because cdk deploy ALSO builds arm64 DockerImageAssets
       # inline for Cerbos (App stack) and the Backup Lambda.
 
-      - name: Ensure workflow-managed Secrets Manager secrets exist + capture full ARNs
-        id: secrets
+      - name: Sync Cloudflare Tunnel token from GHA secret → SSM SecureString
         if: env.SKIP_IMAGE_BUILD != 'true'
         env:
           TUNNEL_TOKEN: ${{ secrets[format('CLOUDFLARE_TUNNEL_TOKEN_{0}', inputs.environment)] }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
           set -euo pipefail
 
-          # AppStack references 3 workflow-managed Secrets Manager secrets by
-          # FULL ARN (Secret.fromSecretCompleteArn — see app-stack.ts for the
-          # bare-vs-full-ARN rationale). Each secret is ensured here BEFORE
-          # `cdk deploy` runs, then its full ARN is captured into a step
-          # output and passed to CDK via --context flags below. This keeps
-          # the ECS task def `valueFrom` and the IAM grantRead policy
-          # Resource pinned to the SAME exact full ARN, so Secrets Manager's
-          # GetSecretValue auth always matches 1:1.
+          # M4 (AFF-245): TUNNEL_TOKEN is the only workflow-managed secret
+          # that does NOT live in Vault — it's a Cloudflare-issued connector
+          # token that the deploy workflow owns end-to-end. AppStack reads
+          # it via EcsSecret.fromSsmParameter at task start (parameter name
+          # `/monorepo/${env}/cloudflare-tunnel-token`).
           #
-          # Stays in the deploy job (not deploy-prep) because the captured
-          # ARNs contain the masked account ID. GitHub Actions delivers
-          # masked-substring-containing values as empty strings across job
-          # boundaries (verified run 26194109206). Step→step output access
-          # inside the same job is fine.
-          capture() {
-            local out="$1" name="$2"
-            local arn
-            arn=$(aws secretsmanager describe-secret \
-              --secret-id "$name" \
-              --region "$AWS_REGION" \
-              --query ARN --output text)
-            if [ -z "$arn" ] || [ "$arn" = "None" ]; then
-              echo "::error::Failed to read ARN of secret $name (describe-secret returned empty)"
-              exit 1
-            fi
-            if ! [[ "$arn" =~ -[A-Za-z0-9]{6}$ ]]; then
-              echo "::error::Captured ARN $arn for $name is missing the -XXXXXX suffix. Refusing — would cause IAM/Resource mismatch at task start." >&2
-              exit 1
-            fi
-            echo "$out=$arn" >> "$GITHUB_OUTPUT"
-            echo "captured: $out=$arn"
-          }
-
-          restore_if_pending() {
-            local name="$1"
-            local deleted
-            deleted=$(aws secretsmanager describe-secret --secret-id "$name" --region "$AWS_REGION" --query 'DeletedDate' --output text 2>/dev/null || echo "MISSING")
-            if [ "$deleted" != "MISSING" ] && [ "$deleted" != "None" ]; then
-              echo "Secret $name in PendingDeletion — restoring."
-              aws secretsmanager restore-secret --secret-id "$name" --region "$AWS_REGION" >/dev/null
-            fi
-          }
-
-          # ---------- 1. Cloudflare Tunnel token ----------
+          # better-auth-secret + resend-api-key are mirrored to SSM by the
+          # VPS-side `vault-to-ssm-sync` timer every 5 min — NOT here.
+          # `.github/workflows/secrets-drift.yml` fails the daily check on
+          # divergence.
           if [ -z "$TUNNEL_TOKEN" ]; then
-            echo "::error::CLOUDFLARE_TUNNEL_TOKEN_${ENV_NAME^^} secret is not set. Create the tunnel in Cloudflare and store its token."
+            echo "::error::CLOUDFLARE_TUNNEL_TOKEN_${ENV_NAME^^} repo/env secret is not set. Re-issue the tunnel in Cloudflare and store its token."
             exit 1
           fi
           echo "::add-mask::$TUNNEL_TOKEN"
-          NAME="monorepo-${ENV_NAME}-cloudflare-tunnel-token"
-          restore_if_pending "$NAME"
-          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$TUNNEL_TOKEN" --region "$AWS_REGION" >/dev/null
-          else
-            aws secretsmanager create-secret --name "$NAME" --secret-string "$TUNNEL_TOKEN" --description "Cloudflare Tunnel connector token for cloudflared sidecar (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
-          fi
-          capture cloudflareTunnelSecretArn "$NAME"
 
-          # ---------- 2. Resend API key ----------
-          if [ -z "$RESEND_API_KEY" ]; then
-            echo "::error::RESEND_API_KEY repo secret is not set. Create the Resend account + key (docs/runbooks/AWS-DEPLOY.md step 7)."
-            exit 1
-          fi
-          echo "::add-mask::$RESEND_API_KEY"
-          NAME="monorepo-${ENV_NAME}-resend-api-key"
-          restore_if_pending "$NAME"
-          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$RESEND_API_KEY" --region "$AWS_REGION" >/dev/null
-          else
-            aws secretsmanager create-secret --name "$NAME" --secret-string "$RESEND_API_KEY" --description "Resend API key for transactional email (monorepo ${ENV_NAME})" --region "$AWS_REGION" >/dev/null
-          fi
-          capture resendApiKeySecretArn "$NAME"
-
-          # ---------- 3. Better Auth signing secret ----------
-          # 44-char alphanumeric, generated ONCE on first creation. We never
-          # put a new value into an existing signing secret — that would
-          # invalidate every active session on each deploy.
-          NAME="monorepo-${ENV_NAME}-better-auth-secret"
-          DESC="Better Auth session-signing secret (32+ bytes), monorepo ${ENV_NAME}"
-          restore_if_pending "$NAME"
-          if aws secretsmanager describe-secret --secret-id "$NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
-            echo "Secret $NAME already exists — leaving value untouched."
-          else
-            # PR G replaced infinite /dev/urandom with a 4096-byte buffer
-            # to defuse the tr|head SIGPIPE. The remaining tr|head chain
-            # still relies on pipe-buffer timing — works today but is
-            # bash/kernel/locale-version dependent. node is already on the
-            # runner (used elsewhere in this workflow), zero new deps, no
-            # pipes: crypto.randomBytes(22).toString("hex") yields 44 hex
-            # chars [0-9a-f] (strict subset of the old [A-Za-z0-9] output —
-            # any consumer pattern-validating the secret still matches).
-            # 176 bits of entropy > 128-bit security floor for an HMAC key.
-            # First-prod-deploy SIGPIPE failure: run 26210479351.
-            VALUE=$(node -e 'process.stdout.write(require("crypto").randomBytes(22).toString("hex"))')
-            echo "::add-mask::$VALUE"
-            aws secretsmanager create-secret --name "$NAME" --secret-string "$VALUE" --description "$DESC" --region "$AWS_REGION" >/dev/null
-            echo "Secret $NAME created with fresh 44-char value."
-          fi
-          capture betterAuthSecretArn "$NAME"
+          NAME="/monorepo/${ENV_NAME}/cloudflare-tunnel-token"
+          # ssm:PutParameter is idempotent with --overwrite; the parameter
+          # is created with Type=SecureString on first put and never recreated.
+          aws ssm put-parameter \
+            --name "$NAME" \
+            --value "$TUNNEL_TOKEN" \
+            --type SecureString \
+            --description "Cloudflare Tunnel connector token (monorepo ${ENV_NAME}). Source: GHA secret CLOUDFLARE_TUNNEL_TOKEN_${ENV_NAME^^}. M4 — does not transit Vault." \
+            --overwrite \
+            --region "$AWS_REGION" >/dev/null
+          echo "synced: $NAME"
 
       # Sanity check: when image_tag_override is set the operator is asking
       # CDK to reuse images that should already be in ECR. Fail fast if any
@@ -1278,13 +1204,11 @@ jobs:
           # email never enters CFN templates / `cdk diff` snapshots / CI
           # logs. The post-deploy step "Subscribe operator email to alert
           # SNS topics" handles it out-of-band with ::add-mask::.
-          # Full Secrets Manager ARNs captured by the "Ensure workflow-managed
-          # Secrets Manager secrets" step. AppStack reads each one from CDK
-          # context and instantiates Secret.fromSecretCompleteArn, so the
-          # task def + grantRead policy resource share one exact full ARN.
-          CLOUDFLARE_TUNNEL_SECRET_ARN: ${{ steps.secrets.outputs.cloudflareTunnelSecretArn }}
-          RESEND_API_KEY_SECRET_ARN: ${{ steps.secrets.outputs.resendApiKeySecretArn }}
-          BETTER_AUTH_SECRET_ARN: ${{ steps.secrets.outputs.betterAuthSecretArn }}
+          # M4: TUNNEL_TOKEN + BETTER_AUTH_SECRET + RESEND_API_KEY moved to
+          # SSM SecureString. AppStack reads each one via
+          # EcsSecret.fromSsmParameter with hardcoded names
+          # (/monorepo/${env}/cloudflare-tunnel-token, etc.) — no context
+          # plumbing needed any more.
         run: |
           case "$STACK_SCOPE" in
             all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;
@@ -1297,41 +1221,6 @@ jobs:
           # --concurrency 3: Security, Observability, Backup are App-stack
           # siblings (no cross-deps after App is up) — deploy them in
           # parallel. Saves ~2 min on full `stack=all` deploys.
-          # Secret ARN context flags — passed only when the App stack is in
-          # scope and the secrets step ran. App-stack.ts reads each ARN via
-          # `node.tryGetContext()` and feeds it into Secret.fromSecretCompleteArn,
-          # making the task def `valueFrom` and the IAM grantRead Resource
-          # both pin to the same full ARN (with random suffix). See app-stack.ts
-          # for the bare-vs-full-ARN failure mode this avoids.
-          SECRET_CTX=()
-          if [ "$STACK_SCOPE" != "infra-only" ]; then
-            for pair in \
-              "cloudflareTunnelSecretArn=${CLOUDFLARE_TUNNEL_SECRET_ARN}" \
-              "resendApiKeySecretArn=${RESEND_API_KEY_SECRET_ARN}" \
-              "betterAuthSecretArn=${BETTER_AUTH_SECRET_ARN}"; do
-              key="${pair%%=*}"
-              val="${pair#*=}"
-              if [ -z "$val" ]; then
-                echo "::error::Missing secret ARN context for $key — the 'Ensure workflow-managed Secrets Manager secrets' step did not run or did not capture."
-                exit 1
-              fi
-              SECRET_CTX+=(--context "$pair")
-            done
-          else
-            # cdk synthesizes ALL stacks regardless of --exclusively, and
-            # App-stack throws at synth if `cloudflareTunnelSecretArn` /
-            # `resendApiKeySecretArn` / `betterAuthSecretArn` context keys
-            # are missing (requiredSecretArn() guard). For infra-only we
-            # never deploy App, but synth has to succeed — pass dummy ARNs
-            # with the same -XXXXXX suffix the capture() validation expects.
-            # Same pattern as cdk-synth-strict in workflow-lint.yml.
-            # Verified missing-context failure in run 26213235112.
-            SECRET_CTX=(
-              --context "cloudflareTunnelSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-cf-AAAAAA"
-              --context "resendApiKeySecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-resend-BBBBBB"
-              --context "betterAuthSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-ba-CCCCCC"
-            )
-          fi
 
           # Staging: --hotswap-fallback bypasses CFN for supported resource
           # types (ECS Service, Lambda, S3 assets, CodeBuild, Step Functions).
@@ -1382,8 +1271,7 @@ jobs:
               --context "imageTag=${IMAGE_TAG}" \
               --context "webImageTag=${IMAGE_TAG_WEB}" \
               --context "apiImageTag=${IMAGE_TAG_API}" \
-              --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
-              "${SECRET_CTX[@]}" 2>&1 | tee "$DIFF_FILE" || true
+              --context "adminImageTag=${IMAGE_TAG_ADMIN}" 2>&1 | tee "$DIFF_FILE" || true
             STATEFUL_TYPES='AWS::(RDS::DB(Instance|Cluster|ClusterParameterGroup|ParameterGroup|SubnetGroup)|S3::Bucket|KMS::Key|SecretsManager::Secret|IAM::(Role|User)|DynamoDB::Table|EFS::FileSystem)'
             # `[~] <Type> <LogicalId> <PhysicalId> replace` = REPLACE-on-Update
             # `[+] <Type>` = CREATE of a new logical id (catches typo'd renames
@@ -1419,7 +1307,6 @@ jobs:
             --context "webImageTag=${IMAGE_TAG_WEB}" \
             --context "apiImageTag=${IMAGE_TAG_API}" \
             --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
-            "${SECRET_CTX[@]}" \
             "${HOTSWAP_FLAGS[@]}" \
             --require-approval=never
 

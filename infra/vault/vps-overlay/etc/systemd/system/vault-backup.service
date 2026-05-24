@@ -17,10 +17,18 @@ StandardError=journal
 # would land in /root and trip `ProtectHome=read-only`). The script needs to
 # write here to avoid the `chtimes ...: read-only file system` cosmetic
 # warning + future cache-hit speedups on larger repos.
+#
+# systemd `CacheDirectory=` creates /var/cache/restic with the configured
+# mode + owner BEFORE the namespace is set up, then auto-adds it to
+# ReadWritePaths. Earlier attempts used `ExecStartPre=/bin/mkdir -p
+# /var/cache/restic` + `ReadWritePaths=... /var/cache/restic`, but systemd
+# applies ReadWritePaths during namespace setup, BEFORE any ExecStartPre
+# runs — namespace setup then failed with `No such file or directory` for
+# /var/cache/restic on first deploy. CacheDirectory= avoids the
+# chicken-and-egg by creating the dir before namespace mount.
 Environment=RESTIC_CACHE_DIR=/var/cache/restic
-# Ensure the cache dir exists with the right perms before ExecStart runs.
-ExecStartPre=/bin/mkdir -p /var/cache/restic
-ExecStartPre=/bin/chmod 0700 /var/cache/restic
+CacheDirectory=restic
+CacheDirectoryMode=0700
 
 # Sandbox what we can while keeping docker access.
 NoNewPrivileges=true
@@ -30,7 +38,7 @@ ProtectSystem=strict
 # with "missing .env (mode 0600)" before doing anything.
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/srv/secrets/vault /var/run /var/cache/restic
+ReadWritePaths=/srv/secrets/vault /var/run
 
 # Allow up to 30 min — large repos + B2 weekly + integrity check can be slow.
 TimeoutStartSec=1800

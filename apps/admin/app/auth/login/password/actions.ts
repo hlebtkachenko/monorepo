@@ -76,34 +76,50 @@ export async function signInPasswordAction(
 
   forwardSetCookies(response, await cookies())
 
-  // 2FA branch: hand back to the client form so it can route to MFA.
-  let body: { twoFactorRedirect?: boolean } | null
+  // Parse the sign-in response body once. The body carries `twoFactorRedirect`
+  // (when 2FA is enabled on the user) AND `user.id` (when sign-in fully
+  // succeeded). Both paths need it.
+  let body: {
+    twoFactorRedirect?: boolean
+    user?: { id?: string }
+  } | null
   try {
-    body = (await response.clone().json()) as {
-      twoFactorRedirect?: boolean
-    } | null
+    body = (await response.clone().json()) as typeof body
   } catch {
     body = null
   }
+
+  // 2FA branch: hand back to the client form so it can route to MFA. The
+  // allowlist re-checks inside the MFA action / gated layout, so we don't
+  // gate here.
   if (body?.twoFactorRedirect) {
     return { data: { twoFactorRedirect: true }, error: null }
   }
 
   // Non-2FA success: allowlist gate before redirect.
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) {
+  //
+  // We read user.id from the sign-in response body, NOT from
+  // `auth.api.getSession({ headers: await headers() })`. The request
+  // headers in a Server Action are the INCOMING request — they do not
+  // contain the session cookie we just emitted via forwardSetCookies onto
+  // the OUTGOING response. getSession would always return null here and
+  // every sign-in would surface as "Invalid email or password" even
+  // though the credentials passed BA's check. The response body carries
+  // the user shape directly; trust it.
+  const userId = body?.user?.id
+  if (!userId) {
     return {
       data: null,
       error: { message: "Invalid email or password" },
     }
   }
-  const { allowed, workspaceId } = await checkAllowlist(session.user.id)
+  const { allowed, workspaceId } = await checkAllowlist(userId)
   if (!allowed) {
     void writeAuditEventGlobal({
       workspaceId: workspaceId ?? undefined,
-      actorUserId: session.user.id,
+      actorUserId: userId,
       action: "auth.admin.allowlist_denied",
-      payload: { user_id: session.user.id },
+      payload: { user_id: userId },
     })
     try {
       await auth.api.signOut({ headers: await headers() })

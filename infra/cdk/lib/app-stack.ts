@@ -265,6 +265,26 @@ export class AppStack extends Stack {
       }),
     )
 
+    // ECS Exec (`aws ecs execute-command`) needs the task role to open the
+    // SSM Session Manager control + data channels. Without it the exec
+    // request fails at the agent with "execute command agent isn't running"
+    // even when the service has `enableExecuteCommand: true`. Resource
+    // is `*` — the channels are session-scoped, not resource-scoped, and
+    // AWS docs explicitly recommend `Resource: "*"` here. Operator IAM
+    // (caller side) still gates who can invoke exec at all.
+    taskRole.addToPolicy(
+      new PolicyStatement({
+        sid: "EcsExecSsmMessagesChannels",
+        actions: [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel",
+        ],
+        resources: ["*"],
+      }),
+    )
+
     const taskDef = new FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
       // 2048: the 7 long-running containers reserve 1736 MiB total. Three
@@ -1347,7 +1367,15 @@ export class AppStack extends Stack {
       assignPublicIp: true,
       vpcSubnets: publicSubnetSelection,
       securityGroups: [props.appSecurityGroup],
-      enableExecuteCommand: false,
+      // ECS Exec opens a session-managed shell into a running container
+      // for ops (psql against staging RDS, log triage on a wedged task,
+      // ad-hoc debugging). Requires the matching `ssmmessages:*` grant on
+      // the taskRole (above) and the operator IAM caller's
+      // `ecs:ExecuteCommand`. Bears no audit cost beyond CloudTrail. Kept
+      // ON in both envs — the gain in incident response time outweighs
+      // the unmeasurable hardening loss (any caller who can exec already
+      // has admin via the deploy role).
+      enableExecuteCommand: true,
       // 100 prevents the only running task from being stopped before the
       // replacement is healthy — desiredCount=1 with 50% means ECS can
       // scale to 0 momentarily, causing a Cloudflare-Tunnel outage window.

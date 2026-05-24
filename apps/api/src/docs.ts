@@ -1,58 +1,7 @@
-import { readFileSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
 import type { INestApplication } from "@nestjs/common"
 import { apiReference } from "@scalar/nestjs-api-reference"
 import type { Request, Response } from "express"
 import type { ApiOpenApiDocument } from "./openapi"
-
-/**
- * Brand SVG inlined at boot so the brand-assets directory in
- * packages/ui stays the single source of truth. Resolves relative to
- * this file rather than process.cwd() so the bundle works both in dev
- * (cwd = apps/api) and in the production image (the brand-assets
- * package is bundled by webpack as referenced source). Read errors
- * fail open: the page renders without a logo rather than failing the
- * route. The width:height proportion in customCss assumes the
- * horizontal logo; the SVGs in source/primary-{light,dark}/ are
- * 1194 × 242 (≈ 4.93:1).
- */
-function readBrandSvg(variant: "primary-light" | "primary-dark"): string {
-  try {
-    const here = dirname(fileURLToPath(import.meta.url))
-    const path = resolve(
-      here,
-      "../../../packages/ui/src/brand-assets/source",
-      variant,
-      "horizontal.svg",
-    )
-    return readFileSync(path, "utf8")
-  } catch {
-    return ""
-  }
-}
-
-const BRAND_LIGHT_SVG_DATA_URI = encodeBrandSvgDataUri("primary-light")
-const BRAND_DARK_SVG_DATA_URI = encodeBrandSvgDataUri("primary-dark")
-
-function encodeBrandSvgDataUri(
-  variant: "primary-light" | "primary-dark",
-): string {
-  const svg = readBrandSvg(variant)
-  if (!svg) return ""
-  // URL-encoded data URI (not base64) — smaller payload and lets the
-  // browser cache the SVG path-by-path. Each `#` and `<` must be escaped
-  // so the URI survives CSS parsing.
-  const encoded = svg
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .replace(/"/g, "'")
-    .replace(/#/g, "%23")
-    .replace(/</g, "%3C")
-    .replace(/>/g, "%3E")
-    .trim()
-  return `url("data:image/svg+xml;charset=utf-8,${encoded}")`
-}
 
 /**
  * Public API docs routes for the `/v1` surface.
@@ -67,10 +16,12 @@ function encodeBrandSvgDataUri(
  * - `GET /v1/docs` — 301 redirect to `/`. Preserves AFF-220 bookmarks and
  *   any external generator that still points at the old path.
  *
- * The full Scalar configuration surface is enabled here intentionally — the
- * widget is the single source of truth for "what the API looks like to a
- * developer in a browser". When this page is wrong, the docs site, the SDK,
- * the CLI, and the MCP server all drift away from the spec.
+ * Brand SVGs are served from `apps/api/public/brand-horizontal-{light,dark}.svg`
+ * (copied at PR time from `packages/ui/src/brand-assets/source/primary-{light,dark}/horizontal.svg`).
+ * Using `useStaticAssets("public")` (see main.ts) makes the previous
+ * fs.readFileSync-at-module-load path unnecessary and bundle-safe in
+ * the production Docker image (the prior approach silently fell back to
+ * `/favicon.svg` = logomark-only when the relative read failed in prod).
  */
 
 /**
@@ -203,10 +154,10 @@ html.dark .afframe-topnav {
   text-indent: -9999px;
 }
 .afframe-topnav-brand a.light {
-  background-image: ${BRAND_LIGHT_SVG_DATA_URI || 'url("/favicon.svg")'};
+  background-image: url("/brand-horizontal-light.svg");
 }
 .afframe-topnav-brand a.dark {
-  background-image: ${BRAND_DARK_SVG_DATA_URI || 'url("/favicon.svg")'};
+  background-image: url("/brand-horizontal-dark.svg");
   display: none;
 }
 .dark-mode .afframe-topnav-brand a.light,
@@ -224,19 +175,17 @@ html.dark .afframe-topnav-brand a.dark {
 }
 .afframe-topnav-links a {
   display: inline-block;
-  padding: 8px 16px;
+  padding: 8px 14px;
   font-size: 14px;
   font-weight: 500;
   color: #0A1F1A;
   text-decoration: none;
-  border: 1px solid transparent;
-  border-radius: 0;
-  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  border-radius: 8px;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 .afframe-topnav-links a:hover {
-  background: #009473;
+  background: #000000;
   color: #ffffff;
-  border-color: #009473;
 }
 .dark-mode .afframe-topnav-links a,
 html.dark .afframe-topnav-links a {
@@ -244,9 +193,8 @@ html.dark .afframe-topnav-links a {
 }
 .dark-mode .afframe-topnav-links a:hover,
 html.dark .afframe-topnav-links a:hover {
-  background: #28DCB1;
-  color: #0A1F1A;
-  border-color: #28DCB1;
+  background: #ffffff;
+  color: #000000;
 }
 
 /* Push Scalar's own sidebar / topbar down below our navbar. Without
@@ -305,7 +253,9 @@ export function registerDocsRoutes(
         <a class="dark" href="https://afframe.com" target="_blank" rel="noreferrer noopener">Afframe</a>
       </div>
       <nav class="afframe-topnav-links" aria-label="Afframe quick links">
-        <a href="https://docs.afframe.com/developer" target="_blank" rel="noreferrer noopener">Open Developer Docs</a>
+        <a href="https://afframe.com" target="_blank" rel="noreferrer noopener">afframe.com</a>
+        <a href="https://status.afframe.com" target="_blank" rel="noreferrer noopener">Status</a>
+        <a href="https://docs.afframe.com/developer" target="_blank" rel="noreferrer noopener">Developer Docs</a>
         <a href="mailto:support+feedback@afframe.com?subject=%5Bbug%5D%20" target="_blank" rel="noreferrer noopener">Report a bug</a>
       </nav>
     </header>

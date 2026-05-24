@@ -294,6 +294,18 @@ export class AppStack extends Stack {
     // built-in 20 GiB ephemeral pool.
     taskDef.addVolume({ name: "tmp" })
 
+    // ECS Exec agent (ExecuteCommandAgent managed sidecar) needs writable
+    // /var/lib/amazon/ssm + /var/log/amazon/ssm on each container we want
+    // to exec into. With readonlyRootFilesystem=true the agent crashes
+    // (status STOPPED) and `aws ecs execute-command` fails with
+    // "execute command agent isn't running". Scoped to the api container
+    // below — the only container worth running ad-hoc shells in (web/admin
+    // run framework processes you'd debug via their own routes; cloudflared
+    // is a single-purpose tunnel). Other containers keep the hardened
+    // readonly root.
+    taskDef.addVolume({ name: "ssm-agent-state" })
+    taskDef.addVolume({ name: "ssm-agent-logs" })
+
     // Drop ALL Linux capabilities. Removes NET_ADMIN/SYS_ADMIN/etc. that
     // most cryptominer payloads need to operate. Fargate forbids
     // `addCapabilities` entirely (it rejected SETGID with "Invalid request:
@@ -664,6 +676,19 @@ export class AppStack extends Stack {
     apiContainer.addMountPoints({
       containerPath: "/tmp",
       sourceVolume: "tmp",
+      readOnly: false,
+    })
+    // ECS Exec agent (managed sidecar) needs writable state + log dirs.
+    // Without these the agent crashes with `lastStatus: STOPPED` on a
+    // readonlyRootFilesystem container.
+    apiContainer.addMountPoints({
+      containerPath: "/var/lib/amazon/ssm",
+      sourceVolume: "ssm-agent-state",
+      readOnly: false,
+    })
+    apiContainer.addMountPoints({
+      containerPath: "/var/log/amazon/ssm",
+      sourceVolume: "ssm-agent-logs",
       readOnly: false,
     })
 

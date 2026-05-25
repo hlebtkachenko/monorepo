@@ -1,5 +1,16 @@
 import type { INestApplication } from "@nestjs/common"
 import { apiReference } from "@scalar/nestjs-api-reference"
+import {
+  BRAND_DOCS_URL,
+  BRAND_MARKETING_URL,
+  BRAND_STATUS_URL,
+  BRAND_SUPPORT_EMAIL,
+} from "@workspace/ui/brand-assets/constants"
+import {
+  BRAND_MONO_DARK,
+  BRAND_MONO_LIGHT,
+  BRAND_RADIUS,
+} from "@workspace/ui/brand-assets/tokens"
 import type { Request, Response } from "express"
 import type { ApiOpenApiDocument } from "./openapi"
 
@@ -140,33 +151,53 @@ html.dark .afframe-topnav {
   background: #0A1F1A;
   border-bottom-color: #1f3b34;
 }
+/*
+ * Brand tokens imported from @workspace/ui/brand-assets. Single source of
+ * truth is packages/ui/src/styles/globals.css (--brand-mono-light/dark,
+ * --radius); tokens.ts mirrors those values for non-CSS consumers like
+ * this server-rendered docs page. tokens.test.ts asserts the two stay
+ * in sync — change one without the other and CI fails.
+ */
+:root,
+.light-mode,
+.scalar-app.light-mode,
+.scalar-app .light-mode,
+.dark-mode,
+.scalar-app.dark-mode,
+.scalar-app .dark-mode {
+  --afframe-ink: ${BRAND_MONO_DARK};
+  --afframe-paper: ${BRAND_MONO_LIGHT};
+  --afframe-radius: ${BRAND_RADIUS};
+}
+
 .afframe-topnav-brand {
   display: flex;
   align-items: center;
 }
 .afframe-topnav-brand a {
-  display: block;
-  width: 200px;
+  display: flex;
+  align-items: center;
   height: 40px;
-  background-repeat: no-repeat;
-  background-position: left center;
-  background-size: contain;
-  text-indent: -9999px;
+  line-height: 0;
 }
-.afframe-topnav-brand a.light {
-  background-image: url("/brand-horizontal-light.svg");
-}
-.afframe-topnav-brand a.dark {
-  background-image: url("/brand-horizontal-dark.svg");
-  display: none;
-}
-.dark-mode .afframe-topnav-brand a.light,
-html.dark .afframe-topnav-brand a.light {
-  display: none;
-}
-.dark-mode .afframe-topnav-brand a.dark,
-html.dark .afframe-topnav-brand a.dark {
+.afframe-topnav-brand img {
   display: block;
+  height: 36px;
+  width: auto;
+}
+.afframe-topnav-brand .light {
+  display: flex;
+}
+.afframe-topnav-brand .dark {
+  display: none;
+}
+.dark-mode .afframe-topnav-brand .light,
+html.dark .afframe-topnav-brand .light {
+  display: none;
+}
+.dark-mode .afframe-topnav-brand .dark,
+html.dark .afframe-topnav-brand .dark {
+  display: flex;
 }
 .afframe-topnav-links {
   display: flex;
@@ -178,23 +209,23 @@ html.dark .afframe-topnav-brand a.dark {
   padding: 8px 14px;
   font-size: 14px;
   font-weight: 500;
-  color: #0A1F1A;
+  color: var(--afframe-ink);
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: var(--afframe-radius);
   transition: background-color 120ms ease, color 120ms ease;
 }
 .afframe-topnav-links a:hover {
-  background: #000000;
-  color: #ffffff;
+  background: var(--afframe-ink);
+  color: var(--afframe-paper);
 }
 .dark-mode .afframe-topnav-links a,
 html.dark .afframe-topnav-links a {
-  color: #F3F4F6;
+  color: var(--afframe-paper);
 }
 .dark-mode .afframe-topnav-links a:hover,
 html.dark .afframe-topnav-links a:hover {
-  background: #ffffff;
-  color: #000000;
+  background: var(--afframe-paper);
+  color: var(--afframe-ink);
 }
 
 /* Push Scalar's own sidebar / topbar down below our navbar. Without
@@ -249,14 +280,14 @@ export function registerDocsRoutes(
   const injectedHtml = `
     <header class="afframe-topnav" role="navigation" aria-label="Afframe">
       <div class="afframe-topnav-brand">
-        <a class="light" href="https://afframe.com" target="_blank" rel="noreferrer noopener">Afframe</a>
-        <a class="dark" href="https://afframe.com" target="_blank" rel="noreferrer noopener">Afframe</a>
+        <a class="light" href="${BRAND_MARKETING_URL}" target="_blank" rel="noreferrer noopener" aria-label="Afframe"><img src="/brand-horizontal-light.svg" alt="Afframe" /></a>
+        <a class="dark" href="${BRAND_MARKETING_URL}" target="_blank" rel="noreferrer noopener" aria-label="Afframe"><img src="/brand-horizontal-dark.svg" alt="Afframe" /></a>
       </div>
       <nav class="afframe-topnav-links" aria-label="Afframe quick links">
-        <a href="https://afframe.com" target="_blank" rel="noreferrer noopener">afframe.com</a>
-        <a href="https://status.afframe.com" target="_blank" rel="noreferrer noopener">Status</a>
-        <a href="https://docs.afframe.com/developer" target="_blank" rel="noreferrer noopener">Developer Docs</a>
-        <a href="mailto:support+feedback@afframe.com?subject=%5Bbug%5D%20" target="_blank" rel="noreferrer noopener">Report a bug</a>
+        <a href="${BRAND_MARKETING_URL}" target="_blank" rel="noreferrer noopener">afframe.com</a>
+        <a href="${BRAND_STATUS_URL}" target="_blank" rel="noreferrer noopener">Status</a>
+        <a href="${BRAND_DOCS_URL}/developer" target="_blank" rel="noreferrer noopener">Developer Docs</a>
+        <a href="mailto:${BRAND_SUPPORT_EMAIL}?subject=%5Bbug%5D%20" target="_blank" rel="noreferrer noopener">Report a bug</a>
       </nav>
     </header>
   `

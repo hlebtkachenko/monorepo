@@ -107,6 +107,8 @@
     "./blocks/*": "./src/blocks/*/index.ts",
     "./hooks/*": "./src/hooks/*.ts",
     "./brand-assets": "./src/brand-assets/index.ts",
+    "./brand-assets/constants": "./src/brand-assets/constants.ts",
+    "./brand-assets/tokens": "./src/brand-assets/tokens.ts",
     "./brand-assets/server": "./src/brand-assets/text-server.ts"
   }
 }

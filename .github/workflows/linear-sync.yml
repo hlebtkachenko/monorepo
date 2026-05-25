@@ -44,12 +44,20 @@ jobs:
         uses: hashicorp/vault-action@d1720f055e0635fd932a1d2a48f87a666a57906c # v3.4.0
         with:
           # Vault on the Hostinger VPS, exposed via Cloudflare Tunnel.
-          # CF Access only gates the admin UI; the JWT auth API path is
-          # reachable without an Access service token (the JWT auth method
-          # itself authenticates the caller via the GitHub OIDC token).
+          # The `secrets-admin.afframe.com` hostname is gated by Cloudflare
+          # Access — the CF-Access-Client-{Id,Secret} headers are the
+          # service-token credential that lets the runner past the edge
+          # gate. Without them CF Access returns the SSO challenge HTML
+          # page (HTTP 404 as seen from vault-action) before any traffic
+          # reaches Vault. Service token + GHA OIDC JWT are two distinct
+          # auth layers — the CF token only proves "may speak to Vault";
+          # the JWT proves "may read this secret".
           url: https://secrets-admin.afframe.com
           method: jwt
           role: gha-monorepo
+          extraHeaders: |
+            CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+            CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           secrets: |
             platform/data/shared/linear-api-key value | LINEAR_API_KEY ;
 

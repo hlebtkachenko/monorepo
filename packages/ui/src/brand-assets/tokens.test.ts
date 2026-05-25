@@ -22,7 +22,7 @@ describe("brand tokens stay in sync with globals.css", () => {
 
   function readVar(name: string): string {
     const match = globalsCss.match(new RegExp(`--${name}:\\s*([^;]+);`))
-    if (!match) {
+    if (!match || match[1] === undefined) {
       throw new Error(`globals.css missing --${name}`)
     }
     return match[1].trim()

@@ -27,6 +27,10 @@ jobs:
     continue-on-error: true # ADVISORY
     permissions:
       contents: read
+      # M5 pilot — exchange GitHub OIDC token for a short-lived Vault JWT
+      # token that grants read on platform/data/shared/linear-api-key.
+      # Replaces the static `${{ secrets.LINEAR_API_KEY }}` repo secret.
+      id-token: write
     steps:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
@@ -35,9 +39,25 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Fetch Linear API key from Vault
+        id: vault
+        uses: hashicorp/vault-action@d1720f055e0635fd932a1d2a48f87a666a57906c # v3.4.0
+        with:
+          # Vault on the Hostinger VPS, exposed via Cloudflare Tunnel.
+          # CF Access only gates the admin UI; the JWT auth API path is
+          # reachable without an Access service token (the JWT auth method
+          # itself authenticates the caller via the GitHub OIDC token).
+          url: https://secrets-admin.afframe.com
+          method: jwt
+          role: gha-monorepo
+          secrets: |
+            platform/data/shared/linear-api-key value | LINEAR_API_KEY ;
+
       - name: Apply Linear context
         env:
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          # LINEAR_API_KEY exported by the previous step (the action masks
+          # the value in logs automatically).
+          LINEAR_API_KEY: ${{ steps.vault.outputs.LINEAR_API_KEY }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_TITLE: ${{ github.event.pull_request.title }}

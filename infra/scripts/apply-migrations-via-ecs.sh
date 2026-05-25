@@ -186,7 +186,12 @@ in_task_script='set -eu
 PGURL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
 WORK=/dev/shm/migrate
 mkdir -p "$WORK"
-psql "$PGURL" -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS _app_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now(), checksum text NOT NULL)"
+psql "$PGURL" -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS _app_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now(), checksum text)"
+# Older bootstrap (apply-migrations-init.sh) created _app_migrations without a
+# checksum column. Idempotently align prod with the via-ecs schema so the
+# INSERT at the end of apply_one() does not fail with "column does not exist"
+# when re-running on a pre-checksum database.
+psql "$PGURL" -v ON_ERROR_STOP=1 -c "ALTER TABLE _app_migrations ADD COLUMN IF NOT EXISTS checksum text"
 
 # Fetch the manifest the runner produced. One presigned URL, one HTTP GET,
 # then everything else is parsed from JSON locally.

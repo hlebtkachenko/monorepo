@@ -6,10 +6,11 @@
 --
 -- Idempotent: prod deploy 26392392977 half-applied this migration when the
 -- _app_migrations INSERT failed on a missing `checksum` column. The DDL
--- below had already committed (autocommit, no enclosing txn). Without
--- idempotency, re-running fails on `CREATE TABLE … already exists`. Both
--- forms (IF NOT EXISTS, DROP-then-CREATE for POLICY) make the script
--- safe on the partial state AND on fresh databases.
+-- below had already committed (autocommit, no enclosing txn). The BEGIN
+-- /COMMIT wrapper + IF NOT EXISTS / DROP-then-CREATE forms make it safe
+-- to re-apply on the partial state AND on fresh databases.
+
+BEGIN;
 
 CREATE TABLE IF NOT EXISTS admin_workspace_allowlist (
   workspace_id UUID PRIMARY KEY REFERENCES workspace(id) ON DELETE CASCADE,
@@ -38,3 +39,5 @@ CREATE POLICY admin_allowlist_read ON admin_workspace_allowlist
 
 GRANT SELECT ON admin_workspace_allowlist TO app_user;
 GRANT ALL    ON admin_workspace_allowlist TO app_admin;
+
+COMMIT;

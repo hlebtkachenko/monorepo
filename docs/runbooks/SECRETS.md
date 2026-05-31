@@ -1,11 +1,13 @@
 # Secrets and Variables Convention
 
 > **As-built 2026-05-31 (M8).** App-runtime secrets live in HashiCorp Vault
-> on the OVH/Hostinger VPS (source of truth) and are mirrored to AWS SSM
+> on the Hostinger KVM 2 VPS (source of truth) and are mirrored to AWS SSM
 > SecureString every 5 minutes by a systemd timer; ECS reads SSM at task
-> start. Day-to-day Vault operations: [`VAULT-OPS.md`](VAULT-OPS.md).
-> Rotation recipes: [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md). Plan +
-> milestone history: [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md).
+> start. **New here? Start at [`SECRETS-ADD-DELETE.md`](SECRETS-ADD-DELETE.md)**
+> — the add / change / delete / scope-a-teammate entrypoint. Day-to-day
+> Vault operations: [`VAULT-OPS.md`](VAULT-OPS.md). Rotation recipes:
+> [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md). Plan + milestone history:
+> [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md).
 >
 > **Three storage tiers, by purpose:**
 >

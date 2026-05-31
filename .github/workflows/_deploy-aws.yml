@@ -1156,6 +1156,40 @@ jobs:
       # Idempotent: every applied SQL file is journaled in `_app_migrations`
       # and skipped on re-run. The script also no-ops cleanly when
       # `packages/db/migrations/` is empty.
+      # Fail-fast secret-resolution gate. The 2 Vault-backed app secrets
+      # (better-auth-secret, resend-api-key) reach SSM only via the VPS
+      # `vault-to-ssm-sync` timer. If that timer is dead (Vault sealed,
+      # token expired, network), SSM still holds the LAST-synced value —
+      # but if a param was never seeded, or was deleted, the ECS task
+      # rollout fails opaquely with ResourceInitializationError. Catch it
+      # here with an actionable message before we roll the service.
+      # (cloudflare-tunnel-token is workflow-managed — put to SSM earlier
+      # in this same job — so it is not part of this external-sync check.)
+      - name: Verify Vault-backed secrets resolve in SSM
+        if: env.STACK_SCOPE != 'infra-only'
+        run: |
+          set -euo pipefail
+          fail=0
+          for name in better-auth-secret resend-api-key; do
+            param="/monorepo/${ENV_NAME}/${name}"
+            val=$(aws ssm get-parameter --name "$param" --with-decryption \
+              --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+            if [ -z "$val" ] || [ "$val" = "None" ]; then
+              echo "::error::SSM parameter ${param} is missing or empty. The Vault→SSM sync (vault-to-ssm-sync.timer on the Hostinger VPS) may be down, or the Vault key platform/${ENV_NAME}/${name} was never seeded. Fix before deploying — see docs/runbooks/VAULT-OPS.md."
+              fail=1
+            else
+              echo "ok: ${param} resolves (len=${#val})"
+            fi
+          done
+          # Heartbeat freshness: warn (don't block) if the sync has not run
+          # in >15 min — the cached values above are still valid to deploy.
+          hb=$(aws ssm get-parameter --name "/monorepo/${ENV_NAME}/sync-heartbeat" \
+            --with-decryption --region "$AWS_REGION" \
+            --query 'Parameter.LastModifiedDate' --output text 2>/dev/null || echo "")
+          if [ -n "$hb" ]; then echo "sync-heartbeat last modified: $hb"; fi
+          if [ "$fail" -ne 0 ]; then exit 1; fi
+          echo "All Vault-backed SSM secrets resolve for env=${ENV_NAME}."
+
       - id: migrate
         name: Apply DB migrations via one-off ECS task
         # Gated on detect-changes — when no migration files changed since

@@ -41,6 +41,19 @@
 | M10 — rotation drill + cost audit + advisor gate 5 | ⏳ PENDING | Needs ECS services scaled back up from cost-saving `desired=0`. Drill rotates `RESEND_API_KEY` Vault→SSM→ECS end-to-end via `~/.context/scripts/m10-rotate-resend.sh`, then AWS Cost Explorer delta + final sign-off. |
 | Keychain cleanup                                   | ⏳ PENDING | After M10 + 7-day soak. `~/.context/scripts/phase6-keychain-cleanup.sh` trims to break-glass + bootstrap + DR entries only.                                                                                           |
 
+### Hardening pass — 2026-05-31
+
+Post-M9 gap-closing (one PR), independent of M10:
+
+| Gap (was)                                                | Fix                                                                                                                                                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scanners Vault-blind; `infra/vault/` blanket-allowlisted | `.gitleaks.toml`: added `vault-token` rule (`hv[sbr].…{24,}`); narrowed the `infra/vault/` allowlist to only `vault.hcl` + `compose.yaml` + `*.template` so the rest of the tree IS scanned |
+| No confirmed leak scan                                   | Ran `gitleaks detect` full-history + working-tree with the new rules — 0 real secrets (only public KMS/CF UUIDs in a gitignored handoff doc, now allowlisted)                               |
+| No pre-deploy secret check                               | `_deploy-aws.yml`: "Verify Vault-backed secrets resolve in SSM" step fails the deploy fast (actionable message) if `better-auth-secret`/`resend-api-key` are missing/empty                  |
+| No delete runbook / fresh-agent entrypoint               | new [`SECRETS-ADD-DELETE.md`](../runbooks/SECRETS-ADD-DELETE.md); `VAULT-OPS.md` gained a "Deleting a secret" section                                                                       |
+| No per-human scoped access                               | `VAULT-OPS.md` "Human operator access" — `userpass`/OIDC bound to `read-staging-secrets`/`read-production-secrets`, scope cheat-sheet, instant revoke                                       |
+| `OVH/Hostinger` hallucination                            | `SECRETS.md` banner corrected to "Hostinger KVM 2 VPS" (OVH is the separate status-page VPS)                                                                                                |
+
 ---
 
 ## Compressed timeline — rationale

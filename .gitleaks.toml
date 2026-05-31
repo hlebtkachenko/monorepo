@@ -109,6 +109,20 @@ regex = '''\bsk-ant-(api|admin)\d{2}-[A-Za-z0-9_\-]{60,}\b'''
 keywords = ["sk-ant-"]
 tags = ["secret", "anthropic"]
 
+# HashiCorp Vault tokens. This repo's Vault (Hostinger KVM 2 VPS) issues
+# `hvs.` service tokens (e.g. the operator-admin + sync tokens), `hvb.`
+# batch tokens, and `hvr.` recovery-wrapped tokens. A leaked operator-admin
+# or sync token grants Vault read/write, so catch any that land in a commit.
+# {24,} after the prefix keeps doc placeholders (`hvs.XXXX`, `hvs.<root>`)
+# below threshold — they never match. Added in the M-secrets-hardening pass
+# (the scanners were built for the AWS-SM era and were Vault-blind).
+[[rules]]
+id = "vault-token"
+description = "HashiCorp Vault token (hvs./hvb./hvr.)"
+regex = '''\bhv[sbr]\.[A-Za-z0-9._-]{24,}'''
+keywords = ["hvs.", "hvb.", "hvr."]
+tags = ["secret", "vault"]
+
 # Standard Webhooks signing secret. Partners receive these out-of-band; the
 # SDK's `verifyWebhook` consumes them. Format mirrors the `whsec_` prefix
 # the rest of the ecosystem uses (Svix, Stripe webhooks). Character class
@@ -138,6 +152,12 @@ description = "Repo-wide allowlist for known-safe matches"
 paths = [
   '''(^|/)pnpm-lock\.yaml$''',
   '''(^|/)\.context/''',
+  # Session handoff docs — gitignored (never committed/CI), but local
+  # `--no-git` scans walk them. They note public AWS/Cloudflare resource
+  # IDs (KMS Key ID, CF Access app + tunnel UUIDs) that trip the entropy
+  # heuristic; all IAM/Access-gated, not secrets. Narrow to /handoffs/ so
+  # any genuinely-committed .claude file still gets scanned.
+  '''(^|/)\.claude/handoffs/''',
   '''(^|/)_junk/''',
   # Local-dev env files — gitignored, never reach CI, but if someone runs a scan
   # locally (e.g. infisical scan) we don't want to false-positive their machine.
@@ -146,12 +166,20 @@ paths = [
   # CDK synth output — gitignored, walks filesystem on local scans. The S3
   # asset keys are 40-char hex hashes that trip the generic-api-key heuristic.
   '''(^|/)cdk\.out/''',
-  # Vault VPS bring-up assets. The HCL embeds a KMS Key ID (a public AWS
-  # resource identifier, gated by IAM — not a secret) and compose.yaml pins
-  # docker image sha256 digests; both trip generic-api-key. Real secrets for
-  # this surface live in `.env` (already path-allowlisted above and gitignored
-  # on the VPS — never committed).
-  '''(^|/)infra/vault/''',
+  # Vault VPS bring-up assets — NARROW allowlist (was a blanket
+  # `infra/vault/` ignore, which made gitleaks blind to the whole tree).
+  # Only the specific files that carry public-but-suspicious identifiers
+  # are allowlisted; everything else under infra/vault/ (policies, setup
+  # scripts, README) IS scanned, so a real `hvs.` token committed there is
+  # caught by the vault-token rule above.
+  #   - vault.hcl: embeds a KMS Key ID (public AWS resource id, IAM-gated)
+  #   - compose.yaml: pins docker image sha256 digests
+  #   - *.template / env.template: placeholder env files (real .env is
+  #     gitignored on the VPS + path-allowlisted above, never committed)
+  '''(^|/)infra/vault/vault\.hcl$''',
+  '''(^|/)infra/vault/compose\.yaml$''',
+  '''(^|/)infra/vault/.*\.template$''',
+  '''(^|/)infra/vault/.*env\.template$''',
   '''(^|/)docs/plans/''',
   '''(^|/)docs/runbooks/AWS-BOOTSTRAP\.md$''',
   # Documented contracts referencing example secret prefixes (not real values).

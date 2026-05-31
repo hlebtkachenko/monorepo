@@ -261,6 +261,76 @@ vault audit disable file
 4. Operator updates `docs/env-vars.md` with the new entry.
 5. `pnpm verify` → PR → green CI → deploy.
 
+### Deleting a secret
+
+Reverse of "Adding". Order matters — remove the consumer BEFORE the value,
+or a running task loses a secret it still references.
+
+1. **Remove the consumer first**: drop the `EcsSecret.fromSsmParameter`
+   line in `infra/cdk/lib/app-stack.ts` (+ any code reading the env var).
+   PR → deploy so no task definition references the param anymore.
+2. **Stop the sync**: remove the `(env, name)` tuple from
+   `/usr/local/sbin/vault-to-ssm-sync` (so it stops re-creating the SSM
+   param after you delete it).
+3. **Delete the SSM param**:
+   `aws ssm delete-parameter --name /monorepo/${env}/${name} --region eu-central-1`
+4. **Delete from Vault** (source of truth, last):
+   `vault kv metadata delete platform/${env}/${name}` (full destroy incl.
+   version history) — or `vault kv delete …` to soft-delete the latest
+   version only.
+5. Update `docs/env-vars.md` + `SECRETS.md` decision matrix.
+
+Never delete the Vault value first — the sync would then write an empty/
+absent param and a still-referencing task would fail on next rollout.
+
+### Human operator access (scoped per-person)
+
+Today the only human path to Vault is the full-admin `operator-admin`
+token (Keychain). To give a teammate **read-only on staging** (or any
+narrower scope) WITHOUT handing them admin, enable a human auth method
+and bind them to an existing read policy (`read-staging-secrets.hcl` /
+`read-production-secrets.hcl`).
+
+**Option A — `userpass` (fastest, no external IdP).** Good for one or two
+contractors:
+
+```bash
+# operator (operator-admin token), via the SSH tunnel:
+vault auth enable userpass        # idempotent; skip if already enabled
+vault write auth/userpass/users/<dev-name> \
+  password=<one-time-pass-they-rotate> \
+  token_policies=read-staging-secrets \
+  token_ttl=1h token_max_ttl=8h
+# Hand the dev the one-time password out-of-band; they rotate it:
+#   vault login -method=userpass username=<dev-name>
+#   vault write auth/userpass/users/<dev-name>/password password=<their-new>
+```
+
+The dev now reads ONLY `platform/staging/*` (via `read-staging-secrets`),
+nothing in production, no admin. Revoke instantly:
+`vault delete auth/userpass/users/<dev-name>`.
+
+**Option B — OIDC via Google Workspace (preferred once the team grows).**
+No shared passwords; access follows the Google account. Heavier setup
+(register an OIDC app, map a Workspace group → policy). Wire it the same
+way the GitHub JWT method was wired (see "GitHub Actions JWT auth" above),
+with `oidc_discovery_url` pointing at Google and a `bound_claims` group
+filter → `token_policies=read-staging-secrets`. Defer until there is a
+second human who needs standing access.
+
+**Scope cheat-sheet:**
+
+| Give a dev…          | Bind to policy                              |
+| -------------------- | ------------------------------------------- |
+| staging read-only    | `read-staging-secrets`                      |
+| production read-only | `read-production-secrets`                   |
+| both envs read-only  | both policies (comma-separated)             |
+| admin (rare)         | `operator-admin` — only for a co-maintainer |
+
+Every human login is recorded in the Vault audit log
+(`/srv/secrets/vault/audit/audit.log`) with the username/email — so who
+read what is always answerable.
+
 ### Adding a Vault role for a new workload
 
 1. Decide auth method: ECS Fargate → AWS IAM Auth; GHA → JWT.

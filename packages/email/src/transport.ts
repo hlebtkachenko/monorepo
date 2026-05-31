@@ -64,10 +64,12 @@ function extractUrl(text?: string): string | undefined {
   return m?.[0]
 }
 
-// Collapse line terminators so a user-controlled field (recipient, subject)
-// can't forge extra lines in the console transport's log output (log injection).
+// Strip line terminators so a user-controlled field (recipient, subject) can't
+// forge extra lines in the console transport's log output (log injection). The
+// replacement must be the empty string: CodeQL only recognizes a replace as a
+// log-injection sanitizer when newlines are replaced with "" (not a space).
 function stripLineBreaks(value: string): string {
-  return value.replace(/[\r\n\u2028\u2029]+/g, " ")
+  return value.replace(/[\r\n\u2028\u2029]+/g, "")
 }
 
 function recordOutbox(entry: OutboxEntry): void {

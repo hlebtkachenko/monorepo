@@ -55,6 +55,11 @@ jobs:
           url: https://secrets-admin.afframe.com
           method: jwt
           role: gha-monorepo
+          # The GitHub OIDC token carries an `aud` claim. Vault's
+          # gha-monorepo role binds bound_audiences to this exact value;
+          # they must match or Vault rejects with "audience claim found
+          # in JWT but no audiences bound to the role" (400).
+          jwtGithubAudience: https://secrets-admin.afframe.com
           extraHeaders: |
             CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}
             CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}

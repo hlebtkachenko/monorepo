@@ -11,7 +11,8 @@ export const DEFAULT_TEAM_ID = "team_default_team"
 export const artifactRouter = new Hono<{ Bindings: Env }>()
 
 artifactRouter.use("*", async (c, next) => {
-  const bearer = bearerAuth({ token: c.env.TURBO_TOKEN })
+  // Explicit env generic — see internal.ts for the Hono 4.12 Context note.
+  const bearer = bearerAuth<{ Bindings: Env }>({ token: c.env.TURBO_TOKEN })
 
   return bearer(c, next)
 })

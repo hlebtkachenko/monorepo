@@ -9,7 +9,10 @@ import * as v from "valibot"
 export const internalRouter = new Hono<{ Bindings: Env }>()
 
 internalRouter.use("*", async (c, next) => {
-  const bearer = bearerAuth({ token: c.env.TURBO_TOKEN })
+  // Explicit env generic: Hono 4.12 tightened the returned middleware's
+  // Context type, so `bearer(c, next)` no longer infers our Bindings from the
+  // router. Pin it so the handler's Context matches `Hono<{ Bindings: Env }>`.
+  const bearer = bearerAuth<{ Bindings: Env }>({ token: c.env.TURBO_TOKEN })
 
   return bearer(c, next)
 })

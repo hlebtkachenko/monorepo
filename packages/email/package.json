@@ -14,7 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@aws-sdk/client-sesv2": "^3.1045.0",
+    "@aws-sdk/client-sesv2": "^3.1053.0",
     "resend": "^6.12.3"
   },
   "devDependencies": {

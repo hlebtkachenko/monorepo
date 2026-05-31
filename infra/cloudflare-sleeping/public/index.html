@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Afframe is asleep</title>
+<style>
+  /*
+   * Self-contained sleeping page served at the Cloudflare edge while the
+   * Fargate task is cold-paused. No external fonts/scripts/images — renders
+   * instantly with zero origin dependency. Visual twin of the in-app
+   * apps/web/app/sleeping/page.tsx; brand hex mirrors
+   * packages/ui/src/styles/globals.css (--brand-mono-dark, --brand-primary-dark).
+   */
+  :root {
+    color-scheme: dark;
+    --bg: #0a1f1a;
+    --mint: #28dcb1;
+    --text: #e9f6f1;
+    --muted: #9fc4ba;
+    --faint: #5f8579;
+    --card: #102a23;
+    --border: rgba(40, 220, 177, 0.16);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid;
+    place-items: center;
+    padding: 28px;
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(40, 220, 177, 0.14), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .wrap { width: 100%; max-width: 33rem; text-align: center; }
+  .brand { height: 26px; width: auto; opacity: 0.95; }
+  .scene {
+    position: relative;
+    margin: 2.5rem auto 1.75rem;
+    width: 240px;
+    height: 170px;
+  }
+  .cat { transform-origin: 50% 100%; animation: breathe 4s ease-in-out infinite; }
+  @keyframes breathe {
+    0%, 100% { transform: scaleY(1) scaleX(1); }
+    50%      { transform: scaleY(1.035) scaleX(1.01); }
+  }
+  .z {
+    position: absolute;
+    font-weight: 700;
+    color: var(--mint);
+    opacity: 0;
+    animation: float 4s ease-in-out infinite;
+  }
+  .z1 { left: 150px; top: 64px; font-size: 18px; animation-delay: 0s; }
+  .z2 { left: 168px; top: 50px; font-size: 24px; animation-delay: 0.7s; }
+  .z3 { left: 190px; top: 34px; font-size: 32px; animation-delay: 1.4s; }
+  @keyframes float {
+    0%   { opacity: 0; transform: translateY(8px) scale(0.85); }
+    30%  { opacity: 0.9; }
+    70%  { opacity: 0.5; }
+    100% { opacity: 0; transform: translateY(-26px) scale(1.05); }
+  }
+  h1 { margin: 0 0 0.6rem; font-size: 1.7rem; font-weight: 650; letter-spacing: -0.01em; color: #fff; }
+  p { margin: 0 auto; max-width: 27rem; color: var(--muted); }
+  .actions { margin-top: 1.9rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.6rem 1.1rem;
+    border-radius: 0.7rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--mint); color: #06241c; }
+  .btn-primary:hover { background: #45e8c1; }
+  .btn-ghost { border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: rgba(40, 220, 177, 0.4); }
+  .foot { margin-top: 2.5rem; font-size: 0.8rem; color: var(--faint); }
+  .foot a { color: var(--muted); text-decoration: none; }
+  .foot a:hover { color: var(--text); }
+  @media (prefers-reduced-motion: reduce) {
+    .cat, .z { animation: none; }
+    .z { opacity: 0.6; }
+  }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <!-- AFFRAME horizontal wordmark (primary-dark) — inlined from packages/ui/src/brand-assets/source/primary-dark/horizontal.svg -->
+    <svg class="brand" viewBox="0 0 1194 242" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Afframe">
+      <path d="M77.622 70.5C77.088 70.616 76.779 70.792 76.378 71.198C75.966 71.617 75.863 71.805 75.717 72.375C75.608 72.782 75.602 73.364 75.602 84.193C75.602 93.906 75.614 95.611 75.687 95.75C75.735 95.842 76.19 96.321 76.706 96.818C77.215 97.31 78.144 98.214 78.763 98.82C79.381 99.421 80.34 100.355 80.892 100.889C81.438 101.423 82.639 102.582 83.555 103.467C84.471 104.353 86.025 105.858 87.007 106.798C87.99 107.745 89.246 108.958 89.798 109.498C91.988 111.627 92.989 112.598 94.5 114.054C98.941 118.337 99.511 118.901 99.493 119.029C99.475 119.15 99.456 119.15 88.524 119.18L77.573 119.211L77.222 119.35C76.815 119.514 76.16 120.09 75.935 120.479C75.584 121.091 75.602 120.479 75.602 133.904C75.602 145.504 75.608 146.214 75.711 146.366C75.766 146.451 76.251 146.942 76.785 147.452C77.319 147.961 78.083 148.701 78.483 149.09C78.884 149.478 80.115 150.667 81.214 151.729C83.901 154.325 84.605 155.005 85.855 156.218C86.437 156.782 87.165 157.48 87.462 157.765C88.008 158.287 89.938 160.168 90.702 160.92C90.92 161.138 91.618 161.806 92.249 162.406C92.886 163.007 93.729 163.826 94.136 164.226C95.768 165.84 98.298 168.255 98.734 168.619C99.839 169.523 101.507 170.463 102.72 170.857C103.806 171.215 104.983 171.47 105.863 171.537C107.028 171.622 163.509 171.622 164.055 171.531C164.771 171.415 165.366 170.979 165.797 170.251L166.088 169.747L166.118 158.159C166.136 151.783 166.155 146.566 166.167 146.554C166.233 146.481 166.47 146.669 167.307 147.47C168.8 148.889 175.133 155.005 175.613 155.49C175.849 155.727 176.595 156.449 177.281 157.098C177.967 157.747 178.701 158.457 178.919 158.675C179.417 159.173 180.812 160.519 182.492 162.133C183.208 162.819 184.106 163.686 184.494 164.062C188.796 168.255 189.044 168.473 190.543 169.571C191.21 170.056 193.37 170.954 194.571 171.246C195.942 171.573 195.354 171.555 205.977 171.579C216.023 171.603 216.424 171.597 216.855 171.379C217.552 171.027 218.153 170.287 218.323 169.583C218.402 169.25 218.414 167.703 218.414 157.808C218.414 149.654 218.396 146.372 218.347 146.281C218.311 146.208 218.001 145.88 217.668 145.553C217.328 145.225 216.315 144.242 215.411 143.369C214.513 142.489 212.887 140.918 211.801 139.868C210.721 138.819 209.556 137.684 209.223 137.35C208.883 137.017 208.052 136.21 207.366 135.561C206.062 134.311 205.237 133.516 204.163 132.467C203.799 132.115 202.962 131.314 202.3 130.677C201.639 130.046 200.863 129.294 200.577 129.009C200.292 128.723 199.764 128.202 199.394 127.85C198.424 126.928 196.84 125.393 194.905 123.512C193.971 122.608 192.812 121.486 192.327 121.025C190.949 119.708 190.737 119.49 190.761 119.375C190.78 119.277 191.544 119.271 203.581 119.241C216.096 119.211 216.387 119.205 216.703 119.089C217.146 118.932 217.746 118.422 218.007 117.979C218.444 117.275 218.414 118.058 218.414 106.392C218.414 97.492 218.402 95.854 218.329 95.714C218.28 95.623 217.783 95.114 217.225 94.58C216.66 94.046 215.969 93.378 215.684 93.093C215.399 92.808 214.713 92.141 214.161 91.613C213.615 91.079 212.675 90.163 212.068 89.581C211.043 88.58 209.15 86.747 206.735 84.412C206.165 83.866 205.376 83.101 204.976 82.719C204.575 82.337 204.084 81.858 203.884 81.657C203.684 81.457 202.895 80.693 202.131 79.959C201.366 79.225 200.377 78.266 199.94 77.835C199.498 77.399 198.648 76.579 198.054 76.015C197.459 75.445 196.725 74.735 196.422 74.438C194.007 72.042 191.453 70.828 188.068 70.464C187.679 70.428 182.498 70.404 172.743 70.404C156.806 70.404 157.71 70.385 157.06 70.713C156.648 70.925 156.084 71.514 155.853 71.969L155.653 72.375L155.623 83.902C155.592 94.561 155.586 95.429 155.495 95.429C155.41 95.429 154.027 94.131 152.201 92.335C152.001 92.135 151.546 91.698 151.194 91.364C150.842 91.031 150.023 90.236 149.374 89.605C147.287 87.585 146.68 86.99 143.125 83.568C141.208 81.718 138.86 79.455 137.908 78.539C136.961 77.617 135.76 76.458 135.238 75.955C134.723 75.457 134.079 74.832 133.812 74.565C133.139 73.892 132.12 73.03 131.519 72.636C131.04 72.308 130.003 71.762 129.153 71.38C128.292 70.998 127.066 70.689 125.622 70.495C124.658 70.367 78.21 70.367 77.622 70.5Z" fill="#28DCB1"/>
+      <path d="M260.013 166.708L304.297 75.213H340.469L384.754 166.708H349.513L344.06 154.606H299.244L293.924 166.708H260.013ZM309.218 131.865H334.086L327.703 116.439C327.437 115.729 327.082 114.776 326.639 113.579C326.196 112.383 325.708 111.031 325.176 109.523C324.644 108.016 324.134 106.509 323.647 105.002C323.159 103.495 322.694 102.12 322.25 100.879H321.319C320.787 102.386 320.167 104.115 319.458 106.066C318.748 108.016 318.061 109.922 317.396 111.784C316.731 113.646 316.133 115.197 315.601 116.439L309.218 131.865Z" fill="#F3F4F6"/>
+      <path d="M395.659 166.708V75.213H488.218V97.954H428.507V113.38H480.77V136.121H428.507V166.708H395.659Z" fill="#F3F4F6"/>
+      <path d="M502.979 166.708V75.213H595.537V97.954H535.826V113.38H588.09V136.121H535.826V166.708H502.979Z" fill="#F3F4F6"/>
+      <path d="M610.299 166.708V75.213H689.559C696.385 75.213 702.082 76.631 706.647 79.468C711.213 82.306 714.649 86.029 716.954 90.639C719.259 95.25 720.412 100.214 720.412 105.534C720.412 111.651 719.06 117.081 716.355 121.825C713.651 126.568 709.684 130.358 704.453 133.195L722.539 166.708H685.436L671.606 138.115H643.146V166.708H610.299ZM643.146 115.375H677.989C680.471 115.375 682.555 114.599 684.239 113.048C685.924 111.496 686.766 109.346 686.766 106.598C686.766 104.736 686.367 103.162 685.569 101.877C684.771 100.591 683.729 99.616 682.444 98.951C681.158 98.286 679.673 97.954 677.989 97.954H643.146V115.375Z" fill="#F3F4F6"/>
+      <path d="M726.928 166.708L771.212 75.213H807.385L851.669 166.708H816.428L810.975 154.606H766.159L760.839 166.708H726.928ZM776.133 131.865H801.001L794.618 116.439C794.352 115.729 793.997 114.776 793.554 113.579C793.111 112.383 792.623 111.031 792.091 109.523C791.559 108.016 791.049 106.509 790.562 105.002C790.074 103.495 789.609 102.12 789.165 100.879H788.234C787.703 102.386 787.082 104.115 786.373 106.066C785.663 108.016 784.976 109.922 784.311 111.784C783.646 113.646 783.048 115.197 782.516 116.439L776.133 131.865Z" fill="#F3F4F6"/>
+      <path d="M862.574 166.708V75.213H914.173L925.477 108.725C926.186 110.587 926.895 112.737 927.605 115.175C928.314 117.613 929.001 120.051 929.666 122.49C930.331 124.928 930.885 127.033 931.328 128.806H932.259C932.702 127.122 933.257 125.127 933.921 122.822C934.586 120.517 935.296 118.101 936.049 115.574C936.803 113.048 937.534 110.765 938.243 108.725L949.547 75.213H999.55V166.708H966.703V126.812C966.703 124.595 966.725 122.157 966.769 119.497C966.813 116.838 966.88 114.222 966.969 111.651C967.057 109.08 967.102 106.864 967.102 105.002H966.038C965.417 107.041 964.686 109.413 963.843 112.117C963.001 114.821 962.159 117.48 961.317 120.096C960.474 122.711 959.699 124.95 958.989 126.812L944.627 166.708H915.503L901.14 126.812C900.165 123.975 899.212 121.16 898.281 118.367C897.35 115.574 896.53 113.003 895.821 110.654C895.112 108.304 894.535 106.42 894.092 105.002H893.028C893.117 106.42 893.183 108.304 893.228 110.654C893.272 113.003 893.316 115.574 893.361 118.367C893.405 121.16 893.427 123.975 893.427 126.812V166.708H862.574Z" fill="#F3F4F6"/>
+      <path d="M1019.23 166.708V75.213H1116.98V97.954H1052.21V109.789H1108.07V131.333H1052.21V143.967H1118.04V166.708H1019.23Z" fill="#F3F4F6"/>
+    </svg>
+
+    <div class="scene" role="img" aria-label="A cat curled up asleep">
+      <span class="z z1">z</span>
+      <span class="z z2">z</span>
+      <span class="z z3">Z</span>
+      <svg class="cat" width="240" height="170" viewBox="0 0 240 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- ground shadow -->
+        <ellipse cx="124" cy="150" rx="96" ry="12" fill="rgba(0,0,0,0.28)"/>
+        <!-- curled body -->
+        <path d="M44 132 C 30 96, 58 64, 100 62 C 150 60, 208 78, 214 116 C 217 134, 200 144, 176 144 L 70 144 C 54 144, 46 140, 44 132 Z" fill="#1a3a31" stroke="#28dcb1" stroke-width="3"/>
+        <!-- tail curling around the front -->
+        <path d="M70 142 C 40 142, 30 120, 44 104" fill="none" stroke="#28dcb1" stroke-width="3" stroke-linecap="round"/>
+        <!-- head resting on body -->
+        <circle cx="78" cy="108" r="34" fill="#1f4339" stroke="#28dcb1" stroke-width="3"/>
+        <!-- ears -->
+        <path d="M58 84 L 54 62 L 76 78 Z" fill="#1f4339" stroke="#28dcb1" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M96 78 L 110 60 L 104 86 Z" fill="#1f4339" stroke="#28dcb1" stroke-width="3" stroke-linejoin="round"/>
+        <!-- closed eye -->
+        <path d="M62 108 q 9 8 18 0" fill="none" stroke="#28dcb1" stroke-width="3" stroke-linecap="round"/>
+        <!-- nose -->
+        <circle cx="50" cy="116" r="3" fill="#28dcb1"/>
+        <!-- whiskers -->
+        <path d="M48 120 L 30 118 M48 124 L 30 128" stroke="#5f8579" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <h1>Afframe is asleep</h1>
+    <p>This environment powers down when nobody is using it, to keep things lean. It is not an outage. The service comes back automatically the next time it is started, and takes a short moment to wake.</p>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="https://status.afframe.com">Check status</a>
+      <a class="btn btn-ghost" href="mailto:support@afframe.com">Contact support</a>
+    </div>
+
+    <div class="foot">
+      Questions? <a href="mailto:support@afframe.com">support@afframe.com</a>
+    </div>
+  </main>
+</body>
+</html>

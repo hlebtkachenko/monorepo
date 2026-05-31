@@ -511,29 +511,42 @@ export class SecurityStack extends Stack {
       targets: [new LambdaTarget(rdsRestartWatcherFn)],
     })
 
-    // ----- Staging auto-stop (max-uptime TTL) -----
+    // ----- Env auto-cold-pause (max-uptime TTL) -----
     //
-    // STAGING ONLY: production must stay up once it serves clients. A 30-min
-    // EventBridge schedule stops staging (ECS desiredCount=0 + RDS) once its
-    // oldest running task has been up past MAX_UPTIME_HOURS — the backstop for
-    // "I'll shut it down later" that never happens (AFF cost review
-    // 2026-05-31). It is a max-uptime TTL, not request-level idle detection
-    // (traffic dies at Cloudflare; ECS has no cheap request signal). A
-    // genuinely-needed long session is just restarted. No resources are
-    // created on any other env. See docs/runbooks/STAGING.md.
-    if (props.envName === "staging") {
-      const autoStopLogGroup = new LogGroup(this, "StagingAutoStopLogs", {
-        logGroupName: `/aws/lambda/monorepo-${props.envName}-staging-autostop`,
+    // A 30-min EventBridge schedule COLD-pauses the env (ECS desiredCount=0 +
+    // RDS stop + cost-stop-requested tag) once its oldest running task has been
+    // up past MAX_UPTIME_HOURS (5h) — the backstop for "I'll shut it down
+    // later" that never happens (AFF cost review 2026-05-31). It is a
+    // max-uptime TTL, NOT request-level idle detection (traffic dies at
+    // Cloudflare; ECS has no cheap request signal). A still-needed session is
+    // just resumed via the Env Power workflow (one command). See
+    // docs/runbooks/ENV-POWER.md.
+    //
+    // ┌─ PRODUCTION IS A PRE-v1 EXCEPTION. Prod has 0 paying users today, so
+    // │  auto-cold-pausing it after 5h is acceptable cost control. WHEN v1
+    // │  SHIPS AND REAL USERS ONBOARD, REMOVE "production" FROM AUTO_STOP_ENVS
+    // │  BELOW — a mid-use 5h cold-start (~8 min) in a paying user's face is
+    // │  unacceptable. Prod must then run 24/7, or on pre-scheduled closed
+    // └─ windows (a fixed-hours cron Rule), never an uptime TTL.
+    //    See docs/runbooks/ENV-POWER.md § "Production after v1".
+    const AUTO_STOP_ENVS = ["staging", "production"]
+    if (AUTO_STOP_ENVS.includes(props.envName)) {
+      // SSM SecureString holding a Cloudflare API token (Zone:Read + Workers
+      // Routes:Edit). Account-level, so one param is shared by both env stacks.
+      // Populate it (Vault → SSM sync, or `aws ssm put-parameter`) to enable
+      // the auto-pause sleeping-page binding; until then the lambda no-ops it.
+      const cfRoutesTokenParamName = "/monorepo/shared/cloudflare-routes-token"
+
+      const autoStopLogGroup = new LogGroup(this, "AutoStopLogs", {
+        logGroupName: `/aws/lambda/monorepo-${props.envName}-autostop`,
         retention: RetentionDays.ONE_MONTH,
       })
 
-      const autoStopFn = new LambdaFunction(this, "StagingAutoStopFn", {
-        functionName: `monorepo-${props.envName}-staging-autostop`,
+      const autoStopFn = new LambdaFunction(this, "AutoStopFn", {
+        functionName: `monorepo-${props.envName}-autostop`,
         runtime: Runtime.NODEJS_20_X,
         handler: "index.handler",
-        code: Code.fromAsset(
-          path.join(__dirname, "lambda", "staging-autostop"),
-        ),
+        code: Code.fromAsset(path.join(__dirname, "lambda", "autostop")),
         timeout: Duration.seconds(30),
         memorySize: 256,
         logGroup: autoStopLogGroup,
@@ -543,12 +556,18 @@ export class SecurityStack extends Stack {
           MAX_UPTIME_HOURS: "5",
           RDS_INSTANCE_IDENTIFIER: dbInstanceId,
           OPS_TOPIC_ARN: this.killSwitchOpsTopic.topicArn,
+          // Bind the afframe-sleeping Worker on auto-pause (best-effort).
+          // No-ops until the SSM token below is populated.
+          ENV_NAME: props.envName,
+          CF_ROUTES_TOKEN_PARAM: cfRoutesTokenParamName,
+          CF_ZONE_NAME: "afframe.com",
+          SLEEPING_SCRIPT_NAME: "afframe-sleeping",
         },
         description:
-          "Stops staging (ECS desiredCount=0 + RDS) once its task exceeds the max-uptime TTL.",
+          "Cold-pauses the env (ECS desiredCount=0 + RDS) once its task exceeds the max-uptime TTL.",
       })
 
-      // Scale-to-zero on the staging service only.
+      // Scale-to-zero on this env's service only.
       autoStopFn.addToRolePolicy(
         new PolicyStatement({
           effect: Effect.ALLOW,
@@ -582,12 +601,36 @@ export class SecurityStack extends Stack {
           resources: [dbArn],
         }),
       )
+      // Read the Cloudflare routes token (SSM SecureString) to bind the
+      // sleeping page on auto-pause. Scoped to the single param; kms:Decrypt is
+      // gated to SSM-originated calls only.
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["ssm:GetParameter"],
+          resources: [
+            `arn:aws:ssm:${this.region}:${this.account}:parameter${cfRoutesTokenParamName}`,
+          ],
+        }),
+      )
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["kms:Decrypt"],
+          resources: ["*"],
+          conditions: {
+            StringEquals: {
+              "kms:ViaService": `ssm.${this.region}.amazonaws.com`,
+            },
+          },
+        }),
+      )
       this.killSwitchOpsTopic.grantPublish(autoStopFn)
 
-      new Rule(this, "StagingAutoStopSchedule", {
-        ruleName: `monorepo-${props.envName}-staging-autostop`,
+      new Rule(this, "AutoStopSchedule", {
+        ruleName: `monorepo-${props.envName}-autostop`,
         description:
-          "Every 30 min: stop staging if its running task exceeds the uptime TTL",
+          "Every 30 min: cold-pause this env if its running task exceeds the uptime TTL",
         schedule: Schedule.rate(Duration.minutes(30)),
         targets: [new LambdaTarget(autoStopFn)],
       })

@@ -1,0 +1,34 @@
+{
+  // Afframe sleeping-page Worker — edge "app is asleep" screen for the
+  // cold-paused Fargate task.
+  //
+  // Serves a self-contained static page (public/index.html) as HTTP 503 on the
+  // public app/api/admin hosts WHILE the env is paused. Crucially, the host
+  // routes are NOT declared here: they are bound on-demand by
+  // scripts/routes.sh (or the power.yml pause step) and removed on resume. So
+  // when the app is live this Worker receives ZERO production traffic and
+  // costs nothing — it only intercepts during a deliberate pause.
+  //
+  // `workers_dev: true` gives a *.workers.dev preview URL so you can see the
+  // page any time without binding it to a real host.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "afframe-sleeping",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-01",
+  "workers_dev": true,
+  "preview_urls": true,
+
+  // Static Assets — public/index.html is the single source for the page.
+  // run_worker_first lets the Worker wrap every response in a 503 (correct
+  // status for a temporary, intentional outage) while still serving the asset.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+  },
+
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+}

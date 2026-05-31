@@ -64,6 +64,16 @@ function extractUrl(text?: string): string | undefined {
   return m?.[0]
 }
 
+// Strip CR/LF so a user-controlled field (recipient, subject) can't forge extra
+// lines in the console transport's log output (log injection). For CodeQL to
+// accept this as a sanitizer the newline replace must use the empty string AND
+// an UNQUANTIFIED pattern \u2014 a `+` on the char class defeats its replaces(s, "")
+// modelling (verified against the js/log-injection query with the CodeQL CLI).
+// The global flag still removes every CR/LF, so behaviour is unchanged.
+function stripLineBreaks(value: string): string {
+  return value.replace(/[\r\n]/g, "")
+}
+
 function recordOutbox(entry: OutboxEntry): void {
   OUTBOX.push(entry)
   if (OUTBOX.length > MAX_OUTBOX) OUTBOX.shift()
@@ -87,13 +97,13 @@ class ConsoleTransport implements EmailTransport {
       text: message.text,
       url,
     })
-    // eslint-disable-next-line no-console
+
     console.log(
       `\n┌─ email:console ───────────────────────────────────────────\n` +
-        `│ to:      ${message.to}\n` +
-        `│ from:    ${from}\n` +
-        `│ subject: ${message.subject}\n` +
-        (url ? `│ link:    ${url}\n` : "") +
+        `│ to:      ${stripLineBreaks(message.to)}\n` +
+        `│ from:    ${stripLineBreaks(from)}\n` +
+        `│ subject: ${stripLineBreaks(message.subject)}\n` +
+        (url ? `│ link:    ${stripLineBreaks(url)}\n` : "") +
         `└───────────────────────────────────────────────────────────\n`,
     )
   }
@@ -183,7 +193,7 @@ let _transport: EmailTransport | null = null
 export function getTransport(): EmailTransport {
   if (!_transport) {
     _transport = pickTransport()
-    // eslint-disable-next-line no-console
+
     console.log(`[email] transport=${_transport.kind}`)
   }
   return _transport

@@ -1,0 +1,103 @@
+# Seed the Cloudflare routes token into SSM (one-off / on-demand).
+#
+# Copies the existing `CLOUDFLARE_API_TOKEN` GitHub secret into the SSM
+# SecureString that the auto-pause lambda reads
+# (`/monorepo/shared/cloudflare-routes-token`, see
+# infra/cdk/lib/security-stack.ts + infra/cloudflare-sleeping/README.md).
+#
+# Why a workflow: GitHub secrets are write-only and there are no static AWS
+# keys, so the only way to move the secret into SSM is a job that can read the
+# secret (in-CI) and assume the deploy role via OIDC. The token is masked and
+# never printed; the verify step queries only the param Version, not its Value.
+#
+# The param is account-shared (one region), so running for either environment
+# writes the same value — default `staging` avoids the production approval gate.
+#
+# This does NOT deploy anything. The auto-pause binding activates on the next
+# `stack=all` deploy (which ships the SecurityStack lambda + its ssm:GetParameter
+# grant); seeding ahead of time is harmless.
+
+name: Seed Cloudflare routes token (SSM)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Which OIDC deploy role to use (the SSM param is account-shared)"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+
+permissions: {}
+
+concurrency:
+  group: seed-cf-routes-token
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write # OIDC federation to assume the deploy role
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      PARAM_NAME: /monorepo/shared/cloudflare-routes-token
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+
+      - name: Mask account-bearing secrets in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: role
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "${{ inputs.environment }}" in
+            staging)    echo "arn=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "arn=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.role.outputs.arn }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-seed-cf-token-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 900
+
+      - name: Write SSM SecureString from CLOUDFLARE_API_TOKEN
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$CF_TOKEN"
+          if [ -z "$CF_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN secret is empty"; exit 1
+          fi
+          aws ssm put-parameter \
+            --region "$AWS_REGION" \
+            --name "$PARAM_NAME" \
+            --type SecureString \
+            --value "$CF_TOKEN" \
+            --overwrite >/dev/null
+          # Verify presence without revealing the value (query Version only).
+          ver="$(aws ssm get-parameter --region "$AWS_REGION" --name "$PARAM_NAME" \
+                  --with-decryption --query 'Parameter.Version' --output text)"
+          echo "Wrote ${PARAM_NAME} (version ${ver}) in ${AWS_REGION}." >> "$GITHUB_STEP_SUMMARY"

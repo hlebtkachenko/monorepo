@@ -94,18 +94,19 @@ aws rds stop-db-instance --db-instance-identifier "$SID"
    it fires at month-scale dollars, not after one forgotten night.
 2. **RdsRestartWatcher.** AWS force-starts a stopped RDS after ~7 days; the
    watcher re-stops it as long as the `cost-stop-requested=true` tag is present.
-3. **Auto-stop after uptime TTL.** A scheduled Lambda
-   (`monorepo-staging-staging-autostop`, EventBridge every 30 min) stops staging
+3. **Auto-cold-pause after uptime TTL.** A scheduled Lambda
+   (`monorepo-staging-autostop`, EventBridge every 30 min) cold-pauses staging
    (ECS→0, RDS→stopped, tags for the RdsRestartWatcher) once the running task has
    been up longer than `MAX_UPTIME_HOURS` (default **5h**), and emails the ops
    topic. It is a **max-uptime TTL**, not request-level idle detection: traffic
    terminates at Cloudflare (no ALB), so ECS has no cheap request signal. A
-   genuinely-needed long session is just restarted (see "Bring staging UP"). The
-   Lambda exists only on the staging env. Takes effect once the staging Security
-   stack is deployed.
+   still-needed session is just resumed (see "Bring staging UP" or the Env Power
+   workflow). The same automation runs on production pre-v1 — see
+   [`ENV-POWER.md`](ENV-POWER.md).
 
 ## Related
 
+- [`ENV-POWER.md`](ENV-POWER.md) — on/off (resume / warm / cold) + the auto-cold automation
 - [`COST-INCIDENT-RESPONSE.md`](COST-INCIDENT-RESPONSE.md) — kill-switch + budget
 - [`AWS-DEPLOY.md`](AWS-DEPLOY.md) — full deploy procedure
 - ADR [`0016-cost-runaway-protection.md`](../adr/0016-cost-runaway-protection.md)

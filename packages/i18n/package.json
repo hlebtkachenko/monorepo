@@ -19,10 +19,10 @@
     "next-intl": "^4.11.1"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.9.1",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^10.3.0",
+    "eslint": "^10.4.0",
     "next": "16.2.6",
     "typescript": "^6.0.3"
   },

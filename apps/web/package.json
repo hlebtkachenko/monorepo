@@ -48,18 +48,18 @@
     "@size-limit/preset-app": "^12.1.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@testcontainers/postgresql": "^11.14.0",
-    "@types/node": "^25.6.0",
-    "@types/react": "^19.2.10",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@workspace/auth": "workspace:*",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^10.3.0",
+    "eslint": "^10.4.0",
     "postgres": "^3.4.7",
     "size-limit": "^12.1.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.7"
   },
   "size-limit": [
     {

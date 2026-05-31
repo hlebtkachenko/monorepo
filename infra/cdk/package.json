@@ -24,15 +24,15 @@
     "cdk-monitoring-constructs": "10.0.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-ecs": "^3.1048.0",
-    "@aws-sdk/client-rds": "^3.1048.0",
+    "@aws-sdk/client-ecs": "^3.1053.0",
+    "@aws-sdk/client-rds": "^3.1053.0",
     "@aws-sdk/client-sns": "^3.1048.0",
-    "@types/node": "^25.6.0",
-    "aws-cdk": "^2.180.0",
-    "aws-cdk-lib": "^2.180.0",
+    "@types/node": "^25.9.1",
+    "aws-cdk": "^2.1124.1",
+    "aws-cdk-lib": "^2.257.0",
     "constructs": "^10.4.0",
-    "tsx": "^4.19.0",
+    "tsx": "^4.22.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.7"
   }
 }

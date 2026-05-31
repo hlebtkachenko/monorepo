@@ -320,6 +320,18 @@ export class SecurityStack extends Stack {
       },
     ]
 
+    // Production also carries an account-WIDE guard: an untagged $55 total
+    // that caps the whole account (no Environment filter), strictly tighter
+    // than the sum of the per-env caps. It feeds the kill-switch — production
+    // is the always-on env, so an account-wide overrun stops production.
+    // Lives on production only (staging is ephemeral / auto-stopped). This
+    // codifies the CLI stop-gap budget `monorepo-account-total-guard-temp`
+    // created during the AFF cost review 2026-05-31, replacing the drift with
+    // a managed resource. Delete the CLI budget once this has deployed.
+    if (props.envName === "production") {
+      budgets.push({ id: "AccountTotal", limitUsd: 55, killSwitch: true })
+    }
+
     for (const spec of budgets) {
       const notificationsWithSubscribers = [
         // 80% threshold: ops topic only (email out-of-band).

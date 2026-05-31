@@ -276,3 +276,41 @@ describe("SecurityStack staging auto-stop (staging env only)", () => {
     expect(actions.has("sns:Publish")).toBe(true)
   })
 })
+
+describe("SecurityStack account-wide guard (production env only)", () => {
+  const { security } = buildTestApp("production")
+  const template = Template.fromStack(security)
+
+  it("adds a 3rd budget on production: the untagged account-wide guard", () => {
+    template.resourceCountIs("AWS::Budgets::Budget", 3)
+    template.hasResourceProperties("AWS::Budgets::Budget", {
+      Budget: {
+        BudgetName: Match.stringLikeRegexp(
+          "^monorepo-production-accounttotal-[0-9a-f]{8}$",
+        ),
+        BudgetLimit: { Amount: 55, Unit: "USD" },
+      },
+    })
+  })
+
+  it("the account-wide guard has NO Environment tag filter (measures the whole account)", () => {
+    const budgets = template.findResources("AWS::Budgets::Budget")
+    const guard = Object.values(budgets).find((b) =>
+      JSON.stringify(
+        (b as { Properties?: { Budget?: { BudgetName?: unknown } } }).Properties
+          ?.Budget?.BudgetName,
+      ).includes("-accounttotal-"),
+    ) as { Properties?: { Budget?: { CostFilters?: unknown } } } | undefined
+    expect(guard).toBeDefined()
+    // No CostFilters at all (or empty) — it is account-wide by design.
+    const cf = guard?.Properties?.Budget?.CostFilters
+    expect(JSON.stringify(cf ?? {})).not.toContain("Environment")
+    // And it feeds the kill-switch topic at 100%.
+    expect(JSON.stringify(guard)).toContain("KillSwitchTopic")
+  })
+
+  it("non-production envs do NOT get the account-wide guard", () => {
+    const test = Template.fromStack(buildTestApp("test").security)
+    test.resourceCountIs("AWS::Budgets::Budget", 2)
+  })
+})

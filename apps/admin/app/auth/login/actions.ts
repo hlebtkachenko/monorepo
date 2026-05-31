@@ -6,6 +6,7 @@ import {
   identifyEmail,
   readLoginEmailFromStore,
   clearLoginEmail,
+  consumeLoginEmail,
 } from "@workspace/auth/login-flow"
 
 export type { IdentifyEmailResult } from "@workspace/auth/login-flow"
@@ -24,6 +25,8 @@ export async function readLoginEmail(): Promise<string | null> {
 
 export async function clearLoginEmailAction(): Promise<void> {
   const store = await cookies()
+  // Redeem the auth_token row so the audit trail records 'consumed'.
+  await consumeLoginEmail(store)
   clearLoginEmail(store)
 }
 

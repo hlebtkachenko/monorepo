@@ -1,0 +1,73 @@
+# Vault on Hostinger KVM 2 VPS — auto-unseal via AWS KMS, fronted by Cloudflare
+# Tunnel. Lives at /srv/secrets/vault/compose.yaml. See ../README.md for the
+# deploy procedure and infra/vault/README.md for full context.
+#
+# Tracks: AFF-245 M1 step 4. Plan: docs/plans/SECRETS-MIGRATION.md.
+#
+# Both images are pinned by tag AND digest. Bump procedure:
+#   1. Edit the tag, run `docker pull <repo>:<tag>` on any amd64 host.
+#   2. `docker images --digests <repo>:<tag>` → copy the new sha256.
+#   3. Update the @sha256:... pin in this file.
+#   4. PR; CI runs the YAML lint; deploy by rsync (no app rebuild needed).
+
+services:
+  vault:
+    image: hashicorp/vault:1.20.4@sha256:20ff3ed4a4da750d1be0757c82e0a10accc00c26c157bde3a694f2b227300caf
+    container_name: afframe-vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_ADDR: "http://127.0.0.1:8200"
+      VAULT_API_ADDR: "https://secrets-admin.afframe.com"
+      # AWS credentials for the KMS auto-unseal block in vault.hcl. Loaded
+      # from ./.env (mode 0600). Never commit the .env file.
+      AWS_ACCESS_KEY_ID: ${VAULT_KMS_AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${VAULT_KMS_AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: eu-central-1
+    volumes:
+      - ./data:/vault/data
+      - ./config:/vault/config:ro
+      - ./audit:/vault/audit
+    ports:
+      # Bind to loopback ONLY. Cloudflare Tunnel sidecar reaches Vault via the
+      # Docker network; nothing on the public host port should answer.
+      - "127.0.0.1:8200:8200"
+    # `vault server` only. The hashicorp/vault entrypoint auto-appends
+    # `-config=$VAULT_CONFIG_DIR` (default /vault/config). Passing
+    # `-config=/vault/config/vault.hcl` here ALSO would make Vault load the
+    # HCL twice and fail at startup with `error: more than one enabled seal
+    # found`. The config dir mount above is read-only and contains only
+    # vault.hcl, so the auto-scan reads exactly one file.
+    command: server
+    healthcheck:
+      # Vault is healthy when /v1/sys/health returns 200 (initialized + unsealed
+      # + active). During boot it returns 501 until the KMS unseal completes,
+      # which is fine — restart policy keeps polling.
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O-",
+          "http://127.0.0.1:8200/v1/sys/health?standbyok=true&perfstandbyok=true",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.5.0@sha256:7ee265a76f87f28c5be8319e79bb70bb6d6206c1ddae60a8e29849b8c6fc680b
+    container_name: afframe-vault-tunnel
+    restart: unless-stopped
+    depends_on:
+      vault:
+        condition: service_started
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    # No published ports — the tunnel only egresses to Cloudflare and reaches
+    # Vault over the shared Docker network at `vault:8200`. The tunnel ingress
+    # config (managed in the Cloudflare dashboard, NOT here) maps
+    # secrets-admin.afframe.com → http://vault:8200.

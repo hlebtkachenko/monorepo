@@ -35,6 +35,28 @@ pre-commit:
         else
           echo "[lefthook gitleaks] not installed — skipping. brew install gitleaks to enable local secret scan."
         fi
+    infisical-scan:
+      # Second secret scanner alongside gitleaks. Different rule set + token
+      # heuristics catches what gitleaks misses (and vice-versa). Authoritative
+      # gate is the CI infisical-scan job; local hook is best-effort. No-ops if
+      # infisical CLI is not installed.
+      run: |
+        if command -v infisical >/dev/null 2>&1; then
+          infisical scan git-changes --staged
+        else
+          echo "[lefthook infisical-scan] not installed — skipping. brew install infisical to enable."
+        fi
+    db-schema-snapshot:
+      # Auto-regenerates packages/db/schema-snapshot.sql whenever a migration
+      # file is staged. Requires a running local Postgres (see LOCAL-DEV.md
+      # for how to bring one up with docker compose). The regenerated snapshot
+      # is re-staged into the same commit so migration + snapshot are always
+      # atomic. If Postgres is not running, the command fails noisily — start
+      # it first:
+      #   docker compose -f infra/compose/docker-compose.dev.yml up -d
+      glob: "packages/db/migrations/*.sql"
+      run: pnpm --filter @workspace/db db:schema-snapshot
+      stage_fixed: true
 
 pre-push:
   # Budget: total pre-push must stay under ~10s on a typical push so the
@@ -129,6 +151,21 @@ pre-push:
         else
           echo "[lefthook osv-scanner] not installed — skipping. brew install osv-scanner to enable local CVE scan."
         fi
+    endpoint-checklist:
+      # Catches the most common "added an endpoint, forgot to run codegen"
+      # mistake before the push reaches CI. Fires when the registry, an api
+      # controller, or the committed OpenAPI spec changed but the generated
+      # SDK / MCP outputs did not. The full 7-step checklist lives in
+      # `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md` — this hook only flags
+      # the codegen step, which is the failure mode CI gates `sdk-drift`
+      # and `mcp-coverage` would otherwise catch ~5 min later.
+      glob:
+        - "packages/shared/src/api/**"
+        - "apps/api/src/v1/**"
+        - "apps/api/openapi/v1.json"
+        - "packages/sdk/src/generated/**"
+        - "apps/mcp/src/tools/generated/**"
+      run: node scripts/governance/check-endpoint-checklist.mjs {push_files}
     db-smoke:
       # Mirrors `.github/workflows/db-tests.yml` smoke job:
       #   - migration filenames match NNNN_<snake>.sql

@@ -85,9 +85,15 @@ export function proxy(request: NextRequest): NextResponse {
  *   /api/*           — Better Auth catchall + future route handlers
  *   /_next/static    — built assets
  *   /_next/image     — image optimizer
- *   /favicon.ico
+ *   /favicon.ico, /icon.svg, /apple-icon.png, /manifest.webmanifest
+ *                    — Next.js metadata file conventions (served from app/)
+ *   /favicon-{16,32,48}-{light,dark}.png  — adaptive tab favicon rasters
+ *   /icon-{192,512}.png, /maskable-512.png — PWA install icons
+ *                    (all served from public/)
  *   /                — public landing page
  */
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon\\.ico|$).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|manifest\\.webmanifest|favicon-(?:16|32|48)-(?:light|dark)\\.png|icon-(?:192|512)\\.png|maskable-512\\.png|$).*)",
+  ],
 }

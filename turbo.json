@@ -20,7 +20,12 @@
     "pnpm-workspace.yaml",
     ".npmrc"
   ],
-  "globalEnv": ["CI", "NODE_ENV", "TESTCONTAINERS_REUSE_ENABLE"],
+  "globalEnv": [
+    "CI",
+    "NODE_ENV",
+    "TESTCONTAINERS_REUSE_ENABLE",
+    "BETTER_AUTH_COOKIE_DOMAIN"
+  ],
   "remoteCache": {
     "signature": true
   },
@@ -44,7 +49,8 @@
       "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN"]
     },
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"]
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
+      "env": ["HOME"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
@@ -72,13 +78,21 @@
         "AWS_REGION",
         "APP_DOMAIN",
         "ADMIN_DOMAIN",
-        "ALERT_EMAIL"
+        "ALERT_EMAIL",
+        "MAIL_FROM_ADDRESS"
       ]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "interruptible": true
+      "interruptible": true,
+      "env": [
+        "AFFRAME_API_KEY",
+        "AFFRAME_API_BASE",
+        "AFFRAME_PROFILE",
+        "AFFRAME_MCP_URL",
+        "PUBLIC_API_URL"
+      ]
     }
   }
 }

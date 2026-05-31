@@ -18,25 +18,26 @@ We use [Conventional Commits](https://www.conventionalcommits.org/). The CI comm
 
 ## Allowed types
 
-| Type | When |
-|------|------|
-| `feat` | New end-user-visible capability or new public API |
-| `fix` | Bug fix in existing functionality |
-| `chore` | Maintenance: deps, config, build infra not affecting behavior |
-| `docs` | Documentation only (`docs/`, `README.md`, ADRs, runbooks) |
-| `refactor` | Behavior-preserving internal change |
-| `test` | Adding or updating tests; no production code change |
-| `perf` | Performance improvement |
-| `ci` | CI / GitHub Actions config changes |
-| `build` | Build system, bundler, container images, Dockerfile |
-| `style` | Formatting only; no code logic change. Rare; usually rolled into `chore` |
-| `revert` | Reverts a previous commit; body cites the SHA |
+| Type       | When                                                                     |
+| ---------- | ------------------------------------------------------------------------ |
+| `feat`     | New end-user-visible capability or new public API                        |
+| `fix`      | Bug fix in existing functionality                                        |
+| `chore`    | Maintenance: deps, config, build infra not affecting behavior            |
+| `docs`     | Documentation only (`docs/`, `README.md`, ADRs, runbooks)                |
+| `refactor` | Behavior-preserving internal change                                      |
+| `test`     | Adding or updating tests; no production code change                      |
+| `perf`     | Performance improvement                                                  |
+| `ci`       | CI / GitHub Actions config changes                                       |
+| `build`    | Build system, bundler, container images, Dockerfile                      |
+| `style`    | Formatting only; no code logic change. Rare; usually rolled into `chore` |
+| `revert`   | Reverts a previous commit; body cites the SHA                            |
 
 If unsure, pick the type that best describes the **observable** change. `feat` and `fix` carry the most weight in release notes.
 
 ## Scope (optional)
 
 Use the package or surface name:
+
 - `feat(ui): add Drawer component`
 - `fix(web): handle missing BUILD_SHA in /api/version`
 - `chore(deps): bump pnpm 11.0.9 -> 11.1.0`
@@ -52,9 +53,10 @@ Skip the scope when the change is genuinely cross-cutting.
 
 ## Body
 
-Explain *why*, not *what*. The diff already shows what changed.
+Explain _why_, not _what_. The diff already shows what changed.
 
 Good:
+
 ```
 fix(web): standardize Build* env var defaults across runtime endpoints
 
@@ -64,6 +66,7 @@ against a known string.
 ```
 
 Bad:
+
 ```
 fix(web): fix bug
 ```
@@ -73,6 +76,7 @@ fix(web): fix bug
 Used for breaking changes and issue references.
 
 Breaking change:
+
 ```
 feat(ui): rename Drawer to Sheet for shadcn parity
 
@@ -81,6 +85,7 @@ to "@workspace/ui/components/sheet". Migration: codemod in scripts/codemod/sheet
 ```
 
 Issue references:
+
 ```
 fix(web): handle empty showcase grid
 
@@ -95,3 +100,4 @@ A commit-msg hook (lefthook or husky, project-specific) runs commitlint locally.
 
 - `commitlint.config.mjs` (root) — the enforcement rule set.
 - `docs/conventions/CI-POLICY.md` — when commitlint is advisory vs blocking.
+- `docs/conventions/RELEASES.md` — release + version tag convention (`v<MAJOR>.<MINOR>.<PATCH>` + `-rc.<N>`).

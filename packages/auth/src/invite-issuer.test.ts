@@ -1,17 +1,14 @@
 /**
- * Integration tests for invite-issuer.ts — AFF-127 / E7e.
+ * Integration tests for invite-issuer.ts (AFF-127, rewritten for
+ * ADR-0022 — invite state lives on auth_token, kind='inv', not the
+ * dropped auth_invite table).
  *
  * Every function in invite-issuer.ts reaches the DB via `withAdminBypass`.
- * These tests boot a real Postgres 18 testcontainer (same pattern as
- * seed-loginable-user.test.ts) so assertions reflect actual row state and
- * index constraints, not mocks.
+ * These tests boot a real Postgres 18 testcontainer so assertions reflect
+ * actual row state and index constraints, not mocks.
  *
  * Email transport: NODE_ENV=test forces ConsoleTransport, which is a no-op
  * logger — no mocking required.
- *
- * Container start: ~10–20 s cold, ~4–6 s warm (image cached). Each test
- * group runs within the same container; `truncateAll` wipes tables between
- * groups so seed state doesn't bleed.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
@@ -24,6 +21,7 @@ process.env["NODE_ENV"] = process.env["NODE_ENV"] ?? "test"
 process.env["BETTER_AUTH_SECRET"] =
   process.env["BETTER_AUTH_SECRET"] ??
   "invite-issuer-test-secret-0123456789abcd"
+process.env["AUTH_TOKEN_ENV"] = process.env["AUTH_TOKEN_ENV"] ?? "dev"
 
 let boot: BootResult
 
@@ -42,7 +40,7 @@ afterAll(async () => {
 // issueInvite
 // ---------------------------------------------------------------------------
 describe("issueInvite", () => {
-  it("inserts a pending auth_invite row and returns a valid inviteId + url", async () => {
+  it("inserts a pending auth_token row (kind='inv') and returns a valid id + url", async () => {
     const { adminClient, seedWorkspaceWithOwner, truncateAll } =
       await import("@workspace/db/tests/fixtures")
     const { betterAuthSignUp } = await import("./test-support")
@@ -68,7 +66,7 @@ describe("issueInvite", () => {
       })
 
       expect(result.inviteId).toBeTruthy()
-      expect(result.url).toContain("/auth/invite/start?token=")
+      expect(result.url).toContain("/auth/invite?token=")
       expect(result.expiresAt).toBeInstanceOf(Date)
       // TTL was 3600 s — expiresAt should be roughly 1 hour from now.
       const diffMs = result.expiresAt.getTime() - Date.now()
@@ -79,21 +77,26 @@ describe("issueInvite", () => {
       const [row] = await sql<
         Array<{
           id: string
-          email: string
+          kind: string
           status: string
-          role: string
-          organization_id: string
+          payload: {
+            email: string
+            organizationId: string
+            workspaceId: string
+            role: string
+          }
         }>
-      >`SELECT id, email, status, role, organization_id
-          FROM auth_invite
+      >`SELECT id, kind, status, payload
+          FROM auth_token
          WHERE id = ${result.inviteId}::uuid`
 
       expect(row).toBeDefined()
+      expect(row!.kind).toBe("inv")
       expect(row!.status).toBe("pending")
-      expect(row!.role).toBe("member")
+      expect(row!.payload.role).toBe("member")
       // Email is normalised to lowercase on write.
-      expect(row!.email).toBe("invited.user@test.invalid")
-      expect(row!.organization_id).toBe(seed.organizationId)
+      expect(row!.payload.email).toBe("invited.user@test.invalid")
+      expect(row!.payload.organizationId).toBe(seed.organizationId)
     } finally {
       await sql.end({ timeout: 5 })
     }
@@ -117,60 +120,6 @@ describe("issueInvite", () => {
       ).rejects.toThrow(
         "Organization 00000000-0000-0000-0000-000000000000 not found",
       )
-    } finally {
-      await sql.end({ timeout: 5 })
-    }
-  }, 120_000)
-
-  it("rejects a duplicate token_hash (unique constraint on auth_invite.token_hash)", async () => {
-    // Two separate issueInvite calls mint two different random tokens, so a
-    // hash collision cannot happen in practice. We verify the unique constraint
-    // directly by manually inserting a row with a known hash and then trying
-    // to insert the same hash again via raw SQL — this confirms the DB-level
-    // guard exists and is enforced.
-    const { adminClient, seedWorkspaceWithOwner, truncateAll } =
-      await import("@workspace/db/tests/fixtures")
-    const { betterAuthSignUp } = await import("./test-support")
-
-    const sql = adminClient()
-    try {
-      await truncateAll(sql)
-      const seed = await seedWorkspaceWithOwner(sql, {
-        signUp: betterAuthSignUp,
-        email: "invite-dup-owner@test.invalid",
-        password: "DupInvitePassw0rd!",
-      })
-
-      const fixedHash = "a".repeat(64) // deterministic SHA-256 hex placeholder
-      const expiresAt = new Date(Date.now() + 3_600_000).toISOString()
-
-      // First insert succeeds.
-      await sql`
-        INSERT INTO auth_invite (organization_id, workspace_id, token_hash, email, role, expires_at)
-        VALUES (
-          ${seed.organizationId}::uuid,
-          ${seed.workspaceId}::uuid,
-          ${fixedHash},
-          'dup-target@test.invalid',
-          'member',
-          ${expiresAt}::timestamptz
-        )
-      `
-
-      // Second insert with the same token_hash must violate the unique constraint.
-      await expect(
-        sql`
-          INSERT INTO auth_invite (organization_id, workspace_id, token_hash, email, role, expires_at)
-          VALUES (
-            ${seed.organizationId}::uuid,
-            ${seed.workspaceId}::uuid,
-            ${fixedHash},
-            'other@test.invalid',
-            'member',
-            ${expiresAt}::timestamptz
-          )
-        `,
-      ).rejects.toThrow()
     } finally {
       await sql.end({ timeout: 5 })
     }
@@ -228,11 +177,30 @@ describe("readInviteByRawToken", () => {
 
   it("returns null for an unknown token (no enumeration leak)", async () => {
     const { readInviteByRawToken } = await import("./invite-issuer")
-    const { generateRawInviteToken } = await import("./tokens/invite")
+    const { mintToken } = await import("./tokens/auth-token")
 
-    const fakeToken = generateRawInviteToken()
-    const result = await readInviteByRawToken(fakeToken)
-    expect(result).toBeNull()
+    // Mint a valid token, never insert it as a known invite — but the
+    // mint itself writes a row. So instead, mint an inv row then delete
+    // it; readInviteByRawToken returns null on the missing row.
+    const minted = await mintToken({
+      kind: "inv",
+      payload: { email: "lost@test.invalid" },
+      ttlSeconds: 60,
+    })
+    const { adminClient } = await import("@workspace/db/tests/fixtures")
+    const sql = adminClient()
+    try {
+      // Bypass DELETE guard trigger (pending rows can't be deleted via the
+      // app path). Tests need raw lifecycle access to set up "row vanished".
+      await sql.unsafe(`
+        SET LOCAL session_replication_role = replica;
+        DELETE FROM auth_token WHERE id = '${minted.id}';
+      `)
+      const result = await readInviteByRawToken(minted.rawToken)
+      expect(result).toBeNull()
+    } finally {
+      await sql.end({ timeout: 5 })
+    }
   }, 120_000)
 
   it("returns null for an empty token without hitting the DB", async () => {
@@ -270,15 +238,19 @@ describe("readInviteByRawToken", () => {
       })
 
       // Backdate expires_at to 1 second ago — row stays 'pending' in DB.
-      await sql`
-        UPDATE auth_invite
+      // Bypass append-only trigger via session_replication_role=replica
+      // so the test can write a past expires_at (production code is gated
+      // by the trigger to refuse past-future values).
+      await sql.unsafe(`
+        SET LOCAL session_replication_role = replica;
+        UPDATE auth_token
            SET expires_at = now() - interval '1 second'
-         WHERE id = ${issued.inviteId}::uuid
-      `
+         WHERE id = '${issued.inviteId}';
+      `)
 
       // Verify the row is still 'pending' in the DB (cleanup worker hasn't run).
       const [dbRow] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${issued.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${issued.inviteId}::uuid
       `
       expect(dbRow!.status).toBe("pending")
 
@@ -386,9 +358,10 @@ describe("revokePendingInvites", () => {
 
       // Confirm both rows are now 'revoked' in the DB.
       const rows = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite
-         WHERE organization_id = ${seed.organizationId}::uuid
-           AND email = 'multi-invite@test.invalid'
+        SELECT status FROM auth_token
+         WHERE kind = 'inv'
+           AND payload->>'organizationId' = ${seed.organizationId}
+           AND payload->>'email' = 'multi-invite@test.invalid'
       `
       expect(rows).toHaveLength(2)
       for (const row of rows) {
@@ -435,7 +408,7 @@ describe("revokePendingInvites", () => {
       expect(revokedCount).toBe(1)
 
       const [row] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${issued.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${issued.inviteId}::uuid
       `
       expect(row!.status).toBe("revoked")
     } finally {
@@ -539,13 +512,13 @@ describe("revokePendingInvites", () => {
 
       // Org A invite is revoked.
       const [rowA] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${issuedA.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${issuedA.inviteId}::uuid
       `
       expect(rowA!.status).toBe("revoked")
 
       // Org B invite is still pending.
       const [rowB] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${issuedB.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${issuedB.inviteId}::uuid
       `
       expect(rowB!.status).toBe("pending")
     } finally {
@@ -574,7 +547,6 @@ describe("expireDuePendingInvites", () => {
         password: "ExpireWorkerPassw0rd!",
       })
 
-      // Two invites that will be backdated (due).
       const due1 = await issueInvite({
         email: "expire-due-1@test.invalid",
         organizationId: seed.organizationId,
@@ -593,8 +565,6 @@ describe("expireDuePendingInvites", () => {
         brandName: "TestBrand",
         ttlSeconds: 3600,
       })
-
-      // One invite that is still valid (expires in the future).
       const still_valid = await issueInvite({
         email: "expire-still-valid@test.invalid",
         organizationId: seed.organizationId,
@@ -605,28 +575,28 @@ describe("expireDuePendingInvites", () => {
         ttlSeconds: 3600,
       })
 
-      // Backdate the two "due" invites.
-      await sql`
-        UPDATE auth_invite
+      // Backdate the two "due" invites — bypass append-only trigger via
+      // session_replication_role=replica so the test can write a past
+      // expires_at (production code is gated by the trigger).
+      await sql.unsafe(`
+        SET LOCAL session_replication_role = replica;
+        UPDATE auth_token
            SET expires_at = now() - interval '1 second'
-         WHERE id IN (${due1.inviteId}::uuid, ${due2.inviteId}::uuid)
-      `
+         WHERE id IN ('${due1.inviteId}', '${due2.inviteId}');
+      `)
 
       const expiredCount = await expireDuePendingInvites()
 
-      // Must be at least 2 (other test runs could have left dues if truncateAll
-      // wasn't called — but we did call it above, so expect exactly 2).
       expect(expiredCount).toBe(2)
 
-      // Verify DB state.
       const [row1] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${due1.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${due1.inviteId}::uuid
       `
       const [row2] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${due2.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${due2.inviteId}::uuid
       `
       const [rowValid] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${still_valid.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${still_valid.inviteId}::uuid
       `
       expect(row1!.status).toBe("expired")
       expect(row2!.status).toBe("expired")
@@ -644,7 +614,6 @@ describe("expireDuePendingInvites", () => {
     const sql = adminClient()
     try {
       await truncateAll(sql)
-      // No rows in auth_invite — nothing to expire.
       const count = await expireDuePendingInvites()
       expect(count).toBe(0)
     } finally {
@@ -684,12 +653,15 @@ describe("expireDuePendingInvites", () => {
         email: "already-revoked-status@test.invalid",
       })
 
-      // Backdate expires_at to simulate a due row — but status is already revoked.
-      await sql`
-        UPDATE auth_invite
+      // Backdate expires_at to simulate a due row — but status is already
+      // revoked. Bypass append-only trigger (refuses expires_at change on
+      // non-pending rows AND past values) via session_replication_role.
+      await sql.unsafe(`
+        SET LOCAL session_replication_role = replica;
+        UPDATE auth_token
            SET expires_at = now() - interval '1 second'
-         WHERE id = ${invite.inviteId}::uuid
-      `
+         WHERE id = '${invite.inviteId}';
+      `)
 
       // expireDuePendingInvites only touches status='pending'.
       const count = await expireDuePendingInvites()
@@ -697,7 +669,7 @@ describe("expireDuePendingInvites", () => {
 
       // Status remains revoked.
       const [row] = await sql<Array<{ status: string }>>`
-        SELECT status FROM auth_invite WHERE id = ${invite.inviteId}::uuid
+        SELECT status FROM auth_token WHERE id = ${invite.inviteId}::uuid
       `
       expect(row!.status).toBe("revoked")
     } finally {

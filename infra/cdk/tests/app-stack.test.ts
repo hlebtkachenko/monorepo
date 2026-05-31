@@ -12,13 +12,13 @@ describe("AppStack Fargate hardening", () => {
     })
   })
 
-  it("all 7 containers drop ALL Linux capabilities", () => {
+  it("all 10 containers drop ALL Linux capabilities", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
       | undefined
     const containers = taskDef?.Properties?.ContainerDefinitions ?? []
-    expect(containers.length).toBe(7)
+    expect(containers.length).toBe(10)
     for (const container of containers as Array<{
       LinuxParameters?: { Capabilities?: { Drop?: string[] } }
       Name?: string
@@ -73,7 +73,7 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["OPENFGA_HTTP_ADDR"]).toBe("127.0.0.1:8080")
   })
 
-  it("api receives OPENFGA_API_URL + SSM-backed store/model ids", () => {
+  it("api receives OPENFGA_API_URL + SSM-backed store/model ids + email transport", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -89,9 +89,21 @@ describe("AppStack Fargate hardening", () => {
       (api?.Environment ?? []).map((e) => [e.Name, e.Value]),
     )
     expect(envByName["OPENFGA_API_URL"]).toBe("http://localhost:8080")
+    // PUBLIC_API_URL derives from envName: production -> api.afframe.com,
+    // anything else -> api-staging.afframe.com. Asserts the editor.ts
+    // redirect target is wired per-env (so staging /editor opens the
+    // staging spec, not prod). TEST_ENV_NAME="test", so expect staging.
+    expect(envByName["PUBLIC_API_URL"]).toBe("https://api-staging.afframe.com")
+    // FeedbackController + future v1 handlers send via packages/email. Without
+    // EMAIL_FROM / EMAIL_TRANSPORT / RESEND_API_KEY wired, pickTransport()
+    // silently returns ConsoleTransport and every dispatch drops to CloudWatch.
+    // Mirrors web/admin container assertions below.
+    expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
+    expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
     const secretNames = (api?.Secrets ?? []).map((s) => s.Name)
     expect(secretNames).toContain("OPENFGA_STORE_ID")
     expect(secretNames).toContain("OPENFGA_MODEL_ID")
+    expect(secretNames).toContain("RESEND_API_KEY")
   })
 
   it("cerbos sidecar is present with telemetry disabled", () => {
@@ -139,20 +151,64 @@ describe("AppStack Fargate hardening", () => {
     expect(envByName["BETTER_AUTH_TRUSTED_ORIGINS"]).toContain(
       "https://test.example.com",
     )
-    expect(envByName["EMAIL_FROM"]).toBe("no-reply@test.example.com")
+    expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
     expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
     // Hard-coded loopback path to the pgBouncer sidecar — same pattern as api.
     expect(envByName["DB_HOST"]).toBe("localhost")
     expect(envByName["DB_PORT"]).toBe("6432")
     expect(envByName["DB_NAME"]).toBe("monorepo")
+    // Lenient probe is mandatory on RDS-backed deploys — the GUC cannot
+    // be persisted on the role via ALTER ROLE SET (AFF-150 §5), so the
+    // probe would otherwise throw an unhandled rejection on every cold
+    // start and surface as a flash error overlay. Per-transaction SET
+    // LOCAL (PR #142) is the actual enforcement. Both web + admin
+    // connect as app_user and must carry this flag.
+    expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
+    // BETTER_AUTH_COOKIE_DOMAIN derived from props.domain via
+    // `deriveCookieDomain`. For TEST_DOMAIN="test.example.com" the
+    // expected scope is `.example.com`. Asserts the cross-subdomain
+    // session-sharing wiring is intact on the web container.
+    expect(envByName["BETTER_AUTH_COOKIE_DOMAIN"]).toBe(".example.com")
+    // AUTH_TOKEN_ENV must be explicitly mapped from envName so the
+    // resolveAuthTokenEnv() fallback (NODE_ENV='production' -> 'prd')
+    // does not stamp staging tokens with the production checksum code.
+    // TEST_ENV_NAME == "test" falls through the map to "dev".
+    expect(envByName["AUTH_TOKEN_ENV"]).toBe("dev")
     // Secrets reach the container via Secrets Manager; the names match
     // what packages/auth + packages/email read.
     const secretNames = (web?.Secrets ?? []).map((s) => s.Name)
     expect(secretNames).toContain("BETTER_AUTH_SECRET")
-    expect(secretNames).toContain("APP_TOKEN_SECRET")
     expect(secretNames).toContain("RESEND_API_KEY")
+    expect(secretNames).not.toContain("APP_TOKEN_SECRET")
     expect(secretNames).toContain("DB_USER")
     expect(secretNames).toContain("DB_PASSWORD")
+  })
+
+  it("AUTH_TOKEN_ENV is explicitly set on web + admin + api so staging tokens are not stamped 'prd'", () => {
+    // resolveAuthTokenEnv() falls back to NODE_ENV==='production' ? 'prd'
+    // : 'dev' when AUTH_TOKEN_ENV is unset. Every Fargate container sets
+    // NODE_ENV='production' (Next.js prod build), so without an explicit
+    // AUTH_TOKEN_ENV value staging would mint tokens carrying the 'prd'
+    // checksum code — opening a cross-env replay channel. ADR-0022 §"Kind
+    // taxonomy" requires the env code to be bound to the deploy env.
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+    }>
+    for (const name of ["web", "admin", "api"]) {
+      const c = containers.find((x) => x.Name === name)
+      expect(c, `container ${name} missing`).toBeDefined()
+      const envByName = Object.fromEntries(
+        (c?.Environment ?? []).map((e) => [e.Name, e.Value]),
+      )
+      // TEST_ENV_NAME == "test" falls through the envName->code map to "dev".
+      expect(envByName["AUTH_TOKEN_ENV"]).toBe("dev")
+    }
   })
 
   it("admin container BETTER_AUTH_URL is the explicit adminDomain, not derived from the web domain", () => {
@@ -183,25 +239,36 @@ describe("AppStack Fargate hardening", () => {
     // Must NOT contain the web domain — guards against a regression to the
     // old `admin.${props.domain}` derivation.
     expect(envByName["BETTER_AUTH_URL"]).not.toContain("test.example.com")
+    // Admin connects as app_user too and needs the lenient startup-probe
+    // mode — RDS rejects ALTER ROLE SET for custom GUCs (AFF-150 §5).
+    expect(envByName["DB_STARTUP_PROBE_LENIENT"]).toBe("1")
+    // BETTER_AUTH_COOKIE_DOMAIN derived from props.adminDomain (NOT
+    // props.domain). TEST_ADMIN_DOMAIN="admin-console.example.net" so
+    // the expected scope is `.example.net`. Asserts the admin container
+    // gets its OWN cookie scope (the two test domains are deliberately
+    // on different apex domains).
+    expect(envByName["BETTER_AUTH_COOKIE_DOMAIN"]).toBe(".example.net")
   })
 
-  it("references the 4 workflow-managed secrets by FULL ARN (with random suffix)", () => {
-    // All four secrets are workflow-managed (fromSecretCompleteArn imports),
-    // so none of them materialize as CDK Secret resources in this template.
-    // The workflow's "Ensure workflow-managed Secrets Manager secrets" step
-    // creates them with the chosen value, captures the AWS-assigned full
-    // ARN (with random 6-char suffix), and passes each ARN to CDK via
-    // --context. App-stack.ts then imports each one via
-    // Secret.fromSecretCompleteArn so the task def `valueFrom` and the
-    // IAM grantRead policy resource share one exact ARN — no wildcards,
-    // no bare-name auth quirks.
+  it("references the 3 workflow-managed secrets via SSM SecureString (M4)", () => {
+    // M4 migrated TUNNEL_TOKEN + BETTER_AUTH_SECRET + RESEND_API_KEY from
+    // Secrets Manager to SSM SecureString — Vault is the source of truth,
+    // VPS sync mirrors to SSM for `better-auth-secret` + `resend-api-key`,
+    // deploy workflow puts `cloudflare-tunnel-token` direct from a GHA
+    // secret. The 4 RDS-managed secrets (databaseSecret + appUserSecret)
+    // stay in Secrets Manager because they need lifecycle integration
+    // (rotation, immediate availability before VPS sync) the SSM channel
+    // does not own at MVP.
+    //
+    // App-stack should not create any new SecretsManager::Secret — the
+    // DB secrets are owned by DataStack. 0 in the App-stack template
+    // confirms no leftover Secrets-Manager imports.
     template.resourceCountIs("AWS::SecretsManager::Secret", 0)
 
-    // Container `valueFrom` must use the full ARN, not the bare name. We
-    // assert the suffix (last segment after the last "-") is present and
-    // 6+ chars — that is the AWS-assigned random suffix. The bare-name
-    // form was the failure mode: ECS task GetSecretValue against bare ARN
-    // returned AccessDenied even with a `name*` wildcard policy.
+    // ECS `valueFrom` for the 3 migrated secrets must point at the SSM
+    // parameter ARN, not Secrets Manager. The CDK token shape is a
+    // Fn::Join over `arn:aws:ssm:<region>:<account>:parameter` + the
+    // hardcoded parameter name (per env).
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       | { Properties?: { ContainerDefinitions?: unknown[] } }
@@ -209,40 +276,53 @@ describe("AppStack Fargate hardening", () => {
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
-      Secrets?: Array<{ Name?: string; ValueFrom?: string }>
+      Secrets?: Array<{ Name?: string; ValueFrom?: unknown }>
     }>
-    const web = containers.find((c) => c.Name === "web")
-    const valueFromByName = Object.fromEntries(
-      (web?.Secrets ?? []).map((s) => [s.Name, s.ValueFrom ?? ""]),
-    )
-    for (const key of [
-      "BETTER_AUTH_SECRET",
-      "APP_TOKEN_SECRET",
-      "RESEND_API_KEY",
-    ]) {
-      const arn = valueFromByName[key] ?? ""
-      expect(arn).toMatch(/^arn:aws:secretsmanager:/)
-      // Suffix segment after the last "-" must be 6+ alnum (the AWS random
-      // suffix). The bare-name form would not have any suffix.
-      const tail = arn.split(":secret:")[1] ?? ""
-      expect(tail).toMatch(/-[A-Za-z0-9]{6,}$/)
+
+    function assertSsmValueFrom(
+      containerName: string,
+      envVar: string,
+      expectedParamName: string,
+    ): void {
+      const c = containers.find((x) => x.Name === containerName)
+      const ref = (c?.Secrets ?? []).find((s) => s.Name === envVar)
+      const serialized = JSON.stringify(ref?.ValueFrom ?? null)
+      // CDK tokenizes the ARN partition: `arn:` + Fn::Ref(AWS::Partition)
+      // + `:ssm:...`. Check for the segment that appears verbatim in the
+      // template (the literal partition `arn:aws:ssm:` resolves only at
+      // deploy time and never appears in the synthesized JSON).
+      expect(serialized).toContain(":ssm:")
+      expect(serialized).toContain(expectedParamName)
+      // Negative assertion: the SecretsManager ARN prefix must NOT appear.
+      // Catches the regression where a future edit reverts to fromSecretsManager.
+      expect(serialized).not.toContain(":secretsmanager:")
     }
 
-    // TaskExecutionRole's DefaultPolicy grants GetSecretValue. The policy
-    // Resource list now contains exact full ARNs (no `name*` wildcard,
-    // no `name-??????` wildcard).
-    const policies = template.findResources("AWS::IAM::Policy", {
+    assertSsmValueFrom("web", "BETTER_AUTH_SECRET", "/better-auth-secret")
+    assertSsmValueFrom("web", "RESEND_API_KEY", "/resend-api-key")
+    assertSsmValueFrom("admin", "BETTER_AUTH_SECRET", "/better-auth-secret")
+    assertSsmValueFrom("admin", "RESEND_API_KEY", "/resend-api-key")
+    assertSsmValueFrom("api", "RESEND_API_KEY", "/resend-api-key")
+    assertSsmValueFrom(
+      "cloudflared",
+      "TUNNEL_TOKEN",
+      "/cloudflare-tunnel-token",
+    )
+
+    // TaskExecutionRole's DefaultPolicy must grant ssm:GetParameters on
+    // the 3 SSM parameter ARNs. fromSsmParameter emits this automatically.
+    const ssmPolicies = template.findResources("AWS::IAM::Policy", {
       Properties: {
         PolicyDocument: Match.objectLike({
           Statement: Match.arrayWith([
             Match.objectLike({
-              Action: Match.arrayWith(["secretsmanager:GetSecretValue"]),
+              Action: Match.arrayWith(["ssm:GetParameters"]),
             }),
           ]),
         }),
       },
     })
-    expect(Object.keys(policies).length).toBeGreaterThan(0)
+    expect(Object.keys(ssmPolicies).length).toBeGreaterThan(0)
   })
 
   it("api connects to pgbouncer sidecar on localhost:6432", () => {
@@ -435,7 +515,7 @@ describe("AppStack Fargate hardening", () => {
         SourceVolume?: string
       }>
     }>
-    expect(containers.length).toBe(7)
+    expect(containers.length).toBe(10)
     for (const container of containers) {
       const tmpMount = container.MountPoints?.find(
         (m) => m.ContainerPath === "/tmp",
@@ -443,5 +523,85 @@ describe("AppStack Fargate hardening", () => {
       expect(tmpMount).toBeDefined()
       expect(tmpMount?.SourceVolume).toBe("tmp")
     }
+  })
+
+  it("init chain: openfga-bootstrap dependsOn openfga-migrate; api dependsOn openfga-bootstrap", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | { Properties?: { ContainerDefinitions?: unknown[] } }
+      | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      DependsOn?: Array<{ ContainerName?: string; Condition?: string }>
+    }>
+    const byName = Object.fromEntries(
+      containers.map((c) => [c.Name ?? "", c.DependsOn ?? []]),
+    )
+
+    expect(byName["openfga-bootstrap"]).toContainEqual({
+      ContainerName: "openfga-migrate",
+      Condition: "SUCCESS",
+    })
+    expect(byName["api"]).toContainEqual({
+      ContainerName: "openfga-bootstrap",
+      Condition: "SUCCESS",
+    })
+    // Sanity: web/admin do NOT wait on openfga-bootstrap (they don't read
+    // OPENFGA_* SSM params). Catches accidental over-wiring.
+    expect(
+      byName["web"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
+    ).toBe(false)
+    expect(
+      byName["admin"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
+    ).toBe(false)
+  })
+
+  it("TaskRole has ssm:PutParameter scoped to /monorepo/<env>/openfga/{store-id,model-id}", () => {
+    const policies = template.findResources("AWS::IAM::Policy")
+    const taskRolePolicy = Object.values(policies).find((p) => {
+      const stmts = (
+        p as {
+          Properties?: {
+            PolicyDocument?: {
+              Statement?: Array<{ Action?: string | string[] }>
+            }
+          }
+        }
+      ).Properties?.PolicyDocument?.Statement
+      return stmts?.some(
+        (s) =>
+          s.Action === "ssm:PutParameter" ||
+          (Array.isArray(s.Action) && s.Action.includes("ssm:PutParameter")),
+      )
+    }) as
+      | {
+          Properties?: {
+            PolicyDocument?: {
+              Statement?: Array<{
+                Action?: string | string[]
+                Resource?: string | string[]
+              }>
+            }
+          }
+        }
+      | undefined
+    expect(taskRolePolicy).toBeDefined()
+    const putStmt = taskRolePolicy?.Properties?.PolicyDocument?.Statement?.find(
+      (s) =>
+        s.Action === "ssm:PutParameter" ||
+        (Array.isArray(s.Action) && s.Action.includes("ssm:PutParameter")),
+    )
+    const resources = Array.isArray(putStmt?.Resource)
+      ? putStmt.Resource
+      : putStmt?.Resource
+        ? [putStmt.Resource]
+        : []
+    const joined = resources.join(",")
+    expect(joined).toContain("/monorepo/test/openfga/store-id")
+    expect(joined).toContain("/monorepo/test/openfga/model-id")
+    // Guardrail: no wildcards, no unrelated SSM paths.
+    expect(joined).not.toContain("*")
+    expect(resources.length).toBe(2)
   })
 })

@@ -1,10 +1,15 @@
+import { join } from "node:path"
 import { VersioningType } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
-import { SwaggerModule } from "@nestjs/swagger"
+import type { NestExpressApplication } from "@nestjs/platform-express"
 import * as Sentry from "@sentry/node"
+import express from "express"
 import helmet from "helmet"
 import { AppModule } from "./app.module"
+import { registerDocsRoutes } from "./docs"
+import { registerEditorRoutes } from "./editor"
 import { buildOpenApiDocument } from "./openapi"
+import { registerVoidRoutes } from "./void"
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -15,33 +20,56 @@ Sentry.init({
 })
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule)
+  const app = await NestFactory.create<NestExpressApplication>(AppModule)
 
-  // CSP stays enabled (helmet's strict defaults), with one relaxation:
-  // SwaggerModule injects an inline initializer <script> on /v1/docs and
-  // `script-src 'self'` would block it. helmet's default style-src already
-  // allows 'unsafe-inline' and img-src allows data:, which covers the rest
-  // of the Swagger UI assets. Everything else this process serves is JSON.
+  // CSP stays on helmet's strict defaults, with one relaxation: Scalar's
+  // docs page boots from the jsDelivr CDN and runs an inline
+  // `Scalar.createApiReference(...)` initializer, so `script-src` adds the
+  // CDN host plus `'unsafe-inline'`. Everything else this process serves is
+  // JSON, so no further directive widening is needed.
+  //
+  // Helmet registered FIRST so its security headers (X-Content-Type-Options,
+  // X-Frame-Options, HSTS, CSP) attach to the brand asset responses below.
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
-          "script-src": ["'self'", "'unsafe-inline'"],
+          "script-src": [
+            "'self'",
+            "'unsafe-inline'",
+            "https://cdn.jsdelivr.net",
+          ],
         },
       },
     }),
   )
+
+  // JSON + urlencoded body parsing for `/v1/*` POST endpoints. Nest's
+  // default body-parser registration depends on init order with the
+  // helmet/static-assets middleware; mounting explicitly here guarantees
+  // controller `@Body()` receives a parsed object. 100 KB matches the
+  // existing `/void/*` cap and is plenty for a feedback / future
+  // resource payload.
+  app.use(express.json({ limit: "100kb" }))
+  app.use(express.urlencoded({ extended: true, limit: "100kb" }))
+
+  // Brand assets (favicon, manifest, PWA icons) served from apps/api/public.
+  // Resolved against process.cwd() so it works both in dev (cwd = apps/api)
+  // and in the production image (cwd = /app, public copied via Dockerfile).
+  app.useStaticAssets(join(process.cwd(), "public"))
 
   // URI versioning: public controllers carry `version: "1"` -> `/v1/*`.
   // The health controller is VERSION_NEUTRAL and stays at `/api/health`.
   app.enableVersioning({ type: VersioningType.URI, prefix: "v" })
 
   // Public API docs — available in production (this documents a public API).
-  // Swagger UI at /v1/docs, raw OpenAPI 3.1 spec at /v1/openapi.json.
-  const document = buildOpenApiDocument(app)
-  SwaggerModule.setup("v1/docs", app, document, {
-    jsonDocumentUrl: "v1/openapi.json",
-  })
+  // Scalar API Reference at `/`, raw OpenAPI 3.1 spec at `/v1/openapi.json`.
+  // The document is built from the shared registry (see `openapi.ts`); the
+  // Nest app instance is no longer required to emit it.
+  const document = buildOpenApiDocument()
+  registerDocsRoutes(app, document)
+  registerEditorRoutes(app)
+  registerVoidRoutes(app)
 
   const port = Number(process.env.PORT ?? 3001)
   const host = process.env.HOST ?? "0.0.0.0"

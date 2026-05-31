@@ -2,7 +2,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { auth } from "@workspace/auth/server"
-import { TokenError } from "@workspace/auth/tokens"
+import { truncateIp } from "@workspace/auth/tokens"
 import { getTranslations } from "@workspace/i18n/server"
 import { Button } from "@workspace/ui/components/button"
 import { Field, FieldGroup, FieldLabel } from "@workspace/ui/components/field"
@@ -12,26 +12,71 @@ import { Text } from "@workspace/ui/components/text"
 import { ArrowRightIcon, ArrowUpRight } from "@workspace/ui/lib/icons"
 
 import { isDevPreview } from "@/lib/dev-preview"
+import { checkSignupRateLimit } from "@/lib/signup-rate-limit"
 
 import { readSignupClaims } from "../../../onboarding/_lib/signup-cookie"
 import { resolveNextStep, stepPath } from "../../../onboarding/_lib/resume"
 import { signOutForSignupAction } from "./actions"
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
 
 export async function generateMetadata() {
   const t = await getTranslations("auth.signup")
   return { title: t("metaTitle") }
 }
 
-export default async function SignupWelcomePage() {
-  let claims
-  try {
-    claims = await readSignupClaims()
-  } catch (err) {
-    if (err instanceof TokenError) {
-      redirect("/auth/login?error=" + err.code.toLowerCase())
-    }
-    throw err
+/**
+ * GET /auth/signup
+ *
+ * Single welcome route, collapsing the previous /start → /landing two-hop.
+ * Behavior depends on what the request carries:
+ *
+ * 1. `?token=<raw>` in the URL — the email link landed here directly.
+ *    Render an intermediate "Continue" form whose POST hits
+ *    /auth/signup/consume. The form body carries the token; the consume
+ *    handler does the actual redemption + sets the payload cookie. This
+ *    defers any state change to a human-driven submit, so email
+ *    prefetchers can't burn the token by GET'ing the URL.
+ *
+ * 2. `?invalid=1` in the URL — the consume route bounced back after a
+ *    failure (expired / revoked / wrong kind / rate limited). Render a
+ *    generic error card with no failure-mode details.
+ *
+ * 3. No token, signup-payload cookie present — the user already consumed
+ *    via /consume, the auth + payload cookies are set. Render the actual
+ *    "Welcome, <email>" card and continue into the onboarding wizard.
+ */
+export default async function SignupWelcomePage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const token = typeof params["token"] === "string" ? params["token"] : null
+  const isInvalid = params["invalid"] === "1"
+
+  if (isInvalid) {
+    return renderInvalid()
   }
+
+  if (token) {
+    // Per-IP rate limit on the welcome GET. We do NOT decode the token
+    // here (would require a DB hit on every prefetch), so per-email is
+    // skipped at this stage — the consume route enforces per-email
+    // after it knows the email.
+    const reqHeaders = await headers()
+    const rawIp =
+      reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
+    const ip = truncateIp(rawIp)
+    const blocked = checkSignupRateLimit({ ip, email: null })
+    if (blocked) {
+      return renderInvalid()
+    }
+    return renderContinueForm(token)
+  }
+
+  // No token in the URL — must already have consumed and be in the
+  // session-cookie phase. Read the payload cookie + auth cookie set by
+  // /auth/signup/consume.
+  let claims = await readSignupClaims()
   // Dev-preview renders the welcome card for design inspection even
   // without a real signup token.
   if (!claims && (await isDevPreview())) {
@@ -139,6 +184,54 @@ export default async function SignupWelcomePage() {
           <ArrowUpRight className="size-3" aria-hidden="true" />
         </Link>
       </Text>
+    </div>
+  )
+}
+
+async function renderContinueForm(token: string) {
+  const t = await getTranslations("auth.signup.landing")
+  const tBrand = await getTranslations("brand")
+  const brandName = tBrand("name")
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-2">
+        <Heading level={2} className="mt-0">
+          {t("title")}
+        </Heading>
+        <Text variant="muted">{t("descriptionGeneric")}</Text>
+      </header>
+
+      <form method="POST" action="/auth/signup/consume">
+        <input type="hidden" name="token" value={token} />
+        <Button type="submit" size="xl" className="w-full">
+          {t("continue")}
+          <ArrowRightIcon className="size-4" aria-hidden="true" />
+        </Button>
+      </form>
+
+      <Text variant="muted" className="text-sm">
+        {brandName}
+      </Text>
+    </div>
+  )
+}
+
+async function renderInvalid() {
+  const t = await getTranslations("auth.signup.landing")
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-2">
+        <Heading level={2} className="mt-0">
+          {t("invalid.title")}
+        </Heading>
+        <Text variant="muted">{t("invalid.description")}</Text>
+      </header>
+      <Button asChild size="xl">
+        <Link href="#">
+          {t("invalid.contactSupport")}
+          <ArrowUpRight className="size-4" aria-hidden="true" />
+        </Link>
+      </Button>
     </div>
   )
 }

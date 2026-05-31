@@ -35,12 +35,22 @@ storybook-static
 # Agent cleanup artifacts (never deleted per project rules, kept locally)
 _junk/
 
-# Claude Code agent worktrees (ephemeral, local only)
-.claude/
+# Claude Code agent worktrees (ephemeral, local only). Project-level
+# skills under `.claude/skills/` ARE versioned — Claude Code surfaces them
+# to every contributor, so they live in the repo. Everything else under
+# `.claude/` (per-session worktrees, transcripts) stays local-only.
+.claude/*
+!.claude/skills/
+.claude/skills/*/state/
 
-# GSD-style agent planning artifacts (not used in this repo; if an agent
+# Agent planning artifacts (not used in this repo; if an agent
 # writes here, the contents belong in a Linear issue or .claude/ — not git)
 .planning/
+
+# Conductor per-workspace agent collab dir (ephemeral, local-only).
+# `.context/` holds scratch docs and archived snapshots agents pass between
+# turns. Belongs in a Linear issue or .claude/ once durable — never on main.
+.context/
 
 # Playwright
 .auth
@@ -48,6 +58,17 @@ playwright-report
 test-results
 .playwright-mcp
 apps/web/e2e/.results/
+
+# CDK context cache — populated by `cdk synth` from AWS API calls
+# (availability-zones, hosted-zone lookups). Treating it as committed
+# bakes the AWS account ID into the public repo for no operational gain;
+# CDK regenerates the file on demand on every synth.
+infra/cdk/cdk.context.json
+
+# codegraph / graphify local index + reports (per-worktree, never committed)
+.codegraph/
+graphify-out/
+.graphify/
 
 # Misc
 .DS_Store

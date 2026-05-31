@@ -2,7 +2,13 @@
  * audit_event — workspace-tier append-only audit stream.
  *
  * Mirrors: packages/db/migrations/0004_audit.sql (CREATE TABLE audit_event)
+ * + 0021_audit_event_workspace_id_nullable.sql (workspace_id NULLABLE).
  * FKs to workspace + organization wired in 0005_workspace.sql.
+ *
+ * `workspace_id` is NULL for pre-account auth events (failed login of an
+ * unknown email, signup probe, magic-link send/consume failure before a
+ * session exists). The RLS policies exclude NULL rows from every tenant-
+ * bound SELECT; only `withAdminBypass` (BYPASSRLS) can read them.
  *
  * Append-only: UPDATE + DELETE blocked by DB triggers. INSERT-only for app_user.
  */
@@ -14,7 +20,7 @@ export const audit_event = pgTable("audit_event", {
   id: uuid("id")
     .primaryKey()
     .default(sql`uuidv7()`),
-  workspace_id: uuid("workspace_id").notNull(),
+  workspace_id: uuid("workspace_id"),
   organization_id: uuid("organization_id"),
   actor_user_id: uuid("actor_user_id").references(() => app_user.id),
   action: text("action").notNull(),

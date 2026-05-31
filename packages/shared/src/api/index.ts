@@ -1,2 +1,6 @@
 export * from "./common"
+export * from "./feedback"
 export * from "./organizations"
+export * from "./primitives"
+export * from "./status"
+export { API_VERSION, buildOpenApiDocument, registry } from "./registry"

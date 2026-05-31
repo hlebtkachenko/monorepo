@@ -4,7 +4,8 @@
  * results. Domain code never throws HTTP exceptions or framework errors.
  *
  * `code` is a stable, machine-readable string that appears verbatim in the
- * public API error envelope.
+ * public API error envelope. The SDK maps the same codes back into typed
+ * error classes on the client.
  *
  * Reachable as `@workspace/shared/errors`.
  */
@@ -53,6 +54,84 @@ export class ValidationError extends DomainError {
   }
 }
 
+/**
+ * Public API rate-limit breach. Surfaces as `429 rate_limited` with IETF
+ * `RateLimit-*` headers. The throttler guard throws this; the
+ * DomainExceptionFilter maps the code straight through.
+ */
+export class RateLimitedError extends DomainError {
+  constructor(message = "Too many requests") {
+    super("rate_limited", message)
+    this.name = "RateLimitedError"
+  }
+}
+
+/**
+ * Idempotency conflict — a previous request with the same `Idempotency-Key`
+ * was processed and returned a different result for the same body. SDK
+ * documents the safe retry path.
+ */
+export class IdempotencyConflictError extends DomainError {
+  constructor(message = "Idempotency-Key reuse with mismatched request") {
+    super("idempotency_conflict", message)
+    this.name = "IdempotencyConflictError"
+  }
+}
+
+/**
+ * Optimistic-concurrency mismatch on an update — caller's `If-Match` /
+ * `version` is stale. SDK retries by re-reading + re-applying the mutation.
+ */
+export class StaleResourceError extends DomainError {
+  constructor(message = "Resource version is stale") {
+    super("stale_resource", message)
+    this.name = "StaleResourceError"
+  }
+}
+
+/**
+ * Caller asked for a feature that's gated to an entitlement, plan, or
+ * environment the current API key doesn't have access to.
+ */
+export class FeatureNotEnabledError extends DomainError {
+  constructor(message = "Feature is not enabled for this organization") {
+    super("feature_not_enabled", message)
+    this.name = "FeatureNotEnabledError"
+  }
+}
+
+/**
+ * Request payload exceeded the per-endpoint size cap. The DomainExceptionFilter
+ * maps this to `413 payload_too_large`.
+ */
+export class PayloadTooLargeError extends DomainError {
+  constructor(message = "Request payload exceeds the per-endpoint limit") {
+    super("payload_too_large", message)
+    this.name = "PayloadTooLargeError"
+  }
+}
+
 export function isDomainError(err: unknown): err is DomainError {
   return err instanceof DomainError
 }
+
+/**
+ * Every public-API error code emitted by the platform. The Plaid envelope
+ * carries one of these in `error.code`; the SDK maps each back to a class.
+ * Keep this in sync with `docs/api/ERRORS.md`.
+ */
+export const API_ERROR_CODES = [
+  "bad_request",
+  "unauthorized",
+  "forbidden",
+  "not_found",
+  "conflict",
+  "idempotency_conflict",
+  "stale_resource",
+  "feature_not_enabled",
+  "payload_too_large",
+  "validation_error",
+  "rate_limited",
+  "internal_error",
+] as const
+export type ApiErrorCode = (typeof API_ERROR_CODES)[number]

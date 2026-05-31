@@ -5,9 +5,6 @@ Cross-cutting domain types and validation schemas shared between app packages, t
 ## Entry points
 
 ```ts
-// Brand identity constants (logo path, i18n keys, placeholder logo names)
-import { BRAND, AUTH_ASIDE_LOGOS, type Brand } from "@workspace/shared"
-
 // Auth-flow Zod schemas + validation utilities
 import {
   LoginEmailSchema,
@@ -25,10 +22,11 @@ import {
 } from "@workspace/shared/auth"
 ```
 
+Brand surface (Logo, BrandName, urls, emails, placeholder partner names)
+lives in `@workspace/ui/brand-assets`, not here.
+
 ## What it does
 
-- `BRAND` — product name i18n key, tagline key, and logo asset path. Never contains hardcoded product-name strings; those stay in `messages/*.json`.
-- `AUTH_ASIDE_LOGOS` — placeholder customer-logo names shown on auth/onboarding side panels.
 - `@workspace/shared/auth` — Zod schemas for every auth and onboarding form, password-strength rules, onboarding step resolver, and related TypeScript types.
 
 ## Constraints

@@ -1,7 +1,21 @@
+# gitleaks config — extends the upstream default ruleset with rules specific to
+# Afframe (HAPD) and the Czech finance domain. The CI workflow
+# (.github/workflows/ci.yml) runs:
+#   gitleaks detect --source . --no-banner --redact --log-level info --exit-code 1
+# from the repo root; this file is auto-discovered.
+#
+# Extends rather than replaces — the upstream covers AWS keys, GitHub PATs,
+# private keys, Slack tokens, Stripe keys, etc. Adding our domain on top.
+#
+# Tracked: docs/adr/0022-unified-opaque-tokens.md (auth_token format),
+#          docs/adr/0023-public-api-developer-platform.md §6 (Czech finance rules).
+
 [extend]
 useDefault = true
 
-# Custom rule: Afframe opaque auth_token credential (ADR-0022).
+# ---------- Afframe credentials ----------
+
+# Afframe opaque auth_token credential (ADR-0022).
 # Format: afkey-<43 base62>-<8 hex>. Token body has 256 bits of entropy;
 # checksum is unkeyed and bound to (kind, env). Mirrors AFKEY_REGEX in
 # packages/auth/src/tokens/format.ts and the no-leaked-afkey ESLint rule.
@@ -12,19 +26,193 @@ regex = '''afkey-[0-9A-Za-z]{43}-[0-9a-f]{8}'''
 keywords = ["afkey-"]
 tags = ["secret", "afframe"]
 
+# Public API keys — post-AFF-73 prefix split.
+# Live keys = production credentials; test keys = sandbox credentials (still gated).
+[[rules]]
+id = "afframe-live-key"
+description = "Afframe live API key (affk_live_…) — production credential"
+regex = '''\baffk_live_[A-Za-z0-9_/+\-]{32,}\b'''
+keywords = ["affk_live_"]
+tags = ["secret", "afframe", "production"]
+
+[[rules]]
+id = "afframe-test-key"
+description = "Afframe test API key (affk_test_…) — sandbox credential"
+regex = '''\baffk_test_[A-Za-z0-9_/+\-]{32,}\b'''
+keywords = ["affk_test_"]
+tags = ["secret", "afframe", "sandbox"]
+
+# Legacy prefix from the foundation (ADR-0020); migrated to affk_live_ in AFF-73.
+[[rules]]
+id = "afframe-legacy-key"
+description = "Legacy Afframe API key (afk_…) — pre-AFF-73 prefix; production credential"
+regex = '''\bafk_[A-Za-z0-9_/+\-]{40,}\b'''
+keywords = ["afk_"]
+tags = ["secret", "afframe", "legacy"]
+
+# ---------- Czech / EU finance + PII ----------
+
+[[rules]]
+id = "czech-iban"
+description = "Czech IBAN"
+regex = '''\bCZ\d{2}[ ]?(?:\d{4}[ ]?){4}\d{4}\b'''
+tags = ["pii", "finance", "cz"]
+
+[[rules]]
+id = "slovak-iban"
+description = "Slovak IBAN (frequent cross-border invoicing partner)"
+regex = '''\bSK\d{2}[ ]?(?:\d{4}[ ]?){4}\d{4}\b'''
+tags = ["pii", "finance", "sk"]
+
+[[rules]]
+id = "german-iban"
+description = "German IBAN (frequent cross-border invoicing partner)"
+regex = '''\bDE\d{2}[ ]?(?:\d{4}[ ]?){4}\d{2}\b'''
+tags = ["pii", "finance", "de"]
+
+[[rules]]
+id = "austrian-iban"
+description = "Austrian IBAN (frequent cross-border invoicing partner)"
+regex = '''\bAT\d{2}[ ]?(?:\d{4}[ ]?){4}\d{4}\b'''
+tags = ["pii", "finance", "at"]
+
+[[rules]]
+id = "czech-vat-dic"
+description = "Czech VAT / DIČ"
+regex = '''\bCZ\d{8,10}\b'''
+tags = ["pii", "finance", "cz"]
+
+[[rules]]
+id = "czech-ico"
+description = "Czech business ID (IČO) — 8 digits, contextual"
+regex = '''(?i)(?:i[čc]o|company[\s_-]*number)\s*[:=]\s*\d{8}\b'''
+tags = ["pii", "finance", "cz", "contextual"]
+
+[[rules]]
+id = "czech-rc-birth-number"
+description = "Czech rodné číslo (GDPR-sensitive personal ID)"
+regex = '''\b\d{6}/\d{3,4}\b'''
+keywords = ["rc", "rodne", "birth"]
+tags = ["pii", "cz", "gdpr-sensitive"]
+
+# Anthropic API key. Format `sk-ant-<api|admin>-<base62>`. The Ask AI route
+# that consumed this key was archived to
+# `.context/archive/apps-docs-2026-05-21/` on 2026-05-21 alongside the rest
+# of `apps/docs`. The detection rule stays — even with no live consumer, a
+# leaked Anthropic key in any file is a paid-API exfil risk worth catching.
+# The upstream gitleaks default ruleset carries a generic `anthropic-api-key`
+# rule but the regex has been brittle across releases; pin our own.
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key (sk-ant-…)"
+regex = '''\bsk-ant-(api|admin)\d{2}-[A-Za-z0-9_\-]{60,}\b'''
+keywords = ["sk-ant-"]
+tags = ["secret", "anthropic"]
+
+# HashiCorp Vault tokens. This repo's Vault (Hostinger KVM 2 VPS) issues
+# `hvs.` service tokens (e.g. the operator-admin + sync tokens), `hvb.`
+# batch tokens, and `hvr.` recovery-wrapped tokens. A leaked operator-admin
+# or sync token grants Vault read/write, so catch any that land in a commit.
+# {24,} after the prefix keeps doc placeholders (`hvs.XXXX`, `hvs.<root>`)
+# below threshold — they never match. Added in the M-secrets-hardening pass
+# (the scanners were built for the AWS-SM era and were Vault-blind).
+[[rules]]
+id = "vault-token"
+description = "HashiCorp Vault token (hvs./hvb./hvr.)"
+regex = '''\bhv[sbr]\.[A-Za-z0-9._-]{24,}'''
+keywords = ["hvs.", "hvb.", "hvr."]
+tags = ["secret", "vault"]
+
+# Standard Webhooks signing secret. Partners receive these out-of-band; the
+# SDK's `verifyWebhook` consumes them. Format mirrors the `whsec_` prefix
+# the rest of the ecosystem uses (Svix, Stripe webhooks). Character class
+# covers both base64 standard (`+/=`) and URL-safe (`-_`) alphabets to
+# match whatever encoding a partner emits.
+[[rules]]
+id = "afframe-webhook-secret"
+description = "Afframe Standard Webhooks signing secret (whsec_…)"
+regex = '''\bwhsec_[A-Za-z0-9+/=_\-]{32,}\b'''
+keywords = ["whsec_"]
+tags = ["secret", "afframe", "webhook"]
+
+# Czech bank-account format: optional 1-6 digit prefix, dash, 2-10 digit
+# account, slash, 4-digit bank code from the CNB-issued list. Restricting
+# to known codes avoids matching random `1234/5678` strings.
+[[rules]]
+id = "czech-account-number"
+description = "Czech bank account (prefix-number/bankcode)"
+regex = '''\b(?:\d{1,6}-)?\d{2,10}/(?:0100|0300|0600|0710|0800|2010|2020|2060|2070|2100|2200|2250|2260|2275|2600|2700|3030|3050|3060|3500|4000|4300|5500|5800|6000|6100|6200|6210|6300|6700|6800|7910|7940|7950|7960|7970|7980|7990|8030|8040|8060|8090|8150|8190|8198|8199|8200|8220|8230|8240|8250|8255|8260|8265|8270|8280|8290|8291|8292|8293|8294|8295|8296|8297|8298|8299)\b'''
+tags = ["finance", "cz"]
+
+# ---------- Repo-wide allowlist ----------
+
 [allowlist]
 description = "Repo-wide allowlist for known-safe matches"
 
 paths = [
   '''(^|/)pnpm-lock\.yaml$''',
   '''(^|/)\.context/''',
+  # Session handoff docs — gitignored (never committed/CI), but local
+  # `--no-git` scans walk them. They note public AWS/Cloudflare resource
+  # IDs (KMS Key ID, CF Access app + tunnel UUIDs) that trip the entropy
+  # heuristic; all IAM/Access-gated, not secrets. Narrow to /handoffs/ so
+  # any genuinely-committed .claude file still gets scanned.
+  '''(^|/)\.claude/handoffs/''',
   '''(^|/)_junk/''',
+  # Local-dev env files — gitignored, never reach CI, but if someone runs a scan
+  # locally (e.g. infisical scan) we don't want to false-positive their machine.
+  # Covers .env, .env.local, .env.staging, .env.staging.local, etc.
+  '''(^|/)\.env(\.[a-z]+)*$''',
+  # CDK synth output — gitignored, walks filesystem on local scans. The S3
+  # asset keys are 40-char hex hashes that trip the generic-api-key heuristic.
+  '''(^|/)cdk\.out/''',
+  # Vault VPS bring-up assets — NARROW allowlist (was a blanket
+  # `infra/vault/` ignore, which made gitleaks blind to the whole tree).
+  # Only the specific files that carry public-but-suspicious identifiers
+  # are allowlisted; everything else under infra/vault/ (policies, setup
+  # scripts, README) IS scanned, so a real `hvs.` token committed there is
+  # caught by the vault-token rule above.
+  #   - vault.hcl: embeds a KMS Key ID (public AWS resource id, IAM-gated)
+  #   - compose.yaml: pins docker image sha256 digests
+  #   - *.template / env.template: placeholder env files (real .env is
+  #     gitignored on the VPS + path-allowlisted above, never committed)
+  '''(^|/)infra/vault/vault\.hcl$''',
+  '''(^|/)infra/vault/compose\.yaml$''',
+  '''(^|/)infra/vault/.*\.template$''',
+  '''(^|/)infra/vault/.*env\.template$''',
   '''(^|/)docs/plans/''',
   '''(^|/)docs/runbooks/AWS-BOOTSTRAP\.md$''',
+  # Documented contracts referencing example secret prefixes (not real values).
+  '''(^|/)docs/api/[^/]+\.md$''',
+  '''(^|/)docs/api/SANDBOX\.md$''',
+  '''(^|/)docs/runbooks/SECRETS\.md$''',
+  '''(^|/)CLAUDE\.md$''',
+  '''(^|/)SECURITY\.md$''',
+  '''(^|/)\.gitleaks\.toml$''',
+  # Test fixtures + committed OpenAPI snapshots.
+  '''(^|/)tests?/''',
+  '''(^|/)__fixtures__/''',
+  '''(^|/)fixtures/''',
+  '''(^|/).*\.test\.tsx?$''',
+  '''(^|/).*\.spec\.tsx?$''',
+  '''(^|/)openapi/.*\.json$''',
 ]
 
 regexes = [
   '''<TBD[^>]*>''',
   '''ghp_xxx''',
   '''AKIA[A-Z0-9]{0,3}EXAMPLE''',
+  # Canonical doc / showcase fixtures. `12345678` is the well-known fake
+  # company-id used across Czech accounting examples (matches the fixture
+  # IČO + VAT both); allow-listing it stops the contextual rule firing
+  # on typography demos and seed scripts.
+  '''CZ12345678''',                                              # fixture VAT
+  '''(?i)i[čc]o\s*[:=]\s*12345678\b''',                          # fixture IČO with the ICO: prefix
+  '''CZ65[ ]?9999[ ]?0000[ ]?0000[ ]?1234[ ]?5670''',            # fixture IBAN — succeeds
+  '''CZ69[ ]?9998[ ]?0000[ ]?0000[ ]?9999[ ]?9990''',            # fixture IBAN — not found
+  '''affk_(live|test)_(…|\.\.\.)''',                             # ellipsis in docs
+  '''affk_test_e7f1\.\.\.''',
+  '''whsec_(BASE64SECRET|TESTONLY)\.\.\.''',
 ]
+
+stopwords = []

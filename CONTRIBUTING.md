@@ -2,6 +2,8 @@
 
 This is a closed-beta product. External contributions are not accepted yet. This document exists for the core team and any human or AI agent doing planned work in the repo.
 
+**Start here**: [`docs/START-HERE.md`](docs/START-HERE.md) is the canonical entry point. It indexes every runbook and convention you'll need.
+
 ## Hard Rules (project-wide)
 
 These rules are enforced by ESLint, Git hooks, and reviewer judgement. See the full list in `AGENTS.md`.
@@ -78,15 +80,15 @@ pnpm test         # all tests
 
 Every PR triggers (advisory until promoted to required-status):
 
-| Check | What it does |
-|---|---|
-| `ci` | typecheck, lint, test, storybook build, build |
-| `gitleaks` | secret scan |
-| `commitlint` | conventional commits enforcement |
-| `codeql` | JS/TS SAST |
-| `dependency-review` | CVE + license check on PR diff |
-| `osv-scanner` | dependency CVE scan |
-| `size-limit` | bundle budget on `apps/web` |
+| Check               | What it does                                  |
+| ------------------- | --------------------------------------------- |
+| `ci`                | typecheck, lint, test, storybook build, build |
+| `gitleaks`          | secret scan                                   |
+| `commitlint`        | conventional commits enforcement              |
+| `codeql`            | JS/TS SAST                                    |
+| `dependency-review` | CVE + license check on PR diff                |
+| `osv-scanner`       | dependency CVE scan                           |
+| `size-limit`        | bundle budget on `apps/web`                   |
 
 ## License
 

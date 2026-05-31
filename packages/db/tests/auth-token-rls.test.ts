@@ -163,13 +163,45 @@ describe("auth_token append-only", () => {
     ).rejects.toThrow(/check_violation|immutable/i)
   })
 
-  it("blocks UPDATE of expires_at (immutable column)", async () => {
+  it("allows UPDATE of expires_at on a pending row within the 7-day cap (ons sliding renewal)", async () => {
     const id = await seedToken(sql)
     await expect(
       sql.unsafe(
         `UPDATE auth_token SET expires_at = now() + interval '1 day' WHERE id = '${id}'::uuid`,
       ),
-    ).rejects.toThrow(/check_violation|immutable/i)
+    ).resolves.not.toThrow()
+  })
+
+  it("blocks UPDATE of expires_at when the new value is in the past", async () => {
+    const id = await seedToken(sql)
+    await expect(
+      sql.unsafe(
+        `UPDATE auth_token SET expires_at = now() - interval '1 second' WHERE id = '${id}'::uuid`,
+      ),
+    ).rejects.toThrow(/check_violation|future/i)
+  })
+
+  it("blocks UPDATE of expires_at beyond the 7-day hard cap", async () => {
+    const id = await seedToken(sql)
+    await expect(
+      sql.unsafe(
+        `UPDATE auth_token SET expires_at = now() + interval '30 days' WHERE id = '${id}'::uuid`,
+      ),
+    ).rejects.toThrow(/check_violation|cap/i)
+  })
+
+  it("blocks UPDATE of expires_at on non-pending rows", async () => {
+    // First flip to consumed via the allowed status update path.
+    const id = await seedToken(sql)
+    await sql.unsafe(
+      `UPDATE auth_token SET status = 'consumed', consumed_at = now() WHERE id = '${id}'::uuid`,
+    )
+    // Now any further expires_at change must be rejected.
+    await expect(
+      sql.unsafe(
+        `UPDATE auth_token SET expires_at = now() + interval '1 day' WHERE id = '${id}'::uuid`,
+      ),
+    ).rejects.toThrow(/check_violation|non-pending/i)
   })
 
   it("allows UPDATE of status to consumed (the redemption path)", async () => {

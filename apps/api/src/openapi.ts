@@ -1,37 +1,28 @@
-import type { INestApplication } from "@nestjs/common"
-import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger"
-import { cleanupOpenApiDoc } from "nestjs-zod"
-import { V1Module } from "./v1/v1.module"
+import { buildOpenApiDocument as buildFromRegistry } from "@workspace/shared/api"
 
 /**
  * Build the OpenAPI 3.1 document for the public `/v1` surface.
  *
- * Shared by `main.ts` (serves Swagger UI + the raw spec at runtime) and
- * `scripts/emit-openapi.ts` (writes the committed `openapi/v1.json` that CI
- * drift-gates and Spectral lints). `cleanupOpenApiDoc` is required to turn the
- * nestjs-zod markers into real component schemas.
+ * Thin delegate over the `@workspace/shared/api` registry. The registry —
+ * not the `@nestjs/swagger` reflector — is the single source of truth for
+ * the spec: every schema, route, response, server, and tag is authored in
+ * `packages/shared/src/api/`. The api process and `scripts/emit-openapi.ts`
+ * share this single emit path; SDK + MCP codegen reads the resulting
+ * `apps/api/openapi/v1.json` file.
+ *
+ * `info.version` (the API CONTRACT version) is owned by `API_VERSION` in
+ * the registry — NOT derived from `process.env.BUILD_VERSION`. The
+ * deployment artifact version (release tag, container build hash) is
+ * separate and lives in `/api/health`. See `docs/api/VERSIONING.md` for
+ * the contract-versioning rules.
+ *
+ * The `@nestjs/swagger` decorators on the v1 controllers are intentionally
+ * left in place; they are inert here (the reflector no longer runs) but
+ * still document each route in IDEs and during code review. Phase B6's
+ * `sdk-drift` gate keeps the committed spec aligned with the registry.
  */
-export function buildOpenApiDocument(app: INestApplication) {
-  const config = new DocumentBuilder()
-    .setOpenAPIVersion("3.1.0")
-    .setTitle("Afframe Public API")
-    .setDescription(
-      "Public API for the Afframe accounting platform. Authenticate with an " +
-        "API key as a bearer token.",
-    )
-    .setVersion(process.env.BUILD_VERSION ?? "0.0.0")
-    .addServer("https://api.afframe.com")
-    .addTag("Meta", "Service metadata and auth smoke tests")
-    .addTag("Organization", "The API key's own organization")
-    .addBearerAuth({
-      type: "http",
-      scheme: "bearer",
-      bearerFormat: "API key",
-      description: "API key in the form affk_live_...",
-    })
-    .build()
+export type ApiOpenApiDocument = ReturnType<typeof buildFromRegistry>
 
-  return cleanupOpenApiDoc(
-    SwaggerModule.createDocument(app, config, { include: [V1Module] }),
-  )
+export function buildOpenApiDocument(): ApiOpenApiDocument {
+  return buildFromRegistry()
 }

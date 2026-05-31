@@ -208,3 +208,90 @@ describe("writeAuditEvent — baseline key redaction", () => {
     expect(row?.payload["path"]).toBe("/sign-in/email")
   })
 })
+
+// ---------------------------------------------------------------------------
+// writeAuditEventGlobal — pre-account events (workspace_id NULL)
+// ---------------------------------------------------------------------------
+
+describe("writeAuditEventGlobal — pre-account event (NULL workspace_id)", () => {
+  it("persists a row with workspace_id=NULL when workspaceId is absent", async () => {
+    const { writeAuditEventGlobal } = await import("../src/audit/write-log.js")
+
+    await writeAuditEventGlobal({
+      action: "auth.login.failed_password",
+      payload: { reason: "unknown_email", path: "/sign-in/email" },
+    })
+
+    const [row] = await adminSql<
+      Array<{
+        workspace_id: string | null
+        organization_id: string | null
+        action: string
+        payload: Record<string, unknown>
+      }>
+    >`
+      SELECT workspace_id, organization_id, action, payload
+      FROM audit_event
+      WHERE action = 'auth.login.failed_password'
+      LIMIT 1
+    `
+    expect(row).toBeDefined()
+    expect(row?.workspace_id).toBeNull()
+    expect(row?.organization_id).toBeNull()
+    expect(row?.payload).toMatchObject({ reason: "unknown_email" })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RLS — NULL-workspace rows invisible to tenant-bound reads
+// ---------------------------------------------------------------------------
+
+describe("audit_event RLS — NULL workspace_id rows", () => {
+  it("withWorkspace SELECT excludes NULL rows; withAdminBypass sees them", async () => {
+    const { workspaceId, userId } = await seedWorkspace()
+    const { withWorkspace, withAdminBypass } = await import("../src/tenancy.js")
+    const { writeAuditEventGlobal } = await import("../src/audit/write-log.js")
+    const { audit_event } = await import("../src/schema/audit_event.js")
+    const { isNull } = await import("drizzle-orm")
+
+    // Seed: one pre-account (NULL ws) row + one workspace-bound row.
+    await writeAuditEventGlobal({
+      action: "auth.login.failed_password",
+      payload: { reason: "unknown_email" },
+    })
+    await writeAuditEventGlobal({
+      workspaceId,
+      action: "auth.admin.allowlist_denied",
+      payload: { user_id: userId },
+    })
+
+    // Tenant-bound app_user read via withWorkspace: must NOT see the NULL row.
+    // The workspace owner is also a workspace admin, so the ws_admin_read
+    // policy lets them see the workspace-bound row.
+    const tenantVisible = await withWorkspace(workspaceId, userId, async (tx) =>
+      tx.select().from(audit_event),
+    )
+    expect(
+      tenantVisible.some((r) => r.action === "auth.login.failed_password"),
+    ).toBe(false)
+    expect(
+      tenantVisible.some((r) => r.action === "auth.admin.allowlist_denied"),
+    ).toBe(true)
+    expect(tenantVisible.every((r) => r.workspace_id !== null)).toBe(true)
+
+    // withAdminBypass (BYPASSRLS) sees the NULL row.
+    const adminVisible = await withAdminBypass(async (db) =>
+      db.select().from(audit_event).where(isNull(audit_event.workspace_id)),
+    )
+    expect(adminVisible.length).toBeGreaterThanOrEqual(1)
+    expect(
+      adminVisible.some((r) => r.action === "auth.login.failed_password"),
+    ).toBe(true)
+
+    // Double-check via admin SQL too (defense-in-depth on the assertion).
+    const [count] = await adminSql<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM audit_event WHERE workspace_id IS NULL
+    `
+    expect(count?.n).toBeGreaterThanOrEqual(1)
+  })
+})

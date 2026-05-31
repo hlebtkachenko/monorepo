@@ -64,8 +64,12 @@ ENV NODE_ENV=production \
     BUILD_TIME=$BUILD_TIME \
     BUILD_VERSION=$BUILD_VERSION
 
+# apt-get upgrade pulls Debian-Security point releases for base packages
+# (e.g. libgnutls30 deb12u6 -> deb12u7), patching base-image CVEs at the
+# source instead of allowlisting them. Residual no-upstream-fix CVEs live
+# in .github/security/cve-allowlist.txt.
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nextjs \
-    && apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+    && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Strip npm + npx + corepack from the runner. Next.js standalone server.js
@@ -87,7 +91,7 @@ USER nextjs:nodejs
 EXPOSE 3100
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -q -O- http://127.0.0.1:3100/api/health >/dev/null || exit 1
+  CMD node -e "require('http').get('http://127.0.0.1:3100/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})" || exit 1
 
 # Force HOSTNAME=0.0.0.0 at exec time. Without this, Fargate/Docker runtime
 # overrides our ENV HOSTNAME with the container's auto-assigned hostname

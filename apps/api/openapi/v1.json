@@ -1,69 +1,25 @@
 {
   "openapi": "3.1.0",
-  "paths": {
-    "/v1/ping": {
-      "get": {
-        "description": "Zero-DB smoke test. Returns the resolved principal — confirms the API key authenticated.",
-        "operationId": "PingController_ping_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PingResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Ping",
-        "tags": [
-          "Meta"
-        ]
-      }
-    },
-    "/v1/organization": {
-      "get": {
-        "description": "Returns the organization the authenticated API key belongs to.",
-        "operationId": "OrganizationController_get_v1",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetOrganizationResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get organization",
-        "tags": [
-          "Organization"
-        ]
-      }
-    }
-  },
   "info": {
     "title": "Afframe Public API",
-    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token.",
-    "version": "0.0.0",
-    "contact": {}
+    "version": "1.0.0",
+    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape envelope; rate limits are surfaced via IETF `RateLimit-*` headers.\n\nService status: [status.afframe.com](https://status.afframe.com) (programmatic at `GET /v1/status`).",
+    "contact": {
+      "name": "Afframe support",
+      "email": "support@afframe.com",
+      "url": "mailto:support@afframe.com"
+    },
+    "license": {
+      "name": "Proprietary — see Terms of Service",
+      "url": "https://afframe.com/terms"
+    }
   },
+  "servers": [
+    {
+      "url": "https://api.afframe.com",
+      "description": "Production"
+    }
+  ],
   "tags": [
     {
       "name": "Meta",
@@ -72,29 +28,152 @@
     {
       "name": "Organization",
       "description": "The API key's own organization"
-    }
-  ],
-  "servers": [
+    },
     {
-      "url": "https://api.afframe.com"
+      "name": "Status",
+      "description": "Service status and component health"
+    },
+    {
+      "name": "Feedback",
+      "description": "Send bug reports, requests, and questions"
     }
   ],
   "components": {
     "securitySchemes": {
       "bearer": {
+        "type": "http",
         "scheme": "bearer",
         "bearerFormat": "API key",
-        "type": "http",
-        "description": "API key in the form affk_live_..."
+        "description": "API key in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Send as `Authorization: Bearer <key>`."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "API key missing, malformed, revoked, or pointing at a different environment than the host.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "unauthorized",
+                "error_type": "UNAUTHORIZED",
+                "message": "Missing or invalid API key.",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "API key authenticated but lacks the scope required for this operation, or the target resource belongs to a different tenant.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "forbidden",
+                "error_type": "FORBIDDEN",
+                "message": "The API key is not allowed to perform this action.",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The resource referenced by the request URL does not exist (or does not exist within the authenticated tenant — Afframe never leaks cross-tenant existence).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "not_found",
+                "error_type": "NOT_FOUND",
+                "message": "Resource not found.",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Idempotency conflict, optimistic-concurrency mismatch, or business-rule conflict.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "conflict",
+                "error_type": "CONFLICT",
+                "message": "Resource is in a state that conflicts with the request.",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Request body parsed but failed schema validation. The `details` array carries one entry per offending field.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "validation_error",
+                "error_type": "VALIDATION",
+                "message": "Request body failed validation.",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14",
+                "details": [
+                  {
+                    "path": "$.legalName",
+                    "code": "required",
+                    "message": "legalName is required."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Caller exceeded the API-key rate limit. The response carries IETF `RateLimit-*` headers indicating the reset window.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "rate_limited",
+                "error_type": "RATE_LIMITED",
+                "message": "Too many requests. See the RateLimit-* headers for the reset window.",
+                "requestId": "req_1f5a8c6e91d240bdbe18d4e07a3f9c14"
+              }
+            }
+          }
+        }
       }
     },
     "schemas": {
-      "PingResponseDto": {
+      "PingResponse": {
         "type": "object",
         "properties": {
           "ok": {
             "type": "boolean",
-            "const": true
+            "enum": [
+              true
+            ],
+            "description": "Always `true` on a 2xx response."
           },
           "principal": {
             "type": "object",
@@ -102,26 +181,28 @@
               "organizationId": {
                 "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "description": "The organization the API key is scoped to."
               },
               "workspaceId": {
                 "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "description": "The workspace (accountant's office) hosting the org."
               }
             },
             "required": [
               "organizationId",
               "workspaceId"
-            ]
+            ],
+            "description": "Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`)."
           }
         },
         "required": [
           "ok",
           "principal"
-        ]
+        ],
+        "description": "Confirms the API key authenticated and reveals the resolved tenancy."
       },
-      "GetOrganizationResponseDto": {
+      "GetOrganizationResponse": {
         "type": "object",
         "properties": {
           "organization": {
@@ -130,18 +211,24 @@
               "id": {
                 "type": "string",
                 "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                "description": "Opaque organization identifier (UUID)."
               },
               "slug": {
-                "type": "string"
+                "type": "string",
+                "description": "URL-safe organization handle, e.g. `acme-cz`.",
+                "example": "acme-cz"
               },
               "legalName": {
-                "type": "string"
+                "type": "string",
+                "description": "Registered legal name, e.g. `Acme Czechia s.r.o.`",
+                "example": "Acme Czechia s.r.o."
               },
               "fiscalYearStartMonth": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 12
+                "maximum": 12,
+                "description": "Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).",
+                "example": 1
               }
             },
             "required": [
@@ -149,13 +236,500 @@
               "slug",
               "legalName",
               "fiscalYearStartMonth"
-            ]
+            ],
+            "description": "Public-API summary of an organization (tenant)."
           }
         },
         "required": [
           "organization"
-        ]
+        ],
+        "description": "The organization the API key belongs to. Single-tenant view; future multi-org-per-key tokens will return a list endpoint instead."
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`."
+              },
+              "error_type": {
+                "type": "string",
+                "description": "Plaid-shape family (INVALID_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, VALIDATION, RATE_LIMITED, INTERNAL, …)."
+              },
+              "message": {
+                "type": "string",
+                "description": "Developer-facing message. Safe to log."
+              },
+              "display_message": {
+                "type": "string",
+                "description": "Optional end-user-facing message. Present when the cause is safe to surface in a UI; absent for 5xx / unknown errors."
+              },
+              "documentation_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Optional deep-link into a hosted error registry. Reserved for future use; the api does not emit this field today."
+              },
+              "requestId": {
+                "type": "string",
+                "description": "Echoes the `X-Request-Id` header for support tickets."
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "code",
+                    "message"
+                  ]
+                },
+                "description": "Field-level error breakdown. Present on `422 validation_error`; absent on most other codes."
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "requestId"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "description": "Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object."
+      },
+      "ApiPrincipal": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The organization the API key is scoped to."
+          },
+          "workspaceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The workspace (accountant's office) hosting the org."
+          }
+        },
+        "required": [
+          "organizationId",
+          "workspaceId"
+        ],
+        "description": "Identity resolved from the bearer API key. Mirrors the server-side tenancy GUCs (`app.organization_id`, `app.workspace_id`)."
+      },
+      "OrganizationSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe organization handle, e.g. `acme-cz`.",
+            "example": "acme-cz"
+          },
+          "legalName": {
+            "type": "string",
+            "description": "Registered legal name, e.g. `Acme Czechia s.r.o.`",
+            "example": "Acme Czechia s.r.o."
+          },
+          "fiscalYearStartMonth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12,
+            "description": "Month (1–12) on which the org's fiscal year starts. Most CZ entities use `1` (calendar year).",
+            "example": 1
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "legalName",
+          "fiscalYearStartMonth"
+        ],
+        "description": "Public-API summary of an organization (tenant)."
+      },
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "operational",
+              "degraded_performance",
+              "partial_outage",
+              "major_outage"
+            ],
+            "description": "Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.",
+            "example": "operational"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Component label, e.g. `Public API`, `Web app`, `Database`.",
+                  "example": "Public API"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "operational",
+                    "degraded_performance",
+                    "partial_outage",
+                    "major_outage"
+                  ],
+                  "description": "Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.",
+                  "example": "operational"
+                }
+              },
+              "required": [
+                "name",
+                "status"
+              ],
+              "description": "Per-component health entry. Mirrors the components shown on status.afframe.com."
+            },
+            "description": "Per-component health snapshots. Empty array when the status page is offline and the api falls back to a synthesized response."
+          },
+          "statusPageUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Canonical status page URL. Always `https://status.afframe.com` — included so SDK consumers can deep-link end users to the live page.",
+            "example": "https://status.afframe.com"
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 timestamp of when this status was fetched.",
+            "example": "2026-05-21T18:00:00.000Z"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "openstatus",
+              "fallback"
+            ],
+            "description": "`openstatus` when the response came from the live status page; `fallback` when status.afframe.com was unreachable and the api synthesized an operational default.",
+            "example": "fallback"
+          }
+        },
+        "required": [
+          "status",
+          "components",
+          "statusPageUrl",
+          "fetchedAt",
+          "source"
+        ],
+        "description": "Service status summary. Programmatic equivalent of status.afframe.com — cache for 30s on the client side."
+      },
+      "ServiceStatus": {
+        "type": "string",
+        "enum": [
+          "operational",
+          "degraded_performance",
+          "partial_outage",
+          "major_outage"
+        ],
+        "description": "Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.",
+        "example": "operational"
+      },
+      "ComponentStatus": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Component label, e.g. `Public API`, `Web app`, `Database`.",
+            "example": "Public API"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "operational",
+              "degraded_performance",
+              "partial_outage",
+              "major_outage"
+            ],
+            "description": "Overall service status. `operational` = all components healthy; `degraded_performance` = one or more components reporting slow responses; `partial_outage` = a non-critical component is down; `major_outage` = a critical component is down.",
+            "example": "operational"
+          }
+        },
+        "required": [
+          "name",
+          "status"
+        ],
+        "description": "Per-component health entry. Mirrors the components shown on status.afframe.com."
+      },
+      "CreateFeedbackRequest": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "request",
+              "issue",
+              "question"
+            ],
+            "description": "Feedback category. `bug` = something broken; `request` = new feature ask; `issue` = process / UX / docs problem; `question` = support question that didn't fit the FAQ.",
+            "example": "bug"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "Free-form feedback text. 1–4000 characters. Markdown allowed but not rendered — the Linear issue treats this as plain text.",
+            "example": "The /v1/organization endpoint returned a 500 when my API key was created in the last 60 seconds. Retried after a minute and it worked."
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "description": "Optional contact email. If provided, support will reply here; otherwise the response is filed without a return path. Already-authenticated keys carry an org contact so this is purely for users who want a direct reply.",
+            "example": "dev@partner.example"
+          }
+        },
+        "required": [
+          "type",
+          "message"
+        ],
+        "description": "Partner feedback submission. Idempotency is not enforced — duplicate submissions create duplicate Linear issues. Clients should rate-limit themselves to one submission per minute."
+      },
+      "CreateFeedbackResponse": {
+        "type": "object",
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Always `true` on a 2xx response. Confirms the api accepted the submission for downstream dispatch (email + Linear issue)."
+          },
+          "referenceId": {
+            "type": "string",
+            "description": "Opaque submission reference. Quote this in any follow-up email — it links the support reply back to the Linear issue.",
+            "example": "fb_2ZdAk5x"
+          }
+        },
+        "required": [
+          "received",
+          "referenceId"
+        ],
+        "description": "Confirmation that feedback was accepted. Acceptance does NOT guarantee a reply — `question` submissions get one, the others are reviewed without acknowledgement unless an email is provided."
+      },
+      "FeedbackType": {
+        "type": "string",
+        "enum": [
+          "bug",
+          "request",
+          "issue",
+          "question"
+        ],
+        "description": "Feedback category. `bug` = something broken; `request` = new feature ask; `issue` = process / UX / docs problem; `question` = support question that didn't fit the FAQ.",
+        "example": "bug"
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/v1/ping": {
+      "get": {
+        "operationId": "ping",
+        "summary": "Ping",
+        "description": "Zero-DB smoke test. Returns the resolved principal — confirms the API key authenticated.",
+        "tags": [
+          "Meta"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key authenticated and the principal resolved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/organization": {
+      "get": {
+        "operationId": "getOrganization",
+        "summary": "Get organization",
+        "description": "Returns the organization the authenticated API key belongs to.",
+        "tags": [
+          "Organization"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authenticated principal's organization.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetOrganizationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/status": {
+      "get": {
+        "operationId": "getStatus",
+        "summary": "Service status",
+        "description": "Returns the service health summary. Proxies `status.afframe.com` (OpenStatus) when reachable; otherwise synthesizes an operational fallback. Public — no API key required.",
+        "tags": [
+          "Status"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service status snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/feedback": {
+      "post": {
+        "operationId": "createFeedback",
+        "summary": "Send feedback",
+        "description": "Submit a bug report, feature request, process issue, or question. The api forwards every submission to `support+feedback@afframe.com` and creates a Linear issue tagged with the feedback type. Public — no API key required.",
+        "tags": [
+          "Feedback"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeedbackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feedback accepted for downstream dispatch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateFeedbackResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
       }
     }
-  }
+  },
+  "webhooks": {}
 }

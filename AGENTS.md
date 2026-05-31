@@ -30,7 +30,34 @@ index.ts            # re-exports (export * from "./{name}")
 - Components: `import { Button } from "@workspace/ui/components/button"`
 - Utilities: `import { cn } from "@workspace/ui/lib/utils"`
 - Hooks: `import { useIsMobile } from "@workspace/ui/hooks/use-mobile"`
+- Brand surface: `import { Logo, BrandName, BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"` (+ `getBrandText` from `@workspace/ui/brand-assets/server`)
 - Never use `@/components/ui/` (wrong path for monorepo)
+
+## Releases
+
+Versions follow `v<MAJOR>.<MINOR>.<PATCH>` (e.g. `v0.2.0`) for stable releases and `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` (e.g. `v0.2.1-rc.1`) for release candidates. Tagging is manual and gated to Hleb until v1. Full conventions, bump rules, and the cut workflow live in [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
+
+The current build version is surfaced at runtime via the `BUILD_VERSION` env (injected by the Docker image build), readable through `getBuildVersion()` / `<BuildVersion />` from `@workspace/ui/brand-assets`. It shows in the footer of every auth/onboarding page so the deployed version is always visible.
+
+## Brand Assets
+
+The Afframe brand surface — logo SVGs, product name, tagline, legal info, support emails, marketing URLs, social handles — lives in **`packages/ui/src/brand-assets/`** as the single source of truth. Read `packages/ui/src/brand-assets/README.md` for the full reference.
+
+Three layers, one home:
+
+| Layer | Lives in | What it gives you |
+|-------|----------|-------------------|
+| `<Logo>` SVG component | `packages/ui/src/brand-assets/logo.tsx` | 4 variants × 9 tones, callable from anywhere |
+| `<BrandName>`, `<BrandTagline>`, ... + `getBrandText()` | `packages/ui/src/brand-assets/text.tsx` + `text-server.ts` | i18n-localized brand strings — values in `packages/i18n/src/messages/<locale>.json` under `brand.*` |
+| `BRAND_SUPPORT_EMAIL`, `BRAND_MARKETING_URL`, ... | `packages/ui/src/brand-assets/constants.ts` | Non-localized identifiers (emails, URLs, phones, socials) |
+
+Brand color hex values live in **`packages/ui/src/styles/globals.css`** as `--brand-primary-light/dark`, `--brand-admin-light/dark`, `--brand-mono-light/dark`. Tailwind exposes them as utility classes (`text-brand-primary-light`, etc.).
+
+Favicon files live per-app in `apps/<app>/app/` (Next file conventions) + `apps/<app>/public/` (manifest icons), regenerated from the color tokens via `python3 scripts/build-favicons.py`.
+
+When a brand value isn't decided yet, the slot ships with an explicit `<BRAND-...>` placeholder. Staging deploys allow placeholders; production deploys block on any remaining one. Run `pnpm check:brand-placeholders` locally, or trust the deploy workflow's `CHECK_BRAND_STRICT=true` step on production.
+
+Never hardcode product name, brand color, support email, or any brand URL outside this surface. Never re-introduce `WalletMinimal` or any other Lucide icon as a brand-mark placeholder. Never duplicate brand strings in app code — always go through `<Brand*>` components, `getBrandText()`, or `BRAND_*` constants.
 
 ## Before Importing a Component
 
@@ -84,8 +111,8 @@ Current custom checks:
 
 - All amounts in CZK by default. Stored as `numeric(19, 4)` in Postgres and `bigint` minor units in TypeScript via `Money<Currency>`. Never use native `number` for money fields.
 - Cross-currency conversion uses `FxRate<From, To>`. Call `FxRate.convert(money)` only. Never query rate tables directly; never auto-invert; never substitute a neighbor date.
-- AI tool input schemas must NOT declare `organization_id`, `user_id`, or `role`. Server-side injection is the only path.
-- PostgreSQL 18 uses snake*case for tables and columns. No abbreviated prefixes (`acc*`, `inv*`); full words only (`account*`, `invoice\_`).
+- AI tool input schemas must NOT declare `organization_id`, `user_id`, `workspace_id`, or `role`. Server-side injection is the only path.
+- PostgreSQL 18 uses snake_case for tables and columns. No abbreviated prefixes (`acc_`, `inv_`); full words only (`account_`, `invoice_`).
 - Multi-tenant isolation via FORCE RLS. Every tenant-scoped table has `organization_id` + pgPolicy using `current_setting('app.organization_id')`.
 - Test-only HTTP endpoints must gate on `NODE_ENV !== 'production'` + explicit env flag check.
 
@@ -241,3 +268,38 @@ When importing from upstream, rewrite anything that violates these rules. The up
 - `docs/runbooks/` — operational runbooks
 - `docs/specs/` — design specifications
 - `docs/INVENTORY.md` — DORA Article 8 ICT asset register
+
+## Endpoint Addition Rules
+
+Every public API endpoint flows through the same seven steps. CI gates
+(`openapi-lint`, `sdk-drift`, `mcp-coverage`, `docs-coverage`,
+`pr-checklist`) catch deviations; the pre-push `endpoint-checklist`
+lefthook hook catches the most common one (registry edited, codegen not
+regenerated).
+
+1. **Author the Zod schema** in `packages/shared/src/api/<resource>.ts`.
+   Chain `.openapi({ description, example })` on every public field.
+2. **Register the operation** via `registry.registerPath({ ... })` in
+   `packages/shared/src/api/registry.ts`. Reference the schema by name.
+   Spread `ERROR_RESPONSE_REFS` into the `responses` map.
+3. **Implement the controller** under `apps/api/src/v1/<resource>/`,
+   mounted on `V1Module`. Read principal from the API key guard; never
+   accept `organization_id` / `user_id` / `workspace_id` / `role` as input.
+4. **Run `pnpm gen:all`** from the repo root. Commit the regenerated
+   `apps/api/openapi/v1.json`, `packages/sdk/src/generated/`, and
+   `apps/mcp/src/tools/generated/`.
+5. **Write an E2E test** with tenant isolation. Co-locate under
+   `apps/api/src/**/*.test.ts` (NestJS testing module) or
+   `apps/web/e2e/` (Playwright auth-bound flow).
+6. **Add a changeset** entry under `.changeset/` summarising the
+   surface change.
+7. **`pnpm verify` green** locally (typecheck + lint + test +
+   boundaries + openapi-lint).
+
+Full procedure with diffs: `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`.
+Convention reference: `docs/conventions/ENDPOINT-ADDITION.md`.
+Canonical fresh-session entry: `docs/START-HERE.md`.
+
+The `/add-endpoint <resource>` Claude skill at `.claude/skills/add-endpoint/`
+walks a contributor through the steps with the exact paths and refuses
+hand-edits of files under any `generated/` directory.

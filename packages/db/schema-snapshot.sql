@@ -131,19 +131,6 @@ END;
 $$;
 
 --
--- Name: app_auth_invite_email_normalize(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.app_auth_invite_email_normalize() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.email := lower(NEW.email);
-  RETURN NEW;
-END;
-$$;
-
---
 -- Name: app_auth_token_limited_update(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -151,12 +138,35 @@ CREATE FUNCTION public.app_auth_token_limited_update() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
+  -- expires_at: permit mutation only when the row is pending and the new
+  -- value satisfies the bounds (now() <= new <= issued_at + 7 days). When
+  -- expires_at is unchanged, no checks apply.
+  IF OLD.expires_at <> NEW.expires_at THEN
+    IF OLD.status <> 'pending' THEN
+      RAISE EXCEPTION
+        'auth_token expires_at cannot change on non-pending row (id=%, kind=%, status=%)',
+        OLD.id, OLD.kind, OLD.status
+        USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.expires_at < now() THEN
+      RAISE EXCEPTION
+        'auth_token expires_at must be in the future (id=%, kind=%)',
+        OLD.id, OLD.kind
+        USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.expires_at > OLD.issued_at + interval '7 days' THEN
+      RAISE EXCEPTION
+        'auth_token expires_at exceeds 7-day hard cap (id=%, kind=%)',
+        OLD.id, OLD.kind
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
   IF (OLD.id                     <> NEW.id
       OR OLD.token_hash          <> NEW.token_hash
       OR OLD.kind                <> NEW.kind
       OR OLD.env                 <> NEW.env
       OR OLD.payload::text       <> NEW.payload::text
-      OR OLD.expires_at          <> NEW.expires_at
       OR OLD.issued_at           <> NEW.issued_at
       OR OLD.issued_to_user_id   IS DISTINCT FROM NEW.issued_to_user_id
       OR OLD.issued_to_ip        IS DISTINCT FROM NEW.issued_to_ip
@@ -590,6 +600,18 @@ $$;
 SET default_table_access_method = heap;
 
 --
+-- Name: admin_workspace_allowlist; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_workspace_allowlist (
+    workspace_id uuid NOT NULL,
+    added_at timestamp with time zone DEFAULT now() NOT NULL,
+    added_by text DEFAULT 'system'::text NOT NULL
+);
+
+ALTER TABLE ONLY public.admin_workspace_allowlist FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: api_key; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -646,7 +668,7 @@ CREATE TABLE public.app_user (
 
 CREATE TABLE public.audit_event (
     id uuid DEFAULT uuidv7() NOT NULL,
-    workspace_id uuid NOT NULL,
+    workspace_id uuid,
     organization_id uuid,
     actor_user_id uuid,
     action text NOT NULL,
@@ -676,27 +698,6 @@ CREATE TABLE public.auth_account (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
---
--- Name: auth_invite; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.auth_invite (
-    id uuid DEFAULT uuidv7() NOT NULL,
-    organization_id uuid NOT NULL,
-    workspace_id uuid NOT NULL,
-    token_hash text NOT NULL,
-    email character varying(320) NOT NULL,
-    role character varying(64) NOT NULL,
-    status public.invite_status DEFAULT 'pending'::public.invite_status NOT NULL,
-    issued_by_user_id uuid,
-    issued_at timestamp with time zone DEFAULT now() NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    accepted_at timestamp with time zone,
-    accepted_by_user_id uuid
-);
-
-ALTER TABLE ONLY public.auth_invite FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: auth_session; Type: TABLE; Schema: public; Owner: -
@@ -1030,6 +1031,13 @@ CREATE TABLE public.workspace_membership (
 ALTER TABLE ONLY public.workspace_membership FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: admin_workspace_allowlist admin_workspace_allowlist_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_workspace_allowlist
+    ADD CONSTRAINT admin_workspace_allowlist_pkey PRIMARY KEY (workspace_id);
+
+--
 -- Name: api_key api_key_key_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1070,20 +1078,6 @@ ALTER TABLE ONLY public.audit_event
 
 ALTER TABLE ONLY public.auth_account
     ADD CONSTRAINT auth_account_pkey PRIMARY KEY (id);
-
---
--- Name: auth_invite auth_invite_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_pkey PRIMARY KEY (id);
-
---
--- Name: auth_invite auth_invite_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_token_hash_key UNIQUE (token_hash);
 
 --
 -- Name: auth_session auth_session_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1291,24 +1285,6 @@ CREATE UNIQUE INDEX auth_account_provider_account_unique ON public.auth_account 
 --
 
 CREATE INDEX auth_account_user_idx ON public.auth_account USING btree (user_id);
-
---
--- Name: auth_invite_organization_email_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX auth_invite_organization_email_idx ON public.auth_invite USING btree (organization_id, email);
-
---
--- Name: auth_invite_organization_status_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX auth_invite_organization_status_idx ON public.auth_invite USING btree (organization_id, status);
-
---
--- Name: auth_invite_token_hash_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX auth_invite_token_hash_idx ON public.auth_invite USING btree (token_hash);
 
 --
 -- Name: auth_session_expires_idx; Type: INDEX; Schema: public; Owner: -
@@ -1551,12 +1527,6 @@ CREATE TRIGGER audit_event_no_truncate BEFORE TRUNCATE ON public.audit_event FOR
 CREATE TRIGGER audit_event_ws_org_consistent BEFORE INSERT ON public.audit_event FOR EACH ROW EXECUTE FUNCTION public.app_audit_event_ws_org_consistent();
 
 --
--- Name: auth_invite auth_invite_email_normalize; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER auth_invite_email_normalize BEFORE INSERT OR UPDATE ON public.auth_invite FOR EACH ROW EXECUTE FUNCTION public.app_auth_invite_email_normalize();
-
---
 -- Name: auth_token auth_token_guard_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1641,6 +1611,13 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
 
 --
+-- Name: admin_workspace_allowlist admin_workspace_allowlist_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_workspace_allowlist
+    ADD CONSTRAINT admin_workspace_allowlist_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
+
+--
 -- Name: api_key api_key_created_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1688,34 +1665,6 @@ ALTER TABLE ONLY public.audit_event
 
 ALTER TABLE ONLY public.auth_account
     ADD CONSTRAINT auth_account_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
-
---
--- Name: auth_invite auth_invite_accepted_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_accepted_by_user_id_fkey FOREIGN KEY (accepted_by_user_id) REFERENCES public.app_user(id);
-
---
--- Name: auth_invite auth_invite_issued_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_issued_by_user_id_fkey FOREIGN KEY (issued_by_user_id) REFERENCES public.app_user(id);
-
---
--- Name: auth_invite auth_invite_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id) ON DELETE CASCADE;
-
---
--- Name: auth_invite auth_invite_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auth_invite
-    ADD CONSTRAINT auth_invite_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
 -- Name: auth_session auth_session_impersonated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1900,6 +1849,18 @@ ALTER TABLE ONLY public.workspace_membership
     ADD CONSTRAINT workspace_membership_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
+-- Name: admin_workspace_allowlist admin_allowlist_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_allowlist_read ON public.admin_workspace_allowlist FOR SELECT TO app_user USING (true);
+
+--
+-- Name: admin_workspace_allowlist; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_workspace_allowlist ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: api_key; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -1921,25 +1882,19 @@ ALTER TABLE public.audit_event ENABLE ROW LEVEL SECURITY;
 -- Name: audit_event audit_event_insert; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY audit_event_insert ON public.audit_event FOR INSERT WITH CHECK (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+CREATE POLICY audit_event_insert ON public.audit_event FOR INSERT WITH CHECK (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
 -- Name: audit_event audit_event_org_member_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY audit_event_org_member_read ON public.audit_event FOR SELECT USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND (organization_id IS NOT NULL) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+CREATE POLICY audit_event_org_member_read ON public.audit_event FOR SELECT USING (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND (organization_id IS NOT NULL) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
 -- Name: audit_event audit_event_ws_admin_read; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY audit_event_ws_admin_read ON public.audit_event FOR SELECT USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
-
---
--- Name: auth_invite; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.auth_invite ENABLE ROW LEVEL SECURITY;
+CREATE POLICY audit_event_ws_admin_read ON public.audit_event FOR SELECT USING (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
 -- Name: auth_token; Type: ROW SECURITY; Schema: public; Owner: -
@@ -2006,12 +1961,6 @@ ALTER TABLE public.organization ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY organization_isolation ON public.api_key USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
-
---
--- Name: auth_invite organization_isolation; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY organization_isolation ON public.auth_invite USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: organization organization_isolation; Type: POLICY; Schema: public; Owner: -

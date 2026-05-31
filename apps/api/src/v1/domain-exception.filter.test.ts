@@ -28,10 +28,25 @@ describe("DomainExceptionFilter", () => {
     expect(json).toHaveBeenCalledWith({
       error: {
         code: "not_found",
+        error_type: "NOT_FOUND",
         message: "Organization not found",
         requestId: "req-test",
       },
     })
+  })
+
+  it("emits the Plaid-shape envelope fields on every error", () => {
+    const { host, json } = makeHost()
+    filter.catch(new ForbiddenError(), host)
+    const body = json.mock.calls[0]?.[0] as {
+      error: Record<string, unknown>
+    }
+    expect(body.error).toMatchObject({
+      code: "forbidden",
+      error_type: "FORBIDDEN",
+      requestId: "req-test",
+    })
+    expect(body.error.documentation_url).toBeUndefined()
   })
 
   it("maps a ForbiddenError to 403", () => {
@@ -49,6 +64,19 @@ describe("DomainExceptionFilter", () => {
     expect(status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED)
     expect(json.mock.calls[0]?.[0]).toMatchObject({
       error: { code: "unauthorized", message: "nope" },
+    })
+  })
+
+  it("maps an unmapped 5xx HttpException to the INTERNAL family", () => {
+    const { host, status, json } = makeHost()
+    filter.catch(new HttpException("bad gateway", HttpStatus.BAD_GATEWAY), host)
+    expect(status).toHaveBeenCalledWith(HttpStatus.BAD_GATEWAY)
+    expect(json.mock.calls[0]?.[0]).toMatchObject({
+      error: {
+        code: "internal_error",
+        error_type: "INTERNAL",
+        message: "bad gateway",
+      },
     })
   })
 

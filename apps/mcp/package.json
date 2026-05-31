@@ -1,0 +1,35 @@
+{
+  "name": "@afframe/mcp",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Official MCP server for the Afframe public API.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "afframe-mcp": "./bin/afframe-mcp.js"
+  },
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen": "tsx scripts/gen-tools.ts"
+  },
+  "dependencies": {
+    "@afframe/sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^10.4.0",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

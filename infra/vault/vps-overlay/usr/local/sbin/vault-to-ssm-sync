@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# Vault → AWS SSM SecureString sync (AFF-245 M4).
+#
+# Reads 2 secrets from Vault (per env) and writes them to SSM SecureString,
+# skipping when the values already match (avoids spurious version bumps +
+# cost). Runs every 5 min via /etc/systemd/system/vault-to-ssm-sync.timer.
+#
+# Synced keys (Vault path → SSM parameter):
+#   platform/staging/better-auth-secret      → /monorepo/staging/better-auth-secret
+#   platform/staging/resend-api-key          → /monorepo/staging/resend-api-key
+#   platform/production/better-auth-secret   → /monorepo/production/better-auth-secret
+#   platform/production/resend-api-key       → /monorepo/production/resend-api-key
+#
+# (`vault kv get` is KV-v2-aware: it auto-translates `platform/${k}` to the
+# API path `platform/data/${k}`. Passing `data/` explicitly would double it.)
+#
+# CLOUDFLARE_TUNNEL_TOKEN intentionally NOT synced through Vault per
+# plan locked decision #9 (chicken-and-egg — tunnel must be up before
+# Vault is reachable). It flows direct from the GH repo secret to SSM
+# via a step in _deploy-aws.yml.
+#
+# Drift heartbeat: after each successful pass, the script writes the
+# current epoch timestamp to /monorepo/${env}/sync-heartbeat (SecureString,
+# even though the value isn't secret — kept SecureString for uniform IAM).
+# A CloudWatch alarm pages if either heartbeat is > 15 min stale.
+#
+# Exit codes:
+#   0  — all keys synced (or already in sync)
+#   1  — required env var missing OR Vault unreachable
+#   2  — at least one SSM write failed (heartbeat still touched if R2-like
+#         backups are unblocked; sentinel file is created on partial failure)
+#
+# Tracks: AFF-245 M4. Plan: docs/plans/SECRETS-MIGRATION.md § M4 task 2.
+
+set -euo pipefail
+
+# --- config + creds ------------------------------------------------------
+
+CONFIG_FILE=/root/.config/vault-to-ssm/.env
+if [[ ! -r "$CONFIG_FILE" ]]; then
+  echo "[vault-to-ssm] missing $CONFIG_FILE (mode 0600); aborting" >&2
+  exit 1
+fi
+set -a
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+set +a
+
+REQUIRED_VARS=(
+  VAULT_ADDR
+  VAULT_TOKEN
+  AWS_REGION
+  # The script can rely on the AWS CLI default credential chain if running
+  # on an EC2/ECS host, but the VPS isn't AWS-hosted, so explicit env vars
+  # are required here. They differ from the unseal user — this user only
+  # needs ssm:PutParameter + kms:GenerateDataKey on the default aws/ssm key.
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+)
+for v in "${REQUIRED_VARS[@]}"; do
+  if [[ -z "${!v:-}" ]]; then
+    echo "[vault-to-ssm] required env var $v is empty; aborting" >&2
+    exit 1
+  fi
+done
+
+SENTINEL=/var/run/vault-to-ssm-sync.failed
+rm -f "$SENTINEL"
+
+# --- helper: vault GET + SSM PUT, skipping if equal ---------------------
+
+# Args: $1 env (staging|production), $2 key (better-auth-secret|resend-api-key)
+sync_one() {
+  local env="$1"
+  local key="$2"
+  local vault_path="platform/${env}/${key}"
+  local ssm_name="/monorepo/${env}/${key}"
+
+  echo "[vault-to-ssm] ${vault_path} → ${ssm_name}"
+
+  # `vault kv get -field=value` exits 2 if the key is missing — guard.
+  local vault_val
+  if ! vault_val=$(vault kv get -field=value "$vault_path" 2>/dev/null); then
+    echo "[vault-to-ssm] WARN: ${vault_path} not present in Vault (skipping)" >&2
+    return 0
+  fi
+  if [[ -z "$vault_val" ]]; then
+    echo "[vault-to-ssm] WARN: ${vault_path} is empty in Vault (skipping)" >&2
+    return 0
+  fi
+
+  # `aws ssm get-parameter` returns 254 (or ParameterNotFound) on missing
+  # name. Treat missing as "value differs, write needed".
+  local ssm_val
+  ssm_val=$(aws ssm get-parameter \
+    --name "$ssm_name" --with-decryption \
+    --region "$AWS_REGION" \
+    --query 'Parameter.Value' --output text 2>/dev/null || echo "__MISSING__")
+
+  if [[ "$ssm_val" == "$vault_val" ]]; then
+    echo "[vault-to-ssm]   already in sync; skipping write"
+    return 0
+  fi
+
+  # Use --value via stdin to keep the secret off the process arglist.
+  printf '%s' "$vault_val" | aws ssm put-parameter \
+    --name "$ssm_name" \
+    --type SecureString \
+    --overwrite \
+    --region "$AWS_REGION" \
+    --value file:///dev/stdin >/dev/null
+  echo "[vault-to-ssm]   updated (was \"$([ "$ssm_val" = "__MISSING__" ] && echo missing || echo different)\")"
+}
+
+# --- write heartbeat -----------------------------------------------------
+
+write_heartbeat() {
+  local env="$1"
+  local now
+  now=$(date -u +%s)
+  aws ssm put-parameter \
+    --name "/monorepo/${env}/sync-heartbeat" \
+    --type SecureString \
+    --overwrite \
+    --region "$AWS_REGION" \
+    --value "$now" >/dev/null
+}
+
+# --- main loop -----------------------------------------------------------
+
+FAILED=0
+
+for env in staging production; do
+  for key in better-auth-secret resend-api-key; do
+    if ! sync_one "$env" "$key"; then
+      FAILED=1
+    fi
+  done
+  if ! write_heartbeat "$env"; then
+    echo "[vault-to-ssm] WARN: heartbeat write failed for $env" >&2
+    FAILED=1
+  fi
+done
+
+if [[ "$FAILED" == "1" ]]; then
+  touch "$SENTINEL"
+  echo "[vault-to-ssm] DONE WITH FAILURES"
+  exit 2
+fi
+
+echo "[vault-to-ssm] DONE OK"

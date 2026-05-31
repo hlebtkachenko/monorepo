@@ -1,13 +1,15 @@
 "use server"
 
-import { cookies, headers } from "next/headers"
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
-import { readInviteByRawToken } from "@workspace/auth/invite-issuer"
 
+import {
+  readInviteClaims,
+  clearInviteCookie,
+  readRawInviteToken,
+} from "../../../onboarding/_lib/invite-cookie"
 import { materializeInvite } from "../../_lib/materialize-invite"
-
-const INVITE_TOKEN_COOKIE = "app-invite-token"
 
 /**
  * Server action invoked when a signed-in user lands on /auth/invite with
@@ -35,39 +37,25 @@ export interface InviteResult {
 /**
  * Accept the invite for the user already signed in. Caller must ensure
  * the session user's email matches the invite token email (the welcome
- * page in `/auth/invite/page.tsx` does the check before rendering this
- * button).
+ * page does the check before rendering this button).
  */
 export async function acceptInviteAction(): Promise<InviteResult> {
-  const cookieStore = await cookies()
-  const rawToken = cookieStore.get(INVITE_TOKEN_COOKIE)?.value
-  if (!rawToken) {
+  const claims = await readInviteClaims()
+  if (!claims) {
     return { ok: false, error: "Invite session expired." }
   }
 
-  const record = await readInviteByRawToken(rawToken)
-  if (!record) {
-    cookieStore.delete(INVITE_TOKEN_COOKIE)
-    return { ok: false, error: "Invalid invite token." }
-  }
-  if (record.status === "expired") {
-    cookieStore.delete(INVITE_TOKEN_COOKIE)
-    return { ok: false, error: "Invite token expired." }
-  }
-  if (record.status === "revoked") {
-    cookieStore.delete(INVITE_TOKEN_COOKIE)
-    return { ok: false, error: "Invite token revoked." }
-  }
-  if (record.status === "accepted") {
-    cookieStore.delete(INVITE_TOKEN_COOKIE)
-    return { ok: false, error: "Invite token already accepted." }
+  const rawToken = await readRawInviteToken()
+  if (!rawToken) {
+    await clearInviteCookie()
+    return { ok: false, error: "Invite session expired." }
   }
 
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) {
     return { ok: false, error: "Sign in first." }
   }
-  if (session.user.email.toLowerCase() !== record.email.toLowerCase()) {
+  if (session.user.email.toLowerCase() !== claims.email.toLowerCase()) {
     return {
       ok: false,
       error: "This invite is for a different email address.",
@@ -79,7 +67,7 @@ export async function acceptInviteAction(): Promise<InviteResult> {
       userId: session.user.id,
       inviteRawToken: rawToken,
     })
-    cookieStore.delete(INVITE_TOKEN_COOKIE)
+    await clearInviteCookie()
     return { ok: true, orgSlug: slug }
   } catch (err) {
     // Log the original InviteAcceptError code server-side for ops, but

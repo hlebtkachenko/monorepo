@@ -15,6 +15,15 @@ import { DataTable } from "@workspace/ui/components/data-table"
 import { AuthAside } from "@workspace/ui/blocks/auth-aside"
 import { AuthShell } from "@workspace/ui/blocks/auth-shell"
 
+// Brand surface — Logo, brand text, urls, emails. See src/brand-assets/README.md
+import {
+  Logo,
+  BrandName,
+  BrandTagline,
+  BRAND_SUPPORT_EMAIL,
+} from "@workspace/ui/brand-assets"
+import { getBrandText } from "@workspace/ui/brand-assets/server"
+
 // Utilities
 import { cn } from "@workspace/ui/lib/utils"
 import { formatNumber } from "@workspace/ui/lib/format-number"

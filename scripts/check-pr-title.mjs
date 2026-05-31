@@ -34,12 +34,18 @@ const TYPES = [
   "revert",
 ]
 
+// Keep aligned with `scripts/governance/detect-pr-scope.mjs` — that script
+// classifies PR diffs by folder; this script gates PR-title scopes against
+// conventional-commit conventions. New SDK / MCP / CLI surfaces landed in
+// Phase B, so allow their scope tokens here.
 const SCOPES = [
+  "admin",
   "ai",
   "api",
   "auth",
   "bundle",
   "ci",
+  "cli",
   "config",
   "db",
   "deps",
@@ -47,15 +53,19 @@ const SCOPES = [
   "docs",
   "email",
   "github",
+  "governance",
   "i18n",
   "infra",
+  "mcp",
   "observability",
   "pdf",
   "release",
+  "sdk",
   "secrets",
   "shared",
   "storage",
   "tests",
+  "turbo",
   "ui",
   "web",
   "workers",

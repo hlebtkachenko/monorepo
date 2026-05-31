@@ -1,0 +1,79 @@
+# Linear write-back. On every PR open / sync, posts (or updates) a
+# comment on the linked Linear issue carrying the PR URL + title. Issue
+# is inferred from the branch name via the convention documented in
+# `docs/conventions/COMMITS.md` (branch must contain `aff-NNN`).
+#
+# No-op when `LINEAR_API_KEY` is unset, when the branch carries no
+# AFF-NNN identifier, or when the issue lookup fails. Advisory until the
+# first green PR cycle.
+
+name: Linear sync
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions: {}
+
+concurrency:
+  group: linear-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Post / update Linear comment
+    runs-on: ubuntu-latest
+    continue-on-error: true # ADVISORY
+    permissions:
+      contents: read
+      # M5 pilot — exchange GitHub OIDC token for a short-lived Vault JWT
+      # token that grants read on platform/data/shared/linear-api-key.
+      # Replaces the static `${{ secrets.LINEAR_API_KEY }}` repo secret.
+      id-token: write
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Fetch Linear API key from Vault
+        id: vault
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
+        with:
+          # Vault on the Hostinger VPS, exposed via Cloudflare Tunnel.
+          # The `secrets-admin.afframe.com` hostname is gated by Cloudflare
+          # Access — the CF-Access-Client-{Id,Secret} headers are the
+          # service-token credential that lets the runner past the edge
+          # gate. Without them CF Access returns the SSO challenge HTML
+          # page (HTTP 404 as seen from vault-action) before any traffic
+          # reaches Vault. Service token + GHA OIDC JWT are two distinct
+          # auth layers — the CF token only proves "may speak to Vault";
+          # the JWT proves "may read this secret".
+          url: https://secrets-admin.afframe.com
+          method: jwt
+          role: gha-monorepo
+          # The GitHub OIDC token carries an `aud` claim. Vault's
+          # gha-monorepo role binds bound_audiences to this exact value;
+          # they must match or Vault rejects with "audience claim found
+          # in JWT but no audiences bound to the role" (400).
+          jwtGithubAudience: https://secrets-admin.afframe.com
+          extraHeaders: |
+            CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+            CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          secrets: |
+            platform/data/shared/linear-api-key value | LINEAR_API_KEY ;
+
+      - name: Apply Linear context
+        env:
+          # LINEAR_API_KEY exported by the previous step (the action masks
+          # the value in logs automatically).
+          LINEAR_API_KEY: ${{ steps.vault.outputs.LINEAR_API_KEY }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node scripts/governance/apply-linear-context.mjs \
+            "$BRANCH" "$PR_URL" "$PR_TITLE"

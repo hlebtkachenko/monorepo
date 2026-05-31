@@ -44,6 +44,7 @@ jobs:
   # jobs do not break the required `ci` status check.
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -52,10 +53,10 @@ jobs:
       infra: ${{ steps.filter.outputs.infra }}
       code: ${{ steps.filter.outputs.code }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - id: filter
@@ -89,30 +90,19 @@ jobs:
     # non-failure so the required `ci` check stays green.
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Full history so `turbo --affected` can diff against the PR base.
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
-
-      - id: filter
-        # In-job paths-filter for the CDK Synth step gate below. Keeps
-        # lint-typecheck from serializing behind the `changes` job — the
-        # cdk gate is only one step, not the whole job.
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        with:
-          filters: |
-            infra:
-              - 'infra/cdk/**'
-              - 'apps/*/package.json'
-              - 'pnpm-lock.yaml'
 
       - name: Typecheck
         # --affected scopes to packages touched vs the PR base. Empty diff
@@ -128,34 +118,22 @@ jobs:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
         run: pnpm turbo lint --affected --ui=stream --continue
 
-      - name: CDK Synth
-        # Verifies infra/cdk synthesizes cleanly without real AWS credentials.
-        # Real account ID + domains + region + alert email come from repo
-        # secrets at deploy time; here we use dummy placeholders just to
-        # satisfy infra/cdk/bin/app.ts's required-env guards.
-        # Gated on infra/** changes — saves ~20-40s on PRs that don't
-        # touch CDK or dependency surfaces it reads.
-        if: steps.filter.outputs.infra == 'true'
-        env:
-          AWS_ACCOUNT_ID: "000000000000"
-          AWS_REGION: eu-central-1
-          APP_DOMAIN: example.com
-          ADMIN_DOMAIN: admin.example.com
-          ALERT_EMAIL: ci-synth@example.com
-        run: pnpm turbo synth --ui=stream
+      # `cdk synth` coverage moved to `workflow-lint / cdk-synth-strict` —
+      # per-env + --strict mode + offline. See .github/workflows/workflow-lint.yml.
 
   unit-test:
     needs: [changes]
     # Same rationale as lint-typecheck: skip runner setup on docs-only PRs.
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Full history so `turbo --affected` can diff against the PR base.
           fetch-depth: 0
@@ -198,13 +176,14 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
@@ -227,6 +206,7 @@ jobs:
     needs: [changes, storybook-build]
     if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     strategy:
@@ -234,10 +214,10 @@ jobs:
       matrix:
         shard: [1, 2]
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
@@ -285,13 +265,14 @@ jobs:
     # changed.
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Build stays full-graph — deploy/release path consumes the full
           # build artifact set (apps/web/.next/standalone, apps/api/dist,
@@ -331,6 +312,7 @@ jobs:
       ]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions: {}
     steps:
       - name: Aggregate required checks
@@ -346,10 +328,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -363,3 +345,45 @@ jobs:
           gitleaks version
       - name: Scan
         run: gitleaks detect --source . --no-banner --redact --log-level info --exit-code 1
+
+  infisical-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    # Second secret scanner alongside gitleaks. Different rule set + token
+    # heuristics. Both must pass; either is sufficient to block a leak.
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # --no-git below means history is not scanned; shallow clone is enough.
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install infisical CLI
+        env:
+          INFISICAL_VERSION: "0.43.85"
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/Infisical/cli/releases/download/v${INFISICAL_VERSION}/cli_${INFISICAL_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin infisical
+          infisical --version
+      - name: Scan
+        # `--no-git`: scan working tree only (history false positives from pre-allowlist
+        # paths are filtered by gitleaks' own job; this job catches new leaks).
+        # `--config`: reuse the existing .gitleaks.toml allowlist + rules.
+        # infisical CLI's `--exit-code` flag is vestigial (always exits 0), so we
+        # post-process the JSON report and fail on any non-allowlisted finding.
+        run: |
+          set -euo pipefail
+          infisical scan --no-git --config .gitleaks.toml \
+            --report-path infisical-report.json --redact --verbose
+          count=$(jq 'length' infisical-report.json)
+          echo "infisical scan: $count finding(s)"
+          if [ "$count" -gt 0 ]; then
+            echo "::error::infisical-scan found $count secret(s). See report below."
+            jq -r '.[] | "::error file=\(.File),line=\(.Line // 0)::\(.RuleID): \(.Description // "secret detected")"' infisical-report.json
+            exit 1
+          fi

@@ -47,18 +47,44 @@ export const DEFAULT_TTL_SECONDS: Record<AuthTokenKind, number> = {
  * Resolve the deploy env code. Read once per call so tests can rotate
  * `AUTH_TOKEN_ENV` between cases without `vi.resetModules()`.
  *
- * Fallback chain:
- *   1. `AUTH_TOKEN_ENV`        — explicit, set by CDK per stack
- *   2. derived from `NODE_ENV` — production → prd, otherwise dev
+ * Resolution:
+ *   1. `AUTH_TOKEN_ENV` set + valid (`dev` / `stg` / `prd`) — use it.
+ *   2. `AUTH_TOKEN_ENV` set + invalid — throw. A typo would silently
+ *      stamp tokens with the wrong env code, defeating the cross-env
+ *      replay gate.
+ *   3. `AUTH_TOKEN_ENV` unset AND `NODE_ENV === "production"` — throw.
+ *      Every Fargate container sets `NODE_ENV: "production"` (Next.js
+ *      prod build), so the previous fallback to `prd` here would stamp
+ *      staging tokens with the production checksum envelope. CDK
+ *      (`infra/cdk/lib/app-stack.ts`) sets `AUTH_TOKEN_ENV` per envName
+ *      since AFF-215; a missing value at boot indicates a misconfigured
+ *      task definition, not a routine condition.
+ *   4. `AUTH_TOKEN_ENV` unset AND non-production NODE_ENV — fall back to
+ *      `dev` for local dev + tests. This is the only fallback that
+ *      stays.
  *
- * The string must be one of the three codes the CHECK constraint accepts.
+ * Fail-closed by design. ADR-0022 §"Kind taxonomy" binds the env code
+ * to the deploy environment as part of the security primitive; a silent
+ * default has no place here.
  */
 export function resolveAuthTokenEnv(): AuthTokenEnv {
-  const explicit = process.env.AUTH_TOKEN_ENV?.trim()
-  if (explicit === "dev" || explicit === "stg" || explicit === "prd") {
-    return explicit
+  const raw = process.env.AUTH_TOKEN_ENV?.trim()
+  if (raw !== undefined && raw !== "") {
+    if (raw === "dev" || raw === "stg" || raw === "prd") return raw
+    throw new Error(
+      `AUTH_TOKEN_ENV must be one of 'dev' | 'stg' | 'prd'; got "${raw}". ` +
+        'See ADR-0022 §"Kind taxonomy" and packages/auth/src/tokens/auth-token.ts.',
+    )
   }
-  if (process.env.NODE_ENV === "production") return "prd"
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "AUTH_TOKEN_ENV is required when NODE_ENV=production. " +
+        "Set it to 'stg' or 'prd' on the task definition. " +
+        'ADR-0022 §"Kind taxonomy" binds the env code to the deploy environment; ' +
+        "a silent default would stamp tokens with the wrong checksum envelope and " +
+        "defeat cross-env replay protection.",
+    )
+  }
   return "dev"
 }
 
@@ -372,6 +398,60 @@ export function hashUserAgent(ua: string | null): string | null {
   const trimmed = ua.trim()
   if (!trimmed) return null
   return createHash("sha256").update(trimmed).digest("hex")
+}
+
+/**
+ * Atomic sliding renewal for kinds whose lifecycle calls for it (currently
+ * only `ons` — onboarding-state). Extends a row's `expires_at` by
+ * `extendBySeconds`, capped at `issued_at + maxLifetimeSeconds`. The
+ * computation lives in SQL so there is no TOCTOU window between the cap
+ * check and the write.
+ *
+ * Trigger interaction: migration 0019 relaxes the append-only trigger to
+ * permit `expires_at` changes on pending rows when the new value is in
+ * the future and not beyond `issued_at + 7 days`. This helper applies
+ * its own `LEAST` cap (the `maxLifetimeSeconds` parameter), and the
+ * trigger enforces the hard ceiling as defense-in-depth. The trigger
+ * rejects any other column change.
+ *
+ * Returns the new `expires_at` if the row was found + still pending, null
+ * otherwise (including when the cap already pinned it to its hard ceiling
+ * — in that case the row's `expires_at` did not move and the function
+ * returns the pinned value so the caller can re-set the cookie with the
+ * correct maxAge).
+ */
+export async function extendAuthTokenExpiry(opts: {
+  rawToken: string
+  expectedKind: AuthTokenKind
+  extendBySeconds: number
+  maxLifetimeSeconds: number
+}): Promise<Date | null> {
+  const env = resolveAuthTokenEnv()
+
+  // Reject malformed tokens before any DB I/O.
+  if (!verifyChecksum(opts.rawToken, opts.expectedKind, env)) return null
+
+  const tokenHash = hashRawToken(opts.rawToken)
+  const rows = await withAdminBypass(async (db) => {
+    return await db
+      .update(auth_token)
+      .set({
+        expires_at: sql`LEAST(
+            now() + (${opts.extendBySeconds}::int * interval '1 second'),
+            ${auth_token.issued_at} + (${opts.maxLifetimeSeconds}::int * interval '1 second')
+          )`,
+      })
+      .where(
+        sql`${auth_token.token_hash} = ${tokenHash}
+              AND ${auth_token.status} = 'pending'
+              AND ${auth_token.expires_at} > now()
+              AND ${auth_token.kind} = ${opts.expectedKind}`,
+      )
+      .returning({ expires_at: auth_token.expires_at })
+  })
+  const row = rows[0]
+  if (!row) return null
+  return row.expires_at
 }
 
 /** Mark a row by id as consumed without going through the raw-token path.

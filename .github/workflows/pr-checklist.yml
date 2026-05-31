@@ -1,0 +1,60 @@
+# Scope-aware PR checklist comment.
+#
+# Detects what the PR diff touches (api endpoint, SDK, MCP, infra, …)
+# and posts a sticky comment listing the required follow-up steps for each
+# scope. Re-runs on push so the comment stays in sync with the diff.
+#
+# The full checklist source-of-truth: docs/conventions/ENDPOINT-ADDITION.md.
+# Advisory until the first green PR cycle.
+
+name: PR checklist
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: pr-checklist-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checklist:
+    name: Render scope-aware checklist
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true # ADVISORY
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect PR scope
+        id: scope
+        run: |
+          set -euo pipefail
+          base=${{ github.event.pull_request.base.sha }}
+          head=${{ github.event.pull_request.head.sha }}
+          node scripts/governance/detect-pr-scope.mjs "$base" "$head" > /tmp/scope.json
+          echo "scope_file=/tmp/scope.json" >> "$GITHUB_OUTPUT"
+
+      - name: Render checklist comment
+        id: render
+        run: |
+          node scripts/governance/render-checklist-comment.mjs /tmp/scope.json > /tmp/comment.md
+          echo "comment_file=/tmp/comment.md" >> "$GITHUB_OUTPUT"
+
+      - name: Post sticky comment
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+        with:
+          path: /tmp/comment.md
+          header: pr-checklist

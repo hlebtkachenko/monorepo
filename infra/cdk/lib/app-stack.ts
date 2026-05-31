@@ -27,11 +27,16 @@ import {
   OperatingSystemFamily,
   Secret as EcsSecret,
 } from "aws-cdk-lib/aws-ecs"
-import { ManagedPolicy, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam"
+import {
+  ManagedPolicy,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+} from "aws-cdk-lib/aws-iam"
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import type { DatabaseInstance } from "aws-cdk-lib/aws-rds"
 import type { Bucket } from "aws-cdk-lib/aws-s3"
-import { Secret, type ISecret } from "aws-cdk-lib/aws-secretsmanager"
+import { Secret } from "aws-cdk-lib/aws-secretsmanager"
 import { StringParameter } from "aws-cdk-lib/aws-ssm"
 import type { Repository } from "aws-cdk-lib/aws-ecr"
 import type { Construct } from "constructs"
@@ -73,6 +78,14 @@ export interface AppStackProps extends StackProps {
   readonly adminRepository: Repository
   readonly domain: string
   readonly adminDomain: string
+  /**
+   * Outbound email "From" address. MUST be on a Resend-verified domain
+   * (see `docs/runbooks/AWS-DEPLOY.md` "Email sender verification"). The
+   * web + admin containers both send from this address. Defaults via the
+   * `MAIL_FROM_ADDRESS` env var in `bin/app.ts`, with a hard fallback to
+   * `no-reply@afframe.com` (the currently-verified parent domain).
+   */
+  readonly mailFromAddress: string
 }
 
 /**
@@ -86,7 +99,8 @@ export interface AppStackProps extends StackProps {
  *                   localhost:3593 for Cerbos L3, localhost:8080 for
  *                   OpenFGA L2; also hosts the pg-boss worker pool
  *                   which connects to RDS direct :5432 for advisory
- *                   locks + LISTEN/NOTIFY)
+ *                   locks + LISTEN/NOTIFY). Also hosts the Scalar API
+ *                   Reference at `/` — there is no separate docs site.
  *   - pgbouncer   : connection pool, listens on 127.0.0.1:6432, forwards
  *                   to RDS :5432 (ADR-0012 amendment 2026-05-14, E.2)
  *   - cerbos      : PDP sidecar, listens on 127.0.0.1:3593 gRPC. Policies
@@ -110,10 +124,33 @@ export interface AppStackProps extends StackProps {
  * The deploy workflow writes the actual token value (from the GitHub repo
  * secret) into the AWS secret before each deploy.
  */
+
+/**
+ * Derive the leading-dot cookie domain that scopes the Better Auth
+ * session across every subdomain of the apex (afframe.com — web, admin,
+ * api). Strips the left-most label and prepends a `.` per RFC 6265.
+ *
+ *   app.afframe.com         -> .afframe.com
+ *   app-staging.afframe.com -> .afframe.com
+ *   admin.afframe.com       -> .afframe.com
+ *   afframe.com             -> .afframe.com (already apex)
+ *
+ * Returns an empty string for a single-label host. An empty value makes
+ * the consumer's optional block skip the cross-subdomain config — useful
+ * when a deploy points at an internal host that isn't part of the apex.
+ *
+ * Exported for unit testing — see `tests/app-stack.test.ts`.
+ */
+export function deriveCookieDomain(host: string): string {
+  const labels = host.split(".")
+  if (labels.length < 2) return ""
+  const apex = labels.slice(-2).join(".")
+  return `.${apex}`
+}
+
 export class AppStack extends Stack {
   readonly cluster: Cluster
   readonly service: FargateService
-  readonly tunnelTokenSecret: ISecret
   readonly webLogGroup: LogGroup
   readonly adminLogGroup: LogGroup
   readonly apiLogGroup: LogGroup
@@ -125,56 +162,83 @@ export class AppStack extends Stack {
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, props)
 
+    // Global fallback tag. Each service can override via its own context
+    // key (webImageTag / apiImageTag / adminImageTag) so the deploy workflow
+    // can skip rebuilding a service whose dependencies didn't change AND
+    // pin its container to the previously-deployed image — without forcing
+    // the other services to use the stale tag.
     const imageTag =
       (this.node.tryGetContext("imageTag") as string | undefined) ?? "bootstrap"
+    const perServiceTag = (key: string): string =>
+      (this.node.tryGetContext(key) as string | undefined) ?? imageTag
+    const webImageTag = perServiceTag("webImageTag")
+    const apiImageTag = perServiceTag("apiImageTag")
+    const adminImageTag = perServiceTag("adminImageTag")
 
-    // Workflow-managed secrets (cloudflare-tunnel, resend-api-key,
-    // better-auth-secret, app-token-secret) are created + populated by the
-    // deploy workflow BEFORE `cdk deploy` runs (see .github/workflows/_deploy-aws.yml's
-    // "Ensure ... secret exists" steps). The workflow then captures each
-    // secret's FULL ARN (the AWS-assigned 6-char random suffix is appended
-    // automatically) and passes it to CDK via --context flags.
+    // Workflow-managed secrets — historically Secrets Manager, migrated to
+    // SSM SecureString in M4 of the secrets-management plan (AFF-245).
+    // Two channels feed `/monorepo/${env}/*`:
     //
-    // Why the full ARN, not the bare name (fromSecretNameV2)? The bare-name
-    // form makes CDK emit two MISMATCHED ARN forms:
-    //   - secretArn (used in ECS task def `valueFrom`):
-    //       arn:...:secret:monorepo-${env}-better-auth-secret   <- NO suffix
-    //   - grantRead() policy resource:
-    //       arn:...:secret:monorepo-${env}-better-auth-secret-??????
+    //   1. Vault → SSM sync (every 5 min, runs on the Hostinger VPS at
+    //      /usr/local/sbin/vault-to-ssm-sync). Source of truth = Vault.
+    //      Covers `better-auth-secret` + `resend-api-key`.
+    //   2. Direct deploy-workflow GHA secret → SSM. Covers
+    //      `cloudflare-tunnel-token` (a Cloudflare-issued connector token
+    //      that never leaves the deploy boundary; not in Vault).
     //
-    // ECS task tries GetSecretValue with the bare ARN; Secrets Manager auth
-    // refuses to match the bare form against any of:
-    //   - the suffix-pinned `-??????` wildcard pattern
-    //   - the trailing-`*` "name*" pattern (verified ALLOWED by IAM simulator
-    //     but DENIED by the live Secrets Manager API — see deploy run
-    //     26108189235, 2026-05-19 18:00Z, task 99b69418fc224e67a633b925f8a2d7fc)
-    // The result is AccessDeniedException → task fails to start → ECS
-    // Deployment Circuit Breaker → stack wedges in UPDATE_ROLLBACK_FAILED.
+    // ECS reads each one via EcsSecret.fromSsmParameter at task start;
+    // the execution role's auto-granted ssm:GetParameters + kms:Decrypt
+    // (on alias/aws/ssm) provide runtime access. `valueFrom` is the
+    // parameter's full ARN — no name-vs-ARN-with-suffix mismatch class
+    // exists for SSM (the resource ARN is the parameter name itself).
     //
-    // fromSecretCompleteArn fixes this end-to-end: the task def `valueFrom`
-    // gets the full ARN (with suffix), the grantRead policy resource gets
-    // the SAME full ARN, and IAM matches an exact-string Resource against
-    // an exact-string request. No wildcards, no mismatch.
-    const requiredSecretArn = (contextKey: string): string => {
-      const value = this.node.tryGetContext(contextKey) as string | undefined
-      if (!value) {
-        throw new Error(
-          `Missing required CDK context: ${contextKey}. The deploy workflow looks up the secret's full ARN after the "Ensure ... secret exists" step and passes it via --context. Locally: pass --context ${contextKey}=$(aws secretsmanager describe-secret --secret-id monorepo-${props.envName}-NAME --query ARN --output text).`,
-        )
-      }
-      return value
-    }
+    // Drift detection: `.github/workflows/secrets-drift.yml` runs daily
+    // and fails on Vault ≠ SSM divergence (better-auth-secret + resend-api-key).
+    //
+    // See docs/plans/SECRETS-MIGRATION.md § M4.
+    const tunnelTokenParam =
+      StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "TunnelTokenParam",
+        {
+          parameterName: `/monorepo/${props.envName}/cloudflare-tunnel-token`,
+        },
+      )
 
-    this.tunnelTokenSecret = Secret.fromSecretCompleteArn(
-      this,
-      "TunnelTokenSecret",
-      requiredSecretArn("cloudflareTunnelSecretArn"),
-    )
+    // Map CDK envName -> auth_token env code (ADR-0022 §"Kind taxonomy").
+    // Tokens carry this code in their checksum so a token minted in
+    // staging cannot be replayed against production. Without this, the
+    // runtime resolver in packages/auth/src/tokens/auth-token.ts falls
+    // back to `NODE_ENV === 'production' ? 'prd' : 'dev'` — and every
+    // container already sets `NODE_ENV: "production"` (Next.js prod
+    // build requirement), so staging tokens would be stamped 'prd' and
+    // the cross-env checksum gate would silently fail open.
+    const authTokenEnv: "dev" | "stg" | "prd" =
+      props.envName === "production"
+        ? "prd"
+        : props.envName === "staging"
+          ? "stg"
+          : "dev"
 
+    // Container Insights is DISABLED for cost. It publishes per-task /
+    // per-container custom metrics (CPU, memory, network, storage) to the
+    // ECS/ContainerInsights namespace and bills per metric — ~$5-9/mo per
+    // env even at zero traffic, the single largest trimmable CloudWatch line
+    // (AFF cost review 2026-05-31). Nothing load-bearing depends on it:
+    //   - The Fargate CPU/Memory CRITICAL kill-switch alarms read the FREE
+    //     AWS/ECS service-level metrics (CPUUtilization / MemoryUtilization),
+    //     not Container Insights.
+    //   - The only consumer was the fargate-network-out egress alarm
+    //     (ECS/ContainerInsights NetworkTxBytes); it is removed. Egress
+    //     runaway is now capped by the DataTransfer cost budget + the $55
+    //     Total budget → kill-switch, which catch the same failure as a
+    //     dollar signal instead of a bytes heuristic. No hard trade-off.
+    // Re-enable (ContainerInsights.ENABLED) only if per-container telemetry
+    // becomes worth the recurring cost once real traffic justifies it.
     this.cluster = new Cluster(this, "Cluster", {
       vpc: props.vpc,
       clusterName: `monorepo-${props.envName}`,
-      containerInsightsV2: ContainerInsights.ENABLED,
+      containerInsightsV2: ContainerInsights.DISABLED,
     })
 
     const publicSubnetSelection: SubnetSelection = {
@@ -191,7 +255,6 @@ export class AppStack extends Stack {
     })
     props.databaseSecret.grantRead(taskExecutionRole)
     props.appUserSecret.grantRead(taskExecutionRole)
-    this.tunnelTokenSecret.grantRead(taskExecutionRole)
 
     const taskRole = new Role(this, "TaskRole", {
       assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
@@ -200,17 +263,57 @@ export class AppStack extends Stack {
     props.appBucket.grantReadWrite(taskRole)
     props.databaseSecret.grantRead(taskRole)
     props.appUserSecret.grantRead(taskRole)
+    // openfga-bootstrap init container writes the store + model IDs to SSM
+    // via PutParameter on /monorepo/${envName}/openfga/{store-id,model-id}.
+    // Scoped to those two parameter ARNs — the api/web/admin containers
+    // share this role but never touch SSM at runtime (they only read via
+    // EcsSecret.fromSsmParameter, which goes through the execution role's
+    // ssm:GetParameters, not this task role). Blast radius if compromised
+    // == garbage SSM that gets overwritten on the next deploy.
+    taskRole.addToPolicy(
+      new PolicyStatement({
+        actions: ["ssm:PutParameter"],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/monorepo/${props.envName}/openfga/store-id`,
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/monorepo/${props.envName}/openfga/model-id`,
+        ],
+      }),
+    )
+
+    // ECS Exec (`aws ecs execute-command`) needs the task role to open the
+    // SSM Session Manager control + data channels. Without it the exec
+    // request fails at the agent with "execute command agent isn't running"
+    // even when the service has `enableExecuteCommand: true`. Resource
+    // is `*` — the channels are session-scoped, not resource-scoped, and
+    // AWS docs explicitly recommend `Resource: "*"` here. Operator IAM
+    // (caller side) still gates who can invoke exec at all.
+    taskRole.addToPolicy(
+      new PolicyStatement({
+        sid: "EcsExecSsmMessagesChannels",
+        actions: [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel",
+        ],
+        resources: ["*"],
+      }),
+    )
 
     const taskDef = new FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
-      // 2048: 7 containers reserve 1736 MiB total. Observed MemoryUtilized
-      // peak ~327 MiB over the first 7 days of running (admin/web mostly
-      // idle), so 2048 leaves ~310 MiB above the reservation sum and ~6x
-      // headroom on observed usage. Next valid notch at cpu=512 is 1024
-      // (below reservations — would force evictions) or 3072 (the prior
-      // setting, $3.50/mo more gross at arm64). Re-check MemoryUtilized
-      // 24-48h after first real traffic. CPU stays the watch item —
-      // see ADR-0008 amendment.
+      // 2048: the 7 long-running containers reserve 1736 MiB total. Three
+      // init containers (db-migrate 64, openfga-migrate 64,
+      // openfga-bootstrap 128) push the boot-time peak to ~1992 MiB
+      // before the inits exit — 56 MiB below the limit. Observed
+      // MemoryUtilized peak ~327 MiB over the first 7 days of running
+      // (admin/web mostly idle), so 2048 leaves ~310 MiB above the
+      // steady-state reservation sum and ~6x headroom on observed usage.
+      // Next valid notch at cpu=512 is 1024 (below reservations — would
+      // force evictions) or 3072 (the prior setting, $3.50/mo more
+      // gross at arm64). Re-check MemoryUtilized 24-48h after first
+      // real traffic. CPU stays the watch item — see ADR-0008
+      // amendment.
       memoryLimitMiB: 2048,
       runtimePlatform: {
         cpuArchitecture: CpuArchitecture.ARM64,
@@ -225,6 +328,18 @@ export class AppStack extends Stack {
     // is set below. Fargate-managed - storage comes out of the task's
     // built-in 20 GiB ephemeral pool.
     taskDef.addVolume({ name: "tmp" })
+
+    // ECS Exec agent (ExecuteCommandAgent managed sidecar) needs writable
+    // /var/lib/amazon/ssm + /var/log/amazon/ssm on each container we want
+    // to exec into. With readonlyRootFilesystem=true the agent crashes
+    // (status STOPPED) and `aws ecs execute-command` fails with
+    // "execute command agent isn't running". Scoped to the api container
+    // below — the only container worth running ad-hoc shells in (web/admin
+    // run framework processes you'd debug via their own routes; cloudflared
+    // is a single-purpose tunnel). Other containers keep the hardened
+    // readonly root.
+    taskDef.addVolume({ name: "ssm-agent-state" })
+    taskDef.addVolume({ name: "ssm-agent-logs" })
 
     // Drop ALL Linux capabilities. Removes NET_ADMIN/SYS_ADMIN/etc. that
     // most cryptominer payloads need to operate. Fargate forbids
@@ -301,48 +416,34 @@ export class AppStack extends Stack {
       `/monorepo/${props.envName}/openfga/model-id`,
     )
 
-    // Better Auth + app-token signing secrets — workflow-managed, referenced
-    // by FULL ARN via CDK context (see the TunnelTokenSecret block above for
-    // the bare-vs-full-ARN rationale). The deploy workflow's "Ensure ...
-    // secret exists" step generates the random 44-char value on first
-    // creation, restores from PendingDeletion on retry, never overwrites an
-    // existing value, then captures the secret's full ARN and passes it
-    // here. Each secret is a separate Secrets Manager resource because
-    // `generateSecretString` (when CDK used to manage them) only populated
-    // one field per secret; we keep that 1:1 mapping with the workflow
-    // generator too.
-    //
-    // SAFETY: secrets are never deleted by CDK (RemovalPolicy is moot since
-    // the construct is `fromSecretCompleteArn`, a reference only). On
-    // production a lost secret invalidates every active session + every
-    // pending invite/signup token. The workflow generator path is the only
-    // creator; rotation = put-secret-value out-of-band, not stack churn.
-    const betterAuthSecret = Secret.fromSecretCompleteArn(
-      this,
-      "BetterAuthSecret",
-      requiredSecretArn("betterAuthSecretArn"),
-    )
-    const appTokenSecret = Secret.fromSecretCompleteArn(
-      this,
-      "AppTokenSecret",
-      requiredSecretArn("appTokenSecretArn"),
-    )
+    // Better Auth signing secret — Vault is the source of truth; the VPS
+    // sync (M4) mirrors it into SSM SecureString. Rotation = `vault kv put
+    // platform/${env}/better-auth-secret value=…` on the operator laptop;
+    // the next 5-min sync tick + the next ECS task restart picks it up.
+    // SAFETY: lost secret invalidates every active session, so rotation is
+    // a deliberate operator action, never automatic.
+    const betterAuthSecretParam =
+      StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "BetterAuthSecretParam",
+        {
+          parameterName: `/monorepo/${props.envName}/better-auth-secret`,
+        },
+      )
 
-    // Resend API key — populated out-of-band (gh repo secret + deploy
-    // workflow `secretsmanager put-secret-value`). Full ARN comes from
-    // workflow context too.
-    const resendApiKeySecret = Secret.fromSecretCompleteArn(
-      this,
-      "ResendApiKeySecret",
-      requiredSecretArn("resendApiKeySecretArn"),
-    )
+    // Resend API key — Vault is source of truth; VPS sync mirrors to SSM.
+    const resendApiKeyParam =
+      StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "ResendApiKeyParam",
+        {
+          parameterName: `/monorepo/${props.envName}/resend-api-key`,
+        },
+      )
 
-    // grantRead now emits the EXACT full ARN (with random suffix) as the
-    // policy Resource — IAM matches it 1:1 against ECS's GetSecretValue
-    // call. No wildcards, no mismatch, no manual PolicyStatement needed.
-    betterAuthSecret.grantRead(taskExecutionRole)
-    appTokenSecret.grantRead(taskExecutionRole)
-    resendApiKeySecret.grantRead(taskExecutionRole)
+    // EcsSecret.fromSsmParameter auto-grants ssm:GetParameters on the
+    // parameter ARN + kms:Decrypt on alias/aws/ssm to the execution role.
+    // No manual grantRead needed.
 
     // The web container speaks to the public origin via Cloudflare Tunnel.
     // `BETTER_AUTH_URL` MUST exactly match what users see in the browser —
@@ -360,7 +461,7 @@ export class AppStack extends Stack {
     // blocks crypto-miner payloads. Tmpfs mount is harmless extra capacity.
     const webContainer = taskDef.addContainer("web", {
       containerName: "web",
-      image: ContainerImage.fromEcrRepository(props.webRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(props.webRepository, webImageTag),
       portMappings: [{ containerPort: 3000 }],
       essential: true,
       logging: LogDriver.awsLogs({
@@ -370,6 +471,7 @@ export class AppStack extends Stack {
       environment: {
         NODE_ENV: "production",
         APP_ENV: props.envName,
+        AUTH_TOKEN_ENV: authTokenEnv,
         PORT: "3000",
         APP_DOMAIN: props.domain,
         // Better Auth: cookie scope + email link composition. resolveBaseURL
@@ -382,9 +484,27 @@ export class AppStack extends Stack {
         NEXT_PUBLIC_BETTER_AUTH_URL: publicOrigin,
         // CSV of origins allowed to call /api/auth/*. Add www / aliases here.
         BETTER_AUTH_TRUSTED_ORIGINS: trustedOrigins,
+        // Cross-subdomain session cookie. Leading-dot domain so the
+        // session is readable from `app.`, `admin.`, and `api.afframe.com`.
+        // `packages/auth/src/server.ts` only enables the cross-subdomain
+        // block when this var is non-empty (host-only cookie on localhost
+        // dev). Derived from the two-level domain to stay correct on both
+        // `app.afframe.com` and `app-staging.afframe.com`.
+        BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.domain),
         // Outbound email from-address. Must be on a Resend/SES-verified
         // domain — otherwise the transport rejects the send.
-        EMAIL_FROM: `no-reply@${props.domain}`,
+        //
+        // Why the parent `afframe.com` (not `${props.domain}`)? Resend's
+        // verification is per-EXACT-domain — a verified `afframe.com` does
+        // NOT auto-trust `app-staging.afframe.com` or `app.afframe.com` as
+        // senders. Every per-env subdomain we want to send from would need
+        // its own verification + DNS records. To unblock both envs on one
+        // verified domain, we centralise on the parent. Per-env senders
+        // (e.g. `no-reply-staging@…`) is a future tightening once the
+        // subdomains are independently verified — DMARC posture improves
+        // and inbox-side distinction becomes possible. Documented in
+        // `docs/runbooks/AWS-DEPLOY.md` "Email sender verification".
+        EMAIL_FROM: props.mailFromAddress,
         // Force the Resend transport. Without this, packages/email's
         // pickTransport() would also accept SES via AWS_REGION; in MVP we
         // want every deploy on the same provider until SES production
@@ -396,6 +516,19 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // The packages/db startup probe asserts that app.app_user_role_name
+        // is persisted on the connecting role (it underpins the last-owner
+        // demotion trigger — ADR-0010). AWS RDS rejects the matching
+        // `ALTER ROLE app_user SET app.app_user_role_name = …` because
+        // custom-GUC ALTER requires true SUPERUSER (and `rds_superuser`
+        // is not enough — AFF-150 §5). The production paths instead set
+        // the GUC per-transaction via withAdminBypass / withOrganization
+        // / withWorkspace (PR #142), so the missing role-default is
+        // expected. Downgrade the probe's throw to a single one-time
+        // warn here so the unhandled rejection does not surface as a
+        // flash error overlay on the user's first cold-start render.
+        // Local dev keeps the strict throw (this env var is unset there).
+        DB_STARTUP_PROBE_LENIENT: "1",
         // Avatar upload + presigned-read chain in apps/web requires this. The
         // api container already has it (below); the web container's
         // /api/upload/avatar route and presignAvatarRead() call returned 500
@@ -406,9 +539,8 @@ export class AppStack extends Stack {
         AWS_REGION: this.region,
       },
       secrets: {
-        BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
-        APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
-        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
+        BETTER_AUTH_SECRET: EcsSecret.fromSsmParameter(betterAuthSecretParam),
+        RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
         // app_user (RLS-bound runtime role). pgbouncer accepts the `app_user`
         // entry from `DATABASE_URLS=` (see pgbouncerContainer below) and
         // forwards to RDS using the matching upstream credential. RLS
@@ -437,6 +569,35 @@ export class AppStack extends Stack {
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
           "HOSTNAME=0.0.0.0 exec node apps/web/server.js",
       ],
+      // Fargate ignores Dockerfile HEALTHCHECK unless it's set in the
+      // task definition. Wiring this here makes Circuit Breaker (above)
+      // observe real readiness, not just process-up, so a broken deploy
+      // trips rollback fast instead of after the gracePeriod elapses.
+      //
+      // Healthcheck uses Node's built-in http module (zero dep, always in
+      // the image) so the probe explicitly fails on any non-2xx status.
+      // The previous `wget -q -O- … || exit 1` exited 0 even on HTTP 503
+      // because wget retrieved the error body successfully — verified
+      // live in run 26195661343 where the broken /api/version task served
+      // 503 to users while ECS reported it healthy. Node check returns
+      // exit 1 unless statusCode === 200.
+      //
+      // Timings tightened from 30s→10s interval + 20s→15s startPeriod so
+      // ECS sees HEALTHY at ~25s instead of ~110s. Next.js standalone
+      // server boots in <5s; /api/version is a cheap JSON return — three
+      // 10s-interval probes still gives ~30s before declaring unhealthy.
+      // healthCheckGracePeriod (180s, see service config below) keeps
+      // a wide safety margin over the new convergence time.
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000/api/version',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("WebLinuxParams"),
     })
@@ -463,7 +624,7 @@ export class AppStack extends Stack {
     // (e.g., via `printf %s "$DB_PASSWORD" | jq -sRr @uri`).
     const apiContainer = taskDef.addContainer("api", {
       containerName: "api",
-      image: ContainerImage.fromEcrRepository(props.apiRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(props.apiRepository, apiImageTag),
       portMappings: [{ containerPort: 3001 }],
       essential: true,
       logging: LogDriver.awsLogs({
@@ -473,6 +634,7 @@ export class AppStack extends Stack {
       environment: {
         NODE_ENV: "production",
         APP_ENV: props.envName,
+        AUTH_TOKEN_ENV: authTokenEnv,
         PORT: "3001",
         HOST: "0.0.0.0",
         // pgbouncer-routed connection for app queries (RLS + GUC contract).
@@ -486,8 +648,25 @@ export class AppStack extends Stack {
         DB_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
         APP_DOMAIN: props.domain,
+        // Public origin of the API host for this environment. Consumed by
+        // `apps/api/src/editor.ts` to redirect `/editor` to the editor
+        // pre-filled with the right spec URL (so staging `/editor` opens
+        // the staging spec, not prod). Derived from envName by convention:
+        // production -> `api.afframe.com`, anything else -> the matching
+        // staging host. Override via `bin/app.ts` if the convention breaks.
+        PUBLIC_API_URL:
+          props.envName === "production"
+            ? "https://api.afframe.com"
+            : "https://api-staging.afframe.com",
         // L2 OpenFGA sidecar (HTTP). API URL is loopback inside the task.
         OPENFGA_API_URL: "http://localhost:8080",
+        // Email — same Resend transport + parent-domain sender as web/admin.
+        // V1Module's FeedbackController dispatches to support+feedback@ via
+        // packages/email; without these vars pickTransport() returns the
+        // ConsoleTransport and every send is silently logged to CloudWatch.
+        AWS_REGION: this.region,
+        EMAIL_FROM: props.mailFromAddress,
+        EMAIL_TRANSPORT: "resend",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
@@ -501,6 +680,7 @@ export class AppStack extends Stack {
         // first App-{env} deploy.
         OPENFGA_STORE_ID: EcsSecret.fromSsmParameter(openfgaStoreIdParam),
         OPENFGA_MODEL_ID: EcsSecret.fromSsmParameter(openfgaModelIdParam),
+        RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
       },
       entryPoint: ["/bin/sh", "-c"],
       command: [
@@ -508,6 +688,22 @@ export class AppStack extends Stack {
           'export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_DIRECT_HOST}:${DB_DIRECT_PORT}/${DB_NAME}" && ' +
           "exec node dist/main.js",
       ],
+      // Fargate ignores Dockerfile HEALTHCHECK — same rationale as the web
+      // container above. Without an explicit task-def probe a WEDGED api
+      // (process up, requests deadlocked) is invisible to Circuit Breaker;
+      // ECS only replaces on process exit. Smoke catches it post-deploy
+      // via /api/auth/get-session, but in steady state the api could drop
+      // traffic until some other timer fires.
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3001/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 512,
       readonlyRootFilesystem: true,
       linuxParameters: linuxParams("ApiLinuxParams"),
@@ -517,16 +713,32 @@ export class AppStack extends Stack {
       sourceVolume: "tmp",
       readOnly: false,
     })
+    // ECS Exec agent (managed sidecar) needs writable state + log dirs.
+    // Without these the agent crashes with `lastStatus: STOPPED` on a
+    // readonlyRootFilesystem container.
+    apiContainer.addMountPoints({
+      containerPath: "/var/lib/amazon/ssm",
+      sourceVolume: "ssm-agent-state",
+      readOnly: false,
+    })
+    apiContainer.addMountPoints({
+      containerPath: "/var/log/amazon/ssm",
+      sourceVolume: "ssm-agent-logs",
+      readOnly: false,
+    })
 
     // admin container — the staff/dev surface (apps/admin), a separate
     // Next.js standalone server on port 3100. essential:false so a
     // crash-looping admin does NOT fail the whole task (web + api stay up).
     //
-    // It runs its own Better Auth wiring under the admin origin, so the
-    // session cookie is host-scoped — admin login is independent of web.
-    // Same shared signing secrets as web (sessions/tokens must verify across
-    // both). Access is gated solely in-app by the ADMIN_WORKSPACE_ALLOWLIST
-    // check (apps/admin/app/(gated)/layout.tsx) — no Cloudflare Access.
+    // It runs its own Better Auth wiring under the admin origin, but the
+    // session cookie scope is `.afframe.com` (set via
+    // `BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.adminDomain)`
+    // below), so an operator signed into `app.afframe.com` carries the
+    // session here automatically. Same shared signing secrets as web
+    // (sessions/tokens must verify across both). Access is gated solely
+    // in-app by the ADMIN_WORKSPACE_ALLOWLIST check
+    // (apps/admin/app/(gated)/layout.tsx) — no Cloudflare Access.
     //
     // adminOrigin is an explicit per-env host (ADMIN_DOMAIN), NOT derived
     // from props.domain: production admin is admin.afframe.com while web is
@@ -535,7 +747,10 @@ export class AppStack extends Stack {
     const adminOrigin = `https://${props.adminDomain}`
     const adminContainer = taskDef.addContainer("admin", {
       containerName: "admin",
-      image: ContainerImage.fromEcrRepository(props.adminRepository, imageTag),
+      image: ContainerImage.fromEcrRepository(
+        props.adminRepository,
+        adminImageTag,
+      ),
       portMappings: [{ containerPort: 3100 }],
       essential: false,
       logging: LogDriver.awsLogs({
@@ -545,9 +760,14 @@ export class AppStack extends Stack {
       environment: {
         NODE_ENV: "production",
         APP_ENV: props.envName,
+        AUTH_TOKEN_ENV: authTokenEnv,
         PORT: "3100",
         BETTER_AUTH_URL: adminOrigin,
         BETTER_AUTH_TRUSTED_ORIGINS: adminOrigin,
+        // Same cross-subdomain cookie domain as the web container so an
+        // operator signed into `app.afframe.com` carries the session to
+        // `admin.afframe.com`. See web container comment above.
+        BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.adminDomain),
         // Comma-separated workspace ids whose members may sign into admin.
         // Empty => nobody is authorized (the gate fails closed). Changing
         // staff access is a redeploy. Sourced from the deploy environment.
@@ -555,20 +775,28 @@ export class AppStack extends Stack {
         DB_HOST: "localhost",
         DB_PORT: "6432",
         DB_NAME: "monorepo",
+        // Admin connects as app_user (same as web — see DataStackProps
+        // doc) so the packages/db startup probe applies. Use the lenient
+        // mode for the same reason as web: AWS RDS rejects `ALTER ROLE
+        // SET app.app_user_role_name`, so the missing role-default is
+        // expected and downstream per-transaction SET LOCAL carries the
+        // contract. See the long note in the web container env above.
+        DB_STARTUP_PROBE_LENIENT: "1",
         // Admin doesn't upload avatars today, but staff user-management views
         // call presignAvatarRead() to render user profile photos. Wire it now
         // so the next admin feature doesn't trip the same 500 the web app hit.
         APP_BUCKET: props.appBucket.bucketName,
         AWS_REGION: this.region,
-        EMAIL_FROM: `no-reply@${props.domain}`,
+        // See the long note in the web container above re. Resend per-domain
+        // verification. Admin sends from the same parent address.
+        EMAIL_FROM: props.mailFromAddress,
         EMAIL_TRANSPORT: "resend",
       },
       secrets: {
-        // Shared with web: sessions + tokens must verify across both apps.
-        BETTER_AUTH_SECRET: EcsSecret.fromSecretsManager(betterAuthSecret),
-        APP_TOKEN_SECRET: EcsSecret.fromSecretsManager(appTokenSecret),
+        // Shared with web: sessions must verify across both apps.
+        BETTER_AUTH_SECRET: EcsSecret.fromSsmParameter(betterAuthSecretParam),
         // forgot/reset-password send mail via Resend.
-        RESEND_API_KEY: EcsSecret.fromSecretsManager(resendApiKeySecret),
+        RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
         // app_user (RLS-bound runtime role). Same role as web — admin's
         // staff queries are equally RLS-scoped. Any admin operation that
         // legitimately needs to read across tenants funnels through
@@ -587,6 +815,19 @@ export class AppStack extends Stack {
         'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
           "HOSTNAME=0.0.0.0 exec node apps/admin/server.js",
       ],
+      // Mirror of the web healthCheck — see that block for rationale + the
+      // wget-vs-node story. Admin uses port 3100 and exposes /api/health
+      // (no /api/version).
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3100/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
+        ],
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(3),
+        retries: 3,
+        startPeriod: Duration.seconds(15),
+      },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("AdminLinuxParams"),
     })
@@ -901,7 +1142,7 @@ export class AppStack extends Stack {
         logGroup: this.tunnelLogGroup,
       }),
       secrets: {
-        TUNNEL_TOKEN: EcsSecret.fromSecretsManager(this.tunnelTokenSecret),
+        TUNNEL_TOKEN: EcsSecret.fromSsmParameter(tunnelTokenParam),
       },
       memoryReservationMiB: 128,
       readonlyRootFilesystem: true,
@@ -913,6 +1154,252 @@ export class AppStack extends Stack {
       readOnly: false,
     })
 
+    // ─── Bootstrap init containers ───────────────────────────────────────
+    //
+    // First-deploy of a fresh environment needs three DB bootstrap steps
+    // (per docs/runbooks/AWS-DEPLOY.md):
+    //
+    //   1. Apply Drizzle migrations (creates app_user role + all tables)
+    //   2. ALTER ROLE app_user PASSWORD <from-appUserSecret>
+    //   3. CREATE SCHEMA openfga + run `openfga migrate` (goose schema)
+    //
+    // Before this, operators ran them manually via a bastion. That works
+    // once per env then forgotten — and production first-deploy hit it
+    // because nothing automated the bootstrap. The init containers below
+    // run on every cold start; idempotent steps no-op after first success.
+    //
+    // ECS dependsOn ensures essential containers wait until these exit
+    // SUCCESS (exit code 0). On unexpected failure, the whole task fails
+    // → Circuit Breaker rolls back the deploy (deferred to G5's contract).
+
+    const dbMigrateImage = new DockerImageAsset(this, "DbMigrateImage", {
+      // Context is repo root so the Dockerfile can COPY
+      // packages/db/migrations + infra/scripts/apply-migrations-init.sh.
+      directory: path.join(__dirname, "..", "..", ".."),
+      file: "infra/Dockerfile.migrate",
+      platform: Platform.LINUX_ARM64,
+    })
+
+    const dbMigrateLogGroup = new LogGroup(this, "DbMigrateLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/db-migrate`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+
+    const dbMigrateContainer = taskDef.addContainer("db-migrate", {
+      containerName: "db-migrate",
+      image: ContainerImage.fromDockerImageAsset(dbMigrateImage),
+      // essential: false + ECS dependsOn SUCCESS → task waits for clean
+      // exit before starting other containers, but a failure here does
+      // surface (Circuit Breaker treats unhealthy deployment as failure).
+      essential: false,
+      // First-deploy migration set against a cold RDS can exceed the
+      // default 3min startTimeout (DB warmup + N migrations × ~2-3s).
+      // Lift to 10min so dependsOn-SUCCESS doesn't trip prematurely.
+      startTimeout: Duration.minutes(10),
+      logging: LogDriver.awsLogs({
+        streamPrefix: "db-migrate",
+        logGroup: dbMigrateLogGroup,
+      }),
+      environment: {
+        DB_HOST: props.database.dbInstanceEndpointAddress,
+        DB_PORT: props.database.dbInstanceEndpointPort,
+        DB_NAME: "monorepo",
+      },
+      secrets: {
+        DB_ADMIN_USER: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "username",
+        ),
+        DB_ADMIN_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+        APP_USER_PASSWORD: EcsSecret.fromSecretsManager(
+          props.appUserSecret,
+          "password",
+        ),
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("DbMigrateLinuxParams"),
+    })
+    dbMigrateContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    const openfgaMigrateLogGroup = new LogGroup(this, "OpenfgaMigrateLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/openfga-migrate`,
+      retention: RetentionDays.ONE_WEEK,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+
+    const openfgaMigrateContainer = taskDef.addContainer("openfga-migrate", {
+      containerName: "openfga-migrate",
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.15.1"),
+      essential: false,
+      // Goose migration applier; first-deploy can take a few minutes
+      // against a cold RDS. Match db-migrate's timeout.
+      startTimeout: Duration.minutes(10),
+      command: ["migrate"],
+      logging: LogDriver.awsLogs({
+        streamPrefix: "openfga-migrate",
+        logGroup: openfgaMigrateLogGroup,
+      }),
+      environment: {
+        OPENFGA_DATASTORE_ENGINE: "postgres",
+        OPENFGA_DATASTORE_URI: `postgres://${props.database.dbInstanceEndpointAddress}:${props.database.dbInstanceEndpointPort}/monorepo?search_path=openfga&sslmode=require`,
+        OPENFGA_LOG_FORMAT: "json",
+      },
+      secrets: {
+        // openfga migrate runs as the admin (app_owner) since it needs
+        // DDL inside the openfga schema. Different from the runtime
+        // openfga container which can use a less-privileged role
+        // (we still use admin there for now — refine later).
+        OPENFGA_DATASTORE_USERNAME: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "username",
+        ),
+        OPENFGA_DATASTORE_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      memoryReservationMiB: 64,
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("OpenfgaMigrateLinuxParams"),
+    })
+    openfgaMigrateContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    // openfga-migrate depends on db-migrate (needs the openfga schema
+    // created by step #3 of apply-migrations-init.sh).
+    openfgaMigrateContainer.addContainerDependencies({
+      container: dbMigrateContainer,
+      condition: ContainerDependencyCondition.SUCCESS,
+    })
+
+    // openfga-bootstrap (init container): creates/reuses the OpenFGA store,
+    // writes the authorization model, and PutParameter's the resulting
+    // store-id + model-id to SSM. Replaces the manual bastion bootstrap
+    // step the runbook used to require — every env (including DR / new
+    // tenant infra) gets bootstrapped automatically on first deploy.
+    //
+    // Runs AFTER openfga-migrate so the openfga schema goose tables exist.
+    // The container image bundles the openfga binary + node + bootstrap.mjs;
+    // the init script boots openfga locally on 127.0.0.1:8080, polls
+    // /healthz, runs the bootstrap, writes SSM, then exits.
+    //
+    // Idempotent: store reused by name across re-runs; model_id is
+    // rewritten with same DSL content; SSM overwritten. api reads SSM at
+    // every cold start so it always picks up the latest model_id.
+    const openfgaBootstrapImage = new DockerImageAsset(
+      this,
+      "OpenfgaBootstrapImage",
+      {
+        directory: path.join(__dirname, "..", "..", ".."),
+        file: "infra/Dockerfile.openfga-bootstrap",
+        platform: Platform.LINUX_ARM64,
+      },
+    )
+
+    const openfgaBootstrapLogGroup = new LogGroup(
+      this,
+      "OpenfgaBootstrapLogs",
+      {
+        logGroupName: `/ecs/monorepo-${props.envName}/openfga-bootstrap`,
+        retention: RetentionDays.ONE_WEEK,
+        removalPolicy: RemovalPolicy.DESTROY,
+      },
+    )
+
+    const openfgaBootstrapContainer = taskDef.addContainer(
+      "openfga-bootstrap",
+      {
+        containerName: "openfga-bootstrap",
+        image: ContainerImage.fromDockerImageAsset(openfgaBootstrapImage),
+        essential: false,
+        // First-deploy bootstrap against a cold openfga schema + SSM writes
+        // can take ~10-15s. Lift the timeout in line with the other inits so
+        // dependsOn-SUCCESS doesn't trip on slow boots.
+        startTimeout: Duration.minutes(5),
+        logging: LogDriver.awsLogs({
+          streamPrefix: "openfga-bootstrap",
+          logGroup: openfgaBootstrapLogGroup,
+        }),
+        environment: {
+          MONOREPO_ENV: props.envName,
+          AWS_REGION: this.region,
+          DB_HOST: props.database.dbInstanceEndpointAddress,
+          DB_PORT: props.database.dbInstanceEndpointPort,
+          DB_NAME: "monorepo",
+        },
+        secrets: {
+          DB_ADMIN_USER: EcsSecret.fromSecretsManager(
+            props.databaseSecret,
+            "username",
+          ),
+          DB_ADMIN_PASSWORD: EcsSecret.fromSecretsManager(
+            props.databaseSecret,
+            "password",
+          ),
+        },
+        memoryReservationMiB: 128,
+        readonlyRootFilesystem: true,
+        linuxParameters: linuxParams("OpenfgaBootstrapLinuxParams"),
+      },
+    )
+    openfgaBootstrapContainer.addMountPoints({
+      containerPath: "/tmp",
+      sourceVolume: "tmp",
+      readOnly: false,
+    })
+
+    // openfga-bootstrap must run AFTER openfga-migrate so the openfga
+    // schema's goose tables (store, authorization_model, tuple, ...) exist.
+    openfgaBootstrapContainer.addContainerDependencies({
+      container: openfgaMigrateContainer,
+      condition: ContainerDependencyCondition.SUCCESS,
+    })
+
+    // Essential-container dependsOn wiring. Three init containers run in
+    // a strict chain: db-migrate → openfga-migrate → openfga-bootstrap.
+    // Essentials wait on the appropriate prefix:
+    //   - All essentials need db-migrate (creates app_user role, schemas).
+    //   - openfga + api need openfga-migrate (goose schema tables exist).
+    //   - api alone needs openfga-bootstrap (its SSM-sourced OPENFGA_STORE_ID
+    //     + OPENFGA_MODEL_ID must resolve to the freshly-written values,
+    //     not the previous deploy's snapshot or the seed placeholders).
+    const allEssentials = [
+      pgbouncerContainer,
+      cerbosContainer,
+      openfgaContainer,
+      apiContainer,
+      webContainer,
+      adminContainer,
+    ]
+    for (const c of allEssentials) {
+      c.addContainerDependencies({
+        container: dbMigrateContainer,
+        condition: ContainerDependencyCondition.SUCCESS,
+      })
+    }
+    for (const c of [openfgaContainer, apiContainer]) {
+      c.addContainerDependencies({
+        container: openfgaMigrateContainer,
+        condition: ContainerDependencyCondition.SUCCESS,
+      })
+    }
+    apiContainer.addContainerDependencies({
+      container: openfgaBootstrapContainer,
+      condition: ContainerDependencyCondition.SUCCESS,
+    })
+
     this.service = new FargateService(this, "Service", {
       cluster: this.cluster,
       taskDefinition: taskDef,
@@ -920,19 +1407,27 @@ export class AppStack extends Stack {
       assignPublicIp: true,
       vpcSubnets: publicSubnetSelection,
       securityGroups: [props.appSecurityGroup],
-      enableExecuteCommand: false,
+      // ECS Exec opens a session-managed shell into a running container
+      // for ops (psql against staging RDS, log triage on a wedged task,
+      // ad-hoc debugging). Requires the matching `ssmmessages:*` grant on
+      // the taskRole (above) and the operator IAM caller's
+      // `ecs:ExecuteCommand`. Bears no audit cost beyond CloudTrail. Kept
+      // ON in both envs — the gain in incident response time outweighs
+      // the unmeasurable hardening loss (any caller who can exec already
+      // has admin via the deploy role).
+      enableExecuteCommand: true,
       // 100 prevents the only running task from being stopped before the
       // replacement is healthy — desiredCount=1 with 50% means ECS can
       // scale to 0 momentarily, causing a Cloudflare-Tunnel outage window.
       // Matches AWS re:Post zero-downtime guidance.
       minHealthyPercent: 100,
       maxHealthyPercent: 200,
-      // Rollback on production so a broken deploy auto-reverts. Disable on
-      // staging so a failed deploy leaves the task state intact for log
-      // forensics (we are usually the operator + investigator). The
-      // pre-deploy cleanup step in _deploy-aws.yml clears stale state
-      // before the next staging deploy attempt.
-      circuitBreaker: { rollback: props.envName === "production" },
+      // Symmetric across envs: staging dogfoods the rollback path so any
+      // regression in the auto-rollback flow surfaces before prod hits it.
+      // Past failure forensics show ECS Circuit Breaker as 5/20 of recent
+      // staging fails — exercising the rollback there is the goal, not
+      // a hindrance.
+      circuitBreaker: { rollback: true },
       // 180s: cold-start budget. Cold pull of six arm64 images + chained
       // sidecar HEALTHY gates measured ~150s worst case. 180s gives ~20%
       // headroom; the previous 300s over-budgeted and added 2 min to every
@@ -949,10 +1444,10 @@ export class AppStack extends Stack {
       value: this.cluster.clusterName,
       description: "ECS cluster name for diagnostics",
     })
-    new CfnOutput(this, "TunnelTokenSecretArn", {
-      value: this.tunnelTokenSecret.secretArn,
+    new CfnOutput(this, "TunnelTokenSsmParameterName", {
+      value: tunnelTokenParam.parameterName,
       description:
-        "Secrets Manager ARN where the deploy workflow writes the Cloudflare Tunnel connector token.",
+        "SSM SecureString parameter where the deploy workflow writes the Cloudflare Tunnel connector token (M4). The cloudflared sidecar reads this via EcsSecret.fromSsmParameter.",
     })
   }
 }

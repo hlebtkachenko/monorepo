@@ -28,7 +28,13 @@ Hosts:
 - `status.afframe.com` — public status page
 - `monitoring.afframe.com` — internal monitoring dashboard
 - `cache.afframe.com` — Turborepo remote cache
-- `docs.afframe.com` — planned, not live ([AFF-88](https://linear.app/hapddev/issue/AFF-88))
+
+A dedicated `docs.afframe.com` host was planned and reverted on
+2026-05-21. The Scalar API Reference mounted at `api.afframe.com/` IS
+the developer documentation. See
+[ADR-0024 Amendment 2026-05-21](adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted)
+and [AFF-88](https://linear.app/hapddev/issue/AFF-88) for the open
+question on if/when to revisit.
 
 Email:
 
@@ -128,12 +134,6 @@ Email:
 - Runbook: [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - Config: `infra/cloudflare/wrangler.jsonc`
 
-### docs.afframe.com (planned)
-
-- Status: not yet live
-- DNS: not provisioned
-- Tracking: [AFF-88](https://linear.app/hapddev/issue/AFF-88)
-
 ---
 
 ## Email
@@ -173,7 +173,7 @@ Procedures live in the runbooks — they have the exact file-by-file steps and
 authorization gates. Pick by host class:
 
 - **AWS Fargate host** (web / api / admin): [AWS-DEPLOY.md](runbooks/AWS-DEPLOY.md) §§ 8-9
-- **OVH-served host** (status / monitoring / future docs): [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
+- **OVH-served host** (status / monitoring): [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
 - **Cloudflare Worker host** (cache / future workers): [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - **Inbound email alias**: Cloudflare dashboard → Email → Routing Rules
 - **Outbound sender**: add identity in Resend, update relevant container env

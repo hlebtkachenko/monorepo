@@ -6,6 +6,8 @@ import { AppStack } from "../lib/app-stack.js"
 import { ObservabilityStack } from "../lib/observability-stack.js"
 import { SecurityStack } from "../lib/security-stack.js"
 import { BackupStack } from "../lib/backup-stack.js"
+import { SecretsStack } from "../lib/secrets-stack.js"
+import { AuditStack } from "../lib/audit-stack.js"
 
 const app = new App()
 
@@ -54,10 +56,30 @@ if (!adminDomain) {
   )
 }
 
-const alertEmail = process.env.ALERT_EMAIL
-if (!alertEmail) {
+// Operator email is no longer a CDK input. The deploy workflow subscribes
+// the EMAIL_FORWARD_TO repo secret to the alert SNS topics out-of-band
+// (aws sns subscribe --protocol email, with ::add-mask:: on the value)
+// so the address never enters CFN templates / `cdk diff` snapshots / CI
+// logs. See SecurityStack.killSwitchOpsTopic + ObservabilityStack.billingTopic.
+
+// Outbound email "From" address (Resend transport). Resend rejects sends
+// from any sender domain that is not exactly verified — subdomains are NOT
+// auto-trusted from a parent verification. `afframe.com` is verified;
+// `app-staging.afframe.com` and `app.afframe.com` are not (and would each
+// need their own DNS + verification). We centralise on the verified parent
+// until per-env subdomain verification lands. Override via the
+// `MAIL_FROM_ADDRESS` repo secret/var if you want a different sender per env.
+//
+// `||` (not `??`) is deliberate: the deploy workflow passes
+// `MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS }}`, and when the repo
+// var is unset GitHub Actions exports an empty string — `??` only
+// fires on null/undefined, so an empty value would slip through and
+// trip the regex below. `||` falls back on empty too.
+const mailFromAddress =
+  process.env.MAIL_FROM_ADDRESS?.trim() || "no-reply@afframe.com"
+if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailFromAddress)) {
   throw new Error(
-    "ALERT_EMAIL env var is required. In CI sourced from the EMAIL_FORWARD_TO repo secret; locally set to a real inbox that receives AWS budget + alarm notifications.",
+    `MAIL_FROM_ADDRESS must be an email address; got "${mailFromAddress}".`,
   )
 }
 
@@ -89,6 +111,7 @@ const appStack = new AppStack(app, `App-${env}`, {
   adminRepository: data.adminRepository,
   domain,
   adminDomain,
+  mailFromAddress,
 })
 
 const security = new SecurityStack(app, `Security-${env}`, {
@@ -96,7 +119,6 @@ const security = new SecurityStack(app, `Security-${env}`, {
   envName: env,
   appStack,
   dataStack: data,
-  alertEmail,
 })
 
 new ObservabilityStack(app, `Observability-${env}`, {
@@ -104,7 +126,6 @@ new ObservabilityStack(app, `Observability-${env}`, {
   envName: env,
   appStack,
   dataStack: data,
-  alertEmail,
   killSwitchTopic: security.killSwitchTopic,
 })
 
@@ -115,6 +136,19 @@ new BackupStack(app, `Backup-${env}`, {
   dataStack: data,
   appSecurityGroup: network.appSecurityGroup,
 })
+
+// Shared (non-per-env) bootstrap stack. Owns the Vault auto-unseal KMS CMK +
+// the dedicated IAM user. Deploy once, manually: `cdk deploy SecretsBootstrap`.
+// Not wired into the per-env deploy workflow because (a) it spans envs and
+// (b) the per-env workflows must not be able to re-deploy or destroy it.
+new SecretsStack(app, "SecretsBootstrap", { env: stackEnv })
+
+// Shared (non-per-env) account audit stack. One CloudTrail for the whole
+// account (the first management-events trail is free; per-env trails meant
+// the second one billed — AFF cost review 2026-05-31, trap 4). Deploy once,
+// manually: `cdk deploy Audit`. Deploy it BEFORE redeploying the per-env
+// Security stacks that drop their own trails, to avoid an audit gap.
+new AuditStack(app, "Audit", { env: stackEnv })
 
 Tags.of(app).add("Environment", env)
 Tags.of(app).add("Repo", "hlebtkachenko/monorepo")

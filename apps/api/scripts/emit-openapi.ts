@@ -1,29 +1,19 @@
-import "reflect-metadata"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { VersioningType } from "@nestjs/common"
-import { NestFactory } from "@nestjs/core"
-import { AppModule } from "../src/app.module"
 import { buildOpenApiDocument } from "../src/openapi"
 
 /**
  * Emit the committed OpenAPI 3.1 spec for the public `/v1` surface.
  *
- * Boots the Nest app with no HTTP listener, builds the document, and writes
- * `apps/api/openapi/v1.json`. CI (`openapi-lint.yml`) re-runs this and fails
- * on any diff — the committed spec must always match the code, then Spectral
- * lints it.
+ * Writes `apps/api/openapi/v1.json` straight from the shared registry — no
+ * Nest boot, no controller reflection. CI (`openapi-lint.yml`) re-runs this
+ * and fails on any diff; the committed spec must always match the registry
+ * source in `packages/shared/src/api/`. Then Spectral lints it.
  *
  * Run: `pnpm --filter api emit:openapi`.
  */
-async function main(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { logger: false })
-  // Mirror main.ts: URI versioning must be enabled before the document is
-  // built so the `/v1` prefix appears on the public routes.
-  app.enableVersioning({ type: VersioningType.URI, prefix: "v" })
-  const document = buildOpenApiDocument(app)
-  await app.close()
-
+function main(): void {
+  const document = buildOpenApiDocument()
   const outDir = join(__dirname, "..", "openapi")
   mkdirSync(outDir, { recursive: true })
   writeFileSync(
@@ -33,7 +23,9 @@ async function main(): Promise<void> {
   process.stdout.write("Wrote apps/api/openapi/v1.json\n")
 }
 
-main().catch((err: unknown) => {
+try {
+  main()
+} catch (err) {
   console.error(err)
   process.exit(1)
-})
+}

@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# Vault backup → restic → Cloudflare R2 (primary) + Backblaze B2 (secondary).
+# Lives at /usr/local/sbin/vault-backup on the Hostinger KVM 2 VPS.
+#
+# Invoked by /etc/systemd/system/vault-backup.service (oneshot), triggered
+# every 6h by vault-backup.timer. The first hourly tick of each Sunday also
+# runs the weekly B2 mirror + `restic check --read-data-subset=5%` integrity
+# pass (advisor Gate 0 should-fix #8).
+#
+# Tracks: AFF-245 M2. Plan: docs/plans/SECRETS-MIGRATION.md § M2 task 3.
+#
+# Exit codes:
+#   0  — at least the primary R2 backup landed cleanly
+#   1  — primary backup failed (or token / env missing)
+#   2  — primary OK but secondary B2 (or check) failed on the weekly tick
+
+set -euo pipefail
+
+# --- config (load credentials only; everything else is inline) -----------
+
+CONFIG_FILE=/root/.config/restic/.env
+if [[ ! -r "$CONFIG_FILE" ]]; then
+  echo "[vault-backup] missing $CONFIG_FILE (mode 0600); aborting" >&2
+  exit 1
+fi
+# `set -a` exports every var assigned by the sourced file so child processes
+# (restic, docker-compose, vault) see them. Without it, only the parent shell
+# has the vars and restic fails with `unable to open config file: Stat:
+# Authorization` (AWS_* not in its env).
+set -a
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+set +a
+
+REQUIRED_VARS=(
+  RESTIC_PASSWORD
+  RESTIC_REPOSITORY_PRIMARY
+  AWS_ACCESS_KEY_ID            # R2 token id (S3-compatible API)
+  AWS_SECRET_ACCESS_KEY        # R2 token secret
+  VAULT_TOKEN                  # for `vault operator raft snapshot save`
+)
+for v in "${REQUIRED_VARS[@]}"; do
+  if [[ -z "${!v:-}" ]]; then
+    echo "[vault-backup] required env var $v is empty; aborting" >&2
+    exit 1
+  fi
+done
+
+# B2 (secondary) is optional — deferred to AFF-246. When all three of
+# RESTIC_REPOSITORY_SECONDARY, B2_ACCOUNT_ID, B2_ACCOUNT_KEY are non-empty,
+# the weekly Sunday tick mirrors to B2 + runs `restic check`. Otherwise the
+# script ships R2 only (and skips the weekly B2 leg silently).
+B2_ENABLED=0
+if [[ -n "${RESTIC_REPOSITORY_SECONDARY:-}" && -n "${B2_ACCOUNT_ID:-}" && -n "${B2_ACCOUNT_KEY:-}" ]]; then
+  B2_ENABLED=1
+fi
+
+# Operator-side fail-fast sentinel: monitoring can `test -e` this file to page.
+SENTINEL=/var/run/vault-backup.failed
+rm -f "$SENTINEL"
+
+# --- snapshot Vault Raft store into a temp file --------------------------
+
+SNAP_DIR=$(mktemp -d -t vault-backup.XXXXXXXX)
+trap 'rm -rf "$SNAP_DIR"' EXIT
+SNAP="$SNAP_DIR/vault-snap-$(date -u +%Y%m%dT%H%M%SZ).snap"
+
+# Compose service name (compose.yaml key) vs container name (container_name
+# field) — `docker compose exec` takes a SERVICE; `docker cp` takes a
+# CONTAINER. Keeping both lets us be precise.
+VAULT_SERVICE=vault
+VAULT_CONTAINER=afframe-vault
+COMPOSE_FILE=/srv/secrets/vault/compose.yaml
+
+echo "[vault-backup] taking raft snapshot → $SNAP"
+docker compose -f "$COMPOSE_FILE" exec -T \
+  -e VAULT_TOKEN="$VAULT_TOKEN" \
+  "$VAULT_SERVICE" vault operator raft snapshot save /tmp/snap.snap
+
+docker cp "$VAULT_CONTAINER:/tmp/snap.snap" "$SNAP"
+docker compose -f "$COMPOSE_FILE" exec -T "$VAULT_SERVICE" rm -f /tmp/snap.snap
+
+echo "[vault-backup] snapshot size: $(stat -c %s "$SNAP") bytes"
+
+# --- primary backup → R2 -------------------------------------------------
+
+echo "[vault-backup] uploading to R2 ($RESTIC_REPOSITORY_PRIMARY)"
+RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic backup \
+  --tag vault --tag "host=$(hostname)" --tag "ts=$(date -u +%FT%TZ)" \
+  "$SNAP"
+
+echo "[vault-backup] R2 forget+prune (7d/12w/12m retention)"
+RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic forget \
+  --tag vault \
+  --keep-daily 7 --keep-weekly 12 --keep-monthly 12 \
+  --prune
+
+# --- weekly: secondary mirror (if B2 enabled) + integrity check ----------
+
+# Weekly tick: Sunday + within the first hour of the timer firing
+# (timer fires every 6h so this hits Sunday 00:00–05:59 once a week).
+DAY_OF_WEEK=$(date -u +%u)
+HOUR=$(date -u +%H)
+WEEKLY_FAILED=0
+
+if [[ "$DAY_OF_WEEK" == "7" && "$HOUR" -lt 6 ]]; then
+  if [[ "$B2_ENABLED" == "1" ]]; then
+    echo "[vault-backup] weekly tick — mirroring to B2 ($RESTIC_REPOSITORY_SECONDARY)"
+    if ! RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic backup \
+         --tag vault --tag weekly --tag "ts=$(date -u +%FT%TZ)" \
+         "$SNAP"; then
+      echo "[vault-backup] B2 backup FAILED (primary R2 still clean)" >&2
+      WEEKLY_FAILED=1
+    else
+      RESTIC_REPOSITORY="$RESTIC_REPOSITORY_SECONDARY" restic forget \
+        --tag vault \
+        --keep-weekly 12 --keep-monthly 12 \
+        --prune || WEEKLY_FAILED=1
+    fi
+  else
+    echo "[vault-backup] weekly tick — B2 secondary not configured (AFF-246); skipping mirror"
+  fi
+
+  # Integrity check runs on R2 regardless of B2 — it's a primary-store check.
+  echo "[vault-backup] weekly integrity check on R2 (5% data sample)"
+  if ! RESTIC_REPOSITORY="$RESTIC_REPOSITORY_PRIMARY" restic check \
+       --read-data-subset=5%; then
+    echo "[vault-backup] restic check FAILED on R2" >&2
+    WEEKLY_FAILED=1
+  fi
+fi
+
+if [[ "$WEEKLY_FAILED" == "1" ]]; then
+  touch "$SENTINEL"
+  echo "[vault-backup] DONE with WEEKLY FAILURE — primary backup OK, secondary/check failed"
+  exit 2
+fi
+
+echo "[vault-backup] DONE OK"

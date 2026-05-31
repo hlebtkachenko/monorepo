@@ -11,8 +11,16 @@ storybook-static/
 # prettier's markdown emphasis parser mangles (snake_case -> snake*case).
 AGENTS.md
 CLAUDE.md
+CONTRIBUTING.md
 
 # Generated OpenAPI spec — emitted by `pnpm --filter api emit:openapi`
 # (JSON.stringify format). Prettier must not reformat it or the CI drift
 # gate (openapi-lint.yml) would never match the emitter's output.
 apps/api/openapi/v1.json
+
+# Generated SDK + MCP code — emitted by `pnpm gen:all`. The drift gates
+# (sdk-drift.yml, mcp-coverage.yml) re-run the same generators and compare
+# against the committed output. Prettier must not reformat or the
+# committed content drifts from CI's regen.
+packages/sdk/src/generated/
+apps/mcp/src/tools/generated/

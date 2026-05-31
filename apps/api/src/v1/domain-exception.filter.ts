@@ -19,6 +19,20 @@ const DOMAIN_CODE_STATUS: Record<string, number> = {
   validation_error: HttpStatus.UNPROCESSABLE_ENTITY,
 }
 
+/** Plaid-shape error_type families. Registry in docs/api/ERRORS.md §2. */
+const STATUS_FAMILY: Record<number, string> = {
+  [HttpStatus.BAD_REQUEST]: "INVALID_REQUEST",
+  [HttpStatus.UNAUTHORIZED]: "UNAUTHORIZED",
+  [HttpStatus.FORBIDDEN]: "FORBIDDEN",
+  [HttpStatus.NOT_FOUND]: "NOT_FOUND",
+  [HttpStatus.CONFLICT]: "CONFLICT",
+  [HttpStatus.PAYLOAD_TOO_LARGE]: "PAYLOAD_TOO_LARGE",
+  [HttpStatus.UNPROCESSABLE_ENTITY]: "VALIDATION",
+  [HttpStatus.TOO_MANY_REQUESTS]: "RATE_LIMITED",
+  [HttpStatus.INTERNAL_SERVER_ERROR]: "INTERNAL",
+  [HttpStatus.SERVICE_UNAVAILABLE]: "SERVICE_UNAVAILABLE",
+}
+
 function statusToCode(status: number): string {
   switch (status) {
     case HttpStatus.BAD_REQUEST:
@@ -31,6 +45,8 @@ function statusToCode(status: number): string {
       return "not_found"
     case HttpStatus.CONFLICT:
       return "conflict"
+    case HttpStatus.PAYLOAD_TOO_LARGE:
+      return "payload_too_large"
     case HttpStatus.UNPROCESSABLE_ENTITY:
       return "validation_error"
     case HttpStatus.TOO_MANY_REQUESTS:
@@ -41,13 +57,29 @@ function statusToCode(status: number): string {
 }
 
 /**
- * Renders every `/v1` error as the standard envelope:
- *   { "error": { "code", "message", "requestId" } }
+ * Renders every `/v1` error as the Plaid-shape envelope:
  *
- * Maps DomainError (`@workspace/shared/errors`) and NestJS HttpException; unknown
- * errors become a generic 500 with the real cause sent to Sentry. Applied
- * per-controller via `@UseFilters` — `/v1`-scoped, BFF/health responses are
- * untouched.
+ *   {
+ *     "error": {
+ *       "code": "not_found",
+ *       "error_type": "NOT_FOUND",
+ *       "message": "Organization not found",
+ *       "requestId": "..."
+ *     }
+ *   }
+ *
+ * Backwards-compatible extension of the prior envelope: `code`, `message`,
+ * `requestId` retained verbatim. The `documentation_url` field stays
+ * optional in the schema (consumers may parse it on inbound responses) but
+ * is not emitted today — the developer hub it pointed to was archived to
+ * `.context/archive/apps-docs-2026-05-21/` on 2026-05-21.
+ *
+ * Maps DomainError (`@workspace/shared/errors`) and NestJS HttpException;
+ * unknown errors become a generic 500 with the real cause sent to Sentry.
+ * Applied per-controller via `@UseFilters` — `/v1`-scoped, BFF / health
+ * responses are untouched.
+ *
+ * Per docs/api/ERRORS.md.
  */
 @Catch()
 export class DomainExceptionFilter implements ExceptionFilter {
@@ -90,6 +122,14 @@ export class DomainExceptionFilter implements ExceptionFilter {
       )
     }
 
-    res.status(status).json({ error: { code, message, requestId } })
+    // Unmapped 5xx (502/504/etc.) must fall into the INTERNAL family,
+    // not "INVALID_REQUEST" — emitting a server-error status with a
+    // client-error family contradicts the envelope contract.
+    const error_type =
+      STATUS_FAMILY[status] ?? (status >= 500 ? "INTERNAL" : "INVALID_REQUEST")
+
+    res.status(status).json({
+      error: { code, error_type, message, requestId },
+    })
   }
 }

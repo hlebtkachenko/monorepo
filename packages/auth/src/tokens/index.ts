@@ -1,20 +1,3 @@
-export { signSignupToken, verifySignupToken, type SignupClaims } from "./signup"
-export {
-  signLoginEmailToken,
-  verifyLoginEmailToken,
-  type LoginEmailClaims,
-} from "./login-email"
-export {
-  signOnboardingStateToken,
-  verifyOnboardingStateToken,
-  type OnboardingStateClaims,
-} from "./onboarding-state"
-export {
-  generateRawInviteToken,
-  hashInviteToken,
-  INVITE_TOKEN_BYTES,
-  type InviteRecord,
-} from "./invite"
 export {
   generateRawApiKey,
   hashApiKey,
@@ -22,12 +5,6 @@ export {
   API_KEY_PREFIX,
   type GeneratedApiKey,
 } from "./api-key"
-export {
-  signActiveWorkspaceToken,
-  verifyActiveWorkspaceToken,
-  type ActiveWorkspaceClaims,
-} from "./active-workspace"
-export { TokenError } from "./jwt"
 
 // Unified opaque-token system (ADR-0022). See ./README.md.
 export {
@@ -46,6 +23,7 @@ export {
   DEFAULT_TTL_SECONDS,
   consumeToken,
   expireDueAuthTokens,
+  extendAuthTokenExpiry,
   hashUserAgent,
   mintToken,
   pruneTerminalAuthTokens,

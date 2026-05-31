@@ -1,7 +1,11 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { getTranslations } from "@workspace/i18n/server"
-import { AUTH_ASIDE_LOGOS } from "@workspace/shared"
+import {
+  getBuildVersion,
+  Logo,
+  PARTNER_PLACEHOLDER_NAMES,
+} from "@workspace/ui/brand-assets"
 import {
   AuthShell,
   AuthShellAside,
@@ -19,7 +23,6 @@ import {
   AuthAsideTop,
 } from "@workspace/ui/blocks/auth-aside"
 import { Marquee } from "@workspace/ui/components/marquee"
-import { WalletMinimal } from "@workspace/ui/lib/icons"
 
 import { LanguagePicker } from "../../_components/language-picker"
 import { AuthHeaderLinkProvider } from "./_components/auth-header-link"
@@ -42,13 +45,12 @@ export default async function AuthDefaultLayout({
         <AuthShellLeft>
           <AuthShellHeader>
             <div className="flex w-full items-center justify-between gap-4">
-              <span className="inline-flex items-center gap-2 text-base font-semibold tracking-tight">
-                <WalletMinimal
-                  className="size-5 text-foreground"
-                  aria-hidden="true"
-                />
-                {brand}
-              </span>
+              <Logo
+                variant="horizontal"
+                tone="primary"
+                className="h-6 w-auto"
+                aria-label={brand}
+              />
               <AuthHeaderRight
                 defaultHref={tBrand("returnLinkHref")}
                 defaultLabel={tBrand("returnLinkLabel")}
@@ -59,7 +61,7 @@ export default async function AuthDefaultLayout({
           <AuthShellFooter>
             <div className="flex w-full flex-wrap items-center justify-between gap-3 text-sm">
               <span>
-                © {year} {brand}
+                © {year} {brand}. {getBuildVersion()}
               </span>
               <div className="flex items-center gap-4">
                 <Link
@@ -105,9 +107,9 @@ export default async function AuthDefaultLayout({
                   pauseOnHover
                   repeat={3}
                   className="mt-2 [--duration:32s] [--gap:2.25rem]"
-                  aria-label="Companies using Afframe"
+                  aria-label={tAside("partnersLabel", { brand })}
                 >
-                  {AUTH_ASIDE_LOGOS.map((name) => (
+                  {PARTNER_PLACEHOLDER_NAMES.map((name) => (
                     <span
                       key={name}
                       className="font-heading text-sm font-semibold tracking-tight opacity-70"

@@ -26,9 +26,20 @@ export function resolveThrottleKey(
   return `ip:${ip ?? "unknown"}`
 }
 
-/** Throttler guard that rate-limits per API key (see {@link resolveThrottleKey}). */
+/**
+ * Throttler guard that rate-limits per API key (see {@link resolveThrottleKey})
+ * and emits the IETF `RateLimit-*` response headers (per
+ * `draft-ietf-httpapi-ratelimit-headers`) instead of the older `X-RateLimit-*`
+ * names. `Retry-After` on 429 is set by the parent class.
+ *
+ * The override happens via the property initializer — subclass fields run
+ * AFTER the parent constructor body, so reassigning `headerPrefix` here wins
+ * over the parent's default `"X-RateLimit"`. See docs/api/RATE-LIMITS.md.
+ */
 @Injectable()
 export class ApiKeyThrottlerGuard extends ThrottlerGuard {
+  protected override headerPrefix = "RateLimit"
+
   protected override async getTracker(
     req: Record<string, unknown>,
   ): Promise<string> {

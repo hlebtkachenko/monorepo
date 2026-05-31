@@ -71,6 +71,14 @@ interface Props {
   ) => Promise<{ ok: boolean; error?: string }>
   onSignOut?: () => Promise<void>
   onNavigate: (href: string) => void
+  /**
+   * When true, the block skips its own `onClearLoginEmail` + `onNavigate(next)`
+   * on a non-2FA success. Use this when `onSignIn` is a Server Action that
+   * calls `redirect()` itself: the framework navigates atomically with the
+   * session cookie write, so a follow-up `router.push` would race it. The
+   * 2FA branch is unaffected: the form still routes to `mfaHref`.
+   */
+  noopOnSuccess?: boolean
 }
 
 export function LoginPasswordForm({
@@ -87,6 +95,7 @@ export function LoginPasswordForm({
   onSendMagicLink,
   onSignOut,
   onNavigate,
+  noopOnSuccess = false,
 }: Props) {
   const next = sanitizeNext(nextProp, defaultNext)
 
@@ -136,7 +145,9 @@ export function LoginPasswordForm({
       }
       // When there is a post-sign-in gate (admin allowlist), do NOT pass
       // callbackURL so the browser doesn't race ahead of the gate check.
-      if (!afterSignInGate) {
+      // Same applies when `onSignIn` is a Server Action that handles
+      // navigation itself via `redirect()`: the action ignores callbackURL.
+      if (!afterSignInGate && !noopOnSuccess) {
         signInOpts.callbackURL = next
       }
       const result = await onSignIn(signInOpts)
@@ -157,9 +168,19 @@ export function LoginPasswordForm({
           return
         }
       }
+      // `noopOnSuccess` means `onSignIn` is a Server Action that already
+      // called `redirect()`: the framework has navigated the browser
+      // atomically with the session cookie write. Skip our own clear +
+      // router.push to avoid racing the framework's NEXT_REDIRECT response.
+      if (noopOnSuccess) return
       await onClearLoginEmail()
       onNavigate(next)
     } catch (err) {
+      // A server-action `redirect()` throws an error whose `digest` starts
+      // with "NEXT_REDIRECT"; the framework must see it to navigate. If we
+      // swallow it the page silently stays on /auth/login and the message
+      // ("NEXT_REDIRECT;…") leaks into the form as a fake error. Re-throw.
+      if (isNextRedirectError(err)) throw err
       setServerError((err as Error).message ?? messages.invalidCredentials)
     }
   }
@@ -309,6 +330,16 @@ export function LoginPasswordForm({
         {magicLinkSending ? messages.submitting : messages.emailMeLink}
       </Button>
     </div>
+  )
+}
+
+function isNextRedirectError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "digest" in err &&
+    typeof (err as { digest?: unknown }).digest === "string" &&
+    (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
   )
 }
 

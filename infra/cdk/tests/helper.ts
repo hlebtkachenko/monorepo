@@ -12,7 +12,10 @@ export const TEST_DOMAIN = "test.example.com"
 // Deliberately NOT a subdomain of TEST_DOMAIN — proves adminDomain is an
 // independent value, not derived from the web domain.
 export const TEST_ADMIN_DOMAIN = "admin-console.example.net"
-export const TEST_ALERT_EMAIL = "test@example.com"
+// Deliberately on neither TEST_DOMAIN nor TEST_ADMIN_DOMAIN — proves the
+// mail-from address is plumbed independently (a separate Resend-verified
+// domain in real life).
+export const TEST_MAIL_FROM_ADDRESS = "no-reply@mail.example.org"
 export const TEST_ENV_NAME = "test"
 
 interface BuiltApp {
@@ -25,47 +28,40 @@ interface BuiltApp {
   readonly backup: BackupStack
 }
 
-export const TEST_CLOUDFLARE_TUNNEL_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-cloudflare-tunnel-token-AbCdEf`
-export const TEST_RESEND_API_KEY_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-resend-api-key-GhIjKl`
-export const TEST_BETTER_AUTH_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-better-auth-secret-MnOpQr`
-export const TEST_APP_TOKEN_SECRET_ARN = `arn:aws:secretsmanager:${TEST_REGION}:${TEST_ACCOUNT}:secret:monorepo-${TEST_ENV_NAME}-app-token-secret-StUvWx`
+// SSM SecureString parameter names that AppStack hardcodes per envName.
+// Exported so tests can pin assertions against the exact name strings.
+export const TEST_TUNNEL_TOKEN_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/cloudflare-tunnel-token`
+export const TEST_BETTER_AUTH_SECRET_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/better-auth-secret`
+export const TEST_RESEND_API_KEY_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/resend-api-key`
 
-export function buildTestApp(): BuiltApp {
+export function buildTestApp(envName: string = TEST_ENV_NAME): BuiltApp {
   const app = new App({
     context: {
       [`availability-zones:account=${TEST_ACCOUNT}:region=${TEST_REGION}`]: [
         "eu-central-1a",
         "eu-central-1b",
       ],
-      // Workflow-managed secret ARNs — AppStack reads each via
-      // node.tryGetContext and feeds Secret.fromSecretCompleteArn. The full
-      // ARN (with random 6-char suffix) keeps the task def `valueFrom` and
-      // the IAM grantRead policy resource pinned to the same value.
-      cloudflareTunnelSecretArn: TEST_CLOUDFLARE_TUNNEL_SECRET_ARN,
-      resendApiKeySecretArn: TEST_RESEND_API_KEY_SECRET_ARN,
-      betterAuthSecretArn: TEST_BETTER_AUTH_SECRET_ARN,
-      appTokenSecretArn: TEST_APP_TOKEN_SECRET_ARN,
     },
   })
 
   const stackEnv = { account: TEST_ACCOUNT, region: TEST_REGION }
 
-  const network = new NetworkStack(app, `Network-${TEST_ENV_NAME}`, {
+  const network = new NetworkStack(app, `Network-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
   })
 
-  const data = new DataStack(app, `Data-${TEST_ENV_NAME}`, {
+  const data = new DataStack(app, `Data-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     vpc: network.vpc,
     dataSubnets: network.dataSubnets,
     appSecurityGroupId: network.appSecurityGroup.securityGroupId,
   })
 
-  const appStack = new AppStack(app, `App-${TEST_ENV_NAME}`, {
+  const appStack = new AppStack(app, `App-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     vpc: network.vpc,
     publicSubnets: network.publicSubnets,
     appSecurityGroup: network.appSecurityGroup,
@@ -78,32 +74,31 @@ export function buildTestApp(): BuiltApp {
     adminRepository: data.adminRepository,
     domain: TEST_DOMAIN,
     adminDomain: TEST_ADMIN_DOMAIN,
+    mailFromAddress: TEST_MAIL_FROM_ADDRESS,
   })
 
-  const security = new SecurityStack(app, `Security-${TEST_ENV_NAME}`, {
+  const security = new SecurityStack(app, `Security-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     appStack,
     dataStack: data,
-    alertEmail: TEST_ALERT_EMAIL,
   })
 
   const observability = new ObservabilityStack(
     app,
-    `Observability-${TEST_ENV_NAME}`,
+    `Observability-${envName}`,
     {
       env: stackEnv,
-      envName: TEST_ENV_NAME,
+      envName,
       appStack,
       dataStack: data,
-      alertEmail: TEST_ALERT_EMAIL,
       killSwitchTopic: security.killSwitchTopic,
     },
   )
 
-  const backup = new BackupStack(app, `Backup-${TEST_ENV_NAME}`, {
+  const backup = new BackupStack(app, `Backup-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     appStack,
     dataStack: data,
     appSecurityGroup: network.appSecurityGroup,

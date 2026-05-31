@@ -66,9 +66,15 @@ const NONEXISTENT_ORG_SLUG = "no-such-org-in-this-db"
 // ---------------------------------------------------------------------------
 
 /**
- * Perform the two-step email → password login with the seeded credentials
+ * Perform the two-step email + password login with the seeded credentials
  * and wait until the browser has navigated away from the password step.
  * Returns after a Better Auth session cookie has been set.
+ *
+ * The password submit is a Server Action that calls `redirect()`: the
+ * browser sees one atomic response carrying both the session cookie and
+ * the 303 Location. No client-side `router.push` runs, so `waitForURL`
+ * is sufficient and the prior `networkidle` workaround is no longer
+ * needed.
  */
 async function loginAsSeededOwner(
   page: import("@playwright/test").Page,
@@ -81,11 +87,12 @@ async function loginAsSeededOwner(
   await page.locator("input#password").fill(seed.password)
   await page.getByRole("button", { name: "Sign in", exact: true }).click()
 
-  // Wait until the password step is left (session established).
-  await page.waitForURL(
-    (url) => !url.pathname.includes("/auth/login/password"),
-    { timeout: 15_000 },
-  )
+  // The Server Action's atomic redirect lands the browser on a non-/auth
+  // URL in one shot. Wait for that single navigation to commit and the
+  // helper is done.
+  await page.waitForURL((url) => !url.pathname.includes("/auth/login"), {
+    timeout: 15_000,
+  })
 }
 
 // ---------------------------------------------------------------------------

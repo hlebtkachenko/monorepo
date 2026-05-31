@@ -1,7 +1,22 @@
 {
   "brand": {
     "name": "Afframe",
-    "tagline": "A calmer place to manage accounting. Now with agents.",
+    "tagline": "Agent-native accounting platform",
+    "shortDescription": "<BRAND-SHORT-DESCRIPTION>",
+    "description": "<BRAND-DESCRIPTION>",
+    "elevatorPitch": "<BRAND-ELEVATOR-PITCH>",
+    "mission": "<BRAND-MISSION>",
+    "vision": "<BRAND-VISION>",
+    "valueProp": "<BRAND-VALUE-PROP>",
+    "legalName": "H&A PD LIMITED",
+    "legalAddress": "West Kensington Court, Edith Villas, London, England, W14 9AB",
+    "mailingAddress": "West Kensington Court, Edith Villas, London, England, W14 9AB",
+    "vatId": "<BRAND-VAT-ID>",
+    "registrationId": "14381245",
+    "copyrightHolder": "© {year} Afframe",
+    "ogTitle": "<BRAND-OG-TITLE>",
+    "ogDescription": "<BRAND-OG-DESCRIPTION>",
+    "metaKeywords": "<BRAND-META-KEYWORDS>",
     "returnLinkLabel": "Return to afframe.com",
     "returnLinkHref": "https://afframe.com"
   },
@@ -26,6 +41,7 @@
     "aside": {
       "headline": "A calmer place to manage accounting. Now with agents.",
       "subtitle": "{brand} brings documents, postings, and reports into one workspace where accountants and AI agents can work together.",
+      "partnersLabel": "Companies using {brand}",
       "quote": {
         "text": "Afframe replaced five tools and gave us back our Friday nights. Our team finally has time to advise clients, not chase receipts.",
         "author": "Lukáš Krejčí",
@@ -272,6 +288,17 @@
         "description": "You're signed in as {sessionEmail}. This invite link was issued for {claimEmail}.",
         "instruction": "Sign out to continue with this invite link.",
         "signOut": "Sign out and continue"
+      },
+      "landing": {
+        "metaTitle": "Continue invitation",
+        "title": "Your invitation is ready",
+        "descriptionGeneric": "Click the button below to continue.",
+        "continue": "Continue to invitation",
+        "invalid": {
+          "title": "This link is invalid or has expired",
+          "description": "The invitation link has already been used, expired, or is invalid. Contact your team admin to receive a new invitation.",
+          "contactSupport": "Contact support"
+        }
       }
     }
   },
@@ -451,6 +478,16 @@
         "exploreAgents": "Explore AI agents",
         "exploreAgentsDescription": "See how agents can take routine work off your plate."
       }
+    },
+    "revalidate": {
+      "metaTitle": "Confirm your identity",
+      "title": "Confirm your identity",
+      "description": "For your security, please re-enter your password before continuing.",
+      "passwordLabel": "Password",
+      "submit": "Confirm",
+      "submitting": "Confirming…",
+      "invalidCredentials": "Incorrect password. Try again.",
+      "error": "Something went wrong. Try again."
     },
     "errors": {
       "sessionExpired": "Your onboarding session expired. Sign in to continue.",

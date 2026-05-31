@@ -18,22 +18,39 @@
 // stop risks DB corruption). Repeated SNS retries detect desiredCount=0
 // and no-op so the action is idempotent.
 //
+// On a stop trigger the handler stops ECS (desiredCount=0) AND, when
+// RDS_INSTANCE_IDENTIFIER is set, stops that env's RDS instance — RDS is the
+// largest always-on cost and stopping it is fully reversible (AFF cost review
+// 2026-05-31). The RDS stop is best-effort: it tags cost-stop-requested=true
+// so the RdsRestartWatcher re-stops after AWS's ~7-day forced restart, and an
+// RDS failure is logged but does not mask the ECS stop.
+//
 // Required env vars:
 //   CLUSTER_NAME              ECS cluster name
 //   SERVICE_NAME              ECS service name
 //   EXPECTED_TOPIC_ARN        SNS topic ARN that may trigger this Lambda
 //   KILL_SWITCH_ALARM_NAMES   comma-separated allowlist of CW alarm names
+// Optional env vars:
+//   RDS_INSTANCE_IDENTIFIER   RDS instance to stop alongside ECS
 
 import {
   DescribeServicesCommand,
   ECSClient,
   UpdateServiceCommand,
 } from "@aws-sdk/client-ecs"
+import {
+  AddTagsToResourceCommand,
+  DescribeDBInstancesCommand,
+  RDSClient,
+  StopDBInstanceCommand,
+} from "@aws-sdk/client-rds"
 
 const ecs = new ECSClient({})
+const rds = new RDSClient({})
 
 const CLUSTER_NAME = process.env.CLUSTER_NAME
 const SERVICE_NAME = process.env.SERVICE_NAME
+const RDS_INSTANCE_IDENTIFIER = process.env.RDS_INSTANCE_IDENTIFIER
 const EXPECTED_TOPIC_ARN = process.env.EXPECTED_TOPIC_ARN
 const ALLOWED_ALARM_NAMES = new Set(
   (process.env.KILL_SWITCH_ALARM_NAMES ?? "")
@@ -86,6 +103,64 @@ async function stopEcsService(reason) {
   )
   log("service-stopped", { reason, SERVICE_NAME })
   return { action: "stop-ecs", reason }
+}
+
+// Stops the env's RDS instance and tags it cost-stop-requested=true so the
+// RdsRestartWatcher keeps it down past AWS's 7-day forced restart. Best-effort
+// and idempotent: no-ops when the DB is not in `available` state (already
+// stopping/stopped), and never throws — an RDS failure is logged and returned
+// as { action: "error" } rather than masking the ECS stop the caller already
+// performed.
+async function stopRdsInstance(reason) {
+  if (!RDS_INSTANCE_IDENTIFIER) {
+    return { action: "skip", reason: "no-rds-configured" }
+  }
+  try {
+    const desc = await rds.send(
+      new DescribeDBInstancesCommand({
+        DBInstanceIdentifier: RDS_INSTANCE_IDENTIFIER,
+      }),
+    )
+    const db = desc.DBInstances?.[0]
+    if (!db) {
+      log("rds-not-found", { RDS_INSTANCE_IDENTIFIER })
+      return { action: "skip", reason: "rds-not-found" }
+    }
+    if (db.DBInstanceStatus !== "available") {
+      log("rds-not-available", { status: db.DBInstanceStatus })
+      return { action: "noop", reason: `rds-${db.DBInstanceStatus}` }
+    }
+    // Tag BEFORE stopping so the RdsRestartWatcher sees the intent even if
+    // the StopDBInstance call is what flips the instance out of `available`.
+    if (db.DBInstanceArn) {
+      await rds.send(
+        new AddTagsToResourceCommand({
+          ResourceName: db.DBInstanceArn,
+          Tags: [{ Key: "cost-stop-requested", Value: "true" }],
+        }),
+      )
+    }
+    await rds.send(
+      new StopDBInstanceCommand({
+        DBInstanceIdentifier: RDS_INSTANCE_IDENTIFIER,
+      }),
+    )
+    log("rds-stopped", { reason, RDS_INSTANCE_IDENTIFIER })
+    return { action: "stop-rds", reason }
+  } catch (err) {
+    log("rds-stop-threw", { err: String(err) })
+    return { action: "error", reason: String(err) }
+  }
+}
+
+// Stop the whole env: ECS first (the request-serving compute), then RDS.
+// stopEcsService may throw (network failure) and that propagates to the
+// caller's try/catch so the Lambda Errors metric ticks; stopRdsInstance is
+// reached only when ECS did not throw and never throws itself.
+async function stopEnv(reason) {
+  const ecsResult = await stopEcsService(reason)
+  const rdsResult = await stopRdsInstance(reason)
+  return { ...ecsResult, rds: rdsResult }
 }
 
 function isKnownAlarm(alarmName) {
@@ -154,7 +229,7 @@ export const handler = async (event) => {
       try {
         results.push({
           source: "budget",
-          ...(await stopEcsService("budget-breach")),
+          ...(await stopEnv("budget-breach")),
         })
       } catch (err) {
         log("ecs-stop-threw", { err: String(err) })
@@ -176,7 +251,7 @@ export const handler = async (event) => {
     }
     if (isKnownAlarm(alarmName)) {
       try {
-        results.push({ alarmName, ...(await stopEcsService(alarmName)) })
+        results.push({ alarmName, ...(await stopEnv(alarmName)) })
       } catch (err) {
         log("ecs-stop-threw", { alarmName, err: String(err) })
         results.push({ alarmName, action: "error", reason: String(err) })

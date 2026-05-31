@@ -1,0 +1,20 @@
+[Unit]
+Description=Vault backup timer — fires every 6h
+Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m2--backup-setup-restic--r2--b2--dr-restore-drill
+
+[Timer]
+# Every 6h (00:00, 06:00, 12:00, 18:00 UTC). The vault-backup script
+# auto-detects "Sunday before 06:00 UTC" and runs the weekly B2 mirror +
+# `restic check --read-data-subset=5%` on that tick.
+OnCalendar=*-*-* 00,06,12,18:00:00 UTC
+
+# Catch up if the host was down at the scheduled fire time.
+Persistent=true
+
+# Spread fire by up to 5 min to avoid stampedes (cosmetic; single host).
+RandomizedDelaySec=300
+
+Unit=vault-backup.service
+
+[Install]
+WantedBy=timers.target

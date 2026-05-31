@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react"
 
+import { IconProvider } from "@workspace/ui/icon-packs"
 import { BookOpenText, FolderOpen, PiggyBank } from "@workspace/ui/lib/icons"
 
 import { AppRail } from "./app-rail"
@@ -7,6 +8,13 @@ import { AppRail } from "./app-rail"
 const meta: Meta<typeof AppRail> = {
   title: "Blocks/AppRail",
   parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <IconProvider>
+        <Story />
+      </IconProvider>
+    ),
+  ],
 }
 export default meta
 

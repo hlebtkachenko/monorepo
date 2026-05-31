@@ -9,6 +9,8 @@ import {
   ContextMenuRadioItem,
   ContextMenuTrigger,
 } from "@workspace/ui/components/context-menu"
+import { useIcons } from "@workspace/ui/icon-packs"
+import type { IconName } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
 export type RailMode = "expanded" | "icon-only"
@@ -18,8 +20,19 @@ export interface RailItem {
   key: string
   /** Visible label below the icon (in expanded mode). Tooltip in icon-only mode. */
   label: string
-  /** Rendered icon — pass `<Icon className="size-6" />` already-built. */
-  icon: React.ReactNode
+  /**
+   * Icon source — pick ONE:
+   *   - `iconName`: string from the `IconName` union. The rail resolves
+   *     the component from the active `IconProvider` pack at render
+   *     time. Use this when constructing items in a server component
+   *     so the icon JSX stays out of the server boundary (and the
+   *     active pack drives which library renders).
+   *   - `icon`: a pre-built React node (e.g. `<Home className="size-5" />`).
+   *     Use this when you have a custom icon that isn't part of any pack.
+   * If both are provided, `icon` wins.
+   */
+  iconName?: IconName
+  icon?: React.ReactNode
   /** Href for the underlying `<a>`. Defaults to `#`. */
   href?: string
   /** Adds active styling (filled wrap, black icon). */
@@ -127,6 +140,11 @@ export function AppRail({
 }
 
 function RailNavItem({ item, mode }: { item: RailItem; mode: RailMode }) {
+  const icons = useIcons()
+  const PackIcon = item.iconName ? icons[item.iconName] : null
+  const iconNode =
+    item.icon ?? (PackIcon ? <PackIcon className="size-5" /> : null)
+
   return (
     <a
       href={item.href ?? "#"}
@@ -153,7 +171,7 @@ function RailNavItem({ item, mode }: { item: RailItem; mode: RailMode }) {
           "group-data-[active]:bg-[#CDCECE]",
         )}
       >
-        {item.icon}
+        {iconNode}
       </span>
       {mode === "expanded" && (
         <span className="absolute inset-x-0 top-full mt-0.5 text-center text-[11px] leading-tight font-semibold text-[#4E5255]">

@@ -1,7 +1,14 @@
-import { render, screen } from "@testing-library/react"
+import { render as rtlRender, screen } from "@testing-library/react"
 import { describe, it, expect, beforeEach } from "vitest"
 
+import { IconProvider } from "@workspace/ui/icon-packs"
+
 import { AppRail } from "./app-rail"
+
+// Wrap every render with IconProvider — AppRail calls useIcons()
+// unconditionally and the hook throws outside a provider.
+const render = ((ui: Parameters<typeof rtlRender>[0]) =>
+  rtlRender(<IconProvider>{ui}</IconProvider>)) as typeof rtlRender
 
 beforeEach(() => {
   localStorage.clear()

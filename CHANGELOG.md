@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Infrastructure
+
+- Rolled out the codified account-wide $55 cost guard + cost kill-switch to AWS staging + production. The three CloudFormation budgets (`BudgetTotal`, `BudgetDataTransfer`, `BudgetAccountTotal`) are recreated with the codified config and the `AutoStopFn` gains `rds:StopDBInstance`. Deployed with `v0.2.5` alongside the env-power auto-stop wiring. (CDK budget replace — non-data-bearing; reviewed cdk diff.)
+
 ## [v0.2.5] — 2026-06-01
 
 Patch release: code-scanning + supply-chain follow-ups to v0.2.4. No app-surface changes.

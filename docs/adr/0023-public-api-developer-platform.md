@@ -60,7 +60,7 @@ Negative / trade-offs:
 Follow-up work required:
 
 - AFF-73 — admin dashboard for key management + key prefix migration.
-- A new Linear initiative for the developer platform (CLI, MCP, SDK, webhooks, sandbox). Each ships as a separate phase with `/gsd:plan-phase`.
+- A new Linear initiative for the developer platform (CLI, MCP, SDK, webhooks, sandbox). Each ships as a separate phase.
 - Update `.gitleaks.toml` (new file) with Czech finance rules + `affk_live_` rule. Done in this same change (see [`docs/runbooks/SECRETS.md`](../runbooks/SECRETS.md) for context).
 - Wire `/.well-known/security.txt` (web app responsibility, not the API). RFC 9116.
 - Update `SECURITY.md` with the `security@afframe.com` alias once the mailbox exists.

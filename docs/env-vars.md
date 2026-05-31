@@ -1,17 +1,19 @@
 # Environment variable registry
 
-> **Migration in progress (2026-05-22 → 2026-06):** `BETTER_AUTH_SECRET`,
-> `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN` are moving from AWS Secrets
-> Manager to AWS SSM Parameter Store SecureString (runtime cache for ECS),
-> sourced from Vault-on-VPS (source of truth). Rows for those three will
-> change in M8 once the migration completes. See
-> [`docs/plans/SECRETS-MIGRATION.md`](plans/SECRETS-MIGRATION.md).
+> **As-built 2026-05-31.** `BETTER_AUTH_SECRET`, `RESEND_API_KEY`,
+> `CLOUDFLARE_TUNNEL_TOKEN` live in Vault-on-VPS (source of truth) and are
+> mirrored to AWS SSM Parameter Store SecureString (runtime cache for ECS,
+> read via `EcsSecret.fromSsmParameter`). Legacy AWS Secrets Manager copies
+> were deleted (M4.5). Rotation: `vault kv put` → see
+> [`docs/runbooks/SECRETS-ROTATION.md`](runbooks/SECRETS-ROTATION.md).
+> Full history: [`docs/plans/SECRETS-MIGRATION.md`](plans/SECRETS-MIGRATION.md).
 
 Canonical list of every env var read by the app. Pair with
 `scripts/generate-env.sh` (auto-creates `apps/web/.env.local` with random
 secrets) for local dev, or copy `apps/web/.env.example` and fill in
 placeholders by hand. In CI / production, values come from GitHub Actions
-secrets and AWS Secrets Manager / SSM Parameter Store; see
+secrets, AWS SSM Parameter Store (app secrets, synced from Vault), and
+AWS Secrets Manager (RDS credentials only); see
 `docs/runbooks/AWS-DEPLOY.md` for the wiring chain.
 
 Section labels track which package reads the variable.

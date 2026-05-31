@@ -1,0 +1,23 @@
+{
+  "name": "@workspace/cloudflare-sleeping",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker that serves a branded 'app is asleep' page (public/index.html) on the public hosts while the Fargate env is cold-paused. Routes are bound only during a pause, so it costs nothing when the app is live.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "sleep": "bash scripts/routes.sh on",
+    "wake": "bash scripts/routes.sh off",
+    "routes": "bash scripts/routes.sh status"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260524.1",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.94.0"
+  }
+}

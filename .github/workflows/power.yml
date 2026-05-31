@@ -91,6 +91,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       id-token: write # OIDC federation to assume the deploy role
+      contents: read # checkout, to run the sleeping-page route toggle script
     env:
       ENV_NAME: ${{ matrix.environment }}
       ACTION: ${{ inputs.action }}
@@ -99,6 +100,10 @@ jobs:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
           egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Mask account-bearing secrets in logs
         env:
@@ -185,4 +190,23 @@ jobs:
               ;;
             *)
               echo "Unknown action: ${ACTION}"; exit 1 ;;
+          esac
+
+      # Edge "app is asleep" page (infra/cloudflare-sleeping). Pausing binds
+      # the Worker routes for THIS env; resuming removes them. Resume runs
+      # only after the step above waited for services-stable, so the page
+      # stays up until the origin is actually healthy. No app redeploy — just
+      # Cloudflare API calls. See infra/cloudflare-sleeping/README.md.
+      - name: Toggle sleeping page (${{ inputs.action }} → ${{ matrix.environment }})
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "$ACTION" in
+            cold-pause|warm-pause)
+              bash infra/cloudflare-sleeping/scripts/routes.sh on "$ENV_NAME" ;;
+            resume)
+              bash infra/cloudflare-sleeping/scripts/routes.sh off "$ENV_NAME" ;;
+            *)
+              echo "no sleeping-page toggle for action: $ACTION" ;;
           esac

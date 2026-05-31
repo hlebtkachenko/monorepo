@@ -23,8 +23,15 @@ Measured 2026-05-31 on staging: RDS stopped→available **6m 33s**; ECS scale
 `.github/workflows/power.yml` ("Env Power"). One job, OIDC auth (no static
 keys, no secrets printed).
 
-**From the Actions tab:** Env Power → Run workflow → pick `environment` +
-`action` → Run. Production is gated by the `production` GitHub environment.
+**From the Actions tab:** Env Power → Run workflow → pick `environment`
+(`staging` | `production` | `all`) + `action` → Run. Production is gated by the
+`production` GitHub environment.
+
+**`environment: all`** fans out to BOTH envs as a matrix — each leg runs as its
+own job with its own GitHub environment + OIDC role (the deploy-role trust
+policy is exact-match per env, so a single job can't assume both). GitHub
+`workflow_dispatch` has no multi-select checkbox input, so `all` is the
+idiomatic "both".
 
 **From the CLI (one line):**
 
@@ -33,6 +40,7 @@ gh workflow run power.yml -f environment=production -f action=resume
 gh workflow run power.yml -f environment=production -f action=warm-pause
 gh workflow run power.yml -f environment=production -f action=cold-pause
 gh workflow run power.yml -f environment=staging    -f action=resume
+gh workflow run power.yml -f environment=all        -f action=cold-pause
 ```
 
 `resume` removes the `cost-stop-requested` tag first (so the RdsRestartWatcher

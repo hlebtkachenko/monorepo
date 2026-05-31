@@ -7,9 +7,16 @@
 #   - cold-pause : stop Fargate AND RDS              (~8 min to resume; RDS start)
 #   - resume     : start RDS if needed, scale Fargate to 1, wait healthy
 #
+# environment = staging | production | all. "all" fans out to BOTH envs as a
+# matrix — each leg runs as its own job with its own GitHub environment +
+# OIDC role (the deploy-role trust policy is exact-match per env, so a single
+# job cannot assume both; a matrix is the only correct way to do both at once).
+# GitHub workflow_dispatch has no multi-select checkbox input, so "all" is the
+# idiomatic "both".
+#
 # Trigger from the Actions tab (pick env + action) or one line:
 #   gh workflow run power.yml -f environment=production -f action=resume
-#   gh workflow run power.yml -f environment=production -f action=cold-pause
+#   gh workflow run power.yml -f environment=all        -f action=cold-pause
 #
 # Secret hygiene: OIDC only — no static AWS keys. The account id + deploy-role
 # ARNs are ::add-mask::'d before any step can echo them, and neither is ever
@@ -22,12 +29,13 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target environment"
+        description: "Target environment (all = both)"
         required: true
         type: choice
         options:
           - staging
           - production
+          - all
       action:
         description: "resume = bring up | warm-pause = stop Fargate (keep RDS) | cold-pause = stop Fargate + RDS"
         required: true
@@ -39,24 +47,52 @@ on:
 
 permissions: {}
 
-concurrency:
-  # One power action per env at a time — two concurrent toggles would race on
-  # the same ECS service / RDS instance.
-  group: power-${{ inputs.environment }}
-  cancel-in-progress: false
-
 jobs:
+  # Fan the single `environment` input into the list the power job matrixes
+  # over: "all" -> both envs, otherwise the one chosen.
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      envs: ${{ steps.fan.outputs.envs }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+      - id: fan
+        env:
+          SELECTED: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          case "$SELECTED" in
+            all)        echo 'envs=["staging","production"]' >> "$GITHUB_OUTPUT" ;;
+            staging|production) echo "envs=[\"$SELECTED\"]" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $SELECTED"; exit 1 ;;
+          esac
+
   power:
+    needs: setup
+    strategy:
+      fail-fast: false # one env failing must not cancel the other
+      matrix:
+        environment: ${{ fromJSON(needs.setup.outputs.envs) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Binds the per-env GitHub environment: scopes the deploy-role secret and
-    # applies the production protection rules (e.g. required approval) to any
-    # power action against prod. Also makes the OIDC subject env-scoped.
-    environment: ${{ inputs.environment }}
+    # Per-env GitHub environment: scopes the deploy-role secret, applies the
+    # production protection rules, and makes the OIDC subject env-scoped so the
+    # exact-match deploy-role trust policy accepts it.
+    environment: ${{ matrix.environment }}
+    # One power action per env at a time — two concurrent toggles would race on
+    # the same ECS service / RDS instance. Keyed per matrix env, not globally,
+    # so an `all` run does not serialize staging behind production.
+    concurrency:
+      group: power-${{ matrix.environment }}
+      cancel-in-progress: false
     permissions:
       id-token: write # OIDC federation to assume the deploy role
     env:
-      ENV_NAME: ${{ inputs.environment }}
+      ENV_NAME: ${{ matrix.environment }}
       ACTION: ${{ inputs.action }}
       AWS_REGION: ${{ vars.AWS_REGION }}
     steps:
@@ -94,7 +130,7 @@ jobs:
           audience: sts.amazonaws.com
           role-duration-seconds: 3600
 
-      - name: Power ${{ inputs.action }} → ${{ inputs.environment }}
+      - name: Power ${{ inputs.action }} → ${{ matrix.environment }}
         run: |
           set -euo pipefail
 

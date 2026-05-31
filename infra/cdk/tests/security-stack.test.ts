@@ -222,28 +222,35 @@ describe("SecurityStack", () => {
     })
   })
 
-  it("does NOT create the staging auto-stop on a non-staging env", () => {
-    // The auto-stop block is gated on envName === 'staging'; the default test
-    // env ('test') must not get it.
+  it("does NOT create the auto-stop on an env outside AUTO_STOP_ENVS", () => {
+    // The auto-stop block runs only for envs in AUTO_STOP_ENVS
+    // (staging + production); the default test env ('test') must not get it.
     const fns = template.findResources("AWS::Lambda::Function")
     const names = Object.values(fns).map(
       (f) =>
         (f as { Properties?: { FunctionName?: string } }).Properties
           ?.FunctionName,
     )
-    expect(names).not.toContain("monorepo-test-staging-autostop")
+    expect(names).not.toContain("monorepo-test-autostop")
   })
 })
 
-describe("SecurityStack staging auto-stop (staging env only)", () => {
+describe("SecurityStack auto-cold-pause (staging + production)", () => {
   const { security } = buildTestApp("staging")
   const template = Template.fromStack(security)
 
   it("creates the staging auto-stop Lambda", () => {
     template.hasResourceProperties("AWS::Lambda::Function", {
-      FunctionName: "monorepo-staging-staging-autostop",
+      FunctionName: "monorepo-staging-autostop",
       Handler: "index.handler",
       Runtime: "nodejs20.x",
+    })
+  })
+
+  it("also creates the auto-stop Lambda on production (pre-v1 cost control)", () => {
+    const prod = Template.fromStack(buildTestApp("production").security)
+    prod.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "monorepo-production-autostop",
     })
   })
 

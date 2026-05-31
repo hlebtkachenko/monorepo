@@ -1,0 +1,152 @@
+# Env Power — manual on/off for an environment without a redeploy.
+#
+# resume / warm-pause / cold-pause are plain AWS API calls (ECS desiredCount +
+# RDS start/stop). NO image build, NO ECR scan, NO CDK — it reuses whatever is
+# already deployed. Use it to park an idle env and bring it back fast:
+#   - warm-pause : stop Fargate, leave RDS running   (~1.5 min to resume)
+#   - cold-pause : stop Fargate AND RDS              (~8 min to resume; RDS start)
+#   - resume     : start RDS if needed, scale Fargate to 1, wait healthy
+#
+# Trigger from the Actions tab (pick env + action) or one line:
+#   gh workflow run power.yml -f environment=production -f action=resume
+#   gh workflow run power.yml -f environment=production -f action=cold-pause
+#
+# Secret hygiene: OIDC only — no static AWS keys. The account id + deploy-role
+# ARNs are ::add-mask::'d before any step can echo them, and neither is ever
+# printed. The job carries no DB creds / tunnel tokens / emails. See
+# docs/runbooks/ENV-POWER.md.
+
+name: Env Power (resume / warm / cold)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      action:
+        description: "resume = bring up | warm-pause = stop Fargate (keep RDS) | cold-pause = stop Fargate + RDS"
+        required: true
+        type: choice
+        options:
+          - resume
+          - warm-pause
+          - cold-pause
+
+permissions: {}
+
+concurrency:
+  # One power action per env at a time — two concurrent toggles would race on
+  # the same ECS service / RDS instance.
+  group: power-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  power:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Binds the per-env GitHub environment: scopes the deploy-role secret and
+    # applies the production protection rules (e.g. required approval) to any
+    # power action against prod. Also makes the OIDC subject env-scoped.
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write # OIDC federation to assume the deploy role
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      ACTION: ${{ inputs.action }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+    steps:
+      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        with:
+          egress-policy: audit
+
+      - name: Mask account-bearing secrets in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging)    echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-power-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Power ${{ inputs.action }} → ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+
+          CLUSTER="monorepo-${ENV_NAME}"
+          SVC="$(aws ecs list-services --cluster "$CLUSTER" \
+                  --query 'serviceArns[0]' --output text | xargs basename)"
+          SID="$(aws rds describe-db-instances \
+                  --query "DBInstances[?starts_with(DBInstanceIdentifier,'data-${ENV_NAME}')].DBInstanceIdentifier | [0]" \
+                  --output text)"
+          ACCT="$(aws sts get-caller-identity --query Account --output text)"
+          echo "::add-mask::$ACCT"
+          DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
+
+          echo "env=${ENV_NAME} action=${ACTION} cluster=${CLUSTER} service=${SVC} db=${SID}"
+
+          case "$ACTION" in
+            resume)
+              # Drop the keep-stopped tag first, else RdsRestartWatcher re-stops it.
+              aws rds remove-tags-from-resource --resource-name "$DB_ARN" \
+                --tag-keys cost-stop-requested || true
+              STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+                         --query 'DBInstances[0].DBInstanceStatus' --output text)"
+              if [ "$STATUS" != "available" ]; then
+                echo "RDS is '${STATUS}' — starting (this is the slow part on a cold resume)…"
+                aws rds start-db-instance --db-instance-identifier "$SID" >/dev/null || true
+                aws rds wait db-instance-available --db-instance-identifier "$SID"
+              fi
+              aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+                --desired-count 1 >/dev/null
+              echo "Scaled to 1, waiting for the service to stabilize…"
+              aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
+              echo "RESUMED: ${ENV_NAME} is up and healthy."
+              ;;
+            warm-pause)
+              aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+                --desired-count 0 >/dev/null
+              echo "WARM PAUSE: ${ENV_NAME} Fargate scaled to 0; RDS left running (resume ~1.5 min)."
+              ;;
+            cold-pause)
+              aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+                --desired-count 0 >/dev/null
+              # Tag before stop so RdsRestartWatcher keeps it down past AWS's
+              # ~7-day forced restart.
+              aws rds add-tags-to-resource --resource-name "$DB_ARN" \
+                --tags Key=cost-stop-requested,Value=true
+              STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+                         --query 'DBInstances[0].DBInstanceStatus' --output text)"
+              if [ "$STATUS" = "available" ]; then
+                aws rds stop-db-instance --db-instance-identifier "$SID" >/dev/null
+              fi
+              echo "COLD PAUSE: ${ENV_NAME} Fargate scaled to 0; RDS stopping (resume ~8 min)."
+              ;;
+            *)
+              echo "Unknown action: ${ACTION}"; exit 1 ;;
+          esac

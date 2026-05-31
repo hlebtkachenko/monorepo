@@ -66,7 +66,7 @@ vi.mock("@aws-sdk/client-sns", () => {
 })
 
 // @ts-expect-error - .mjs handler ships without declaration types
-import { handler } from "../lib/lambda/staging-autostop/index.mjs"
+import { handler } from "../lib/lambda/autostop/index.mjs"
 
 const HOUR = 3_600_000
 
@@ -83,7 +83,7 @@ function ecsWithTaskAgeHours(hours: number, desiredCount = 1) {
   }
 }
 
-describe("staging-autostop handler", () => {
+describe("autostop handler", () => {
   beforeEach(() => {
     ecsSend.mockReset()
     rdsSend.mockReset()

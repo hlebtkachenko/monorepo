@@ -1,14 +1,15 @@
-// Staging auto-stop (scheduled).
+// Env auto-cold-pause (scheduled).
 //
-// Triggered by an EventBridge schedule (every 30 min). Stops the staging
-// environment once its running task has been up longer than MAX_UPTIME_HOURS,
-// so a forgotten "I'll shut it down later" cannot quietly run for days
-// (AFF cost review 2026-05-31; see docs/runbooks/STAGING.md).
+// Triggered by an EventBridge schedule (every 30 min). Cold-pauses the env
+// (ECS desiredCount=0 + RDS stop) once its running task has been up longer
+// than MAX_UPTIME_HOURS, so a forgotten "I'll shut it down later" cannot
+// quietly run for days (AFF cost review 2026-05-31; see
+// docs/runbooks/ENV-POWER.md). Runs on staging and (pre-v1) production.
 //
 // This is a MAX-UPTIME TTL, not true request-level inactivity: traffic
 // terminates at Cloudflare (no ALB), so ECS has no cheap request signal. The
-// task's oldest startedAt is the uptime clock. A genuinely-needed long session
-// just gets restarted (one command); staging carries no uptime obligation.
+// task's oldest startedAt is the uptime clock. A still-needed session is just
+// resumed via the Env Power workflow (one command).
 //
 // On trip it stops ECS (desiredCount=0) AND RDS (reversible) + tags
 // cost-stop-requested=true (so the RdsRestartWatcher keeps RDS down), then

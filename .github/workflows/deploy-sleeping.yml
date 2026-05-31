@@ -1,0 +1,73 @@
+# Deploy the afframe-sleeping Worker (the "app is asleep" edge page).
+#
+# Push to main on `infra/cloudflare-sleeping/**` → auto-deploy.
+# Manual `workflow_dispatch` → one-off deploys (design refresh, testing).
+#
+# The Worker only intercepts traffic while its routes are bound (during a
+# pause); see .github/workflows/power.yml + infra/cloudflare-sleeping/README.md.
+# Deploying it does NOT bind any route — it just publishes the script + the
+# *.workers.dev preview URL.
+
+name: Deploy Sleeping Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/cloudflare-sleeping/**"
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: deploy-sleeping
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: infra/cloudflare-sleeping
+          wranglerVersion: "4.59.2"
+          command: deploy
+
+      - name: Smoke check the *.workers.dev preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          sub="$(curl -fsS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            | jq -r '.result.subdomain // empty')"
+          if [ -z "${sub}" ]; then
+            echo "::warning::no workers.dev subdomain registered — skipping smoke check"
+            exit 0
+          fi
+          url="https://afframe-sleeping.${sub}.workers.dev/"
+          echo "Preview: ${url}" >> "$GITHUB_STEP_SUMMARY"
+          # Allow a few seconds for the new deployment to propagate to the edge.
+          for i in 1 2 3 4 5; do
+            code="$(curl -sS -o /tmp/sleeping.html -w '%{http_code}' "${url}" || true)"
+            if grep -qi "asleep" /tmp/sleeping.html; then break; fi
+            echo "attempt ${i}: HTTP ${code}, retrying…"; sleep 4
+          done
+          echo "HTTP ${code}" >> "$GITHUB_STEP_SUMMARY"
+          grep -qi "asleep" /tmp/sleeping.html || { echo "::error::page body unexpected"; exit 1; }
+          [ "${code}" = "503" ] || echo "::warning::expected HTTP 503, got ${code}"
+          echo "Sleeping page served OK (HTTP ${code})." >> "$GITHUB_STEP_SUMMARY"

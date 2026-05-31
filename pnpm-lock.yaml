@@ -526,6 +526,18 @@ importers:
         specifier: ^4.94.0
         version: 4.94.0(@cloudflare/workers-types@4.20260524.1)
 
+  infra/cloudflare-sleeping:
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20260524.1
+        version: 4.20260524.1
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      wrangler:
+        specifier: ^4.94.0
+        version: 4.94.0(@cloudflare/workers-types@4.20260524.1)
+
   infra/openfga:
     dependencies:
       '@aws-sdk/client-ssm':

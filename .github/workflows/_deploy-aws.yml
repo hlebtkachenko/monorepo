@@ -1210,8 +1210,13 @@ jobs:
           # (/monorepo/${env}/cloudflare-tunnel-token, etc.) — no context
           # plumbing needed any more.
         run: |
+          # "Audit" is the account-global CloudTrail stack (one per account,
+          # not per-env — AFF cost review 2026-05-31 trap 4). Including it in
+          # `all` means it deploys in the SAME run that drops the per-env trail
+          # from Security-${ENV}, so there is no audit gap. Re-deploying it
+          # under both envs is a harmless no-op (same stack, same resources).
           case "$STACK_SCOPE" in
-            all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;
+            all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}" "Audit") ;;
             infra-only) STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}") ;;
             app-only)   STACKS=("App-${ENV_NAME}") ;;
             *) echo "::error::Unknown stack scope: $STACK_SCOPE"; exit 1 ;;

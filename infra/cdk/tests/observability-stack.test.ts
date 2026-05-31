@@ -18,9 +18,10 @@ describe("ObservabilityStack", () => {
     template.hasOutput("BillingTopicArn", {})
   })
 
-  it("has the 6 attack-vector alarms", () => {
+  it("has the 5 attack-vector alarms", () => {
+    // fargate-network-out-high was removed with Container Insights (AFF cost
+    // review 2026-05-31); the DataTransfer cost budget guards egress now.
     const expectedNames = [
-      "monorepo-test-fargate-network-out-high",
       "monorepo-test-rds-network-out-high",
       "monorepo-test-s3-put-rate-high",
       "monorepo-test-s3-bucket-size-high",
@@ -32,6 +33,13 @@ describe("ObservabilityStack", () => {
         AlarmName: name,
       })
     }
+    // The removed alarm must be gone.
+    const all = template.findResources("AWS::CloudWatch::Alarm")
+    const names = Object.values(all).map(
+      (a) =>
+        (a as { Properties?: { AlarmName?: string } }).Properties?.AlarmName,
+    )
+    expect(names).not.toContain("monorepo-test-fargate-network-out-high")
   })
 
   it("has the 2 manual Fargate critical alarms wired to 2 SNS topics", () => {
@@ -51,8 +59,8 @@ describe("ObservabilityStack", () => {
     expect(mem?.Properties?.AlarmActions?.length).toBe(2)
   })
 
-  it("has at least 8 alarms total (6 attack + 2 critical + monitoring facade)", () => {
+  it("has at least 7 alarms total (5 attack + 2 critical + monitoring facade)", () => {
     const all = template.findResources("AWS::CloudWatch::Alarm")
-    expect(Object.keys(all).length).toBeGreaterThanOrEqual(8)
+    expect(Object.keys(all).length).toBeGreaterThanOrEqual(7)
   })
 })

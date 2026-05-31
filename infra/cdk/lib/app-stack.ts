@@ -220,10 +220,25 @@ export class AppStack extends Stack {
           ? "stg"
           : "dev"
 
+    // Container Insights is DISABLED for cost. It publishes per-task /
+    // per-container custom metrics (CPU, memory, network, storage) to the
+    // ECS/ContainerInsights namespace and bills per metric — ~$5-9/mo per
+    // env even at zero traffic, the single largest trimmable CloudWatch line
+    // (AFF cost review 2026-05-31). Nothing load-bearing depends on it:
+    //   - The Fargate CPU/Memory CRITICAL kill-switch alarms read the FREE
+    //     AWS/ECS service-level metrics (CPUUtilization / MemoryUtilization),
+    //     not Container Insights.
+    //   - The only consumer was the fargate-network-out egress alarm
+    //     (ECS/ContainerInsights NetworkTxBytes); it is removed. Egress
+    //     runaway is now capped by the DataTransfer cost budget + the $55
+    //     Total budget → kill-switch, which catch the same failure as a
+    //     dollar signal instead of a bytes heuristic. No hard trade-off.
+    // Re-enable (ContainerInsights.ENABLED) only if per-container telemetry
+    // becomes worth the recurring cost once real traffic justifies it.
     this.cluster = new Cluster(this, "Cluster", {
       vpc: props.vpc,
       clusterName: `monorepo-${props.envName}`,
-      containerInsightsV2: ContainerInsights.ENABLED,
+      containerInsightsV2: ContainerInsights.DISABLED,
     })
 
     const publicSubnetSelection: SubnetSelection = {

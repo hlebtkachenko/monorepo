@@ -1,12 +1,6 @@
 import { createHash } from "node:crypto"
 import * as path from "node:path"
-import {
-  CfnOutput,
-  Duration,
-  RemovalPolicy,
-  Stack,
-  type StackProps,
-} from "aws-cdk-lib"
+import { CfnOutput, Duration, Stack, type StackProps } from "aws-cdk-lib"
 import { CfnBudget } from "aws-cdk-lib/aws-budgets"
 import {
   Alarm,
@@ -15,8 +9,7 @@ import {
   TreatMissingData,
 } from "aws-cdk-lib/aws-cloudwatch"
 import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
-import { ReadWriteType, Trail } from "aws-cdk-lib/aws-cloudtrail"
-import { Rule } from "aws-cdk-lib/aws-events"
+import { Rule, Schedule } from "aws-cdk-lib/aws-events"
 import { LambdaFunction as LambdaTarget } from "aws-cdk-lib/aws-events-targets"
 import { Effect, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam"
 import {
@@ -25,7 +18,6 @@ import {
   Runtime,
 } from "aws-cdk-lib/aws-lambda"
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
-import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
 import { LambdaSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
@@ -51,6 +43,10 @@ interface BudgetSpec {
   readonly id: string
   readonly limitUsd: number
   readonly costFilters?: Record<string, string[]>
+  // When true, the 100% notification publishes to the kill-switch topic
+  // (stops this env's ECS + RDS). When false/undefined, 100% is email-only
+  // — a service sub-budget breaching must NOT stop the env on its own.
+  readonly killSwitch?: boolean
 }
 
 /**
@@ -91,7 +87,9 @@ export class SecurityStack extends Stack {
     const killSwitchAlarmNames = [
       `monorepo-${props.envName}-fargate-cpu-critical`,
       `monorepo-${props.envName}-fargate-memory-critical`,
-      `monorepo-${props.envName}-fargate-network-out-high`,
+      // fargate-network-out-high removed with Container Insights (AFF cost
+      // review 2026-05-31) — its metric no longer publishes. Egress runaway
+      // is capped by the DataTransfer + Total cost budgets instead.
       `monorepo-${props.envName}-s3-put-rate-high`,
       `monorepo-${props.envName}-cwlogs-ingest-high`,
     ]
@@ -119,6 +117,10 @@ export class SecurityStack extends Stack {
         SERVICE_NAME: props.appStack.service.serviceName,
         EXPECTED_TOPIC_ARN: this.killSwitchTopic.topicArn,
         KILL_SWITCH_ALARM_NAMES: killSwitchAlarmNames.join(","),
+        // The kill-switch stops RDS in addition to ECS (AFF cost review
+        // 2026-05-31, trap 3). Optional: when unset the handler stops ECS
+        // only and skips the RDS step.
+        RDS_INSTANCE_IDENTIFIER: props.dataStack.database.instanceIdentifier,
       },
       description:
         "Sets ECS desiredCount=0 on receipt of an alarm or budget action SNS message",
@@ -137,6 +139,30 @@ export class SecurityStack extends Stack {
             "ecs:cluster": clusterArn,
           },
         },
+      }),
+    )
+
+    // The kill-switch also stops RDS, not just ECS (AFF cost review
+    // 2026-05-31, trap 3 — the old kill-switch left ~$16/mo/env of RDS
+    // running on a budget breach). Stopping the DB is fully reversible
+    // (`aws rds start-db-instance`), so it is safe to automate. Tagging
+    // cost-stop-requested=true hands off to the RdsRestartWatcher below,
+    // which re-stops the instance after AWS's ~7-day forced restart.
+    // DescribeDBInstances has no resource-level form (must be "*");
+    // StopDBInstance + AddTagsToResource are scoped to this env's single DB.
+    const killSwitchDbArn = `arn:aws:rds:${this.region}:${this.account}:db:${props.dataStack.database.instanceIdentifier}`
+    this.killSwitchFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["rds:DescribeDBInstances"],
+        resources: ["*"],
+      }),
+    )
+    this.killSwitchFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["rds:StopDBInstance", "rds:AddTagsToResource"],
+        resources: [killSwitchDbArn],
       }),
     )
 
@@ -242,54 +268,54 @@ export class SecurityStack extends Stack {
       }),
     )
 
-    // ----- AWS Budgets (6) -----
+    // ----- AWS Budgets (per-env, tag-filtered) -----
     //
-    // Total $40 + HardCap $50 + Data Transfer $10 + S3 $5 + RDS $20 + ECS $25.
-    // 80% threshold -> email warning. 100% threshold -> email + SNS to the
-    // kill-switch topic (stops ECS service).
+    // AFF cost review 2026-05-31 fixed two defects here:
     //
-    // HardCap50 is a defense-in-depth ceiling above MonthlyTotal $40. If
-    // MonthlyTotal fires but the kill-switch fails or the operator silences
-    // the alert, HardCap50 fires the same path again at $50 actual spend.
-    // See ADR-0016 Amendment (2026-05-19).
+    //   Trap 1 — the old budgets were NAMED per-env but carried no env cost
+    //   filter, so `monorepo-staging-*` and `monorepo-production-*` both
+    //   reported the SAME account-wide total. Every budget below now filters
+    //   on the `Environment` cost-allocation tag (applied to every resource
+    //   in bin/app.ts: `Tags.of(app).add("Environment", env)`), so each env's
+    //   budgets measure ONLY that env's spend.
     //
-    // First 2 budgets per account are free. The remaining 4 cost
-    // $0.02/day each = ~$2.40/mo total. Cheap insurance.
+    //   Trap 2 — the kill-switch fired at $40, below the ~$46/mo it costs to
+    //   run a single env at zero clients, so it stopped production every
+    //   month. The Total cap is now $55, above the steady-state floor with
+    //   headroom for ~10 clients, below a runaway.
+    //
+    // PREREQUISITE (manual, one-time): the `Environment` tag must be ACTIVATED
+    // as a cost-allocation tag in Billing → Cost allocation tags before these
+    // filters resolve to real spend (AWS takes ~24h to backfill). Until then
+    // a tag-filtered budget reads $0 and will NOT cap. Activate the tag first;
+    // see docs/runbooks/STAGING.md + AWS-DEPLOY.md.
+    //
+    // Two budgets per env:
+    //   - Total       $55, killSwitch=true. 80% → ops email; 100% → stop
+    //                 this env's ECS + RDS. This is the dollar cap.
+    //   - DataTransfer $10, alert-only. Guards egress runaway (it replaces
+    //                 the removed Container-Insights fargate-egress alarm).
+    //
+    // First 2 budgets per account are free; beyond that ~$0.02/day each.
     //
     // NOTE: AWS Budgets Actions (auto-attach IAM-deny, RUN_SSM_DOCUMENTS,
     // APPLY_SCP) are intentionally deferred. They require an execution role
     // with high blast-radius permissions; first-7-day requiresApproval mode
-    // is also an operational lift. The SNS->Lambda->stop-ECS path is the
-    // dollar-cap safety net.
+    // is also an operational lift. The SNS->Lambda->stop path is the cap.
+    const envTagFilter = { TagKeyValue: [`user:Environment$${props.envName}`] }
     const budgets: BudgetSpec[] = [
       {
-        id: "MonthlyTotal",
-        limitUsd: 40,
-      },
-      {
-        id: "HardCap50",
-        limitUsd: 50,
+        id: "Total",
+        limitUsd: 55,
+        killSwitch: true,
+        costFilters: envTagFilter,
       },
       {
         id: "DataTransfer",
         limitUsd: 10,
-        costFilters: { Service: ["AWS Data Transfer"] },
-      },
-      {
-        id: "S3",
-        limitUsd: 5,
-        costFilters: { Service: ["Amazon Simple Storage Service"] },
-      },
-      {
-        id: "Rds",
-        limitUsd: 20,
-        costFilters: { Service: ["Amazon Relational Database Service"] },
-      },
-      {
-        id: "Ecs",
-        limitUsd: 25,
         costFilters: {
-          Service: ["Amazon Elastic Container Service", "AWS Fargate"],
+          ...envTagFilter,
+          Service: ["AWS Data Transfer"],
         },
       },
     ]
@@ -311,11 +337,13 @@ export class SecurityStack extends Stack {
             },
           ],
         },
-        // 100% threshold: kill-switch topic ONLY. AWS Budgets caps
-        // subscribers per notification at 1 SNS + 10 EMAIL — two SNS
-        // here fails with "one notification can only have 1 subscribers
-        // with type of SNS" (verified deploy run 26127290021). Operator
-        // visibility on 100% is preserved via three other paths:
+        // 100% threshold. For the Total budget (killSwitch=true) this goes
+        // to the kill-switch topic → stop ECS + RDS. For alert-only budgets
+        // (DataTransfer) it goes to the ops topic instead — a sub-budget
+        // breach must page, not stop the env. AWS Budgets caps subscribers
+        // per notification at 1 SNS + 10 EMAIL, so exactly one SNS address
+        // here (verified deploy run 26127290021). For the kill-switch path,
+        // operator visibility on 100% is preserved via three other paths:
         //   1. ECS desiredCount drops 1→0 when kill-switch fires →
         //      CloudWatch alarm on RunningCount → email via BillingTopic.
         //   2. killSwitchErrorsAlarm fires email on ops topic if the
@@ -334,7 +362,9 @@ export class SecurityStack extends Stack {
           subscribers: [
             {
               subscriptionType: "SNS",
-              address: this.killSwitchTopic.topicArn,
+              address: spec.killSwitch
+                ? this.killSwitchTopic.topicArn
+                : this.killSwitchOpsTopic.topicArn,
             },
           ],
         },
@@ -403,38 +433,10 @@ export class SecurityStack extends Stack {
 
     // ----- CloudTrail -----
     //
-    // Single-region trail in this stack's region. Management events only
-    // (free tier - first trail with management events is no-charge).
-    // Destination bucket is in the same region, encrypted SSE-S3, public
-    // access blocked, 90-day lifecycle to keep storage bounded.
-    const auditBucket = new Bucket(this, "AuditBucket", {
-      bucketName: `monorepo-${props.envName}-audit-logs-${this.account}`,
-      encryption: BucketEncryption.S3_MANAGED,
-      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-      enforceSSL: true,
-      versioned: false,
-      lifecycleRules: [
-        {
-          id: "Expire90d",
-          expiration: Duration.days(90),
-          abortIncompleteMultipartUploadAfter: Duration.days(7),
-        },
-      ],
-      removalPolicy:
-        props.envName === "production"
-          ? RemovalPolicy.RETAIN
-          : RemovalPolicy.DESTROY,
-      autoDeleteObjects: props.envName !== "production",
-    })
-
-    new Trail(this, "ManagementTrail", {
-      trailName: `monorepo-${props.envName}-management`,
-      bucket: auditBucket,
-      includeGlobalServiceEvents: true,
-      isMultiRegionTrail: false,
-      enableFileValidation: true,
-      managementEvents: ReadWriteType.ALL,
-    })
+    // MOVED to the account-global AuditStack (AFF cost review 2026-05-31,
+    // trap 4). The first management-events trail in an account is free; a
+    // per-env trail meant the second one billed. One account trail
+    // (`cdk deploy Audit`) now covers every env. See lib/audit-stack.ts.
 
     // ----- RDS auto-restart watcher -----
     //
@@ -496,5 +498,87 @@ export class SecurityStack extends Stack {
       },
       targets: [new LambdaTarget(rdsRestartWatcherFn)],
     })
+
+    // ----- Staging auto-stop (max-uptime TTL) -----
+    //
+    // STAGING ONLY: production must stay up once it serves clients. A 30-min
+    // EventBridge schedule stops staging (ECS desiredCount=0 + RDS) once its
+    // oldest running task has been up past MAX_UPTIME_HOURS — the backstop for
+    // "I'll shut it down later" that never happens (AFF cost review
+    // 2026-05-31). It is a max-uptime TTL, not request-level idle detection
+    // (traffic dies at Cloudflare; ECS has no cheap request signal). A
+    // genuinely-needed long session is just restarted. No resources are
+    // created on any other env. See docs/runbooks/STAGING.md.
+    if (props.envName === "staging") {
+      const autoStopLogGroup = new LogGroup(this, "StagingAutoStopLogs", {
+        logGroupName: `/aws/lambda/monorepo-${props.envName}-staging-autostop`,
+        retention: RetentionDays.ONE_MONTH,
+      })
+
+      const autoStopFn = new LambdaFunction(this, "StagingAutoStopFn", {
+        functionName: `monorepo-${props.envName}-staging-autostop`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "index.handler",
+        code: Code.fromAsset(
+          path.join(__dirname, "lambda", "staging-autostop"),
+        ),
+        timeout: Duration.seconds(30),
+        memorySize: 256,
+        logGroup: autoStopLogGroup,
+        environment: {
+          CLUSTER_NAME: props.appStack.cluster.clusterName,
+          SERVICE_NAME: props.appStack.service.serviceName,
+          MAX_UPTIME_HOURS: "5",
+          RDS_INSTANCE_IDENTIFIER: dbInstanceId,
+          OPS_TOPIC_ARN: this.killSwitchOpsTopic.topicArn,
+        },
+        description:
+          "Stops staging (ECS desiredCount=0 + RDS) once its task exceeds the max-uptime TTL.",
+      })
+
+      // Scale-to-zero on the staging service only.
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["ecs:DescribeServices", "ecs:UpdateService"],
+          resources: [serviceArn],
+          conditions: { ArnEquals: { "ecs:cluster": clusterArn } },
+        }),
+      )
+      // ListTasks/DescribeTasks (read task ages) — gated by the cluster
+      // condition key; these actions have no useful ARN-level resource form.
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["ecs:ListTasks", "ecs:DescribeTasks"],
+          resources: ["*"],
+          conditions: { ArnEquals: { "ecs:cluster": clusterArn } },
+        }),
+      )
+      // RDS stop — same scoped DB ARN the kill-switch + watcher use.
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["rds:DescribeDBInstances"],
+          resources: ["*"],
+        }),
+      )
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["rds:StopDBInstance", "rds:AddTagsToResource"],
+          resources: [dbArn],
+        }),
+      )
+      this.killSwitchOpsTopic.grantPublish(autoStopFn)
+
+      new Rule(this, "StagingAutoStopSchedule", {
+        ruleName: `monorepo-${props.envName}-staging-autostop`,
+        description:
+          "Every 30 min: stop staging if its running task exceeds the uptime TTL",
+        schedule: Schedule.rate(Duration.minutes(30)),
+        targets: [new LambdaTarget(autoStopFn)],
+      })
+    }
   }
 }

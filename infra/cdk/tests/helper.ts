@@ -34,7 +34,7 @@ export const TEST_TUNNEL_TOKEN_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/cloudflare
 export const TEST_BETTER_AUTH_SECRET_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/better-auth-secret`
 export const TEST_RESEND_API_KEY_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/resend-api-key`
 
-export function buildTestApp(): BuiltApp {
+export function buildTestApp(envName: string = TEST_ENV_NAME): BuiltApp {
   const app = new App({
     context: {
       [`availability-zones:account=${TEST_ACCOUNT}:region=${TEST_REGION}`]: [
@@ -46,22 +46,22 @@ export function buildTestApp(): BuiltApp {
 
   const stackEnv = { account: TEST_ACCOUNT, region: TEST_REGION }
 
-  const network = new NetworkStack(app, `Network-${TEST_ENV_NAME}`, {
+  const network = new NetworkStack(app, `Network-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
   })
 
-  const data = new DataStack(app, `Data-${TEST_ENV_NAME}`, {
+  const data = new DataStack(app, `Data-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     vpc: network.vpc,
     dataSubnets: network.dataSubnets,
     appSecurityGroupId: network.appSecurityGroup.securityGroupId,
   })
 
-  const appStack = new AppStack(app, `App-${TEST_ENV_NAME}`, {
+  const appStack = new AppStack(app, `App-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     vpc: network.vpc,
     publicSubnets: network.publicSubnets,
     appSecurityGroup: network.appSecurityGroup,
@@ -77,28 +77,28 @@ export function buildTestApp(): BuiltApp {
     mailFromAddress: TEST_MAIL_FROM_ADDRESS,
   })
 
-  const security = new SecurityStack(app, `Security-${TEST_ENV_NAME}`, {
+  const security = new SecurityStack(app, `Security-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     appStack,
     dataStack: data,
   })
 
   const observability = new ObservabilityStack(
     app,
-    `Observability-${TEST_ENV_NAME}`,
+    `Observability-${envName}`,
     {
       env: stackEnv,
-      envName: TEST_ENV_NAME,
+      envName,
       appStack,
       dataStack: data,
       killSwitchTopic: security.killSwitchTopic,
     },
   )
 
-  const backup = new BackupStack(app, `Backup-${TEST_ENV_NAME}`, {
+  const backup = new BackupStack(app, `Backup-${envName}`, {
     env: stackEnv,
-    envName: TEST_ENV_NAME,
+    envName,
     appStack,
     dataStack: data,
     appSecurityGroup: network.appSecurityGroup,

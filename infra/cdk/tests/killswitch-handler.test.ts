@@ -2,18 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const TEST_TOPIC_ARN = "arn:aws:sns:eu-west-1:123456789012:KillSwitchTopic"
 
-const { send } = vi.hoisted(() => {
+const { send, rdsSend } = vi.hoisted(() => {
   process.env.CLUSTER_NAME = "monorepo-test"
   process.env.SERVICE_NAME = "monorepo-test-svc"
+  process.env.RDS_INSTANCE_IDENTIFIER = "monorepo-test-db"
   process.env.EXPECTED_TOPIC_ARN =
     "arn:aws:sns:eu-west-1:123456789012:KillSwitchTopic"
   process.env.KILL_SWITCH_ALARM_NAMES = [
-    "monorepo-test-fargate-network-out-high",
     "monorepo-test-fargate-cpu-critical",
+    "monorepo-test-fargate-memory-critical",
     "monorepo-test-cwlogs-ingest-high",
     "monorepo-test-s3-put-rate-high",
   ].join(",")
-  return { send: vi.fn() }
+  return { send: vi.fn(), rdsSend: vi.fn() }
 })
 
 vi.mock("@aws-sdk/client-ecs", () => {
@@ -35,6 +36,39 @@ vi.mock("@aws-sdk/client-ecs", () => {
     }
   }
   return { ECSClient, DescribeServicesCommand, UpdateServiceCommand }
+})
+
+vi.mock("@aws-sdk/client-rds", () => {
+  class RDSClient {
+    send = rdsSend
+  }
+  class DescribeDBInstancesCommand {
+    __type = "RdsDescribe"
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
+  class StopDBInstanceCommand {
+    __type = "RdsStop"
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
+  class AddTagsToResourceCommand {
+    __type = "RdsAddTags"
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
+  return {
+    RDSClient,
+    DescribeDBInstancesCommand,
+    StopDBInstanceCommand,
+    AddTagsToResourceCommand,
+  }
 })
 
 // @ts-expect-error - .mjs handler ships without declaration types
@@ -68,11 +102,26 @@ describe("killswitch handler", () => {
       }
       return {}
     })
+    rdsSend.mockReset()
+    rdsSend.mockImplementation(async (cmd: { __type: string }) => {
+      if (cmd.__type === "RdsDescribe") {
+        return {
+          DBInstances: [
+            {
+              DBInstanceStatus: "available",
+              DBInstanceArn:
+                "arn:aws:rds:eu-west-1:123456789012:db:monorepo-test-db",
+            },
+          ],
+        }
+      }
+      return {}
+    })
   })
 
   it("stops ECS on a CloudWatch alarm JSON with NewStateValue=ALARM", async () => {
     const message = JSON.stringify({
-      AlarmName: "monorepo-test-fargate-network-out-high",
+      AlarmName: "monorepo-test-cwlogs-ingest-high",
       NewStateValue: "ALARM",
     })
     const result = (await handler({
@@ -88,7 +137,7 @@ describe("killswitch handler", () => {
 
   it("skips alarm in OK / INSUFFICIENT_DATA state", async () => {
     const message = JSON.stringify({
-      AlarmName: "monorepo-test-fargate-network-out-high",
+      AlarmName: "monorepo-test-cwlogs-ingest-high",
       NewStateValue: "OK",
     })
     const result = (await handler({
@@ -148,6 +197,58 @@ describe("killswitch handler", () => {
     expect(updateCalls.length).toBe(1)
   })
 
+  it("also stops RDS (tag + StopDBInstance) on a stop trigger", async () => {
+    // AFF cost review 2026-05-31 trap 3: the kill-switch stops RDS too. It
+    // tags cost-stop-requested=true first (so the RdsRestartWatcher keeps it
+    // down) then calls StopDBInstance.
+    const message = JSON.stringify({
+      AlarmName: "monorepo-test-fargate-cpu-critical",
+      NewStateValue: "ALARM",
+    })
+    const result = (await handler({
+      Records: [snsRecord(message)],
+    })) as HandlerResult
+
+    expect(result.results[0]?.action).toBe("stop-ecs")
+    // RDS sub-result is attached under `rds`.
+    expect(
+      (result.results[0]?.rds as { action?: string } | undefined)?.action,
+    ).toBe("stop-rds")
+    const tagCalls = rdsSend.mock.calls.filter(
+      ([c]) => (c as { __type: string }).__type === "RdsAddTags",
+    )
+    const stopCalls = rdsSend.mock.calls.filter(
+      ([c]) => (c as { __type: string }).__type === "RdsStop",
+    )
+    expect(tagCalls.length).toBe(1)
+    expect(stopCalls.length).toBe(1)
+  })
+
+  it("does not stop RDS when it is already stopping/stopped (idempotent)", async () => {
+    rdsSend.mockImplementation(async (cmd: { __type: string }) => {
+      if (cmd.__type === "RdsDescribe") {
+        return { DBInstances: [{ DBInstanceStatus: "stopped" }] }
+      }
+      return {}
+    })
+    const message = JSON.stringify({
+      AlarmName: "monorepo-test-fargate-cpu-critical",
+      NewStateValue: "ALARM",
+    })
+    const result = (await handler({
+      Records: [snsRecord(message)],
+    })) as HandlerResult
+
+    expect(result.results[0]?.action).toBe("stop-ecs")
+    expect(
+      (result.results[0]?.rds as { action?: string } | undefined)?.action,
+    ).toBe("noop")
+    const stopCalls = rdsSend.mock.calls.filter(
+      ([c]) => (c as { __type: string }).__type === "RdsStop",
+    )
+    expect(stopCalls.length).toBe(0)
+  })
+
   it("skips an empty / non-Budget non-JSON message (no spurious stop)", async () => {
     const result = (await handler({
       Records: [snsRecord("")],
@@ -166,7 +267,7 @@ describe("killswitch handler", () => {
       Records: [
         snsRecord(
           JSON.stringify({
-            AlarmName: "monorepo-test-fargate-network-out-high",
+            AlarmName: "monorepo-test-cwlogs-ingest-high",
             NewStateValue: "ALARM",
           }),
           { EventSource: "aws:s3" },
@@ -183,7 +284,7 @@ describe("killswitch handler", () => {
       Records: [
         snsRecord(
           JSON.stringify({
-            AlarmName: "monorepo-test-fargate-network-out-high",
+            AlarmName: "monorepo-test-cwlogs-ingest-high",
             NewStateValue: "ALARM",
           }),
           { TopicArn: "arn:aws:sns:eu-west-1:000000000000:OtherTopic" },
@@ -207,7 +308,7 @@ describe("killswitch handler", () => {
         Records: [
           snsRecord(
             JSON.stringify({
-              AlarmName: "monorepo-test-fargate-network-out-high",
+              AlarmName: "monorepo-test-cwlogs-ingest-high",
               NewStateValue: "ALARM",
             }),
           ),
@@ -227,7 +328,7 @@ describe("killswitch handler", () => {
       Records: [
         snsRecord(
           JSON.stringify({
-            AlarmName: "monorepo-test-fargate-network-out-high",
+            AlarmName: "monorepo-test-cwlogs-ingest-high",
             NewStateValue: "ALARM",
           }),
         ),

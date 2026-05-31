@@ -62,21 +62,40 @@ describe("SecurityStack", () => {
     }
   })
 
-  it("creates 6 budgets with expected limits", () => {
+  it("kill-switch IAM also grants rds:StopDBInstance (stops RDS, not just ECS)", () => {
+    // AFF cost review 2026-05-31 trap 3: the kill-switch left RDS running on
+    // a budget breach. It now also stops the env's RDS (reversible).
+    const policies = template.findResources("AWS::IAM::Policy")
+    const rdsActions = new Set<string>()
+    for (const policy of Object.values(policies) as Array<{
+      Properties?: { PolicyDocument?: { Statement?: unknown[] } }
+    }>) {
+      for (const stmt of (policy.Properties?.PolicyDocument?.Statement ??
+        []) as Array<{ Action?: string | string[]; Effect?: string }>) {
+        if (stmt.Effect !== "Allow") continue
+        const actions = Array.isArray(stmt.Action)
+          ? stmt.Action
+          : stmt.Action
+            ? [stmt.Action]
+            : []
+        for (const a of actions) if (a.startsWith("rds:")) rdsActions.add(a)
+      }
+    }
+    expect(rdsActions.has("rds:StopDBInstance")).toBe(true)
+    expect(rdsActions.has("rds:AddTagsToResource")).toBe(true)
+  })
+
+  it("creates 2 per-env budgets with expected limits", () => {
     const budgets = template.findResources("AWS::Budgets::Budget")
-    expect(Object.keys(budgets).length).toBe(6)
+    expect(Object.keys(budgets).length).toBe(2)
 
     // Budget names carry a deterministic 8-char hash suffix derived from
     // the spec (security-stack.ts) so CFN treats subscriber/threshold edits
     // as CREATE(new)+DELETE(old) instead of an immutable REPLACE. Match
     // the stable prefix + suffix shape, not the literal name.
     const expectedSlugs: Record<string, number> = {
-      monthlytotal: 40,
-      hardcap50: 50,
+      total: 55,
       datatransfer: 10,
-      s3: 5,
-      rds: 20,
-      ecs: 25,
     }
 
     for (const [slug, limit] of Object.entries(expectedSlugs)) {
@@ -92,6 +111,42 @@ describe("SecurityStack", () => {
         },
       })
     }
+  })
+
+  it("every budget filters on the Environment cost-allocation tag (per-env measurement)", () => {
+    // AFF cost review 2026-05-31 trap 1: budgets were named per-env but had
+    // no env filter, so each reported the account-wide total. Both budgets
+    // now carry the `user:Environment$<env>` tag filter.
+    const budgets = template.findResources("AWS::Budgets::Budget")
+    for (const [logicalId, resource] of Object.entries(budgets)) {
+      const costFilters = (
+        resource as {
+          Properties?: { Budget?: { CostFilters?: Record<string, unknown> } }
+        }
+      ).Properties?.Budget?.CostFilters
+      expect(
+        JSON.stringify(costFilters),
+        `${logicalId}: must filter on Environment tag`,
+      ).toContain("user:Environment$test")
+    }
+  })
+
+  it("only the Total budget feeds the kill-switch at 100% (sub-budgets are alert-only)", () => {
+    // The $55 Total budget's 100% notification goes to KillSwitchTopic (stop
+    // ECS + RDS). DataTransfer's 100% goes to the ops topic instead — a
+    // sub-budget breach pages, it does not stop the env.
+    const budgets = template.findResources("AWS::Budgets::Budget")
+    const total = Object.values(budgets).find((b) =>
+      JSON.stringify(
+        (b as { Properties?: { Budget?: { BudgetName?: unknown } } }).Properties
+          ?.Budget?.BudgetName,
+      ).includes("-total-"),
+    )
+    expect(total).toBeDefined()
+    // The Total budget must reference the kill-switch topic somewhere in its
+    // notification subscribers (CDK emits the topic ARN as a token/ref).
+    const totalJson = JSON.stringify(total)
+    expect(totalJson).toContain("KillSwitchTopic")
   })
 
   it("each budget has 80% warning + 100% critical notifications", () => {
@@ -152,26 +207,10 @@ describe("SecurityStack", () => {
     template.hasOutput("KillSwitchOpsTopicArn", {})
   })
 
-  it("creates a CloudTrail trail with file validation + management events", () => {
-    template.hasResourceProperties("AWS::CloudTrail::Trail", {
-      TrailName: "monorepo-test-management",
-      EnableLogFileValidation: true,
-      IsMultiRegionTrail: false,
-    })
-  })
-
-  it("audit bucket has BlockPublicAccess and 90-day lifecycle", () => {
-    template.hasResourceProperties("AWS::S3::Bucket", {
-      PublicAccessBlockConfiguration: {
-        BlockPublicAcls: true,
-        BlockPublicPolicy: true,
-        IgnorePublicAcls: true,
-        RestrictPublicBuckets: true,
-      },
-      LifecycleConfiguration: Match.objectLike({
-        Rules: Match.arrayWith([Match.objectLike({ ExpirationInDays: 90 })]),
-      }),
-    })
+  it("does NOT create a CloudTrail trail (moved to the account-global AuditStack)", () => {
+    // AFF cost review 2026-05-31 trap 4: the per-env trail was the billed
+    // second trail. CloudTrail now lives in AuditStack (one per account).
+    template.resourceCountIs("AWS::CloudTrail::Trail", 0)
   })
 
   it("creates EventBridge rule for RDS DB Instance Event", () => {
@@ -181,5 +220,59 @@ describe("SecurityStack", () => {
         "detail-type": ["RDS DB Instance Event"],
       }),
     })
+  })
+
+  it("does NOT create the staging auto-stop on a non-staging env", () => {
+    // The auto-stop block is gated on envName === 'staging'; the default test
+    // env ('test') must not get it.
+    const fns = template.findResources("AWS::Lambda::Function")
+    const names = Object.values(fns).map(
+      (f) =>
+        (f as { Properties?: { FunctionName?: string } }).Properties
+          ?.FunctionName,
+    )
+    expect(names).not.toContain("monorepo-test-staging-autostop")
+  })
+})
+
+describe("SecurityStack staging auto-stop (staging env only)", () => {
+  const { security } = buildTestApp("staging")
+  const template = Template.fromStack(security)
+
+  it("creates the staging auto-stop Lambda", () => {
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "monorepo-staging-staging-autostop",
+      Handler: "index.handler",
+      Runtime: "nodejs20.x",
+    })
+  })
+
+  it("schedules the auto-stop every 30 minutes", () => {
+    template.hasResourceProperties("AWS::Events::Rule", {
+      ScheduleExpression: "rate(30 minutes)",
+    })
+  })
+
+  it("auto-stop Lambda may stop ECS + RDS (reversible) and publish to ops", () => {
+    const policies = template.findResources("AWS::IAM::Policy")
+    const actions = new Set<string>()
+    for (const policy of Object.values(policies) as Array<{
+      Properties?: { PolicyDocument?: { Statement?: unknown[] } }
+    }>) {
+      for (const stmt of (policy.Properties?.PolicyDocument?.Statement ??
+        []) as Array<{ Action?: string | string[]; Effect?: string }>) {
+        if (stmt.Effect !== "Allow") continue
+        const a = Array.isArray(stmt.Action)
+          ? stmt.Action
+          : stmt.Action
+            ? [stmt.Action]
+            : []
+        for (const x of a) actions.add(x)
+      }
+    }
+    expect(actions.has("ecs:UpdateService")).toBe(true)
+    expect(actions.has("ecs:ListTasks")).toBe(true)
+    expect(actions.has("rds:StopDBInstance")).toBe(true)
+    expect(actions.has("sns:Publish")).toBe(true)
   })
 })

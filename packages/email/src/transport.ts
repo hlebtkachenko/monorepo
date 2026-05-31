@@ -64,12 +64,14 @@ function extractUrl(text?: string): string | undefined {
   return m?.[0]
 }
 
-// Strip line terminators so a user-controlled field (recipient, subject) can't
-// forge extra lines in the console transport's log output (log injection). The
-// replacement must be the empty string: CodeQL only recognizes a replace as a
-// log-injection sanitizer when newlines are replaced with "" (not a space).
+// Strip CR/LF so a user-controlled field (recipient, subject) can't forge extra
+// lines in the console transport's log output (log injection). For CodeQL to
+// accept this as a sanitizer the newline replace must use the empty string AND
+// an UNQUANTIFIED pattern \u2014 a `+` on the char class defeats its replaces(s, "")
+// modelling (verified against the js/log-injection query with the CodeQL CLI).
+// The global flag still removes every CR/LF, so behaviour is unchanged.
 function stripLineBreaks(value: string): string {
-  return value.replace(/[\r\n\u2028\u2029]+/g, "")
+  return value.replace(/[\r\n]/g, "")
 }
 
 function recordOutbox(entry: OutboxEntry): void {

@@ -6,6 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.2.5] — 2026-06-01
+
+Patch release: code-scanning + supply-chain follow-ups to v0.2.4. No app-surface changes.
+
+### Fixed
+
+- `js/log-injection` (CodeQL) in the email console transport — `stripLineBreaks` now uses `/[\r\n]/g` with an empty replacement so CodeQL recognises it as a sanitizer. A `+` quantifier silently defeated the prior fix (verified against the real `js/log-injection` query with the CodeQL CLI). Behaviour is unchanged — the global flag still strips every CR/LF. (#306)
+
+### Added
+
+- CI workflow to seed the Cloudflare routes token into SSM. (#305)
+
 ## [v0.2.4] — 2026-06-01
 
 Largest release since v0.2.0. Introduces the public API v1 surface, the Vault-on-VPS secrets architecture (M1–M10), AWS cost-runaway protection, and env power controls — plus a security-findings sweep and a CI/supply-chain hardening pass.

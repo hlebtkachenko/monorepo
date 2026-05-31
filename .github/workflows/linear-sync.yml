@@ -32,7 +32,7 @@ jobs:
       # Replaces the static `${{ secrets.LINEAR_API_KEY }}` repo secret.
       id-token: write
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
@@ -41,7 +41,7 @@ jobs:
 
       - name: Fetch Linear API key from Vault
         id: vault
-        uses: hashicorp/vault-action@d1720f055e0635fd932a1d2a48f87a666a57906c # v3.4.0
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v3.4.0
         with:
           # Vault on the Hostinger VPS, exposed via Cloudflare Tunnel.
           # The `secrets-admin.afframe.com` hostname is gated by Cloudflare

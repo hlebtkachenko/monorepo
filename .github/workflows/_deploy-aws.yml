@@ -81,7 +81,7 @@ jobs:
     outputs:
       go: ${{ steps.flag.outputs.go }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -124,7 +124,7 @@ jobs:
       # independent of deploys. (M6 — AFF-245.)
       EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
       - name: Assert required vars + secrets are present
@@ -179,7 +179,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
@@ -230,7 +230,7 @@ jobs:
       # Defaults to true on first/unknown/failed-last-deploy (safe).
       migrations_changed: ${{ steps.decide.outputs.migrations_changed }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -264,7 +264,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+      - uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -496,7 +496,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
@@ -525,7 +525,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+      - uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -625,7 +625,7 @@ jobs:
       IMAGE_TAG: sha-${{ github.sha }}
       SERVICE: ${{ matrix.service }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -696,7 +696,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+      - uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -704,9 +704,9 @@ jobs:
           audience: sts.amazonaws.com
           role-duration-seconds: 3600
 
-      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
-      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - id: ecr
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
@@ -733,7 +733,7 @@ jobs:
           fi
 
       - name: Build + push ${{ matrix.service }} image
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           file: apps/${{ matrix.service }}/Dockerfile
@@ -936,7 +936,7 @@ jobs:
       # them is stack=infra-only.
       SKIP_IMAGE_BUILD: ${{ inputs.stack == 'infra-only' && 'true' || 'false' }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -986,7 +986,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+      - uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1020,11 +1020,11 @@ jobs:
       # have no Docker assets at all).
       - name: Docker QEMU (arm64 cross-build on amd64 runners)
         if: env.STACK_SCOPE != 'infra-only'
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
       - name: Docker Buildx (enables gha cache + multi-arch)
         if: env.STACK_SCOPE != 'infra-only'
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       # NOTE: ECR login + the 3 image builds + the CVE gate moved to the
       # parallel `build-images` matrix job above. This deploy job only runs
@@ -1482,7 +1482,7 @@ jobs:
       IMAGE_TAG_API: ${{ needs.detect-changes.outputs.image_tag_api || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
       IMAGE_TAG_ADMIN: ${{ needs.detect-changes.outputs.image_tag_admin || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
     steps:
-      - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
       - id: env
@@ -1508,7 +1508,7 @@ jobs:
       # Both the success record + failure rollback need AWS now; doing it
       # once keeps the step graph simpler and avoids re-assuming the role
       # twice on the rollback path.
-      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+      - uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}

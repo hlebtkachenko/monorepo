@@ -182,11 +182,17 @@ jobs:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: Brand placeholder check
         env:
+          # DELIBERATE (pre-v1): "false" lets production deploy while brand copy
+          # is still being filled against a real environment. No users yet, so
+          # shipping <BRAND-*> placeholders to prod is acceptable for now. Flip
+          # back to "true" before the v1 GA cut so prod blocks on any remaining
+          # placeholder. See commit da839b8b and docs/conventions/CI-POLICY.md
+          # ("Deliberate choices that look like bugs"). Do NOT "fix" this to true.
           CHECK_BRAND_STRICT: "false"
         run: node scripts/check-brand-placeholders.mjs
 
@@ -234,7 +240,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Need history back to the last-deploy SHA for `git diff`.
           fetch-depth: 0
@@ -499,7 +505,7 @@ jobs:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         with:
           egress-policy: audit
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
@@ -629,7 +635,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           # Needed by the "Compute BUILD_VERSION" step below — `git describe
@@ -940,7 +946,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
@@ -1001,7 +1007,7 @@ jobs:
         with:
           version: 11.0.9
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "24"
           cache: pnpm

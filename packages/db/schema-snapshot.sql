@@ -600,6 +600,18 @@ $$;
 SET default_table_access_method = heap;
 
 --
+-- Name: admin_workspace_allowlist; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_workspace_allowlist (
+    workspace_id uuid NOT NULL,
+    added_at timestamp with time zone DEFAULT now() NOT NULL,
+    added_by text DEFAULT 'system'::text NOT NULL
+);
+
+ALTER TABLE ONLY public.admin_workspace_allowlist FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: api_key; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1017,6 +1029,13 @@ CREATE TABLE public.workspace_membership (
 );
 
 ALTER TABLE ONLY public.workspace_membership FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: admin_workspace_allowlist admin_workspace_allowlist_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_workspace_allowlist
+    ADD CONSTRAINT admin_workspace_allowlist_pkey PRIMARY KEY (workspace_id);
 
 --
 -- Name: api_key api_key_key_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1592,6 +1611,13 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
 
 --
+-- Name: admin_workspace_allowlist admin_workspace_allowlist_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_workspace_allowlist
+    ADD CONSTRAINT admin_workspace_allowlist_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
+
+--
 -- Name: api_key api_key_created_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1821,6 +1847,18 @@ ALTER TABLE ONLY public.workspace_membership
 
 ALTER TABLE ONLY public.workspace_membership
     ADD CONSTRAINT workspace_membership_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
+
+--
+-- Name: admin_workspace_allowlist admin_allowlist_read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY admin_allowlist_read ON public.admin_workspace_allowlist FOR SELECT TO app_user USING (true);
+
+--
+-- Name: admin_workspace_allowlist; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_workspace_allowlist ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: api_key; Type: ROW SECURITY; Schema: public; Owner: -

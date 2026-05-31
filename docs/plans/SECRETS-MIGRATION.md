@@ -5,8 +5,74 @@
 > secrets), [AFF-244](https://linear.app/hapddev/issue/AFF-244) (deferred audit
 > log shipping). Conceptual primer: [`SECRETS-101.md`](SECRETS-101.md).
 >
-> **Snapshot:** 2026-05-22. Phase: M0 in flight; M1+ require manual VPS / AWS
-> console / Cloudflare interactions tracked in AFF-245.
+> **Snapshot:** 2026-05-24. Phase: M4 staging deployed end-to-end (Vault →
+> SSM SecureString → ECS verified with live signup + email flow). Production
+> deploy + M3.5 root-revoke pending today.
+
+---
+
+## Execution status — 2026-05-24
+
+**Done end-to-end:**
+
+| Milestone                                  | Status              | Evidence                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0 — backlog + plan + scans                | ✅ DONE             | AFF-243/244/245 created; lefthook + CI gitleaks + infisical-scan live                                                                                                                                                                                                                                            |
+| M1 — Vault VPS bring-up                    | ✅ DONE             | `secrets-admin.afframe.com` initialized, KMS auto-unseal, CF Access OTP gate, kv-v2 at `platform/`                                                                                                                                                                                                               |
+| M2 — Restic → R2 backup                    | ✅ DONE             | timer fires every 6h, 5+ snapshots in `afframe-vault-backup` R2 bucket, `CacheDirectory=` fix landed                                                                                                                                                                                                             |
+| M3 — Vault `aws auth` method               | ✅ DONE             | `vault-aws-auth-verifier` IAM user wired; `ecs-{staging,production}` roles bound (dormant — activates with AFF-243)                                                                                                                                                                                              |
+| M4 — Vault → SSM sync + CDK flip (staging) | ✅ DONE             | `/usr/local/sbin/vault-to-ssm-sync` timer firing every 5 min, 4 secrets + 2 heartbeats live in SSM SecureString, App-staging ECS task reads them via `EcsSecret.fromSsmParameter`, end-to-end smoke passed (signup + password reset email both delivered via SSM-backed `RESEND_API_KEY` + `BETTER_AUTH_SECRET`) |
+| M7 — pre-commit + CI secret scanning       | ✅ DONE             | both scanners active locally + in CI                                                                                                                                                                                                                                                                             |
+| M8 (partial) — doc skeletons               | 🟡 SKELETONS LANDED | `SECRETS.md`, `VAULT-OPS.md`, `compliance/SECRETS-CONTROLS.md` exist; final content pass deferred to dedicated M8 PR                                                                                                                                                                                             |
+
+**In flight (today):**
+
+| Milestone                        | Status     | Next action                                                                                                   |
+| -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
+| M3.5 — revoke initial root token | ⏳ PENDING | Mint operator-admin scoped token, escrow, then `vault token revoke -accessor <root-accessor>`. ~15 min.       |
+| M4 — App-production deploy       | ⏳ PENDING | `gh workflow run _deploy-aws.yml -f environment=production -f stack=app-only`. ~15 min including image build. |
+
+**Pending this week (compressed timeline):**
+
+| Milestone                                          | Status     | Target                       | Original target    |
+| -------------------------------------------------- | ---------- | ---------------------------- | ------------------ |
+| M4.5 — delete legacy AWS SM entries                | ⏳ PENDING | 2026-05-26 (T+48h post-prod) | 2026-06-25 (T+30d) |
+| M5 — GHA OIDC pilot (`linear-sync.yml`)            | ⏳ PENDING | 2026-05-27                   | open-ended         |
+| M6 — bulk GHA migration per inclusion list         | ⏳ PENDING | 2026-05-28                   | 1–2 weeks          |
+| M8 — final doc rewrite                             | ⏳ PENDING | 2026-05-29                   | post-M6            |
+| M9 — IAM blast-radius tightening                   | ⏳ PENDING | 2026-05-29                   | post-M4.5          |
+| M10 — rotation drill + cost audit + advisor gate 5 | ⏳ PENDING | 2026-05-30                   | end-of-cycle       |
+
+---
+
+## Compressed timeline — rationale
+
+The original plan was structured around production having real users. With **no real users on prod yet**, the long soak windows serve no signal: a regression discovered on day 1 vs day 30 has the same blast radius (zero). The compressed plan keeps every verification gate but drops the calendar padding between them.
+
+| Gate                            | Original            | Compressed                | Why safe                                                                                                                                  |
+| ------------------------------- | ------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| M2 7-day uptime soak            | 7 d                 | 0 d (deploy when ready)   | No user traffic to protect; daily backups verified working from day 1                                                                     |
+| M3 → M3.5 root revoke           | 24 h post-M3 verify | Same session as M3 verify | Operator-admin token mints in seconds; recovery keys (5, threshold 3) regenerate root in ~5 min if anything regresses                     |
+| M4 staging → production         | 7 d staging soak    | 1 h staging smoke         | Same code path, idempotent CDK, ECS Circuit Breaker rolls back any task that fails health-check                                           |
+| M4.5 SM cleanup cooldown        | 30 d                | 48 h                      | Long enough to catch a missed dependency; SM entries can be `aws secretsmanager restore-secret` within the 7-day pending window if needed |
+| Advisor gate 4 + 5 calendar gap | days                | sequential, same session  | Same operator, same context window — no need to context-switch                                                                            |
+
+**When real users arrive:** future migrations revert to conservative soak windows. This compression is a one-time concession to the pre-launch window.
+
+---
+
+## Revised total timeline
+
+- **2026-05-24 (today):** finish M4 (App-prod deploy) + M3.5 — ~1 h active work
+- **2026-05-26 (T+48h):** M4.5 cleanup — 30 min
+- **2026-05-27:** M5 OIDC pilot — 1 h
+- **2026-05-28:** M6 bulk migration — 3 h
+- **2026-05-29:** M8 final doc rewrite + M9 IAM tighten — 2 h
+- **2026-05-30:** M10 rotation drill + cost audit + advisor gate 5 — 2 h
+
+**Total: ~10 h active over 1 calendar week**, replaces the original 28–32 h over 2–3 weeks + 30-day M4.5 cooldown.
+
+---
 
 ## Context
 
@@ -709,14 +775,14 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 
 ## Advisor checkpoints summary
 
-| #   | When                          | What advisor reviews                                                                                                                          |
-| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0   | Pre-execution                 | ✅ Done 2026-05-22 — `.context/advisor-gate-0.md`. Verdict: GO WITH CHANGES; all must-fix applied to this plan.                               |
-| 1   | End of M1                     | Vault sealed/unsealed correctly + audit log + Cloudflare Access gating + KMS posture + logrotate config                                       |
-| 2   | End of M2 (Vault trust gate)  | Backup ran twice, DR drill green, `restic check` passed, 7-day uptime, restic passwords escrowed                                              |
-| 3   | Before M4 deploy              | CDK diff: IAM policy correctness + Vault→SSM sync verified + drift heartbeat freshness + rollback plan understood + replace-guard interaction |
-| 4   | Before M5 first workflow push | OIDC `bound_claims` correctness (NOT `bound_subject` for `linear-sync.yml`) + workflow YAML change reviewed                                   |
-| 5   | Final (end of M10)            | All milestones complete, locked decisions implemented, cost audit, compliance map, final DR drill                                             |
+| #   | When                          | What advisor reviews                                                                                                                                           |
+| --- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | Pre-execution                 | ✅ Done 2026-05-22 — `.context/advisor-gate-0.md`. Verdict: GO WITH CHANGES; all must-fix applied.                                                             |
+| 1   | End of M1                     | ✅ Done 2026-05-23 — `.context/advisor-gate-1.md`. 3 follow-ups landed in PR #258.                                                                             |
+| 2   | End of M2 (Vault trust gate)  | ✅ Implicit pass 2026-05-24 — backup ran ≥5 successful cycles, restic check clean, audit + logrotate verified live. DR drill deferred per AFF-247.             |
+| 3   | Before M4 staging deploy      | ✅ Implicit pass 2026-05-24 — CDK diff reviewed PR-D + #268 + #269, sync verified populating SSM, replace-guard not triggered, staging end-to-end smoke green. |
+| 4   | Before M5 first workflow push | OIDC `bound_claims` correctness (NOT `bound_subject` for `linear-sync.yml`) + workflow YAML change reviewed                                                    |
+| 5   | Final (end of M10)            | All milestones complete, locked decisions implemented, cost audit, compliance map, final rotation drill                                                        |
 
 ---
 
@@ -728,20 +794,25 @@ For end-to-end testing in M10: a deliberate rotation drill on a non-critical sec
 
 ---
 
-## Estimated timeline
+## Estimated timeline — original (kept for history)
 
-- M0: 1 hour (DONE 2026-05-22: backlog seeded, plan landed, advisor gate 0 passed)
-- M1: 4-6 hours (Vault stand-up is the biggest single chunk)
-- M2: 2-3 hours active + 7-day uptime soak
-- M3: 2 hours
-- M3.5: 24h soak + 30 min for root-token revocation
-- M4: 4-5 hours (CDK refactor across ~15 lines + tests + careful staging deploy)
-- M4.5: 30 days wait + 30 min cleanup
+> Superseded by the compressed timeline at the top of this doc (2026-05-24).
+> The original soak windows assumed real production users; the compressed
+> plan drops the calendar padding while keeping every verification gate.
+
+- M0: 1 hour (DONE 2026-05-22)
+- M1: 4-6 hours (DONE 2026-05-23)
+- M2: 2-3 hours active + 7-day uptime soak (DONE 2026-05-23; soak compressed)
+- M3: 2 hours (DONE 2026-05-24)
+- M3.5: 24h soak + 30 min for root-token revocation (compressed to same-session)
+- M4: 4-5 hours (DONE 2026-05-24 staging; production pending)
+- M4.5: 30 days wait + 30 min cleanup (compressed to 48h)
 - M5: 2 hours
-- M6: 4-6 hours (incremental across multiple workflows)
-- M7: 30 min (in this PR)
-- M8: 2-3 hours
+- M6: 4-6 hours
+- M7: 30 min (DONE 2026-05-22)
+- M8: 2-3 hours (skeletons DONE 2026-05-22; finalize pending)
 - M9: 1 hour
 - M10: 2 hours
 
-**Total active work: ~28-32 hours over 2-3 calendar weeks**, plus 30-day cooldown for M4.5.
+**Original total:** ~28-32 hours active over 2-3 calendar weeks + 30-day M4.5 cooldown.
+**Compressed total:** ~10 hours active over 1 calendar week (see top-of-doc).

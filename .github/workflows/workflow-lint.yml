@@ -140,9 +140,10 @@ jobs:
         shell: bash
         working-directory: infra/cdk
         run: |
+          # M4 (AFF-245): the 3 workflow-managed secrets moved to SSM
+          # SecureString. AppStack hardcodes the parameter names per
+          # envName, so no context plumbing is needed at synth time —
+          # SSM lookups are resolved at task start by ECS, not by CDK.
           pnpm exec cdk synth --strict \
             --context "env=${{ matrix.env }}" \
-            --context "cloudflareTunnelSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-cf-AAAAAA" \
-            --context "resendApiKeySecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-resend-BBBBBB" \
-            --context "betterAuthSecretArn=arn:aws:secretsmanager:eu-central-1:000000000000:secret:dummy-ba-CCCCCC" \
             --context "imageTag=sha-dummy"

@@ -6,10 +6,13 @@
 # cost). Runs every 5 min via /etc/systemd/system/vault-to-ssm-sync.timer.
 #
 # Synced keys (Vault path → SSM parameter):
-#   platform/data/staging/better-auth-secret      → /monorepo/staging/better-auth-secret
-#   platform/data/staging/resend-api-key          → /monorepo/staging/resend-api-key
-#   platform/data/production/better-auth-secret   → /monorepo/production/better-auth-secret
-#   platform/data/production/resend-api-key       → /monorepo/production/resend-api-key
+#   platform/staging/better-auth-secret      → /monorepo/staging/better-auth-secret
+#   platform/staging/resend-api-key          → /monorepo/staging/resend-api-key
+#   platform/production/better-auth-secret   → /monorepo/production/better-auth-secret
+#   platform/production/resend-api-key       → /monorepo/production/resend-api-key
+#
+# (`vault kv get` is KV-v2-aware: it auto-translates `platform/${k}` to the
+# API path `platform/data/${k}`. Passing `data/` explicitly would double it.)
 #
 # CLOUDFLARE_TUNNEL_TOKEN intentionally NOT synced through Vault per
 # plan locked decision #9 (chicken-and-egg — tunnel must be up before
@@ -70,7 +73,7 @@ rm -f "$SENTINEL"
 sync_one() {
   local env="$1"
   local key="$2"
-  local vault_path="platform/data/${env}/${key}"
+  local vault_path="platform/${env}/${key}"
   local ssm_name="/monorepo/${env}/${key}"
 
   echo "[vault-to-ssm] ${vault_path} → ${ssm_name}"

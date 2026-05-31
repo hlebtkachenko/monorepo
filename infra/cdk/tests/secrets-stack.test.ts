@@ -56,13 +56,16 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
     })
   })
 
-  it("creates two IAM users: vault-unseal-vps + vault-aws-auth-verifier", () => {
-    template.resourceCountIs("AWS::IAM::User", 2)
+  it("creates three IAM users: vault-unseal-vps + vault-aws-auth-verifier + vault-ssm-sync", () => {
+    template.resourceCountIs("AWS::IAM::User", 3)
     template.hasResourceProperties("AWS::IAM::User", {
       UserName: "vault-unseal-vps",
     })
     template.hasResourceProperties("AWS::IAM::User", {
       UserName: "vault-aws-auth-verifier",
+    })
+    template.hasResourceProperties("AWS::IAM::User", {
+      UserName: "vault-ssm-sync",
     })
   })
 
@@ -139,7 +142,17 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
     })
   })
 
-  it("does NOT grant Resource: '*' anywhere — every KMS action is scoped to the single Key", () => {
+  it("KMS Resource: '*' is allowed only when guarded by kms:ViaService = ssm.<region>.amazonaws.com", () => {
+    // Original invariant: vault-unseal-vps must NOT have unrestricted KMS
+    // access — that user's KMS calls are scoped to the unseal Key ARN.
+    //
+    // M4 exception: vault-ssm-sync needs kms:GenerateDataKey + kms:Decrypt
+    // on the AWS-managed `alias/aws/ssm` key (default SecureString
+    // encryption). AWS-managed-key resource policies do not honour an
+    // ARN-scoped Allow from another principal's policy — the SSM API
+    // itself gates access via the kms:ViaService condition. So a
+    // Resource: '*' is acceptable iff the condition narrows the use to
+    // SSM-only calls.
     const policy = template.findResources("AWS::IAM::Policy")
     for (const [, resource] of Object.entries(policy)) {
       const statements = (
@@ -149,12 +162,17 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
         const s = stmt as {
           Action?: string | string[]
           Resource?: string | unknown
+          Condition?: { StringEquals?: Record<string, string> }
         }
         const actions = Array.isArray(s.Action) ? s.Action : [s.Action]
         if (
-          actions.some((a) => typeof a === "string" && a.startsWith("kms:"))
+          !actions.some((a) => typeof a === "string" && a.startsWith("kms:"))
         ) {
-          expect(s.Resource).not.toBe("*")
+          continue
+        }
+        if (s.Resource === "*") {
+          const viaService = s.Condition?.StringEquals?.["kms:ViaService"]
+          expect(viaService).toMatch(/^ssm\.[a-z0-9-]+\.amazonaws\.com$/)
         }
       }
     }
@@ -169,9 +187,89 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
     })
   })
 
-  it("publishes Key ID, Key ARN, and User Name as CfnOutputs", () => {
+  it("publishes Key ID, Key ARN, and User Names as CfnOutputs", () => {
     template.hasOutput("VaultUnsealKeyId", {})
     template.hasOutput("VaultUnsealKeyArn", {})
     template.hasOutput("VaultUnsealUserName", {})
+    template.hasOutput("VaultAwsAuthVerifierUserName", {})
+    template.hasOutput("VaultSsmSyncUserName", {})
+  })
+
+  it("vault-ssm-sync has ssm:PutParameter/GetParameter scoped to the 6 sync params", () => {
+    // Scoped to the 4 secret + 2 heartbeat params. No `*`. No
+    // ssm:DeleteParameter (compromised key can overwrite, never erase).
+    template.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Sid: "VaultSsmSyncWriteScopedParams",
+            Effect: "Allow",
+            Action: Match.arrayWith(["ssm:PutParameter", "ssm:GetParameter"]),
+            // Resource is an array of 6 ARN strings — one per param.
+            Resource: Match.arrayWith([
+              Match.stringLikeRegexp("/monorepo/staging/better-auth-secret$"),
+              Match.stringLikeRegexp("/monorepo/staging/resend-api-key$"),
+              Match.stringLikeRegexp("/monorepo/staging/sync-heartbeat$"),
+              Match.stringLikeRegexp(
+                "/monorepo/production/better-auth-secret$",
+              ),
+              Match.stringLikeRegexp("/monorepo/production/resend-api-key$"),
+              Match.stringLikeRegexp("/monorepo/production/sync-heartbeat$"),
+            ]),
+          }),
+        ]),
+      },
+      Users: Match.arrayWith([
+        Match.objectLike({
+          Ref: Match.stringLikeRegexp("VaultSsmSyncUser"),
+        }),
+      ]),
+    })
+  })
+
+  it("vault-ssm-sync KMS access is gated by kms:ViaService = ssm.<region>.amazonaws.com", () => {
+    // The AWS-managed alias/aws/ssm key gates SecureString crypto. The
+    // policy is `Resource: *` (managed-key constraint) but the
+    // kms:ViaService condition narrows the action to ssm-only calls
+    // — the same hardening AWS docs recommend.
+    template.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Sid: "VaultSsmSyncKmsForSsmDefaultKey",
+            Effect: "Allow",
+            Action: Match.arrayWith(["kms:GenerateDataKey", "kms:Decrypt"]),
+            Resource: "*",
+            Condition: {
+              StringEquals: Match.objectLike({
+                "kms:ViaService": Match.stringLikeRegexp(
+                  "^ssm\\.[a-z0-9-]+\\.amazonaws\\.com$",
+                ),
+              }),
+            },
+          }),
+        ]),
+      },
+    })
+  })
+
+  it("does NOT grant vault-ssm-sync any access to the Vault auto-unseal CMK", () => {
+    // Blast-radius separation: even if vault-ssm-sync keys leak, attacker
+    // cannot touch the auto-unseal KMS Key. Verified by ensuring the
+    // sync user's policy has no statement referencing the VaultUnsealKey
+    // Fn::GetAtt.
+    const policies = template.findResources("AWS::IAM::Policy")
+    for (const [, resource] of Object.entries(policies)) {
+      const props = resource.Properties as {
+        PolicyDocument: { Statement: unknown[] }
+        Users?: Array<{ Ref?: string }>
+      }
+      const isSyncUserPolicy = (props.Users ?? []).some((u) =>
+        (u.Ref ?? "").startsWith("VaultSsmSyncUser"),
+      )
+      if (!isSyncUserPolicy) continue
+      const stmtStr = JSON.stringify(props.PolicyDocument.Statement)
+      expect(stmtStr).not.toContain("VaultUnsealKey")
+    }
   })
 })

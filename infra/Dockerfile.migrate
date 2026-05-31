@@ -10,7 +10,7 @@
 # wall time once schemas exist.
 #
 # Pinned per ADR-0015. Bump via Dependabot docker ecosystem.
-FROM postgres:18-alpine
+FROM postgres:18-alpine@sha256:96d56f7f57c6aacd1fcb908bc83b345ec5f83231ee486dd66a1baadce274db88
 
 RUN apk add --no-cache \
       bash \

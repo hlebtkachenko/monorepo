@@ -8,7 +8,7 @@ ARG PNPM_VERSION=11.0.9
 # stable install layer) and out/full (source of web + its workspace deps
 # only). node_modules is excluded from the build context by .dockerignore,
 # so the pruned tree is clean. Keep turbo pinned to the root devDependency.
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS pruner
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY . .
@@ -17,7 +17,7 @@ RUN pnpm dlx turbo@2.9.12 prune web --docker
 # ---------- deps ----------
 # Debian-slim (glibc) chosen over alpine to avoid musl-binding compatibility
 # issues with native modules (unrs-resolver, ssh2, etc).
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS deps
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -29,7 +29,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter=web... --filter=@workspace/ui...
 
 # ---------- builder ----------
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS builder
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS builder
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
@@ -44,7 +44,7 @@ COPY --from=pruner /repo/out/full/ ./
 RUN pnpm --filter web build
 
 # ---------- runner ----------
-FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim AS runner
+FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS runner
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0

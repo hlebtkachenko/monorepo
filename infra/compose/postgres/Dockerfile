@@ -1,4 +1,4 @@
-FROM postgres:18
+FROM postgres:18@sha256:8ff36f3c66371cba71d20ceedccfc3de9669a68737607888c4ef0af93abe8e39
 
 LABEL org.opencontainers.image.title="workspace-postgres"
 LABEL org.opencontainers.image.description="PostgreSQL 18 + pgvector + pgaudit for workspace local dev"

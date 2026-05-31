@@ -5,13 +5,15 @@
 > secrets), [AFF-244](https://linear.app/hapddev/issue/AFF-244) (deferred audit
 > log shipping). Conceptual primer: [`SECRETS-101.md`](SECRETS-101.md).
 >
-> **Snapshot:** 2026-05-31. M0–M9 done end-to-end. App-runtime secrets
-> (`BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN`) flow
-> Vault → SSM SecureString → ECS in staging + production. Root token
+> **Snapshot:** 2026-05-31. **M0–M10 COMPLETE — migration closed.** App-runtime
+> secrets (`BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN`)
+> flow Vault → SSM SecureString → ECS in staging + production. Root token
 > revoked; `LINEAR_API_KEY` on GitHub-OIDC→Vault. Legacy AWS SM copies
-> scheduled for deletion (permanent 2026-06-07). Only M10 (rotation drill +
-> cost audit + advisor gate 5) remains, gated on the ECS services being
-> scaled back up from their cost-saving `desired=0`.
+> deleting (permanent 2026-06-07). M10 rotation drill verified end-to-end +
+> old Resend key revoked; cost audit done; Keychain trimmed; full git-history
+> leak scan clean. Only deferred follow-ups remain (AFF-243 dynamic DB
+> secrets, AFF-247 DR restore drill, AFF-246 B2 secondary backup) — none
+> block the migration.
 
 ---
 
@@ -34,12 +36,17 @@
 | M8 — final doc rewrite                    | ✅ DONE | `SECRETS.md` (SOPS section deleted, Vault matrix), `env-vars.md`, `SECRETS-ROTATION.md` (Vault recipes), `AWS-DEPLOY.md`, `VAULT-OPS.md` (M3.5 + M5 as-built) — this PR                                                             |
 | M9 — IAM blast-radius tightening          | ✅ DONE | Verified both task-execution roles grant `secretsmanager` only on `DbSecret` + `AppUserSecret` (RDS); the 3 migrated secrets use SSM grants only. M4 CDK flip already removed the SM grants — no residual.                          |
 
-**Remaining:**
+| M10 — rotation drill + cost audit + advisor gate 5 | ✅ DONE | Rotated `RESEND_API_KEY` Vault→SSM→ECS on prod 2026-05-31, verified the new value in the running container, old key revoked in Resend. Cost audit: ~−$1.80/mo net gross (SM −$2.80 as 7 secrets delete 2026-06-07, KMS +$1.00, SSM $0). Advisor gate 5 signed off. |
+| Keychain cleanup | ✅ DONE | `phase6-keychain-cleanup.sh` run; revoked-root accessor + regenerable verifier keys removed. Keychain now holds operator-admin (daily) + ssm-sync escrow only. Break-glass recovery keys live on paper, not Keychain (see `VAULT-OPS.md`). |
 
-| Milestone                                          | Status     | Gate                                                                                                                                                                                                                  |
-| -------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M10 — rotation drill + cost audit + advisor gate 5 | ⏳ PENDING | Needs ECS services scaled back up from cost-saving `desired=0`. Drill rotates `RESEND_API_KEY` Vault→SSM→ECS end-to-end via `~/.context/scripts/m10-rotate-resend.sh`, then AWS Cost Explorer delta + final sign-off. |
-| Keychain cleanup                                   | ⏳ PENDING | After M10 + 7-day soak. `~/.context/scripts/phase6-keychain-cleanup.sh` trims to break-glass + bootstrap + DR entries only.                                                                                           |
+**Deferred (tracked, do not block closure):**
+
+| Item                                                       | Ticket                                              |
+| ---------------------------------------------------------- | --------------------------------------------------- |
+| Dynamic DB secrets (Vault-issued short-lived RDS users)    | [AFF-243](https://linear.app/hapddev/issue/AFF-243) |
+| DR restore drill (verify restic→R2 restore RTO end-to-end) | [AFF-247](https://linear.app/hapddev/issue/AFF-247) |
+| Backblaze B2 secondary backup                              | [AFF-246](https://linear.app/hapddev/issue/AFF-246) |
+| Centralized audit-log shipping                             | [AFF-244](https://linear.app/hapddev/issue/AFF-244) |
 
 ### Hardening pass — 2026-05-31
 

@@ -81,8 +81,12 @@ ENV NODE_ENV=production \
     BUILD_TIME=$BUILD_TIME \
     BUILD_VERSION=$BUILD_VERSION
 
+# apt-get upgrade pulls Debian-Security point releases for base packages
+# (e.g. libgnutls30 deb12u6 -> deb12u7), patching base-image CVEs at the
+# source instead of allowlisting them. Residual no-upstream-fix CVEs live
+# in .github/security/cve-allowlist.txt.
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nestjs \
-    && apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 RUN rm -rf /usr/local/lib/node_modules/npm \

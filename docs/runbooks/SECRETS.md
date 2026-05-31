@@ -39,6 +39,86 @@
 | Payment processor secret keys (deferred — no payments yet)        | Vault (KV-v2) → SSM                  | runtime, not GitHub                                               | rotate quarterly when introduced; same Vault→SSM path as other app secrets                                                                                                                                                                                                     |
 | GitHub App private key (future cross-repo automation)             | org `secrets`                        | org-level                                                         | one source for many repos                                                                                                                                                                                                                                                      |
 
+## Why not put everything in Vault?
+
+A fair question, and the framing matters: **there is exactly one source of
+truth for application secrets — Vault.** The other stores in the matrix
+above are not competing sources of truth. They are either a different
+_category_ of secret that structurally cannot or should not live in Vault,
+or a runtime _cache_. Each boundary exists for a concrete reason, not by
+accident.
+
+### 1. Bootstrap secrets — cannot live in Vault by definition (chicken-and-egg)
+
+Vault is only reachable _through_ things that themselves require secrets:
+
+- The **Cloudflare tunnel token** that exposes `secrets-admin.afframe.com`
+  is needed to _reach_ Vault — so it cannot be _stored in_ Vault.
+- The **`vault-unseal-vps` AWS keys** that let Vault auto-unseal via KMS
+  are needed before Vault is usable — Vault is sealed (inert) until they
+  work, so they cannot be inside Vault.
+
+These live in the VPS `/srv/secrets/vault/.env` (+ the GitHub deploy
+bootstrap). Storing them in Vault would be locking the only key inside the
+box it opens.
+
+### 2. CI/CD bootstrap identity — the runner has no Vault access until it uses them
+
+A fresh GitHub Actions runner starts with nothing. To reach Vault it needs
+the **CF Access service token** (`CF_ACCESS_CLIENT_ID/SECRET`); to reach
+AWS it needs the **deploy role ARN** (via OIDC). Those are the bootstrap
+identity — they must be GitHub repo secrets because that is the only thing
+the runner can read _before_ it has authenticated to anything.
+
+`LINEAR_API_KEY` proves the model works once you are _past_ bootstrap: it
+moved INTO Vault and is fetched via GitHub OIDC → Vault JWT at run time
+(M5). Bootstrap credentials are exactly the ones that cannot make that
+jump, because they are what authenticates the jump.
+
+### 3. RDS credentials — AWS Secrets Manager is the better native home
+
+`DbSecret` / `AppUserSecret` stay in AWS Secrets Manager because SM + RDS
+have **native rotation**: AWS rotates the database password on a schedule
+with no application code. The _correct_ way to put DB credentials in Vault
+is **dynamic secrets** (Vault mints short-lived per-session DB users on
+demand) — that is deferred to [AFF-243](https://linear.app/hapddev/issue/AFF-243)
+because it only pays off at team scale. Until then, SM is the lower-risk
+home; hand-rolling static-credential rotation in Vault would be strictly
+worse than what AWS gives for free.
+
+### 4. AWS SSM — a runtime cache, NOT a source of truth
+
+This is the distinction that makes "4 stores" misleading. SSM owns no
+secret. It is a 5-minute mirror of Vault (`vault-to-ssm-sync` timer). ECS
+reads SSM instead of Vault directly because:
+
+- **Decoupling**: if the VPS Vault is down, the last-synced SSM values
+  still boot the app. Application uptime does not depend on Vault uptime.
+- **No cross-cloud dependency in the boot path**: having every ECS task
+  reach a VPS-hosted Vault at start-up would put a fragile
+  Cloudflare-tunnel hop on the critical path. SSM is AWS-native,
+  same-region, IAM-gated.
+- **Zero extra infra**: `EcsSecret.fromSsmParameter` is built into CDK.
+
+### The mental model
+
+```
+              ONE source of truth (application secrets)
+                            Vault  (Hostinger KVM 2 VPS)
+                              │ syncs every 5 min
+                              ▼
+                        SSM (cache) ──→ ECS        ← a mirror, not a source
+
+   Bootstrap (cannot be in Vault)        RDS creds (better native home)
+   GitHub secrets + VPS .env             AWS Secrets Manager
+```
+
+A single-store design would have to either lock Vault's own unseal/tunnel
+keys inside Vault (impossible) or discard AWS-native RDS rotation (worse).
+The split is deliberate: one source of truth for app secrets, one cache to
+decouple uptime, and two categories that have correct homes elsewhere for
+structural reasons.
+
 ## Forbidden
 
 - `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` — never. OIDC only.

@@ -1,7 +1,13 @@
 # Secrets-Management Controls — SOC 2 / DORA mapping
 
-> **Status:** placeholder — finalized in M10 of [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md) once
-> the full Vault + AWS SSM SecureString chain is live.
+> **Status:** finalized 2026-05-31 (M10). The Vault → AWS SSM SecureString
+> chain is live in staging + production; root token revoked; secret
+> rotation drilled end-to-end (`RESEND_API_KEY`, Vault→SSM→ECS, verified
+> in the running container); full git-history leak scan clean. The one
+> control NOT yet evidenced is the **DR restore drill** (deferred,
+> [AFF-247](https://linear.app/hapddev/issue/AFF-247)) — see the explicit
+> caveat under Art. 11 + Risk acceptance. Do NOT claim a tested restore
+> RTO until AFF-247 runs.
 >
 > **Backs:** [AFF-245](https://linear.app/hapddev/issue/AFF-245).
 >
@@ -9,7 +15,7 @@
 > Trust-Services Criteria and DORA Articles. Used during audit prep and as the
 > source of truth for the Statement of Applicability.
 
-## Mapping outline (to be filled in M10)
+## Mapping
 
 ### SOC 2 Trust-Services Criteria
 
@@ -23,20 +29,20 @@
 
 ### DORA (EU Regulation 2022/2554)
 
-| Article | Topic                         | Where it's implemented                                                                                  |
-| ------- | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Art. 6  | ICT risk management framework | This plan + the irreversible-ops register                                                               |
-| Art. 9  | Protection & prevention       | Vault encryption at rest; KMS-wrapped DEK; audit device                                                 |
-| Art. 10 | Detection                     | Vault audit log; CloudTrail on KMS + SM + SSM; Resend bounce alerts                                     |
-| Art. 11 | Response & recovery           | DR drill (M2); rotation drill (M10); backup to 2 unrelated providers                                    |
-| Art. 28 | Third-party risk              | Vault on Hostinger (compute) ≠ AWS (runtime) ≠ Cloudflare (network); concentrations split intentionally |
+| Article | Topic                         | Where it's implemented                                                                                                                                                                                                                            |
+| ------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Art. 6  | ICT risk management framework | This plan + the irreversible-ops register                                                                                                                                                                                                         |
+| Art. 9  | Protection & prevention       | Vault encryption at rest; KMS-wrapped DEK; audit device                                                                                                                                                                                           |
+| Art. 10 | Detection                     | Vault audit log; CloudTrail on KMS + SM + SSM; Resend bounce alerts                                                                                                                                                                               |
+| Art. 11 | Response & recovery           | **Rotation drill: DONE** (M10, 2026-05-31, end-to-end verified). **DR restore drill: NOT YET RUN** — deferred to [AFF-247](https://linear.app/hapddev/issue/AFF-247); restore RTO is therefore UNVERIFIED. Backup itself is live (restic→R2, 6h). |
+| Art. 28 | Third-party risk              | Vault on Hostinger (compute) ≠ AWS (runtime) ≠ Cloudflare (network); concentrations split intentionally                                                                                                                                           |
 
 ### Risk acceptance
 
 The following risks are explicitly accepted at current scale:
 
-- **Single-node Vault** — no HA cluster today; mitigated by 6-hour backups + restored DR drill RTO ≤30 min.
-- **Single-operator escrow** — Shamir keys controlled by one person. Mitigated by paper-at-safe-deposit + Keychain split. Adding a second escrow operator is tracked in [AFF-245](https://linear.app/hapddev/issue/AFF-245)'s post-100-clients section.
+- **Single-node Vault** — no HA cluster today; mitigated by 6-hour restic backups to R2. **Restore RTO is a TARGET (≤30 min), not yet measured** — the DR drill that would verify it is deferred ([AFF-247](https://linear.app/hapddev/issue/AFF-247)).
+- **Single-operator escrow** — 5 recovery keys (3-of-5 quorum) controlled by one person, held on **paper at safe-deposit** (proven working 2026-05-31: 3 keys regenerated root during the M3.5 cascade recovery). Daily admin is a 90-day Keychain operator-admin token. Adding a second escrow operator is tracked in [AFF-245](https://linear.app/hapddev/issue/AFF-245)'s post-100-clients section.
 - **File-based audit device** — local log on VPS. Mitigated by 13-month retention deferral until SOC 2 ([AFF-244](https://linear.app/hapddev/issue/AFF-244)).
 
 ## Open items before SOC 2 Type II

@@ -1,5 +1,27 @@
 name: Workflow lint
 
+# IMPORTANT — required checks must ALWAYS report a status on PRs.
+#
+# `cdk-synth-strict (staging)`, `cdk-synth-strict (production)`, and
+# `shellcheck` are branch-protection REQUIRED contexts. Previously this
+# workflow had a `pull_request: paths:` filter, so a PR that touched none
+# of those paths (e.g. a docs-only change) never triggered the workflow —
+# the required contexts never reported, and the PR sat forever at
+# "Expected — Waiting for status to be reported". The only way through was
+# an admin bypass ("Merge without waiting for requirements").
+#
+# Fix: the `pull_request` trigger now runs on EVERY PR (no paths filter),
+# so all four jobs always report a status. The jobs are intentionally
+# cheap/deterministic on an unrelated PR:
+#   - cdk-synth-strict runs fully offline (dummy AWS_ACCOUNT_ID, cached AZ
+#     context) so a docs PR synthesizes the same template as main → green.
+#   - shellcheck lints the in-repo infra scripts (seconds).
+# We accept the few CI minutes on every PR in exchange for never blocking a
+# merge on a status that will never arrive. (ci.yml already runs on every
+# PR for the same reason — only workflow-lint.yml had the trigger filter.)
+#
+# `push` keeps the paths filter: on main the lint only needs to run when the
+# relevant files actually change.
 on:
   push:
     branches: [main]
@@ -11,13 +33,6 @@ on:
       - "infra/scripts/**"
       - "infra/cdk/**"
   pull_request:
-    paths:
-      - ".github/workflows/**"
-      - ".github/actions/**"
-      - "**/action.yml"
-      - "**/action.yaml"
-      - "infra/scripts/**"
-      - "infra/cdk/**"
 
 permissions: {}
 

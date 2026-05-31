@@ -172,11 +172,13 @@ After Active: adm.tools can be dropped entirely.
 transport so a partially-configured task can't silently fall through to
 console + dev outbox.
 
-The deploy workflow's "Ensure Resend API key secret exists" step copies the
-GitHub repo secret into Secrets Manager as
-`monorepo-{env}-resend-api-key` (the secret name AppStack references via
-`Secret.fromSecretNameV2`). Rotation: `gh secret set RESEND_API_KEY ...`,
-then re-deploy.
+`RESEND_API_KEY` is stored in Vault (`platform/{env}/resend-api-key`,
+source of truth) and mirrored to AWS SSM SecureString
+(`/monorepo/{env}/resend-api-key`) by the `vault-to-ssm-sync` timer; the
+AppStack web/api/admin containers read it via `EcsSecret.fromSsmParameter`.
+The deploy workflow no longer touches the value (M4/M6). Rotation:
+`vault kv put platform/{env}/resend-api-key value=<new>` — see
+[`SECRETS-ROTATION.md`](SECRETS-ROTATION.md).
 
 #### Email sender verification — Resend is per-EXACT-domain
 
@@ -542,22 +544,24 @@ The web container in the ECS task receives every runtime value needed by
 Better Auth and `packages/email` automatically. Source of truth is
 `infra/cdk/lib/app-stack.ts` (`webContainer` block).
 
-| Var                           | Source                            | Notes                                                                          |
-| ----------------------------- | --------------------------------- | ------------------------------------------------------------------------------ |
-| `BETTER_AUTH_URL`             | CDK env (`https://${domain}`)     | Drives cookie scope + every email link                                         |
-| `NEXT_PUBLIC_BETTER_AUTH_URL` | CDK env                           | Same value, browser-visible                                                    |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | CDK env (CSV)                     | Add www / extra aliases here if Cloudflare adds them                           |
-| `EMAIL_FROM`                  | CDK env (`no-reply@${domain}`)    | Must be on a Resend-verified domain                                            |
-| `EMAIL_TRANSPORT`             | CDK env (`resend`)                | Pins the email backend                                                         |
-| `BETTER_AUTH_SECRET`          | Secrets Manager (CDK-generated)   | `monorepo-{env}-better-auth-secret`                                            |
-| `RESEND_API_KEY`              | Secrets Manager (workflow-seeded) | `monorepo-{env}-resend-api-key`, value comes from `gh secret RESEND_API_KEY`   |
-| `DATABASE_URL`                | composed at container start       | `/bin/sh` builds it from DB_USER + DB_PASSWORD secrets + DB_HOST/PORT/NAME env |
+| Var                           | Source                               | Notes                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_URL`             | CDK env (`https://${domain}`)        | Drives cookie scope + every email link                                                                                                                                 |
+| `NEXT_PUBLIC_BETTER_AUTH_URL` | CDK env                              | Same value, browser-visible                                                                                                                                            |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | CDK env (CSV)                        | Add www / extra aliases here if Cloudflare adds them                                                                                                                   |
+| `EMAIL_FROM`                  | CDK env (`no-reply@${domain}`)       | Must be on a Resend-verified domain                                                                                                                                    |
+| `EMAIL_TRANSPORT`             | CDK env (`resend`)                   | Pins the email backend                                                                                                                                                 |
+| `BETTER_AUTH_SECRET`          | SSM SecureString (synced from Vault) | `/monorepo/{env}/better-auth-secret`; source of truth `platform/{env}/better-auth-secret` in Vault. ECS reads via `EcsSecret.fromSsmParameter`.                        |
+| `RESEND_API_KEY`              | SSM SecureString (synced from Vault) | `/monorepo/{env}/resend-api-key`; source of truth in Vault. The deploy workflow no longer touches this value (M4/M6).                                                  |
+| `TUNNEL_TOKEN`                | SSM SecureString                     | `/monorepo/{env}/cloudflare-tunnel-token`; deploy workflow puts the `gh secret CLOUDFLARE_TUNNEL_TOKEN_{ENV}` value to SSM (does not transit Vault — chicken-and-egg). |
+| `DATABASE_URL`                | composed at container start          | `/bin/sh` builds it from DB_USER + DB_PASSWORD secrets (RDS, AWS Secrets Manager) + DB_HOST/PORT/NAME env                                                              |
 
 Rotating `BETTER_AUTH_SECRET` invalidates every active session. Plan a
 maintenance window before rotating. Invite / signup / login-email
 tokens are opaque DB rows (`auth_token`, ADR-0022) and survive a
 session-secret rotation — only the BA session cookie depends on this
-secret.
+secret. Rotation procedure (Vault `kv put` → SSM sync → ECS rolling
+restart): [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md).
 
 ## DNS - final wiring after first deploy
 

@@ -1,187 +1,170 @@
-# BETTER_AUTH_SECRET Rotation Runbook
+# BETTER_AUTH_SECRET / RESEND_API_KEY Rotation Runbook
 
-90-day rotation cycle for `BETTER_AUTH_SECRET`. No data is lost during rotation;
-users experience at most one forced re-login.
+Rotation cycle for the Vault-backed app secrets. No data is lost during
+rotation; for `BETTER_AUTH_SECRET`, users experience at most one forced
+re-login.
+
+The same procedure applies to any secret under `platform/{env}/*` in
+Vault (`better-auth-secret`, `resend-api-key`). Substitute the key name.
 
 ---
 
 ## Why rotate
 
-`BETTER_AUTH_SECRET` signs all Better Auth session tokens and verification tokens.
-A leaked secret allows an attacker to forge sessions for any user. Rotating every
-90 days limits the blast radius of an undetected leak to a bounded window.
+`BETTER_AUTH_SECRET` signs all Better Auth session + verification tokens.
+A leaked secret lets an attacker forge sessions for any user. `RESEND_API_KEY`
+sends mail on the brand's behalf. Rotating on suspected leak (and on a
+loose annual cadence) bounds the blast radius.
 
-AWS Secrets Manager stores the runtime value. Rotation is a manual operator action
-until a Lambda rotation function is wired in. See the cadence table in
-`docs/runbooks/SECRETS.md` for where this sits next to other secret classes.
+**Source of truth is Vault** (`platform/{env}/<name>`, KV-v2). A systemd
+timer on the VPS (`vault-to-ssm-sync`) mirrors each value to AWS SSM
+SecureString (`/monorepo/{env}/<name>`) every 5 minutes; ECS reads SSM at
+task start. So rotation = one `vault kv put`, then let the sync + an ECS
+rolling restart pick it up. KV-v2 retains prior versions, so rollback is
+a `vault kv rollback`, not a re-paste.
 
 ---
 
-## Current API limitation
+## Current API limitation (BETTER_AUTH_SECRET only)
 
-Better Auth 1.6.x does not natively accept an array of secrets (primary + fallback).
-Sessions signed with the previous secret become invalid immediately on cutover unless
-a workaround is in place.
+Better Auth 1.6.x does not natively accept an array of secrets (primary +
+fallback). Sessions signed with the previous secret become invalid on
+cutover. Rotate at a low-traffic window (e.g. Sunday 02:00 UTC) so forced
+re-logins hit the fewest active sessions. Staging sessions are ephemeral
+(CI teardown), so staging rotations are always zero-impact.
 
-Two options:
+`RESEND_API_KEY` has no such constraint — old + new keys both work until
+the old one is revoked in the Resend dashboard, so its rotation is
+zero-impact in every env.
 
-**Option A (recommended today) — `secondaryStorage` re-sign trick**
+---
 
-Wrap the BA `database` adapter with a thin storage shim that, on every `getSession`
-call, re-signs the session row with the new primary secret if it was signed with the
-secondary. This keeps existing sessions alive through the 24-hour grace window.
-Implementation is non-trivial; defer to a follow-up hardening ticket.
+## Prerequisites
 
-**Option B (wait for BA versioned-secret API)**
-
-Better Auth's roadmap includes a first-class `secrets: [primary, secondary]`
-configuration. Once released, the procedure below becomes a single config change
-with no custom shim needed. Track the BA release notes for this feature.
-
-**Current procedure uses Option B's wait posture**: rotate at a low-traffic window
-(e.g. Sunday 02:00 UTC) so forced re-logins affect the fewest active sessions.
-All staging sessions are ephemeral (CI teardown); staging rotations are always
-zero-impact.
+- Vault `operator-admin` token in macOS Keychain
+  (`afframe-vault-operator-admin-token`), minted at M3.5.
+- SSH access to `afframe-vps` (Vault listens on `127.0.0.1:8200`; tunnel
+  via `ssh -fN -L 8200:127.0.0.1:8200 afframe-vps`).
+- For an end-to-end drill, the helper
+  `~/.context/scripts/m10-rotate-resend.sh <env>` automates steps 1–5
+  for `RESEND_API_KEY`.
 
 ---
 
 ## Procedure — step by step
 
-### Step 1 — generate a new secret
+### Step 1 — generate the new value
+
+For `BETTER_AUTH_SECRET`:
 
 ```bash
 openssl rand -base64 48
 ```
 
-Copy the output. It must be at least 32 bytes after UTF-8 encoding (a 48-byte
-base64 output is 64 characters, well above the threshold).
+For `RESEND_API_KEY`: create a new key in the
+[Resend dashboard](https://resend.com/api-keys). Do NOT revoke the old
+one yet.
 
-### Step 2 — record the current secret as the secondary
+### Step 2 — snapshot the current value (for rollback)
 
-Retrieve the current value from Secrets Manager:
-
-```bash
-aws secretsmanager get-secret-value \
-  --secret-id "/afframe/production/BETTER_AUTH_SECRET" \
-  --query SecretString \
-  --output text
-```
-
-Store it in a local variable for the update call:
+Open a tunnel + export the operator-admin token, then read the current
+value. KV-v2 keeps prior versions, but capture it locally as a belt:
 
 ```bash
-OLD_SECRET=$(aws secretsmanager get-secret-value \
-  --secret-id "/afframe/production/BETTER_AUTH_SECRET" \
-  --query SecretString \
-  --output text)
+ssh -fN -L 8200:127.0.0.1:8200 afframe-vps
+export VAULT_ADDR=http://127.0.0.1:8200
+export VAULT_TOKEN=$(security find-generic-password \
+  -s afframe-vault-operator-admin-token -a "$USER" -w)
+
+vault kv get -field=value platform/production/better-auth-secret
 ```
 
-### Step 3 — set the new secret as the primary value
+### Step 3 — write the new value to Vault
 
 ```bash
-NEW_SECRET="<paste the openssl output from Step 1>"
-
-aws secretsmanager update-secret \
-  --secret-id "/afframe/production/BETTER_AUTH_SECRET" \
-  --secret-string "${NEW_SECRET}"
+printf '%s' "<new-value>" | \
+  vault kv put platform/production/better-auth-secret value=-
 ```
 
-Confirm the update was accepted:
+`vault kv put` creates a new KV-v2 version; the prior version is retained
+for rollback.
+
+### Step 4 — wait for the sync, then roll the service
+
+The `vault-to-ssm-sync` timer fires every 5 minutes. Confirm SSM picked up
+the new value:
 
 ```bash
-aws secretsmanager describe-secret \
-  --secret-id "/afframe/production/BETTER_AUTH_SECRET" \
-  --query 'LastChangedDate'
+aws ssm get-parameter \
+  --name /monorepo/production/better-auth-secret \
+  --with-decryption --region eu-central-1 \
+  --query 'Parameter.Value' --output text
 ```
 
-### Step 4 — deploy to production
-
-Trigger a production deploy so the running containers pick up the new secret:
+ECS only reads SSM at task start, so force a rolling restart to pick up
+the new value (no image rebuild, no full deploy needed):
 
 ```bash
-gh workflow run _deploy-aws.yml \
-  -f environment=production \
-  -f image_tag=latest
+aws ecs update-service \
+  --cluster monorepo-production \
+  --service <App-production service name> \
+  --force-new-deployment --region eu-central-1
+aws ecs wait services-stable \
+  --cluster monorepo-production --services <service> --region eu-central-1
 ```
 
-Wait for the deploy workflow to complete and confirm the health check is green.
-
-### Step 5 — 24-hour grace window
-
-Monitor the error rate in Honeycomb/Sentry for the next 24 hours. A spike in
-`auth.login.failed_password` or session-not-found errors indicates users whose
-sessions were signed with the old secret. Advise affected users to log in again.
-
-If the error rate is acceptable (below your defined SLO), continue to Step 6.
-
-### Step 6 — discard the secondary (old secret)
-
-The old secret is no longer referenced in any active configuration. No further
-action is required in Secrets Manager — the current value is already the new
-primary. The `OLD_SECRET` local variable from Step 2 should be discarded (close
-the terminal session or unset the variable).
+### Step 5 — verify at runtime
 
 ```bash
-unset OLD_SECRET
+aws ecs execute-command --cluster monorepo-production --task <task> \
+  --container web --interactive \
+  --command "sh -c 'printenv BETTER_AUTH_SECRET | head -c 8'" \
+  --region eu-central-1
 ```
 
-If you stored the old value anywhere temporarily (a notes app, clipboard), clear it.
+The first 8 chars should match the new value.
+
+### Step 6 — grace window + cleanup
+
+`BETTER_AUTH_SECRET`: monitor `auth.login.failed_password` +
+session-not-found in Honeycomb/Sentry for 24h. A spike = users on the old
+secret; advise re-login.
+
+`RESEND_API_KEY`: once Step 5 confirms the new key live, **revoke the old
+key in the Resend dashboard** and send a test email to confirm delivery.
+
+No manual discard needed in Vault — the new version is already primary;
+prior versions stay in KV-v2 history for rollback only.
 
 ### Rotation in staging
 
-The staging secret is stored separately:
-
-```bash
-aws secretsmanager update-secret \
-  --secret-id "/afframe/staging/BETTER_AUTH_SECRET" \
-  --secret-string "$(openssl rand -base64 48)"
-```
-
-Staging has no persistent user sessions (CI teardown clears state), so no grace
-window is needed.
+Identical, against `platform/staging/<name>` + `monorepo-staging` cluster.
+No grace window for `BETTER_AUTH_SECRET` (staging sessions are ephemeral).
 
 ---
 
 ## Rollback — if a deploy fails mid-cycle
 
-If the deploy in Step 4 fails and you need to restore the previous secret:
+KV-v2 retains prior versions. Roll back to the previous version:
 
 ```bash
-aws secretsmanager update-secret \
-  --secret-id "/afframe/production/BETTER_AUTH_SECRET" \
-  --secret-string "${OLD_SECRET}"
+# inspect versions
+vault kv metadata get platform/production/better-auth-secret
+
+# roll back to the version before the bad write
+vault kv rollback -version=<N-1> platform/production/better-auth-secret
 ```
 
-Then re-deploy with the reverted value:
-
-```bash
-gh workflow run _deploy-aws.yml \
-  -f environment=production \
-  -f image_tag=latest
-```
-
-If `OLD_SECRET` was already unset, retrieve the previous version from Secrets
-Manager version history:
-
-```bash
-aws secretsmanager list-secret-version-ids \
-  --secret-id "/afframe/production/BETTER_AUTH_SECRET"
-
-aws secretsmanager get-secret-value \
-  --secret-id "/afframe/production/BETTER_AUTH_SECRET" \
-  --version-id "<previous-version-id>" \
-  --query SecretString \
-  --output text
-```
-
-AWS Secrets Manager retains the three most recent versions by default.
+Wait ≤5 min for the sync, then force a rolling restart (Step 4) to
+restore the prior value in the running containers. If you captured the
+value locally in Step 2, you can instead `vault kv put` it back directly.
 
 ---
 
 ## Long-term path
 
-Once Better Auth ships native versioned-secret support (`secrets: [primary, secondary]`),
-update `packages/auth/src/server.ts` to:
+Once Better Auth ships native versioned-secret support
+(`secrets: [primary, secondary]`), update `packages/auth/src/server.ts`:
 
 ```ts
 const auth = betterAuth({
@@ -190,17 +173,19 @@ const auth = betterAuth({
 })
 ```
 
-At that point, the cutover window drops to zero: old sessions keep validating
-against the secondary for 24 hours while new sessions use the primary.
+At that point the `BETTER_AUTH_SECRET` cutover window drops to zero: old
+sessions validate against the secondary for 24h while new sessions use
+the primary. Both secrets would be separate Vault keys synced to SSM.
 
 ---
 
 ## Checklist
 
-- [ ] New secret generated with `openssl rand -base64 48`
-- [ ] Old secret recorded locally (temporary, discarded after Step 6)
-- [ ] Secrets Manager updated with new value
-- [ ] Production deploy completed and health check green
-- [ ] Error rate monitored for 24 hours
-- [ ] Old secret variable unset / clipboard cleared
-- [ ] Next rotation date calendared (+90 days)
+- [ ] New value generated (`openssl rand -base64 48` / Resend dashboard)
+- [ ] Current value snapshotted locally (Step 2) — discarded after Step 6
+- [ ] `vault kv put platform/{env}/<name>` written
+- [ ] SSM parameter shows the new value (≤5 min after the write)
+- [ ] ECS service force-new-deployment + stable
+- [ ] Runtime `printenv` confirms new value in container
+- [ ] (BETTER_AUTH) error rate monitored 24h / (RESEND) old key revoked + test mail sent
+- [ ] Local snapshot variable unset / clipboard cleared

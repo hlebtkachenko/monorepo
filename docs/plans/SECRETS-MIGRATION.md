@@ -5,43 +5,41 @@
 > secrets), [AFF-244](https://linear.app/hapddev/issue/AFF-244) (deferred audit
 > log shipping). Conceptual primer: [`SECRETS-101.md`](SECRETS-101.md).
 >
-> **Snapshot:** 2026-05-24. Phase: M4 staging deployed end-to-end (Vault →
-> SSM SecureString → ECS verified with live signup + email flow). Production
-> deploy + M3.5 root-revoke pending today.
+> **Snapshot:** 2026-05-31. M0–M9 done end-to-end. App-runtime secrets
+> (`BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN`) flow
+> Vault → SSM SecureString → ECS in staging + production. Root token
+> revoked; `LINEAR_API_KEY` on GitHub-OIDC→Vault. Legacy AWS SM copies
+> scheduled for deletion (permanent 2026-06-07). Only M10 (rotation drill +
+> cost audit + advisor gate 5) remains, gated on the ECS services being
+> scaled back up from their cost-saving `desired=0`.
 
 ---
 
-## Execution status — 2026-05-24
+## Execution status — 2026-05-31
 
 **Done end-to-end:**
 
-| Milestone                                  | Status              | Evidence                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------ | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0 — backlog + plan + scans                | ✅ DONE             | AFF-243/244/245 created; lefthook + CI gitleaks + infisical-scan live                                                                                                                                                                                                                                            |
-| M1 — Vault VPS bring-up                    | ✅ DONE             | `secrets-admin.afframe.com` initialized, KMS auto-unseal, CF Access OTP gate, kv-v2 at `platform/`                                                                                                                                                                                                               |
-| M2 — Restic → R2 backup                    | ✅ DONE             | timer fires every 6h, 5+ snapshots in `afframe-vault-backup` R2 bucket, `CacheDirectory=` fix landed                                                                                                                                                                                                             |
-| M3 — Vault `aws auth` method               | ✅ DONE             | `vault-aws-auth-verifier` IAM user wired; `ecs-{staging,production}` roles bound (dormant — activates with AFF-243)                                                                                                                                                                                              |
-| M4 — Vault → SSM sync + CDK flip (staging) | ✅ DONE             | `/usr/local/sbin/vault-to-ssm-sync` timer firing every 5 min, 4 secrets + 2 heartbeats live in SSM SecureString, App-staging ECS task reads them via `EcsSecret.fromSsmParameter`, end-to-end smoke passed (signup + password reset email both delivered via SSM-backed `RESEND_API_KEY` + `BETTER_AUTH_SECRET`) |
-| M7 — pre-commit + CI secret scanning       | ✅ DONE             | both scanners active locally + in CI                                                                                                                                                                                                                                                                             |
-| M8 (partial) — doc skeletons               | 🟡 SKELETONS LANDED | `SECRETS.md`, `VAULT-OPS.md`, `compliance/SECRETS-CONTROLS.md` exist; final content pass deferred to dedicated M8 PR                                                                                                                                                                                             |
+| Milestone                                 | Status  | Evidence                                                                                                                                                                                                                            |
+| ----------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0 — backlog + plan + scans               | ✅ DONE | AFF-243/244/245 created; lefthook + CI gitleaks + infisical-scan live                                                                                                                                                               |
+| M1 — Vault VPS bring-up                   | ✅ DONE | `secrets-admin.afframe.com` initialized, KMS auto-unseal, CF Access gate, kv-v2 at `platform/`                                                                                                                                      |
+| M2 — Restic → R2 backup                   | ✅ DONE | timer every 6h, snapshots in `afframe-vault-backup` R2 bucket                                                                                                                                                                       |
+| M3 — Vault `aws auth` method              | ✅ DONE | `vault-aws-auth-verifier` IAM user wired; `ecs-{staging,production}` roles bound                                                                                                                                                    |
+| M3.5 — revoke initial root token          | ✅ DONE | Root revoked 2026-05-31; replaced by orphan `operator-admin` token (Keychain). Hit + recovered a non-orphan cascade-revoke (recovery-key regen). Lesson recorded in `VAULT-OPS.md`.                                                 |
+| M4 — Vault → SSM sync + CDK flip          | ✅ DONE | `vault-to-ssm-sync` timer every 5 min; staging + **production** ECS task defs read all 3 secrets via `EcsSecret.fromSsmParameter`; prod cutover deploy `26394076696` green; live signup + reset-email smoke passed                  |
+| M4.5 — delete legacy AWS SM entries       | ✅ DONE | 6 SM secrets (`monorepo-{staging,production}-{better-auth-secret,resend-api-key,cloudflare-tunnel-token}`) scheduled for deletion 2026-05-31, permanent 2026-06-07; CloudTrail soak showed 0 `GetSecretValue` in prior 48h          |
+| M5 — GHA OIDC → Vault JWT (`linear-sync`) | ✅ DONE | JWT auth + `gha-monorepo` role; `linear-sync.yml` fetches `LINEAR_API_KEY` from Vault; audit log shows `auth/jwt/login` role=gha-monorepo + read on `platform/data/shared/linear-api-key`; PR #279 merged                           |
+| M6 — remaining GHA secret cleanup         | ✅ DONE | `RESEND_API_KEY` was vestigial in `_deploy-aws.yml` post-M4 (presence-check only, never consumed) — removed. `EMAIL_FORWARD_TO` kept (email address, not a credential; used for SNS alert subscribe). No further Vault-OIDC needed. |
+| M7 — pre-commit + CI secret scanning      | ✅ DONE | both scanners active locally + in CI                                                                                                                                                                                                |
+| M8 — final doc rewrite                    | ✅ DONE | `SECRETS.md` (SOPS section deleted, Vault matrix), `env-vars.md`, `SECRETS-ROTATION.md` (Vault recipes), `AWS-DEPLOY.md`, `VAULT-OPS.md` (M3.5 + M5 as-built) — this PR                                                             |
+| M9 — IAM blast-radius tightening          | ✅ DONE | Verified both task-execution roles grant `secretsmanager` only on `DbSecret` + `AppUserSecret` (RDS); the 3 migrated secrets use SSM grants only. M4 CDK flip already removed the SM grants — no residual.                          |
 
-**In flight (today):**
+**Remaining:**
 
-| Milestone                        | Status     | Next action                                                                                                   |
-| -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
-| M3.5 — revoke initial root token | ⏳ PENDING | Mint operator-admin scoped token, escrow, then `vault token revoke -accessor <root-accessor>`. ~15 min.       |
-| M4 — App-production deploy       | ⏳ PENDING | `gh workflow run _deploy-aws.yml -f environment=production -f stack=app-only`. ~15 min including image build. |
-
-**Pending this week (compressed timeline):**
-
-| Milestone                                          | Status     | Target                       | Original target    |
-| -------------------------------------------------- | ---------- | ---------------------------- | ------------------ |
-| M4.5 — delete legacy AWS SM entries                | ⏳ PENDING | 2026-05-26 (T+48h post-prod) | 2026-06-25 (T+30d) |
-| M5 — GHA OIDC pilot (`linear-sync.yml`)            | ⏳ PENDING | 2026-05-27                   | open-ended         |
-| M6 — bulk GHA migration per inclusion list         | ⏳ PENDING | 2026-05-28                   | 1–2 weeks          |
-| M8 — final doc rewrite                             | ⏳ PENDING | 2026-05-29                   | post-M6            |
-| M9 — IAM blast-radius tightening                   | ⏳ PENDING | 2026-05-29                   | post-M4.5          |
-| M10 — rotation drill + cost audit + advisor gate 5 | ⏳ PENDING | 2026-05-30                   | end-of-cycle       |
+| Milestone                                          | Status     | Gate                                                                                                                                                                                                                  |
+| -------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M10 — rotation drill + cost audit + advisor gate 5 | ⏳ PENDING | Needs ECS services scaled back up from cost-saving `desired=0`. Drill rotates `RESEND_API_KEY` Vault→SSM→ECS end-to-end via `~/.context/scripts/m10-rotate-resend.sh`, then AWS Cost Explorer delta + final sign-off. |
+| Keychain cleanup                                   | ⏳ PENDING | After M10 + 7-day soak. `~/.context/scripts/phase6-keychain-cleanup.sh` trims to break-glass + bootstrap + DR entries only.                                                                                           |
 
 ---
 

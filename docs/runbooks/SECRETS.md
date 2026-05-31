@@ -1,29 +1,41 @@
 # Secrets and Variables Convention
 
-> **Migration in progress (2026-05-22 → 2026-06):** the secrets stack is moving
-> to Vault-on-VPS + AWS SSM SecureString (Vault = source of truth, SSM = runtime
-> cache for ECS). See [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md)
+> **As-built 2026-05-31 (M8).** App-runtime secrets live in HashiCorp Vault
+> on the OVH/Hostinger VPS (source of truth) and are mirrored to AWS SSM
+> SecureString every 5 minutes by a systemd timer; ECS reads SSM at task
+> start. Day-to-day Vault operations: [`VAULT-OPS.md`](VAULT-OPS.md).
+> Rotation recipes: [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md). Plan +
+> milestone history: [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md).
 >
-> - [`docs/runbooks/VAULT-OPS.md`](VAULT-OPS.md). This document still describes
->   the current AWS-SM-backed state; it is rewritten in milestone M8 once Vault is
->   live. The SOPS+age section toward the bottom is slated for deletion in M8
->   (SOPS+age was never adopted).
+> **Three storage tiers, by purpose:**
+>
+> 1. **Vault → SSM SecureString** — app-runtime secrets (`BETTER_AUTH_SECRET`,
+>    `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN`). Vault is authoritative.
+> 2. **AWS Secrets Manager** — RDS-managed credentials only (`DbSecret`,
+>    `AppUserSecret`). These stay in SM: they are RDS-native, rotated by
+>    AWS, never transit Vault. Dynamic DB secrets are deferred to AFF-243.
+> 3. **GitHub Actions secrets / vars** — CI/CD identity + config
+>    (`AWS_DEPLOY_ROLE_ARN_*`, `CLOUDFLARE_TUNNEL_TOKEN_*` for the deploy
+>    bootstrap, `EMAIL_FORWARD_TO`, etc.). `LINEAR_API_KEY` migrated to
+>    Vault-via-OIDC (M5); see [`VAULT-OPS.md`](VAULT-OPS.md) § JWT auth.
 
 ## Decision matrix
 
-| Value                                                           | Type                  | Where                   | Why                                                                                                                                                                                                                                                                            |
-| --------------------------------------------------------------- | --------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AWS_REGION`                                                    | repo `vars`           | repository              | static, non-sensitive                                                                                                                                                                                                                                                          |
-| `AWS_ACCOUNT_ID`                                                | repo `secrets`        | repository              | single-account MVP (ADR-0007); stored as secret to keep account ID out of logs                                                                                                                                                                                                 |
-| `AWS_DEPLOY_ROLE_ARN_STAGING`, `AWS_DEPLOY_ROLE_ARN_PRODUCTION` | repo `secrets`        | repository              | contain account ID; trust policy gates the actual access                                                                                                                                                                                                                       |
-| `AWS_BOOTSTRAPPED`                                              | repo `vars`           | repository              | boolean flag, gates AWS-touching workflows                                                                                                                                                                                                                                     |
-| `OPENSTATUS_*` (5) + `OVH_VPS_SSH_KEY` + `OVH_VPS_HOST_KEY`     | repo `secrets`        | repository              | OpenStatus stack + VPS deploy path. Status page is off-AWS (ADR-0019) so these do not live in AWS Secrets Manager. Rendered into `/opt/openstatus/.env.docker` by `deploy-statuspage.yml`. See [`infra/openstatus/deploy/README.md`](../../infra/openstatus/deploy/README.md). |
-| `OVH_VPS_HOST` / `OVH_VPS_PORT` / `OVH_VPS_USER`                | repo `vars`           | repository              | non-secret deploy coordinates                                                                                                                                                                                                                                                  |
-| Cosign signing                                                  | none                  | n/a                     | keyless OIDC via Sigstore; no secret stored                                                                                                                                                                                                                                    |
-| Sentry DSN                                                      | environment `secrets` | `staging`, `production` | per-env DSN; isolation                                                                                                                                                                                                                                                         |
-| Honeycomb API key                                               | environment `secrets` | `staging`, `production` | per-env writer key                                                                                                                                                                                                                                                             |
-| Payment processor secret keys (deferred — no payments yet)      | AWS Secrets Manager   | runtime, not GitHub     | rotate quarterly when introduced                                                                                                                                                                                                                                               |
-| GitHub App private key (future cross-repo automation)           | org `secrets`         | org-level               | one source for many repos                                                                                                                                                                                                                                                      |
+| Value                                                             | Type                                 | Where                                                             | Why                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AWS_REGION`                                                      | repo `vars`                          | repository                                                        | static, non-sensitive                                                                                                                                                                                                                                                          |
+| `AWS_ACCOUNT_ID`                                                  | repo `secrets`                       | repository                                                        | single-account MVP (ADR-0007); stored as secret to keep account ID out of logs                                                                                                                                                                                                 |
+| `AWS_DEPLOY_ROLE_ARN_STAGING`, `AWS_DEPLOY_ROLE_ARN_PRODUCTION`   | repo `secrets`                       | repository                                                        | contain account ID; trust policy gates the actual access                                                                                                                                                                                                                       |
+| `AWS_BOOTSTRAPPED`                                                | repo `vars`                          | repository                                                        | boolean flag, gates AWS-touching workflows                                                                                                                                                                                                                                     |
+| `OPENSTATUS_*` (5) + `OVH_VPS_SSH_KEY` + `OVH_VPS_HOST_KEY`       | repo `secrets`                       | repository                                                        | OpenStatus stack + VPS deploy path. Status page is off-AWS (ADR-0019) so these do not live in AWS Secrets Manager. Rendered into `/opt/openstatus/.env.docker` by `deploy-statuspage.yml`. See [`infra/openstatus/deploy/README.md`](../../infra/openstatus/deploy/README.md). |
+| `OVH_VPS_HOST` / `OVH_VPS_PORT` / `OVH_VPS_USER`                  | repo `vars`                          | repository                                                        | non-secret deploy coordinates                                                                                                                                                                                                                                                  |
+| Cosign signing                                                    | none                                 | n/a                                                               | keyless OIDC via Sigstore; no secret stored                                                                                                                                                                                                                                    |
+| Sentry DSN                                                        | environment `secrets`                | `staging`, `production`                                           | per-env DSN; isolation                                                                                                                                                                                                                                                         |
+| Honeycomb API key                                                 | environment `secrets`                | `staging`, `production`                                           | per-env writer key                                                                                                                                                                                                                                                             |
+| `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN` | Vault (KV-v2) → AWS SSM SecureString | `platform/{env}/<name>` in Vault; `/monorepo/{env}/<name>` in SSM | app-runtime secrets. Vault = source of truth; SSM = read cache for ECS (`EcsSecret.fromSsmParameter`). Sync timer every 5 min. Rotate via `vault kv put`.                                                                                                                      |
+| `DbSecret`, `AppUserSecret` (RDS credentials)                     | AWS Secrets Manager                  | runtime, not GitHub                                               | RDS-native, AWS-rotated, never transit Vault. Dynamic DB secrets deferred → AFF-243                                                                                                                                                                                            |
+| Payment processor secret keys (deferred — no payments yet)        | Vault (KV-v2) → SSM                  | runtime, not GitHub                                               | rotate quarterly when introduced; same Vault→SSM path as other app secrets                                                                                                                                                                                                     |
+| GitHub App private key (future cross-repo automation)             | org `secrets`                        | org-level                                                         | one source for many repos                                                                                                                                                                                                                                                      |
 
 ## Forbidden
 
@@ -83,14 +95,17 @@ Role ARNs contain the account ID, so they are stored as secrets (single-account 
 
 ## Rotation cadence
 
-| Secret class                      | Cadence                                 |
-| --------------------------------- | --------------------------------------- |
-| Sentry DSN, Honeycomb keys        | annual, or on suspected leak            |
-| AWS Secrets Manager runtime creds | 90 days, automated via Lambda           |
-| KMS CMKs                          | annual rotation enabled at key creation |
-| GitHub App private keys           | 12 months                               |
-| Cosign                            | n/a (keyless)                           |
-| Linear API key (CI write-back)    | annual                                  |
+| Secret class                            | Cadence                                                          |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| Sentry DSN, Honeycomb keys              | annual, or on suspected leak                                     |
+| Vault-backed app secrets (the 3)        | on suspected leak; rotate via `vault kv put` → SSM sync ≤5min    |
+| RDS creds (`DbSecret`, `AppUserSecret`) | AWS-managed (Secrets Manager native rotation)                    |
+| Vault operator-admin token              | 90 days (TTL 2160h; re-mint via recovery keys if expired)        |
+| Vault `vault-ssm-sync` token            | annual (TTL 8760h, renewable)                                    |
+| KMS CMKs                                | annual rotation enabled at key creation                          |
+| GitHub App private keys                 | 12 months                                                        |
+| Cosign                                  | n/a (keyless)                                                    |
+| Linear API key (Vault-backed, M5)       | annual; rotate via `vault kv put platform/shared/linear-api-key` |
 
 The Anthropic API key provisioning steps (Ask AI on `docs.afframe.com`)
 were removed on 2026-05-21 alongside the rest of the `apps/docs` Ask AI
@@ -98,16 +113,24 @@ work. If a future docs surface needs an Anthropic-backed feature,
 restore the procedure from
 `.context/archive/apps-docs-2026-05-21/`.
 
-## Linear API key (CI write-back)
+## Linear API key (CI write-back) — Vault-backed via OIDC (M5)
 
-Phase D5 also provisions `LINEAR_API_KEY` for the future
-`linear-sync.yml` workflow (branch → ticket lookup + status update).
-Until that workflow ships, the key is unused; create it lazily.
+`linear-sync.yml` no longer reads a `LINEAR_API_KEY` GitHub secret. It
+fetches the key from Vault at run time using the GitHub-OIDC → Vault-JWT
+trust chain (M5 pilot):
 
-1. [Linear OAuth applications](https://linear.app/afframe/settings/api/applications)
-   → "Create personal API key", scope `read,write`.
-2. Store as a GitHub Actions repo secret named `LINEAR_API_KEY`.
-3. Rotate annually.
+1. The workflow requests a GitHub OIDC token (`permissions: id-token: write`).
+2. `hashicorp/vault-action` exchanges it at `auth/jwt/login` (role
+   `gha-monorepo`, audience `https://secrets-admin.afframe.com`), passing
+   Cloudflare Access service-token headers (`CF-Access-Client-Id/Secret`,
+   stored as repo secrets) to clear the edge gate.
+3. Vault returns the value of `platform/shared/linear-api-key`, scoped by
+   the `gha-read-shared-tokens` policy (read-only on `platform/data/shared/*`).
+
+Rotate the key: `vault kv put platform/shared/linear-api-key value=<new>`
+(no GitHub-secret update needed). The legacy `LINEAR_API_KEY` repo secret
+is deleted after the 7-day soak. Full chain + audit verification in
+[`VAULT-OPS.md`](VAULT-OPS.md) § "GitHub Actions JWT auth (M5)".
 
 ## Break-glass procedure
 
@@ -121,89 +144,3 @@ For emergency access when normal Identity Center login is unavailable (e.g. SAML
 4. Replace credentials and rotate MFA within 24 hours of use.
 
 **Solo dev caveat**: Hleb is the sole approver right now. Two-person rule is aspirational until a second admin exists. The risk is documented; mitigation is to keep the envelope physically in a separate location from primary devices.
-
-## SOPS+age for dev / staging shared secrets (decision E.4)
-
-Two tiers in this repo:
-
-| Tier                         | Cadence                | Where                                                                                       |
-| ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
-| Dev + staging shared secrets | edits-as-needed        | SOPS-encrypted YAML in `infra/secrets/` (gitignored plaintext copy; encrypted blob commits) |
-| Production runtime secrets   | 90-day rotation lambda | AWS Secrets Manager + SSM Parameter Store                                                   |
-
-SOPS+age fits the dev/staging tier because:
-
-- Free, fits in git, decryptable by any team member holding an authorised age key.
-- Per-file rewrap when a new developer joins (`sops updatekeys`).
-- The `encrypted_regex` covers only secret-shaped keys; everything else stays plaintext for diff-ability.
-
-Secrets Manager keeps the prod tier because:
-
-- Rotation lambda + KMS at $0.40/secret/mo for prod-grade rotation.
-- OIDC-scoped IAM read at runtime; no developer ever sees the plaintext.
-- Mixing tiers is INTENTIONAL: do not migrate prod into SOPS — the rotation story is worse and CI deploy through Secrets Manager is the clean path.
-
-### One-time onboarding
-
-```bash
-# macOS:
-brew install sops age
-
-# Generate your age keypair (stored at ~/.config/sops/age/keys.txt by default).
-age-keygen | tee -a ~/.config/sops/age/keys.txt
-
-# Read your PUBLIC key (the line starting with age1).
-grep '^# public key' ~/.config/sops/age/keys.txt | cut -d: -f2 | tr -d ' '
-```
-
-Send the public key to the admin (Hleb). They append it to
-`infra/secrets/.sops.yaml` creation rules and run
-`sops updatekeys infra/secrets/secrets.<env>.sops.yaml` so the encrypted
-blobs are re-wrapped with your key.
-
-### Daily use
-
-```bash
-# Edit + encrypt in place (SOPS never writes plaintext to disk).
-sops infra/secrets/secrets.dev.sops.yaml
-
-# Load into the current shell session as env vars.
-eval "$(sops -d infra/secrets/secrets.dev.sops.yaml \
-  | sed -E 's/^([A-Z_]+): (.*)$/export \1=\2/')"
-```
-
-The `infra/secrets/` directory and concrete `.sops.yaml` + template files
-are NOT in this branch. The worktree's sensitive-path hook blocks any
-write to `secrets/`. Materialise the scaffold (see below) in a follow-up
-commit where the hook is intentionally suspended OR by hand outside the
-agent loop.
-
-### Materialising the scaffold (follow-up)
-
-Files to create:
-
-- `infra/secrets/.sops.yaml` with `creation_rules` and `encrypted_regex`
-  matching: `BETTER_AUTH_SECRET`, `RESEND_API_KEY`,
-  `DATABASE_URL`, `DATABASE_DIRECT_URL`, `OPENFGA_STORE_ID`,
-  `OPENFGA_MODEL_ID`, `SENTRY_DSN`, `HONEYCOMB_API_KEY`,
-  `CLOUDFLARE_TUNNEL_TOKEN`, `PGBOUNCER_AUTH_PASSWORD`,
-  `RDS_MASTER_PASSWORD`. `key_groups[0].age` lists each contributor's age pubkey.
-- `infra/secrets/secrets.dev.sops.yaml.example` with placeholder values
-  matching `docs/env-vars.md` (REPLACE*WITH*... strings — no gitleaks-triggering shapes).
-- `infra/secrets/secrets.staging.sops.yaml.example` with same shape, staging URLs.
-- `infra/secrets/README.md` with onboarding + daily-use copy.
-
-Add to `.gitignore`:
-
-```
-infra/secrets/secrets.*.sops.yaml
-!infra/secrets/secrets.*.sops.yaml.example
-```
-
-Then verify the loop end-to-end:
-
-```bash
-sops -e -i infra/secrets/secrets.dev.sops.yaml      # encrypts
-sops -d infra/secrets/secrets.dev.sops.yaml         # decrypts to stdout
-gitleaks detect --source . --no-git                 # no findings
-```

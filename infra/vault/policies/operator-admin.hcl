@@ -61,6 +61,13 @@ path "auth/token/renew-self" {
   capabilities = ["update"]
 }
 
+# Listing live token accessors requires `sudo` per Vault docs — the
+# operator needs this to enumerate + find a revoke target (e.g. revoke
+# the initial root token by accessor at M3.5).
+path "auth/token/accessors" {
+  capabilities = ["list", "sudo"]
+}
+
 # Policy management
 path "sys/policies/acl" {
   capabilities = ["list"]

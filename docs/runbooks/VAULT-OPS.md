@@ -1,6 +1,13 @@
 # Vault Operations Runbook
 
-> **Status:** M1 + M2 functional pass 2026-05-23 (M2 backup chain live; 7-day uptime soak underway; DR drill deferred to [AFF-247](https://linear.app/hapddev/issue/AFF-247); B2 secondary deferred to [AFF-246](https://linear.app/hapddev/issue/AFF-246)). Sections grow as M3–M10 of [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md) ship.
+> **Status:** M1–M5 live as of 2026-05-31. M1/M2 (Vault bring-up + KMS
+> auto-unseal + restic→R2 backup), M3 (ECS AWS IAM auth), M3.5 (root token
+> revoked → operator-admin), M4 (3 app secrets Vault→SSM→ECS in staging +
+> production), M5 (GitHub OIDC→Vault JWT for `linear-sync.yml`). Remaining:
+> M10 rotation drill + cost audit. DR drill deferred to
+> [AFF-247](https://linear.app/hapddev/issue/AFF-247); B2 secondary backup
+> deferred to [AFF-246](https://linear.app/hapddev/issue/AFF-246). Milestone
+> history: [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md).
 >
 > **Backs:** [AFF-245](https://linear.app/hapddev/issue/AFF-245).
 >
@@ -307,21 +314,94 @@ vault policy delete read-production-secrets
 
 Workloads fall back to AWS Secrets Manager (no change required at the ECS side until M4 refactor lands).
 
-### M3.5 — revoke initial root token (24h after M3 verification)
+### M3.5 as-built (2026-05-31) — revoke initial root token
+
+Daily Vault admin no longer uses the initial root token. It is replaced
+by a scoped **`operator-admin`** token (policy
+`infra/vault/policies/operator-admin.hcl`), escrowed in macOS Keychain as
+`afframe-vault-operator-admin-token` (TTL 2160h / 90d).
+
+As-built procedure (scripted; the scripts live under `~/.context/scripts/`
+on the operator laptop, NOT committed):
+
+1. Open SSH tunnel `localhost:8200 → afframe-vps:8200`.
+2. `vault policy write operator-admin infra/vault/policies/operator-admin.hcl`.
+3. `vault token create -policy=operator-admin -ttl=2160h -orphan` → stash in Keychain.
+4. Smoke-test (`vault kv list platform/production`) BEFORE revoking root.
+5. Safety check: confirm a scoped `sync-to-ssm` token exists (so revoking
+   root does not freeze `vault-to-ssm-sync`).
+6. `vault token revoke -accessor <root-accessor>`; verify dead with
+   `vault write auth/token/lookup-accessor accessor=<root-accessor>` → 403.
+
+**Critical lesson — mint admin/sync tokens with `-orphan`.** The first
+attempt minted `operator-admin` as a CHILD of root. Vault's default
+cascade-revoke killed the child when root was revoked, taking out
+operator-admin (and the sync token shared the same lineage). Recovery
+required `vault operator generate-root` with 3-of-5 recovery keys to mint
+a temp root, then re-minting BOTH tokens with `-orphan`, updating
+`/root/.config/vault-to-ssm/.env`, and revoking the temp root. Always
+`-orphan` for long-lived service/admin tokens.
+
+The `operator-admin` policy grants `list+sudo` on `auth/token/accessors`
+(needed to enumerate + revoke by accessor) but deliberately NOT
+`sys/rekey/*` / `sys/generate-root/*` / `sys/seal` — those require the
+recovery-key ceremony above. The 5 recovery keys remain in escrow.
+
+### GitHub Actions JWT auth (M5, 2026-05-31)
+
+`linear-sync.yml` fetches `LINEAR_API_KEY` from Vault via GitHub OIDC.
+Chain: GitHub OIDC token → Cloudflare Access (service token) → Vault JWT
+auth → secret read.
+
+Server-side config (applied via `~/.context/scripts/m5-setup-jwt-auth.sh`
+
+- `m5-fix-audience.sh`):
 
 ```bash
-# Pre-check: at least one OIDC login in audit log within last 24h
-sudo tail -200 /srv/secrets/vault/audit/audit.log | jq -r 'select(.request.path == "auth/oidc/oidc/callback") | .time' | head
+vault auth enable jwt
+vault write auth/jwt/config \
+  oidc_discovery_url="https://token.actions.githubusercontent.com" \
+  bound_issuer="https://token.actions.githubusercontent.com"
 
-# Pre-check: at least one ECS task aws auth in audit log within last 24h
-sudo tail -200 /srv/secrets/vault/audit/audit.log | jq -r 'select(.request.path | startswith("auth/aws/login")) | .time' | head
+# Policy: read-only on shared GHA secrets
+vault policy write gha-read-shared-tokens -   # path "platform/data/shared/*" { capabilities=["read"] }
 
-# Both > 0? Safe to revoke.
-vault token revoke <initial-root-token-from-M1-escrow>
-vault token lookup -accessor <root-accessor-from-M1-escrow>   # expect 404
+# Role bound to repo + workflow_ref + audience
+vault write auth/jwt/role/gha-monorepo \
+  role_type=jwt user_claim=actor bound_claims_type=glob \
+  bound_audiences=https://secrets-admin.afframe.com \
+  bound_claims=repository=hlebtkachenko/monorepo \
+  bound_claims=workflow_ref=hlebtkachenko/monorepo/.github/workflows/linear-sync.yml@* \
+  token_policies=gha-read-shared-tokens ttl=15m max_ttl=30m
 ```
 
-The 5 recovery keys remain in escrow — they regenerate root tokens on demand via `vault operator generate-root` (see "Recovery key procedures" above).
+Two gotchas, both fixed:
+
+1. **CF Access edge gate** — `secrets-admin.afframe.com` is gated by a
+   Cloudflare Access application. The runner must send
+   `CF-Access-Client-Id` + `CF-Access-Client-Secret` headers (a CF Access
+   _service token_ named `monorepo-gha-vault`, with a `Service Auth`
+   policy on the app). Without them CF returns the SSO challenge (HTTP
+   404/530 to vault-action). The two values are GitHub repo secrets,
+   passed via `extraHeaders` in `hashicorp/vault-action`.
+2. **Audience binding** — GitHub's OIDC token carries an `aud` claim. The
+   role's `bound_audiences` and the workflow's `jwtGithubAudience` must
+   match exactly, else Vault returns `400 "audience claim found in JWT but
+no audiences bound to the role"`. Both set to
+   `https://secrets-admin.afframe.com`.
+
+Verify a CI run succeeded end-to-end (audit log, run on operator laptop
+with op-admin token):
+
+```bash
+sudo tail -200 /srv/secrets/vault/audit/audit.log | \
+  jq -c 'select(.request.path=="auth/jwt/login" or (.request.path|startswith("platform/data/shared"))) | {time, path:.request.path, role:.auth.metadata.role}'
+# Expect: auth/jwt/login with role=gha-monorepo, then a read on
+# platform/data/shared/linear-api-key.
+```
+
+Rotate the Linear key: `vault kv put platform/shared/linear-api-key value=<new>`.
+No GitHub-secret change needed.
 
 ## Irreversible operations register
 

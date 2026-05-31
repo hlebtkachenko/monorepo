@@ -22,6 +22,17 @@
 // Optional env vars:
 //   RDS_INSTANCE_IDENTIFIER   RDS instance to stop alongside ECS
 //   OPS_TOPIC_ARN             SNS topic to notify on auto-stop
+//   ENV_NAME                  "staging" | "production" — picks which hosts to
+//                             bind the sleeping page on
+//   CF_ROUTES_TOKEN_PARAM     SSM SecureString name holding a Cloudflare API
+//                             token (Zone:Read + Workers Routes:Edit). When
+//                             set, on cold-pause the lambda binds the
+//                             afframe-sleeping Worker to this env's hosts so an
+//                             auto-paused env shows the sleeping page instead of
+//                             Cloudflare error 1033. Best-effort: a CF failure
+//                             never fails the cost-pause.
+//   CF_ZONE_NAME              Cloudflare zone (default "afframe.com")
+//   SLEEPING_SCRIPT_NAME      Worker script name (default "afframe-sleeping")
 
 import {
   DescribeServicesCommand,
@@ -37,16 +48,34 @@ import {
   StopDBInstanceCommand,
 } from "@aws-sdk/client-rds"
 import { PublishCommand, SNSClient } from "@aws-sdk/client-sns"
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm"
 
 const ecs = new ECSClient({})
 const rds = new RDSClient({})
 const sns = new SNSClient({})
+const ssm = new SSMClient({})
 
 const CLUSTER_NAME = process.env.CLUSTER_NAME
 const SERVICE_NAME = process.env.SERVICE_NAME
 const MAX_UPTIME_HOURS = Number(process.env.MAX_UPTIME_HOURS ?? "5")
 const RDS_INSTANCE_IDENTIFIER = process.env.RDS_INSTANCE_IDENTIFIER
 const OPS_TOPIC_ARN = process.env.OPS_TOPIC_ARN
+
+const ENV_NAME = process.env.ENV_NAME
+const CF_ROUTES_TOKEN_PARAM = process.env.CF_ROUTES_TOKEN_PARAM
+const CF_ZONE_NAME = process.env.CF_ZONE_NAME ?? "afframe.com"
+const SLEEPING_SCRIPT_NAME =
+  process.env.SLEEPING_SCRIPT_NAME ?? "afframe-sleeping"
+
+// Same per-env host set as infra/cloudflare-sleeping/scripts/routes.sh.
+const SLEEPING_HOSTS = {
+  staging: [
+    "app-staging.afframe.com/*",
+    "api-staging.afframe.com/*",
+    "admin-staging.afframe.com/*",
+  ],
+  production: ["app.afframe.com/*", "api.afframe.com/*", "admin.afframe.com/*"],
+}
 
 function log(event, fields) {
   console.log(JSON.stringify({ event, ...fields }))
@@ -118,6 +147,59 @@ async function notify(message) {
   }
 }
 
+// Best-effort: bind the afframe-sleeping Worker to this env's hosts so the
+// auto-paused env shows the sleeping page instead of Cloudflare error 1033.
+// Mirrors `routes.sh on <env>`. Any failure (unconfigured token, CF API error)
+// is swallowed — the cost-pause must succeed regardless.
+async function bindSleepingRoutes() {
+  if (!CF_ROUTES_TOKEN_PARAM || !ENV_NAME) {
+    return { action: "skip", reason: "cf-not-configured" }
+  }
+  const hosts = SLEEPING_HOSTS[ENV_NAME]
+  if (!hosts) return { action: "skip", reason: `no-hosts-for-${ENV_NAME}` }
+  try {
+    const param = await ssm.send(
+      new GetParameterCommand({
+        Name: CF_ROUTES_TOKEN_PARAM,
+        WithDecryption: true,
+      }),
+    )
+    const token = param.Parameter?.Value
+    if (!token) return { action: "skip", reason: "empty-token" }
+    const headers = { Authorization: `Bearer ${token}` }
+
+    const zoneRes = await fetch(
+      `https://api.cloudflare.com/client/v4/zones?name=${CF_ZONE_NAME}`,
+      { headers },
+    )
+    const zoneJson = await zoneRes.json()
+    const zoneId = zoneJson?.result?.[0]?.id
+    if (!zoneId) return { action: "error", reason: "zone-not-found" }
+
+    let bound = 0
+    for (const pattern of hosts) {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/zones/${zoneId}/workers/routes`,
+        {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ pattern, script: SLEEPING_SCRIPT_NAME }),
+        },
+      )
+      const json = await res.json()
+      // success, or already bound (duplicate route) — both are fine.
+      if (json?.success || JSON.stringify(json).includes("duplicate")) {
+        bound++
+      } else {
+        log("cf-route-bind-failed", { pattern, json })
+      }
+    }
+    return { action: "bound", bound, of: hosts.length }
+  } catch (err) {
+    return { action: "error", reason: String(err) }
+  }
+}
+
 export const handler = async () => {
   if (!CLUSTER_NAME || !SERVICE_NAME) {
     throw new Error(
@@ -160,9 +242,14 @@ export const handler = async () => {
     }),
   )
   const rdsResult = await stopRds()
-  log("staging-auto-stopped", { ageHours, rds: rdsResult })
+  const cfResult = await bindSleepingRoutes()
+  log("staging-auto-stopped", {
+    ageHours,
+    rds: rdsResult,
+    sleepingPage: cfResult,
+  })
   await notify(
-    `Staging was running ${ageHours.toFixed(1)}h (> ${MAX_UPTIME_HOURS}h TTL) and has been auto-stopped to cap cost. ECS desiredCount=0; RDS ${rdsResult.action}. Restart per docs/runbooks/STAGING.md.`,
+    `Staging was running ${ageHours.toFixed(1)}h (> ${MAX_UPTIME_HOURS}h TTL) and has been auto-stopped to cap cost. ECS desiredCount=0; RDS ${rdsResult.action}; sleeping page ${cfResult.action}. Restart per docs/runbooks/STAGING.md.`,
   )
-  return { action: "stop", ageHours, rds: rdsResult }
+  return { action: "stop", ageHours, rds: rdsResult, sleepingPage: cfResult }
 }

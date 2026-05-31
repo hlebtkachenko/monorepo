@@ -15,7 +15,15 @@
 
 set -e
 
-find /app -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) \
+# Scope find to /app/apps — the only path where the build-baked chunks live.
+# Status-page chunks are in /app/apps/status-page/.next/server/chunks/ + the
+# Next.js standalone entry at /app/apps/status-page/server.js; dashboard has
+# the same shape under /app/apps/dashboard/. Original /app scan walked
+# ~50k files in /app/node_modules and took multiple minutes per cold start,
+# long enough for the openstatus WSL distro idle-stop to kill the container
+# before Next.js could exec — the page stayed 502 indefinitely. /app/apps
+# is ~300 files and finishes in seconds.
+find /app/apps -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) \
   -exec grep -l 'openstatus\.dev' {} + 2>/dev/null \
   | xargs -r sed -i \
     -e 's/notifications@notifications\.openstatus\.dev/notifications@afframe.com/g' \

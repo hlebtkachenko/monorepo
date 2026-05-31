@@ -6,6 +6,36 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.2.4] — 2026-06-01
+
+Largest release since v0.2.0. Introduces the public API v1 surface, the Vault-on-VPS secrets architecture (M1–M10), AWS cost-runaway protection, and env power controls — plus a security-findings sweep and a CI/supply-chain hardening pass.
+
+### Added
+
+- **Public API v1** — `/v1` release candidate: Scalar API reference, generated SDK + MCP tool surface + CLI, OpenAPI registry codegen, status + feedback endpoints, topnav/brand polish.
+- **Secrets architecture — Vault → SSM (M1–M10)** — Vault-on-VPS bring-up assets (compose, HCL, env, logrotate); `SecretsBootstrap` CDK stack (KMS auto-unseal + IAM user); Vault AWS IAM auth verifier + operator-admin policy (M3 / M3.5); vault-to-SSM sync (script + systemd + drift CI); M4 CDK flip of 3 workflow secrets to SSM SecureString + `vault-ssm-sync` IAM user; restic backup + DR-drill assets; `linear-sync.yml` fetches `LINEAR_API_KEY` from Vault via OIDC (M5); `infisical-scan` gate.
+- **AWS cost-runaway protection** — account-wide $55 production cost guard; always-on cost reduction + hardened cost kill-switch.
+- **env power** — `env-power` workflow (resume / warm-pause / cold-pause) with auto-cold-pause on staging + prod and an `all`-envs matrix fan-out; edge "app is asleep" parking page for cold-paused environments.
+- **ECS Exec** enabled on the App stack.
+- **admin** allowlist now read from a database table.
+
+### Changed
+
+- All Docker base images pinned by digest (Scorecard `PinnedDependencies`). (#300)
+- CI / supply-chain hardening: `timeout-minutes` on required jobs; corrected stale action version comments; `workflow-lint` runs on every PR so required checks always report; secret tooling hardened (gitleaks Vault rule, deploy gate, scoped access, runbooks).
+- Dependency bumps: production (31), dev (37), and GitHub Actions (10) groups; codegraph MCP server wired in.
+- Docs: secrets M-series rewrites with an honest DR caveat, VAULT-OPS escrow-location correction, Czech-accounting KB roadmap, GSD references removed; `.context/` gitignored.
+
+### Fixed
+
+- **admin** sign-in now always surfaces "invalid email or password" after a Better Auth success-then-fail.
+- **api** full horizontal logo + topnav polish; `RESEND_API_KEY` / `EMAIL_FROM` / `EMAIL_TRANSPORT` wired on the api container.
+- **infra**: ECS Exec agent crash on read-only rootfs; `_app_migrations` checksum-schema alignment across bootstrap paths; CDK replace-guard drops `Logs::LogGroup`; `BUILD_VERSION` shows the nearest release tag for untagged deploys; migration rollback / checksum safety.
+
+### Security
+
+- Remediated the open GitHub security findings: `js/log-injection` (CodeQL) fixed with a recognized empty-string sanitizer (#302); three transitive dependency CVEs — `tmp`, `qs`, `uuid` — bumped via pnpm overrides (#299); base-image CVE patches (gnutls) + allowlist for unfixable entries.
+
 ## [v0.2.3] — 2026-05-21
 
 Supply-chain follow-up to v0.2.2. No app surface changes.

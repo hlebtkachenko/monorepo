@@ -57,16 +57,22 @@ Order matters on resume: run `wake` **after** the env is healthy (the
 `power.yml resume` step waits for `services-stable`), otherwise users hit a
 still-booting origin and get 1033 again.
 
-### Wire it into the pause switch (recommended)
+### Automatic (already wired)
 
-Add two steps to `.github/workflows/power.yml` so the page follows the env
-automatically:
+`.github/workflows/power.yml` toggles the page with the env:
 
-- on `cold-pause` / `warm-pause` → `routes.sh on`
-- on `resume`, as the final step after healthy → `routes.sh off`
+- `cold-pause` / `warm-pause` → binds this env's routes (`routes.sh on <env>`)
+- `resume` → removes them, after the service is healthy (`routes.sh off <env>`)
 
-Until that's wired, run `pnpm sleep` / `pnpm wake` by hand alongside the Env
-Power workflow.
+The 5h **auto-cold-pause lambda** (`infra/cdk/lib/lambda/autostop`) also binds
+the page when it trips — best-effort, so a Cloudflare hiccup never blocks the
+cost-pause. It reads a Cloudflare API token (Zone:Read + Workers Routes:Edit)
+from SSM SecureString **`/monorepo/shared/cloudflare-routes-token`**; until that
+param is populated (Vault → SSM, or `aws ssm put-parameter`), the lambda logs
+`sleeping page skip` and does nothing else. `power.yml` uses the GitHub
+`CLOUDFLARE_API_TOKEN` secret instead and needs no SSM param.
+
+The `pnpm sleep` / `pnpm wake` commands above remain for manual control.
 
 ## Edit the page
 

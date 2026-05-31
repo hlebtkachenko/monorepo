@@ -531,6 +531,12 @@ export class SecurityStack extends Stack {
     //    See docs/runbooks/ENV-POWER.md § "Production after v1".
     const AUTO_STOP_ENVS = ["staging", "production"]
     if (AUTO_STOP_ENVS.includes(props.envName)) {
+      // SSM SecureString holding a Cloudflare API token (Zone:Read + Workers
+      // Routes:Edit). Account-level, so one param is shared by both env stacks.
+      // Populate it (Vault → SSM sync, or `aws ssm put-parameter`) to enable
+      // the auto-pause sleeping-page binding; until then the lambda no-ops it.
+      const cfRoutesTokenParamName = "/monorepo/shared/cloudflare-routes-token"
+
       const autoStopLogGroup = new LogGroup(this, "AutoStopLogs", {
         logGroupName: `/aws/lambda/monorepo-${props.envName}-autostop`,
         retention: RetentionDays.ONE_MONTH,
@@ -550,6 +556,12 @@ export class SecurityStack extends Stack {
           MAX_UPTIME_HOURS: "5",
           RDS_INSTANCE_IDENTIFIER: dbInstanceId,
           OPS_TOPIC_ARN: this.killSwitchOpsTopic.topicArn,
+          // Bind the afframe-sleeping Worker on auto-pause (best-effort).
+          // No-ops until the SSM token below is populated.
+          ENV_NAME: props.envName,
+          CF_ROUTES_TOKEN_PARAM: cfRoutesTokenParamName,
+          CF_ZONE_NAME: "afframe.com",
+          SLEEPING_SCRIPT_NAME: "afframe-sleeping",
         },
         description:
           "Cold-pauses the env (ECS desiredCount=0 + RDS) once its task exceeds the max-uptime TTL.",
@@ -587,6 +599,30 @@ export class SecurityStack extends Stack {
           effect: Effect.ALLOW,
           actions: ["rds:StopDBInstance", "rds:AddTagsToResource"],
           resources: [dbArn],
+        }),
+      )
+      // Read the Cloudflare routes token (SSM SecureString) to bind the
+      // sleeping page on auto-pause. Scoped to the single param; kms:Decrypt is
+      // gated to SSM-originated calls only.
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["ssm:GetParameter"],
+          resources: [
+            `arn:aws:ssm:${this.region}:${this.account}:parameter${cfRoutesTokenParamName}`,
+          ],
+        }),
+      )
+      autoStopFn.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["kms:Decrypt"],
+          resources: ["*"],
+          conditions: {
+            StringEquals: {
+              "kms:ViaService": `ssm.${this.region}.amazonaws.com`,
+            },
+          },
         }),
       )
       this.killSwitchOpsTopic.grantPublish(autoStopFn)

@@ -27,6 +27,7 @@
     "@aws-sdk/client-ecs": "^3.1053.0",
     "@aws-sdk/client-rds": "^3.1053.0",
     "@aws-sdk/client-sns": "^3.1048.0",
+    "@aws-sdk/client-ssm": "^3.1053.0",
     "@types/node": "^25.9.1",
     "aws-cdk": "^2.1124.1",
     "aws-cdk-lib": "^2.257.0",

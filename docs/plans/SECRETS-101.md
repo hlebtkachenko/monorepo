@@ -219,11 +219,11 @@ Practical implication for solo dev today: **maintain an audit trail** (Infisical
 Concrete example: Afframe's `RESEND_API_KEY` for sending email.
 
 1. **Creation**: log into resend.com, click "Create API Key", copy the value `re_abc123...`
-2. **Storage at rest**: today it lives in three places: local 1Password, AWS Secrets Manager (`monorepo-{env}-resend-api-key`), GitHub Actions secret (`RESEND_API_KEY`)
-3. **Distribution**: deploy workflow reads the GH secret → puts into AWS SM → CDK task def references SM secret → ECS injects into container env as `RESEND_API_KEY` → `packages/email` reads `process.env.RESEND_API_KEY` and calls `new Resend(key)`
+2. **Storage at rest**: source of truth is HashiCorp Vault on the VPS (`platform/{env}/resend-api-key`, KV-v2, encrypted at rest via KMS auto-unseal). A systemd timer mirrors it to AWS SSM SecureString (`/monorepo/{env}/resend-api-key`) as a runtime read-cache for ECS. One authoritative copy, one cache — no scattered duplicates.
+3. **Distribution**: `vault kv put` → `vault-to-ssm-sync` timer (≤5 min) writes SSM → CDK task def references the SSM param via `EcsSecret.fromSsmParameter` → ECS injects into container env as `RESEND_API_KEY` → `packages/email` reads `process.env.RESEND_API_KEY` and calls `new Resend(key)`
 4. **Use**: app sends email, Resend API validates the key against their database, sends the email
-5. **Rotation** (quarterly, say): create new key in Resend dashboard → update GH secret → trigger redeploy → ECS rolls new task with new value → verify email works → delete old key in Resend dashboard
-6. **Death**: when you stop using Resend or get compromised → mark key inactive in Resend, remove from all storage tiers
+5. **Rotation**: create new key in Resend dashboard → `vault kv put platform/{env}/resend-api-key value=<new>` → sync writes SSM ≤5 min → `aws ecs update-service --force-new-deployment` rolls a task with the new value → verify email works → revoke old key in Resend dashboard. (See `docs/runbooks/SECRETS-ROTATION.md`.)
+6. **Death**: when you stop using Resend or get compromised → mark key inactive in Resend, `vault kv delete` the path, let the sync remove it from SSM
 
 Tracing this for every secret you have is the operational discipline. Infisical (or any secrets manager) collapses the storage tier from 3 places to 1.
 

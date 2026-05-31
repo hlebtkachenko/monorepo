@@ -118,7 +118,10 @@ jobs:
       PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
       STAGING_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_STAGING }}
       PRODUCTION_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_PRODUCTION }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      # RESEND_API_KEY is NOT referenced here: M4 moved it to
+      # Vault → SSM SecureString → ECS. The deploy workflow no longer
+      # touches the value; the Vault→SSM sync timer keeps it fresh
+      # independent of deploys. (M6 — AFF-245.)
       EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
     steps:
       - uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
@@ -137,7 +140,6 @@ jobs:
           }
           check AWS_REGION "$AWS_REGION"
           check AWS_ACCOUNT_ID "$AWS_ACCOUNT_ID"
-          check RESEND_API_KEY "$RESEND_API_KEY"
           check EMAIL_FORWARD_TO "$EMAIL_FORWARD_TO"
           case "$ENV_NAME" in
             staging)

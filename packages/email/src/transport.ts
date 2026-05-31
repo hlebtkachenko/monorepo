@@ -64,6 +64,14 @@ function extractUrl(text?: string): string | undefined {
   return m?.[0]
 }
 
+// Strip line terminators so a user-controlled field (recipient, subject) can't
+// forge extra lines in the console transport's log output (log injection). The
+// replacement must be the empty string: CodeQL only recognizes a replace as a
+// log-injection sanitizer when newlines are replaced with "" (not a space).
+function stripLineBreaks(value: string): string {
+  return value.replace(/[\r\n\u2028\u2029]+/g, "")
+}
+
 function recordOutbox(entry: OutboxEntry): void {
   OUTBOX.push(entry)
   if (OUTBOX.length > MAX_OUTBOX) OUTBOX.shift()
@@ -87,13 +95,13 @@ class ConsoleTransport implements EmailTransport {
       text: message.text,
       url,
     })
-    // eslint-disable-next-line no-console
+
     console.log(
       `\n┌─ email:console ───────────────────────────────────────────\n` +
-        `│ to:      ${message.to}\n` +
-        `│ from:    ${from}\n` +
-        `│ subject: ${message.subject}\n` +
-        (url ? `│ link:    ${url}\n` : "") +
+        `│ to:      ${stripLineBreaks(message.to)}\n` +
+        `│ from:    ${stripLineBreaks(from)}\n` +
+        `│ subject: ${stripLineBreaks(message.subject)}\n` +
+        (url ? `│ link:    ${stripLineBreaks(url)}\n` : "") +
         `└───────────────────────────────────────────────────────────\n`,
     )
   }
@@ -183,7 +191,7 @@ let _transport: EmailTransport | null = null
 export function getTransport(): EmailTransport {
   if (!_transport) {
     _transport = pickTransport()
-    // eslint-disable-next-line no-console
+
     console.log(`[email] transport=${_transport.kind}`)
   }
   return _transport

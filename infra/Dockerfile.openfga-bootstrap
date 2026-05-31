@@ -26,10 +26,10 @@ ARG PNPM_VERSION=11.0.9
 
 # ---------- openfga-bin: extract the standalone OpenFGA server binary -------
 # The official image ships a static `/openfga` binary; we copy only that out.
-FROM openfga/openfga:${OPENFGA_VERSION} AS openfga-bin
+FROM openfga/openfga:${OPENFGA_VERSION}@sha256:8543200bf85878c968d73da46c4f0e31ba1f63ed3675b71122f1133b0e9d97eb AS openfga-bin
 
 # ---------- pruner: turbo prune to a minimal subtree for the package --------
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS pruner
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS pruner
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY . .
@@ -39,7 +39,7 @@ RUN pnpm dlx turbo@2.9.12 prune @workspace/openfga-bootstrap --docker
 # pnpm deploy emits a fully-flat node_modules under /prod, so the runner
 # stage doesn't need to carry the workspace's .pnpm symlink store. Same
 # pattern as apps/api's Dockerfile (see ADR-0020).
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS deps
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS deps
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY --from=pruner /repo/out/json/ ./
@@ -50,7 +50,7 @@ COPY --from=pruner /repo/out/full/infra/openfga/ ./infra/openfga/
 RUN pnpm --filter @workspace/openfga-bootstrap --config.node-linker=hoisted deploy --prod --legacy /prod
 
 # ---------- runner: small image with openfga binary + node + script ---------
-FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim AS runner
+FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS runner
 ARG OPENFGA_VERSION
 
 LABEL org.opencontainers.image.title="monorepo-openfga-bootstrap" \

@@ -331,6 +331,12 @@ Staging used to run `--hotswap-fallback` to shave ~150s off app-only deploys, bu
 
 A deploy no longer needs the env to be running first. The deploy job's **"Ensure RDS is available (auto-resume)"** step starts a cold-paused RDS instance and waits for `available` before migrations + the ECS rollout, so deploying into a cold-paused (or still-resuming) env just works. This removed the failure mode where a deploy fired concurrently with `power.yml resume` hung the ECS health gate for the full CFN timeout (App-production wedged ~40 min, incident 2026-06-01). The step is a ~1s no-op when RDS is already available. It does **not** scale Fargate (CDK owns `desiredCount`) and does **not** touch the sleeping page. To re-park after a deploy, run `power.yml … action=cold-pause` as a separate step.
 
+#### Audited replace-guard overrides
+
+The production replace-guard refuses a deploy that would `[~] replace` or `[+] create` a stateful resource type (RDS / S3 / KMS / Secret / IAM Role|User / DynamoDB / EFS) unless the head commit message carries `[allow-replace]`. The guard intentionally flags a `[+] AWS::IAM::Role` because a typo'd construct-id rename of an existing role appears as a create + orphan. Overrides used so far (each audited with `cdk diff --method=change-set` first):
+
+- **2026-06-01 — v0.2.5 rollout.** First deploy of the env-power AutoStop Lambda to production creates a genuinely new `AWS::IAM::Role` (`AutoStopFn/ServiceRole`), and the cost-guard budgets' deterministic name-hash rewrite re-creates the three `AWS::Budgets::Budget` resources (CREATE new + DELETE old, no data). No stateful data is replaced. `[allow-replace]`
+
 Watch progress:
 
 ```bash

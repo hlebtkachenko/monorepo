@@ -1003,6 +1003,50 @@ jobs:
           # MaxSessionDuration on the role if your deploy regularly nears it.
           role-duration-seconds: 3600
 
+      # Ensure RDS is up BEFORE migrations + the ECS rollout. A deploy must be
+      # self-sufficient regardless of the env's power state: cold-pause stops
+      # RDS, and deploying into a stopped (or still-resuming) DB hangs the ECS
+      # health gate for the full CFN timeout — App-production wedged ~40 min on
+      # a cold RDS then circuit-broke (incident 2026-06-01) when a deploy was
+      # fired concurrently with a power-resume. This mirrors power.yml `resume`
+      # for RDS only: it does NOT scale Fargate (CDK owns desiredCount) and does
+      # NOT touch the sleeping page. Idempotent — a ~1s no-op when RDS is
+      # already available, which is the common (warm) case. The deploy role
+      # already carries rds:Start/Describe/Tag (it is the same role power.yml
+      # assumes).
+      - name: Ensure RDS is available (auto-resume)
+        if: env.STACK_SCOPE != 'infra-only'
+        run: |
+          set -euo pipefail
+          SID="$(aws rds describe-db-instances \
+                  --query "DBInstances[?starts_with(DBInstanceIdentifier,'data-${ENV_NAME}')].DBInstanceIdentifier | [0]" \
+                  --output text)"
+          if [ -z "$SID" ] || [ "$SID" = "None" ]; then
+            echo "::error::No RDS instance found for env=${ENV_NAME} (looked for data-${ENV_NAME}*)."
+            exit 1
+          fi
+          ACCT="$(aws sts get-caller-identity --query Account --output text)"
+          echo "::add-mask::$ACCT"
+          DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
+          # Drop the keep-stopped tag first, else the RdsRestartWatcher Lambda
+          # re-stops the instance out from under the deploy.
+          aws rds remove-tags-from-resource --resource-name "$DB_ARN" \
+            --tag-keys cost-stop-requested || true
+          STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+                     --query 'DBInstances[0].DBInstanceStatus' --output text)"
+          echo "RDS ${SID} status=${STATUS}"
+          if [ "$STATUS" != "available" ]; then
+            # Only call start from a fully-stopped state; a mid-resume
+            # 'starting'/'configuring-*' status just needs the wait below.
+            if [ "$STATUS" = "stopped" ]; then
+              echo "Starting RDS (cold deploy)…"
+              aws rds start-db-instance --db-instance-identifier "$SID" >/dev/null || true
+            fi
+            echo "Waiting for RDS to become available…"
+            aws rds wait db-instance-available --db-instance-identifier "$SID"
+            echo "RDS ${SID} is now available."
+          fi
+
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.0.9
@@ -1269,23 +1313,17 @@ jobs:
           # siblings (no cross-deps after App is up) — deploy them in
           # parallel. Saves ~2 min on full `stack=all` deploys.
 
-          # Staging: --hotswap-fallback bypasses CFN for supported resource
-          # types (ECS Service, Lambda, S3 assets, CodeBuild, Step Functions).
-          # On app-only deploys this drops App-stack from ~130s to ~30s by
-          # updating ECS::Service directly via the AWS API instead of waiting
-          # for the CFN UPDATE wait-for-stable cycle. Falls back to standard
-          # CFN automatically when a non-hotswappable change is in scope
-          # (any IAM / Network / TaskDefinition CPU/memory change).
-          #
-          # Production stays vanilla CFN — hotswap leaves CFN state stale
-          # relative to live resources until the next non-hotswap deploy
-          # reconciles, which is fine for staging but breaks drift detection
-          # + audit guarantees we want on prod. Verified by `cdk diff` after
-          # hotswap: change set present until next full deploy.
-          HOTSWAP_FLAGS=()
-          if [ "$ENV_NAME" = "staging" ]; then
-            HOTSWAP_FLAGS+=(--hotswap-fallback)
-          fi
+          # Both envs deploy via vanilla CloudFormation (no --hotswap). Hotswap
+          # was staging-only: it bypassed CFN for ECS/Lambda/S3 to shave ~100s
+          # off app-only staging deploys, but it (a) left staging's CFN state
+          # stale vs live resources until the next full deploy (breaking drift
+          # detection) and (b) on its direct-API path forwarded CloudFormation's
+          # reserved `aws:cloudformation:*` tags to the CloudWatch API whenever
+          # an Observability dashboard/alarm changed — AWS rejects those
+          # ("aws: prefixed tag key names are not allowed for external use"),
+          # wedging every Observability change on staging (incident 2026-06-01).
+          # Full CFN is the clean, drift-free, single-code-path deploy; the
+          # ~100s is not worth a class of staging-only deploy failures.
 
           # Production: cdk diff guard against destructive REPLACE of stateful
           # resources. `--require-approval=never` (required for unattended CI)
@@ -1354,7 +1392,6 @@ jobs:
             --context "webImageTag=${IMAGE_TAG_WEB}" \
             --context "apiImageTag=${IMAGE_TAG_API}" \
             --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
-            "${HOTSWAP_FLAGS[@]}" \
             --require-approval=never
 
       # Subscribe operator email to the 3 alert SNS topics. CDK does NOT
@@ -1442,7 +1479,7 @@ jobs:
           subscribe_idempotent "$BILL_ARN" "BillingTopic"
 
       # Last-deploy SSM record was here; moved to the `smoke` job's success
-      # path so a deploy that hotswapped a broken image (and smoke later
+      # path so a deploy that shipped a broken image (and smoke later
       # rolls back) doesn't poison the per-service `image-tag-<svc>` SSM
       # the next deploy reads as "last known good". See smoke job below.
 

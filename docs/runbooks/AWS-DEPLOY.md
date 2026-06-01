@@ -321,13 +321,15 @@ gh workflow run _deploy-aws.yml \
 
 `app-only` skips Network + Data deploy. Use this for any change that's purely in code (`apps/**`, `packages/**`, app config). Takes ~6-10 min: image build + ECR push + CDK App stack update + ECS rolling deploy.
 
-#### Staging vs production deploy modes
+#### Deploy mode — vanilla CloudFormation, both envs
 
-Staging runs `cdk deploy --hotswap-fallback`. When the changeset is limited to ECS Service, Lambda, S3 assets, CodeBuild, or Step Functions, CDK bypasses CloudFormation and updates AWS resources directly. Saves ~150-180s per app-only staging deploy. **Side effect:** CFN stack state lags behind live until the next non-hotswap deploy reconciles it. Acceptable for staging.
+Both staging and production run vanilla `cdk deploy` (no `--hotswap`). Full CFN change set, drift detection intact, audit trail in CloudTrail, identical code path across envs.
 
-Production runs vanilla `cdk deploy` (no hotswap). Full CFN change set, drift detection intact, audit trail in CloudTrail. Wall time ~3-4 min longer than the equivalent staging deploy.
+Staging used to run `--hotswap-fallback` to shave ~150s off app-only deploys, but it was removed (2026-06-01): hotswap left staging's CFN state stale vs live resources, and its direct-API path forwarded CloudFormation's reserved `aws:cloudformation:*` tags to the CloudWatch API on any Observability dashboard/alarm change, which AWS rejects (`aws: prefixed tag key names are not allowed for external use`) — wedging every Observability deploy on staging. The ~150s was not worth a class of staging-only failures.
 
-The mode switch is automatic in `_deploy-aws.yml` keyed on `inputs.environment`. No knob to turn.
+#### Deploys are power-state safe (auto-resume RDS)
+
+A deploy no longer needs the env to be running first. The deploy job's **"Ensure RDS is available (auto-resume)"** step starts a cold-paused RDS instance and waits for `available` before migrations + the ECS rollout, so deploying into a cold-paused (or still-resuming) env just works. This removed the failure mode where a deploy fired concurrently with `power.yml resume` hung the ECS health gate for the full CFN timeout (App-production wedged ~40 min, incident 2026-06-01). The step is a ~1s no-op when RDS is already available. It does **not** scale Fargate (CDK owns `desiredCount`) and does **not** touch the sleeping page. To re-park after a deploy, run `power.yml … action=cold-pause` as a separate step.
 
 Watch progress:
 

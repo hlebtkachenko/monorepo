@@ -19,28 +19,32 @@ export default async function OrgDashboardPage({
   // user swap icon packs at runtime without touching this server page.
   const items: RailItem[] = [
     {
-      key: "home",
-      label: "Home",
-      iconName: "Home",
+      key: "company",
+      label: "Company",
+      iconName: "Goal",
       href: `/${orgSlug}`,
       active: true,
+      separatorAfter: true,
     },
     {
-      key: "journals",
-      label: "Journals",
-      iconName: "BookOpenText",
-      href: `/${orgSlug}/journals`,
+      key: "accounting",
+      label: "Accounting",
+      iconName: "SwatchBook",
+      labelClassName: "text-[10px]",
+      href: `/${orgSlug}/accounting`,
     },
     {
       key: "documents",
       label: "Documents",
-      iconName: "FolderOpen",
+      iconName: "FolderBookmark",
+      labelClassName: "text-[10px]",
       href: `/${orgSlug}/documents`,
     },
     {
       key: "finance",
       label: "Finance",
       iconName: "PiggyBank",
+      iconClassName: "size-[22px]",
       href: `/${orgSlug}/finance`,
     },
     {
@@ -52,27 +56,26 @@ export default async function OrgDashboardPage({
     {
       key: "assets",
       label: "Assets",
-      iconName: "Briefcase",
+      iconName: "BriefcaseBusiness",
       href: `/${orgSlug}/assets`,
-      separatorAfter: true,
     },
     {
       key: "closing",
       label: "Closing",
-      iconName: "ListChecksIcon",
+      iconName: "CalendarClock",
       href: `/${orgSlug}/closing`,
     },
     {
       key: "reports",
       label: "Reports",
-      iconName: "BarChart3",
+      iconName: "ChartNoAxesCombined",
       href: `/${orgSlug}/reports`,
       separatorAfter: true,
     },
     {
       key: "directory",
       label: "Directory",
-      iconName: "Building2",
+      iconName: "BookUser",
       href: `/${orgSlug}/directory`,
     },
     {

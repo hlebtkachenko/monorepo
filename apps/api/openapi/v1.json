@@ -505,6 +505,298 @@
             "format": "email",
             "description": "Optional contact email. If provided, support will reply here; otherwise the response is filed without a return path. Already-authenticated keys carry an org contact so this is purely for users who want a direct reply.",
             "example": "dev@partner.example"
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2048
+                  },
+                  "pathname": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 500
+                  },
+                  "locale": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 16
+                  },
+                  "theme": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "light",
+                      "dark",
+                      "system",
+                      null
+                    ]
+                  },
+                  "referrer": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "url",
+                  "pathname"
+                ],
+                "description": "Page the report was filed from."
+              },
+              "scope": {
+                "type": "object",
+                "properties": {
+                  "org_slug": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "reporter_id": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "reporter_email": {
+                    "type": "string",
+                    "maxLength": 320
+                  }
+                },
+                "description": "App scope + server-resolved reporter identity. Advisory only — never used for authorization."
+              },
+              "element": {
+                "type": "object",
+                "properties": {
+                  "tag": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "data_slot": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128
+                  },
+                  "role": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128
+                  },
+                  "classes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 500
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "dom_path": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "bounding_rect": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "top": {
+                        "type": "number"
+                      },
+                      "left": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "top",
+                      "left",
+                      "width",
+                      "height"
+                    ]
+                  }
+                },
+                "required": [
+                  "tag"
+                ],
+                "description": "Right-clicked element descriptor."
+              },
+              "selection": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4000
+                  },
+                  "html": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 4000
+                  },
+                  "rect": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "top": {
+                        "type": "number"
+                      },
+                      "left": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "top",
+                      "left",
+                      "width",
+                      "height"
+                    ]
+                  }
+                },
+                "description": "Active text selection, if any."
+              },
+              "surrounding": {
+                "type": "object",
+                "properties": {
+                  "nearest_heading": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 300
+                  },
+                  "inferred_block": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128
+                  },
+                  "nearby_text": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "description": "Nearby DOM text for locating the report."
+              },
+              "viewport": {
+                "type": "object",
+                "properties": {
+                  "width": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20000
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 20000
+                  },
+                  "scroll_y": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000
+                  },
+                  "device_pixel_ratio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 8
+                  }
+                },
+                "required": [
+                  "width",
+                  "height",
+                  "scroll_y",
+                  "device_pixel_ratio"
+                ],
+                "description": "Viewport dimensions at capture time."
+              },
+              "client": {
+                "type": "object",
+                "properties": {
+                  "user_agent": {
+                    "type": "string",
+                    "maxLength": 800
+                  },
+                  "platform": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128
+                  },
+                  "language": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 32
+                  },
+                  "timezone": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 64
+                  },
+                  "online": {
+                    "type": "boolean"
+                  },
+                  "prefers_dark": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "user_agent"
+                ],
+                "description": "Reporter's browser/runtime environment."
+              }
+            },
+            "description": "Optional in-app capture context (page, element, viewport, client). Public callers omit it; the in-app reporter attaches it. Folded into the Linear issue when present."
           }
         },
         "required": [

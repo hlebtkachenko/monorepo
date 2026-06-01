@@ -277,6 +277,74 @@ export interface components {
              * @example dev@partner.example
              */
             email?: string;
+            /** @description Optional in-app capture context (page, element, viewport, client). Public callers omit it; the in-app reporter attaches it. Folded into the Linear issue when present. */
+            context?: {
+                /** @description Page the report was filed from. */
+                page?: {
+                    url: string;
+                    pathname: string;
+                    title?: string | null;
+                    locale?: string | null;
+                    /** @enum {string|null} */
+                    theme?: "light" | "dark" | "system" | null;
+                    referrer?: string | null;
+                };
+                /** @description App scope + server-resolved reporter identity. Advisory only — never used for authorization. */
+                scope?: {
+                    org_slug?: string;
+                    reporter_id?: string;
+                    reporter_email?: string;
+                };
+                /** @description Right-clicked element descriptor. */
+                element?: {
+                    tag: string;
+                    data_slot?: string | null;
+                    role?: string | null;
+                    id?: string | null;
+                    classes?: string | null;
+                    text?: string;
+                    dom_path?: string;
+                    bounding_rect?: {
+                        top: number;
+                        left: number;
+                        width: number;
+                        height: number;
+                    } | null;
+                };
+                /** @description Active text selection, if any. */
+                selection?: {
+                    text?: string | null;
+                    html?: string | null;
+                    rect?: {
+                        top: number;
+                        left: number;
+                        width: number;
+                        height: number;
+                    } | null;
+                };
+                /** @description Nearby DOM text for locating the report. */
+                surrounding?: {
+                    nearest_heading?: string | null;
+                    inferred_block?: string | null;
+                    nearby_text?: string;
+                };
+                /** @description Viewport dimensions at capture time. */
+                viewport?: {
+                    width: number;
+                    height: number;
+                    scroll_y: number;
+                    device_pixel_ratio: number;
+                };
+                /** @description Reporter's browser/runtime environment. */
+                client?: {
+                    user_agent: string;
+                    platform?: string | null;
+                    language?: string | null;
+                    timezone?: string | null;
+                    online?: boolean;
+                    prefers_dark?: boolean;
+                };
+            };
         };
         /** @description Confirmation that feedback was accepted. Acceptance does NOT guarantee a reply — `question` submissions get one, the others are reviewed without acknowledgement unless an email is provided. */
         CreateFeedbackResponse: {

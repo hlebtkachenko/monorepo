@@ -74,6 +74,24 @@ const SIZES: {
 const SHELL_CARD_CLASS =
   "rounded-md border border-border-subtle bg-shell-surface"
 
+interface AppShellContextValue {
+  /** Whether the assistant panel is currently open. */
+  assistantOpen: boolean
+  /** Toggle the assistant panel open/closed. */
+  toggleAssistant: () => void
+}
+
+const AppShellContext = React.createContext<AppShellContextValue | null>(null)
+
+/**
+ * Read the enclosing AppShell's assistant-panel state. Returns `null`
+ * when called outside an AppShell (e.g. a header rendered standalone in
+ * Storybook) so consumers can degrade gracefully.
+ */
+export function useAppShell(): AppShellContextValue | null {
+  return React.useContext(AppShellContext)
+}
+
 /**
  * Application shell — absolute-positioned regions on a single canvas.
  *
@@ -136,6 +154,14 @@ export function AppShell({
   }, [])
 
   const toggleSidebar = () => setSidebarOpen((s) => !s)
+  const toggleAssistant = React.useCallback(
+    () => setAssistantOpen((s) => !s),
+    [],
+  )
+  const shellContext = React.useMemo<AppShellContextValue>(
+    () => ({ assistantOpen, toggleAssistant }),
+    [assistantOpen, toggleAssistant],
+  )
 
   const onSidebarHandlePointerDown = (
     e: React.PointerEvent<HTMLDivElement>,
@@ -172,144 +198,148 @@ export function AppShell({
   }
 
   return (
-    <div
-      data-slot="app-shell"
-      className={cn(
-        "relative h-svh w-full overflow-hidden bg-canvas",
-        className,
-      )}
-    >
-      {rail !== undefined && (
-        <aside
-          data-slot="app-shell-rail"
-          className="absolute top-0 bottom-[var(--shell-bottom-inset)] left-0 flex w-[var(--shell-rail-width)] flex-col transition-[width] duration-200 ease-in-out"
-        >
-          <div
-            data-slot="app-shell-logomark"
-            className="relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden [&>svg]:translate-y-[4px]"
+    <AppShellContext.Provider value={shellContext}>
+      <div
+        data-slot="app-shell"
+        className={cn(
+          "relative h-svh w-full overflow-hidden bg-canvas",
+          className,
+        )}
+      >
+        {rail !== undefined && (
+          <aside
+            data-slot="app-shell-rail"
+            className="absolute top-0 bottom-[var(--shell-bottom-inset)] left-0 flex w-[var(--shell-rail-width)] flex-col transition-[width] duration-200 ease-in-out"
           >
-            {logo}
-            {logoHref && (
-              <a
-                href={logoHref}
-                aria-label="Home"
-                className="absolute top-[11px] left-[14px] h-[26px] w-[32px]"
-              />
-            )}
-          </div>
-          <div className="flex-1 overflow-x-hidden overflow-y-auto">{rail}</div>
-        </aside>
-      )}
-
-      {header && (
-        <header
-          data-slot="app-shell-header"
-          className="absolute top-0 right-[var(--shell-right-inset)] left-[var(--shell-rail-width)] h-[var(--shell-header-height)] overflow-hidden transition-[left] duration-200 ease-in-out"
-        >
-          {header}
-        </header>
-      )}
-
-      <div className="absolute top-[var(--shell-header-height)] right-[var(--shell-right-inset)] bottom-[var(--shell-bottom-inset)] left-[var(--shell-rail-width)] transition-[left] duration-200 ease-in-out">
-        <ResizablePanelGroup orientation="horizontal">
-          <ResizablePanel minSize={SIZES.mainMin}>
             <div
-              data-slot="app-shell-content"
-              className={cn(
-                "relative flex h-full overflow-hidden",
-                SHELL_CARD_CLASS,
-              )}
+              data-slot="app-shell-logomark"
+              className="relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden [&>svg]:translate-y-[4px]"
             >
-              {sidebar !== undefined && (
-                <>
-                  <aside
-                    data-slot="app-shell-sidebar"
-                    style={{ width: sidebarOpen ? sidebarWidth : 0 }}
-                    className="shrink-0 overflow-x-hidden overflow-y-auto transition-[width] duration-300 ease-in-out"
-                  >
-                    {sidebar}
-                  </aside>
-                  <div
-                    role="separator"
-                    aria-orientation="vertical"
-                    onPointerDown={onSidebarHandlePointerDown}
-                    onPointerMove={onSidebarHandlePointerMove}
-                    onPointerUp={onSidebarHandlePointerUp}
-                    onPointerCancel={onSidebarHandlePointerUp}
-                    className={cn(
-                      // 4px transparent hit area with 1px line inside
-                      // (always visible). `touch-none` blocks the
-                      // browser's drag-to-scroll on touch devices so
-                      // the resize gesture wins.
-                      "relative w-1 shrink-0 cursor-col-resize touch-none select-none",
-                      !sidebarOpen && "pointer-events-none invisible",
-                    )}
-                  >
-                    <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-subtle" />
-                  </div>
-                </>
+              {logo}
+              {logoHref && (
+                <a
+                  href={logoHref}
+                  aria-label="Home"
+                  className="absolute top-[11px] left-[14px] h-[26px] w-[32px]"
+                />
               )}
-              <main
-                data-slot="app-shell-main"
-                className="relative h-full flex-1 overflow-auto"
+            </div>
+            <div className="flex-1 overflow-x-hidden overflow-y-auto">
+              {rail}
+            </div>
+          </aside>
+        )}
+
+        {header && (
+          <header
+            data-slot="app-shell-header"
+            className="absolute top-0 right-[var(--shell-right-inset)] left-[var(--shell-rail-width)] h-[var(--shell-header-height)] overflow-hidden transition-[left] duration-200 ease-in-out"
+          >
+            {header}
+          </header>
+        )}
+
+        <div className="absolute top-[var(--shell-header-height)] right-[var(--shell-right-inset)] bottom-[var(--shell-bottom-inset)] left-[var(--shell-rail-width)] transition-[left] duration-200 ease-in-out">
+          <ResizablePanelGroup orientation="horizontal">
+            <ResizablePanel minSize={SIZES.mainMin}>
+              <div
+                data-slot="app-shell-content"
+                className={cn(
+                  "relative flex h-full overflow-hidden",
+                  SHELL_CARD_CLASS,
+                )}
               >
                 {sidebar !== undefined && (
-                  <div className="absolute top-2 left-2 z-10">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      aria-label={
-                        sidebarOpen ? "Collapse sidebar" : "Open sidebar"
-                      }
-                      onClick={toggleSidebar}
+                  <>
+                    <aside
+                      data-slot="app-shell-sidebar"
+                      style={{ width: sidebarOpen ? sidebarWidth : 0 }}
+                      className="shrink-0 overflow-x-hidden overflow-y-auto transition-[width] duration-300 ease-in-out"
                     >
-                      <PanelLeftIcon className="size-4 text-[#4E5255]" />
-                    </Button>
-                  </div>
-                )}
-                {assistant !== undefined && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      aria-label={
-                        assistantOpen ? "Close assistant" : "Open assistant"
-                      }
-                      onClick={() => setAssistantOpen((s) => !s)}
+                      {sidebar}
+                    </aside>
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      onPointerDown={onSidebarHandlePointerDown}
+                      onPointerMove={onSidebarHandlePointerMove}
+                      onPointerUp={onSidebarHandlePointerUp}
+                      onPointerCancel={onSidebarHandlePointerUp}
+                      className={cn(
+                        // 4px transparent hit area with 1px line inside
+                        // (always visible). `touch-none` blocks the
+                        // browser's drag-to-scroll on touch devices so
+                        // the resize gesture wins.
+                        "relative w-1 shrink-0 cursor-col-resize touch-none select-none",
+                        !sidebarOpen && "pointer-events-none invisible",
+                      )}
                     >
-                      <PanelRight className="size-4 text-[#4E5255]" />
-                    </Button>
-                  </div>
+                      <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-subtle" />
+                    </div>
+                  </>
                 )}
-                {children}
-              </main>
-            </div>
-          </ResizablePanel>
-
-          {assistantOpen && assistant !== undefined && (
-            <>
-              <ResizableHandle className="w-[var(--shell-handle-width)] bg-transparent" />
-              <ResizablePanel
-                defaultSize={SIZES.assistantDefault}
-                minSize={SIZES.assistantMin}
-                maxSize={SIZES.assistantMax}
-                data-slot="app-shell-assistant"
-              >
-                <aside
-                  className={cn(
-                    "h-full overflow-x-hidden overflow-y-auto",
-                    SHELL_CARD_CLASS,
-                  )}
+                <main
+                  data-slot="app-shell-main"
+                  className="relative h-full flex-1 overflow-auto"
                 >
-                  {assistant}
-                </aside>
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+                  {sidebar !== undefined && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={
+                          sidebarOpen ? "Collapse sidebar" : "Open sidebar"
+                        }
+                        onClick={toggleSidebar}
+                      >
+                        <PanelLeftIcon className="size-4 text-[#4E5255]" />
+                      </Button>
+                    </div>
+                  )}
+                  {assistant !== undefined && (
+                    <div className="absolute top-2 right-2 z-10">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={
+                          assistantOpen ? "Close assistant" : "Open assistant"
+                        }
+                        onClick={toggleAssistant}
+                      >
+                        <PanelRight className="size-4 text-[#4E5255]" />
+                      </Button>
+                    </div>
+                  )}
+                  {children}
+                </main>
+              </div>
+            </ResizablePanel>
+
+            {assistantOpen && assistant !== undefined && (
+              <>
+                <ResizableHandle className="w-[var(--shell-handle-width)] bg-transparent" />
+                <ResizablePanel
+                  defaultSize={SIZES.assistantDefault}
+                  minSize={SIZES.assistantMin}
+                  maxSize={SIZES.assistantMax}
+                  data-slot="app-shell-assistant"
+                >
+                  <aside
+                    className={cn(
+                      "h-full overflow-x-hidden overflow-y-auto",
+                      SHELL_CARD_CLASS,
+                    )}
+                  >
+                    {assistant}
+                  </aside>
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        </div>
       </div>
-    </div>
+    </AppShellContext.Provider>
   )
 }

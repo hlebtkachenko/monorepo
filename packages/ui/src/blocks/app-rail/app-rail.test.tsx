@@ -1,83 +1,84 @@
 import { render as rtlRender, screen } from "@testing-library/react"
-import { describe, it, expect, beforeEach } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { AppRail } from "./app-rail"
+import { AppRail, type RailMenuEntry } from "./app-rail"
 
-// Wrap every render with IconProvider — AppRail calls useIcons()
-// unconditionally and the hook throws outside a provider.
+// AppRail resolves icons via useIcons(), so every render needs an
+// IconProvider ancestor.
 const render = ((ui: Parameters<typeof rtlRender>[0]) =>
   rtlRender(<IconProvider>{ui}</IconProvider>)) as typeof rtlRender
 
-beforeEach(() => {
-  localStorage.clear()
-  document.documentElement.style.removeProperty("--shell-rail-width")
-})
-
-const items = [
-  {
-    key: "accounting",
-    label: "Accounting",
-    icon: <span data-testid="icon-accounting" />,
-    active: true,
-  },
-  {
-    key: "documents",
-    label: "Documents",
-    icon: <span data-testid="icon-documents" />,
-    href: "/docs",
-  },
-  {
-    key: "finance",
-    label: "Finance",
-    icon: <span data-testid="icon-finance" />,
-  },
+const items: RailMenuEntry[] = [
+  { label: "Company", icon: "Goal", href: "/acme" },
+  "separator",
+  { label: "Accounting", icon: "SwatchBook", href: "/acme/accounting" },
+  { label: "Finance", icon: "PiggyBank", href: "/acme/finance" },
 ]
 
 describe("AppRail", () => {
-  it("renders all items in expanded mode with labels", () => {
+  // The mode effect persists to localStorage; clear it so each test's
+  // `defaultMode` isn't overridden by a prior test's stored value.
+  afterEach(() => localStorage.clear())
+
+  it("renders labels in expanded mode", () => {
     render(<AppRail items={items} defaultMode="expanded" />)
+    expect(screen.getByText("Company")).toBeInTheDocument()
     expect(screen.getByText("Accounting")).toBeInTheDocument()
-    expect(screen.getByText("Documents")).toBeInTheDocument()
-    expect(screen.getByText("Finance")).toBeInTheDocument()
-    expect(screen.getByTestId("icon-accounting")).toBeInTheDocument()
   })
 
-  it("hides labels in icon-only mode (label surfaced via right-side tooltip)", () => {
-    render(<AppRail items={items} defaultMode="icon-only" />)
-    // Visible label text is gone; the name lives in the (closed) tooltip
-    // + the trigger's aria-label. No native `title` anymore.
-    expect(screen.queryByText("Accounting")).not.toBeInTheDocument()
-    const link = screen
-      .getByTestId("icon-accounting")
-      .closest("a") as HTMLAnchorElement
-    expect(link).not.toHaveAttribute("title")
-    expect(link).toHaveAttribute("aria-label", "Accounting")
-  })
-
-  it("uses href when provided, otherwise '#'", () => {
-    const { container } = render(
-      <AppRail items={items} defaultMode="expanded" />,
-    )
-    const anchors = container.querySelectorAll("a")
-    expect(anchors[0]).toHaveAttribute("href", "#")
-    expect(anchors[1]).toHaveAttribute("href", "/docs")
-  })
-
-  it("marks the active item with data-active", () => {
-    const { container } = render(
-      <AppRail items={items} defaultMode="expanded" />,
-    )
-    const active = container.querySelectorAll("a[data-active]")
-    expect(active.length).toBe(1)
-    expect(active[0]).toHaveAttribute("href", "#")
-  })
-
-  it("writes the --shell-rail-width CSS var on document root", () => {
+  it("renders a divider for each separator entry", () => {
     render(<AppRail items={items} defaultMode="expanded" />)
+    expect(screen.getAllByRole("separator")).toHaveLength(1)
+  })
+
+  it("marks the longest-prefix match active (deep route)", () => {
+    render(
+      <AppRail
+        items={items}
+        defaultMode="expanded"
+        currentPath="/acme/finance/123"
+      />,
+    )
+    expect(screen.getByRole("link", { name: "Finance" })).toHaveAttribute(
+      "data-active",
+      "true",
+    )
+    // Index item must NOT win when on a deeper route.
+    expect(screen.getByRole("link", { name: "Company" })).not.toHaveAttribute(
+      "data-active",
+    )
+  })
+
+  it("activates the index item only on the exact root path", () => {
+    render(<AppRail items={items} defaultMode="expanded" currentPath="/acme" />)
+    expect(screen.getByRole("link", { name: "Company" })).toHaveAttribute(
+      "data-active",
+      "true",
+    )
     expect(
-      document.documentElement.style.getPropertyValue("--shell-rail-width"),
-    ).toBe("60px")
+      screen.getByRole("link", { name: "Accounting" }),
+    ).not.toHaveAttribute("data-active")
+  })
+
+  it("hides labels in icon-only mode; name via aria-label, no title", () => {
+    render(<AppRail items={items} defaultMode="icon-only" />)
+    expect(screen.queryByText("Accounting")).not.toBeInTheDocument()
+    const link = screen.getByRole("link", { name: "Accounting" })
+    expect(link).not.toHaveAttribute("title")
+  })
+
+  it("falls back to '#' when an item has no href", () => {
+    render(
+      <AppRail
+        items={[{ label: "Nolink", icon: "Goal" }]}
+        defaultMode="expanded"
+      />,
+    )
+    expect(screen.getByRole("link", { name: "Nolink" })).toHaveAttribute(
+      "href",
+      "#",
+    )
   })
 })

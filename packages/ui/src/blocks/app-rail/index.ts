@@ -1,2 +1,2 @@
 export { AppRail } from "./app-rail"
-export type { RailItem, RailMode } from "./app-rail"
+export type { RailMenuEntry, RailMenuItem, RailMode } from "./app-rail"

@@ -43,7 +43,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: infra/cloudflare-sleeping
-          wranglerVersion: "4.59.2"
+          # Keep in sync with wrangler in infra/cloudflare-sleeping/package.json.
+          wranglerVersion: "4.94.0"
           command: deploy
 
       - name: Smoke check the *.workers.dev preview

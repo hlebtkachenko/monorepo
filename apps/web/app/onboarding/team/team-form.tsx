@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useFieldArray, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { toast } from "sonner"
+import { toast } from "@workspace/ui/components/sonner"
 
 import { useTranslations } from "@workspace/i18n/client"
 import { InviteListSchema, type InviteListInput } from "@workspace/shared/auth"

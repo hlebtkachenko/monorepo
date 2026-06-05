@@ -2,7 +2,7 @@
 
 import { useCallback } from "react"
 import { usePathname } from "next/navigation"
-import { toast } from "sonner"
+import { toast } from "@workspace/ui/components/sonner"
 import {
   AppContextMenu,
   type BugReportPayload,

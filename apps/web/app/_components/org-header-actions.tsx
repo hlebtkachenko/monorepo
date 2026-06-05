@@ -1,15 +1,23 @@
 "use client"
 
 import { type ReactNode, useState } from "react"
-import { toast } from "sonner"
+import { usePathname } from "next/navigation"
+import { toast } from "@workspace/ui/components/sonner"
 
 import { BrandName, SidekickMark } from "@workspace/ui/brand-assets"
+import {
+  BugReportDialog,
+  buildBugReport,
+  captureContext,
+  type CapturedContext,
+} from "@workspace/ui/blocks/app-context-menu"
 import { useAppShell } from "@workspace/ui/blocks/app-shell"
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@workspace/ui/components/avatar"
+import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,9 +35,19 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import { reportFeedback } from "./report-feedback"
+
 // Gap between a header dropdown and its trigger — the same 8px the shell
 // uses for its page-edge insets, so menus sit on the same spacing grid.
 const MENU_GAP = 8
+
+// GitHub Primer ActionList sizing for the header dropdowns: 14px text
+// (--menu-text-size), 16px icons (default), 8px gap, 6×8px item padding
+// (→32px rows), 8px container padding, full-bleed 8px-margin dividers.
+// Width sizes to content above the --menu-min-width floor (no magic px),
+// overriding the primitive's default trigger-width sizing.
+const PRIMER_MENU =
+  "w-auto min-w-[var(--menu-min-width)] p-2 [&_[data-slot=dropdown-menu-item]]:gap-2 [&_[data-slot=dropdown-menu-item]]:px-2 [&_[data-slot=dropdown-menu-item]]:py-1.5 [&_[data-slot=dropdown-menu-item]]:text-[length:var(--menu-text-size)] [&_[data-slot=dropdown-menu-separator]]:-mx-2 [&_[data-slot=dropdown-menu-separator]]:my-2"
 
 export interface OrgHeaderActionsProps {
   /** Display name — drives the profile avatar fallback initials. */
@@ -88,7 +106,11 @@ export function OrgHeaderActions({
 }: OrgHeaderActionsProps) {
   const icons = useIcons()
   const shell = useAppShell()
+  const pathname = usePathname()
   const [supportAccess, setSupportAccess] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackContext, setFeedbackContext] =
+    useState<CapturedContext | null>(null)
 
   const DocsIcon = icons.FileText
   const KnowledgeIcon = icons.BookOpen
@@ -102,11 +124,23 @@ export function OrgHeaderActions({
   const setSupport = (next: boolean) => {
     setSupportAccess(next)
     if (next) {
-      toast.success("Support access granted", {
-        description:
-          "Our support team can now view your workspace to help you.",
+      toast.success("Support access on", {
+        description: "Our support team can now view your workspace.",
+      })
+    } else {
+      toast.info("Support access off", {
+        description: "Our support team can no longer view your workspace.",
       })
     }
+  }
+
+  // "Send feedback" reuses the right-click feedback dialog. There's no
+  // clicked element, so capture a page-level context snapshot on open.
+  const openFeedback = () => {
+    setFeedbackContext(
+      captureContext({ target: null, selectionText: null, pathname }),
+    )
+    setFeedbackOpen(true)
   }
 
   return (
@@ -120,9 +154,9 @@ export function OrgHeaderActions({
           <IconButton icon="CircleHelp" aria-label="Help" />
         </HeaderMenuTrigger>
         <DropdownMenuContent
-          align="end"
+          align="start"
           sideOffset={MENU_GAP}
-          className="w-[180px] [&_[data-slot=dropdown-menu-item]]:text-[length:var(--menu-text-size)]"
+          className={PRIMER_MENU}
         >
           {/* TODO(org-header): wire real destinations/handlers — placeholders. */}
           <DropdownMenuItem>
@@ -165,7 +199,7 @@ export function OrgHeaderActions({
             }}
           >
             <span className="flex items-center gap-1">
-              Grant support access
+              Support access
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -188,13 +222,15 @@ export function OrgHeaderActions({
             <Switch
               checked={supportAccess}
               onCheckedChange={setSupport}
-              aria-label="Grant support access"
+              aria-label="Support access"
               tabIndex={-1}
               className="pointer-events-none"
             />
           </DropdownMenuItem>
-          <DropdownMenuItem>Send feedback</DropdownMenuItem>
-          <div className="px-1.5 py-1 text-[length:var(--menu-text-size)]">
+          <DropdownMenuItem onSelect={openFeedback}>
+            Send feedback
+          </DropdownMenuItem>
+          <div className="px-2 py-1.5 text-[length:var(--menu-text-size)] text-muted-foreground">
             Version: {version ?? "dev"}
           </div>
         </DropdownMenuContent>
@@ -222,11 +258,31 @@ export function OrgHeaderActions({
             }
           />
         </HeaderMenuTrigger>
-        <DropdownMenuContent align="end" sideOffset={MENU_GAP}>
+        <DropdownMenuContent
+          align="end"
+          sideOffset={MENU_GAP}
+          className={PRIMER_MENU}
+        >
           {/* TODO(org-header): real account menu — placeholder. */}
           <DropdownMenuItem>Lorem ipsum dolor sit amet.</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Shared feedback dialog — opened by "Send feedback" with the
+          "Feedback" type preselected; the same dialog the right-click menu
+          opens with the "bug" type. */}
+      <BugReportDialog
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        defaultType="question"
+        context={feedbackContext}
+        defaultEmail={null}
+        onSubmit={async ({ type, message, email, context }) => {
+          await reportFeedback(
+            buildBugReport({ ctx: context, type, message, email }),
+          )
+        }}
+      />
     </TooltipProvider>
   )
 }
@@ -237,11 +293,13 @@ export function OrgHeaderActions({
  */
 function GetStartedButton() {
   return (
-    <button
+    <Button
       type="button"
-      className="h-[22px] w-[90px] rounded-lg border border-input bg-background text-[length:var(--icon-label-size)] font-medium text-rail-label-active transition-transform outline-none active:translate-y-px"
+      variant="outline"
+      size="sm"
+      className="h-[22px] w-[90px] rounded-md border-input px-0 text-[length:var(--icon-label-size)] text-rail-label-active"
     >
       Get Started
-    </button>
+    </Button>
   )
 }

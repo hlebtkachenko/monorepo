@@ -136,7 +136,9 @@ export function IconButton({
     // hover/active surface.
     rootClasses = cn(
       "group inline-flex shrink-0 items-center rounded-sm text-icon transition-[background-color,transform] outline-none active:translate-y-px",
-      "hover:bg-icon-hover-bg data-[active]:bg-icon-active-bg data-[active]:text-icon-active",
+      // `data-[active]` = explicit selected prop; `aria-expanded` = this
+      // button is an open menu/popover trigger — both paint the selected box.
+      "hover:bg-icon-hover-bg aria-expanded:bg-icon-active-bg aria-expanded:text-icon-active data-[active]:bg-icon-active-bg data-[active]:text-icon-active",
       "disabled:pointer-events-none disabled:opacity-50",
       labeled
         ? "h-8 gap-[var(--icon-label-gap)] pr-2.5 pl-1.5"

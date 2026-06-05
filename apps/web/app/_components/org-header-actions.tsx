@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
+import { XIcon } from "@workspace/ui/lib/icons"
 import { Switch } from "@workspace/ui/components/switch"
 import {
   Tooltip,
@@ -237,7 +238,21 @@ export function OrgHeaderActions({
       </DropdownMenu>
 
       <IconButton
-        iconNode={<SidekickMark />}
+        tone="sidekick"
+        iconNode={
+          shell?.assistantOpen ? (
+            // Close glyph: 16px X centered in a 20px (--icon-size) slot so the
+            // pill width matches the idle spark exactly. Unique icon tone.
+            <span className="flex size-[var(--icon-size)] items-center justify-center">
+              <XIcon className="size-4 text-sidekick-icon" />
+            </span>
+          ) : (
+            <SidekickMark />
+          )
+        }
+        label="Sidekick"
+        labelPosition="beside"
+        active={shell?.assistantOpen}
         aria-label="Ask AI Assistant"
         tooltip="Ask AI Assistant"
         tooltipSide="bottom"

@@ -36,6 +36,13 @@ export interface IconButtonProps extends Omit<
   labelPosition?: "beside" | "below"
   /** Selected/active state — paints the active tokens. */
   active?: boolean
+  /**
+   * Color treatment. `"default"` → idle transparent, hover/selected add a
+   * box (`--icon-*`). `"sidekick"` → inverted: idle shows a box
+   * (`--sidekick-idle-bg`), hover clears it, selected paints
+   * `--sidekick-active-bg`. Only affects the horizontal/icon-only form.
+   */
+  tone?: "default" | "sidekick"
   /** Glyph size in px. Default: `--icon-size` (20). */
   iconSize?: number
   /** Glyph stroke width (lucide). Default: pack default. */
@@ -84,6 +91,7 @@ export function IconButton({
   label,
   labelPosition = "beside",
   active,
+  tone = "default",
   iconSize,
   iconStrokeWidth,
   href,
@@ -138,7 +146,12 @@ export function IconButton({
       "group inline-flex shrink-0 items-center rounded-sm text-icon transition-[background-color,transform] outline-none active:translate-y-px",
       // `data-[active]` = explicit selected prop; `aria-expanded` = this
       // button is an open menu/popover trigger — both paint the selected box.
-      "hover:bg-icon-hover-bg aria-expanded:bg-icon-active-bg aria-expanded:text-icon-active data-[active]:bg-icon-active-bg data-[active]:text-icon-active",
+      tone === "sidekick"
+        ? // Inverted treatment: idle box shown, hover clears it, selected
+          // paints the unique tone (Sidekick / AI assistant button). The
+          // label + any currentColor glyph read in the high-contrast fg.
+          "bg-sidekick-idle-bg text-icon-active hover:bg-transparent aria-expanded:bg-sidekick-active-bg data-[active]:bg-sidekick-active-bg"
+        : "hover:bg-icon-hover-bg aria-expanded:bg-icon-active-bg aria-expanded:text-icon-active data-[active]:bg-icon-active-bg data-[active]:text-icon-active",
       "disabled:pointer-events-none disabled:opacity-50",
       labeled
         ? "h-8 gap-[var(--icon-label-gap)] pr-2.5 pl-1.5"

@@ -50,6 +50,9 @@
   --color-icon-active: var(--icon-active);
   --color-icon-hover-bg: var(--icon-hover-bg);
   --color-icon-active-bg: var(--icon-active-bg);
+  --color-sidekick-idle-bg: var(--sidekick-idle-bg);
+  --color-sidekick-active-bg: var(--sidekick-active-bg);
+  --color-sidekick-icon: var(--sidekick-icon);
   --color-rail-label: var(--rail-label);
   --color-rail-label-active: var(--rail-label-active);
   --color-rail-separator: var(--rail-separator);
@@ -113,6 +116,11 @@
   --icon-active: #1e1f20;
   --icon-hover-bg: #e3e5e5;
   --icon-active-bg: #cdcece;
+  /* Sidekick action button — unique inverted treatment: idle box shown,
+     hover clears it, selected (assistant open) is a distinct tone. */
+  --sidekick-idle-bg: #f5f5f5;
+  --sidekick-active-bg: #eaebeb;
+  --sidekick-icon: #4e5255;
   /* Rail (AppRail) design tokens — single source for the nav look. */
   --rail-label: #676c6f;
   --rail-label-active: #4e5255;
@@ -190,6 +198,11 @@
   --icon-active: #e8eaeb;
   --icon-hover-bg: #2c2f31;
   --icon-active-bg: #3a3d40;
+  /* Dark: reuse the chrome neutrals so the inverted Sidekick box reads in
+     dark mode without a separate hardcoded palette. */
+  --sidekick-idle-bg: #2c2f31;
+  --sidekick-active-bg: #3a3d40;
+  --sidekick-icon: var(--icon-active);
   --rail-label: #9aa0a3;
   --rail-label-active: #e8eaeb;
   --rail-separator: #3a3d40;

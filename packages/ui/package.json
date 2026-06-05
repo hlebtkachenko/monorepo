@@ -18,12 +18,12 @@
     "audit:stories:fix": "tsx scripts/audit-stories.ts --fix"
   },
   "dependencies": {
-    "@ark-ui/react": "^5.36.2",
+    "@ark-ui/react": "^5.37.0",
     "@base-ui/react": "^1.5.0",
     "@diceui/mention": "^0.8.0",
     "@diceui/tags-input": "^0.7.2",
     "@floating-ui/react-dom": "^2.1.8",
-    "@hugeicons/core-free-icons": "^4.1.4",
+    "@hugeicons/core-free-icons": "^4.2.0",
     "@hugeicons/react": "^1.1.6",
     "@paper-design/shaders": "^0.0.76",
     "@tanstack/react-table": "^8.21.3",
@@ -38,7 +38,7 @@
     "date-fns": "^4.3.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
-    "lucide-react": "^1.16.0",
+    "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
     "next-themes": "^0.4.6",
     "pdf-lib": "^1.17.1",

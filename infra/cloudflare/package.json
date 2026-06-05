@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@hono/valibot-validator": "^0.6.1",
-    "hono": "^4.12.22",
-    "valibot": "^1.2.0"
+    "hono": "^4.12.23",
+    "valibot": "^1.4.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260526.1",

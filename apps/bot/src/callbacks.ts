@@ -281,6 +281,9 @@ export async function runCallback(
       if (now > approval.exp) return { answer: "Request expired." }
       return {
         answer: "Reply with your text below.",
+        // Drop the option buttons so only the free-text reply remains — no stray option tap
+        // can win the first-answer race after the owner chose "type my own".
+        stripButtons: true,
         forceReply: {
           approvalId: action.id,
           prompt: `✍️ Reply to this message with your answer${approval.summary ? ` for: ${approval.summary}` : ""}.`,

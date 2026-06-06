@@ -211,7 +211,12 @@ export function createBot(env: Env): Bot {
       outcome.answer ? { text: outcome.answer } : undefined,
     )
     if (outcome.editText !== undefined) {
-      await ctx.editMessageText(outcome.editText).catch(() => {})
+      // Keep the original question visible — APPEND the result + drop the buttons,
+      // rather than replacing the message text.
+      const msg = ctx.callbackQuery.message
+      const orig = msg && "text" in msg ? msg.text : ""
+      const next = orig ? `${orig}\n\n${outcome.editText}` : outcome.editText
+      await ctx.editMessageText(next).catch(() => {})
     } else if (outcome.stripButtons) {
       await ctx.editMessageReplyMarkup().catch(() => {})
     }

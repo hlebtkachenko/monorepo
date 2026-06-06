@@ -230,6 +230,7 @@ describe("runCallback — ask", () => {
     const out = await runCallback({ t: "custom", id: "a6" }, d)
     expect(out.forceReply?.approvalId).toBe("a6")
     expect(out.forceReply?.prompt).toMatch(/pick env/)
+    expect(out.stripButtons).toBe(true) // option buttons removed so only text reply remains
   })
 
   it("custom refuses once already answered", async () => {

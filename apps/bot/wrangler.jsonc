@@ -1,0 +1,38 @@
+{
+  // Afframe Telegram bot — sole owner of all Telegram I/O.
+  // Local experiment: run with `wrangler dev` (reads .dev.vars). NOT deployed yet.
+  // Secrets in prod go via `wrangler secret put`; routes/custom-domain added at deploy time.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "afframe-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  // Public host (deploy-time). custom_domain auto-creates the DNS record on the
+  // afframe.com zone (same trick the turbo-cache worker uses for cache.afframe.com).
+  "routes": [{ "pattern": "bot.afframe.com", "custom_domain": true }],
+  "vars": {
+    "ENVIRONMENT": "development",
+  },
+  // Bot state (dedup, approvals, heartbeats, snooze). database_id is filled after
+  // `wrangler d1 create afframe-bot` (a credentialed manual step). Local `wrangler dev`
+  // uses a local SQLite simulation and ignores the id.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "afframe-bot",
+      "database_id": "PLACEHOLDER_set_after_wrangler_d1_create",
+      "migrations_dir": "migrations",
+    },
+  ],
+  // Health scans. Cron is UTC: 04:00/16:00 UTC = 06:00/18:00 Europe/Prague (CEST);
+  // in winter (CET) this lands at 05:00/17:00 — accepted DST drift for a dev scan.
+  "triggers": {
+    "crons": ["0 4 * * *", "0 16 * * *"],
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+}

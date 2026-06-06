@@ -29,6 +29,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
+    "@workspace/notify": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/ui": "workspace:*",
     "exceljs": "^4.4.0",

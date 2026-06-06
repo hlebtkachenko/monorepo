@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { and, eq, sql } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { getBetterAuthUrl } from "@workspace/auth/env"
+import { notifierFromEnv } from "@workspace/notify"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
 import {
   app_user,
@@ -361,6 +362,14 @@ export async function submitWorkspaceAction(
 
   if (createdWorkspaceId) {
     await setActiveWorkspaceCookie(createdWorkspaceId)
+  }
+
+  // Fire-and-forget business-event ping; no-op when the bot env is unset.
+  const notifier = notifierFromEnv()
+  if (notifier) {
+    void notifier
+      .notify(`👤 New workspace: ${parsed.data.displayName}`, { source: "web" })
+      .catch(() => {})
   }
 
   return { ok: true }

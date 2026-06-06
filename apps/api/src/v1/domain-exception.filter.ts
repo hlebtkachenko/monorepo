@@ -9,6 +9,11 @@ import {
 import type { Response } from "express"
 import { isDomainError } from "@workspace/shared/errors"
 import type { RequestWithId } from "./request-id.middleware"
+import * as Sentry from "@sentry/node"
+import { notifierFromEnv, sanitizeError } from "@workspace/notify"
+
+// Built once; no-ops when BOT_INGEST_URL / NOTIFY_SHARED_SECRET are unset.
+const notifier = notifierFromEnv()
 
 /** DomainError.code -> HTTP status. Unmapped codes fall back to 400. */
 const DOMAIN_CODE_STATUS: Record<string, number> = {
@@ -120,6 +125,12 @@ export class DomainExceptionFilter implements ExceptionFilter {
         `Unhandled exception [${requestId}]`,
         exception instanceof Error ? exception.stack : String(exception),
       )
+      Sentry.captureException(exception)
+      const safe = sanitizeError(exception, requestId)
+      // Fire-and-forget: a failed ping must never alter the error response.
+      void notifier?.alert(`API 5xx [${safe.id}]: ${safe.message}`, {
+        source: "api",
+      })
     }
 
     // Unmapped 5xx (502/504/etc.) must fall into the INTERNAL family,

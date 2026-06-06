@@ -1,0 +1,134 @@
+# Deploy the Afframe Telegram bot (apps/bot) to Cloudflare Workers.
+# Mirrors _deploy-cloudflare.yml conventions. Requires (manual, one-time) repo secrets:
+#   CLOUDFLARE_API_TOKEN (Workers + D1 + Zone:Edit), CLOUDFLARE_ACCOUNT_ID,
+#   BOT_TOKEN, TELEGRAM_USER_ID, WEBHOOK_SECRET, INGEST_SECRET, LINEAR_API_TOKEN, LINEAR_TEAM_ID,
+# and the D1 `database_id` committed into apps/bot/wrangler.jsonc (after `wrangler d1 create afframe-bot`).
+name: deploy-bot
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/bot/**"
+
+permissions: {}
+
+concurrency:
+  group: deploy-bot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Ensure account has workers.dev subdomain (cron prereq)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          existing=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+            | jq -r '.result.subdomain // ""')
+          if [ -n "$existing" ]; then
+            echo "workers.dev subdomain: ${existing}.workers.dev"
+            exit 0
+          fi
+          echo "::error::No workers.dev subdomain registered — pick one in the CF dashboard (cron triggers need it)."
+          exit 1
+
+      - name: Ensure D1 database exists + inject database_id
+        # Self-bootstrap: create afframe-bot if missing, then write its real id into
+        # wrangler.jsonc (in the CI workspace only) so `wrangler deploy` resolves the
+        # binding. Idempotent. Requires the CF token to have D1:Edit.
+        working-directory: apps/bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          id=$(pnpm exec wrangler d1 list --json 2>/dev/null \
+            | jq -r '.[]? | select(.name=="afframe-bot") | (.uuid // .database_id)' | head -1)
+          if [ -z "$id" ] || [ "$id" = "null" ]; then
+            out=$(pnpm exec wrangler d1 create afframe-bot 2>&1) || true
+            echo "$out"
+            id=$(printf '%s' "$out" | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+          fi
+          if [ -z "$id" ]; then
+            echo "::error::Could not resolve the afframe-bot D1 id — the CF API token likely needs D1:Edit scope."
+            exit 1
+          fi
+          echo "afframe-bot D1 id: $id"
+          tmp=$(mktemp)
+          sed -E "s/(\"database_id\": \")[^\"]*(\")/\1${id}\2/" wrangler.jsonc > "$tmp" && mv "$tmp" wrangler.jsonc
+          grep database_id wrangler.jsonc
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/bot
+          wranglerVersion: "4.94.0"
+          command: deploy
+
+      - name: Apply D1 migrations (remote)
+        working-directory: apps/bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler d1 migrations apply afframe-bot --remote
+
+      - name: Push Worker secrets (stdin-piped, never logged)
+        working-directory: apps/bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          TELEGRAM_USER_ID: ${{ secrets.TELEGRAM_USER_ID }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          LINEAR_API_TOKEN: ${{ secrets.LINEAR_API_TOKEN }}
+          LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+        run: |
+          for name in BOT_TOKEN TELEGRAM_USER_ID WEBHOOK_SECRET INGEST_SECRET LINEAR_API_TOKEN LINEAR_TEAM_ID; do
+            value="${!name}"
+            if [ -z "$value" ]; then
+              echo "::warning::$name is empty — skipping"
+              continue
+            fi
+            echo "::add-mask::$value"
+            printf '%s' "$value" | pnpm exec wrangler secret put "$name"
+          done
+
+      - name: Register Telegram webhook
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: |
+          echo "::add-mask::$BOT_TOKEN"
+          curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
+            --data-urlencode "url=https://bot.afframe.com/webhook" \
+            --data-urlencode "secret_token=${WEBHOOK_SECRET}" \
+            --data-urlencode 'allowed_updates=["message","callback_query"]' \
+            | jq -e '.ok == true'
+
+      - name: Smoke check /health
+        run: |
+          http=$(curl -sSL -o /tmp/h.json -w '%{http_code}' https://bot.afframe.com/health)
+          jq . /tmp/h.json || true
+          if [ "${http}" -ge 500 ]; then
+            echo "::error::bot /health returned HTTP ${http}"
+            exit 1
+          fi
+          echo "bot /health: HTTP ${http}" >> "$GITHUB_STEP_SUMMARY"

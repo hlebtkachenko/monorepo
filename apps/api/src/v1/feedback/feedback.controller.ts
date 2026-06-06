@@ -18,6 +18,7 @@ import type {
   FeedbackContext,
 } from "@workspace/shared/api"
 import { DomainExceptionFilter } from "../domain-exception.filter"
+import { notifierFromEnv } from "@workspace/notify"
 
 /**
  * `POST /v1/feedback` — partner feedback ingestion.
@@ -45,6 +46,9 @@ import { DomainExceptionFilter } from "../domain-exception.filter"
 
 const SUPPORT_INBOX = "support+feedback@afframe.com"
 const LINEAR_API = "https://api.linear.app/graphql"
+
+// Fire-and-forget Telegram ping for every feedback; no-op when the bot env is unset.
+const notifier = notifierFromEnv()
 
 function generateReferenceId(): string {
   // 9 random bytes -> 12 base64url chars. Collision-free for any realistic
@@ -251,6 +255,13 @@ export class FeedbackController {
     }
     // Linear creation is best-effort; do not block the response.
     void createLinearIssue(body, referenceId, this.logger)
+    if (notifier) {
+      void notifier
+        .notify(`📝 New feedback ${referenceId} (${body.type})`, {
+          source: "api",
+        })
+        .catch(() => {})
+    }
 
     return { received: true, referenceId }
   }

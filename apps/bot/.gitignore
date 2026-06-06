@@ -1,0 +1,8 @@
+# Local Worker secrets — NEVER commit
+.dev.vars
+.dev.vars.*
+
+.wrangler/
+node_modules/
+dist/
+*.log

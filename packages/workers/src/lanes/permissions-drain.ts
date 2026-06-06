@@ -50,6 +50,7 @@ import { OpenFgaClient } from "@openfga/sdk"
 import { sql } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db/tenancy"
 import { registerLane, type Lane } from "./registry"
+import { notifierFromEnv, sanitizeError } from "@workspace/notify"
 
 export const PERMISSIONS_DRAIN_LANE_NAME = "permissions-drain"
 
@@ -117,6 +118,8 @@ function assertPayload(value: unknown): asserts value is DrainPayload {
 interface DrainDeps {
   client: OpenFgaClient
   now: () => Date
+  /** Optional: notified once per dead-lettered row (max-attempts). Tests omit it. */
+  notify?: (text: string) => void
 }
 
 /**
@@ -165,7 +168,12 @@ export async function drainBatch(deps: DrainDeps): Promise<{
               failed_at = ${finalFail ? deps.now() : null}
           WHERE id = ${row.id}::uuid
         `)
-        if (finalFail) failed++
+        if (finalFail) {
+          failed++
+          deps.notify?.(
+            `permissions-drain dead-lettered row ${row.id}: ${sanitizeError(err, row.id).message}`,
+          )
+        }
       }
     }
 
@@ -229,7 +237,12 @@ const lane: Lane = {
   },
   handler: async () => {
     const client = getOpenFgaClient()
-    await drainBatch({ client, now: () => new Date() })
+    const notifier = notifierFromEnv()
+    await drainBatch({
+      client,
+      now: () => new Date(),
+      notify: (text) => void notifier?.alert(text, { source: "worker" }),
+    })
   },
 }
 

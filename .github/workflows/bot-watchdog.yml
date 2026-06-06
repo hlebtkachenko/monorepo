@@ -1,0 +1,45 @@
+# Independent liveness watchdog for the bot (DEV-54). Runs on GitHub Actions — a failure
+# domain SEPARATE from Cloudflare — so if the Worker is dead the watchdog still fires.
+# On /health failure it alerts via the Telegram Bot API DIRECTLY, never through the
+# (possibly dead) bot /ingest. Gated by vars.BOT_WATCHDOG_ENABLED so it stays silent until
+# the bot is actually deployed (else it would alert every 10 min). Advisory.
+name: bot-watchdog
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: bot-watchdog
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    if: ${{ vars.BOT_WATCHDOG_ENABLED == 'true' }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - name: Probe /health, alert on failure
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_USER_ID }}
+        run: |
+          code=$(curl -sS -m 8 -o /tmp/h.json -w '%{http_code}' https://bot.afframe.com/health || echo "000")
+          ok=$(jq -r '.ok // false' /tmp/h.json 2>/dev/null || echo false)
+          if [ "$code" = "200" ] && [ "$ok" = "true" ]; then
+            echo "bot healthy ($code)"
+            exit 0
+          fi
+          echo "::add-mask::$BOT_TOKEN"
+          # Independent path: hit Telegram directly, NOT the bot's own /ingest.
+          curl -sS -m 8 "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${CHAT_ID}" \
+            --data-urlencode "text=🔴 afframe-bot /health failed (HTTP ${code}, ok=${ok}). Worker may be down." || true
+          echo "::error::bot /health failed (HTTP ${code})"
+          exit 1

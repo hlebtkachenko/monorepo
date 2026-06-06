@@ -99,6 +99,49 @@ describe("ask / answer", () => {
       createNotifier({ ...config, fetchImpl }).ask({ question: "x" }),
     ).rejects.toThrow("500")
   })
+
+  it("askText posts kind=text", async () => {
+    const fetchImpl = vi.fn(
+      async (_url: string | URL | Request, init?: RequestInit) => {
+        expect(JSON.parse(init!.body as string).kind).toBe("text")
+        return new Response(JSON.stringify({ id: "t1", exp: 9 }), {
+          status: 200,
+        })
+      },
+    )
+    await createNotifier({ ...config, fetchImpl }).askText("notes?", {
+      asker: "agent-x",
+    })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+
+  it("waitForAnswer polls until answered", async () => {
+    let calls = 0
+    const fetchImpl = vi.fn(async () => {
+      calls += 1
+      const answered = calls >= 2
+      return new Response(
+        JSON.stringify({
+          id: "w1",
+          kind: "choice",
+          decision: answered ? "Approve" : null,
+          text: null,
+          answered,
+          pending: !answered,
+          expired: false,
+          timedOut: false,
+          options: ["Approve", "Reject"],
+        }),
+        { status: 200 },
+      )
+    })
+    const state = await createNotifier({ ...config, fetchImpl }).waitForAnswer(
+      "w1",
+      { intervalMs: 1 },
+    )
+    expect(state.decision).toBe("Approve")
+    expect(calls).toBe(2)
+  })
 })
 
 describe("notifierFromEnv", () => {

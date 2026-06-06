@@ -139,9 +139,9 @@ export const READ_COMMANDS: Record<
   help: () =>
     [
       "Read:",
-      "/status /scan /ci /deploys /pr /errors /logs <runId>",
-      "Write (confirm-gated):",
-      "/deploy <staging|production> · /rollback <env> <tag> · /deploybot · /dast",
-      "Issue: /issue <title>",
+      "/status /scan /ci /deploys /pr /errors /logs",
+      "Write (confirm-gated, bare = pick from buttons):",
+      "/deploy · /rollback · /deploybot · /dast",
+      "Issue: /issue <title> · Approvals: /pending",
     ].join("\n"),
 }

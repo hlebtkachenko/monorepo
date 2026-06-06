@@ -158,6 +158,7 @@ jobs:
             {command:"deploybot", description:"Redeploy the bot (confirm)"},
             {command:"dast",      description:"Run the DAST scan (confirm)"},
             {command:"issue",     description:"Open a Linear issue"},
+            {command:"pending",   description:"Open approvals awaiting you"},
             {command:"help",      description:"List commands"}
           ]}')
           curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setMyCommands" \

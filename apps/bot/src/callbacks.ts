@@ -19,6 +19,7 @@ export type CallbackAction =
   | { t: "rbenv"; env: string } // env chosen for /rollback -> show tag picker
   | { t: "rbtag"; env: string; tag: string } // tag chosen -> confirm
   | { t: "showlog"; runId: number } // run chosen -> failed-job summary
+  | { t: "cancelask"; id: string } // cancel a pending approval (from /pending)
   | { t: "echo"; data: string }
 
 /** Parse callback_data into a structured action. Unknown shapes fall back to a plain echo. */
@@ -53,6 +54,8 @@ export function parseCallback(data: string): CallbackAction {
       return a && Number.isFinite(Number(a))
         ? { t: "showlog", runId: Number(a) }
         : { t: "echo", data }
+    case "xpr":
+      return a ? { t: "cancelask", id: a } : { t: "echo", data }
     default:
       return { t: "echo", data }
   }
@@ -159,13 +162,15 @@ export async function runCallback(
     case "ask": {
       const approval = await deps.store.getApproval(action.id)
       if (!approval) return { answer: "Unknown or expired request." }
-      if (approval.decision)
-        return { answer: `Already answered: ${approval.decision}` }
+      if (approval.decision || approval.answerText)
+        return {
+          answer: `Already answered: ${approval.decision ?? approval.answerText}`,
+        }
       if (now > approval.exp)
         return { answer: "Request expired.", stripButtons: true }
       const option = approval.options[action.idx]
       if (option === undefined) return { answer: "Invalid option." }
-      const updated = await deps.store.setDecision(action.id, option)
+      const updated = await deps.store.setDecision(action.id, option, now)
       return updated
         ? { answer: `Recorded: ${option}`, editText: `✅ Answered: ${option}` }
         : { answer: "Already answered." }
@@ -249,6 +254,16 @@ export async function runCallback(
             )
             .join("\n"),
       }
+    }
+
+    case "cancelask": {
+      const updated = await deps.store.setDecision(action.id, "cancelled", now)
+      return updated
+        ? {
+            answer: "Cancelled.",
+            editText: `🚫 Cancelled: ${updated.summary ?? action.id}`,
+          }
+        : { answer: "Already answered." }
     }
 
     case "echo":

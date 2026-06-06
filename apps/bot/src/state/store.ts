@@ -9,11 +9,26 @@ export interface DedupRecord {
   lastSeen: number
 }
 
+export type ApprovalKind = "choice" | "text"
+
 export interface ApprovalRecord {
   id: string
+  /** 'choice' = tap an option; 'text' = reply with free text. */
+  kind: ApprovalKind
+  /** Chosen option label (choice) or "cancelled"; null while pending. */
   decision: string | null
+  /** Free-text reply (text kind); null until replied. */
+  answerText: string | null
   options: string[]
   summary: string | null
+  /** When decided / replied / cancelled. */
+  answeredAt: number | null
+  /** Which agent/source asked (free-form label). */
+  asker: string | null
+  /** Decision auto-applied once exp passes (e.g. "Reject"); null = just expire. */
+  onTimeout: string | null
+  /** Telegram message id of the prompt, used to match a free-text reply. */
+  promptMessageId: number | null
   exp: number
   created: number
 }
@@ -43,8 +58,22 @@ export interface Store {
   bumpDedup(fingerprint: string, lastSeen: number): Promise<number>
   putApproval(r: ApprovalRecord): Promise<void>
   getApproval(id: string): Promise<ApprovalRecord | null>
-  /** Records the decision only if still pending (first tap wins); returns the updated row or null. */
-  setDecision(id: string, decision: string): Promise<ApprovalRecord | null>
+  /** Look up an approval by its Telegram prompt message id (for matching a free-text reply). */
+  getApprovalByPromptMessage(messageId: number): Promise<ApprovalRecord | null>
+  /** Record an option decision, only if still unanswered (first wins); returns the row or null. */
+  setDecision(
+    id: string,
+    decision: string,
+    answeredAt: number,
+  ): Promise<ApprovalRecord | null>
+  /** Record a free-text reply, only if still unanswered (first wins); returns the row or null. */
+  setAnswerText(
+    id: string,
+    text: string,
+    answeredAt: number,
+  ): Promise<ApprovalRecord | null>
+  /** Open approvals (unanswered, not expired), oldest first — for /pending. */
+  listPendingApprovals(now: number): Promise<ApprovalRecord[]>
   beat(jobKey: string, ts: number): Promise<void>
   lastBeat(jobKey: string): Promise<number | null>
   getSnooze(scopeKey: string): Promise<SnoozeRecord | null>
@@ -71,9 +100,15 @@ interface DedupRow {
 }
 interface ApprovalRow {
   id: string
+  kind: string
   decision: string | null
+  answer_text: string | null
   options: string
   summary: string | null
+  answered_at: number | null
+  asker: string | null
+  on_timeout: string | null
+  prompt_message_id: number | null
   exp: number
   created: number
 }
@@ -100,9 +135,15 @@ function toDispatch(row: DispatchRow): DispatchRecord {
 function toApproval(row: ApprovalRow): ApprovalRecord {
   return {
     id: row.id,
+    kind: (row.kind as ApprovalKind) ?? "choice",
     decision: row.decision,
+    answerText: row.answer_text,
     options: JSON.parse(row.options) as string[],
     summary: row.summary,
+    answeredAt: row.answered_at,
+    asker: row.asker,
+    onTimeout: row.on_timeout,
+    promptMessageId: row.prompt_message_id,
     exp: row.exp,
     created: row.created,
   }
@@ -152,13 +193,19 @@ export function createStore(db: D1Database): Store {
     async putApproval(r) {
       await db
         .prepare(
-          "INSERT INTO approval (id, decision, options, summary, exp, created) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET options=excluded.options, summary=excluded.summary, exp=excluded.exp",
+          "INSERT INTO approval (id, kind, decision, answer_text, options, summary, answered_at, asker, on_timeout, prompt_message_id, exp, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, options=excluded.options, summary=excluded.summary, asker=excluded.asker, on_timeout=excluded.on_timeout, prompt_message_id=excluded.prompt_message_id, exp=excluded.exp",
         )
         .bind(
           r.id,
+          r.kind,
           r.decision,
+          r.answerText,
           JSON.stringify(r.options),
           r.summary,
+          r.answeredAt,
+          r.asker,
+          r.onTimeout,
+          r.promptMessageId,
           r.exp,
           r.created,
         )
@@ -171,14 +218,39 @@ export function createStore(db: D1Database): Store {
         .first<ApprovalRow>()
       return row ? toApproval(row) : null
     },
-    async setDecision(id, decision) {
+    async getApprovalByPromptMessage(messageId) {
       const row = await db
-        .prepare(
-          "UPDATE approval SET decision = ? WHERE id = ? AND decision IS NULL RETURNING *",
-        )
-        .bind(decision, id)
+        .prepare("SELECT * FROM approval WHERE prompt_message_id = ?")
+        .bind(messageId)
         .first<ApprovalRow>()
       return row ? toApproval(row) : null
+    },
+    async setDecision(id, decision, answeredAt) {
+      const row = await db
+        .prepare(
+          "UPDATE approval SET decision = ?, answered_at = ? WHERE id = ? AND decision IS NULL AND answer_text IS NULL RETURNING *",
+        )
+        .bind(decision, answeredAt, id)
+        .first<ApprovalRow>()
+      return row ? toApproval(row) : null
+    },
+    async setAnswerText(id, text, answeredAt) {
+      const row = await db
+        .prepare(
+          "UPDATE approval SET answer_text = ?, answered_at = ? WHERE id = ? AND decision IS NULL AND answer_text IS NULL RETURNING *",
+        )
+        .bind(text, answeredAt, id)
+        .first<ApprovalRow>()
+      return row ? toApproval(row) : null
+    },
+    async listPendingApprovals(now) {
+      const { results } = await db
+        .prepare(
+          "SELECT * FROM approval WHERE decision IS NULL AND answer_text IS NULL AND exp > ? ORDER BY created ASC LIMIT 20",
+        )
+        .bind(now)
+        .all<ApprovalRow>()
+      return (results ?? []).map(toApproval)
     },
     async beat(jobKey, ts) {
       await db

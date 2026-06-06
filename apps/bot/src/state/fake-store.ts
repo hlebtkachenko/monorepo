@@ -36,11 +36,33 @@ export function fakeStore(): Store {
       const r = approvals.get(id)
       return r ? { ...r } : null
     },
-    async setDecision(id, decision) {
+    async getApprovalByPromptMessage(messageId) {
+      for (const r of approvals.values()) {
+        if (r.promptMessageId === messageId) return { ...r }
+      }
+      return null
+    },
+    async setDecision(id, decision, answeredAt) {
       const r = approvals.get(id)
-      if (!r || r.decision !== null) return null
+      if (!r || r.decision !== null || r.answerText !== null) return null
       r.decision = decision
+      r.answeredAt = answeredAt
       return { ...r }
+    },
+    async setAnswerText(id, text, answeredAt) {
+      const r = approvals.get(id)
+      if (!r || r.decision !== null || r.answerText !== null) return null
+      r.answerText = text
+      r.answeredAt = answeredAt
+      return { ...r }
+    },
+    async listPendingApprovals(now) {
+      return [...approvals.values()]
+        .filter(
+          (r) => r.decision === null && r.answerText === null && r.exp > now,
+        )
+        .sort((a, b) => a.created - b.created)
+        .map((r) => ({ ...r }))
     },
     async beat(jobKey, ts) {
       beats.set(jobKey, ts)

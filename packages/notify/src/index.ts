@@ -46,27 +46,48 @@ export function buildIngestRequest(
   }
 }
 
-/** Human-in-the-loop approval request (DEV-55). The agent asks; the owner taps an option on the phone. */
+/** Human-in-the-loop approval request (DEV-55). The agent asks; the owner answers from the phone. */
 export interface ApprovalRequest {
   /** The decision prompt, e.g. "Merge PR #42 to main?". */
   question: string
-  /** Tappable options. Defaults to ["Approve","Reject"] server-side. Max 6. */
+  /** "choice" = owner taps an option (default); "text" = owner replies with free text. */
+  kind?: "choice" | "text"
+  /** Tappable options (choice kind). Defaults to ["Approve","Reject"] server-side. Max 6. */
   options?: string[]
   /** Executive summary shown under the question. */
   summary?: string
+  /** Which agent/source is asking — shown in the message + /pending. */
+  asker?: string
   /** How long the request stays open. Default 3600. */
   ttlSeconds?: number
+  /** Decision auto-applied once the TTL passes (e.g. "Reject"). */
+  onTimeout?: string
   /** Caller-supplied id for idempotency; generated if omitted. */
   id?: string
 }
 
 export interface ApprovalState {
   id: string
-  /** The chosen option, or null while still pending. */
+  kind: "choice" | "text"
+  /** The chosen option (choice), the applied onTimeout value, or null. */
   decision: string | null
+  /** The free-text reply (text kind), or null. */
+  text: string | null
+  /** True once RESOLVED — by a tap, a text reply, OR an applied onTimeout policy. */
+  answered: boolean
   pending: boolean
+  /** Past TTL with NO answer and NO onTimeout policy (decision + text are null). */
   expired: boolean
+  /** Resolved by the onTimeout policy. `answered` is ALSO true and `decision` carries the value. */
+  timedOut: boolean
   options: string[]
+}
+
+export interface WaitOptions {
+  /** Poll interval ms (default 2500). */
+  intervalMs?: number
+  /** Give up after this many ms (default = the request's own TTL window, ~1h). */
+  timeoutMs?: number
 }
 
 export interface Notifier {
@@ -78,8 +99,15 @@ export interface Notifier {
   send(payload: IngestPayload): Promise<void>
   /** Post a HITL question; returns the approval id to poll. */
   ask(req: ApprovalRequest): Promise<{ id: string; exp: number }>
+  /** Convenience: ask for a free-text answer. */
+  askText(
+    question: string,
+    opts?: Omit<ApprovalRequest, "question" | "kind" | "options">,
+  ): Promise<{ id: string; exp: number }>
   /** Poll a single approval's current state. */
   answer(id: string): Promise<ApprovalState>
+  /** Poll until the owner answers or it expires; returns the final state. */
+  waitForAnswer(id: string, opts?: WaitOptions): Promise<ApprovalState>
 }
 
 export function createNotifier(config: NotifierConfig): Notifier {
@@ -96,25 +124,44 @@ export function createNotifier(config: NotifierConfig): Notifier {
       throw new Error(`notify: ingest returned ${res.status}`)
     }
   }
+  async function ask(
+    req: ApprovalRequest,
+  ): Promise<{ id: string; exp: number }> {
+    const res = await doFetch(`${base}/ask`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify(req),
+    })
+    if (!res.ok) throw new Error(`notify: ask returned ${res.status}`)
+    return (await res.json()) as { id: string; exp: number }
+  }
+  async function answer(id: string): Promise<ApprovalState> {
+    const res = await doFetch(`${base}/answer/${encodeURIComponent(id)}`, {
+      headers: { authorization: `Bearer ${config.secret}` },
+    })
+    if (!res.ok) throw new Error(`notify: answer returned ${res.status}`)
+    return (await res.json()) as ApprovalState
+  }
   return {
     send,
     notify: (text, opts) => send({ text, ...opts }),
     alert: (text, opts) => send({ text, level: "error", ...opts }),
-    async ask(req) {
-      const res = await doFetch(`${base}/ask`, {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify(req),
-      })
-      if (!res.ok) throw new Error(`notify: ask returned ${res.status}`)
-      return (await res.json()) as { id: string; exp: number }
-    },
-    async answer(id) {
-      const res = await doFetch(`${base}/answer/${encodeURIComponent(id)}`, {
-        headers: { authorization: `Bearer ${config.secret}` },
-      })
-      if (!res.ok) throw new Error(`notify: answer returned ${res.status}`)
-      return (await res.json()) as ApprovalState
+    ask,
+    askText: (question, opts) => ask({ ...opts, question, kind: "text" }),
+    answer,
+    async waitForAnswer(id, opts) {
+      const intervalMs = opts?.intervalMs ?? 2500
+      // The SERVER's TTL (+ onTimeout) is the real terminator: it resolves
+      // answered/expired/timedOut. This client deadline is only a safety cap for an
+      // unreachable server, so it defaults WAY past any request TTL (24h) — otherwise a
+      // client deadline shorter than the server TTL could return a still-pending state.
+      const deadline = Date.now() + (opts?.timeoutMs ?? 86_400_000)
+      for (;;) {
+        const state = await answer(id)
+        if (state.answered || state.expired) return state
+        if (Date.now() >= deadline) return state
+        await new Promise((r) => setTimeout(r, intervalMs))
+      }
     },
   }
 }

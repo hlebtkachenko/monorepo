@@ -166,6 +166,39 @@ export function createBot(env: Env): Bot {
     await emitIssue(event, env, bot)
   })
 
+  // /pending — list open agent approvals, each with a Cancel button.
+  bot.command("pending", async (ctx) => {
+    const open = await store.listPendingApprovals(Date.now())
+    if (open.length === 0) {
+      await ctx.reply("✅ No pending approvals.")
+      return
+    }
+    await ctx.reply(`⏳ ${open.length} pending approval(s):`, {
+      reply_markup: buildButtons(
+        open.map((a) => [
+          {
+            text: `🚫 ${(a.summary ?? a.id).slice(0, 48)}${a.asker ? ` [${a.asker}]` : ""}`,
+            data: `xpr:${a.id}`,
+          },
+        ]),
+      ),
+    })
+  })
+
+  // Free-text HITL replies: a reply to an /ask (text) prompt records the answer.
+  bot.on("message:text", async (ctx) => {
+    const replyTo = ctx.message.reply_to_message?.message_id
+    if (!replyTo) return
+    const ap = await store.getApprovalByPromptMessage(replyTo)
+    if (!ap) return
+    if (Date.now() > ap.exp) {
+      await ctx.reply("⌛ That request already expired.")
+      return
+    }
+    const saved = await store.setAnswerText(ap.id, ctx.message.text, Date.now())
+    await ctx.reply(saved ? "✅ Got your reply." : "Already answered.")
+  })
+
   // Inline-button taps — route through the structured callback handler.
   bot.on("callback_query:data", async (ctx) => {
     const action = parseCallback(ctx.callbackQuery.data)

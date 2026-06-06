@@ -6,6 +6,17 @@ Instructions for AI agents (Claude Code, Codex, Cursor) working in this monorepo
 
 Issues and planning live in **Linear** — team Afframe (key `AFF`). Agents reach it through the `linear` MCP server (`mcp__linear__*` tools): list, search, read, create, and update issues in-session. Conductor can also open a workspace directly from a Linear issue. When work spans sessions, the Linear issue is the source of truth — read it before starting, update it as you go. Current branch-recovery and merge work is grouped under the Linear **Cleanup** project.
 
+## Asking Hleb (human-in-the-loop)
+
+Before a **risky, irreversible, or ambiguous** step (merging, a destructive migration, "which of these?", "ok to proceed?"), don't guess and don't silently stop — **ask Hleb on his phone and block for the answer**:
+
+```bash
+pnpm exec tsx apps/bot/scripts/ask.ts "Merge PR #42 to main?" --options "Approve,Reject" --summary "3 files, tests green" --asker "<agent>"
+pnpm exec tsx apps/bot/scripts/ask.ts "Constraints before I refactor auth?" --text
+```
+
+It blocks until he taps an option or replies with text, prints the answer to stdout (exit `0`), or exits `2` if it expired. From code, use `@workspace/notify`: `ask()` / `askText()` + `waitForAnswer(id)`. For a one-way "task done / I'm blocked" ping (no answer needed) use `notify()` / `alert()`, or `apps/bot/scripts/manual-task.ts`. Full reference: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally).
+
 ## Architecture
 
 - **Monorepo**: Turborepo + pnpm workspaces

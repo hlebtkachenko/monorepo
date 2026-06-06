@@ -1,8 +1,27 @@
 import { describe, it, expect, vi } from "vitest"
 import { parseCallback, runCallback, type CallbackDeps } from "./callbacks.js"
 import { fakeStore } from "./state/fake-store.js"
+import type { ApprovalRecord } from "./state/store.js"
 import type { GitHubClient } from "./github.js"
 import type { DispatchPlan } from "./dispatch.js"
+
+function approval(over: Partial<ApprovalRecord> = {}): ApprovalRecord {
+  return {
+    id: "a",
+    kind: "choice",
+    decision: null,
+    answerText: null,
+    options: ["Approve", "Reject"],
+    summary: null,
+    answeredAt: null,
+    asker: null,
+    onTimeout: null,
+    promptMessageId: null,
+    exp: 2_000_000,
+    created: 0,
+    ...over,
+  }
+}
 
 function fakeGitHub(over: Partial<GitHubClient> = {}): GitHubClient {
   return {
@@ -59,6 +78,7 @@ describe("parseCallback", () => {
       tag: "sha-abc1234",
     })
     expect(parseCallback("log:42")).toEqual({ t: "showlog", runId: 42 })
+    expect(parseCallback("xpr:a5")).toEqual({ t: "cancelask", id: "a5" })
   })
 
   it("falls back to echo for unknown / malformed", () => {
@@ -160,14 +180,9 @@ describe("runCallback — cancel", () => {
 describe("runCallback — ask", () => {
   it("records the first tap and rejects later taps", async () => {
     const d = deps()
-    await d.store.putApproval({
-      id: "a1",
-      decision: null,
-      options: ["Approve", "Reject"],
-      summary: "merge?",
-      exp: 2_000_000,
-      created: 0,
-    })
+    await d.store.putApproval(
+      approval({ id: "a1", options: ["Approve", "Reject"], summary: "merge?" }),
+    )
     const first = await runCallback({ t: "ask", id: "a1", idx: 0 }, d)
     expect(first.editText).toMatch(/Approve/)
     const second = await runCallback({ t: "ask", id: "a1", idx: 1 }, d)
@@ -176,14 +191,7 @@ describe("runCallback — ask", () => {
 
   it("rejects an out-of-range option index", async () => {
     const d = deps()
-    await d.store.putApproval({
-      id: "a2",
-      decision: null,
-      options: ["Yes"],
-      summary: null,
-      exp: 2_000_000,
-      created: 0,
-    })
+    await d.store.putApproval(approval({ id: "a2", options: ["Yes"] }))
     expect(
       (await runCallback({ t: "ask", id: "a2", idx: 9 }, d)).answer,
     ).toMatch(/Invalid option/)
@@ -191,17 +199,28 @@ describe("runCallback — ask", () => {
 
   it("reports expiry", async () => {
     const d = deps({ now: () => 5_000_000 })
-    await d.store.putApproval({
-      id: "a3",
-      decision: null,
-      options: ["Yes"],
-      summary: null,
-      exp: 1,
-      created: 0,
-    })
+    await d.store.putApproval(approval({ id: "a3", options: ["Yes"], exp: 1 }))
     expect(
       (await runCallback({ t: "ask", id: "a3", idx: 0 }, d)).answer,
     ).toMatch(/expired/i)
+  })
+
+  it("refuses a tap once a free-text answer is already recorded", async () => {
+    const d = deps()
+    await d.store.putApproval(approval({ id: "a4", kind: "text" }))
+    await d.store.setAnswerText("a4", "ship it", 1_000_000)
+    const out = await runCallback({ t: "ask", id: "a4", idx: 0 }, d)
+    expect(out.answer).toMatch(/Already answered: ship it/)
+  })
+
+  it("cancelask cancels a pending approval (first wins)", async () => {
+    const d = deps()
+    await d.store.putApproval(approval({ id: "a5", summary: "deploy?" }))
+    const out = await runCallback({ t: "cancelask", id: "a5" }, d)
+    expect(out.editText).toMatch(/Cancelled/)
+    expect((await d.store.getApproval("a5"))?.decision).toBe("cancelled")
+    const again = await runCallback({ t: "cancelask", id: "a5" }, d)
+    expect(again.answer).toMatch(/Already answered/)
   })
 })
 

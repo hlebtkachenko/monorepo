@@ -4,7 +4,8 @@
 
 import type { Store } from "./state/store.js"
 import type { GitHubClient } from "./github.js"
-import type { DispatchPlan } from "./dispatch.js"
+import { parseCommand, randomToken, type DispatchPlan } from "./dispatch.js"
+import type { Btn } from "./format.js"
 
 export type CallbackAction =
   | { t: "confirm"; token: string }
@@ -13,6 +14,11 @@ export type CallbackAction =
   | { t: "snooze"; scope: string; mins: number }
   | { t: "ack"; scope: string }
   | { t: "rerun"; runId: number }
+  // Interactive pickers (choose from UI instead of typing args).
+  | { t: "deploy"; env: string } // env chosen for /deploy -> confirm
+  | { t: "rbenv"; env: string } // env chosen for /rollback -> show tag picker
+  | { t: "rbtag"; env: string; tag: string } // tag chosen -> confirm
+  | { t: "showlog"; runId: number } // run chosen -> failed-job summary
   | { t: "echo"; data: string }
 
 /** Parse callback_data into a structured action. Unknown shapes fall back to a plain echo. */
@@ -37,6 +43,16 @@ export function parseCallback(data: string): CallbackAction {
       return a && Number.isFinite(Number(a))
         ? { t: "rerun", runId: Number(a) }
         : { t: "echo", data }
+    case "dep":
+      return a ? { t: "deploy", env: a } : { t: "echo", data }
+    case "rb":
+      return a ? { t: "rbenv", env: a } : { t: "echo", data }
+    case "rbt":
+      return a && b ? { t: "rbtag", env: a, tag: b } : { t: "echo", data }
+    case "log":
+      return a && Number.isFinite(Number(a))
+        ? { t: "showlog", runId: Number(a) }
+        : { t: "echo", data }
     default:
       return { t: "echo", data }
   }
@@ -57,6 +73,36 @@ export interface CallbackOutcome {
   stripButtons?: boolean
   /** Optional follow-up message. */
   reply?: string
+  /** Inline keyboard for the follow-up message (picker / confirm). */
+  replyMarkup?: Btn[][]
+}
+
+/** Persist a pending dispatch and produce a Confirm/Cancel follow-up (shared by typed cmds + pickers). */
+async function makeConfirm(
+  plan: DispatchPlan,
+  deps: CallbackDeps,
+): Promise<CallbackOutcome> {
+  const now = deps.now()
+  const token = randomToken()
+  await deps.store.createDispatch({
+    token,
+    kind: plan.kind,
+    payload: JSON.stringify(plan),
+    status: "pending",
+    exp: now + 5 * 60_000,
+    created: now,
+  })
+  return {
+    answer: "",
+    stripButtons: true,
+    reply: `⚠️ Confirm: ${plan.label}\nDispatches ${plan.workflow} on ${plan.ref}. Expires in 5 min.`,
+    replyMarkup: [
+      [
+        { text: "✅ Confirm", data: `cfm:${token}` },
+        { text: "✖️ Cancel", data: `cxl:${token}` },
+      ],
+    ],
+  }
 }
 
 export async function runCallback(
@@ -144,6 +190,64 @@ export async function runCallback(
       const ok = await deps.github.rerunFailedJobs(action.runId)
       return {
         answer: ok ? "Rerun triggered." : "Rerun failed (token scope?).",
+      }
+    }
+
+    case "deploy": {
+      const { plan, error } = parseCommand("deploy", action.env)
+      if (!plan) return { answer: error ?? "Invalid environment." }
+      return makeConfirm(plan, deps)
+    }
+
+    case "rbenv": {
+      if (!deps.github) return { answer: "GitHub control not configured." }
+      const commits = await deps.github.listCommits("main", 5)
+      if (commits.length === 0)
+        return { answer: "No recent commits to roll back to." }
+      return {
+        answer: "",
+        stripButtons: true,
+        reply: `Pick a rollback target for ${action.env}:`,
+        replyMarkup: commits.map((c) => [
+          {
+            text: `sha-${c.short} · ${c.subject}`,
+            data: `rbt:${action.env}:sha-${c.short}`,
+          },
+        ]),
+      }
+    }
+
+    case "rbtag": {
+      const { plan, error } = parseCommand(
+        "rollback",
+        `${action.env} ${action.tag}`,
+      )
+      if (!plan) return { answer: error ?? "Invalid rollback." }
+      return makeConfirm(plan, deps)
+    }
+
+    case "showlog": {
+      if (!deps.github) return { answer: "GitHub control not configured." }
+      const jobs = await deps.github.runJobs(action.runId)
+      const failed = jobs.filter((j) => j.conclusion === "failure")
+      if (failed.length === 0)
+        return {
+          answer: "",
+          reply:
+            jobs.length === 0
+              ? `Run ${action.runId}: not found or no jobs.`
+              : `Run ${action.runId}: no failed jobs.`,
+        }
+      return {
+        answer: "",
+        reply:
+          `Failed jobs in run ${action.runId}:\n` +
+          failed
+            .map(
+              (j) =>
+                `🔴 ${j.name}${j.failedSteps.length ? `\n   ↳ ${j.failedSteps.join(", ")}` : ""}`,
+            )
+            .join("\n"),
       }
     }
 

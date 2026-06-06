@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { renderMessage, buildKeyboard } from "./format.js"
+import {
+  renderMessage,
+  buildKeyboard,
+  buildEnvPicker,
+  buildButtons,
+} from "./format.js"
 
 describe("renderMessage", () => {
   it("plain text passes through", () => {
@@ -34,6 +39,29 @@ describe("buildKeyboard", () => {
     expect(kb?.inline_keyboard[0]).toEqual([
       { text: "Yes", callback_data: "Yes" },
       { text: "No", callback_data: "No" },
+    ])
+  })
+})
+
+describe("buildEnvPicker", () => {
+  it("emits staging + production with the given prefix", () => {
+    const kb = buildEnvPicker("dep")
+    expect(kb.inline_keyboard[0]).toEqual([
+      { text: "🟡 staging", callback_data: "dep:staging" },
+      { text: "🔴 production", callback_data: "dep:production" },
+    ])
+  })
+})
+
+describe("buildButtons", () => {
+  it("renders callback + url buttons across rows", () => {
+    const kb = buildButtons([
+      [{ text: "Open", url: "https://x" }],
+      [{ text: "Go", data: "log:1" }],
+    ])
+    expect(kb.inline_keyboard[0]).toEqual([{ text: "Open", url: "https://x" }])
+    expect(kb.inline_keyboard[1]).toEqual([
+      { text: "Go", callback_data: "log:1" },
     ])
   })
 })

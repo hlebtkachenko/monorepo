@@ -11,6 +11,7 @@ function fakeGitHub(over: Partial<GitHubClient> = {}): GitHubClient {
     listRuns: async () => [],
     listPulls: async () => [],
     runJobs: async () => [],
+    listCommits: async () => [],
     ...over,
   }
 }
@@ -44,6 +45,20 @@ describe("parseCallback", () => {
     })
     expect(parseCallback("ack:DEV-12")).toEqual({ t: "ack", scope: "DEV-12" })
     expect(parseCallback("rrn:98765")).toEqual({ t: "rerun", runId: 98765 })
+    expect(parseCallback("dep:staging")).toEqual({
+      t: "deploy",
+      env: "staging",
+    })
+    expect(parseCallback("rb:production")).toEqual({
+      t: "rbenv",
+      env: "production",
+    })
+    expect(parseCallback("rbt:staging:sha-abc1234")).toEqual({
+      t: "rbtag",
+      env: "staging",
+      tag: "sha-abc1234",
+    })
+    expect(parseCallback("log:42")).toEqual({ t: "showlog", runId: 42 })
   })
 
   it("falls back to echo for unknown / malformed", () => {
@@ -217,5 +232,93 @@ describe("runCallback — snooze / ack / rerun / echo", () => {
   it("echo replies with the choice", async () => {
     const out = await runCallback({ t: "echo", data: "Approve" }, deps())
     expect(out.reply).toMatch(/You chose: Approve/)
+  })
+})
+
+describe("runCallback — pickers", () => {
+  it("deploy env -> creates a pending dispatch + confirm buttons", async () => {
+    const d = deps()
+    const out = await runCallback({ t: "deploy", env: "staging" }, d)
+    expect(out.reply).toMatch(/Confirm/)
+    // a pending dispatch row now exists with a cfm token in the keyboard
+    const cfm = out.replyMarkup?.[0]?.[0]
+    expect(cfm && "data" in cfm ? cfm.data : "").toMatch(/^cfm:/)
+    const token = (cfm as { data: string }).data.slice(4)
+    expect((await d.store.getDispatch(token))?.status).toBe("pending")
+  })
+
+  it("deploy rejects an invalid env", async () => {
+    const out = await runCallback({ t: "deploy", env: "prod" }, deps())
+    expect(out.answer).toMatch(/Usage|Invalid/)
+    expect(out.replyMarkup).toBeUndefined()
+  })
+
+  it("rbenv lists recent commits as rbt buttons", async () => {
+    const gh = fakeGitHub({
+      listCommits: async () => [
+        { short: "abc1234", subject: "fix things" },
+        { short: "def5678", subject: "more" },
+      ],
+    })
+    const out = await runCallback(
+      { t: "rbenv", env: "production" },
+      deps({ github: gh }),
+    )
+    expect(out.reply).toMatch(/production/)
+    const first = out.replyMarkup?.[0]?.[0]
+    expect(first && "data" in first ? first.data : "").toBe(
+      "rbt:production:sha-abc1234",
+    )
+  })
+
+  it("rbenv answers when GitHub unconfigured / no commits", async () => {
+    expect(
+      (
+        await runCallback(
+          { t: "rbenv", env: "staging" },
+          deps({ github: null }),
+        )
+      ).answer,
+    ).toMatch(/not configured/)
+    expect(
+      (await runCallback({ t: "rbenv", env: "staging" }, deps())).answer,
+    ).toMatch(/No recent commits/)
+  })
+
+  it("rbtag -> confirm dispatch for the chosen tag", async () => {
+    const d = deps()
+    const out = await runCallback(
+      { t: "rbtag", env: "staging", tag: "sha-abc1234" },
+      d,
+    )
+    expect(out.reply).toMatch(/Confirm/)
+    const cfm = out.replyMarkup?.[0]?.[0] as { data: string }
+    const stored = await d.store.getDispatch(cfm.data.slice(4))
+    expect(stored?.kind).toBe("rollback")
+    expect(JSON.parse(stored!.payload).inputs).toEqual({
+      environment: "staging",
+      image_tag: "sha-abc1234",
+    })
+  })
+
+  it("showlog summarises failed jobs", async () => {
+    const gh = fakeGitHub({
+      runJobs: async () => [
+        {
+          name: "build",
+          conclusion: "failure",
+          htmlUrl: "u",
+          failedSteps: ["compile"],
+        },
+        { name: "ok", conclusion: "success", htmlUrl: "u", failedSteps: [] },
+      ],
+    })
+    const out = await runCallback(
+      { t: "showlog", runId: 7 },
+      deps({ github: gh }),
+    )
+    expect(out.reply).toMatch(/Failed jobs in run 7/)
+    expect(out.reply).toMatch(/build/)
+    expect(out.reply).toMatch(/compile/)
   })
 })

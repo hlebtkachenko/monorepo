@@ -82,6 +82,15 @@ the Better Auth / Database / Email vars below. `PORT` defaults to `3100`.
 | `BOT_INGEST_URL`       | no       | Bot ingest endpoint, e.g. `https://bot.afframe.com/ingest`. Read by `@workspace/notify` `notifierFromEnv()` in web + api (+ the in-api pg-boss worker). Unset → notify is a no-op. Non-secret; set in `app-stack.ts` `environment`.                                       |
 | `NOTIFY_SHARED_SECRET` | no       | Bearer for `POST /ingest` (equals the bot's `INGEST_SECRET`). Vault `platform/{env}/notify-shared-secret` → SSM `/monorepo/{env}/notify-shared-secret` → ECS via `EcsSecret.fromSsmParameter`. The bot's own token + secrets live in Cloudflare Worker secrets, not here. |
 
+### Bot Worker secrets (Cloudflare, set by `deploy-bot.yml`)
+
+These are **Worker** secrets/vars, not app env. Pushed from GitHub repo secrets by `deploy-bot.yml`.
+
+| Worker secret/var       | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GITHUB_DISPATCH_TOKEN` | no       | Fine-scoped GitHub PAT (`actions:write` + `contents:read`) powering the control plane: write commands (`/deploy`, `/rollback`, `/deploybot`, `/dast`) via `workflow_dispatch`, the CI **Rerun** button, and read commands (`/ci`, `/pr`, `/deploys`, `/logs`). Stored in the repo secret **`BOT_GH_DISPATCH_TOKEN`** (GitHub forbids the `GITHUB_` prefix on secret names) and pushed to the Worker under the real name. Unset → control plane stays read-only/disabled. |
+| `GITHUB_REPO`           | no       | `owner/repo` the control plane targets. Non-secret var in `wrangler.jsonc`; defaults to `hlebtkachenko/monorepo`.                                                                                                                                                                                                                                                                                                                                                        |
+
 ## Database (packages/db + drizzle migrations + workers)
 
 | Var                   | Path                 | Notes                                                                                                  |

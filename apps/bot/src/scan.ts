@@ -1,4 +1,5 @@
 import type { IssueEvent } from "./issues/types.js"
+import type { HeartbeatSpec } from "./heartbeats.js"
 
 export interface ScanPoint {
   name: string
@@ -43,6 +44,31 @@ export function renderScanReport(points: ScanPoint[], bonus = false): string {
     (p) => `${p.ok ? "✅" : "🔴"} ${p.name} — ${p.detail}`,
   )
   return `${head}\n${lines.join("\n")}`
+}
+
+/** Morning briefing: endpoint health + open-incident count + heartbeat freshness. Plain text. */
+export function renderBriefing(
+  points: ScanPoint[],
+  openIncidents: { identifier: string; count: number }[],
+  stale: HeartbeatSpec[],
+): string {
+  const down = points.filter((p) => !p.ok)
+  const health =
+    down.length === 0
+      ? "✅ all endpoints green"
+      : `🔴 down: ${down.map((p) => p.name).join(", ")}`
+  const incidents =
+    openIncidents.length === 0
+      ? "✅ no tracked incidents"
+      : `📋 ${openIncidents.length} tracked · ${openIncidents
+          .slice(0, 5)
+          .map((i) => `${i.identifier}${i.count > 1 ? `×${i.count}` : ""}`)
+          .join(", ")}`
+  const beats =
+    stale.length === 0
+      ? "✅ heartbeats fresh"
+      : `⚠️ stale: ${stale.map((s) => s.key).join(", ")}`
+  return `🌅 Daily briefing\n${health}\n${incidents}\n${beats}`
 }
 
 /** Any red point -> one deduped incident event (stable fingerprint over the down names). */

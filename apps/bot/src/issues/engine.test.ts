@@ -1,44 +1,11 @@
 import { describe, it, expect } from "vitest"
 import { processEvent, type EngineDeps } from "./engine.js"
-import type { Store, DedupRecord } from "../state/store.js"
+import type { Store } from "../state/store.js"
 import type { LinearClient, CreatedIssue, CreateIssueInput } from "./linear.js"
 import { fingerprint } from "./fingerprint.js"
 import { labelsFor, LABEL } from "./labels.js"
 import type { IssueEvent } from "./types.js"
-
-function fakeStore(): Store {
-  const dedup = new Map<string, DedupRecord>()
-  return {
-    async getDedup(fp) {
-      return dedup.get(fp) ?? null
-    },
-    async createDedup(r) {
-      dedup.set(r.fingerprint, { ...r })
-    },
-    async bumpDedup(fp, lastSeen) {
-      const r = dedup.get(fp)
-      if (!r) return 0
-      r.count += 1
-      r.lastSeen = lastSeen
-      return r.count
-    },
-    async putApproval() {},
-    async getApproval() {
-      return null
-    },
-    async setDecision() {
-      return null
-    },
-    async beat() {},
-    async lastBeat() {
-      return null
-    },
-    async getSnooze() {
-      return null
-    },
-    async setSnooze() {},
-  }
-}
+import { fakeStore } from "../state/fake-store.js"
 
 interface SpyLinear extends LinearClient {
   creates: CreateIssueInput[]

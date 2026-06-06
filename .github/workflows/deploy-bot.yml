@@ -111,6 +111,23 @@ jobs:
             printf '%s' "$value" | pnpm exec wrangler secret put "$name"
           done
 
+      - name: Push GitHub control token (DEV-52)
+        # Separate step: GitHub forbids repo secrets with the GITHUB_ prefix, so the repo
+        # secret is BOT_GH_DISPATCH_TOKEN, mapped to the Worker secret GITHUB_DISPATCH_TOKEN
+        # that env.ts reads. Skipped (control plane stays read-only) if the secret is unset.
+        working-directory: apps/bot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TOKEN: ${{ secrets.BOT_GH_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::BOT_GH_DISPATCH_TOKEN unset — write commands + CI rerun stay disabled"
+            exit 0
+          fi
+          echo "::add-mask::$TOKEN"
+          printf '%s' "$TOKEN" | pnpm exec wrangler secret put GITHUB_DISPATCH_TOKEN
+
       - name: Register Telegram webhook
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}

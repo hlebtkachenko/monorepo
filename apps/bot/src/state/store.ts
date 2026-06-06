@@ -23,6 +23,18 @@ export interface SnoozeRecord {
   acked: boolean
 }
 
+export type DispatchStatus = "pending" | "fired" | "cancelled" | "expired"
+
+export interface DispatchRecord {
+  token: string
+  kind: string
+  /** JSON-encoded { workflow, ref, inputs, label }. */
+  payload: string
+  status: DispatchStatus
+  exp: number
+  created: number
+}
+
 /** Typed accessor over the bot's D1 tables. Thin SQL adapter; logic lives in callers. */
 export interface Store {
   getDedup(fingerprint: string): Promise<DedupRecord | null>
@@ -37,6 +49,16 @@ export interface Store {
   lastBeat(jobKey: string): Promise<number | null>
   getSnooze(scopeKey: string): Promise<SnoozeRecord | null>
   setSnooze(scopeKey: string, until: number, acked: boolean): Promise<void>
+  createDispatch(r: DispatchRecord): Promise<void>
+  getDispatch(token: string): Promise<DispatchRecord | null>
+  /** Atomically claim a pending dispatch (pending -> fired). Returns the row only if THIS call won. */
+  claimDispatch(token: string): Promise<DispatchRecord | null>
+  /** Cancel a pending dispatch. Returns the row only if it was still pending. */
+  cancelDispatch(token: string): Promise<DispatchRecord | null>
+  /** Force a dispatch to a terminal/retryable status (revert to pending on a failed send, mark expired). */
+  setDispatchStatus(token: string, status: DispatchStatus): Promise<void>
+  /** Recent dedup rows (open incidents), newest last-seen first — for /errors + the briefing. */
+  recentDedup(limit: number): Promise<DedupRecord[]>
 }
 
 interface DedupRow {
@@ -54,6 +76,25 @@ interface ApprovalRow {
   summary: string | null
   exp: number
   created: number
+}
+interface DispatchRow {
+  token: string
+  kind: string
+  payload: string
+  status: string
+  exp: number
+  created: number
+}
+
+function toDispatch(row: DispatchRow): DispatchRecord {
+  return {
+    token: row.token,
+    kind: row.kind,
+    payload: row.payload,
+    status: row.status as DispatchStatus,
+    exp: row.exp,
+    created: row.created,
+  }
 }
 
 function toApproval(row: ApprovalRow): ApprovalRecord {
@@ -169,6 +210,59 @@ export function createStore(db: D1Database): Store {
         )
         .bind(scopeKey, until, acked ? 1 : 0)
         .run()
+    },
+    async createDispatch(r) {
+      await db
+        .prepare(
+          "INSERT INTO dispatch (token, kind, payload, status, exp, created) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(r.token, r.kind, r.payload, r.status, r.exp, r.created)
+        .run()
+    },
+    async getDispatch(token) {
+      const row = await db
+        .prepare("SELECT * FROM dispatch WHERE token = ?")
+        .bind(token)
+        .first<DispatchRow>()
+      return row ? toDispatch(row) : null
+    },
+    async claimDispatch(token) {
+      const row = await db
+        .prepare(
+          "UPDATE dispatch SET status = 'fired' WHERE token = ? AND status = 'pending' RETURNING *",
+        )
+        .bind(token)
+        .first<DispatchRow>()
+      return row ? toDispatch(row) : null
+    },
+    async cancelDispatch(token) {
+      const row = await db
+        .prepare(
+          "UPDATE dispatch SET status = 'cancelled' WHERE token = ? AND status = 'pending' RETURNING *",
+        )
+        .bind(token)
+        .first<DispatchRow>()
+      return row ? toDispatch(row) : null
+    },
+    async setDispatchStatus(token, status) {
+      await db
+        .prepare("UPDATE dispatch SET status = ? WHERE token = ?")
+        .bind(status, token)
+        .run()
+    },
+    async recentDedup(limit) {
+      const { results } = await db
+        .prepare("SELECT * FROM dedup ORDER BY last_seen DESC LIMIT ?")
+        .bind(limit)
+        .all<DedupRow>()
+      return (results ?? []).map((row) => ({
+        fingerprint: row.fingerprint,
+        issueId: row.issue_id,
+        identifier: row.identifier,
+        count: row.count,
+        firstSeen: row.first_seen,
+        lastSeen: row.last_seen,
+      }))
     },
   }
 }

@@ -59,6 +59,48 @@ describe("createNotifier", () => {
   })
 })
 
+describe("ask / answer", () => {
+  it("ask posts to the /ask sibling of the ingest url and returns the id", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toBe("http://localhost:8787/ask")
+      return new Response(JSON.stringify({ id: "abc", exp: 99 }), {
+        status: 200,
+      })
+    })
+    const out = await createNotifier({ ...config, fetchImpl }).ask({
+      question: "Merge?",
+      options: ["Yes", "No"],
+    })
+    expect(out).toEqual({ id: "abc", exp: 99 })
+  })
+
+  it("answer GETs /answer/:id and returns the decision state", async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toBe("http://localhost:8787/answer/abc")
+      return new Response(
+        JSON.stringify({
+          id: "abc",
+          decision: "Yes",
+          pending: false,
+          expired: false,
+          options: ["Yes", "No"],
+        }),
+        { status: 200 },
+      )
+    })
+    const state = await createNotifier({ ...config, fetchImpl }).answer("abc")
+    expect(state.decision).toBe("Yes")
+    expect(state.pending).toBe(false)
+  })
+
+  it("ask throws on a non-2xx", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 500 }))
+    await expect(
+      createNotifier({ ...config, fetchImpl }).ask({ question: "x" }),
+    ).rejects.toThrow("500")
+  })
+})
+
 describe("notifierFromEnv", () => {
   it("returns null when unconfigured", () => {
     expect(notifierFromEnv({})).toBeNull()

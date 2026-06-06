@@ -194,3 +194,31 @@ jobs:
         with:
           sarif_file: results.sarif
           category: nuclei-${{ matrix.label }}
+
+  # Heartbeat for the bot's dead-man's-switch (DEV-62): records that the nightly DAST fired,
+  # regardless of findings or how many hosts were reachable. Advisory — never fails the run.
+  beat:
+    needs: targets
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions: {}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - name: POST /beat job=dast
+        env:
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+        run: |
+          if [ -z "$INGEST_SECRET" ]; then
+            echo "::warning::INGEST_SECRET unset — skipping dast heartbeat"
+            exit 0
+          fi
+          echo "::add-mask::$INGEST_SECRET"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST "https://bot.afframe.com/beat" \
+            -H "authorization: Bearer ${INGEST_SECRET}" \
+            -H "content-type: application/json" \
+            -d '{"job":"dast"}')
+          echo "bot /beat (dast): HTTP $code"

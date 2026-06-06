@@ -27,10 +27,38 @@ export function buildKeyboard(buttons?: string[]): InlineKeyboard | undefined {
   return kb
 }
 
-/** Keyboard for an auto-created/recurred issue: an "Open in Linear" url button. */
+/**
+ * Keyboard for an auto-created/recurred issue. Row 1: Open in Linear (+ Open run / ⟳ Rerun
+ * when the event carried a GitHub run). Row 2: delivery controls (Snooze 1h / Ack), keyed by
+ * the SHORT Linear identifier so the callback stays under Telegram's 64-byte limit.
+ */
 export function buildIssueKeyboard(
   identifier: string,
   url: string,
+  opts: { runId?: number; runUrl?: string } = {},
 ): InlineKeyboard {
-  return new InlineKeyboard().url(`Open ${identifier}`, url)
+  const kb = new InlineKeyboard().url(`Open ${identifier}`, url)
+  if (opts.runUrl) kb.url("Open run", opts.runUrl)
+  if (opts.runId) kb.text("⟳ Rerun", `rrn:${opts.runId}`)
+  kb.row()
+    .text("😴 Snooze 1h", `snz:${identifier}:60`)
+    .text("✓ Ack", `ack:${identifier}`)
+  return kb
+}
+
+/** Confirm/cancel keyboard for a gated write command, keyed by its dispatch token. */
+export function buildConfirmKeyboard(token: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("✅ Confirm", `cfm:${token}`)
+    .text("✖️ Cancel", `cxl:${token}`)
+}
+
+/** One button per option for an agent approval (ask:<id>:<optionIndex>). */
+export function buildAskKeyboard(
+  id: string,
+  options: string[],
+): InlineKeyboard {
+  const kb = new InlineKeyboard()
+  options.forEach((label, i) => kb.text(label, `ask:${id}:${i}`).row())
+  return kb
 }

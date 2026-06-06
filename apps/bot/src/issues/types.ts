@@ -29,6 +29,10 @@ export interface IssueEvent {
   /** Linear Type label; defaults to security for security-scan, else fix. */
   type?: "security" | "fix"
   links?: { label: string; url: string }[]
+  /** GitHub Actions run id — when set, the Telegram echo grows an "⟳ Rerun" button. */
+  runId?: number
+  /** GitHub Actions run html url — when set, the echo grows an "Open run" button. */
+  runUrl?: string
 }
 
 export interface IssueResult {

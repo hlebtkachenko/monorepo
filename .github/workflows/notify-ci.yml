@@ -1,0 +1,76 @@
+# DEV-53 — CI failure -> Telegram + deduped Linear issue, with a one-tap Rerun button.
+# Observes other workflows via `workflow_run` (no edits to the watched workflows). Fires only
+# on failures of post-merge / scheduled / dispatched runs on main — PR-author failure loops
+# stay quiet. Advisory: this workflow never gates anything.
+name: notify-ci
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+      - E2E Tests
+      - _deploy-aws
+      - deploy-bot
+      - Release
+      - Container Scan
+      - CodeQL
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: notify-ci-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  alert:
+    # Only real incidents: a failed run on main from merge / schedule / manual dispatch.
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event.workflow_run.event)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - name: Open incident + alert
+        env:
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          WF_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WF_EVENT: ${{ github.event.workflow_run.event }}
+          WF_ID: ${{ github.event.workflow_run.id }}
+          WF_URL: ${{ github.event.workflow_run.html_url }}
+          WF_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ -z "$INGEST_SECRET" ]; then
+            echo "::warning::INGEST_SECRET unset — skipping CI alert"
+            exit 0
+          fi
+          echo "::add-mask::$INGEST_SECRET"
+          body=$(jq -n \
+            --arg name "$WF_NAME" --arg branch "$WF_BRANCH" --arg event "$WF_EVENT" \
+            --arg id "$WF_ID" --arg url "$WF_URL" --arg sha "$WF_SHA" \
+            '{
+              source: "ci-failure",
+              title: ($name + " failed on " + $branch),
+              body: ("Workflow **" + $name + "** failed (event: " + $event + ", sha: " + ($sha[0:8]) + ")."),
+              fingerprintParts: ["ci", $name, $branch],
+              area: "ci",
+              risk: "high",
+              runId: ($id | tonumber),
+              runUrl: $url
+            }')
+          code=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+            -X POST "https://bot.afframe.com/issue" \
+            -H "authorization: Bearer ${INGEST_SECRET}" \
+            -H "content-type: application/json" \
+            -d "$body")
+          echo "bot /issue: HTTP $code"
+          jq . /tmp/resp.json || true
+          # Advisory: do not fail the workflow if the bot is down (the watchdog covers that).
+          if [ "$code" -ge 500 ]; then
+            echo "::warning::bot /issue returned $code"
+          fi

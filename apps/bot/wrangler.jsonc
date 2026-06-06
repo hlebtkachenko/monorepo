@@ -14,6 +14,8 @@
   "routes": [{ "pattern": "bot.afframe.com", "custom_domain": true }],
   "vars": {
     "ENVIRONMENT": "development",
+    // owner/repo the control plane dispatches + reads. Non-secret.
+    "GITHUB_REPO": "hlebtkachenko/monorepo",
   },
   // Bot state (dedup, approvals, heartbeats, snooze). database_id is filled after
   // `wrangler d1 create afframe-bot` (a credentialed manual step). Local `wrangler dev`

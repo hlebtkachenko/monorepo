@@ -1,78 +1,42 @@
 import { Hono } from "hono"
-import type { Bot } from "grammy"
 import type { IngestPayload } from "@workspace/notify"
 import type { Env } from "./env.js"
 import { createBot } from "./bot.js"
-import { isAuthorizedIngest, isValidWebhookSecret } from "./auth.js"
 import {
-  buildIssueKeyboard,
-  buildKeyboard,
-  escapeHtml,
-  renderMessage,
-} from "./format.js"
+  constantTimeEqual,
+  isAuthorizedIngest,
+  isValidWebhookSecret,
+} from "./auth.js"
+import { buildAskKeyboard, buildKeyboard, renderMessage } from "./format.js"
 import { createStore } from "./state/store.js"
-import { createLinearClient } from "./issues/linear.js"
-import { processEvent } from "./issues/engine.js"
-import { DEFAULT_TEAM_ID } from "./issues/labels.js"
+import { randomToken } from "./dispatch.js"
+import { emitIssue } from "./emit.js"
 import type { IssueEvent } from "./issues/types.js"
 import { confirmSubscription, snsToEvent, type SnsEnvelope } from "./sns.js"
-import { pollEndpoints, renderScanReport, scanToIssue } from "./scan.js"
+import {
+  pollEndpoints,
+  renderBriefing,
+  renderScanReport,
+  scanToIssue,
+} from "./scan.js"
+import {
+  HEARTBEATS,
+  deadManToIssue,
+  staleHeartbeats,
+  type BeatEntry,
+} from "./heartbeats.js"
 
-/** Shared path: turn a normalized event into a deduped Linear issue + a Telegram echo. */
-async function emitIssue(
-  event: IssueEvent,
-  env: Env,
-  bot: Bot,
-): Promise<{ status: 200 | 502; payload: Record<string, unknown> }> {
-  const target = Number(env.TELEGRAM_USER_ID)
+/** info/success pings are silent; warn/error buzz the phone. */
+function isQuiet(level: IngestPayload["level"]): boolean {
+  return level === "info" || level === "success"
+}
 
-  if (!env.LINEAR_API_TOKEN) {
-    await bot.api.sendMessage(
-      target,
-      `⚠️ ${escapeHtml(event.title)}\n<i>[${escapeHtml(event.source)}]</i> (Linear not configured)`,
-      { parse_mode: "HTML" },
-    )
-    return { status: 200, payload: { ok: true, issue: null } }
-  }
-
-  const result = await processEvent(event, {
-    store: createStore(env.DB),
-    linear: createLinearClient(env.LINEAR_API_TOKEN),
-    teamId: env.LINEAR_TEAM_ID ?? DEFAULT_TEAM_ID,
-    now: () => Date.now(),
-  })
-
-  if (!result) {
-    await bot.api.sendMessage(
-      target,
-      `🔴 ${escapeHtml(event.title)}\n<i>[${escapeHtml(event.source)}]</i> (issue create failed)`,
-      { parse_mode: "HTML" },
-    )
-    return { status: 502, payload: { ok: false } }
-  }
-
-  const verb = result.action === "created" ? "🆕" : "🔁"
-  const suffix = result.action === "commented" ? ` (×${result.count})` : ""
-  await bot.api.sendMessage(
-    target,
-    `${verb} <b>${result.identifier}</b> ${escapeHtml(event.title)}${suffix}\n<i>[${escapeHtml(event.source)}]</i>`,
-    {
-      parse_mode: "HTML",
-      reply_markup: buildIssueKeyboard(result.identifier, result.url),
-    },
-  )
-  return {
-    status: 200,
-    payload: {
-      ok: true,
-      issue: {
-        id: result.issueId,
-        identifier: result.identifier,
-        action: result.action,
-        count: result.count,
-      },
-    },
-  }
+interface AskBody {
+  question: string
+  options?: string[]
+  summary?: string
+  ttlSeconds?: number
+  id?: string
 }
 
 function createApp(env: Env) {
@@ -96,6 +60,7 @@ function createApp(env: Env) {
       {
         parse_mode: "HTML",
         reply_markup: buildKeyboard(body.buttons),
+        disable_notification: isQuiet(body.level),
       },
     )
     return c.json({ ok: true })
@@ -114,9 +79,72 @@ function createApp(env: Env) {
     return c.json(payload, status)
   })
 
+  // AGENT HITL (DEV-55): an agent POSTs a question + options, gets an id, then polls /answer/:id.
+  app.post("/ask", async (c) => {
+    if (!isAuthorizedIngest(c.req.header("authorization"), env.INGEST_SECRET)) {
+      return c.json({ error: "unauthorized" }, 401)
+    }
+    const body = await c.req.json<AskBody>().catch(() => null)
+    if (!body?.question) return c.json({ error: "question required" }, 400)
+    const options =
+      body.options && body.options.length > 0
+        ? body.options.slice(0, 6)
+        : ["Approve", "Reject"]
+    const id = body.id?.trim() || randomToken()
+    const now = Date.now()
+    const exp = now + (body.ttlSeconds ?? 3600) * 1000
+    await createStore(env.DB).putApproval({
+      id,
+      decision: null,
+      options,
+      summary: body.summary ?? body.question,
+      exp,
+      created: now,
+    })
+    const head = body.summary
+      ? `🤖 <b>${body.question}</b>\n${body.summary}`
+      : `🤖 <b>${body.question}</b>`
+    await bot.api.sendMessage(Number(env.TELEGRAM_USER_ID), head, {
+      parse_mode: "HTML",
+      reply_markup: buildAskKeyboard(id, options),
+    })
+    return c.json({ id, exp })
+  })
+
+  // The agent long-polls this until `decision` is non-null (or `expired`).
+  app.get("/answer/:id", async (c) => {
+    if (!isAuthorizedIngest(c.req.header("authorization"), env.INGEST_SECRET)) {
+      return c.json({ error: "unauthorized" }, 401)
+    }
+    const approval = await createStore(env.DB).getApproval(c.req.param("id"))
+    if (!approval) return c.json({ error: "not found" }, 404)
+    const now = Date.now()
+    const expired = !approval.decision && now > approval.exp
+    return c.json({
+      id: approval.id,
+      decision: approval.decision,
+      pending: !approval.decision && !expired,
+      expired,
+      options: approval.options,
+    })
+  })
+
+  // HEARTBEAT (DEV-62): external jobs check in here so the dead-man's-switch can detect silence.
+  app.post("/beat", async (c) => {
+    if (!isAuthorizedIngest(c.req.header("authorization"), env.INGEST_SECRET)) {
+      return c.json({ error: "unauthorized" }, 401)
+    }
+    const body = await c.req.json<{ job?: string }>().catch(() => null)
+    const job = body?.job?.trim()
+    if (!job) return c.json({ error: "job required" }, 400)
+    await createStore(env.DB).beat(job, Date.now())
+    return c.json({ ok: true, job })
+  })
+
   // AWS SNS HTTPS -> Telegram + auto-issue. Gated by ?token= (SNS can't send auth headers).
   app.post("/sns", async (c) => {
-    if (c.req.query("token") !== env.INGEST_SECRET) {
+    // Constant-time compare — SNS can't send an auth header, so ?token= is the only gate.
+    if (!constantTimeEqual(c.req.query("token") ?? "", env.INGEST_SECRET)) {
       return c.json({ error: "unauthorized" }, 401)
     }
     const envelope = await c.req.json<SnsEnvelope>().catch(() => null)
@@ -159,19 +187,43 @@ export default {
   ): Response | Promise<Response> {
     return createApp(env).fetch(request, env, ctx)
   },
-  // Cron (06:00 + 18:00 Prague): full health checklist to Telegram; any red -> auto-issue.
+  // Cron (06:00 + 18:00 Prague): health checklist + dead-man check; morning run adds a briefing.
   async scheduled(
-    _event: ScheduledEvent,
+    event: ScheduledEvent,
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
     const bot = createBot(env)
+    const store = createStore(env.DB)
+    const target = Number(env.TELEGRAM_USER_ID)
+    const now = Date.now()
+
     const points = await pollEndpoints()
-    await bot.api.sendMessage(
-      Number(env.TELEGRAM_USER_ID),
-      renderScanReport(points),
+
+    // Dead-man check BEFORE beating "scan" (else our own beat masks a missed prior run).
+    const entries: BeatEntry[] = await Promise.all(
+      HEARTBEATS.map(async (spec) => ({
+        spec,
+        lastRun: await store.lastBeat(spec.key),
+      })),
     )
-    const issue = scanToIssue(points)
-    if (issue) await emitIssue(issue, env, bot)
+    const stale = staleHeartbeats(entries, now)
+    await store.beat("scan", now)
+
+    // 04:00 UTC = morning (Prague) -> daily briefing; otherwise a plain scan report.
+    if (event.cron === "0 4 * * *") {
+      const incidents = await store.recentDedup(20)
+      await bot.api.sendMessage(
+        target,
+        renderBriefing(points, incidents, stale),
+      )
+    } else {
+      await bot.api.sendMessage(target, renderScanReport(points))
+    }
+
+    const scanIssue = scanToIssue(points)
+    if (scanIssue) await emitIssue(scanIssue, env, bot)
+    const deadMan = deadManToIssue(stale)
+    if (deadMan) await emitIssue(deadMan, env, bot)
   },
 }

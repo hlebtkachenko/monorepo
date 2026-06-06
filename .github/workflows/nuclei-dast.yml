@@ -105,13 +105,16 @@ jobs:
           # Mode A — active but safe against live production:
           #   -exclude-tags drops fuzzing / DoS / destructive payloads
           #   -rate-limit 10 keeps Cloudflare + the origin unstressed
-          #   -disable-update-check keeps the run deterministic (no self-update)
+          # Do NOT add -disable-update-check / -duc: it suppresses the first-run
+          # template download, so nuclei runs with ZERO templates ("templates
+          # version (unknown)", scan finishes in microseconds, "No results
+          # found" = false green). The action's cache: true keeps templates
+          # warm between runs; the first run fetches them.
           args: >-
             -l targets.txt
             -severity critical,high,medium
             -exclude-tags intrusive,dos,fuzzing,fuzz,brute-force
             -rate-limit 10 -c 5 -bulk-size 5
-            -disable-update-check
             -sarif-export results.sarif
             -no-color -stats
 

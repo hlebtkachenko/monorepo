@@ -1,7 +1,18 @@
 "use client"
 
 import { type ReactNode, useState } from "react"
-import { usePathname } from "next/navigation"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { useLocale } from "next-intl"
+import { useTheme } from "next-themes"
+import { LogOut } from "lucide-react"
+
+import {
+  locales,
+  localeLabel,
+  LOCALE_COOKIE,
+  isLocale,
+} from "@workspace/i18n/config"
 import { toast } from "@workspace/ui/components/sonner"
 
 import { BrandName, SidekickMark } from "@workspace/ui/brand-assets"
@@ -13,6 +24,16 @@ import {
 } from "@workspace/ui/blocks/app-context-menu"
 import { useAppShell } from "@workspace/ui/blocks/app-shell"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@workspace/ui/components/alert-dialog"
+import {
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -22,7 +43,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -36,25 +63,28 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import { signOutAction } from "../auth/_lib/account-actions"
 import { reportFeedback } from "./report-feedback"
 
 // Gap between a header dropdown and its trigger — the same 8px the shell
 // uses for its page-edge insets, so menus sit on the same spacing grid.
 const MENU_GAP = 8
 
-// GitHub Primer ActionList sizing for the header dropdowns: 14px text
-// (--menu-text-size), 16px icons (default), 8px gap, 6×8px item padding
-// (→32px rows), 8px container padding, full-bleed 8px-margin dividers.
-// Width sizes to content above the --menu-min-width floor (no magic px),
-// overriding the primitive's default trigger-width sizing.
-const PRIMER_MENU =
-  "w-auto min-w-[var(--menu-min-width)] p-2 [&_[data-slot=dropdown-menu-item]]:gap-2 [&_[data-slot=dropdown-menu-item]]:px-2 [&_[data-slot=dropdown-menu-item]]:py-1.5 [&_[data-slot=dropdown-menu-item]]:text-[length:var(--menu-text-size)] [&_[data-slot=dropdown-menu-separator]]:-mx-2 [&_[data-slot=dropdown-menu-separator]]:my-2"
+// Shared sizing for the header dropdowns: 14px text (--menu-text-size),
+// 16px icons (default), 8px gap, 6×8px item padding (→32px rows), 8px
+// container padding, full-bleed 8px-margin dividers. Width sizes to content
+// above the --menu-min-width floor (no magic px), overriding the primitive's
+// default trigger-width sizing.
+const HEADER_MENU =
+  "w-auto min-w-[var(--menu-min-width)] p-2 [&_[data-slot=dropdown-menu-item]]:gap-2 [&_[data-slot=dropdown-menu-item]]:px-2 [&_[data-slot=dropdown-menu-item]]:py-1.5 [&_[data-slot=dropdown-menu-item]]:text-[length:var(--menu-text-size)] [&_[data-slot=dropdown-menu-sub-trigger]]:gap-2 [&_[data-slot=dropdown-menu-sub-trigger]]:px-2 [&_[data-slot=dropdown-menu-sub-trigger]]:py-1.5 [&_[data-slot=dropdown-menu-sub-trigger]]:text-[length:var(--menu-text-size)] [&_[data-slot=dropdown-menu-separator]]:-mx-2 [&_[data-slot=dropdown-menu-separator]]:my-2"
 
 export interface OrgHeaderActionsProps {
-  /** Display name — drives the profile avatar fallback initials. */
+  /** Display name — shown in the profile header + drives fallback initials. */
   userName?: string
   /** Profile avatar image URL; falls back to initials when absent. */
   userImage?: string
+  /** Active org slug — targets the profile menu's "Settings" link. */
+  orgSlug?: string
   /** Build version string (from server `getBuildVersion()`), shown in Help. */
   version?: string
 }
@@ -103,12 +133,17 @@ function HeaderMenuTrigger({
 export function OrgHeaderActions({
   userName,
   userImage,
+  orgSlug,
   version,
 }: OrgHeaderActionsProps) {
   const icons = useIcons()
   const shell = useAppShell()
   const pathname = usePathname()
+  const router = useRouter()
+  const locale = useLocale()
+  const { theme = "system", setTheme } = useTheme()
   const [supportAccess, setSupportAccess] = useState(false)
+  const [signOutOpen, setSignOutOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedbackContext, setFeedbackContext] =
     useState<CapturedContext | null>(null)
@@ -121,6 +156,21 @@ export function OrgHeaderActions({
   const StatusIcon = icons.Activity
   const ExternalIcon = icons.ArrowUpRight
   const InfoIcon = icons.Info
+  const ProfileIcon = icons.User
+  const WorkspaceIcon = icons.Building2
+  const SettingsIcon = icons.Settings
+  const ThemeIcon = icons.Sun
+  const LanguageIcon = icons.Globe
+
+  // Persist the chosen locale (NEXT_LOCALE cookie, 1y) + refresh so the
+  // server re-resolves messages — same mechanism as the footer LanguagePicker.
+  const setLocale = (next: string) => {
+    if (!isLocale(next)) return
+    document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+    router.refresh()
+  }
+
+  const settingsHref = orgSlug ? `/${orgSlug}/settings` : "/workspace/settings"
 
   const setSupport = (next: boolean) => {
     setSupportAccess(next)
@@ -157,7 +207,7 @@ export function OrgHeaderActions({
         <DropdownMenuContent
           align="start"
           sideOffset={MENU_GAP}
-          className={PRIMER_MENU}
+          className={HEADER_MENU}
         >
           {/* TODO(org-header): wire real destinations/handlers — placeholders. */}
           <DropdownMenuItem>
@@ -276,12 +326,109 @@ export function OrgHeaderActions({
         <DropdownMenuContent
           align="end"
           sideOffset={MENU_GAP}
-          className={PRIMER_MENU}
+          className={HEADER_MENU}
         >
-          {/* TODO(org-header): real account menu — placeholder. */}
-          <DropdownMenuItem>Lorem ipsum dolor sit amet.</DropdownMenuItem>
+          {/* Identity — avatar + name only (no email, per spec). */}
+          <DropdownMenuLabel className="flex items-center gap-2 py-1.5 font-normal">
+            <Avatar className="size-8 after:hidden">
+              <AvatarImage src={userImage} alt={userName ?? "Profile"} />
+              <AvatarFallback className="text-[11px] font-medium text-icon-active">
+                {initialsOf(userName)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="truncate text-[length:var(--menu-text-size)] font-medium text-foreground">
+              {userName ?? "Account"}
+            </span>
+          </DropdownMenuLabel>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem asChild>
+            <Link href="/workspace/profile">
+              <ProfileIcon />
+              Profile
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/workspace">
+              <WorkspaceIcon />
+              Workspace
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={settingsHref}>
+              <SettingsIcon />
+              Settings
+            </Link>
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <ThemeIcon />
+              Theme
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+                <DropdownMenuRadioItem value="system">
+                  System
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <LanguageIcon />
+              Language
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup value={locale} onValueChange={setLocale}>
+                {locales.map((code) => (
+                  <DropdownMenuRadioItem key={code} value={code}>
+                    {localeLabel[code]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem onSelect={() => setSignOutOpen(true)}>
+            <LogOut />
+            Sign out
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Sign-out confirmation — opened from the profile menu, rendered here
+          (outside the dropdown) so it survives the menu closing. The confirm
+          is a destructive action that submits the real sign-out server action. */}
+      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You&apos;ll be returned to the sign-in page and need to sign in
+              again to access your workspace.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <form action={signOutAction}>
+              <AlertDialogAction type="submit" variant="destructive">
+                Sign out
+              </AlertDialogAction>
+            </form>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Shared feedback dialog — opened by "Send feedback" with the
           "Feedback" type preselected; the same dialog the right-click menu

@@ -1,18 +1,18 @@
 # Supply Chain Security Specification
 
-Design summary. The actual workflows live under `.github/workflows/_supply-chain-*.yml` and are owned by the supply-chain plan executor. This document captures the design and threat model.
+Design summary. The actual workflow lives at `.github/workflows/_supply-chain.yml` and is owned by the supply-chain plan executor. This document captures the design and threat model.
 
 ## Controls
 
-| Control | Standard | Tooling | Output |
-|---------|----------|---------|--------|
-| SBOM | CycloneDX 1.6 | syft | per-build `sbom.cdx.json`, attached as workflow artifact + GitHub Release asset |
-| Provenance (build) | SLSA L2 | `actions/attest-build-provenance` | `.intoto.jsonl` attestation, attached to release; uploaded to Rekor |
-| Provenance (release) | SLSA L3 | `slsa-framework/slsa-github-generator` | full L3 isolated builder, only on tagged releases |
-| Signing | Sigstore cosign | `sigstore/cosign-installer` | OCI signature, keyless, recorded in Rekor public log |
-| Verification (deploy time) | cosign + slsa-verifier | `cosign verify-attestation` | gate that runs in `_deploy-aws.yml` |
-| Vulnerability scan (lib) | OSV | osv-scanner | PR check, fail on Critical |
-| License compliance | SPDX | scripts/license-check.mjs (Writer B owns) | PR check, deny-list enforced |
+| Control                    | Standard               | Tooling                                   | Output                                                                          |
+| -------------------------- | ---------------------- | ----------------------------------------- | ------------------------------------------------------------------------------- |
+| SBOM                       | CycloneDX 1.6          | syft                                      | per-build `sbom.cdx.json`, attached as workflow artifact + GitHub Release asset |
+| Provenance (build)         | SLSA L2                | `actions/attest-build-provenance`         | `.intoto.jsonl` attestation, attached to release; uploaded to Rekor             |
+| Provenance (release)       | SLSA L3                | `slsa-framework/slsa-github-generator`    | full L3 isolated builder, only on tagged releases                               |
+| Signing                    | Sigstore cosign        | `sigstore/cosign-installer`               | OCI signature, keyless, recorded in Rekor public log                            |
+| Verification (deploy time) | cosign + slsa-verifier | `cosign verify-attestation`               | gate that runs in `_deploy-aws.yml`                                             |
+| Vulnerability scan (lib)   | OSV                    | osv-scanner                               | PR check, fail on Critical                                                      |
+| License compliance         | SPDX                   | scripts/license-check.mjs (Writer B owns) | PR check, deny-list enforced                                                    |
 
 ## Where each artifact lives
 
@@ -41,15 +41,15 @@ The runbook stub already exists (`docs/runbooks/DEPLOY.md`); the workflow gate l
 
 ## Threat model snippet
 
-| Threat | Control |
-|--------|---------|
-| Compromised dependency injects malicious code | SBOM + osv-scanner catches known CVEs; license check blocks unknown sources; provenance proves what built the image |
-| Compromised CI runner builds a backdoored image | SLSA L3 isolated builder for releases; cosign signs only on the runner that built (identity binding) |
-| Supply chain typosquatting | Lockfile-frozen install, license deny-list, manual review on first-time dep |
-| Image swapped between sign and deploy | cosign verify at deploy time; digest pinned in deployment record |
-| Signature replay across repos | OIDC issuer + cert identity check binds signature to this repo+workflow only |
-| Long-lived credential leak | No long-lived creds. OIDC short-lived tokens only. |
-| Tag re-pushed to point to a different commit | Releases are immutable in policy; tag re-push blocked by branch protection on tags + by cosign signature mismatch on subsequent verify |
+| Threat                                          | Control                                                                                                                                |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Compromised dependency injects malicious code   | SBOM + osv-scanner catches known CVEs; license check blocks unknown sources; provenance proves what built the image                    |
+| Compromised CI runner builds a backdoored image | SLSA L3 isolated builder for releases; cosign signs only on the runner that built (identity binding)                                   |
+| Supply chain typosquatting                      | Lockfile-frozen install, license deny-list, manual review on first-time dep                                                            |
+| Image swapped between sign and deploy           | cosign verify at deploy time; digest pinned in deployment record                                                                       |
+| Signature replay across repos                   | OIDC issuer + cert identity check binds signature to this repo+workflow only                                                           |
+| Long-lived credential leak                      | No long-lived creds. OIDC short-lived tokens only.                                                                                     |
+| Tag re-pushed to point to a different commit    | Releases are immutable in policy; tag re-push blocked by branch protection on tags + by cosign signature mismatch on subsequent verify |
 
 ## Cross-references
 

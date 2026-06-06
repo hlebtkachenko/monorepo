@@ -51,14 +51,16 @@ interface AppRailProps {
   defaultMode?: RailMode
   /** Persisted-mode storage key. Override to scope per-app. */
   storageKey?: string
-  /** Rail width in expanded mode. Match `--shell-rail-width` default. */
-  expandedWidth?: string
-  /** Rail width in icon-only mode. */
-  collapsedWidth?: string
   className?: string
 }
 
 const SHELL_RAIL_WIDTH_VAR = "--shell-rail-width"
+// Rail geometry. Expanded mirrors the `--shell-rail-width: 60px` default in
+// globals.css; collapsed is the icon-only width. Module constants, not props:
+// no caller overrode these, and the AppShell reads the width back off the
+// `--shell-rail-width` var this effect writes.
+const RAIL_WIDTH_EXPANDED = "60px"
+const RAIL_WIDTH_COLLAPSED = "50px"
 
 function isItem(entry: RailMenuEntry): entry is RailMenuItem {
   return entry !== "separator"
@@ -103,8 +105,6 @@ export function AppRail({
   currentPath,
   defaultMode = "expanded",
   storageKey = "app-rail-mode",
-  expandedWidth = "60px",
-  collapsedWidth = "50px",
   className,
 }: AppRailProps) {
   const [mode, setMode] = React.useState<RailMode>(defaultMode)
@@ -119,14 +119,15 @@ export function AppRail({
   }, [storageKey])
 
   React.useEffect(() => {
-    const width = mode === "expanded" ? expandedWidth : collapsedWidth
+    const width =
+      mode === "expanded" ? RAIL_WIDTH_EXPANDED : RAIL_WIDTH_COLLAPSED
     document.documentElement.style.setProperty(SHELL_RAIL_WIDTH_VAR, width)
     try {
       localStorage.setItem(storageKey, mode)
     } catch {
       // ignore
     }
-  }, [mode, expandedWidth, collapsedWidth, storageKey])
+  }, [mode, storageKey])
 
   const activeHref = activeHrefFor(items, currentPath)
 

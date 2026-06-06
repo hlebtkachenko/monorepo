@@ -156,6 +156,31 @@ function renderContext(context: FeedbackContext | undefined): string {
   return body ? `\n\n---\n\n${body}` : ""
 }
 
+/**
+ * The full validated context as a collapsed JSON block, appended to the
+ * Linear issue (NOT the support email) so triagers get the ~14 captured
+ * fields `renderContext` summarizes but omits — element role/id/classes/
+ * text, selection.html, surrounding.nearby_text, viewport.scroll_y, client
+ * env, page.referrer — without bloating the at-a-glance Markdown header.
+ * Query strings/hashes are already stripped from urls at capture time, and
+ * reporter identity is server-injected, so this leaks no extra PII. Returns
+ * an empty string when no context is present.
+ */
+function renderContextJson(context: FeedbackContext | undefined): string {
+  if (!context) return ""
+  return [
+    "",
+    "",
+    "<details><summary>Full captured context (JSON)</summary>",
+    "",
+    "```json",
+    JSON.stringify(context, null, 2),
+    "```",
+    "",
+    "</details>",
+  ].join("\n")
+}
+
 async function createLinearIssue(
   body: CreateFeedbackRequest,
   referenceId: string,
@@ -179,7 +204,9 @@ async function createLinearIssue(
       body.email ? `Reply-to: ${body.email}` : "Reply-to: (not provided)",
       "",
       body.message,
-    ].join("\n") + renderContext(body.context)
+    ].join("\n") +
+    renderContext(body.context) +
+    renderContextJson(body.context)
   const mutation = `
     mutation CreateFeedback($input: IssueCreateInput!) {
       issueCreate(input: $input) { success issue { id identifier } }

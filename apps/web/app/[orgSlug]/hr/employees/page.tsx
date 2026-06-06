@@ -9,10 +9,6 @@ export default async function EmployeesPage({
 }) {
   const { orgSlug } = await params
   return (
-    <SectionStub
-      title="Employees"
-      orgSlug={orgSlug}
-      subpath="personnel/employees"
-    />
+    <SectionStub title="Employees" orgSlug={orgSlug} subpath="hr/employees" />
   )
 }

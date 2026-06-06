@@ -9,10 +9,6 @@ export default async function ExpensesPage({
 }) {
   const { orgSlug } = await params
   return (
-    <SectionStub
-      title="Expenses"
-      orgSlug={orgSlug}
-      subpath="personnel/expenses"
-    />
+    <SectionStub title="Expenses" orgSlug={orgSlug} subpath="hr/expenses" />
   )
 }

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { SectionTabs } from "../_components/section-tabs"
 
-export default async function PersonnelLayout({
+export default async function HRLayout({
   children,
   params,
 }: {
@@ -9,11 +9,11 @@ export default async function PersonnelLayout({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug } = await params
-  const base = `/${orgSlug}/personnel`
+  const base = `/${orgSlug}/hr`
   return (
     <div>
       <SectionTabs
-        title="Personnel"
+        title="HR"
         tabs={[
           { label: "Overview", href: base },
           { label: "Employees", href: `${base}/employees` },

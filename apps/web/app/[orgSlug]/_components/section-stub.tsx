@@ -1,3 +1,5 @@
+import { Heading } from "@workspace/ui/components/heading"
+
 interface SectionStubProps {
   title: string
   orgSlug: string
@@ -16,7 +18,9 @@ export function SectionStub({
   return (
     <div className="mx-auto max-w-6xl space-y-3 px-6 py-10">
       <header className="space-y-1">
-        <h1>{title}</h1>
+        <Heading level={2} className="mt-0">
+          {title}
+        </Heading>
         <p className="text-sm text-muted-foreground">
           /{orgSlug}/{path}
         </p>

@@ -33,7 +33,7 @@
     "@paper-design/shaders": "^0.0.76",
     "@phosphor-icons/react": "^2.1.10",
     "@tanstack/react-table": "^8.21.3",
-    "@tanstack/react-virtual": "^3.13.25",
+    "@tanstack/react-virtual": "^3.13.26",
     "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
     "border-beam": "^1.0.1",

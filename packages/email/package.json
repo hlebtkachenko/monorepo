@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1053.0",
-    "resend": "^6.12.3"
+    "resend": "^6.12.4"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

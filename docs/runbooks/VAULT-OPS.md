@@ -436,13 +436,25 @@ vault write auth/jwt/config \
 # Policy: read-only on shared GHA secrets
 vault policy write gha-read-shared-tokens -   # path "platform/data/shared/*" { capabilities=["read"] }
 
-# Role bound to repo + workflow_ref + audience
-vault write auth/jwt/role/gha-monorepo \
-  role_type=jwt user_claim=actor bound_claims_type=glob \
-  bound_audiences=https://secrets-admin.afframe.com \
-  bound_claims=repository=hlebtkachenko/monorepo \
-  bound_claims=workflow_ref=hlebtkachenko/monorepo/.github/workflows/linear-sync.yml@* \
-  token_policies=gha-read-shared-tokens ttl=15m max_ttl=30m
+# Role bound to repo + workflow_ref + audience. bound_claims is a MAP field, so
+# it must be passed as JSON over stdin (`vault write <path> -`); the repeated
+# `bound_claims=key=val` CLI shorthand fails with
+# "error converting input for field 'bound_claims': expected a map, got 'string'".
+vault write auth/jwt/role/gha-monorepo - <<'JSON'
+{
+  "role_type": "jwt",
+  "user_claim": "actor",
+  "bound_claims_type": "glob",
+  "bound_audiences": ["https://secrets-admin.afframe.com"],
+  "bound_claims": {
+    "repository": "hlebtkachenko/monorepo",
+    "workflow_ref": "hlebtkachenko/monorepo/.github/workflows/linear-sync.yml@*"
+  },
+  "token_policies": ["gha-read-shared-tokens"],
+  "ttl": "15m",
+  "max_ttl": "30m"
+}
+JSON
 ```
 
 Two gotchas, both fixed:

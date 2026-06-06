@@ -387,3 +387,41 @@ jobs:
             jq -r '.[] | "::error file=\(.File),line=\(.Line // 0)::\(.RuleID): \(.Description // "secret detected")"' infisical-report.json
             exit 1
           fi
+
+  trufflehog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    # Third secret scanner. gitleaks + infisical are regex/entropy only — they
+    # flag *candidate* secrets but can't tell a live key from a dead one.
+    # TruffleHog's `--only-verified` authenticates each finding against its
+    # provider, so this job catches differently-shaped secrets the regex
+    # scanners miss and confirms which are still active (near-zero false
+    # positives). Advisory: not in the required `ci` rollup.
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          # MUST stay `audit`, never `block`: `--only-verified` makes outbound
+          # calls to each provider's API to confirm a secret is live. Under
+          # `block` those calls are dropped and verification silently degrades
+          # to "unknown" — live secrets would stop failing the job.
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0 # full history — verified scan over every commit
+          persist-credentials: false
+      - name: Install trufflehog
+        env:
+          TRUFFLEHOG_VERSION: "3.95.5"
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin trufflehog
+          trufflehog --version
+      - name: Scan
+        # `git file://.` scans full local history (fetch-depth: 0 above).
+        # `--only-verified`: provider-confirmed live secrets only.
+        # `--fail`: non-zero exit when any verified secret is found.
+        # `--no-update`: block the self-update network call.
+        run: trufflehog git file://. --only-verified --fail --no-update

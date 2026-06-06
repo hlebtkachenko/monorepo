@@ -96,4 +96,40 @@ describe("FeedbackController", () => {
     ).rejects.toBeInstanceOf(ValidationError)
     expect(sendEmail).not.toHaveBeenCalled()
   })
+
+  it("appends the full validated context as a JSON block to the Linear issue", async () => {
+    // createLinearIssue no-ops unless both env vars are set (controller skips
+    // it otherwise), so the JSON-block path is uncovered without this setup.
+    vi.stubEnv("LINEAR_API_KEY", "lin_test")
+    vi.stubEnv("LINEAR_TEAM_ID", "team_test")
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue({ ok: true, text: async () => "" })
+    vi.stubGlobal("fetch", fetchMock)
+
+    try {
+      await controller.create({
+        type: "bug",
+        message: "Save button does nothing on the invoice editor.",
+        context: {
+          page: { url: "https://app.afframe.com/acme", pathname: "/acme" },
+          // `role` is rendered only in the JSON block, never the Markdown
+          // summary — so it proves the full context is forwarded.
+          element: { tag: "button", role: "button", dom_path: "main > button" },
+        },
+      })
+
+      // createLinearIssue is fire-and-forget (void), so wait for the dispatch.
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+      const sentBody = JSON.parse(
+        (fetchMock.mock.calls[0]?.[1] as { body: string }).body,
+      )
+      const description = sentBody.variables.input.description as string
+      expect(description).toContain("```json")
+      expect(description).toContain('"role": "button"')
+    } finally {
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
+    }
+  })
 })

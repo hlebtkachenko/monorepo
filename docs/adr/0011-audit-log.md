@@ -4,6 +4,8 @@
 - Date: 2026-05-11
 - Deciders: Hleb Tkachenko
 
+> **Amendment 2026-06-07:** Implemented (Status header left intact per ADR-immutability rule). The two-table append-only audit ships in `packages/db/migrations/0004_audit.sql` with BEFORE DELETE/UPDATE/TRUNCATE enforcement triggers.
+
 ## Context and Problem Statement
 
 The platform must retain a tamper-evident record of two distinct event categories:
@@ -58,7 +60,7 @@ The redaction stack is two-pass:
 Append-only is enforced at three layers in the database:
 
 - **Layer 1** — catalog `REVOKE UPDATE, DELETE, TRUNCATE ON tool_call_log, audit_event FROM
-  app_user`. No-op today under `GRANT app_admin TO app_user` because `app_user` inherits all
+app_user`. No-op today under `GRANT app_admin TO app_user` because `app_user` inherits all
   of `app_admin`'s DML. Becomes load-bearing if the inheritance chain is severed.
 - **Layer 2** — `BEFORE UPDATE` and `BEFORE DELETE` triggers raise `check_violation` on any
   attempt. The load-bearing layer. Fires regardless of role membership unless explicitly

@@ -1010,7 +1010,8 @@ jobs:
       # a cold RDS then circuit-broke (incident 2026-06-01) when a deploy was
       # fired concurrently with a power-resume. This mirrors power.yml `resume`
       # for RDS only: it does NOT scale Fargate (CDK owns desiredCount) and does
-      # NOT touch the sleeping page. Idempotent — a ~1s no-op when RDS is
+      # NOT touch the sleeping page here (a later step unbinds the sleeping page
+      # once the ECS rollout is healthy). Idempotent — a ~1s no-op when RDS is
       # already available, which is the common (warm) case. The deploy role
       # already carries rds:Start/Describe/Tag (it is the same role power.yml
       # assumes).
@@ -1482,6 +1483,26 @@ jobs:
       # path so a deploy that shipped a broken image (and smoke later
       # rolls back) doesn't poison the per-service `image-tag-<svc>` SSM
       # the next deploy reads as "last known good". See smoke job below.
+
+      # A deploy must leave the env actually SERVING, not just powered on. The
+      # "Ensure RDS available" step above resumes the DB and CDK scales Fargate
+      # to 1 — but if the env was cold/warm-paused, the Cloudflare sleeping-page
+      # routes are still bound, so Cloudflare answers 503 over the now-live
+      # origin and the smoke job (which probes THROUGH Cloudflare) fails +
+      # auto-rolls-back a perfectly good deploy. Unbind here, after the ECS
+      # rollout is healthy. Idempotent: a ~1s no-op when no routes for this env
+      # are bound (the common, already-live case). Mirrors power.yml `resume`.
+      - name: Unbind sleeping page (env must serve post-deploy)
+        if: env.STACK_SCOPE != 'infra-only'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN empty — cannot unbind sleeping page; smoke may see 503 if this env was paused."
+            exit 0
+          fi
+          bash infra/cloudflare-sleeping/scripts/routes.sh off "$ENV_NAME"
 
       - id: summary
         run: echo "deployed=true" >> "$GITHUB_OUTPUT"

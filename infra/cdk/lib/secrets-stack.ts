@@ -143,9 +143,11 @@ export class SecretsStack extends Stack {
     const syncParamArns = [
       "staging/better-auth-secret",
       "staging/resend-api-key",
+      "staging/notify-shared-secret",
       "staging/sync-heartbeat",
       "production/better-auth-secret",
       "production/resend-api-key",
+      "production/notify-shared-secret",
       "production/sync-heartbeat",
     ].map(
       (suffix) =>

@@ -232,7 +232,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## CI / CD
 
-- Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E), `openapi-lint` (OpenAPI spec drift + Spectral lint).
+- Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E), `openapi-lint` (OpenAPI spec drift + Spectral lint), `nuclei-dast` (nightly DAST scan of live prod + staging hosts; probe-skips any host that is down/maintenance/parked, active-but-safe profile, SARIF → Security tab — see `docs/runbooks/DAST-NUCLEI.md`).
 - All new workflows ship as ADVISORY. Hleb flips required-status manually after a green PR cycle.
 - Branch protection / PR-required rules are managed manually by Hleb (see `docs/conventions/CI-POLICY.md`).
 - Hardening conventions: default-deny `permissions: {}`, per-job least privilege, SHA-pinned actions with trailing version comment, `step-security/harden-runner` (audit), concurrency cancellation on PRs.

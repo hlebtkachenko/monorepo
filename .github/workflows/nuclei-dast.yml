@@ -1,0 +1,138 @@
+# Nuclei DAST — DEV-47
+#
+# Nightly dynamic scan (ProjectDiscovery Nuclei) of the live afframe hosts —
+# the DAST layer that source-level scanning (CodeQL, OSV, Trivy, Dependabot,
+# gitleaks, TruffleHog) cannot cover: the running, deployed system over the
+# network, the way an attacker sees it. Findings land in the Security tab as
+# SARIF. ADVISORY only — never fails on findings.
+#
+# Targets BOTH environments, but only the hosts that are actually serving:
+#   - production (app/api/admin.afframe.com) — normally 24/7, but can be down
+#     for maintenance.
+#   - staging (app/api/admin-staging.afframe.com) — parked most of the week;
+#     when paused, the Cloudflare sleeping Worker answers 503.
+# A reachability probe runs first and scans only hosts returning a normal
+# (2xx/3xx/401/403) response. Anything 5xx / unreachable (down, maintenance, or
+# the sleeping page) is SKIPPED, not failed — so a parked staging or a prod
+# maintenance window produces a clean green run, never a false alarm.
+#
+# No infra mutation: this never resumes/parks an env, touches AWS, or calls the
+# Cloudflare API. It only sends HTTP to whatever is already up.
+#
+# Safety (Mode A — active but safe against live production):
+#   - dangerous template classes excluded (-exclude-tags intrusive,dos,fuzzing,
+#     brute-force) so no fuzzing / DoS / destructive payloads hit prod.
+#   - rate-limited (10 req/s) so Cloudflare's rate rules don't trip and prod
+#     isn't stressed.
+#   - severity floor at medium to cut noise + request volume.
+#
+# Coverage limit (v1): unauthenticated edge baseline. Cloudflare bot-protection
+# will challenge unauth Nuclei, and auth-gated app logic is invisible. Deep
+# authenticated scanning (WAF skip-rule + seeded throwaway tenant) is phase 2 —
+# see docs/runbooks/DAST-NUCLEI.md.
+
+name: Nuclei DAST
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC nightly — off-peak, no collision with osv 06:00
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nuclei-dast
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read # checkout, so upload-sarif resolves commit/ref reliably
+      security-events: write # SARIF upload to the Security tab
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          # audit, not block: Nuclei makes a large, unpredictable set of
+          # outbound requests to the scan targets — an allowlist would strangle
+          # it. Matches every other workflow in this repo.
+          egress-policy: audit
+
+      # upload-sarif resolves the commit SHA + ref from the checked-out repo;
+      # checking out avoids any ambiguity on the code-scanning association.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Build reachable target list
+        id: targets
+        run: |
+          set -euo pipefail
+          hosts="app.afframe.com api.afframe.com admin.afframe.com \
+                 app-staging.afframe.com api-staging.afframe.com admin-staging.afframe.com"
+          : > targets.txt
+          for h in $hosts; do
+            # curl always prints %{http_code}; on connect failure it prints 000
+            # and exits non-zero, so neutralise the exit to keep set -e happy.
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -L "https://$h")" \
+              || code="000"
+            # Scan only a host that is actually serving the app. 5xx (sleeping
+            # page = 503, maintenance, errors) and 000 (down/unreachable) are
+            # skipped — a parked env or maintenance window is not a finding.
+            if [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; then
+              echo "https://$h" >> targets.txt
+              echo "include $h (HTTP $code)"
+            else
+              echo "skip    $h (HTTP $code — down / maintenance / asleep)"
+            fi
+          done
+          count="$(wc -l < targets.txt | tr -d ' ')"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "$count host(s) reachable; scanning those."
+
+      - name: Nuclei scan
+        id: nuclei
+        if: steps.targets.outputs.count != '0'
+        timeout-minutes: 30
+        # Advisory: never fail the run on findings (or a step-timeout SIGKILL).
+        # SARIF still surfaces everything in the Security tab.
+        continue-on-error: true
+        uses: projectdiscovery/nuclei-action@cc153d0541e1adf8a42bbe31c0a4fb2376147538 # v3.1.1
+        with:
+          version: latest
+          cache: true
+          # Mode A — active but safe against live production:
+          #   -exclude-tags drops fuzzing / DoS / destructive payloads
+          #   -rate-limit 10 keeps Cloudflare + the origin unstressed
+          #   -disable-update-check keeps the run deterministic (no self-update)
+          args: >-
+            -l targets.txt
+            -severity critical,high,medium
+            -exclude-tags intrusive,dos,fuzzing,fuzz,brute-force
+            -rate-limit 10 -c 5 -bulk-size 5
+            -disable-update-check
+            -sarif-export results.sarif
+            -no-color -stats
+
+      - name: Ensure a valid SARIF exists
+        if: always()
+        run: |
+          set -euo pipefail
+          # Nuclei only writes the SARIF export when it has findings to serialize;
+          # a clean run (or no reachable hosts, or a SIGKILL-interrupted run) can
+          # leave the file absent, zero-byte, or truncated, and upload-sarif then
+          # hard-fails. Synthesize a minimal valid SARIF so a no-findings night is
+          # green and the Security-tab category is cleared.
+          if [ ! -s results.sarif ] || ! jq empty results.sarif 2>/dev/null; then
+            echo "no valid SARIF produced — writing empty skeleton."
+            # shellcheck disable=SC2016  # $schema is a literal SARIF JSON key, must not expand
+            printf '%s' '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"nuclei","informationUri":"https://github.com/projectdiscovery/nuclei","rules":[]}},"results":[]}]}' > results.sarif
+          fi
+
+      - name: Upload SARIF to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # zizmor: ignore[impostor-commit]
+        with:
+          sarif_file: results.sarif
+          category: nuclei

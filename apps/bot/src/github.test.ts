@@ -91,6 +91,17 @@ describe("createGitHubClient", () => {
   })
 })
 
+describe("listCommits", () => {
+  it("maps sha->short + first message line", async () => {
+    const gh = createGitHubClient("tok", "o/r", (async () =>
+      res(200, [
+        { sha: "abc1234ffffffff", commit: { message: "fix: thing\n\nbody" } },
+      ])) as unknown as typeof fetch)
+    const commits = await gh.listCommits("main", 5)
+    expect(commits[0]).toEqual({ short: "abc1234", subject: "fix: thing" })
+  })
+})
+
 describe("repoOf", () => {
   it("defaults to the monorepo slug", () => {
     expect(repoOf({})).toBe("hlebtkachenko/monorepo")

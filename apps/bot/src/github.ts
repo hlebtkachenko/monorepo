@@ -31,6 +31,13 @@ export interface RunJob {
   failedSteps: string[]
 }
 
+export interface CommitInfo {
+  /** Short 7-char sha — the rollback image tag is `sha-<short>`. */
+  short: string
+  /** First line of the commit message. */
+  subject: string
+}
+
 export interface GitHubClient {
   /** POST a workflow_dispatch. `workflow` is the file name (e.g. `_deploy-aws.yml`). 204 = ok. */
   dispatch(
@@ -44,6 +51,8 @@ export interface GitHubClient {
   listPulls(): Promise<PullRequest[]>
   /** Jobs of a run, each with its failed step names — for a /logs summary. */
   runJobs(runId: number): Promise<RunJob[]>
+  /** Recent commits on a branch (default main) — rollback-target picker. */
+  listCommits(branch?: string, perPage?: number): Promise<CommitInfo[]>
 }
 
 interface RunRow {
@@ -68,6 +77,10 @@ interface JobRow {
   conclusion: string | null
   html_url: string
   steps?: { name: string; conclusion: string | null }[]
+}
+interface CommitRow {
+  sha: string
+  commit?: { message?: string }
 }
 
 export function createGitHubClient(
@@ -159,6 +172,15 @@ export function createGitHubClient(
         failedSteps: (j.steps ?? [])
           .filter((s) => s.conclusion === "failure")
           .map((s) => s.name),
+      }))
+    },
+    async listCommits(branch = "main", perPage = 5) {
+      const json = await get<CommitRow[]>(
+        `/commits?sha=${encodeURIComponent(branch)}&per_page=${perPage}`,
+      )
+      return (json ?? []).map((c) => ({
+        short: c.sha.slice(0, 7),
+        subject: (c.commit?.message ?? "").split("\n")[0]!.slice(0, 60),
       }))
     },
   }

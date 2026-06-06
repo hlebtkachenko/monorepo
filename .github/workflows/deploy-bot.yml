@@ -140,6 +140,31 @@ jobs:
             --data-urlencode 'allowed_updates=["message","callback_query"]' \
             | jq -e '.ok == true'
 
+      - name: Register Telegram command menu (setMyCommands)
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: |
+          echo "::add-mask::$BOT_TOKEN"
+          commands=$(jq -nc '{commands: [
+            {command:"status",    description:"Bot + API health"},
+            {command:"scan",      description:"Run a health scan now"},
+            {command:"ci",        description:"Recent CI runs"},
+            {command:"deploys",   description:"Recent deploy runs"},
+            {command:"pr",        description:"Open pull requests"},
+            {command:"errors",    description:"Recent tracked incidents"},
+            {command:"logs",      description:"Inspect a runs failed jobs"},
+            {command:"deploy",    description:"Deploy an env (confirm)"},
+            {command:"rollback",  description:"Roll back an env (confirm)"},
+            {command:"deploybot", description:"Redeploy the bot (confirm)"},
+            {command:"dast",      description:"Run the DAST scan (confirm)"},
+            {command:"issue",     description:"Open a Linear issue"},
+            {command:"help",      description:"List commands"}
+          ]}')
+          curl -fsS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/setMyCommands" \
+            -H "content-type: application/json" \
+            -d "$commands" \
+            | jq -e '.ok == true'
+
       - name: Smoke check /health
         run: |
           http=$(curl -sSL -o /tmp/h.json -w '%{http_code}' https://bot.afframe.com/health)

@@ -1,11 +1,17 @@
 import { Bot } from "grammy"
+import type { Context } from "grammy"
 import type { Env } from "./env.js"
 import { isAllowedUser } from "./auth.js"
 import { READ_COMMANDS } from "./commands.js"
 import { parseCommand, randomToken, WRITE_COMMANDS } from "./dispatch.js"
 import { parseCallback, runCallback } from "./callbacks.js"
-import { buildConfirmKeyboard, escapeHtml } from "./format.js"
-import { createStore } from "./state/store.js"
+import {
+  buildButtons,
+  buildConfirmKeyboard,
+  buildEnvPicker,
+  escapeHtml,
+} from "./format.js"
+import { createStore, type Store } from "./state/store.js"
 import { createGitHubClient, repoOf } from "./github.js"
 import { emitIssue } from "./emit.js"
 import type { IssueEvent } from "./issues/types.js"
@@ -16,7 +22,35 @@ function githubFor(env: Env) {
     : null
 }
 
-/** Build a grammY bot: allowlist guard, read commands, confirm-gated write commands, /issue, taps. */
+/** Validate a write command, persist a pending dispatch, ask for a confirm tap. */
+async function startDispatch(
+  ctx: Context,
+  store: Store,
+  name: string,
+  args: string,
+): Promise<void> {
+  const { plan, error } = parseCommand(name, args)
+  if (!plan) {
+    await ctx.reply(`⚠️ ${error ?? "Invalid command."}`)
+    return
+  }
+  const now = Date.now()
+  const token = randomToken()
+  await store.createDispatch({
+    token,
+    kind: plan.kind,
+    payload: JSON.stringify(plan),
+    status: "pending",
+    exp: now + 5 * 60_000,
+    created: now,
+  })
+  await ctx.reply(
+    `⚠️ Confirm: <b>${escapeHtml(plan.label)}</b>\nDispatches <code>${escapeHtml(plan.workflow)}</code> on <code>${escapeHtml(plan.ref)}</code>. Expires in 5 min.`,
+    { parse_mode: "HTML", reply_markup: buildConfirmKeyboard(token) },
+  )
+}
+
+/** Build a grammY bot: allowlist guard, read commands, confirm-gated writes, pickers, /issue, taps. */
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN)
   const allowed = Number(env.TELEGRAM_USER_ID)
@@ -32,35 +66,85 @@ export function createBot(env: Env): Bot {
     await next()
   })
 
+  // Read commands (logs is handled explicitly below for its picker).
   for (const [name, handler] of Object.entries(READ_COMMANDS)) {
+    if (name === "logs") continue
     bot.command(name, async (ctx) => {
       await ctx.reply(await handler(env, ctx.match ?? ""))
     })
   }
 
-  // Write commands: validate -> persist a pending dispatch -> ask for a confirm tap.
-  // Nothing fires until the owner presses Confirm (the callback router claims it once).
-  for (const name of WRITE_COMMANDS) {
-    bot.command(name, async (ctx) => {
-      const { plan, error } = parseCommand(name, ctx.match ?? "")
-      if (!plan) {
-        await ctx.reply(`⚠️ ${error ?? "Invalid command."}`)
-        return
-      }
-      const now = Date.now()
-      const token = randomToken()
-      await store.createDispatch({
-        token,
-        kind: plan.kind,
-        payload: JSON.stringify(plan),
-        status: "pending",
-        exp: now + 5 * 60_000,
-        created: now,
-      })
-      await ctx.reply(
-        `⚠️ Confirm: <b>${escapeHtml(plan.label)}</b>\nDispatches <code>${escapeHtml(plan.workflow)}</code> on <code>${escapeHtml(plan.ref)}</code>. Expires in 5 min.`,
-        { parse_mode: "HTML", reply_markup: buildConfirmKeyboard(token) },
+  // /logs <runId> -> summary; bare /logs -> pick a recent run from buttons.
+  bot.command("logs", async (ctx) => {
+    const arg = (ctx.match ?? "").trim()
+    if (arg) {
+      await ctx.reply(await READ_COMMANDS.logs!(env, arg))
+      return
+    }
+    const gh = githubFor(env)
+    if (!gh) {
+      await ctx.reply("GitHub control not configured.")
+      return
+    }
+    const runs = (await gh.listRuns(10)).filter((r) => r.status === "completed")
+    if (runs.length === 0) {
+      await ctx.reply("No recent completed runs.")
+      return
+    }
+    await ctx.reply("Pick a run to inspect:", {
+      reply_markup: buildButtons(
+        runs.slice(0, 8).map((r) => [
+          {
+            text: `${r.conclusion === "failure" ? "🔴" : "✅"} ${r.name} · ${r.branch}`,
+            data: `log:${r.id}`,
+          },
+        ]),
+      ),
+    })
+  })
+
+  // /deploy <env> -> confirm; bare /deploy -> pick environment from buttons.
+  bot.command("deploy", async (ctx) => {
+    const arg = (ctx.match ?? "").trim()
+    if (arg) {
+      await startDispatch(ctx, store, "deploy", arg)
+      return
+    }
+    await ctx.reply("Pick an environment to deploy:", {
+      reply_markup: buildEnvPicker("dep"),
+    })
+  })
+
+  // /rollback <env> <tag> -> confirm; /rollback <env> -> pick a tag; bare -> pick environment.
+  bot.command("rollback", async (ctx) => {
+    const parts = (ctx.match ?? "").trim().split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) {
+      await startDispatch(ctx, store, "rollback", parts.join(" "))
+      return
+    }
+    if (parts.length === 1) {
+      // env chosen via text -> jump straight to the tag picker (reuse the callback path).
+      const out = await runCallback(
+        { t: "rbenv", env: parts[0]! },
+        { store, github: githubFor(env), now: () => Date.now() },
       )
+      await ctx.reply(out.reply ?? "—", {
+        reply_markup: out.replyMarkup
+          ? buildButtons(out.replyMarkup)
+          : undefined,
+      })
+      return
+    }
+    await ctx.reply("Pick an environment to roll back:", {
+      reply_markup: buildEnvPicker("rb"),
+    })
+  })
+
+  // No-arg write commands keep the simple confirm flow.
+  for (const name of WRITE_COMMANDS) {
+    if (name === "deploy" || name === "rollback") continue
+    bot.command(name, async (ctx) => {
+      await startDispatch(ctx, store, name, ctx.match ?? "")
     })
   }
 
@@ -98,7 +182,14 @@ export function createBot(env: Env): Bot {
     } else if (outcome.stripButtons) {
       await ctx.editMessageReplyMarkup().catch(() => {})
     }
-    if (outcome.reply) await ctx.reply(outcome.reply)
+    if (outcome.reply) {
+      await ctx.reply(
+        outcome.reply,
+        outcome.replyMarkup
+          ? { reply_markup: buildButtons(outcome.replyMarkup) }
+          : undefined,
+      )
+    }
   })
 
   return bot

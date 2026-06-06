@@ -62,3 +62,26 @@ export function buildAskKeyboard(
   options.forEach((label, i) => kb.text(label, `ask:${id}:${i}`).row())
   return kb
 }
+
+/** Environment chooser for /deploy + /rollback (callback `<prefix>:staging` / `:production`). */
+export function buildEnvPicker(prefix: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🟡 staging", `${prefix}:staging`)
+    .text("🔴 production", `${prefix}:production`)
+}
+
+/** A single inline button: either a callback (`data`) or a URL link. */
+export type Btn = { text: string; data: string } | { text: string; url: string }
+
+/** Render rows of plain button specs (from a CallbackOutcome / picker) into a keyboard. */
+export function buildButtons(rows: Btn[][]): InlineKeyboard {
+  const kb = new InlineKeyboard()
+  rows.forEach((row, r) => {
+    for (const b of row) {
+      if ("url" in b) kb.url(b.text, b.url)
+      else kb.text(b.text, b.data)
+    }
+    if (r < rows.length - 1) kb.row()
+  })
+  return kb
+}

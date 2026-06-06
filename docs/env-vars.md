@@ -20,13 +20,14 @@ Section labels track which package reads the variable.
 
 ## Next.js (apps/web)
 
-| Var          | Required | Phase   | Notes                                                 |
-| ------------ | -------- | ------- | ----------------------------------------------------- |
-| `NODE_ENV`   | yes      | runtime | `development` \| `production` \| `test`               |
-| `PORT`       | no       | dev     | web listen port (3000 default)                        |
-| `HOST`       | no       | dev     | web listen host (`0.0.0.0` default)                   |
-| `APP_ENV`    | yes      | runtime | `development` \| `staging` \| `production`            |
-| `APP_DOMAIN` | yes      | runtime | public hostname (no protocol), e.g. `app.afframe.com` |
+| Var                | Required | Phase   | Notes                                                                                                                                                                                                                                                                                                      |
+| ------------------ | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`         | yes      | runtime | `development` \| `production` \| `test`                                                                                                                                                                                                                                                                    |
+| `PORT`             | no       | dev     | web listen port (3000 default)                                                                                                                                                                                                                                                                             |
+| `HOST`             | no       | dev     | web listen host (`0.0.0.0` default)                                                                                                                                                                                                                                                                        |
+| `APP_ENV`          | yes      | runtime | `development` \| `staging` \| `production`                                                                                                                                                                                                                                                                 |
+| `APP_DOMAIN`       | yes      | runtime | public hostname (no protocol), e.g. `app.afframe.com`                                                                                                                                                                                                                                                      |
+| `API_INTERNAL_URL` | no       | runtime | Server-only base URL for apps/api, used by the `reportFeedback` server action to forward in-app bug reports to `POST /v1/feedback` (server-to-server, no browser CORS). Defaults to `http://localhost:3001` for local dev; in Fargate point it at the internal task address. Never exposed to the browser. |
 
 ## API (apps/api, NestJS)
 

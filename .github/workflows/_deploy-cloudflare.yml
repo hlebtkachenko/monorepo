@@ -114,7 +114,11 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: infra/cloudflare
-          wranglerVersion: "4.59.2"
+          # Must match wrangler in infra/cloudflare/package.json. A stale pin
+          # makes wrangler-action reinstall a different version and rewrite
+          # package.json, which then trips pnpm's deps-status check in the
+          # "Push TURBO_TOKEN" step (ERR_PNPM_OUTDATED_LOCKFILE).
+          wranglerVersion: "4.94.0"
           command: deploy
 
       - name: Push TURBO_TOKEN as Worker secret (stdin-piped)

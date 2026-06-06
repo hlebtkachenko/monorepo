@@ -2,7 +2,7 @@
 // 1. Update family + variable here
 // 2. Update the next/font import in apps/web/app/layout.tsx (must use literal strings)
 export const fonts = {
-  sans: { variable: "--font-sans", family: "Geist" },
+  sans: { variable: "--font-sans", family: "Inter" },
   mono: { variable: "--font-mono", family: "Roobert SemiMono" },
   heading: { variable: "--font-heading", family: "Roobert" },
 } as const

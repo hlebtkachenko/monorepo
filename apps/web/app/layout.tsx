@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Geist } from "next/font/google"
+import { Inter } from "next/font/google"
 import localFont from "next/font/local"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getMessages, getTranslations } from "next-intl/server"
@@ -7,6 +7,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server"
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
+import { IconProvider } from "@workspace/ui/icon-packs"
 import { BRAND_ICONS, BRAND_THEME_COLOR } from "@workspace/ui/lib/brand"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -25,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const fontSans = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontHeading = localFont({
   variable: "--font-heading",
@@ -180,7 +181,9 @@ export default async function RootLayout({
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <InstallNextLinkInUi />
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <IconProvider>{children}</IconProvider>
+          </ThemeProvider>
           <Toaster />
         </NextIntlClientProvider>
       </body>

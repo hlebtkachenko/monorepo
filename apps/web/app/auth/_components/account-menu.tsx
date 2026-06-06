@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { LogOut, KeyRound, ChevronDown } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@workspace/ui/components/sonner"
 
 import { Button } from "@workspace/ui/components/button"
 import {

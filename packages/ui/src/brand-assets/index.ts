@@ -20,6 +20,8 @@
 export { Logo } from "./logo"
 export type { LogoProps, LogoVariant, LogoTone } from "./logo"
 
+export { SidekickMark } from "./sidekick-mark"
+
 export * from "./text"
 export * from "./constants"
 export * from "./tokens"

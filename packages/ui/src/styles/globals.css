@@ -41,6 +41,21 @@
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+  --color-canvas: var(--canvas);
+  --color-border-subtle: var(--border-subtle);
+  --color-shell-surface: var(--shell-surface);
+  /* Icon-box color tokens → Tailwind utilities (text-icon, bg-icon-hover-bg, …).
+     Shared by the rail, the header, and the IconButton primitive. */
+  --color-icon: var(--icon);
+  --color-icon-active: var(--icon-active);
+  --color-icon-hover-bg: var(--icon-hover-bg);
+  --color-icon-active-bg: var(--icon-active-bg);
+  --color-sidekick-idle-bg: var(--sidekick-idle-bg);
+  --color-sidekick-active-bg: var(--sidekick-active-bg);
+  --color-sidekick-icon: var(--sidekick-icon);
+  --color-rail-label: var(--rail-label);
+  --color-rail-label-active: var(--rail-label-active);
+  --color-rail-separator: var(--rail-separator);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
@@ -87,6 +102,51 @@
   --primary-foreground: #fafafa;
   --secondary: #f5f5f5;
   --secondary-foreground: #171717;
+  --canvas: #eff0f0;
+  --border-subtle: #eaebeb;
+  /* App-shell tokens — change in one place, propagates to AppShell. */
+  --shell-surface: #ffffff;
+  --shell-rail-width: 60px;
+  --shell-header-height: 40px;
+  --shell-bottom-inset: 8px;
+  --shell-right-inset: 8px;
+  --shell-handle-width: 10px;
+  /* Icon-box tokens (shared: rail, header, IconButton). */
+  --icon: #808689;
+  --icon-active: #1e1f20;
+  --icon-hover-bg: #e3e5e5;
+  --icon-active-bg: #cdcece;
+  /* Sidekick action button — unique inverted treatment: idle box shown,
+     hover clears it, selected (assistant open) is a distinct tone. */
+  --sidekick-idle-bg: #f5f5f5;
+  --sidekick-active-bg: #eaebeb;
+  --sidekick-icon: #4e5255;
+  /* Rail (AppRail) design tokens — single source for the nav look. */
+  --rail-label: #676c6f;
+  --rail-label-active: #4e5255;
+  --rail-separator: #dadcdd;
+  --rail-separator-width: 30px;
+  --icon-size: 20px;
+  /* IconButton internals (shared): glyph↔label gap + label type size. */
+  --icon-label-gap: 8px;
+  --icon-label-size: 13px;
+  /* App-chrome menu item text size (14px).
+     Drives the Help/Profile dropdowns + both right-click context menus. */
+  --menu-text-size: 14px;
+  /* App-chrome menu min width — menus size to content above this floor. */
+  --menu-min-width: 220px;
+  /* Header search box: min/max width + the total horizontal gutter it
+     keeps clear (so it shrinks before crowding the side zones). */
+  --header-search-min: 160px;
+  --header-search-max: 400px;
+  --header-search-gutter: 360px;
+  --rail-label-size: 10px;
+  --rail-label-weight: 500;
+  --rail-label-tracking: -0.01em;
+  --rail-gap: 14px;
+  --rail-gap-collapsed: 8px;
+  --rail-icon-label-gap: 2px;
+  --rail-pad-top: 16px;
   --muted: #f5f5f5;
   --muted-foreground: #737373;
   --accent: #f5f5f5;
@@ -130,6 +190,22 @@
   --primary-foreground: #171717;
   --secondary: #262626;
   --secondary-foreground: #fafafa;
+  --canvas: #1a1a1a;
+  --border-subtle: #3a3d40;
+  --shell-surface: #222426;
+  /* Rail tokens — dark. Dimension tokens are theme-independent (see :root). */
+  --icon: #808689;
+  --icon-active: #e8eaeb;
+  --icon-hover-bg: #2c2f31;
+  --icon-active-bg: #3a3d40;
+  /* Dark: reuse the chrome neutrals so the inverted Sidekick box reads in
+     dark mode without a separate hardcoded palette. */
+  --sidekick-idle-bg: #2c2f31;
+  --sidekick-active-bg: #3a3d40;
+  --sidekick-icon: var(--icon-active);
+  --rail-label: #9aa0a3;
+  --rail-label-active: #e8eaeb;
+  --rail-separator: #3a3d40;
   --muted: #262626;
   --muted-foreground: #a3a3a3;
   --accent: #262626;

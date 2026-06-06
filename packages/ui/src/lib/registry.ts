@@ -11,6 +11,38 @@ type ComponentMeta = {
 }
 
 export const registry: Record<string, ComponentMeta> = {
+  "app-shell": {
+    source: "src/blocks/app-shell",
+    sourceType: "custom",
+    description:
+      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; an outer ResizablePanelGroup splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card across the group's only ResizableHandle, with a real gap. Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and ErrorShell (error.tsx / not-found.tsx).",
+    categories: ["block", "layout", "app"],
+    dependencies: ["button", "resizable", "skeleton"],
+  },
+  "app-header": {
+    source: "src/blocks/app-header",
+    sourceType: "custom",
+    description:
+      "Block — presentational top bar for the AppShell header slot. Renders a screen-centered responsive search input plus a right-side `actions` ReactNode slot; the surface (org, admin, …) composes its own action cluster from shared primitives (IconButton, DropdownMenu, …). No product content lives in the block. Search glyph resolves from the active IconProvider pack.",
+    categories: ["block", "navigation", "app"],
+    dependencies: ["input"],
+  },
+  "app-rail": {
+    source: "src/blocks/app-rail",
+    sourceType: "custom",
+    description:
+      "Block — navigation list for the AppShell rail slot. Renders icon+label items in two modes (expanded / icon-only) toggled via right-click ContextMenu (RadioGroup). Mode persisted to localStorage. Writes `--shell-rail-width` on document root so AppShell rail/header/content animate width when mode changes.",
+    categories: ["block", "navigation", "app"],
+    dependencies: ["context-menu"],
+  },
+  "icon-button": {
+    source: "src/components/icon-button",
+    sourceType: "custom",
+    description:
+      "Component — standardized clickable icon tile, the single source for the icon-box look (rail, header, …). Icon-only (size-8 square) or icon+label (rectangle with the glyph↔label gap baked in via --icon-label-gap). Whole element is the click target: <button>, <a> via href, or any element via asChild. State colors from the generic --icon* tokens (idle text-icon, hover bg-icon-hover-bg, active text-icon-active + bg-icon-active-bg). Optional tooltip with side + sideOffset (exact gap / safe-zone). Glyph resolves from the active IconProvider pack.",
+    categories: ["component", "navigation", "app"],
+    dependencies: ["tooltip"],
+  },
   "auth-shell": {
     source: "src/blocks/auth-shell",
     sourceType: "custom",

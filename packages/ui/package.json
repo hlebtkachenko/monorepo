@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "audit:stories": "tsx scripts/audit-stories.ts",
-    "audit:stories:fix": "tsx scripts/audit-stories.ts --fix"
+    "audit:stories:fix": "tsx scripts/audit-stories.ts --fix",
+    "check:icon-packs": "tsx scripts/check-icon-packs.ts"
   },
   "dependencies": {
     "@ark-ui/react": "^5.36.2",
@@ -23,12 +24,16 @@
     "@diceui/mention": "^0.8.0",
     "@diceui/tags-input": "^0.7.2",
     "@floating-ui/react-dom": "^2.1.8",
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/free-solid-svg-icons": "^7.2.0",
+    "@fortawesome/react-fontawesome": "^3.3.1",
+    "@hookform/resolvers": "^5.4.0",
     "@hugeicons/core-free-icons": "^4.1.4",
     "@hugeicons/react": "^1.1.6",
     "@paper-design/shaders": "^0.0.76",
+    "@phosphor-icons/react": "^2.1.10",
     "@tanstack/react-table": "^8.21.3",
-    "@tanstack/react-virtual": "^3.13.25",
-    "@hookform/resolvers": "^5.4.0",
+    "@tanstack/react-virtual": "^3.13.26",
     "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
     "border-beam": "^1.0.1",
@@ -47,9 +52,9 @@
     "radix-ui": "^1.4.3",
     "react": "^19.2.5",
     "react-day-picker": "^10.0.1",
-    "react-hook-form": "^7.76.1",
     "react-dom": "^19.2.5",
     "react-easy-crop": "^5.5.7",
+    "react-hook-form": "^7.76.1",
     "react-pdf": "^10.4.1",
     "react-resizable-panels": "^4.11.2",
     "recharts": "3.8.1",
@@ -109,6 +114,7 @@
     "./brand-assets": "./src/brand-assets/index.ts",
     "./brand-assets/constants": "./src/brand-assets/constants.ts",
     "./brand-assets/tokens": "./src/brand-assets/tokens.ts",
-    "./brand-assets/server": "./src/brand-assets/text-server.ts"
+    "./brand-assets/server": "./src/brand-assets/text-server.ts",
+    "./icon-packs": "./src/icon-packs/index.ts"
   }
 }

@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto"
 import {
-  BadRequestException,
   Body,
   Controller,
   HttpCode,
@@ -10,11 +9,13 @@ import {
   UseFilters,
 } from "@nestjs/common"
 import { CreateFeedbackRequestSchema } from "@workspace/shared/api"
+import { ValidationError } from "@workspace/shared/errors"
 import { ApiCreatedResponse, ApiOperation, ApiTags } from "@nestjs/swagger"
 import { sendEmail } from "@workspace/email"
 import type {
   CreateFeedbackRequest,
   CreateFeedbackResponse,
+  FeedbackContext,
 } from "@workspace/shared/api"
 import { DomainExceptionFilter } from "../domain-exception.filter"
 import { notifierFromEnv } from "@workspace/notify"
@@ -68,13 +69,14 @@ function buildEmail(
   referenceId: string,
 ): { subject: string; html: string; text: string } {
   const subject = `[Afframe feedback · ${body.type}] ${referenceId}`
-  const text = [
-    `Reference: ${referenceId}`,
-    `Type: ${body.type}`,
-    body.email ? `Reply-to: ${body.email}` : "Reply-to: (not provided)",
-    "",
-    body.message,
-  ].join("\n")
+  const text =
+    [
+      `Reference: ${referenceId}`,
+      `Type: ${body.type}`,
+      body.email ? `Reply-to: ${body.email}` : "Reply-to: (not provided)",
+      "",
+      body.message,
+    ].join("\n") + renderContext(body.context)
   const html = `<pre style="font-family:ui-monospace,monospace;white-space:pre-wrap">${escapeHtml(
     text,
   )}</pre>`
@@ -88,6 +90,70 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;")
+}
+
+/**
+ * Render optional in-app capture context as a Markdown block. Returns an
+ * empty string when no context is present (public partner submissions),
+ * so the issue/email body is unchanged for those callers.
+ */
+function renderContext(context: FeedbackContext | undefined): string {
+  if (!context) return ""
+  const { page, scope, element, selection, surrounding, viewport, client } =
+    context
+  const lines: string[] = []
+  if (page) {
+    lines.push(
+      "**Where**",
+      `- URL: ${page.url}`,
+      `- Path: \`${page.pathname}\``,
+      page.title ? `- Title: ${page.title}` : "",
+      page.theme ? `- Theme: ${page.theme}` : "",
+      page.locale ? `- Locale: ${page.locale}` : "",
+    )
+  }
+  if (scope?.org_slug || scope?.reporter_email) {
+    lines.push(
+      scope.org_slug ? `- Org: \`${scope.org_slug}\`` : "",
+      scope.reporter_email ? `- Reporter: ${scope.reporter_email}` : "",
+    )
+  }
+  if (element) {
+    lines.push(
+      "",
+      "**Element**",
+      `- Tag: \`${element.tag}\`${element.data_slot ? ` (data-slot="${element.data_slot}")` : ""}`,
+      element.dom_path ? `- DOM path: \`${element.dom_path}\`` : "",
+      surrounding?.nearest_heading
+        ? `- Nearest heading: ${surrounding.nearest_heading}`
+        : "",
+    )
+  }
+  if (selection?.text) {
+    lines.push(
+      "",
+      "**Selection**",
+      "",
+      `> ${selection.text.replace(/\n+/g, " ")}`,
+    )
+  }
+  if (viewport) {
+    lines.push(
+      "",
+      `**Viewport:** ${viewport.width}×${viewport.height} (DPR ${viewport.device_pixel_ratio})`,
+    )
+  }
+  if (client) {
+    lines.push(
+      "",
+      "**Client**",
+      `- User-Agent: ${client.user_agent}`,
+      client.platform ? `- Platform: ${client.platform}` : "",
+      client.timezone ? `- Timezone: ${client.timezone}` : "",
+    )
+  }
+  const body = lines.filter((l) => l !== "").join("\n")
+  return body ? `\n\n---\n\n${body}` : ""
 }
 
 async function createLinearIssue(
@@ -106,13 +172,14 @@ async function createLinearIssue(
   const title = `[feedback · ${body.type}] ${body.message.slice(0, 80)}${
     body.message.length > 80 ? "…" : ""
   }`
-  const description = [
-    `Reference: \`${referenceId}\``,
-    `Type: **${body.type}**`,
-    body.email ? `Reply-to: ${body.email}` : "Reply-to: (not provided)",
-    "",
-    body.message,
-  ].join("\n")
+  const description =
+    [
+      `Reference: \`${referenceId}\``,
+      `Type: **${body.type}**`,
+      body.email ? `Reply-to: ${body.email}` : "Reply-to: (not provided)",
+      "",
+      body.message,
+    ].join("\n") + renderContext(body.context)
   const mutation = `
     mutation CreateFeedback($input: IssueCreateInput!) {
       issueCreate(input: $input) { success issue { id identifier } }
@@ -167,12 +234,11 @@ export class FeedbackController {
       this.logger.warn(
         `[feedback] body rejected: ${JSON.stringify(rawBody)} issues=${JSON.stringify(parsed.error.issues)}`,
       )
-      throw new BadRequestException({
-        code: "validation_error",
-        message: `Invalid feedback payload: ${parsed.error.issues
+      throw new ValidationError(
+        `Invalid feedback payload: ${parsed.error.issues
           .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
           .join("; ")}`,
-      })
+      )
     }
     const body: CreateFeedbackRequest = parsed.data
     const referenceId = generateReferenceId()

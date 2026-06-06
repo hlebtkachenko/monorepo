@@ -65,7 +65,9 @@ function ThemeHotkey() {
         return
       }
 
-      if (event.key.toLowerCase() !== "d") {
+      // `event.key` is absent on some keydowns (autofill / IME composition),
+      // so guard before lowercasing.
+      if (event.key?.toLowerCase() !== "d") {
         return
       }
 

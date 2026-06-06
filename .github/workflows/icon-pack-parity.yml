@@ -1,0 +1,45 @@
+# Icon-pack parity gate.
+#
+# `packages/ui/src/icon-packs/` ships three swappable packs (lucide,
+# phosphor, fontawesome). Every pack MUST export exactly the names in
+# `ICON_NAMES` (types.ts). `satisfies IconMap` catches drift at compile
+# time ONLY when the pack file is edited+typechecked in the same PR — a
+# pack that's accidentally not imported, or a name added to ICON_NAMES
+# without updating every pack, drifts silently. Dependabot covers the
+# npm deps but cannot catch parity drift. This is that gate.
+#
+# Advisory until Hleb flips it required (see docs/conventions/CI-POLICY.md).
+# NOT path-filtered at the trigger level: a required check behind a paths
+# filter reads as "missing" to the rule engine on unrelated PRs. Runs on
+# every PR so it always reports and can safely become required later.
+
+name: icon-pack-parity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: icon-pack-parity-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Icon pack parity
+        run: pnpm --filter @workspace/ui check:icon-packs

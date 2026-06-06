@@ -1,0 +1,196 @@
+# Nuclei DAST — DEV-47
+#
+# Nightly dynamic scan (ProjectDiscovery Nuclei) of the live afframe hosts —
+# the DAST layer that source-level scanning (CodeQL, OSV, Trivy, Dependabot,
+# gitleaks, TruffleHog) cannot cover: the running, deployed system over the
+# network, the way an attacker sees it. Findings land in the Security tab as
+# SARIF. ADVISORY only — never fails the run on findings.
+#
+# Shape (optimised for wall-clock):
+#   targets job  — probe all candidate hosts IN PARALLEL, emit a matrix of the
+#                  ones actually serving (2xx/3xx/401/403). 5xx (sleeping page
+#                  503, maintenance, errors) and 000 (down) are skipped, never
+#                  failed — a parked env or maintenance window is a clean run.
+#   scan  job    — matrix: ONE host per runner, all hosts scanned in PARALLEL.
+#                  This removes the single-process global rate-limit bottleneck:
+#                  each host gets its own nuclei at 10 req/s (per-host load
+#                  unchanged, still gentle) instead of all hosts sharing one
+#                  10 req/s budget. Wall-clock ≈ slowest single host, not the
+#                  sum. fail-fast:false so one host can't cancel the others.
+#
+# No infra mutation: only sends HTTP to whatever is already up.
+#
+# Mode A safety (active but safe against live production): dangerous template
+# classes excluded (intrusive/dos/fuzzing/brute-force), rate-limited, severity
+# floor at medium.
+#
+# Coverage limit (v1): unauthenticated edge baseline. Deep authenticated
+# scanning (WAF skip-rule + seeded throwaway tenant) is phase 2 — see
+# docs/runbooks/DAST-NUCLEI.md.
+
+name: Nuclei DAST
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC nightly — off-peak, no collision with osv 06:00
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which hosts to scan"
+        type: choice
+        default: all
+        options: [all, prod, staging]
+
+permissions: {}
+
+concurrency:
+  group: nuclei-dast
+  cancel-in-progress: false
+
+jobs:
+  # Probe candidate hosts concurrently and emit the reachable ones as a matrix.
+  targets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      matrix: ${{ steps.probe.outputs.matrix }}
+      count: ${{ steps.probe.outputs.count }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Probe reachable hosts (parallel)
+        id: probe
+        env:
+          TARGET: ${{ inputs.target || 'all' }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            prod)    hosts="app.afframe.com api.afframe.com admin.afframe.com" ;;
+            staging) hosts="app-staging.afframe.com api-staging.afframe.com admin-staging.afframe.com" ;;
+            *)       hosts="app.afframe.com api.afframe.com admin.afframe.com app-staging.afframe.com api-staging.afframe.com admin-staging.afframe.com" ;;
+          esac
+
+          tmp="$(mktemp -d)"
+          # Probe every host concurrently; a slow/parked host no longer adds to
+          # a sequential total — wall-clock is one ~15s timeout, not six.
+          for h in $hosts; do
+            (
+              code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -L "https://$h")" || code="000"
+              if [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; then
+                printf '%s\n' "$h" > "$tmp/$h.ok"
+                echo "include $h (HTTP $code)"
+              else
+                echo "skip    $h (HTTP $code — down / maintenance / asleep)"
+              fi
+            ) &
+          done
+          wait
+
+          # Build the scan matrix: {host, label} per reachable host. Label maps
+          # app.afframe.com -> app-prod, app-staging.afframe.com -> app-staging
+          # (used for a per-host SARIF category, so prod/staging findings stay
+          # separate and parallel uploads don't collide on one category).
+          : > pairs.txt
+          for h in $hosts; do
+            [ -f "$tmp/$h.ok" ] || continue
+            base="${h%.afframe.com}"
+            case "$base" in
+              *-staging) label="$base" ;;
+              *)         label="${base}-prod" ;;
+            esac
+            printf '%s %s\n' "$h" "$label" >> pairs.txt
+          done
+
+          matrix="$(jq -Rsc 'split("\n") | map(select(length > 0)) | map(split(" ") | {host: .[0], label: .[1]})' pairs.txt)"
+          count="$(printf '%s' "$matrix" | jq 'length')"
+          {
+            echo "matrix=$matrix"
+            echo "count=$count"
+          } >> "$GITHUB_OUTPUT"
+          echo "$count host(s) reachable; fanning out the scan."
+
+  scan:
+    needs: targets
+    if: needs.targets.outputs.count != '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read # checkout, so upload-sarif resolves commit/ref reliably
+      security-events: write # SARIF upload to the Security tab
+    strategy:
+      fail-fast: false # one host failing must not cancel the others
+      max-parallel: 6
+      matrix:
+        include: ${{ fromJSON(needs.targets.outputs.matrix) }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Nuclei scan — ${{ matrix.label }}
+        id: nuclei
+        timeout-minutes: 20
+        # Advisory: a transient per-host error must not red the nightly. nuclei
+        # exits 0 on findings, so a green step still means "scanned, findings in
+        # SARIF". The template guard below converts the one failure mode that
+        # matters (zero templates) back into a hard error.
+        continue-on-error: true
+        uses: projectdiscovery/nuclei-action@cc153d0541e1adf8a42bbe31c0a4fb2376147538 # v3.1.1
+        with:
+          version: latest
+          cache: true
+          # One host, its own 10 req/s budget — gentle per-host, fast in
+          # aggregate across the matrix. Mode A excludes destructive classes.
+          # Do NOT add -disable-update-check / -duc: it suppresses the first-run
+          # template download (zero templates = false green).
+          args: >-
+            -u https://${{ matrix.host }}
+            -severity critical,high,medium
+            -exclude-tags intrusive,dos,fuzzing,fuzz,brute-force
+            -rate-limit 10 -c 5
+            -sarif-export results.sarif
+            -no-color -stats
+
+      - name: Verify Nuclei loaded templates (guard against false-green)
+        if: always()
+        env:
+          NUCLEI_STDERR: ${{ steps.nuclei.outputs.stderr }}
+        run: |
+          set -euo pipefail
+          # The zero-template false-green prints an empty templates version —
+          #   "[INF] Current nuclei-templates version:  (unknown)"
+          # and finishes in microseconds having tested nothing. Fail loudly so a
+          # broken template fetch can never masquerade as a clean scan (hit live
+          # once when -disable-update-check suppressed the download).
+          if printf '%s' "$NUCLEI_STDERR" | grep -qiE 'nuclei-templates version:[[:space:]]*\(unknown\)'; then
+            echo "::error::Nuclei (${{ matrix.label }}) ran with ZERO templates — scan tested nothing."
+            exit 1
+          fi
+
+      - name: Ensure a valid SARIF exists
+        if: always()
+        run: |
+          set -euo pipefail
+          # Nuclei only writes the SARIF export when it has findings; a clean
+          # (or interrupted) run can leave it absent/empty/truncated and
+          # upload-sarif then hard-fails. Synthesize a minimal valid SARIF so a
+          # no-findings host is green and its Security-tab category is cleared.
+          if [ ! -s results.sarif ] || ! jq empty results.sarif 2>/dev/null; then
+            echo "no valid SARIF produced for ${{ matrix.label }} — writing empty skeleton."
+            # shellcheck disable=SC2016  # $schema is a literal SARIF JSON key, must not expand
+            printf '%s' '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"nuclei","informationUri":"https://github.com/projectdiscovery/nuclei","rules":[]}},"results":[]}]}' > results.sarif
+          fi
+
+      - name: Upload SARIF to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # zizmor: ignore[impostor-commit]
+        with:
+          sarif_file: results.sarif
+          category: nuclei-${{ matrix.label }}

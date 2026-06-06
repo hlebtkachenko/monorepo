@@ -120,10 +120,11 @@ test.describe("Tenant-scoped page access", () => {
     // `nav` is the semantic element used for the sidebar link list.
     await expect(page.locator("nav")).toBeVisible()
 
-    // The layout injects the org's legalName ("E2E Organization") into the
-    // aside header; verify without brittle text matching — just that the aside
-    // renders. Using role="complementary" (aside) as the stable selector.
-    await expect(page.locator("aside")).toBeVisible()
+    // The AppShell renders its left rail — verify it's present, confirming
+    // the shell mounted. Target the rail's data-slot specifically: the shell
+    // has two <aside> elements (rail + sidebar), so a bare `aside` locator is
+    // ambiguous under Playwright strict mode.
+    await expect(page.locator('[data-slot="app-shell-rail"]')).toBeVisible()
   })
 
   // (b) Unauthenticated browser is gated and redirected to login --------------

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Geist } from "next/font/google"
+import { Inter } from "next/font/google"
 import localFont from "next/font/local"
 import { NextIntlClientProvider } from "next-intl"
 import { getLocale, getMessages } from "next-intl/server"
@@ -25,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-const fontSans = Geist({ subsets: ["latin"], variable: "--font-sans" })
+const fontSans = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
 const fontHeading = localFont({
   variable: "--font-heading",

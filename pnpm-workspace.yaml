@@ -18,6 +18,10 @@ overrides:
   tmp: ">=0.2.6"
   # Force >=6.15.2: qs.stringify DoS fix. Transitive via express (body-parser) + supertest (superagent).
   qs: ">=6.15.2"
+  # Force >=4.12.21: 4 GHSAs in transitive 4.12.18 via @modelcontextprotocol/sdk
+  # (Set-Cookie injection, IPv6 deny bypass, JWT scheme accept-any, mount-prefix
+  # routing). SDK's own range is ^4.11.4, so dedupes onto our direct 4.12.23.
+  hono: ">=4.12.21"
   # Pin 11.1.1 for vulnerable majors only (buf bounds check in v3/v5/v6 — none of our
   # consumers hit that path). Range selector leaves @cerbos/core's already-safe uuid@14
   # untouched. NOT an open ">=" range on purpose: uuid@12+ drops CommonJS, which would

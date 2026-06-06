@@ -1,7 +1,7 @@
 "use client"
 
 import { useTheme } from "next-themes"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { Toaster as Sonner, toast, type ToasterProps } from "sonner"
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -42,4 +42,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
   )
 }
 
-export { Toaster }
+// Re-export `toast` from the same module the <Toaster /> resolves through, so
+// every caller and the Toaster share one sonner instance (one ToastState).
+// Routing all sonner usage through this single wrapper keeps them on the same
+// module identity regardless of how the bundler resolves the package per-app.
+export { Toaster, toast }

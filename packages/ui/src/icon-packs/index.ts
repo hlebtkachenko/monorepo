@@ -1,0 +1,6 @@
+export { IconProvider, useIcons, useIconPack } from "./icon-context"
+export { fontawesomeIcons } from "./fontawesome"
+export { lucideIcons } from "./lucide"
+export { phosphorIcons } from "./phosphor"
+export { ICON_NAMES } from "./types"
+export type { IconComponent, IconMap, IconName, IconPackName } from "./types"

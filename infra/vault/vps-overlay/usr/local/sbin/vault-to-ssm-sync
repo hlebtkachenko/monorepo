@@ -131,7 +131,7 @@ write_heartbeat() {
 FAILED=0
 
 for env in staging production; do
-  for key in better-auth-secret resend-api-key; do
+  for key in better-auth-secret resend-api-key notify-shared-secret; do
     if ! sync_one "$env" "$key"; then
       FAILED=1
     fi

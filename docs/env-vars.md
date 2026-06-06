@@ -75,6 +75,13 @@ the Better Auth / Database / Email vars below. `PORT` defaults to `3100`.
 | `ADMIN_DOMAIN`              | yes      | Admin public hostname (no protocol), e.g. `admin.afframe.com`. Its own per-env value, **not** a subdomain of `APP_DOMAIN` (prod web is `app.afframe.com`, admin is `admin.afframe.com`). In CI it comes from the `ADMIN_DOMAIN_{ENV}` GitHub Actions variable; `infra/cdk/bin/app.ts` requires it and `app-stack.ts` sets the admin container's `BETTER_AUTH_URL` from it. Full host inventory: [`docs/DOMAINS-AND-EMAIL.md`](DOMAINS-AND-EMAIL.md). |
 | `ADMIN_WORKSPACE_ALLOWLIST` | no       | Comma-separated `workspace` ids whose members may sign into admin. Empty/unset → the gate denies everyone (fail closed). In prod it comes from the `ADMIN_WORKSPACE_ALLOWLIST` GitHub Actions variable, surfaced into the admin container by `infra/cdk/lib/app-stack.ts`.                                                                                                                                                                           |
 
+## Telegram dev bot (apps/bot + app-side notify)
+
+| Var                    | Required | Notes                                                                                                                                                                                                                                                                     |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BOT_INGEST_URL`       | no       | Bot ingest endpoint, e.g. `https://bot.afframe.com/ingest`. Read by `@workspace/notify` `notifierFromEnv()` in web + api (+ the in-api pg-boss worker). Unset → notify is a no-op. Non-secret; set in `app-stack.ts` `environment`.                                       |
+| `NOTIFY_SHARED_SECRET` | no       | Bearer for `POST /ingest` (equals the bot's `INGEST_SECRET`). Vault `platform/{env}/notify-shared-secret` → SSM `/monorepo/{env}/notify-shared-secret` → ECS via `EcsSecret.fromSsmParameter`. The bot's own token + secrets live in Cloudflare Worker secrets, not here. |
+
 ## Database (packages/db + drizzle migrations + workers)
 
 | Var                   | Path                 | Notes                                                                                                  |

@@ -441,6 +441,17 @@ export class AppStack extends Stack {
         },
       )
 
+    // NOTIFY_SHARED_SECRET — bearer the app uses to POST the afframe-bot
+    // /ingest (error capture + business pings). Vault source, VPS sync to SSM.
+    const notifySharedSecretParam =
+      StringParameter.fromSecureStringParameterAttributes(
+        this,
+        "NotifySharedSecretParam",
+        {
+          parameterName: `/monorepo/${props.envName}/notify-shared-secret`,
+        },
+      )
+
     // EcsSecret.fromSsmParameter auto-grants ssm:GetParameters on the
     // parameter ARN + kms:Decrypt on alias/aws/ssm to the execution role.
     // No manual grantRead needed.
@@ -537,10 +548,16 @@ export class AppStack extends Stack {
         // SDK fell back through the credential/region chain on Fargate today,
         // but wiring it explicitly removes that fragility.
         AWS_REGION: this.region,
+        // Telegram dev-bot ingest (DEV-60 error capture + DEV-51 pings).
+        // notifierFromEnv() no-ops if BOT_INGEST_URL / NOTIFY_SHARED_SECRET unset.
+        BOT_INGEST_URL: "https://bot.afframe.com/ingest",
       },
       secrets: {
         BETTER_AUTH_SECRET: EcsSecret.fromSsmParameter(betterAuthSecretParam),
         RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
+        NOTIFY_SHARED_SECRET: EcsSecret.fromSsmParameter(
+          notifySharedSecretParam,
+        ),
         // app_user (RLS-bound runtime role). pgbouncer accepts the `app_user`
         // entry from `DATABASE_URLS=` (see pgbouncerContainer below) and
         // forwards to RDS using the matching upstream credential. RLS
@@ -667,6 +684,9 @@ export class AppStack extends Stack {
         AWS_REGION: this.region,
         EMAIL_FROM: props.mailFromAddress,
         EMAIL_TRANSPORT: "resend",
+        // Telegram dev-bot ingest (api 5xx capture + feedback ping + the
+        // in-container pg-boss worker dead-letter ping). No-ops if unset.
+        BOT_INGEST_URL: "https://bot.afframe.com/ingest",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
@@ -681,6 +701,9 @@ export class AppStack extends Stack {
         OPENFGA_STORE_ID: EcsSecret.fromSsmParameter(openfgaStoreIdParam),
         OPENFGA_MODEL_ID: EcsSecret.fromSsmParameter(openfgaModelIdParam),
         RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
+        NOTIFY_SHARED_SECRET: EcsSecret.fromSsmParameter(
+          notifySharedSecretParam,
+        ),
       },
       entryPoint: ["/bin/sh", "-c"],
       command: [

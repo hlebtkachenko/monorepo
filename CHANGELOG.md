@@ -6,8 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-06-06
+
+Minor release: the Afframe Telegram dev alert + control hub (epic DEV-48).
+
+### Added
+
+- **Telegram dev alert + control hub** (`apps/bot`): a Cloudflare Worker (grammY + Hono) that is the single choke point for developer-facing Telegram I/O. Outbound `POST /ingest`; inbound `/webhook` (secret-token + Telegram user-id allowlist, constant-time auth); `/issue` + `/sns`; a scheduled health scan (cron 06:00/18:00 Prague) with a `/scan` command; and an auto-issue engine (Cloudflare D1 dedup → Linear issue in **DEV — Incidents** with source/type/risk/area labels). New `@workspace/notify` typed client. AWS CloudWatch alarms fan in via SNS (Billing + KillSwitch topics); an independent GitHub Actions watchdog monitors the bot's `/health`.
+- App-side error capture + business pings wired to the bot: `apps/api` `DomainExceptionFilter` (Sentry + notify), Next.js `global-error`/`error`/`instrumentation-client` + a same-origin client-error route, `packages/workers` `permissions-drain` dead-letter, plus feedback + new-workspace pings.
+
 ### Infrastructure
 
+- `BOT_INGEST_URL` + `NOTIFY_SHARED_SECRET` wired into the **web** + **api** task definitions; `notify-shared-secret` added to the Vault→SSM sync loop and the `vault-ssm-sync` IAM allowlist.
 - Rolled out the codified account-wide $55 cost guard + cost kill-switch to AWS staging + production. The three CloudFormation budgets (`BudgetTotal`, `BudgetDataTransfer`, `BudgetAccountTotal`) are recreated with the codified config and the `AutoStopFn` gains `rds:StopDBInstance`. Deployed with `v0.2.5` alongside the env-power auto-stop wiring. (CDK budget replace — non-data-bearing; reviewed cdk diff.)
 
 ## [v0.2.5] — 2026-06-01

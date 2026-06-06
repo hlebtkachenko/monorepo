@@ -1,0 +1,97 @@
+# DEV-59 — security FINDINGS fan-in.
+#
+# Complements notify-ci.yml: that catches scan-WORKFLOW failures (a scanner crashing);
+# this catches scan FINDINGS (a real high/critical alert raised while the workflow itself
+# went green and uploaded SARIF). Pulls open code-scanning alerts (CodeQL, Trivy container
+# scan, Nuclei DAST, and OSV dependency CVEs — all upload SARIF to the code-scanning store)
+# and forwards each NEW one to the bot's /issue, which opens a deduped [SECURITY] Linear
+# issue (source security-scan -> agent-created + security-scan + security labels).
+#
+# Scope notes (deliberate, see DEV-59):
+#   - Secret hits (gitleaks / trufflehog) already FAIL their CI job -> notify-ci opens an
+#     issue, so they need no separate path here. (secret-scanning alerts also aren't
+#     readable by the built-in GITHUB_TOKEN.)
+#   - Auth anomalies (failed-login spike, new admin login, OpenFGA policy change) and Vault
+#     status (unseal / token expiry / rotation) are APP/INFRA signals, not GitHub-side —
+#     a separate instrumentation task, not this workflow.
+#
+# Advisory: never gates anything; never fails the run if the bot is down.
+name: security-fan-in
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # 08:00 UTC — after osv (06:00) + nuclei (03:00) upload their SARIF
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: security-fan-in
+  cancel-in-progress: false
+
+jobs:
+  fan-in:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      security-events: read # list code-scanning alerts
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Forward new high/critical code-scanning alerts to the bot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          if [ -z "$INGEST_SECRET" ]; then
+            echo "::warning::INGEST_SECRET unset — skipping security fan-in"
+            exit 0
+          fi
+          echo "::add-mask::$INGEST_SECRET"
+
+          # Open alerts; keep only high/critical security severity raised in the last ~26h
+          # (one daily run + slack), so each alert is forwarded once, not re-posted daily.
+          if ! gh api --paginate "/repos/$REPO/code-scanning/alerts?state=open&per_page=100" > all.json 2>/tmp/err; then
+            echo "::warning::code-scanning alerts query failed (advanced security not enabled?) — $(cat /tmp/err)"
+            exit 0
+          fi
+
+          jq -c '[ .[]
+            | select(.rule.security_severity_level == "high" or .rule.security_severity_level == "critical")
+            | select((.created_at | fromdateiso8601) > (now - 93600)) ]' all.json > fresh.json
+          count=$(jq 'length' fresh.json)
+          echo "fresh high/critical alerts in window: $count"
+          if [ "$count" -eq 0 ]; then exit 0; fi
+
+          jq -c '.[]' fresh.json | while read -r a; do
+            num=$(jq -r '.number' <<<"$a")
+            sev=$(jq -r '.rule.security_severity_level' <<<"$a")
+            tool=$(jq -r '.tool.name // "code-scanning"' <<<"$a")
+            url=$(jq -r '.html_url' <<<"$a")
+            desc=$(jq -r '.rule.description // .rule.name // .rule.id' <<<"$a")
+            if [ "$sev" = "critical" ]; then risk="blocking"; else risk="high"; fi
+
+            body=$(jq -n \
+              --arg tool "$tool" --arg desc "$desc" --arg sev "$sev" \
+              --arg num "$num" --arg url "$url" --arg risk "$risk" \
+              '{
+                source: "security-scan",
+                title: ("[" + $tool + "] " + $desc),
+                body: ("Code-scanning alert #" + $num + " (" + $sev + ", tool: " + $tool + ")."),
+                fingerprintParts: ["code-scanning", $tool, $num],
+                risk: $risk,
+                type: "security",
+                links: [{ label: "Open alert", url: $url }]
+              }')
+
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              -X POST "https://bot.afframe.com/issue" \
+              -H "authorization: Bearer ${INGEST_SECRET}" \
+              -H "content-type: application/json" \
+              -d "$body" || echo "000")
+            echo "alert #$num ($sev) -> bot /issue HTTP $code"
+          done

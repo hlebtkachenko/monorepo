@@ -24,7 +24,12 @@ pnpm exec tsx apps/bot/scripts/ask.ts "<question>" <mode> [--summary "context"] 
 
 **Defaults that mean you don't configure anything:** every option/`--confirm` ask **automatically includes a "✍️ Other (type a reply)" button** (he can always answer in free text) — add `--no-custom` only to force a strict pick. `--confirm` labels default to Approve/Reject; override with `--accept "Ship" --reject "Hold"`. `--on-timeout <value>` makes the answer definitive even if he never replies. Captured stdout is the chosen option or his typed text.
 
-From code: `@workspace/notify` → `ask({question,options,allowCustom})` / `askConfirm(q,{accept,reject})` / `askText(q)` then `await waitForAnswer(id)`. One-way "done / blocked" pings (no answer needed): `notify()` / `alert()` or `apps/bot/scripts/manual-task.ts`.
+From code: `@workspace/notify` → `ask({question,options,allowCustom})` / `askConfirm(q,{accept,reject})` / `askText(q)`. One-way "done / blocked" pings (no answer needed): `notify()` / `alert()` or `apps/bot/scripts/manual-task.ts`.
+
+**Getting the answer — the answer WAKES you, don't poll.** A non-resident agent (whose turn ends) must NOT rely on polling/self-wakeups to catch the reply — pass a trigger and exit; the bot fires it the instant Hleb answers:
+- `resumeWorkflow: "<file>.yml"` — the bot dispatches that GitHub workflow with inputs `ask_id`, `decision`, `text`. Reliable, runs on GitHub's infra, triggered by the answer. **Preferred for this repo.**
+- `callbackUrl` (+ `callbackToken`) — the bot POSTs `{id,kind,decision,text,asker}` there on resolve. For a service agent with an endpoint.
+- Only a resident process that stays alive should use `waitForAnswer(id)` (a poll loop) or the `ask.ts` CLI (it blocks). `GET /answer/:id` remains a durable fallback floor — the answer is always persisted.
 
 Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally).
 

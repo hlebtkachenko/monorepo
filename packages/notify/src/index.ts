@@ -64,6 +64,16 @@ export interface ApprovalRequest {
   ttlSeconds?: number
   /** Decision auto-applied once the TTL passes (e.g. "Reject"). */
   onTimeout?: string
+  /**
+   * Answer-as-trigger (recommended over polling): the bot POSTs the resolved answer here
+   * the instant the owner answers, so a non-resident agent is WOKEN by the answer rather
+   * than polling for it. Payload: { id, kind, decision, text, asker }.
+   */
+  callbackUrl?: string
+  /** Bearer token the bot sends to callbackUrl (so you can trust the push). */
+  callbackToken?: string
+  /** GitHub workflow file the bot dispatches on resolve (inputs: ask_id, decision, text). */
+  resumeWorkflow?: string
   /** Caller-supplied id for idempotency; generated if omitted. */
   id?: string
 }

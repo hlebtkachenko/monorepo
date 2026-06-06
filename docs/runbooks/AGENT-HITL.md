@@ -76,11 +76,25 @@ defaults true for choice. `waitForAnswer` is a poll loop (2.5s interval) returni
 state (`state.text` for a typed reply, `state.decision` for an option/timeout) — no
 hand-rolled polling.
 
+## Delivery: the answer WAKES you — don't poll
+
+The answer is the trigger. A non-resident agent (a turn that ends) must NOT depend on
+polling or self-wakeups to catch the reply — pass a trigger on `ask` and exit; the bot
+fires it the instant Hleb answers (tap, text, cancel, or timeout):
+
+- **`resumeWorkflow: "<file>.yml"`** — the bot dispatches that GitHub workflow with inputs
+  `ask_id`, `decision`, `text`. Reliable, runs on GitHub's infra, triggered by the answer —
+  **preferred in this repo** (needs the bot's `GITHUB_DISPATCH_TOKEN`, already set). Your
+  workflow declares those three `workflow_dispatch` inputs and continues the work.
+- **`callbackUrl`** (+ `callbackToken`) — the bot POSTs `{id,kind,decision,text,asker}` there
+  on resolve (Bearer `callbackToken` if set). For a service agent with an HTTP endpoint.
+- Fire-on-resolve is best-effort + idempotent (`delivered` flag); `GET /answer/:id` stays the
+  durable floor — the answer is always persisted, so a missed push is recoverable by a read.
+- Only a resident process should use `waitForAnswer(id)` / the blocking `ask.ts` CLI.
+
 ## Notes / limits
 
 - Only Hleb's allowlisted Telegram id can answer; everyone else is dropped.
-- The bot never executes the action itself — it returns the decision; the agent acts on it.
-- Polling, not push (a Worker has no agent callback). Fine for owned use; `waitForAnswer`
-  hides it.
-- Requires `BOT_GH_DISPATCH_TOKEN` only for the _control-plane_ commands, NOT for HITL —
-  `/ask` needs just `INGEST_SECRET`.
+- The bot never executes the action itself — it returns/triggers the decision; the consumer acts.
+- Requires `BOT_GH_DISPATCH_TOKEN` for `resumeWorkflow` dispatch + the control-plane commands.
+  Plain `/ask` + `callbackUrl` need only `INGEST_SECRET`.

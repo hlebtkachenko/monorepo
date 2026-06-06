@@ -16,6 +16,7 @@ import {
 import { createStore } from "./state/store.js"
 import { randomToken } from "./dispatch.js"
 import { emitIssue } from "./emit.js"
+import { deliverFromEnv } from "./deliver.js"
 import { answerView, shouldApplyTimeout } from "./hitl.js"
 import type { IssueEvent } from "./issues/types.js"
 import { confirmSubscription, snsToEvent, type SnsEnvelope } from "./sns.js"
@@ -51,6 +52,12 @@ interface AskBody {
   asker?: string
   /** Decision auto-applied once the TTL passes (e.g. "Reject"). */
   onTimeout?: string
+  /** Answer-as-trigger: POST the resolved answer here the instant it's answered. */
+  callbackUrl?: string
+  /** Bearer token sent to callbackUrl (optional). */
+  callbackToken?: string
+  /** GitHub workflow file to dispatch on resolve (inputs: ask_id, decision, text). */
+  resumeWorkflow?: string
 }
 
 function createApp(env: Env) {
@@ -158,6 +165,10 @@ function createApp(env: Env) {
       asker: body.asker ?? null,
       onTimeout: body.onTimeout ?? null,
       promptMessageId: sent.message_id,
+      callbackUrl: body.callbackUrl ?? null,
+      callbackToken: body.callbackToken ?? null,
+      resumeWorkflow: body.resumeWorkflow ?? null,
+      delivered: false,
       exp,
       created: now,
     })
@@ -179,6 +190,8 @@ function createApp(env: Env) {
       await store.setDecision(approval.id, approval.onTimeout!, now)
       approval = (await store.getApproval(approval.id)) ?? approval
     }
+    // Fire the answer trigger (covers the timeout path + a retry if an earlier fire failed).
+    await deliverFromEnv(approval, env, store)
     return c.json(answerView(approval, now))
   })
 

@@ -68,6 +68,10 @@ export function fakeStore(): Store {
       const r = approvals.get(id)
       if (r) r.promptMessageId = messageId
     },
+    async markDelivered(id) {
+      const r = approvals.get(id)
+      if (r) r.delivered = true
+    },
     async beat(jobKey, ts) {
       beats.set(jobKey, ts)
     },

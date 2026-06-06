@@ -29,6 +29,14 @@ export interface ApprovalRecord {
   onTimeout: string | null
   /** Telegram message id of the prompt, used to match a free-text reply. */
   promptMessageId: number | null
+  /** Webhook to POST the answer to on resolve (answer-as-trigger). */
+  callbackUrl: string | null
+  /** Bearer token sent to callbackUrl (optional). */
+  callbackToken: string | null
+  /** GitHub workflow file to dispatch on resolve, carrying the answer as inputs. */
+  resumeWorkflow: string | null
+  /** 1 once the answer trigger fired (idempotent). */
+  delivered: boolean
   exp: number
   created: number
 }
@@ -76,6 +84,8 @@ export interface Store {
   listPendingApprovals(now: number): Promise<ApprovalRecord[]>
   /** Retarget reply-matching to a new Telegram message (when ✍️ Custom opens a force_reply). */
   setPromptMessage(id: string, messageId: number): Promise<void>
+  /** Mark the answer trigger as fired (idempotent push). */
+  markDelivered(id: string): Promise<void>
   beat(jobKey: string, ts: number): Promise<void>
   lastBeat(jobKey: string): Promise<number | null>
   getSnooze(scopeKey: string): Promise<SnoozeRecord | null>
@@ -111,6 +121,10 @@ interface ApprovalRow {
   asker: string | null
   on_timeout: string | null
   prompt_message_id: number | null
+  callback_url: string | null
+  callback_token: string | null
+  resume_workflow: string | null
+  delivered: number
   exp: number
   created: number
 }
@@ -146,6 +160,10 @@ function toApproval(row: ApprovalRow): ApprovalRecord {
     asker: row.asker,
     onTimeout: row.on_timeout,
     promptMessageId: row.prompt_message_id,
+    callbackUrl: row.callback_url,
+    callbackToken: row.callback_token,
+    resumeWorkflow: row.resume_workflow,
+    delivered: row.delivered === 1,
     exp: row.exp,
     created: row.created,
   }
@@ -195,7 +213,7 @@ export function createStore(db: D1Database): Store {
     async putApproval(r) {
       await db
         .prepare(
-          "INSERT INTO approval (id, kind, decision, answer_text, options, summary, answered_at, asker, on_timeout, prompt_message_id, exp, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, options=excluded.options, summary=excluded.summary, asker=excluded.asker, on_timeout=excluded.on_timeout, prompt_message_id=excluded.prompt_message_id, exp=excluded.exp",
+          "INSERT INTO approval (id, kind, decision, answer_text, options, summary, answered_at, asker, on_timeout, prompt_message_id, callback_url, callback_token, resume_workflow, delivered, exp, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, options=excluded.options, summary=excluded.summary, asker=excluded.asker, on_timeout=excluded.on_timeout, prompt_message_id=excluded.prompt_message_id, callback_url=excluded.callback_url, callback_token=excluded.callback_token, resume_workflow=excluded.resume_workflow, exp=excluded.exp",
         )
         .bind(
           r.id,
@@ -208,6 +226,10 @@ export function createStore(db: D1Database): Store {
           r.asker,
           r.onTimeout,
           r.promptMessageId,
+          r.callbackUrl,
+          r.callbackToken,
+          r.resumeWorkflow,
+          r.delivered ? 1 : 0,
           r.exp,
           r.created,
         )
@@ -258,6 +280,12 @@ export function createStore(db: D1Database): Store {
       await db
         .prepare("UPDATE approval SET prompt_message_id = ? WHERE id = ?")
         .bind(messageId, id)
+        .run()
+    },
+    async markDelivered(id) {
+      await db
+        .prepare("UPDATE approval SET delivered = 1 WHERE id = ?")
+        .bind(id)
         .run()
     },
     async beat(jobKey, ts) {

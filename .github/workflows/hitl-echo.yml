@@ -1,0 +1,45 @@
+# Demo/echo consumer for the HITL answer-as-trigger (DEV-55). The bot dispatches this with
+# the answer when an /ask that set `resumeWorkflow: hitl-echo.yml` is answered — proving the
+# answer WAKES a consumer on GitHub's infra, with no agent polling or self-wakeup. Real tasks
+# point `resumeWorkflow` at their own continuation workflow with these same three inputs.
+name: hitl-echo
+
+on:
+  workflow_dispatch:
+    inputs:
+      ask_id:
+        description: "Approval id"
+        required: false
+        type: string
+      decision:
+        description: "Chosen option / applied onTimeout value"
+        required: false
+        type: string
+      text:
+        description: "Free-text answer"
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  echo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - name: Show the answer that woke this run
+        env:
+          ASK_ID: ${{ inputs.ask_id }}
+          DECISION: ${{ inputs.decision }}
+          TEXT: ${{ inputs.text }}
+        run: |
+          {
+            echo "## HITL answer delivered by trigger (no agent polling)"
+            echo "- ask_id: \`${ASK_ID}\`"
+            echo "- decision: \`${DECISION}\`"
+            echo "- text: \`${TEXT}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "woken by Hleb's answer — ask=${ASK_ID} decision=${DECISION} text=${TEXT}"

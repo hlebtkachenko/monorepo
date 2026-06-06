@@ -36,7 +36,8 @@ async function main(): Promise<void> {
   if (!question || question.startsWith("--")) {
     console.error(
       'usage: ask.ts "<question>" [--options a,b,c | --confirm | --text] [--no-custom]\n' +
-        "                   [--accept LABEL] [--reject LABEL] [--summary s] [--asker x] [--on-timeout X] [--ttl 3600]",
+        "                   [--accept LABEL] [--reject LABEL] [--summary s] [--asker x] [--on-timeout X] [--ttl 3600]\n" +
+        "  answer-as-trigger (register + exit, no polling): [--resume-workflow file.yml] [--callback-url URL [--callback-token T]]",
     )
     process.exit(1)
   }
@@ -57,7 +58,13 @@ async function main(): Promise<void> {
     asker: arg("--asker"),
     onTimeout: arg("--on-timeout"),
     ttlSeconds: ttl ? Number(ttl) : undefined,
+    callbackUrl: arg("--callback-url"),
+    callbackToken: arg("--callback-token"),
+    resumeWorkflow: arg("--resume-workflow"),
   }
+  // Answer-as-trigger: if a trigger is registered, the bot WAKES the consumer on answer —
+  // so register + exit immediately rather than blocking on a poll.
+  const triggerMode = has("--callback-url") || has("--resume-workflow")
 
   let id: string
   if (has("--confirm")) {
@@ -80,6 +87,12 @@ async function main(): Promise<void> {
         : undefined,
       allowCustom: !has("--no-custom"),
     }))
+  }
+  if (triggerMode) {
+    // Trigger registered — the bot fires it when answered. Print the id and exit.
+    console.log(id)
+    console.error(`ask: sent (${id}) — will trigger on answer; not waiting.`)
+    process.exit(0)
   }
   console.error(`ask: sent (${id}) — waiting for your reply on Telegram…`)
 

@@ -83,6 +83,8 @@ export interface CallbackOutcome {
   replyMarkup?: Btn[][]
   /** Open a force_reply prompt (✍️ Custom): the handler sends it + retargets reply-matching. */
   forceReply?: { approvalId: string; prompt: string }
+  /** An approval was just resolved by this tap — the handler fires its answer trigger. */
+  resolvedId?: string
 }
 
 /** Persist a pending dispatch and produce a Confirm/Cancel follow-up (shared by typed cmds + pickers). */
@@ -177,7 +179,11 @@ export async function runCallback(
       if (option === undefined) return { answer: "Invalid option." }
       const updated = await deps.store.setDecision(action.id, option, now)
       return updated
-        ? { answer: `Recorded: ${option}`, editText: `✅ Answered: ${option}` }
+        ? {
+            answer: `Recorded: ${option}`,
+            editText: `✅ Answered: ${option}`,
+            resolvedId: action.id,
+          }
         : { answer: "Already answered." }
     }
 
@@ -267,6 +273,7 @@ export async function runCallback(
         ? {
             answer: "Cancelled.",
             editText: `🚫 Cancelled: ${updated.summary ?? action.id}`,
+            resolvedId: action.id,
           }
         : { answer: "Already answered." }
     }

@@ -14,6 +14,7 @@ import {
 import { createStore, type Store } from "./state/store.js"
 import { createGitHubClient, repoOf } from "./github.js"
 import { emitIssue } from "./emit.js"
+import { deliverFromEnv } from "./deliver.js"
 import type { IssueEvent } from "./issues/types.js"
 
 function githubFor(env: Env) {
@@ -197,6 +198,8 @@ export function createBot(env: Env): Bot {
     }
     const saved = await store.setAnswerText(ap.id, ctx.message.text, Date.now())
     await ctx.reply(saved ? "✅ Got your reply." : "Already answered.")
+    // Answer-as-trigger: the reply wakes the agent (webhook / GitHub dispatch).
+    if (saved) await deliverFromEnv(saved, env, store)
   })
 
   // Inline-button taps — route through the structured callback handler.
@@ -240,6 +243,11 @@ export function createBot(env: Env): Bot {
         outcome.forceReply.approvalId,
         sent.message_id,
       )
+    }
+    // Answer-as-trigger: a tap (option / cancel) wakes the agent.
+    if (outcome.resolvedId) {
+      const ap = await store.getApproval(outcome.resolvedId)
+      if (ap) await deliverFromEnv(ap, env, store)
     }
   })
 

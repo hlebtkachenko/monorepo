@@ -7,20 +7,27 @@ by tapping an option or replying with text. This is DEV-55.
 ## TL;DR for agents
 
 Before a risky / irreversible / ambiguous step (merge, destructive migration, "which
-of these?", "ok to proceed?"), don't guess and don't silently stop — **ask**:
+of these?", "ok to proceed?"), don't guess and don't silently stop — **ask**. Three modes:
 
 ```bash
-# Tap-an-option (blocks, prints the chosen label):
-pnpm exec tsx apps/bot/scripts/ask.ts "Merge PR #42 to main?" \
-  --options "Approve,Reject" --summary "3 files, tests green" --asker "$AGENT"
+# 1) Choose among options — Hleb can ALSO type his own (a ✍️ Other button is added by default):
+pnpm exec tsx apps/bot/scripts/ask.ts "Which DB?" --options "Postgres,MySQL,SQLite" --asker "$AGENT"
 
-# Free-text answer (blocks, prints what Hleb typed):
-pnpm exec tsx apps/bot/scripts/ask.ts "Any constraints before I refactor auth?" --text
+# 2) Yes/no-ish clarification — Accept / Decline + ✍️ Other (labels: --accept "Ship it" --reject "Hold"):
+pnpm exec tsx apps/bot/scripts/ask.ts "Proceed with the refactor?" --confirm --asker "$AGENT"
+
+# 3) Free-form text only:
+pnpm exec tsx apps/bot/scripts/ask.ts "Any constraints before I start?" --text --asker "$AGENT"
 ```
 
-`ask.ts` exits `0` and prints the answer on stdout (capture it), or `2` if it expired
-with no reply. Add `--on-timeout Reject` to get a definitive decision even if he never
-answers; `--ttl <seconds>` to change the 1h default.
+`ask.ts` blocks, prints the answer (the chosen option OR his typed text) to stdout, and
+exits `0` when resolved (a reply OR an applied `--on-timeout`) or `2` if it expired with
+no answer. `--summary "context"` adds detail; `--on-timeout Reject` makes the result
+definitive even if he never replies; `--ttl <seconds>` changes the 1h window;
+`--no-custom` drops the ✍️ Other button for a strict pick.
+
+**Default = the user-question shape**: options as buttons **plus** a "type your own"
+button — so you rarely pick a mode. Use `--confirm` for yes/no, `--text` for pure free-form.
 
 ## How it works
 
@@ -28,7 +35,9 @@ answers; `--ttl <seconds>` to change the 1h default.
    `@workspace/notify`'s `ask()` / `askText()` — with `{ question, kind, options?,
 summary?, asker?, onTimeout?, ttlSeconds? }`. Gets back `{ id }`.
 2. The bot stores a pending approval in D1 and sends Hleb a Telegram message:
-   - `kind: "choice"` → one button per option (`Approve` / `Reject` / …).
+   - `kind: "choice"` → one button per option, **plus a "✍️ Other" button by default**
+     (`allowCustom`, opt out with `--no-custom`). Tapping ✍️ Other opens a `force_reply`
+     prompt and retargets reply-matching to it, so the same ask resolves by a tap OR text.
    - `kind: "text"` → a `force_reply` prompt; Hleb replies with text.
 3. Hleb answers. **First answer wins**; the bot records it (option tap, free-text reply,
    or `/pending` cancel) and edits the message.
@@ -61,8 +70,11 @@ if (state.decision === "Yes") {
 }
 ```
 
-`askText(question, opts)` is the free-text shortcut. `waitForAnswer` is a poll loop
-(default 2.5s interval) that returns the final state — no hand-rolled polling needed.
+Shortcuts: `askConfirm(q, { accept, reject })` (Accept/Decline + ✍️ Other) and
+`askText(q)` (free-form). `ask({ options, allowCustom })` is the general form — `allowCustom`
+defaults true for choice. `waitForAnswer` is a poll loop (2.5s interval) returning the final
+state (`state.text` for a typed reply, `state.decision` for an option/timeout) — no
+hand-rolled polling.
 
 ## Notes / limits
 

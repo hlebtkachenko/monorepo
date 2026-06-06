@@ -54,6 +54,8 @@ export interface ApprovalRequest {
   kind?: "choice" | "text"
   /** Tappable options (choice kind). Defaults to ["Approve","Reject"] server-side. Max 6. */
   options?: string[]
+  /** Add a "✍️ Other" free-text button beside the options. Default true for choice asks. */
+  allowCustom?: boolean
   /** Executive summary shown under the question. */
   summary?: string
   /** Which agent/source is asking — shown in the message + /pending. */
@@ -104,6 +106,14 @@ export interface Notifier {
     question: string,
     opts?: Omit<ApprovalRequest, "question" | "kind" | "options">,
   ): Promise<{ id: string; exp: number }>
+  /** Convenience: Accept / Decline + a "✍️ Other" free-text button (clarification pattern). */
+  askConfirm(
+    question: string,
+    opts?: Omit<ApprovalRequest, "question" | "kind" | "options"> & {
+      accept?: string
+      reject?: string
+    },
+  ): Promise<{ id: string; exp: number }>
   /** Poll a single approval's current state. */
   answer(id: string): Promise<ApprovalState>
   /** Poll until the owner answers or it expires; returns the final state. */
@@ -148,6 +158,16 @@ export function createNotifier(config: NotifierConfig): Notifier {
     alert: (text, opts) => send({ text, level: "error", ...opts }),
     ask,
     askText: (question, opts) => ask({ ...opts, question, kind: "text" }),
+    askConfirm: (question, opts) => {
+      const { accept = "Approve", reject = "Reject", ...rest } = opts ?? {}
+      return ask({
+        ...rest,
+        question,
+        kind: "choice",
+        options: [accept, reject],
+        allowCustom: rest.allowCustom ?? true,
+      })
+    },
     answer,
     async waitForAnswer(id, opts) {
       const intervalMs = opts?.intervalMs ?? 2500

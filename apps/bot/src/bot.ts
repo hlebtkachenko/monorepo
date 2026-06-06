@@ -223,6 +223,19 @@ export function createBot(env: Env): Bot {
           : undefined,
       )
     }
+    // ✍️ Custom: open a force_reply prompt + retarget the approval's reply-matching to it.
+    if (outcome.forceReply) {
+      const sent = await ctx.reply(outcome.forceReply.prompt, {
+        reply_markup: {
+          force_reply: true,
+          input_field_placeholder: "Type your answer",
+        },
+      })
+      await store.setPromptMessage(
+        outcome.forceReply.approvalId,
+        sent.message_id,
+      )
+    }
   })
 
   return bot

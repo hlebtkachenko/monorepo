@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   renderMessage,
   buildKeyboard,
+  buildAskKeyboard,
   buildEnvPicker,
   buildButtons,
 } from "./format.js"
@@ -40,6 +41,25 @@ describe("buildKeyboard", () => {
       { text: "Yes", callback_data: "Yes" },
       { text: "No", callback_data: "No" },
     ])
+  })
+})
+
+describe("buildAskKeyboard", () => {
+  it("options only by default", () => {
+    const kb = buildAskKeyboard("id1", ["Yes", "No"])
+    const flat = kb.inline_keyboard
+      .flat()
+      .map((b) => (b as { text: string }).text)
+    expect(flat).toEqual(["Yes", "No"])
+  })
+  it("appends a ✍️ Other button when allowCustom", () => {
+    const kb = buildAskKeyboard("id1", ["Yes", "No"], true)
+    const last = kb.inline_keyboard.flat().at(-1) as {
+      text: string
+      callback_data: string
+    }
+    expect(last.text).toMatch(/Other/)
+    expect(last.callback_data).toBe("txt:id1")
   })
 })
 

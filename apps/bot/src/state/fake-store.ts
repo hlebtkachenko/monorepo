@@ -64,6 +64,10 @@ export function fakeStore(): Store {
         .sort((a, b) => a.created - b.created)
         .map((r) => ({ ...r }))
     },
+    async setPromptMessage(id, messageId) {
+      const r = approvals.get(id)
+      if (r) r.promptMessageId = messageId
+    },
     async beat(jobKey, ts) {
       beats.set(jobKey, ts)
     },

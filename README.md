@@ -25,7 +25,7 @@ apps/
   cli/              # command-line client for the public API (@afframe/cli)
   bot/              # Telegram dev bot (grammY on Cloudflare Worker)
 packages/
-  ui/               # shadcn/ui component library (119 registry entries)
+  ui/               # shadcn/ui component library (120 registry entries)
   auth/             # Better Auth + session binding + RLS GUC
   config/           # shared configuration
   db/               # Drizzle schema + RLS + migrations

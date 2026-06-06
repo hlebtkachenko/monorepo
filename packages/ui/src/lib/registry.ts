@@ -35,6 +35,23 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["block", "navigation", "app"],
     dependencies: ["context-menu"],
   },
+  "app-context-menu": {
+    source: "src/blocks/app-context-menu",
+    sourceType: "custom",
+    description:
+      "Block — right-click context menu wrapping the app body. Captures the clicked element + selection + pathname and exposes Ask Sidekick, About this block, Report bug (opens a type+comment dialog, POSTs via onReportBug), and Copy path (agent-ready prompt). Shift+right-click falls through to the native browser menu.",
+    categories: ["block", "overlay", "app"],
+    dependencies: [
+      "border-beam",
+      "button",
+      "context-menu",
+      "dialog",
+      "input",
+      "label",
+      "select",
+      "textarea",
+    ],
+  },
   "icon-button": {
     source: "src/components/icon-button",
     sourceType: "custom",

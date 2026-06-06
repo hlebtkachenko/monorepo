@@ -19,7 +19,7 @@ apps/
   cli/                             Official command-line client for the public API (@afframe/cli)
   bot/                             Telegram dev bot — sole owner of Telegram I/O; grammY on a Cloudflare Worker
 packages/
-  ui/                              shadcn/ui component library (119 registry entries, Storybook, Vitest)
+  ui/                              shadcn/ui component library (120 registry entries, Storybook, Vitest)
   db/                              Drizzle schema + RLS + migrations
   auth/                            Better Auth + session binding + RLS GUC
   shared/                          Shared utilities, Zod schemas

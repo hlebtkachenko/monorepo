@@ -35,10 +35,9 @@ export const READ_COMMANDS: Record<
   ping: () => "🏓 pong",
   version: (env) => `afframe-bot · env=${env.ENVIRONMENT ?? "?"}`,
   status: async (env) => {
-    if (!env.API_URL)
-      return "🟢 bot up · api: not configured (local experiment)"
+    if (!env.API_URL) return "🟢 bot up · api: not configured"
     try {
-      const res = await fetch(`${env.API_URL.replace(/\/$/, "")}/health`, {
+      const res = await fetch(`${env.API_URL.replace(/\/$/, "")}/api/health`, {
         signal: AbortSignal.timeout(3000),
       })
       return res.ok

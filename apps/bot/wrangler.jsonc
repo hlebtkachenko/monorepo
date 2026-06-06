@@ -13,9 +13,12 @@
   // afframe.com zone (same trick the turbo-cache worker uses for cache.afframe.com).
   "routes": [{ "pattern": "bot.afframe.com", "custom_domain": true }],
   "vars": {
-    "ENVIRONMENT": "development",
+    // One always-on prod-hosted hub watching both envs; source-tagged per message.
+    "ENVIRONMENT": "production",
     // owner/repo the control plane dispatches + reads. Non-secret.
     "GITHUB_REPO": "hlebtkachenko/monorepo",
+    // Public API base for the /status lightweight ping (hits ${API_URL}/api/health).
+    "API_URL": "https://api.afframe.com",
   },
   // Bot state (dedup, approvals, heartbeats, snooze). database_id is filled after
   // `wrangler d1 create afframe-bot` (a credentialed manual step). Local `wrangler dev`

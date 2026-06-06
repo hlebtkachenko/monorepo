@@ -1,0 +1,302 @@
+# Nuclei DAST (staging) — DEV-47
+#
+# Nightly dynamic scan (ProjectDiscovery Nuclei) of the three live staging
+# hosts. The one gap source-level scanning (CodeQL, OSV, Trivy, Dependabot,
+# gitleaks, TruffleHog) cannot cover: the running, deployed system over the
+# network, the way an attacker sees it. Findings land in the Security tab as
+# SARIF. ADVISORY only — never fails on findings, never touches production.
+#
+# Staging is normally cold-paused (see power.yml). This job resumes it, unbinds
+# the Cloudflare "asleep" Worker so Nuclei reaches the real origin (not the
+# sleeping page), scans, then re-parks it — unless it was already up, in which
+# case it is left exactly as found. The restore step is fail-safe toward
+# PARKING (re-parks on any uncertainty) so a crash cannot leak RDS/Fargate cost.
+#
+# Why a self-contained job instead of reusing power.yml: keeping the OIDC
+# session + captured pre-state continuous across resume -> scan -> restore needs
+# one job, and inlining the minimal power subset avoids refactoring the critical
+# power.yml. The power logic mirrors power.yml exactly; keep them in sync.
+#
+# Coverage limits (v1): Cloudflare bot-protection will challenge unauthenticated
+# Nuclei, so v1 is an edge/public-surface baseline. Deep authenticated scanning
+# (WAF skip-rule + seeded throwaway tenant) is phase 2 — see
+# docs/runbooks/DAST-NUCLEI.md.
+
+name: Nuclei DAST (staging)
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC nightly — off-peak, no collision with osv 06:00
+  workflow_dispatch:
+
+permissions: {}
+
+# Shares the repo-wide `power-staging` namespace with power.yml's job-level
+# group, so this scan and any manual power op on staging serialize instead of
+# racing the same ECS service / RDS instance. A manual power run will queue
+# behind a running nightly scan — intentional.
+concurrency:
+  group: power-staging
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    # Backstop only, set ABOVE the sum of the per-step timeouts (resume 30 +
+    # gate 5 + scan 30 + restore 15 + overhead) so it can never preempt the
+    # restore step. The long steps carry their own timeout-minutes so a hang
+    # kills the STEP, not the job — the `if: always()` restore always keeps
+    # runway. A JOB timeout would terminate the runner and skip restore, leaking
+    # cost; that must never be the thing that fires.
+    timeout-minutes: 90
+    # Per-env GitHub environment: scopes the deploy-role secret and makes the
+    # OIDC subject env-scoped so the exact-match deploy-role trust policy accepts
+    # it (same requirement as power.yml).
+    environment: staging
+    permissions:
+      id-token: write # OIDC federation to assume the staging deploy role
+      contents: read # checkout (sleeping-page route script)
+      security-events: write # SARIF upload to the Security tab
+    env:
+      ENV_NAME: staging
+      CLUSTER: monorepo-staging
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          # audit, not block: Nuclei makes a large, unpredictable set of
+          # outbound requests to the scan targets — an allowlist would strangle
+          # it. Matches every other workflow in this repo.
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing secrets in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-nuclei-dast-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Capture pre-scan power state
+        id: pre
+        run: |
+          set -euo pipefail
+          SVC="$(aws ecs list-services --cluster "$CLUSTER" \
+                  --query 'serviceArns[0]' --output text | xargs basename)"
+          if [ "$SVC" = "None" ] || [ -z "$SVC" ]; then
+            echo "::error::no ECS service in cluster $CLUSTER"; exit 1
+          fi
+          SID="$(aws rds describe-db-instances \
+                  --query "DBInstances[?starts_with(DBInstanceIdentifier,'data-${ENV_NAME}')].DBInstanceIdentifier | [0]" \
+                  --output text)"
+          if [ "$SID" = "None" ] || [ -z "$SID" ]; then
+            echo "::error::no RDS instance data-${ENV_NAME}*"; exit 1
+          fi
+          RDS_STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+                         --query 'DBInstances[0].DBInstanceStatus' --output text)"
+          DESIRED="$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" \
+                      --query 'services[0].desiredCount' --output text)"
+          case "$DESIRED" in ''|*[!0-9]*) DESIRED=0 ;; esac
+          # Three real states (mirrors power.yml's resume/warm-pause/cold-pause)
+          # so restore returns staging to exactly how it was found:
+          #   up   = RDS available + Fargate running -> leave as-is
+          #   warm = RDS available + Fargate scaled to 0 -> warm-pause
+          #   cold = RDS stopped/starting -> cold-pause (also the safe default)
+          if [ "$RDS_STATUS" = "available" ] && [ "$DESIRED" -ge 1 ]; then
+            STATE=up
+          elif [ "$RDS_STATUS" = "available" ]; then
+            STATE=warm
+          else
+            STATE=cold
+          fi
+          {
+            echo "state=$STATE"
+            echo "svc=$SVC"
+            echo "sid=$SID"
+          } >> "$GITHUB_OUTPUT"
+          echo "pre-state: rds=$RDS_STATUS ecs_desired=$DESIRED -> state=$STATE"
+
+      - name: Resume staging + unbind sleeping page
+        id: resume
+        # 30m so the RDS `wait db-instance-available` waiter (30m CLI ceiling)
+        # can complete inside the step on a slow cold start, rather than getting
+        # SIGKILLed mid-resume and leaning on the restart-watcher Lambda.
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          ACCT="$(aws sts get-caller-identity --query Account --output text)"
+          echo "::add-mask::$ACCT"
+          SVC="${{ steps.pre.outputs.svc }}"
+          SID="${{ steps.pre.outputs.sid }}"
+          DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
+          # Drop the keep-stopped tag so the RDS restart watcher won't re-stop it.
+          aws rds remove-tags-from-resource --resource-name "$DB_ARN" \
+            --tag-keys cost-stop-requested || true
+          STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+                     --query 'DBInstances[0].DBInstanceStatus' --output text)"
+          if [ "$STATUS" != "available" ]; then
+            echo "RDS '$STATUS' — starting (cold resume, this is the slow part)…"
+            aws rds start-db-instance --db-instance-identifier "$SID" >/dev/null || true
+            aws rds wait db-instance-available --db-instance-identifier "$SID"
+          fi
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+            --desired-count 1 >/dev/null
+          echo "Scaled to 1, waiting for the service to stabilize…"
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
+          # Unbind the sleeping Worker so traffic flows to the live origin.
+          bash infra/cloudflare-sleeping/scripts/routes.sh off "$ENV_NAME"
+          echo "staging resumed + sleeping page unbound."
+
+      - name: Ready gate — confirm origin reachable, not the sleeping Worker
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          # Capture status in its own command FIRST so a routes.sh failure
+          # (Cloudflare API error, bad token) aborts the step under set -e —
+          # rather than being swallowed by `if cmd | grep` (where a non-zero
+          # pipeline reads as "no match" and the gate would wrongly pass).
+          # `routes.sh status` lists ALL bound sleeping routes; any staging route
+          # still bound means Nuclei would scan the Cloudflare Worker, not the app.
+          route_status="$(bash infra/cloudflare-sleeping/scripts/routes.sh status)"
+          if printf '%s\n' "$route_status" | grep -q -- '-staging\.afframe\.com'; then
+            echo "::error::staging sleeping-page routes still bound — origin not reachable"
+            exit 1
+          fi
+          # Brief settle for Cloudflare route-unbind propagation before scanning.
+          sleep 20
+          echo "staging routes unbound; proceeding to scan."
+
+      - name: Write target list
+        run: |
+          {
+            echo "https://app-staging.afframe.com"
+            echo "https://api-staging.afframe.com"
+            echo "https://admin-staging.afframe.com"
+          } > targets.txt
+          cat targets.txt
+
+      - name: Nuclei scan
+        id: nuclei
+        timeout-minutes: 30
+        # Advisory: never fail the run on findings (or a step-timeout SIGKILL).
+        # SARIF still surfaces everything in the Security tab.
+        continue-on-error: true
+        uses: projectdiscovery/nuclei-action@cc153d0541e1adf8a42bbe31c0a4fb2376147538 # v3.1.1
+        with:
+          version: latest
+          cache: true
+          # Gentle rate so Cloudflare's rate-limit rules don't trip:
+          # 10 req/s cap, 5 templates in parallel, 5 hosts/template.
+          # -disable-update-check keeps the run deterministic (no self-update).
+          args: >-
+            -l targets.txt
+            -severity critical,high,medium
+            -rate-limit 10 -c 5 -bulk-size 5
+            -disable-update-check
+            -sarif-export results.sarif
+            -no-color -stats
+
+      - name: Ensure a valid SARIF exists
+        if: always()
+        run: |
+          set -euo pipefail
+          # Nuclei only writes the SARIF export when it has findings to serialize;
+          # a clean (or SIGKILL-interrupted) run can leave the file absent,
+          # zero-byte, or truncated. upload-sarif then hard-fails. Synthesize a
+          # minimal valid SARIF so a no-findings run is green and the Security-tab
+          # category is cleared.
+          if [ ! -s results.sarif ] || ! jq empty results.sarif 2>/dev/null; then
+            echo "no valid SARIF produced — writing empty skeleton."
+            # shellcheck disable=SC2016  # $schema is a literal SARIF JSON key, must not expand
+            printf '%s' '{"version":"2.1.0","$schema":"https://json.schemastore.org/sarif-2.1.0.json","runs":[{"tool":{"driver":{"name":"nuclei","informationUri":"https://github.com/projectdiscovery/nuclei","rules":[]}},"results":[]}]}' > results.sarif
+          fi
+
+      - name: Upload SARIF to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # zizmor: ignore[impostor-commit]
+        with:
+          sarif_file: results.sarif
+          category: nuclei
+
+      # Re-assume the role so restore always has fresh credentials. The initial
+      # OIDC session is 1h; a worst-case cold-RDS resume + full 30m scan can land
+      # the restore step near or past that expiry, which would fail the re-park
+      # and leak RDS/Fargate cost. A second assume (same `if` as restore) makes
+      # the re-park independent of how long the scan took.
+      - name: Re-assume credentials for restore
+        if: always() && steps.pre.outputs.state != 'up'
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-nuclei-dast-restore-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Restore power state — re-park unless it was already up
+        # Runs whenever staging was NOT positively up beforehand (cold/warm, or
+        # any uncertainty from a crashed pre-state step — fail-safe toward
+        # parking). always() so it runs even after a failed scan. Self-contained:
+        # re-derives service/db rather than trusting earlier step outputs.
+        #
+        # Attempt-all-then-fail-visibly: do NOT `|| true`-swallow the cost calls
+        # (that hid a half-finished re-park behind a green run). Each call is
+        # tried; any failure flips `rc` and the step exits non-zero so an
+        # incomplete re-park surfaces as a RED run the operator can act on.
+        if: always() && steps.pre.outputs.state != 'up'
+        timeout-minutes: 15
+        env:
+          PRE_STATE: ${{ steps.pre.outputs.state }}
+        run: |
+          set -uo pipefail # not -e: attempt every call, then fail visibly below
+          ACCT="$(aws sts get-caller-identity --query Account --output text)" \
+            || { echo "::error::sts get-caller-identity failed (expired creds?)"; exit 1; }
+          echo "::add-mask::$ACCT"
+          SVC="$(aws ecs list-services --cluster "$CLUSTER" \
+                  --query 'serviceArns[0]' --output text | xargs basename)"
+          SID="$(aws rds describe-db-instances \
+                  --query "DBInstances[?starts_with(DBInstanceIdentifier,'data-${ENV_NAME}')].DBInstanceIdentifier | [0]" \
+                  --output text)"
+          if [ "$SVC" = "None" ] || [ -z "$SVC" ] || [ "$SID" = "None" ] || [ -z "$SID" ]; then
+            echo "::error::could not resolve service/db for restore (svc=$SVC sid=$SID)"
+            exit 1
+          fi
+          DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
+          rc=0
+          echo "re-parking staging to prior state: ${PRE_STATE:-cold}"
+          # Both warm- and cold-pause scale Fargate to 0.
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+            --desired-count 0 >/dev/null || rc=1
+          if [ "$PRE_STATE" = "warm" ]; then
+            echo "prior state warm — leaving RDS running."
+          else
+            # cold-pause (default / uncertain): tag before stop so the RDS
+            # restart watcher keeps it down, then stop if currently available.
+            aws rds add-tags-to-resource --resource-name "$DB_ARN" \
+              --tags Key=cost-stop-requested,Value=true || rc=1
+            STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+                       --query 'DBInstances[0].DBInstanceStatus' --output text)" || rc=1
+            if [ "$STATUS" = "available" ]; then
+              aws rds stop-db-instance --db-instance-identifier "$SID" >/dev/null || rc=1
+            fi
+          fi
+          # Re-bind the sleeping Worker (both warm and cold parked states show it).
+          bash infra/cloudflare-sleeping/scripts/routes.sh on "$ENV_NAME" || rc=1
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::re-park incomplete — staging may be left running; check power state manually"
+            exit 1
+          fi
+          echo "staging re-parked (${PRE_STATE:-cold}) + sleeping page bound."

@@ -57,9 +57,12 @@ export function buildConfirmKeyboard(token: string): InlineKeyboard {
 export function buildAskKeyboard(
   id: string,
   options: string[],
+  allowCustom = false,
 ): InlineKeyboard {
   const kb = new InlineKeyboard()
   options.forEach((label, i) => kb.text(label, `ask:${id}:${i}`).row())
+  // Hybrid: a "type your own" button alongside the options (like the user-question tool).
+  if (allowCustom) kb.text("✍️ Other (type a reply)", `txt:${id}`)
   return kb
 }
 

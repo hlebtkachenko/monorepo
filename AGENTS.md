@@ -8,14 +8,25 @@ Issues and planning live in **Linear** — team Afframe (key `AFF`). Agents reac
 
 ## Asking Hleb (human-in-the-loop)
 
-Before a **risky, irreversible, or ambiguous** step (merging, a destructive migration, "which of these?", "ok to proceed?"), don't guess and don't silently stop — **ask Hleb on his phone and block for the answer**:
+Before a **risky, irreversible, or ambiguous** step (merging, a destructive migration, "which of these?", "ok to proceed?"), don't guess and don't silently stop — **ask Hleb on his phone and block for the answer**. It blocks until he taps an option OR types a reply, prints the answer to stdout, and exits `0` (resolved, incl. an `--on-timeout` policy) or `2` (expired, no answer).
+
+**Pick by situation — exact command, no thinking:**
+
+| Situation | Command |
+|---|---|
+| Choose among options (he can also type his own) | `ask.ts "Which DB?" --options "Postgres,MySQL,SQLite" --asker me` |
+| Yes/no-ish clarification (Accept / Decline + type-your-own) | `ask.ts "Proceed with the refactor?" --confirm --asker me` |
+| Need free-form text | `ask.ts "Any constraints before I start?" --text --asker me` |
 
 ```bash
-pnpm exec tsx apps/bot/scripts/ask.ts "Merge PR #42 to main?" --options "Approve,Reject" --summary "3 files, tests green" --asker "<agent>"
-pnpm exec tsx apps/bot/scripts/ask.ts "Constraints before I refactor auth?" --text
+pnpm exec tsx apps/bot/scripts/ask.ts "<question>" <mode> [--summary "context"] [--asker "<you>"] [--on-timeout Reject] [--ttl 3600]
 ```
 
-It blocks until he taps an option or replies with text, prints the answer to stdout (exit `0`), or exits `2` if it expired. From code, use `@workspace/notify`: `ask()` / `askText()` + `waitForAnswer(id)`. For a one-way "task done / I'm blocked" ping (no answer needed) use `notify()` / `alert()`, or `apps/bot/scripts/manual-task.ts`. Full reference: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally).
+**Defaults that mean you don't configure anything:** every option/`--confirm` ask **automatically includes a "✍️ Other (type a reply)" button** (he can always answer in free text) — add `--no-custom` only to force a strict pick. `--confirm` labels default to Approve/Reject; override with `--accept "Ship" --reject "Hold"`. `--on-timeout <value>` makes the answer definitive even if he never replies. Captured stdout is the chosen option or his typed text.
+
+From code: `@workspace/notify` → `ask({question,options,allowCustom})` / `askConfirm(q,{accept,reject})` / `askText(q)` then `await waitForAnswer(id)`. One-way "done / blocked" pings (no answer needed): `notify()` / `alert()` or `apps/bot/scripts/manual-task.ts`.
+
+Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally).
 
 ## Architecture
 

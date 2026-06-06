@@ -45,6 +45,8 @@ interface AskBody {
   id?: string
   /** "choice" (tap an option, default) | "text" (reply with free text). */
   kind?: "choice" | "text"
+  /** choice asks include a "✍️ Other" free-text button by default; set false to force a pure pick. */
+  allowCustom?: boolean
   /** Which agent/source is asking (shown in the message + /pending). */
   asker?: string
   /** Decision auto-applied once the TTL passes (e.g. "Reject"). */
@@ -119,9 +121,16 @@ function createApp(env: Env) {
     const now = Date.now()
     const exp = now + (body.ttlSeconds ?? 3600) * 1000
 
+    // Choice asks carry a "✍️ Other" free-text button by default (hybrid, like the
+    // user-question tool); opt out with allowCustom:false for a strict pick.
+    const allowCustom = kind === "choice" && body.allowCustom !== false
     const askerTag = body.asker ? ` <i>[${escapeHtml(body.asker)}]</i>` : ""
     const hint =
-      kind === "text" ? "\n<i>Reply to this message with your answer.</i>" : ""
+      kind === "text"
+        ? "\n<i>Reply to this message with your answer.</i>"
+        : allowCustom
+          ? "\n<i>Tap an option, or ✍️ Other to type your own.</i>"
+          : ""
     const head =
       (body.summary
         ? `🤖 <b>${escapeHtml(body.question)}</b>\n${escapeHtml(body.summary)}`
@@ -135,7 +144,7 @@ function createApp(env: Env) {
       reply_markup:
         kind === "text"
           ? { force_reply: true, input_field_placeholder: "Type your answer" }
-          : buildAskKeyboard(id, options),
+          : buildAskKeyboard(id, options, allowCustom),
     })
 
     await createStore(env.DB).putApproval({

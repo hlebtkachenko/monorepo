@@ -35,7 +35,8 @@ async function main(): Promise<void> {
   const question = process.argv[2]
   if (!question || question.startsWith("--")) {
     console.error(
-      'usage: ask.ts "<question>" [--options a,b] [--text] [--summary s] [--asker x] [--on-timeout Reject] [--ttl 3600]',
+      'usage: ask.ts "<question>" [--options a,b,c | --confirm | --text] [--no-custom]\n' +
+        "                   [--accept LABEL] [--reject LABEL] [--summary s] [--asker x] [--on-timeout X] [--ttl 3600]",
     )
     process.exit(1)
   }
@@ -51,17 +52,35 @@ async function main(): Promise<void> {
   const notifier = createNotifier({ url, secret })
   const optionsArg = arg("--options")
   const ttl = arg("--ttl")
-  const { id } = await notifier.ask({
-    question,
-    kind: has("--text") ? "text" : "choice",
-    options: optionsArg
-      ? optionsArg.split(",").map((s) => s.trim())
-      : undefined,
+  const common = {
     summary: arg("--summary"),
     asker: arg("--asker"),
     onTimeout: arg("--on-timeout"),
     ttlSeconds: ttl ? Number(ttl) : undefined,
-  })
+  }
+
+  let id: string
+  if (has("--confirm")) {
+    // Accept / Reject + ✍️ Other (clarification pattern).
+    ;({ id } = await notifier.askConfirm(question, {
+      ...common,
+      accept: arg("--accept"),
+      reject: arg("--reject"),
+    }))
+  } else if (has("--text")) {
+    ;({ id } = await notifier.askText(question, common))
+  } else {
+    // Options + ✍️ Other (user-question pattern); --no-custom for a strict pick.
+    ;({ id } = await notifier.ask({
+      ...common,
+      question,
+      kind: "choice",
+      options: optionsArg
+        ? optionsArg.split(",").map((s) => s.trim())
+        : undefined,
+      allowCustom: !has("--no-custom"),
+    }))
+  }
   console.error(`ask: sent (${id}) — waiting for your reply on Telegram…`)
 
   const state = await notifier.waitForAnswer(id)

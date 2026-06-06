@@ -100,6 +100,25 @@ describe("ask / answer", () => {
     ).rejects.toThrow("500")
   })
 
+  it("askConfirm posts Accept/Reject + allowCustom", async () => {
+    const fetchImpl = vi.fn(
+      async (_url: string | URL | Request, init?: RequestInit) => {
+        const b = JSON.parse(init!.body as string)
+        expect(b.kind).toBe("choice")
+        expect(b.options).toEqual(["Ship", "Hold"])
+        expect(b.allowCustom).toBe(true)
+        return new Response(JSON.stringify({ id: "c1", exp: 9 }), {
+          status: 200,
+        })
+      },
+    )
+    await createNotifier({ ...config, fetchImpl }).askConfirm("Deploy?", {
+      accept: "Ship",
+      reject: "Hold",
+    })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+
   it("askText posts kind=text", async () => {
     const fetchImpl = vi.fn(
       async (_url: string | URL | Request, init?: RequestInit) => {

@@ -74,6 +74,8 @@ export interface Store {
   ): Promise<ApprovalRecord | null>
   /** Open approvals (unanswered, not expired), oldest first — for /pending. */
   listPendingApprovals(now: number): Promise<ApprovalRecord[]>
+  /** Retarget reply-matching to a new Telegram message (when ✍️ Custom opens a force_reply). */
+  setPromptMessage(id: string, messageId: number): Promise<void>
   beat(jobKey: string, ts: number): Promise<void>
   lastBeat(jobKey: string): Promise<number | null>
   getSnooze(scopeKey: string): Promise<SnoozeRecord | null>
@@ -251,6 +253,12 @@ export function createStore(db: D1Database): Store {
         .bind(now)
         .all<ApprovalRow>()
       return (results ?? []).map(toApproval)
+    },
+    async setPromptMessage(id, messageId) {
+      await db
+        .prepare("UPDATE approval SET prompt_message_id = ? WHERE id = ?")
+        .bind(messageId, id)
+        .run()
     },
     async beat(jobKey, ts) {
       await db

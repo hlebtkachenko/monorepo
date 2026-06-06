@@ -79,6 +79,7 @@ describe("parseCallback", () => {
     })
     expect(parseCallback("log:42")).toEqual({ t: "showlog", runId: 42 })
     expect(parseCallback("xpr:a5")).toEqual({ t: "cancelask", id: "a5" })
+    expect(parseCallback("txt:a6")).toEqual({ t: "custom", id: "a6" })
   })
 
   it("falls back to echo for unknown / malformed", () => {
@@ -221,6 +222,23 @@ describe("runCallback — ask", () => {
     expect((await d.store.getApproval("a5"))?.decision).toBe("cancelled")
     const again = await runCallback({ t: "cancelask", id: "a5" }, d)
     expect(again.answer).toMatch(/Already answered/)
+  })
+
+  it("custom (✍️ Other) on a pending ask returns a force_reply instruction", async () => {
+    const d = deps()
+    await d.store.putApproval(approval({ id: "a6", summary: "pick env" }))
+    const out = await runCallback({ t: "custom", id: "a6" }, d)
+    expect(out.forceReply?.approvalId).toBe("a6")
+    expect(out.forceReply?.prompt).toMatch(/pick env/)
+  })
+
+  it("custom refuses once already answered", async () => {
+    const d = deps()
+    await d.store.putApproval(approval({ id: "a7" }))
+    await d.store.setDecision("a7", "Approve", 1_000_000)
+    const out = await runCallback({ t: "custom", id: "a7" }, d)
+    expect(out.forceReply).toBeUndefined()
+    expect(out.answer).toMatch(/Already answered/)
   })
 })
 

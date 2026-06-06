@@ -11,9 +11,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@testcontainers/postgresql": "^12.0.0",
+    "@testcontainers/postgresql": "^12.0.1",
     "postgres": "^3.4.7",
-    "testcontainers": "^12.0.0"
+    "testcontainers": "^12.0.1"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

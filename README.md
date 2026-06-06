@@ -21,16 +21,21 @@ apps/
   web/              # Next.js 16 app (Turbopack)
   admin/            # admin app
   api/              # NestJS backend API
+  mcp/              # MCP server for the public API (@afframe/mcp)
+  cli/              # command-line client for the public API (@afframe/cli)
+  bot/              # Telegram dev bot (grammY on Cloudflare Worker)
 packages/
-  ui/               # shadcn/ui component library (105 components)
+  ui/               # shadcn/ui component library (119 registry entries)
   auth/             # Better Auth + session binding + RLS GUC
   config/           # shared configuration
   db/               # Drizzle schema + RLS + migrations
   email/            # React Email templates + transport
   eslint-config/    # shared ESLint flat configs
   i18n/             # internationalization
+  notify/           # typed client for the Telegram bot (POSTs to bot /ingest)
   observability/    # pino + OpenTelemetry helpers
   pdf/              # PDF/A-3 generation + QR Platba
+  sdk/              # TypeScript SDK for the public API (@afframe/sdk)
   shared/           # shared utilities, Zod schemas
   storage/          # org-scoped storage
   testcontainers/   # integration test containers
@@ -79,16 +84,14 @@ Components are placed in `packages/ui/src/components/`. After adding, create the
 import { Button } from "@workspace/ui/components/button"
 ```
 
-## Full Stack Quick Start (TBA)
-
-Once backend packages are implemented:
+## Full Stack Quick Start
 
 ```bash
 pnpm install
 scripts/generate-env.sh                              # generate apps/web/.env.local with random local-dev secrets
 docker compose -f infra/compose/docker-compose.dev.yml up -d
-pnpm --filter @workspace/db migrate
-pnpm seed:dev
+pnpm --filter @workspace/db db:migrate
+pnpm --filter @workspace/db db:seed
 pnpm dev                                             # all services
 ```
 

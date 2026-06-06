@@ -24,50 +24,50 @@ Audit trail of changes: git history of this file.
 | AWS-ACC-AUDIT  | Audit           | cloud account | Hleb  | High        | Audit                | Tier 1  | AWS    | `<TBD>` |
 | AWS-ACC-SHARED | Shared Services | cloud account | Hleb  | High        | Internal             | Tier 2  | AWS    | `<TBD>` |
 | AWS-ACC-STG    | Staging         | cloud account | Hleb  | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |
-| AWS-ACC-PRD    | Production      | cloud account | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS    | `<TBD>` |
+| AWS-ACC-PRD    | Production      | cloud account | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS    | Active  |
 
 ## 2. Compute services
 
 | Asset ID           | Name                                       | Type                  | Owner   | Criticality | Data class           | DR tier | Vendor | Status  | Justification                                                                                                                                                        |
 | ------------------ | ------------------------------------------ | --------------------- | ------- | ----------- | -------------------- | ------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ECS-WEB-PRD        | web (production)                           | ECS Fargate service   | Hleb    | Critical    | Customer             | Tier 1  | AWS    | Active  |                                                                                                                                                                      |
-| ECS-WEB-STG        | web (staging)                              | ECS Fargate service   | `<TBD>` | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |                                                                                                                                                                      |
+| ECS-WEB-STG        | web (staging)                              | ECS Fargate service   | Hleb    | Medium      | Internal             | Tier 3  | AWS    | Active  |                                                                                                                                                                      |
 | ECS-API-PRD        | api (production)                           | ECS Fargate container | Hleb    | Critical    | Customer + Financial | Tier 1  | AWS    | Active  |                                                                                                                                                                      |
-| ECS-API-STG        | api (staging)                              | ECS Fargate container | `<TBD>` | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |                                                                                                                                                                      |
+| ECS-API-STG        | api (staging)                              | ECS Fargate container | Hleb    | Medium      | Internal             | Tier 3  | AWS    | Active  |                                                                                                                                                                      |
 | ECS-ADMIN-PRD      | admin (production)                         | ECS Fargate container | Hleb    | High        | Internal             | Tier 1  | AWS    | Active  |                                                                                                                                                                      |
-| ECS-ADMIN-STG      | admin (staging)                            | ECS Fargate container | `<TBD>` | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |                                                                                                                                                                      |
+| ECS-ADMIN-STG      | admin (staging)                            | ECS Fargate container | Hleb    | Medium      | Internal             | Tier 3  | AWS    | Active  |                                                                                                                                                                      |
 | LAMBDA-ROT-PRD     | secret rotation                            | Lambda                | `<TBD>` | High        | Internal             | Tier 2  | AWS    | `<TBD>` |                                                                                                                                                                      |
-| LAMBDA-KILLSWITCH  | cost kill-switch (SecurityStack)           | Lambda                | Hleb    | High        | Internal             | Tier 2  | AWS    | `<TBD>` |                                                                                                                                                                      |
-| LAMBDA-RDSWATCH    | RDS auto-restart watcher (SecurityStack)   | Lambda                | Hleb    | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |                                                                                                                                                                      |
-| ECS-PGBOUNCER-SC   | pgBouncer sidecar (api task)               | ECS Fargate container | Hleb    | High        | Customer + Financial | Tier 1  | AWS    | `<TBD>` | Connection pool reducer for Postgres: prevents per-request fd exhaustion under burst auth load; without it the api task exhausts RDS max_connections and hard-fails. |
-| ECS-CERBOS-SC      | Cerbos PDP sidecar (api task, L3 authz)    | ECS Fargate container | Hleb    | High        | Internal             | Tier 1  | AWS    | `<TBD>` | Policy Decision Point for attribute-based access control (L3 authz): every api authorization check routes through it and fails closed if it is unavailable.          |
-| ECS-OPENFGA-SC     | OpenFGA sidecar (api task, L2 authz)       | ECS Fargate container | Hleb    | High        | Customer             | Tier 1  | AWS    | `<TBD>` | ReBAC graph store for relationship-based authorization (L2 authz): workspace and organization membership checks depend on it and are denied on absence.              |
-| ECS-CLOUDFLARED-SC | cloudflared sidecar (Cloudflare Tunnel)    | ECS Fargate container | Hleb    | Critical    | None                 | Tier 1  | AWS    | `<TBD>` | Tunnel broker that exposes the private Fargate task to Cloudflare's edge: all inbound HTTPS traffic is routed through it and the service is unreachable without it.  |
-| ECS-BACKUP-TASK    | nightly backup scheduled task              | ECS Fargate Spot      | Hleb    | High        | Customer + Financial | Tier 1  | AWS    | `<TBD>` |                                                                                                                                                                      |
+| LAMBDA-KILLSWITCH  | cost kill-switch (SecurityStack)           | Lambda                | Hleb    | High        | Internal             | Tier 2  | AWS    | Active  |                                                                                                                                                                      |
+| LAMBDA-RDSWATCH    | RDS auto-restart watcher (SecurityStack)   | Lambda                | Hleb    | Medium      | Internal             | Tier 3  | AWS    | Active  |                                                                                                                                                                      |
+| ECS-PGBOUNCER-SC   | pgBouncer sidecar (api task)               | ECS Fargate container | Hleb    | High        | Customer + Financial | Tier 1  | AWS    | Active  | Connection pool reducer for Postgres: prevents per-request fd exhaustion under burst auth load; without it the api task exhausts RDS max_connections and hard-fails. |
+| ECS-CERBOS-SC      | Cerbos PDP sidecar (api task, L3 authz)    | ECS Fargate container | Hleb    | High        | Internal             | Tier 1  | AWS    | Active  | Policy Decision Point for attribute-based access control (L3 authz): every api authorization check routes through it and fails closed if it is unavailable.          |
+| ECS-OPENFGA-SC     | OpenFGA sidecar (api task, L2 authz)       | ECS Fargate container | Hleb    | High        | Customer             | Tier 1  | AWS    | Active  | ReBAC graph store for relationship-based authorization (L2 authz): workspace and organization membership checks depend on it and are denied on absence.              |
+| ECS-CLOUDFLARED-SC | cloudflared sidecar (Cloudflare Tunnel)    | ECS Fargate container | Hleb    | Critical    | None                 | Tier 1  | AWS    | Active  | Tunnel broker that exposes the private Fargate task to Cloudflare's edge: all inbound HTTPS traffic is routed through it and the service is unreachable without it.  |
+| ECS-BACKUP-TASK    | nightly backup scheduled task              | ECS Fargate Spot      | Hleb    | High        | Customer + Financial | Tier 1  | AWS    | Active  |                                                                                                                                                                      |
 | OVH-VPS-001        | OVH VPS (Windows Server 2025, WSL2 Docker) | compute / VPS         | Hleb    | Medium      | Internal             | Tier 3  | OVH    | Active  |                                                                                                                                                                      |
 
 ## 3. Data stores
 
-| Asset ID           | Name                                        | Type                                             | Owner   | Criticality | Data class           | DR tier | Vendor | Status  |
-| ------------------ | ------------------------------------------- | ------------------------------------------------ | ------- | ----------- | -------------------- | ------- | ------ | ------- |
-| RDS-PRD-OLTP       | primary OLTP                                | RDS Postgres Multi-AZ                            | `<TBD>` | Critical    | Customer + Financial | Tier 1  | AWS    | `<TBD>` |
-| RDS-STG-OLTP       | staging OLTP                                | RDS Postgres single-AZ                           | `<TBD>` | Medium      | Internal             | Tier 3  | AWS    | `<TBD>` |
-| S3-AUDIT           | audit log archive                           | S3 (Object Lock COMPLIANCE)                      | Hleb    | Critical    | Audit                | Tier 1  | AWS    | `<TBD>` |
-| S3-CT-AUDIT        | CloudTrail management-events archive        | S3                                               | Hleb    | High        | Audit                | Tier 2  | AWS    | `<TBD>` |
-| S3-ASSETS-PRD      | static assets (production)                  | S3                                               | `<TBD>` | High        | None                 | Tier 2  | AWS    | `<TBD>` |
-| SECRETS-PRD        | runtime secrets                             | Vault (self-hosted VPS) → AWS SSM SecureString   | Hleb    | Critical    | Customer + Financial | Tier 1  | AWS    | `<TBD>` |
-| CT-MGMT            | CloudTrail management-events trail          | CloudTrail                                       | Hleb    | High        | Audit                | Tier 2  | AWS    | `<TBD>` |
-| BUDGETS-COST       | 5 AWS Budgets (cost-runaway protection)     | AWS Budgets                                      | Hleb    | High        | Internal             | Tier 2  | AWS    | `<TBD>` |
-| SSM-OPENFGA-IDS    | OpenFGA store-id + model-id (L2 authz)      | SSM Parameter Store                              | Hleb    | High        | Internal             | Tier 1  | AWS    | `<TBD>` |
-| S3-BACKUPS         | encrypted nightly backups (BackupStack)     | S3 (versioned, IA/Glacier/DeepArchive lifecycle) | Hleb    | Critical    | Customer + Financial | Tier 1  | AWS    | `<TBD>` |
-| RDS-OPENFGA-SCHEMA | openfga schema in primary RDS (ReBAC graph) | RDS Postgres schema                              | Hleb    | High        | Customer             | Tier 1  | AWS    | `<TBD>` |
+| Asset ID           | Name                                        | Type                                             | Owner | Criticality | Data class           | DR tier | Vendor | Status  |
+| ------------------ | ------------------------------------------- | ------------------------------------------------ | ----- | ----------- | -------------------- | ------- | ------ | ------- |
+| RDS-PRD-OLTP       | primary OLTP                                | RDS Postgres Multi-AZ                            | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS    | Active  |
+| RDS-STG-OLTP       | staging OLTP                                | RDS Postgres single-AZ                           | Hleb  | Medium      | Internal             | Tier 3  | AWS    | Active  |
+| S3-AUDIT           | audit log archive                           | S3 (Object Lock COMPLIANCE)                      | Hleb  | Critical    | Audit                | Tier 1  | AWS    | `<TBD>` |
+| S3-CT-AUDIT        | CloudTrail management-events archive        | S3                                               | Hleb  | High        | Audit                | Tier 2  | AWS    | Active  |
+| S3-ASSETS-PRD      | static assets (production)                  | S3                                               | Hleb  | High        | None                 | Tier 2  | AWS    | Active  |
+| SECRETS-PRD        | runtime secrets                             | Vault (self-hosted VPS) → AWS SSM SecureString   | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS    | Active  |
+| CT-MGMT            | CloudTrail management-events trail          | CloudTrail                                       | Hleb  | High        | Audit                | Tier 2  | AWS    | Active  |
+| BUDGETS-COST       | 5 AWS Budgets (cost-runaway protection)     | AWS Budgets                                      | Hleb  | High        | Internal             | Tier 2  | AWS    | Active  |
+| SSM-OPENFGA-IDS    | OpenFGA store-id + model-id (L2 authz)      | SSM Parameter Store                              | Hleb  | High        | Internal             | Tier 1  | AWS    | Active  |
+| S3-BACKUPS         | encrypted nightly backups (BackupStack)     | S3 (versioned, IA/Glacier/DeepArchive lifecycle) | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS    | Active  |
+| RDS-OPENFGA-SCHEMA | openfga schema in primary RDS (ReBAC graph) | RDS Postgres schema                              | Hleb  | High        | Customer             | Tier 1  | AWS    | Active  |
 
 ## 4. Networking
 
 | Asset ID    | Name                 | Type            | Owner   | Criticality | Data class | DR tier | Vendor | Status  |
 | ----------- | -------------------- | --------------- | ------- | ----------- | ---------- | ------- | ------ | ------- |
-| VPC-PRD     | production VPC       | VPC             | `<TBD>` | Critical    | n/a        | Tier 1  | AWS    | `<TBD>` |
-| VPC-STG     | staging VPC          | VPC             | `<TBD>` | Medium      | n/a        | Tier 3  | AWS    | `<TBD>` |
+| VPC-PRD     | production VPC       | VPC             | Hleb    | Critical    | n/a        | Tier 1  | AWS    | Active  |
+| VPC-STG     | staging VPC          | VPC             | Hleb    | Medium      | n/a        | Tier 3  | AWS    | Active  |
 | TGW-SHARED  | transit gateway      | Transit Gateway | `<TBD>` | High        | n/a        | Tier 2  | AWS    | `<TBD>` |
 | ALB-WEB-PRD | web ALB (production) | ALB             | `<TBD>` | Critical    | n/a        | Tier 1  | AWS    | `<TBD>` |
 | WAF-WEB-PRD | web WAF (production) | WAFv2           | `<TBD>` | Critical    | n/a        | Tier 1  | AWS    | `<TBD>` |
@@ -77,8 +77,8 @@ Audit trail of changes: git history of this file.
 | Asset ID  | Name                                 | Type              | Owner | Criticality | Data class | DR tier | Vendor | Status  |
 | --------- | ------------------------------------ | ----------------- | ----- | ----------- | ---------- | ------- | ------ | ------- |
 | IDC-001   | Identity Center (built-in directory) | identity provider | Hleb  | Critical    | Internal   | Tier 1  | AWS    | `<TBD>` |
-| GHOID-PRD | GitHub OIDC provider (prod)          | OIDC provider     | Hleb  | High        | Internal   | Tier 2  | AWS    | `<TBD>` |
-| GHOID-STG | GitHub OIDC provider (staging)       | OIDC provider     | Hleb  | Medium      | Internal   | Tier 3  | AWS    | `<TBD>` |
+| GHOID-PRD | GitHub OIDC provider (prod)          | OIDC provider     | Hleb  | High        | Internal   | Tier 2  | AWS    | Active  |
+| GHOID-STG | GitHub OIDC provider (staging)       | OIDC provider     | Hleb  | Medium      | Internal   | Tier 3  | AWS    | Active  |
 
 ## 6. Third-party SaaS
 
@@ -86,7 +86,7 @@ Audit trail of changes: git history of this file.
 | ---------------- | ---------------------------------------------------- | --------------------------- | ------- | ----------- | ---------- | ------- | ------------------------------ | ------------------------------------ |
 | GH-REPO-001      | hlebtkachenko/monorepo                               | source repo                 | Hleb    | High        | Code       | Tier 2  | GitHub                         | Active                               |
 | GH-ACT-001       | GitHub Actions runners                               | CI compute                  | Hleb    | High        | Code       | Tier 2  | GitHub                         | Active                               |
-| GHCR-001         | GHCR container registry                              | container registry          | Hleb    | High        | Code       | Tier 2  | GitHub                         | `<TBD>`                              |
+| GHCR-001         | GHCR container registry                              | container registry          | Hleb    | High        | Code       | Tier 2  | GitHub                         | Active                               |
 | SENTRY-001       | error monitoring                                     | SaaS                        | Hleb    | Medium      | Telemetry  | Tier 3  | Sentry                         | `<TBD>`                              |
 | HONEY-001        | observability                                        | SaaS                        | Hleb    | High        | Telemetry  | Tier 2  | Honeycomb                      | `<TBD>`                              |
 | SIGSTORE-001     | Sigstore Rekor + Fulcio                              | public log + CA             | Hleb    | High        | Code       | Tier 2  | Sigstore                       | Active                               |

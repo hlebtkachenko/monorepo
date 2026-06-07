@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "setup": "pnpm install && (test -f \"$CONDUCTOR_ROOT_PATH/apps/web/.env.local\" && cp \"$CONDUCTOR_ROOT_PATH/apps/web/.env.local\" apps/web/.env.local || true)"
+  }
+}

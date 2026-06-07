@@ -127,9 +127,15 @@ export class DomainExceptionFilter implements ExceptionFilter {
       )
       Sentry.captureException(exception)
       const safe = sanitizeError(exception, requestId)
-      // Fire-and-forget: a failed ping must never alter the error response.
-      void notifier?.alert(`API 5xx [${safe.id}]: ${safe.message}`, {
-        source: "api",
+      // Fire-and-forget: a failed report must never alter the error response. Opens a deduped
+      // Linear issue (with an Open button) — full stack is in Sentry, not the issue body.
+      void notifier?.reportIssue({
+        source: "error",
+        area: "api",
+        risk: "high",
+        title: `API 5xx: ${safe.message}`,
+        body: `Unhandled API exception \`${safe.id}\` (requestId). Stack in Sentry.\n\n${safe.message}`,
+        fingerprintParts: ["api-5xx", safe.message],
       })
     }
 

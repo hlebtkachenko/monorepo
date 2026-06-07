@@ -119,7 +119,7 @@ interface DrainDeps {
   client: OpenFgaClient
   now: () => Date
   /** Optional: notified once per dead-lettered row (max-attempts). Tests omit it. */
-  notify?: (text: string) => void
+  notify?: (info: { rowId: string; message: string }) => void
 }
 
 /**
@@ -170,9 +170,10 @@ export async function drainBatch(deps: DrainDeps): Promise<{
         `)
         if (finalFail) {
           failed++
-          deps.notify?.(
-            `permissions-drain dead-lettered row ${row.id}: ${sanitizeError(err, row.id).message}`,
-          )
+          deps.notify?.({
+            rowId: row.id,
+            message: sanitizeError(err, row.id).message,
+          })
         }
       }
     }
@@ -241,7 +242,15 @@ const lane: Lane = {
     await drainBatch({
       client,
       now: () => new Date(),
-      notify: (text) => void notifier?.alert(text, { source: "worker" }),
+      notify: ({ rowId, message }) =>
+        void notifier?.reportIssue({
+          source: "error",
+          area: "infra",
+          risk: "high",
+          title: `permissions-drain dead-letter: ${message}`,
+          body: `Outbox row \`${rowId}\` dead-lettered after max attempts.\n\n${message}`,
+          fingerprintParts: ["worker-deadletter", message],
+        }),
     })
   },
 }

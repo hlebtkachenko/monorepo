@@ -14,6 +14,54 @@ export interface IngestPayload {
   buttons?: string[]
 }
 
+/** A normalized event for POST /issue — opens (or dedups into) a tracked Linear issue. */
+export interface IssueReport {
+  source:
+    | "error"
+    | "ci-failure"
+    | "security-scan"
+    | "customer-request"
+    | "agent"
+  title: string
+  /** Markdown body — MUST be pre-sanitized (no secrets/PII/raw stacks). */
+  body: string
+  /** Stable identity (strip volatile tokens: request ids, timestamps, line:col). */
+  fingerprintParts: string[]
+  area?:
+    | "api"
+    | "web"
+    | "ci"
+    | "observability"
+    | "secrets"
+    | "infra"
+    | "auth"
+    | "db"
+    | "agents"
+  risk?: "blocking" | "high" | "medium" | "low"
+  type?: "security" | "fix"
+  links?: { label: string; url: string }[]
+}
+
+// Framework control-flow signals that LOOK like errors but are NOT — Next.js throws these
+// from redirect() / notFound() / forbidden()/unauthorized(). Reporting them is noise (a normal
+// login redirect would page you). Match the error message AND its `digest`.
+const IGNORABLE_ERROR_TOKENS = [
+  "NEXT_REDIRECT",
+  "NEXT_NOT_FOUND",
+  "NEXT_HTTP_ERROR_FALLBACK",
+]
+
+/** True when the "error" is actually a framework control-flow signal and must not be reported. */
+export function isIgnorableError(
+  ...parts: (string | undefined | null)[]
+): boolean {
+  return parts.some(
+    (p) =>
+      typeof p === "string" &&
+      IGNORABLE_ERROR_TOKENS.some((t) => p.includes(t)),
+  )
+}
+
 export interface NotifierConfig {
   /** Bot ingest URL, e.g. https://bot.afframe.com/ingest (or http://localhost:8787/ingest in dev). */
   url: string
@@ -109,6 +157,8 @@ export interface Notifier {
     opts?: Omit<IngestPayload, "text" | "level">,
   ): Promise<void>
   send(payload: IngestPayload): Promise<void>
+  /** Open (or dedup into) a tracked Linear issue + a Telegram echo with an Open button. */
+  reportIssue(report: IssueReport): Promise<void>
   /** Post a HITL question; returns the approval id to poll. */
   ask(req: ApprovalRequest): Promise<{ id: string; exp: number }>
   /** Convenience: ask for a free-text answer. */
@@ -162,10 +212,19 @@ export function createNotifier(config: NotifierConfig): Notifier {
     if (!res.ok) throw new Error(`notify: answer returned ${res.status}`)
     return (await res.json()) as ApprovalState
   }
+  async function reportIssue(report: IssueReport): Promise<void> {
+    const res = await doFetch(`${base}/issue`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify(report),
+    })
+    if (!res.ok) throw new Error(`notify: issue returned ${res.status}`)
+  }
   return {
     send,
     notify: (text, opts) => send({ text, ...opts }),
     alert: (text, opts) => send({ text, level: "error", ...opts }),
+    reportIssue,
     ask,
     askText: (question, opts) => ask({ ...opts, question, kind: "text" }),
     askConfirm: (question, opts) => {

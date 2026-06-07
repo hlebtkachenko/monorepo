@@ -4,7 +4,7 @@ Instructions for AI agents (Claude Code, Codex, Cursor) working in this monorepo
 
 ## Issue Tracking
 
-Issues and planning live in **Linear** — team Afframe (key `AFF`). Agents reach it through the `linear` MCP server (`mcp__linear__*` tools): list, search, read, create, and update issues in-session. Conductor can also open a workspace directly from a Linear issue. When work spans sessions, the Linear issue is the source of truth — read it before starting, update it as you go. Current branch-recovery and merge work is grouped under the Linear **Cleanup** project.
+Issues and planning live in **Linear**. Route by function: product engineering (bugs, CI, infra, features) → **Engineering & Design** (`DEV`); discovery / marketing / pricing / brand → **Product** (`PRO`); pipeline / support → **Sales** (`SAL`); legal / finance / compliance / hiring → **Operations** (`OPS`). The legacy **Afframe** team (`AFF`) is **FROZEN — never file new work there.** Agents reach Linear through the Linear MCP tools (`mcp__claude_ai_Linear__*`): list, search, read, create, and update issues in-session. Conductor can also open a workspace directly from a Linear issue. When work spans sessions, the Linear issue is the source of truth — read it before starting, update it as you go.
 
 ## Architecture
 

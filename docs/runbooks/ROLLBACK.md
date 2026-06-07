@@ -28,18 +28,19 @@ cosign verify-attestation --type slsaprovenance "$ECR_REPO@$PREVIOUS_DIGEST" \
   --certificate-identity-regexp '^https://github.com/hlebtkachenko/monorepo/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-# 2. Trigger the rollback workflow with the explicit digest pinned.
-# NOTE: _deploy-aws.yml has no imageDigest input — the -f imageDigest line
-# below needs reconciling against the actual workflow inputs before use.
+# 2. Trigger the rollback by pinning the previous image tag.
+#    _deploy-aws.yml redeploys app-only with `image_tag_override` set to an
+#    existing ECR tag (e.g. sha-abcdef) — it takes a tag, not a digest.
+#    PREVIOUS_TAG is the tag whose digest you verified above.
 gh workflow run _deploy-aws.yml \
   -f environment=production \
   -f stack=app-only \
-  -f imageDigest=$PREVIOUS_DIGEST
+  -f image_tag_override=$PREVIOUS_TAG
 ```
 
 ### What it does on AWS
 
-- Renders a new ECS task definition with the pinned image digest.
+- Renders a new ECS task definition with the pinned image tag.
 - Updates the service to the new task definition (rolling, two-task minimum).
 - Watches health checks for 5 minutes; auto-aborts if 5xx > 0.1% or healthy task count drops.
 

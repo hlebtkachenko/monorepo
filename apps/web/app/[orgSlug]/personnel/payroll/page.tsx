@@ -8,5 +8,11 @@ export default async function PayrollPage({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug } = await params
-  return <SectionStub title="Payroll" orgSlug={orgSlug} subpath="hr/payroll" />
+  return (
+    <SectionStub
+      title="Payroll"
+      orgSlug={orgSlug}
+      subpath="personnel/payroll"
+    />
+  )
 }

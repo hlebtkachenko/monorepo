@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Heading } from "@workspace/ui/components/heading"
 import { cn } from "@workspace/ui/lib/utils"
 
 export interface SectionTab {
@@ -17,7 +16,7 @@ interface SectionTabsProps {
 
 /**
  * Horizontal sub-nav for an org section (Accounting, Finance, Closing,
- * HR, Documents). Highlights the active tab via the current
+ * Personnel, Documents). Highlights the active tab via the current
  * pathname. Wrap a section's children with this layout when the section
  * has multiple sibling pages.
  */
@@ -26,9 +25,7 @@ export function SectionTabs({ title, tabs }: SectionTabsProps) {
   return (
     <div className="border-b border-border">
       <div className="mx-auto max-w-6xl space-y-4 px-6 pt-8 pb-0">
-        <Heading level={2} className="mt-0">
-          {title}
-        </Heading>
+        <h1>{title}</h1>
         <nav className="flex gap-1 text-sm">
           {tabs.map((tab) => {
             const active =

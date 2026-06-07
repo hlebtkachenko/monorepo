@@ -1,8 +1,8 @@
 import { SectionStub } from "../_components/section-stub"
 
-export const metadata = { title: "HR" }
+export const metadata = { title: "Personnel" }
 
-export default async function HROverviewPage({
+export default async function PersonnelOverviewPage({
   params,
 }: {
   params: Promise<{ orgSlug: string }>
@@ -12,7 +12,7 @@ export default async function HROverviewPage({
     <SectionStub
       title="Overview"
       orgSlug={orgSlug}
-      subpath="hr"
+      subpath="personnel"
       description="People and payments: employees, payroll, travels, expenses."
     />
   )

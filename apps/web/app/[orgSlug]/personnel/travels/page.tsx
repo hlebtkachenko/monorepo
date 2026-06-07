@@ -8,5 +8,11 @@ export default async function TravelsPage({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug } = await params
-  return <SectionStub title="Travels" orgSlug={orgSlug} subpath="hr/travels" />
+  return (
+    <SectionStub
+      title="Travels"
+      orgSlug={orgSlug}
+      subpath="personnel/travels"
+    />
+  )
 }

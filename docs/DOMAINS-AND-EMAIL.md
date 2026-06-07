@@ -2,10 +2,10 @@
 
 Inventory of `*.afframe.com` hosts and `@afframe.com` addresses, mapped to
 the ADRs and config files that own each one. This file deliberately omits
-operational identifiers (tunnel names, bucket names, secret-store
-references) — agents working on the repo find those in the linked config
-files; the public inventory carries only what is already discoverable via
-DNS or in committed config.
+secret values and low-level operational identifiers (tunnel names, bucket
+names) — it names auth _mechanisms_ but never their values; agents working
+on the repo find the rest in the linked config files. The public inventory
+carries only what is already discoverable via DNS or in committed config.
 
 For decisions see [ADR-0008](adr/0008-cloudflare-tunnel-and-email.md). For
 operational procedures see the runbook linked under each entry.

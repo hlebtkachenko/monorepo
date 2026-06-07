@@ -34,7 +34,7 @@ in [`docs/api/README.md`](api/README.md) and [`docs/api/API-REFERENCE.md`](api/A
 | `/v1/status`       | None    | Service health summary (proxies status.afframe.com)                |
 | `/v1/feedback`     | None    | Partner feedback ingestion (POST)                                  |
 
-Domain endpoints (invoices, accounts, journal entries) land with AFF-71.
+Domain endpoints (invoices, accounts, journal entries) are not yet implemented.
 
 ## Read these, in order
 

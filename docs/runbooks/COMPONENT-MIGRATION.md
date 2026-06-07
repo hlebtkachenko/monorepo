@@ -14,14 +14,15 @@ Adding non-shadcn components from external registries to the monorepo.
 
 Before writing code, determine what the component actually is:
 
-| Classification | Criteria | Where it lives | Examples |
-|---|---|---|---|
-| **Component** | Renders DOM, has visual identity, testable in isolation | `packages/ui/src/components/{name}/` (4-file pattern) | ActionBar, Swap, BorderBeamButton |
-| **Button variant** | Visual variation of a button, composes our Button | `packages/ui/src/components/{name}/` (4-file pattern) | AnimatedShinyButton, LiquidMetalButton |
-| **Utility** | No visual output, thin wrapper or helper function | `packages/ui/src/lib/{name}.tsx` | DownloadTrigger |
-| **Hook** | Behavioral pattern reusable across components | `packages/ui/src/hooks/{name}.ts` | useStatefulButton |
+| Classification     | Criteria                                                | Where it lives                                        | Examples                               |
+| ------------------ | ------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------- |
+| **Component**      | Renders DOM, has visual identity, testable in isolation | `packages/ui/src/components/{name}/` (4-file pattern) | ActionBar, Swap, BorderBeamButton      |
+| **Button variant** | Visual variation of a button, composes our Button       | `packages/ui/src/components/{name}/` (4-file pattern) | AnimatedShinyButton, LiquidMetalButton |
+| **Utility**        | No visual output, thin wrapper or helper function       | `packages/ui/src/lib/{name}.tsx`                      | DownloadTrigger                        |
+| **Hook**           | Behavioral pattern reusable across components           | `packages/ui/src/hooks/{name}.ts`                     | useStatefulButton                      |
 
 Questions to ask:
+
 - Does it render its own DOM? → Component
 - Is it a wrapper that adds behavior to children? → Check if it's closer to Swap (component) or DownloadTrigger (utility)
 - Could this behavior apply to multiple components? → Hook
@@ -118,7 +119,7 @@ Add section to `apps/web/app/showcase/page.tsx` in alphabetical order.
 
 - Follow the section comment pattern: `{/* ==================== NAME ==================== */}`
 - If component needs client state, create demo at `apps/web/app/showcase/_components/{name}-demo.tsx`
-- See `docs/runbooks/SHOWCASE-RUNBOOK.md` for full details
+- See `docs/runbooks/SHOWCASE.md` for full details
 
 ### Step 9: Verify
 
@@ -135,15 +136,15 @@ Start dev server and visually verify in showcase + Storybook.
 
 These hooks and utilities are already available for new components:
 
-| Utility | Path | Used by |
-|---|---|---|
-| `useComposedRefs` | `@workspace/ui/lib/compose-refs` | ActionBar |
-| `useAsRef` | `@workspace/ui/hooks/use-as-ref` | ActionBar, Swap |
-| `useIsomorphicLayoutEffect` | `@workspace/ui/hooks/use-isomorphic-layout-effect` | ActionBar, Swap |
-| `useLazyRef` | `@workspace/ui/hooks/use-lazy-ref` | Swap |
-| `useStatefulButton` | `@workspace/ui/hooks/use-stateful-button` | Standalone hook |
-| `cn` | `@workspace/ui/lib/utils` | All components |
-| `DownloadTrigger` | `@workspace/ui/lib/download-trigger` | Standalone utility |
+| Utility                     | Path                                               | Used by            |
+| --------------------------- | -------------------------------------------------- | ------------------ |
+| `useComposedRefs`           | `@workspace/ui/lib/compose-refs`                   | ActionBar          |
+| `useAsRef`                  | `@workspace/ui/hooks/use-as-ref`                   | ActionBar, Swap    |
+| `useIsomorphicLayoutEffect` | `@workspace/ui/hooks/use-isomorphic-layout-effect` | ActionBar, Swap    |
+| `useLazyRef`                | `@workspace/ui/hooks/use-lazy-ref`                 | Swap               |
+| `useStatefulButton`         | `@workspace/ui/hooks/use-stateful-button`          | Standalone hook    |
+| `cn`                        | `@workspace/ui/lib/utils`                          | All components     |
+| `DownloadTrigger`           | `@workspace/ui/lib/download-trigger`               | Standalone utility |
 
 ## Installed Packages
 

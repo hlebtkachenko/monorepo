@@ -107,7 +107,7 @@ aws rds stop-db-instance --db-instance-identifier "$SID"
 ## Related
 
 - [`ENV-POWER.md`](ENV-POWER.md) — on/off (resume / warm / cold) + the auto-cold automation
-- [`COST-INCIDENT-RESPONSE.md`](COST-INCIDENT-RESPONSE.md) — kill-switch + budget
-- [`AWS-DEPLOY.md`](AWS-DEPLOY.md) — full deploy procedure
+- [`COST-INCIDENT.md`](COST-INCIDENT.md) — kill-switch + budget
+- [`AWS-SETUP.md`](AWS-SETUP.md) — full deploy procedure
 - ADR [`0016-cost-runaway-protection.md`](../adr/0016-cost-runaway-protection.md)
 - `.context/aws-cost-investigation.md` — the cost review that motivated this

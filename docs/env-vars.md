@@ -14,7 +14,7 @@ secrets) for local dev, or copy `apps/web/.env.example` and fill in
 placeholders by hand. In CI / production, values come from GitHub Actions
 secrets, AWS SSM Parameter Store (app secrets, synced from Vault), and
 AWS Secrets Manager (RDS credentials only); see
-`docs/runbooks/AWS-DEPLOY.md` for the wiring chain.
+`docs/runbooks/AWS-SETUP.md` for the wiring chain.
 
 Section labels track which package reads the variable.
 

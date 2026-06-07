@@ -7,7 +7,7 @@
 ; non-secret and already appear in plaintext in docker-compose.dev.yml, so this
 ; file is committed — `docker compose up` works on a fresh checkout with no
 ; manual steps. Production pgBouncer gets its userlist from Secrets Manager
-; (see docs/runbooks/AWS-DEPLOY.md), never from this file.
+; (see docs/runbooks/AWS-SETUP.md), never from this file.
 
 "app_user"   "dev_user"
 "app_owner"  "dev_owner"

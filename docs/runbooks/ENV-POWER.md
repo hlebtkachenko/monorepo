@@ -81,5 +81,5 @@ Staging keeps the 5h auto-cold-pause indefinitely (no uptime obligation).
 ## Related
 
 - [`STAGING.md`](STAGING.md) — staging lifecycle specifics
-- [`COST-INCIDENT-RESPONSE.md`](COST-INCIDENT-RESPONSE.md) — kill-switch + budgets
+- [`COST-INCIDENT.md`](COST-INCIDENT.md) — kill-switch + budgets
 - `.context/aws-cost-investigation.md` — the cost review that motivated this

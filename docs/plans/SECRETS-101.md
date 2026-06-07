@@ -18,7 +18,7 @@
 > - [`docs/runbooks/SECRETS.md`](../runbooks/SECRETS.md) — the project's actual secrets convention
 > - [`docs/runbooks/VAULT-OPS.md`](../runbooks/VAULT-OPS.md) — Vault operations runbook
 > - [`docs/env-vars.md`](../env-vars.md) — registry of every env var the app reads
-> - [`docs/runbooks/AWS-DEPLOY.md`](../runbooks/AWS-DEPLOY.md) — deploy wiring chain
+> - [`docs/runbooks/AWS-SETUP.md`](../runbooks/AWS-SETUP.md) — deploy wiring chain
 > - `.gitleaks.toml` — leak-detection rules at the repo root
 
 ---

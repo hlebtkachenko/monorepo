@@ -191,6 +191,6 @@ Provisioning checklist (manual — held for operator approval, tracked in DEV-46
 
 ## Cross-references
 
-- `docs/runbooks/AWS-DEPLOY.md` step 2 (OIDC trust + deploy role).
+- `docs/runbooks/AWS-SETUP.md` step 2 (OIDC trust + deploy role).
 - `docs/specs/SUPPLY-CHAIN.md` (cosign keyless uses the same OIDC token, different audience).
 - `.github/workflows/_deploy-aws.yml`.

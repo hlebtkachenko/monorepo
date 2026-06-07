@@ -166,7 +166,7 @@ The site is live at `https://app.afframe.com`. Anyone with the URL can access. T
 If launch-readiness includes:
 
 - A signup wall → confirm auth is wired before publicizing the URL.
-- A waitlist / closed beta → set Cloudflare Access policy on `app.afframe.com` to require email allowlist (free Cloudflare Zero Trust feature). **Do NOT use Access on `admin.afframe.com` or `api.afframe.com`** — Access cannot model workspace membership and was explicitly dropped from the admin/api design (see ADR-0008 amendment, `AWS-DEPLOY.md` step 9).
+- A waitlist / closed beta → set Cloudflare Access policy on `app.afframe.com` to require email allowlist (free Cloudflare Zero Trust feature). **Do NOT use Access on `admin.afframe.com` or `api.afframe.com`** — Access cannot model workspace membership and was explicitly dropped from the admin/api design (see ADR-0008 amendment, `AWS-SETUP.md` step 9).
 
 ---
 
@@ -298,5 +298,5 @@ Don't enable preemptively. Each adds ops surface or cost.
 
 - `docs/adr/0007-mvp-single-account-cdk-only.md` — single-account decision
 - `docs/adr/0008-cloudflare-tunnel-and-email.md` — Cloudflare Tunnel front door
-- `docs/runbooks/AWS-DEPLOY.md` — base deploy procedure (`staging` flow is identical to `production` flow with the environment arg swapped)
+- `docs/runbooks/AWS-SETUP.md` — base deploy procedure (`staging` flow is identical to `production` flow with the environment arg swapped)
 - `.context/attachments/aws-products-review.md` — service-by-service rationale

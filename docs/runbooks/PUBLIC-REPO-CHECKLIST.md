@@ -419,7 +419,7 @@ If any of these are off, return to the section that owns it.
 
 ## 12. After AWS bootstraps
 
-This checklist covers the GitHub side. The AWS side is in `docs/runbooks/AWS-DEPLOY.md`.
+This checklist covers the GitHub side. The AWS side is in `docs/runbooks/AWS-SETUP.md`.
 
 Order: complete sections 1–11 here first → walk AWS-DEPLOY → set `vars.AWS_BOOTSTRAPPED=true` → first deploy.
 

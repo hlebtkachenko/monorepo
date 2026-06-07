@@ -63,7 +63,7 @@ if (data.scopes.includes("infra")) {
     title: "Infrastructure changed",
     items: [
       "Run `pnpm --filter infra-cdk diff` and paste relevant output in the PR description.",
-      "AWS Budget changes get extra scrutiny — see `docs/runbooks/COST-INCIDENT-RESPONSE.md`.",
+      "AWS Budget changes get extra scrutiny — see `docs/runbooks/COST-INCIDENT.md`.",
       "Confirm Cloudflare Tunnel ingress rules align with `docs/DOMAINS-AND-EMAIL.md`.",
     ],
   })

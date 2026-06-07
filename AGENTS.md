@@ -96,11 +96,13 @@ READ the source file first. Never guess exports. The export list is at the botto
 2. `pnpm test` must pass
 3. `pnpm build` must pass
 4. For UI changes: start dev server and check visually
+5. **Before pushing**, run the doc-sync matrix in [`docs/runbooks/DOC-SYNC-AND-DRIFT.md`](docs/runbooks/DOC-SYNC-AND-DRIFT.md) — map each changed path to the docs it forces you to update so they don't silently rot.
 
 ## Runbooks
 
 Agent-specific runbooks live in `docs/runbooks/`:
 
+- `DOC-SYNC-AND-DRIFT.md`: pre-push doc-sync matrix (every agent) + the drift-sweep playbook (method, source-of-truth map, known traps, last-sweep state) so cleanup agents do delta, not full re-research
 - `SHOWCASE-RUNBOOK.md`: instructions for adding component demos to the showcase page
 - `COMPONENT-MIGRATION-RUNBOOK.md`: workflow for adding non-shadcn components from external registries
 

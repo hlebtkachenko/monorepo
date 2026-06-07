@@ -35,7 +35,7 @@ listener "tcp" {
 #
 # Annual rotation is enabled on the CMK; key deletion is denied by resource
 # policy. If this key ever becomes unreachable, fall back to Shamir unseal
-# with the 3-of-5 escrowed unseal keys (Keychain + paper at safe-deposit).
+# with the 3-of-5 escrowed unseal keys (Keychain + offline escrow).
 seal "awskms" {
   region     = "eu-central-1"
   kms_key_id = "ed05513d-eb4d-4ad4-b829-7afd69080b6c"

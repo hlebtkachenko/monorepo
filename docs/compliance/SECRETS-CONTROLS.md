@@ -42,7 +42,7 @@
 The following risks are explicitly accepted at current scale:
 
 - **Single-node Vault** — no HA cluster today; mitigated by 6-hour restic backups to R2. **Restore RTO is a TARGET (≤30 min), not yet measured** — the DR drill that would verify it is deferred ([AFF-247](https://linear.app/hapddev/issue/AFF-247)).
-- **Single-operator escrow** — 5 recovery keys (3-of-5 quorum) controlled by one person, held on **paper at safe-deposit** (proven working 2026-05-31: 3 keys regenerated root during the M3.5 cascade recovery). Daily admin is a 90-day Keychain operator-admin token. Adding a second escrow operator is tracked in [AFF-245](https://linear.app/hapddev/issue/AFF-245)'s post-100-clients section.
+- **Single-operator escrow** — 5 recovery keys (3-of-5 quorum) controlled by one person, held in **offline dual-custody escrow (off-repo)** (proven working 2026-05-31: 3 keys regenerated root during the M3.5 cascade recovery). Daily admin is a 90-day Keychain operator-admin token. Adding a second escrow operator is tracked in [AFF-245](https://linear.app/hapddev/issue/AFF-245)'s post-100-clients section.
 - **File-based audit device** — local log on VPS. Mitigated by 13-month retention deferral until SOC 2 ([AFF-244](https://linear.app/hapddev/issue/AFF-244)).
 
 ## Open items before SOC 2 Type II

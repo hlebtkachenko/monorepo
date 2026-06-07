@@ -225,6 +225,8 @@ Restart later via `desired-count 1` + `start-db-instance`. RDS stays stopped for
 
 ## Rollback
 
+> Canonical rollback procedure: [`ROLLBACK.md`](ROLLBACK.md). The promotion-specific paths below supplement it.
+
 Production goes wrong post-deploy → roll back via one of three paths.
 
 ### Fast: ECS service automatic rollback

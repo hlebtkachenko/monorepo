@@ -1,6 +1,8 @@
 # AWS Deploy
 
 > Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This runbook covers the operational steps; the inventory file is the source of truth for what each host is.
+>
+> **Scope:** one-time AWS account + owner setup, and AWS-specific deploy operations. For the day-to-day deploy trigger/mechanics see [`DEPLOY.md`](DEPLOY.md); for the canonical rollback procedure see [`ROLLBACK.md`](ROLLBACK.md).
 
 Single-account MVP deploy with Cloudflare front door + AWS-hosted compute and data. See ADR `docs/adr/0007-mvp-single-account-cdk-only.md` (parent decision) and `docs/adr/0008-cloudflare-tunnel-and-email.md` (network + email architecture).
 
@@ -608,6 +610,8 @@ Watch for 24h:
 - **Cost Explorer** → AWS daily spend tracks against ~$1.50/day target
 
 ## Rolling back
+
+> Canonical rollback procedure: [`ROLLBACK.md`](ROLLBACK.md). The AWS-specific notes below supplement it.
 
 Bad deploy? Revert the git commit, push, the deploy workflow re-runs with previous image SHA. ECS circuit breaker auto-rolls if new tasks fail health checks.
 

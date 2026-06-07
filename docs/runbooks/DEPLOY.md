@@ -1,6 +1,8 @@
 # Deploy
 
 > Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+>
+> **Scope:** how a deploy _runs_ day-to-day (triggers, checks, mechanics). One-time AWS account/owner setup (credentials, OIDC, DNS, bootstrap) → [`AWS-DEPLOY.md`](AWS-DEPLOY.md). Rollback procedure → [`ROLLBACK.md`](ROLLBACK.md). Promote staging→prod → [`PROMOTE-TO-PRODUCTION.md`](PROMOTE-TO-PRODUCTION.md).
 
 Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` runs. Staging deploys are live; production deploys additionally require approval in the `production` GitHub environment (first prod deploy: v0.2.5, 2026-06-01).
 

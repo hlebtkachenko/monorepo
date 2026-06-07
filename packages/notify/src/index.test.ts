@@ -1,5 +1,54 @@
 import { describe, it, expect, vi } from "vitest"
-import { buildIngestRequest, createNotifier, notifierFromEnv } from "./index.js"
+import {
+  buildIngestRequest,
+  createNotifier,
+  isIgnorableError,
+  notifierFromEnv,
+} from "./index.js"
+
+describe("isIgnorableError", () => {
+  it("flags Next.js control-flow signals (message or digest)", () => {
+    expect(isIgnorableError("NEXT_REDIRECT")).toBe(true)
+    expect(isIgnorableError("NEXT_NOT_FOUND")).toBe(true)
+    expect(isIgnorableError("boom", "NEXT_REDIRECT;replace;/x;307")).toBe(true)
+    expect(isIgnorableError("NEXT_HTTP_ERROR_FALLBACK;403")).toBe(true)
+  })
+  it("does not flag real errors", () => {
+    expect(isIgnorableError("TypeError: x is undefined")).toBe(false)
+    expect(isIgnorableError(undefined, null)).toBe(false)
+  })
+})
+
+describe("reportIssue", () => {
+  it("POSTs the event to /issue with a bearer", async () => {
+    const fetchImpl = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit) => {
+        expect(String(url)).toBe("http://localhost:8787/issue")
+        expect((init?.headers as Record<string, string>).authorization).toBe(
+          "Bearer shh",
+        )
+        expect(JSON.parse(init?.body as string)).toMatchObject({
+          source: "error",
+          area: "web",
+          fingerprintParts: ["web-client", "boom"],
+        })
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      },
+    )
+    await createNotifier({
+      url: "http://localhost:8787/ingest",
+      secret: "shh",
+      fetchImpl,
+    }).reportIssue({
+      source: "error",
+      area: "web",
+      title: "Web error: boom",
+      body: "boom",
+      fingerprintParts: ["web-client", "boom"],
+    })
+    expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+})
 
 const config = { url: "http://localhost:8787/ingest", secret: "shh" }
 

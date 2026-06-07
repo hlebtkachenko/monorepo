@@ -60,7 +60,7 @@ interface BudgetSpec {
  *
  * Lambda permissions are scoped to the single ECS service/cluster pair -
  * no wildcards. Re-enable manually: `aws ecs update-service --desired-count 1`.
- * See docs/runbooks/COST-INCIDENT-RESPONSE.md.
+ * See docs/runbooks/COST-INCIDENT.md.
  */
 export class SecurityStack extends Stack {
   readonly killSwitchTopic: Topic
@@ -288,7 +288,7 @@ export class SecurityStack extends Stack {
     // as a cost-allocation tag in Billing → Cost allocation tags before these
     // filters resolve to real spend (AWS takes ~24h to backfill). Until then
     // a tag-filtered budget reads $0 and will NOT cap. Activate the tag first;
-    // see docs/runbooks/STAGING.md + AWS-DEPLOY.md.
+    // see docs/runbooks/STAGING.md + AWS-SETUP.md.
     //
     // Two budgets per env:
     //   - Total       $55, killSwitch=true. 80% → ops email; 100% → stop

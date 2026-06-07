@@ -132,5 +132,5 @@ The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-publi
 - [ADR-0008](../adr/0008-cloudflare-tunnel-and-email.md) — Cloudflare tunnel + domain routing
 - [ADR-0018](../adr/0018-three-layer-authorization.md) — authz layers (deferred to AFF-46/71)
 - [env-vars.md](../env-vars.md) — all environment variables
-- [AWS-DEPLOY.md](../runbooks/AWS-DEPLOY.md) — deploy procedure + tunnel config
+- [AWS-SETUP.md](../runbooks/AWS-SETUP.md) — deploy procedure + tunnel config
 - [PUBLIC-REPO-CHECKLIST.md](../runbooks/PUBLIC-REPO-CHECKLIST.md) — repo-side public hardening (separate from API launch)

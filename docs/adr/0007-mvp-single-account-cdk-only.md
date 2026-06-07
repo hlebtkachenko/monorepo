@@ -70,6 +70,6 @@ Negative:
 ## References
 
 - `infra/README.md` (updated to single-account)
-- `docs/runbooks/AWS-DEPLOY.md` (replaces archived AWS-BOOTSTRAP.md)
+- `docs/runbooks/AWS-SETUP.md` (replaces archived AWS-BOOTSTRAP.md)
 - `.context/attachments/aws-products-review.md` advisor verdicts
 - `_junk/2026-05-11-mvp-single-account-pivot/` archived hybrid scaffolding

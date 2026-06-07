@@ -213,7 +213,7 @@ Container hardening: `capDrop ALL` on all 3 containers, `readonlyRootFilesystem`
 
 CloudTrail single-region management-events trail (free tier) for forensics. RDS auto-restart watcher Lambda re-stops the DB after AWS's 7-day forced restart when tagged `cost-stop-requested=true`.
 
-Incident response: [docs/runbooks/COST-INCIDENT-RESPONSE.md](docs/runbooks/COST-INCIDENT-RESPONSE.md).
+Incident response: [docs/runbooks/COST-INCIDENT.md](docs/runbooks/COST-INCIDENT.md).
 
 ## Stack
 

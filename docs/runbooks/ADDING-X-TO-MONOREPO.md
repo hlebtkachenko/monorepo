@@ -93,7 +93,7 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
    consumer (web / api / admin / db / auth / etc.).
 4. If CI / production needs it, add the corresponding GitHub Actions
    repo variable or Secrets Manager entry. Cross-reference from
-   `docs/runbooks/SECRETS.md` and `docs/runbooks/AWS-DEPLOY.md`.
+   `docs/runbooks/SECRETS.md` and `docs/runbooks/AWS-SETUP.md`.
 
 ## A new public host
 

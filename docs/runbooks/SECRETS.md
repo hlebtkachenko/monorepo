@@ -173,7 +173,7 @@ gh secret set HONEYCOMB_KEY  --env production --body <TBD-production-honeycomb-k
     aws-region: ${{ vars.AWS_REGION }}
 ```
 
-Role ARNs contain the account ID, so they are stored as secrets (single-account MVP; see `docs/runbooks/AWS-DEPLOY.md`).
+Role ARNs contain the account ID, so they are stored as secrets (single-account MVP; see `docs/runbooks/AWS-SETUP.md`).
 
 ## Rotation cadence
 

@@ -539,8 +539,8 @@ See section 3.
 | --------------------------------- | ----------------------------------------------------------------------- |
 | Session audit (full text)         | `.context/attachments/aff-150-session-audit.md` (gitignored)            |
 | Public host inventory             | `docs/DOMAINS-AND-EMAIL.md`                                             |
-| AWS deploy runbook                | `docs/runbooks/AWS-DEPLOY.md`                                           |
-| Cost runaway runbook              | `docs/runbooks/COST-INCIDENT-RESPONSE.md`                               |
+| AWS deploy runbook                | `docs/runbooks/AWS-SETUP.md`                                            |
+| Cost runaway runbook              | `docs/runbooks/COST-INCIDENT.md`                                        |
 | Status page runbook               | `docs/runbooks/STATUS-PAGE.md`                                          |
 | Bastion script                    | `scripts/staging-bastion-migrate.sh`                                    |
 | `publicOrigin()` helper           | `apps/web/lib/request-origin.ts`                                        |

@@ -26,7 +26,7 @@ touched by `cdk deploy`, `make deploy-cdk`, or `_deploy-aws.yml`. See `docs/adr/
 
 Per environment (staging, production):
 
-1. Run `docs/runbooks/AWS-DEPLOY.md` setup section (creates GitHub OIDC provider + deploy roles).
+1. Run `docs/runbooks/AWS-SETUP.md` setup section (creates GitHub OIDC provider + deploy roles).
 2. `make bootstrap-cdk REGION=eu-central-1` — creates the CDK toolkit stack.
 3. `make synth-cdk ENV=staging` — produces `cdk.out/`, no AWS API calls.
 4. `make diff-cdk ENV=staging` — first run shows the entire stack as a create.

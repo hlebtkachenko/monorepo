@@ -81,7 +81,7 @@ Pre-existing manual budget `monorepo-staging-hard-cap-50` (created via CLI 2026-
 
 - [ADR 0007 - Single-account MVP](0007-mvp-single-account-cdk-only.md)
 - [ADR 0008 - Cloudflare Tunnel](0008-cloudflare-tunnel-and-email.md)
-- [docs/runbooks/COST-INCIDENT-RESPONSE.md](../runbooks/COST-INCIDENT-RESPONSE.md)
+- [docs/runbooks/COST-INCIDENT.md](../runbooks/COST-INCIDENT.md)
 - `infra/cdk/lib/security-stack.ts` - kill-switch Lambda + Budgets + CloudTrail + RDS watcher
 - `infra/cdk/lib/observability-stack.ts` - 6 attack-vector alarms + 2 critical alarms
 - `infra/cdk/lib/app-stack.ts` - Fargate task hardening (capDrop, tmpfs, readonlyRoot)

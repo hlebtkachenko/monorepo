@@ -48,7 +48,7 @@ App task topology (one Fargate task per env): 6 containers
 
 Bootstrap is **complete** (2026-05-11). The GitHub OIDC provider + deploy role exist, `cdk bootstrap` has run, and repo variable `AWS_BOOTSTRAPPED=true` is set — so `_deploy-aws.yml` and the Make targets below are live. Staging is deployed at `app-staging.afframe.com`; production (`app.afframe.com`) is prepared but not yet deployed.
 
-To re-verify the flag: `gh variable list` should show `AWS_BOOTSTRAPPED  true`. The one-time bootstrap procedure is in `docs/runbooks/AWS-DEPLOY.md`.
+To re-verify the flag: `gh variable list` should show `AWS_BOOTSTRAPPED  true`. The one-time bootstrap procedure is in `docs/runbooks/AWS-SETUP.md`.
 
 ## Quickstart
 
@@ -90,5 +90,5 @@ Local profiles managed via the `granted` CLI (see ADR-0006).
 - `docs/adr/0007-mvp-single-account-cdk-only.md` — IaC scope
 - `docs/adr/0008-cloudflare-tunnel-and-email.md` — network topology (no ALB, Cloudflare Tunnel sidecar)
 - `docs/adr/0016-cost-runaway-protection.md` — kill-switch + budgets + alarms
-- `docs/runbooks/AWS-DEPLOY.md` — first-deploy bootstrap procedure
-- `docs/runbooks/COST-INCIDENT-RESPONSE.md` — what to do when alarms fire
+- `docs/runbooks/AWS-SETUP.md` — first-deploy bootstrap procedure
+- `docs/runbooks/COST-INCIDENT.md` — what to do when alarms fire

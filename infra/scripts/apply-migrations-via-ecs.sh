@@ -13,7 +13,7 @@
 #
 #   - RDS is in private subnets. The GitHub runner cannot reach it directly.
 #   - The "Drizzle migration ECS task" is listed as deferred in
-#     `docs/runbooks/AWS-DEPLOY.md`. This script is the smallest possible
+#     `docs/runbooks/AWS-SETUP.md`. This script is the smallest possible
 #     bridge: it reuses the already-deployed Backup task definition (it has
 #     the right network + `app_owner` secret wiring) and overrides the
 #     command for one run. No new CDK resources, no new IAM grants.

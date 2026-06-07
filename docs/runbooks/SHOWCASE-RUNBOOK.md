@@ -1,6 +1,6 @@
 # Showcase Runbook — Agent Instructions
 
-Add component demos to `apps/admin/app/showcase/page.tsx`. This is a single-page showcase of ALL shadcn/ui components in the monorepo.
+Add component demos to `apps/admin/app/(gated)/showcase/page.tsx`. This is a single-page showcase of ALL shadcn/ui components in the monorepo.
 
 ## Reference Example
 
@@ -9,6 +9,7 @@ Button section is already implemented. Use it as the template for all other comp
 ## Rules
 
 ### Structure Rules
+
 1. Each component gets an `<section className="mb-16">` wrapper
 2. Each section starts with `<h2 className="mb-6 border-b pb-2 text-2xl font-semibold">{ComponentName}</h2>`
 3. Sub-groups (Variants, Sizes, States, etc.) use `<h3 className="mb-3 text-sm font-medium text-muted-foreground">`
@@ -17,6 +18,7 @@ Button section is already implemented. Use it as the template for all other comp
 6. Sections are separated by the comment `{/* ==================== COMPONENT_NAME ==================== */}`
 
 ### Import Rules
+
 1. ALL components import from `@workspace/ui/components/{component-name}`
 2. Icons import from `lucide-react`
 3. Before importing, READ the component source file at `packages/ui/src/components/{component-name}/{component-name}.tsx`
@@ -25,6 +27,7 @@ Button section is already implemented. Use it as the template for all other comp
 6. If a component re-exports from a library (e.g., `from "radix-ui"`), use the wrapper names from the shadcn file, NOT the radix originals
 
 ### Content Rules
+
 1. Show ALL variants if the component uses CVA (look for `cva(` in source)
 2. Show ALL sizes if size variants exist
 3. Show disabled state if the component accepts `disabled` prop
@@ -34,12 +37,15 @@ Button section is already implemented. Use it as the template for all other comp
 7. If client state is needed, extract that component demo into a separate client component file at `apps/admin/app/showcase/_components/{name}-demo.tsx` and import it into the main page
 
 ### Verification Checkpoints
+
 After adding EACH component section:
+
 1. Run `pnpm build` from the repo root — must pass with zero errors
 2. If build fails, read the error, fix immediately before moving to next component
 3. Never skip a failed build — fix it before proceeding
 
 ### Client Component Pattern
+
 Some components need interactivity. When `useState` is required:
 
 ```tsx
@@ -55,6 +61,7 @@ export function SliderDemo() {
 ```
 
 Then in the main page:
+
 ```tsx
 import { SliderDemo } from "./_components/slider-demo"
 ```
@@ -64,6 +71,7 @@ import { SliderDemo } from "./_components/slider-demo"
 Work through in this exact order. Check off mentally as you complete each.
 
 ### Batch 1: Simple Display (no state needed)
+
 These are server-renderable, no interactivity required.
 
 - [ ] Badge — has variants (default, secondary, outline, destructive). Show all.
@@ -83,6 +91,7 @@ These are server-renderable, no interactivity required.
 - [ ] Table — show a small table with 3-4 rows of sample data.
 
 ### Batch 2: Form Inputs (some need client state)
+
 - [ ] Input — show default, with placeholder, disabled.
 - [ ] Textarea — show default, with placeholder, disabled.
 - [ ] Checkbox — show checked, unchecked, disabled. Needs client state.
@@ -97,6 +106,7 @@ These are server-renderable, no interactivity required.
 - [ ] ButtonGroup — show group of related buttons.
 
 ### Batch 3: Overlays & Popups (need client triggers)
+
 - [ ] Dialog — show with trigger button, title, description, actions.
 - [ ] AlertDialog — show with trigger, confirmation title, cancel/continue.
 - [ ] Sheet — show from right side with trigger button.
@@ -108,6 +118,7 @@ These are server-renderable, no interactivity required.
 - [ ] ContextMenu — show with right-click area and menu items.
 
 ### Batch 4: Navigation & Layout
+
 - [ ] Tabs — show 3 tabs with content panels.
 - [ ] Accordion — show 3 collapsible items.
 - [ ] Collapsible — show single collapsible section.
@@ -118,6 +129,7 @@ These are server-renderable, no interactivity required.
 - [ ] Item — show item with media, content, actions.
 
 ### Batch 5: Advanced & Composite
+
 - [ ] Combobox — show searchable select. Needs client state.
 - [ ] Command — show command palette with groups and items.
 - [ ] Calendar — show date picker calendar. Needs client state.
@@ -127,7 +139,9 @@ These are server-renderable, no interactivity required.
 - [ ] Sonner — show toast trigger button. Needs client wrapper.
 
 ### Batch 6: Skip (layout-level or utility)
+
 These are NOT standalone demo-able or are layout-level wrappers:
+
 - [ ] Sidebar — skip (requires full layout restructure)
 - [ ] Direction — skip (RTL provider, not visual)
 - [ ] Chart — skip (requires recharts data setup, too complex for showcase)
@@ -135,6 +149,7 @@ These are NOT standalone demo-able or are layout-level wrappers:
 ## Final Verification
 
 After ALL components are added:
+
 1. `pnpm build` — zero errors
 2. `pnpm --filter admin dev` — open http://localhost:3100/showcase in browser
 3. Verify page renders without blank sections or errors
@@ -144,6 +159,7 @@ After ALL components are added:
 ## Anti-Hallucination Checklist
 
 Before submitting work, verify:
+
 - [ ] Every import path starts with `@workspace/ui/components/`
 - [ ] Every imported symbol was verified by reading the source `.tsx` file
 - [ ] No imports from `@/components/ui/` (wrong path for monorepo)

@@ -19,13 +19,13 @@
 
 ### SOC 2 Trust-Services Criteria
 
-| Control                                                | Where it's implemented                                                      | Evidence                                            |
-| ------------------------------------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------- |
-| CC6.1 — Logical access controls                        | Cloudflare Access (operators) + Vault AWS IAM Auth (workloads) + Vault OIDC | Cloudflare Zero Trust audit log; Vault audit device |
-| CC6.6 — Logical access removed when no longer required | Vault policy revocation; Cloudflare Access group sync from Google Workspace | Vault audit device; Workspace user lifecycle log    |
-| CC7.1 — Detection of vulnerabilities                   | gitleaks + infisical-scan (pre-commit + CI); GitHub Dependabot              | gitleaks job logs; CI workflow runs                 |
-| CC7.2 — Response to security incidents                 | [`docs/runbooks/INCIDENT.md`](../runbooks/INCIDENT.md); SECRETS-ROTATION.md | Incident retros                                     |
-| CC8.1 — Change management                              | PR review + Vault audit device captures every secret read/write             | Vault audit log; GitHub PR history                  |
+| Control                                                | Where it's implemented                                                                                           | Evidence                                             |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| CC6.1 — Logical access controls                        | Cloudflare Access (operators) + Vault AWS IAM Auth (workloads) + Vault OIDC                                      | Cloudflare Zero Trust audit log; Vault audit device  |
+| CC6.6 — Logical access removed when no longer required | Vault policy revocation + Cloudflare Access email-allowlist removal (one-time-PIN IdP; no Google Workspace sync) | Vault audit device + Cloudflare Zero Trust audit log |
+| CC7.1 — Detection of vulnerabilities                   | gitleaks + infisical-scan (pre-commit + CI); GitHub Dependabot                                                   | gitleaks job logs; CI workflow runs                  |
+| CC7.2 — Response to security incidents                 | [`docs/runbooks/INCIDENT.md`](../runbooks/INCIDENT.md); SECRETS-ROTATION.md                                      | Incident retros                                      |
+| CC8.1 — Change management                              | PR review + Vault audit device captures every secret read/write                                                  | Vault audit log; GitHub PR history                   |
 
 ### DORA (EU Regulation 2022/2554)
 

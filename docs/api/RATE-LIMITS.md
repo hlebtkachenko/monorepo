@@ -9,7 +9,7 @@
 - **Per API key**, not per IP. Behind the Cloudflare Tunnel every request shares the sidecar's loopback IP — IP-based throttling would create one global bucket. Source: `apps/api/src/v1/api-key-throttler.guard.ts`.
 - **Default**: 100 requests / 60 s window.
 - **Storage**: NestJS `ThrottlerModule` in-memory (single Fargate task — see `ADR-0008`).
-- **429 response**: empty body, standard NestJS `ThrottlerException`. No `Retry-After` header today.
+- **429 response**: 429 carries IETF `RateLimit-*` headers and a `Retry-After` header (set by `ThrottlerGuard` via the `headerPrefix="RateLimit"` override). Body: standard NestJS `ThrottlerException` (no JSON error envelope yet).
 
 ---
 

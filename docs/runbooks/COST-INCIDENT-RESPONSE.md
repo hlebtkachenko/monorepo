@@ -23,14 +23,14 @@ Cross-check in CloudTrail (console: CloudTrail -> Event history -> filter by `Ev
 
 Inspect CloudWatch for the metric the alarm fires on:
 
-| Alarm | Metric | What to look at |
-|---|---|---|
+| Alarm                        | Metric                                 | What to look at                                                                                |
+| ---------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `*-fargate-network-out-high` | `ECS/ContainerInsights NetworkTxBytes` | Who is the task talking to? Check VPC Flow Logs (if enabled) and Cloudflare Tunnel access logs |
-| `*-s3-put-rate-high` | `AWS/S3 PutRequests` | `aws s3 ls s3://monorepo-$ENV-app-* --recursive --human-readable --summarize` |
-| `*-s3-bucket-size-high` | `AWS/S3 BucketSizeBytes` | Same as above; look for unexpected prefixes |
-| `*-cwlogs-ingest-high` | `AWS/Logs IncomingBytes` | `aws logs filter-log-events --log-group-name /ecs/monorepo-$ENV/<container> --start-time ...` |
-| `*-fargate-cpu-critical` | `AWS/ECS CPUUtilization` | Crypto-miner? Inspect last container image; rebuild from known-good SHA |
-| `*-fargate-memory-critical` | `AWS/ECS MemoryUtilization` | Same |
+| `*-s3-put-rate-high`         | `AWS/S3 PutRequests`                   | `aws s3 ls s3://monorepo-$ENV-app-* --recursive --human-readable --summarize`                  |
+| `*-s3-bucket-size-high`      | `AWS/S3 BucketSizeBytes`               | Same as above; look for unexpected prefixes                                                    |
+| `*-cwlogs-ingest-high`       | `AWS/Logs IncomingBytes`               | `aws logs filter-log-events --log-group-name /ecs/monorepo-$ENV/<container> --start-time ...`  |
+| `*-fargate-cpu-critical`     | `AWS/ECS CPUUtilization`               | Crypto-miner? Inspect last container image; rebuild from known-good SHA                        |
+| `*-fargate-memory-critical`  | `AWS/ECS MemoryUtilization`            | Same                                                                                           |
 
 ### 1.3 Re-enable the service (when safe)
 
@@ -128,7 +128,7 @@ After the AWS-forced 7-day restart, the watcher Lambda will re-stop the instance
 
 The killswitch and AWS Budgets in this stack do NOT attach IAM-deny policies, so they cannot lock the operator (`claude-cli` user or any human) out of the AWS console or CLI. If a future change adds Budget Actions of type `APPLY_IAM_POLICY`:
 
-1. Use the root account credentials from 1Password.
+1. Use the root account credentials from the break-glass store (sealed envelope, office safe).
 2. AWS Console -> IAM -> Users -> `claude-cli` (or affected principal) -> Detach the deny policy.
 3. Open an incident and ADR follow-up.
 

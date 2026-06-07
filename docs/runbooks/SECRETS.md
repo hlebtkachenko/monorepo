@@ -216,7 +216,7 @@ is deleted after the 7-day soak. Full chain + audit verification in
 
 ## Break-glass procedure
 
-For emergency access when normal Identity Center login is unavailable (e.g. SAML provider outage, locked-out admin):
+For emergency access when normal IAM / Cloudflare-Access login is unavailable (e.g. locked-out admin):
 
 1. Sealed envelope in the office safe contains:
    - Root account credentials.

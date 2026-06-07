@@ -109,9 +109,9 @@ After re-enabling, the missed runs catch up (`Persistent=true`).
 | Auto-unseal  | AWS KMS CMK `alias/monorepo-vault-unseal` (eu-central-1)                   |
 | Audit device | File: `/srv/secrets/vault/audit/audit.log`                                 |
 | Public URL   | `https://secrets-admin.afframe.com` (Cloudflare Tunnel → `127.0.0.1:8200`) |
-| Staff SSO    | Cloudflare Access (Google Workspace + email OTP fallback)                  |
-| Backup       | restic → Cloudflare R2 (primary) + Backblaze B2 (secondary)                |
-| Sync to AWS  | systemd timer at `/usr/local/sbin/vault-to-ssm-sync.sh` (every 5 min)      |
+| Staff SSO    | Cloudflare Access (one-time PIN only; Google Workspace scoped, not wired)  |
+| Backup       | restic → Cloudflare R2 (primary); secondary DEFERRED (AFF-246)             |
+| Sync to AWS  | systemd timer at `/usr/local/sbin/vault-to-ssm-sync` (every 5 min)         |
 
 ## Status check
 
@@ -185,7 +185,7 @@ Full DR restore drill: [`DR-DRILL.md`](DR-DRILL.md).
 Outline:
 
 1. Provision a fresh KVM with Docker + restic.
-2. `restic restore latest --target /tmp/restored` (primary R2; fall back to B2 if R2 unavailable).
+2. `restic restore latest --target /tmp/restored` (primary R2; no secondary yet — AFF-246).
 3. Bring up the Vault compose stack pointing `storage.raft.path` at the restored Raft tree.
 4. Verify auto-unseal succeeds against the same AWS KMS CMK.
 5. Repoint Cloudflare Tunnel to the new VPS (or rotate the tunnel token if migrating long-term).
@@ -256,7 +256,7 @@ vault audit disable file
 ### Adding a new secret
 
 1. Operator writes to Vault: `vault kv put platform/data/${env}/${name} value=<v>`
-2. Operator extends `/usr/local/sbin/vault-to-ssm-sync.sh` to include the new `(env, name)` tuple.
+2. Operator extends `/usr/local/sbin/vault-to-ssm-sync` to include the new `(env, name)` tuple.
 3. Operator extends `infra/cdk/lib/app-stack.ts` to wire `EcsSecret.fromSsmParameter` to the new SSM path.
 4. Operator updates `docs/env-vars.md` with the new entry.
 5. `pnpm verify` → PR → green CI → deploy.

@@ -85,10 +85,10 @@ Each tier has different threat model, audit story, and rotation tooling. Match t
 | Tier                                | Where                                                          | Good for                                          | Bad for                               | Afframe usage                                                 |
 | ----------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------- |
 | **Source code** (never)             | `.ts`, `.py`, `Dockerfile`, `compose.yml`                      | —                                                 | Everything                            | Gitleaks blocks                                               |
-| **Encrypted-in-git**                | SOPS+age YAML committed to repo                                | Dev/staging shared secrets, small team            | Production runtime, frequent rotation | Future tier per `docs/runbooks/SECRETS.md`                    |
+| **Encrypted-in-git**                | SOPS+age YAML committed to repo                                | Dev/staging shared secrets, small team            | Production runtime, frequent rotation | Not adopted (SOPS+age evaluated, never adopted)               |
 | **Local `.env`**                    | `apps/web/.env.local` (gitignored)                             | Developer's own machine                           | Anything shared                       | `scripts/generate-env.sh` produces this                       |
 | **Secrets manager (cloud)**         | AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault Cloud | Production runtime, audit-required                | Tiny static configs                   | Currently: AWS SM for `monorepo-{env}-*`                      |
-| **Secrets manager (self-hosted)**   | Infisical, OpenBao, Vault OSS                                  | Same as cloud but no per-secret fee               | Heavy ops if you scale                | Migration target (Infisical on VPS)                           |
+| **Secrets manager (self-hosted)**   | Infisical, OpenBao, Vault OSS                                  | Same as cloud but no per-secret fee               | Heavy ops if you scale                | Adopted: Vault OSS on self-hosted Hostinger VPS               |
 | **Parameter store**                 | AWS SSM Parameter Store                                        | Non-secret config + SecureString secrets          | Heavy rotation, frequent reads        | Currently: OpenFGA store/model IDs; future: most SecureString |
 | **Cloud KMS / HSM**                 | AWS KMS, GCP KMS, AWS CloudHSM                                 | Encryption keys (keys that encrypt other secrets) | Application secrets directly          | Defaults under the hood                                       |
 | **Password manager**                | 1Password, Bitwarden                                           | Human-shared credentials, recovery codes          | Machine-consumed runtime              | Laptop, age private key backup, MFA recovery codes            |
@@ -107,7 +107,7 @@ Five common patterns, ordered from worst to best:
 | **D. Workload identity → fetch on boot** | App authenticates to secrets manager using its workload identity (ECS task role / K8s SA / OIDC), fetches secrets, populates own env | Best production pattern; eliminates static "secret zero" |
 | **E. Streaming sidecar**                 | A sidecar agent watches the secrets manager and rewrites env vars / files when secrets change; main app reloads                      | Heavy rotation, can't accept restart cost                |
 
-Afframe AWS ECS today uses **pattern C**. After Infisical, Phase 4 would move to **pattern D** for fully-elegant secret-zero elimination. Pattern E only needed if you start rotating frequently.
+Afframe AWS ECS today uses **pattern C**. With Vault (→ SSM SecureString) in place, a future Phase 4 could move to **pattern D** for fully-elegant secret-zero elimination. Pattern E only needed if you start rotating frequently.
 
 ## 6. Rotation — when and how often
 
@@ -143,12 +143,12 @@ Afframe AWS ECS today uses **pattern C**. After Infisical, Phase 4 would move to
 
 **Industry norm**: replace static credentials with ephemeral ones wherever the technology permits. For Afframe:
 
-| Currently static           | Move to ephemeral how?                                        |
-| -------------------------- | ------------------------------------------------------------- |
-| AWS access keys for deploy | Already done — GitHub Actions OIDC → AssumeRole               |
-| GitHub Actions → Infisical | Phase 2 of migration plan — OIDC instead of `INFISICAL_TOKEN` |
-| ECS → AWS SM               | Already done — task role grants `GetSecretValue`              |
-| Future: ECS → Infisical    | Machine Identity with AWS Auth (Phase 4)                      |
+| Currently static           | Move to ephemeral how?                           |
+| -------------------------- | ------------------------------------------------ |
+| AWS access keys for deploy | Already done — GitHub Actions OIDC → AssumeRole  |
+| GitHub Actions → Vault     | M5 (shipped) — GitHub OIDC JWT → Vault JWT auth  |
+| ECS → AWS SM               | Already done — task role grants `GetSecretValue` |
+| ECS → Vault-fed SSM        | Vault AWS IAM Auth (vault-to-ssm-sync)           |
 
 ## 8. Top anti-patterns (and why your project avoids them)
 

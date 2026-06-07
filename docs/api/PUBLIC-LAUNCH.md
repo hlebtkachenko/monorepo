@@ -17,7 +17,7 @@
 
 | Phase | Theme                                                                                       | Status                               |
 | ----- | ------------------------------------------------------------------------------------------- | ------------------------------------ |
-| 0     | Foundation — `/v1/ping`, `/v1/organization`, Scalar at `/v1/docs`, OpenAPI 3.1              | **[Live]** AFF-220 closed 2026-05-20 |
+| 0     | Foundation — `/v1/ping`, `/v1/organization`, Scalar at `/`, OpenAPI 3.1                     | **[Live]** AFF-220 closed 2026-05-20 |
 | 1     | Narrative docs — Errors, Rate limits, Idempotency, Versioning, Webhooks, Sandbox, Changelog | **[Wip]** scaffolded in this change  |
 | 2     | Domain endpoints — invoices, accounts, journals                                             | **[Concept]** AFF-71                 |
 | 3     | Authorization — Cerbos L3 + OpenFGA L2                                                      | **[Concept]** AFF-46                 |

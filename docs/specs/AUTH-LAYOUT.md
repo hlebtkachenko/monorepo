@@ -136,7 +136,7 @@ Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 
 ### Logo Marquee
 
-- Text placeholders from `AUTH_ASIDE_LOGOS` constant (`@workspace/shared`)
+- Text placeholders from `PARTNER_PLACEHOLDER_NAMES` constant (`@workspace/ui/brand-assets`)
 - `font-heading text-sm font-semibold tracking-tight opacity-70`
 - Edge fade: `mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent)`
 - Wrapped in `overflow-hidden` container — must never bleed into form column
@@ -170,7 +170,7 @@ Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 
 See `docs/plans/AUTH-OUTSTANDING.md` for remaining gaps:
 
-- Real brand SVG (currently placeholder icon)
+- ~~Real brand SVG~~ Done: `<Logo>` component shipped in `@workspace/ui/brand-assets` (4 variants × 9 tones)
 - Footer legal URLs (currently `href="#"`)
 - `Heading` weight prop (to avoid className override for semibold + text-4xl)
 - `Text` tone prop (to inherit color on dark backgrounds without override)

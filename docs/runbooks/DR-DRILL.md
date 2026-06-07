@@ -14,18 +14,18 @@ Objectives:
 
 - One full drill per quarter, scheduled in the first week.
 - One tabletop exercise per quarter, scheduled mid-quarter.
-- Calendar event auto-created from the GitHub workflow `_dr-drill.yml` (added with this runbook).
+- Calendar event auto-created from the GitHub workflow `_dr-drill.yml` (planned — `_dr-drill.yml` not yet implemented).
 
 ## Procedure
 
 1. **Provision a fresh sandbox account** in the Sandbox OU (clean state, no production data).
-2. **Trigger** `gh workflow run _dr-restore.yml -f source=production -f target=<sandbox-account-id>`.
+2. **Trigger** (planned) `gh workflow run _dr-restore.yml -f source=production -f target=<sandbox-account-id>` — `_dr-restore.yml` is not yet implemented.
 3. **Restore** from latest AWS Backup snapshots:
    - RDS Postgres (point-in-time within RPO window).
    - S3 buckets via cross-region replication source.
    - DynamoDB tables (where used).
    - Secrets Manager secret values (re-rotate after restore).
-4. **Smoke** with `k6 run scripts/dr-smoke.js` against the restored ALB endpoint.
+4. **Smoke** (planned smoke script) probe `https://<restored-host>/api/health` behind Cloudflare Tunnel — `scripts/dr-smoke.js` not yet authored; ALB is not the front door (Cloudflare Tunnel is).
 5. **Verify**:
    - App boots, health check green.
    - `/api/version` returns the expected SHA.

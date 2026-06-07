@@ -28,22 +28,26 @@ cosign verify-attestation --type slsaprovenance "$ECR_REPO@$PREVIOUS_DIGEST" \
   --certificate-identity-regexp '^https://github.com/hlebtkachenko/monorepo/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
-# 2. Trigger the rollback workflow with the explicit digest pinned.
+# 2. Trigger the rollback by pinning the previous image tag.
+#    _deploy-aws.yml redeploys app-only with `image_tag_override` set to an
+#    existing ECR tag (e.g. sha-abcdef) — it takes a tag, not a digest.
+#    PREVIOUS_TAG is the tag whose digest you verified above.
 gh workflow run _deploy-aws.yml \
   -f environment=production \
-  -f stack=App-production \
-  -f imageDigest=$PREVIOUS_DIGEST
+  -f stack=app-only \
+  -f image_tag_override=$PREVIOUS_TAG
 ```
 
 ### What it does on AWS
 
-- Renders a new ECS task definition with the pinned image digest.
+- Renders a new ECS task definition with the pinned image tag.
 - Updates the service to the new task definition (rolling, two-task minimum).
 - Watches health checks for 5 minutes; auto-aborts if 5xx > 0.1% or healthy task count drops.
 
 ## Database rollback
 
 Database changes are forward-only. Reverse-migration is allowed only when:
+
 1. The schema change shipped behind an expand-contract pattern (additive, not destructive), AND
 2. A dual-write / dual-read window was in place, AND
 3. A rollback-tested reverse migration script exists and was rehearsed.
@@ -53,6 +57,7 @@ Otherwise: forward-fix. Reverting a destructive migration without a rehearsed re
 ## Postmortem
 
 Every rollback triggers a postmortem within 5 business days. Template lives at `templates/postmortem.md` (added with first SEV1). Required sections:
+
 - Timeline.
 - What broke.
 - Why the safeguards did not catch it.

@@ -4,7 +4,7 @@ Instructions for AI agents (Claude Code, Codex, Cursor) working in this monorepo
 
 ## Issue Tracking
 
-Issues and planning live in **Linear** — team Afframe (key `AFF`). Agents reach it through the `linear` MCP server (`mcp__linear__*` tools): list, search, read, create, and update issues in-session. Conductor can also open a workspace directly from a Linear issue. When work spans sessions, the Linear issue is the source of truth — read it before starting, update it as you go. Current branch-recovery and merge work is grouped under the Linear **Cleanup** project.
+Issues and planning live in **Linear**. Route by function: product engineering (bugs, CI, infra, features) → **Engineering & Design** (`DEV`); discovery / marketing / pricing / brand → **Product** (`PRO`); pipeline / support → **Sales** (`SAL`); legal / finance / compliance / hiring → **Operations** (`OPS`). The legacy **Afframe** team (`AFF`) is **FROZEN — never file new work there.** Agents reach Linear through the Linear MCP tools (`mcp__claude_ai_Linear__*`): list, search, read, create, and update issues in-session. Conductor can also open a workspace directly from a Linear issue. When work spans sessions, the Linear issue is the source of truth — read it before starting, update it as you go.
 
 ## Asking Hleb (human-in-the-loop)
 
@@ -287,6 +287,15 @@ When importing from upstream, rewrite anything that violates these rules. The up
 - AWS Budgets Actions can DETACH IAM policies or stop services. Never deploy Budget changes without `cdk diff` review. A misconfigured Budget action can lock the operator out of the account.
 - Cost-runaway alarms + Lambda kill-switch live in `infra/cdk/lib/observability-stack.ts` + `infra/cdk/lib/security-stack.ts`. See [ADR 0016](docs/adr/0016-cost-runaway-protection.md) and [docs/runbooks/COST-INCIDENT-RESPONSE.md](docs/runbooks/COST-INCIDENT-RESPONSE.md).
 - After first deploy: confirm SNS email subscription via the AWS confirmation link or alerts arrive silently.
+
+## Telegram Dev Control Plane
+
+The dev alert + control hub lives in-monorepo as two parts:
+
+- **`apps/bot`** (`@workspace/bot`) — grammY on a Cloudflare Worker, the **single choke point for all Telegram I/O**. Separate failure domain from AWS (if `api` dies the bot still runs). Outbound `/ingest`, `/issue`, `/ask`, `/beat`; inbound `/sns` (AWS) and `/webhook` (your commands + button taps). Inbound commands are allowlisted to one Telegram user id: reads (`/status`, `/ci`, `/deploys`, …) plus confirm-gated writes (`/deploy`, `/rollback`, `/deploybot`, `/dast`) that fire a GitHub `workflow_dispatch` — the bot never execs on a server.
+- **`packages/notify`** (`@workspace/notify`) — thin typed client + shared message contract. **Holds no token and formats no Telegram messages**; senders (app, CI, AWS SNS, agents) POST the typed `IngestPayload` to the bot's `/ingest`.
+
+Rule: never format a Telegram message or hold the bot token anywhere but `apps/bot`. Everything that wants to notify goes through `@workspace/notify`. Write-command dispatch needs the `BOT_GH_DISPATCH_TOKEN` repo secret (GitHub forbids the `GITHUB_` prefix); unset → bot stays read-only.
 
 ## Documentation Layout
 

@@ -7,6 +7,8 @@
 - Deciders: Hleb Tkachenko
 - Refines: [0007](0007-mvp-single-account-cdk-only.md) (still in force; this ADR narrows the deployment shape inside the single-account model)
 
+> **Amendment 2026-06-07:** AWS SES production access was denied. SES is not used; Resend is the permanent transactional email provider for all environments (both send from `no-reply@afframe.com`). The SES/Resend split below is retained for historical context.
+
 ## Context and Problem Statement
 
 ADR 0007 picked a single-account CDK-only deploy on AWS at eu-central-1. The first concrete architecture (ALB + ECS Fargate in private subnets + NAT-GW + 3 VPC interface endpoints) priced out at ~$140/mo idle. The owner pushed back: $140/mo for an empty MVP is too fat. Senior AWS advisor review and follow-up discussion identified the dominant cost lines as the network-layer pieces (NAT-GW $32/mo, ALB $22/mo, interface endpoints $22/mo) that buy little real value at this scale.

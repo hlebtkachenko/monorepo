@@ -31,6 +31,8 @@ in [`docs/api/README.md`](api/README.md) and [`docs/api/API-REFERENCE.md`](api/A
 | `/api/health`      | None    | Container health probe (ECS + Cloudflare)                          |
 | `/v1/ping`         | API key | Connectivity smoke; returns the resolved principal                 |
 | `/v1/organization` | API key | Authenticated principal's organization summary                     |
+| `/v1/status`       | None    | Service health summary (proxies status.afframe.com)                |
+| `/v1/feedback`     | None    | Partner feedback ingestion (POST)                                  |
 
 Domain endpoints (invoices, accounts, journal entries) land with AFF-71.
 

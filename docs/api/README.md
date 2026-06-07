@@ -17,11 +17,11 @@ URI prefix versioning: `/v1/`. NestJS `APP_CONTROLLER_VERSION` + `@nestjs/common
 
 ### API-key auth (public surface)
 
-`ApiKeyGuard` (`apps/api/src/guards/api-key.guard.ts`) — NestJS `CanActivate` guard applied to all `/v1/` controllers.
+`ApiKeyGuard` (`apps/api/src/auth/api-key.guard.ts`) — NestJS `CanActivate` guard applied to all `/v1/` controllers.
 
-Flow: `Authorization: Bearer afk_...` header → SHA-256 hash → lookup in `api_key` table → verify `is_active`, not expired → attach `ApiKeyPrincipal` (organization-scoped) to `req.principal` → downstream queries use `withOrganization(principal.organizationId, ...)` for RLS scoping.
+Flow: `Authorization: Bearer affk_live_...` header → SHA-256 hash → lookup in `api_key` table → reject if `revoked_at IS NOT NULL` or `expires_at < now()` → attach `ApiKeyPrincipal` (organization-scoped) to `req.principal` → downstream queries use `withOrganization(principal.organizationId, ...)` for RLS scoping.
 
-Key format: `afk_<44-char base64>` (256-bit random). Only the SHA-256 hash is stored, never the raw key. Same opaque-token + DB-hash pattern as invite tokens. See `packages/auth/src/api-key-verifier.ts` for the `verifyApiKey` function.
+Key format: `affk_live_<43-char base64url>` (256-bit random). Only the SHA-256 hash is stored, never the raw key. Same opaque-token + DB-hash pattern as invite tokens. See `packages/auth/src/api-key-verifier.ts` for the `verifyApiKey` function.
 
 Issuing keys: no UI yet. Seed manually in the `api_key` table. Future: admin dashboard key management (AFF-73).
 
@@ -46,7 +46,7 @@ Response envelope: `{ error: { code, message, details? } }`. Errors logged serve
 
 ## Rate limiting
 
-Per-API-key, NOT per-IP. Behind the Cloudflare Tunnel, all requests share the sidecar's loopback IP, so an IP-based throttler would create one global bucket for all clients. `ThrottlerModule` uses a custom `ApiKeyThrottlerGuard` that keys on `req.principal.apiKeyId`.
+Per-API-key, NOT per-IP. Behind the Cloudflare Tunnel, all requests share the sidecar's loopback IP, so an IP-based throttler would create one global bucket for all clients. `ThrottlerModule` uses a custom `ApiKeyThrottlerGuard` that keys on sha256(bearer token), with IP fallback for unauthenticated requests.
 
 Default: 100 requests / 60s per API key. Configurable via `THROTTLE_TTL` / `THROTTLE_LIMIT` env vars (not yet exposed in `docs/env-vars.md` — defaults are fine for now).
 
@@ -73,11 +73,13 @@ Deployment uses `pnpm deploy --config.node-linker=hoisted` so the bundle's exter
 
 ## Endpoints (v1 foundation)
 
-| Method | Path               | Auth    | Description                                 |
-| ------ | ------------------ | ------- | ------------------------------------------- |
-| `GET`  | `/v1/ping`         | API key | Connectivity check. Returns `{ ok: true }`. |
-| `GET`  | `/v1/organization` | API key | Returns the API key's organization details. |
-| `GET`  | `/api/health`      | None    | Container health (used by ECS, Cloudflare). |
+| Method | Path               | Auth    | Description                                          |
+| ------ | ------------------ | ------- | ---------------------------------------------------- |
+| `GET`  | `/v1/ping`         | API key | Connectivity check. Returns `{ ok: true }`.          |
+| `GET`  | `/v1/organization` | API key | Returns the API key's organization details.          |
+| `GET`  | `/v1/status`       | None    | Service health summary (proxies status.afframe.com). |
+| `POST` | `/v1/feedback`     | None    | Partner feedback ingestion.                          |
+| `GET`  | `/api/health`      | None    | Container health (used by ECS, Cloudflare).          |
 
 Domain endpoints (invoices, accounts, journals) land with AFF-71. Authz (Cerbos L3 + OpenFGA L2) wires in with the first resource endpoint (AFF-46).
 
@@ -97,7 +99,7 @@ already public via `/v1/openapi.json`.
 
 ## Conventions
 
-- `*.openapi.yaml` — one file per service surface (generated from NestJS `@nestjs/swagger` decorators)
+- `apps/api/openapi/v1.json` — emitted from the `@workspace/shared/api` Zod registry via `@asteasolutions/zod-to-openapi` (the `@nestjs/swagger` decorators are inert/documentation-only)
 - Zod schemas in `@workspace/shared/api` — source of truth for request/response validation
 - OpenAPI document emitted at build time via `apps/api/src/openapi.ts`
 

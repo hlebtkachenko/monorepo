@@ -84,6 +84,10 @@ jobs:
       # the web server starts.
       DATABASE_URL: "postgres://app_user:dev_user@127.0.0.1:5432/app_dev"
       DATABASE_DIRECT_URL: "postgres://app_owner:dev_owner@127.0.0.1:5432/app_dev"
+      # Ephemeral CI runner is torn down after the job, so the Ryuk reaper
+      # is unnecessary — disabling it drops one Docker Hub pull (and the
+      # registry ping that can 500/timeout on a flaky Hub).
+      TESTCONTAINERS_RYUK_DISABLED: "true"
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
@@ -114,6 +118,23 @@ jobs:
       - name: Install Playwright system deps (cache hit)
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: pnpm --filter web exec playwright install-deps chromium
+
+      # The Postgres testcontainer (apps/web/e2e/db-setup.ts → bootPostgres18)
+      # pulls postgres:18-alpine from Docker Hub during Playwright config
+      # evaluation. Docker Hub intermittently returns HTTP 500 /
+      # "context deadline exceeded", which aborts the whole e2e run before any
+      # test executes. Pre-pull with retry/backoff so the container reuses a
+      # locally-present image and a transient Hub blip no longer fails the job.
+      - name: Pre-pull Postgres testcontainer image (Docker Hub flakiness guard)
+        run: |
+          image="postgres:18-alpine"
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$image"; then exit 0; fi
+            echo "::warning::docker pull $image failed (attempt $attempt/5); retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          echo "::error::could not pull $image after 5 attempts (Docker Hub unreachable)"
+          exit 1
 
       - name: Run E2E tests
         working-directory: apps/web

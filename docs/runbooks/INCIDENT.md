@@ -45,7 +45,7 @@ Today: solo dev. AWS Incident Manager response plan with single contact + free n
 
 - Primary contact: Hleb. Channels: email (`<TBD>` work address) + ntfy.sh topic `monorepo-incidents-<TBD>` for iOS push.
 - ntfy.sh is OSS; default to public ntfy.sh (free) or self-host on the OVH VPS for full control.
-- Escalation: email to break-glass contact (in 1Password vault `aws-bootstrap`).
+- Escalation: email to break-glass contact (break-glass record: sealed envelope, office safe).
 - No paid pager service today (no PagerDuty / OpsGenie / Splunk On-Call). Revisit when team >= 2.
 
 This is **not adequate** for a regulated production launch with paying customers. Before that:

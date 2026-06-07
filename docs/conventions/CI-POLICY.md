@@ -33,8 +33,8 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `cosign sign` (push only)                             | required                     | required                    |
 | `cosign verify-attestation` (deploy gate)             | n/a (no deploy)              | required                    |
 | `openapi-lint` (spec drift + Spectral)                | advisory                     | required                    |
-| `db-schema-drift` (migration vs snapshot)             | required                     | required                    |
-| `squawk` (migration lint)                             | required                     | required                    |
+| `db-schema-drift` (migration vs snapshot)             | advisory, path-filtered      | required                    |
+| `squawk` (migration lint)                             | advisory                     | required                    |
 | `db-tests` (Postgres 18 testcontainer)                | advisory, path-filtered [^5] | required (via shim)         |
 | `conv-title` (PR title lint)                          | required                     | required                    |
 | `size-cap` (PR size limit)                            | required                     | required                    |
@@ -158,12 +158,12 @@ Rule: PR runs cancel; `main`, releases, and deploys never cancel. Cancellation o
 `main`:
 
 - Require PR before merging.
-- Require review from CODEOWNERS.
+- No required review (ruleset: required_approving_review_count: 0, require_code_owner_review: false) while solo.
 - Require status checks: see "required" column above.
 - Require linear history.
-- Require signed commits (gpg or ssh).
+- Signed commits: NOT enforced in the live ruleset (no required_signatures rule in main.json).
 - Restrict who can push directly: nobody.
-- Allow squash merge only.
+- Allow merge, squash, and rebase (all three enabled in the ruleset).
 
 `v*` tags:
 

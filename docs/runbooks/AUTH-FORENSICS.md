@@ -79,9 +79,9 @@ emails actually triggered a magic-link send.
 
 ## How to run
 
-Use the bastion psql tunnel for production (see [AWS-DEPLOY.md
-"Open a tunnel to RDS"](AWS-DEPLOY.md) for the SSM port-forward
-incantation; connect as `app_owner` so RLS does not gate the read).
+No bastion exists. For production, use Drizzle Studio against
+`DATABASE_DIRECT_URL` or run a one-off ECS task; connect as `app_owner`
+so RLS does not gate the read.
 For local dev, `pnpm --filter @workspace/db studio` opens a Drizzle
 Studio session against `DATABASE_DIRECT_URL`. Both `auth_token` and
 `audit_event` are global / workspace-scoped — leave the

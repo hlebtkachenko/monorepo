@@ -4,6 +4,8 @@
 - Date: 2026-05-11
 - Deciders: Hleb Tkachenko
 
+> **Amendment 2026-06-07:** Append-only + TRUNCATE-block triggers are live in production (`0004_audit.sql`). The automated retention/purge lifecycle remains a manual ceremony; automation deferred. (Status header left intact.)
+
 ## Context and Problem Statement
 
 ADR-0011 established two append-only audit tables: `tool_call_log` (AI tool invocations) and

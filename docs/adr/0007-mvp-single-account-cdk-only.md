@@ -65,6 +65,8 @@ Negative:
 - `pnpm --filter @workspace/cdk synth` works locally with `AWS_ACCOUNT_ID` env var.
 - AWS bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). The `_deploy-aws.yml` smoke run succeeds in staging, deployed at `app-staging.afframe.com`. Production (`app.afframe.com`) is prepared but not yet deployed.
 
+> **Amendment 2026-06-07:** production is now deployed and live (since v0.2.5).
+
 ## References
 
 - `infra/README.md` (updated to single-account)

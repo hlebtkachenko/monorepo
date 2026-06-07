@@ -4,11 +4,7 @@
 
 How to move from "staging-only, internal access" to "production live at `app.afframe.com`, public access."
 
-Current state (before promotion):
-
-- `app-staging.afframe.com` is the only running environment (~$50/mo).
-- `production` exists only as CDK code + Cloudflare Tunnel `monorepo-production` (status `inactive`) + IAM role `monorepo-deploy-production` + secrets. No AWS resources running.
-- SES is in sandbox (200/day to verified addresses) unless production access already granted.
+Production was promoted and is live (v0.2.5, 2026-06-01). The procedure below is retained as the historical and repeatable promotion runbook for future environments.
 
 After promotion:
 
@@ -34,13 +30,9 @@ Pick before starting.
 
 Run all of these before promoting. Most are read-only.
 
-### 1. SES production access approved
+### 1. SES production access — NOT APPLICABLE
 
-```bash
-aws sesv2 get-account --region eu-central-1 --query 'ProductionAccessEnabled' --output text
-```
-
-Expected: `True`. If `False`, the production access request from earlier is still pending. Check the support case in AWS Console → Support Center. Until approved, the app uses Resend for outbound mail (3K/mo free). Acceptable to launch with Resend if SES isn't approved yet — switch later.
+SES production access was denied; the app uses Resend for all transactional mail. Skip this step entirely.
 
 ### 2. Cloudflare production tunnel + DNS ready
 
@@ -163,11 +155,9 @@ Expected: web 200, api health `{status: "ok", ...}`, public API ping 200 (needs 
 **RDS reachability from production task:**
 The api `/api/health` doesn't currently exercise the DB. When you add a real DB-touching endpoint, hit it and verify 200 + correct payload.
 
-### Step 3: Update outbound email sender (if SES production approved)
+### Step 3: Outbound email — Resend (SES not applicable)
 
-If SES is now `ProductionAccessEnabled=True`, switch `packages/email` default sender from Resend to SES. One-line config change in your email service layer. Open a normal PR for it.
-
-If SES still pending, keep using Resend. App will work; cap is 3K/mo. Switch when AWS approves.
+SES production access was denied. The app uses Resend for all transactional mail. No action needed here.
 
 ### Step 4: Communicate the launch
 

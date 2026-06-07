@@ -15,11 +15,16 @@ apps/
   web/                             Next.js 16 App Router, React 19
   admin/                           Next.js 16 staff admin surface (workspace-allowlisted)
   api/                             NestJS versioned REST API (API-key auth, rate limiting, OpenAPI)
+  mcp/                             Official MCP server for the public API (@afframe/mcp)
+  cli/                             Official command-line client for the public API (@afframe/cli)
+  bot/                             Telegram dev bot — sole owner of Telegram I/O; grammY on a Cloudflare Worker
 packages/
-  ui/                              shadcn/ui component library (105 components, Storybook, Vitest)
+  ui/                              shadcn/ui component library (120 registry entries, Storybook, Vitest)
   db/                              Drizzle schema + RLS + migrations
   auth/                            Better Auth + session binding + RLS GUC
   shared/                          Shared utilities, Zod schemas
+  sdk/                             Official TypeScript SDK for the public API (@afframe/sdk)
+  notify/                          Typed client + message contract for the Telegram bot (POSTs to bot /ingest)
   i18n/                            Internationalization (next-intl)
   config/                          Runtime config loader (AWS Secrets Manager / SSM)
   workers/                         pg-boss background job handlers
@@ -34,15 +39,21 @@ infra/
   cdk/                             AWS CDK v2 app stacks (network, data, app, security, observability, backup)
   cerbos/                          L3 authz policies + tests + DockerImageAsset (ADR-0018)
   openfga/                         L2 authz model + tests + SSM bootstrap (ADR-0018)
+  cloudflare/                      Cloudflare Worker for the Tunnel edge surface
+  cloudflare-sleeping/             Edge "app is asleep" page for cold-paused envs
+  vault/                           Vault VPS bring-up assets (secrets-admin.afframe.com; secrets migration)
   compose/                         Local Docker Compose (Postgres 18 + pgBouncer + pgTap + auth + observability profiles)
   observability/                   OTel + FireLens configs (UNWIRED in CDK; ADR-0002 trip-wire)
   openstatus/                      Status page monitors-as-code (OpenStatus on OVH VPS, off-AWS; ADR-0019)
   scripts/                         backup + restore + WAL archive scripts
 docs/
   adr/                             Architecture Decision Records
+  api/                             API architecture guide + OpenAPI specs
   runbooks/                        Operational runbooks
   specs/                           Design specifications
   conventions/                     Commit + CI conventions
+  plans/                           Strategic execution plans
+  compliance/                      Compliance + regulatory mapping
 ```
 
 ## Tenancy Tiers
@@ -95,7 +106,7 @@ Five primitives:
 
 ## Idempotency Contract
 
-> **Status: Planned — not yet implemented.**
+> **Status: Partially implemented.** The `tool_call_log` table and its `(organization_id, tool_name, idempotency_key)` dedup (`packages/db/src/audit/write-log.ts`) are landed. The `webhook_inbox` table and the `invokeTool` dispatch wrapper described below are not yet.
 
 Every mutation that crosses a trust boundary (HTTP API edge, AI tool dispatch, scheduled-task trigger, inbound webhook) is idempotent on a server-side composite key.
 
@@ -185,7 +196,7 @@ Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> De
 
 - **Dev:** macOS local Docker (Postgres 18 + pgBouncer).
 - **Staging:** AWS eu-central-1, deployed and live at `app-staging.afframe.com`.
-- **Production:** AWS eu-central-1 at `app.afframe.com` — prepared, not yet deployed. Stack: ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, ALB + ACM, CloudWatch + OTel Collector sidecar.
+- **Production:** AWS eu-central-1 at `app.afframe.com` — **live** (deployed since v0.2.5, 2026-06). Stack: ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, Cloudflare Tunnel, CloudWatch + OTel Collector sidecar.
 - **Status page:** `status.afframe.com` — OpenStatus self-hosted on the OVH VPS (Docker Compose + Cloudflare Tunnel), deliberately **off AWS** so it survives an AWS region outage. Monitors-as-code in `infra/openstatus/`; not deployed by CDK. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md).
 
 Full public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](docs/DOMAINS-AND-EMAIL.md).

@@ -3,8 +3,8 @@
 How to verify a release artifact produced by `.github/workflows/release.yml`
 before promoting it. The verification surface today is a tarball plus its
 SBOM, SLSA L3 provenance, and cosign signature bundles attached to the GitHub
-Release. Once AWS / ECR lands, the same checks run against the OCI image and
-its referrer attestations.
+Release. AWS / ECR is live; wiring the OCI-image + referrer-attestation checks
+into the deploy pipeline is still pending.
 
 > **Decision rule.** Three checks must pass: cosign signature on the artifact,
 > SBOM signature, and SLSA provenance. Any failure aborts the deploy. There is
@@ -142,7 +142,7 @@ provenance, SBOM digest sanity check), the artifact is safe to deploy.
 If any check fails, the deploy MUST abort. Open an incident per
 [`SUPPLY-CHAIN-INCIDENT.md`](./SUPPLY-CHAIN-INCIDENT.md).
 
-## When AWS / ECR lands
+## OCI image verification (ECR live; deploy-time gate pending)
 
 Replace the tarball flow with OCI referrer attestations. The image digest
 becomes the canonical reference; SBOM, provenance, and signature are pushed
@@ -175,7 +175,7 @@ as referring artifacts next to the image in ECR.
 
 The wiring point is a pre-deploy step in the deploy workflow, or the
 entrypoint of an AWS CodeBuild project sitting between ECR push and ECS
-update. There is no production gate today (no production).
+update. Production is live (v0.2.5), but the deploy pipeline does not yet run cosign verify-attestation as a gate.
 
 ## Cleanup
 

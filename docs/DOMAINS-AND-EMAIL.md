@@ -28,6 +28,7 @@ Hosts:
 - `status.afframe.com` — public status page
 - `monitoring.afframe.com` — internal monitoring dashboard
 - `cache.afframe.com` — Turborepo remote cache
+- `bot.afframe.com` — Telegram bot control plane
 
 A dedicated `docs.afframe.com` host was planned and reverted on
 2026-05-21. The Scalar API Reference mounted at `api.afframe.com/` IS
@@ -39,8 +40,7 @@ question on if/when to revisit.
 Email:
 
 - `*@afframe.com` — inbound
-- `no-reply@app.afframe.com` — outbound, web (prod)
-- `no-reply@app-staging.afframe.com` — outbound, web (staging)
+- `no-reply@afframe.com` — outbound, web (prod + staging)
 - `notifications@afframe.com` — outbound, status alerts
 
 ---
@@ -134,6 +134,13 @@ Email:
 - Runbook: [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - Config: `infra/cloudflare/wrangler.jsonc`
 
+### bot.afframe.com
+
+- Role: Telegram bot control plane (dev alerts + CI commands)
+- Served by: Cloudflare Worker `afframe-bot`
+- Deploy: `.github/workflows/deploy-bot.yml`
+- Auth: bearer `NOTIFY_SHARED_SECRET`
+
 ---
 
 ## Email
@@ -144,16 +151,9 @@ Email:
 - Routing: catch-all + specific rules configured in Cloudflare dashboard
 - ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md) → Email layer
 
-### `no-reply@app.afframe.com` (outbound)
+### `no-reply@afframe.com` (outbound)
 
-- Sent by: `apps/web` (prod) — auth, magic links, invites
-- Provider: Resend (SES once production access approves)
-- Configured: CDK `app-stack.ts` → `EMAIL_FROM`
-- DKIM: signed by provider on the `afframe.com` zone
-
-### `no-reply@app-staging.afframe.com` (outbound)
-
-- Sent by: `apps/web` (staging) — same purposes as prod
+- Sent by: `apps/web` (prod + staging) — auth, magic links, invites
 - Provider: Resend
 - Configured: CDK `app-stack.ts` → `EMAIL_FROM`
 - DKIM: signed by provider on the `afframe.com` zone

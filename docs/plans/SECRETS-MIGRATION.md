@@ -239,7 +239,7 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
    - Verify a test secret write appears in audit log
 
 7. **Smoke test**:
-   - Visit `https://secrets-admin.afframe.com` → Cloudflare Access challenge → Google login → Vault UI
+   - Visit `https://secrets-admin.afframe.com` → Cloudflare Access challenge → one-time PIN (email OTP) → Vault UI
    - Log in with root token (one-time bootstrap; rotate to OIDC in M3)
    - Enable kv-v2 secret engine at `platform/`
    - Write test secret: `vault kv put platform/test-secret value=hello`

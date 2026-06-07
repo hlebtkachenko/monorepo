@@ -7,12 +7,12 @@ Scripts intentionally NOT ported from prior repos pending prerequisites. Each en
 
 ## Deferred scripts
 
-| Script | Trigger to enable | Reference (LAC source) |
-|---|---|---|
-| `bootstrap.sh` | `.env.example` exists + `docker compose` lands | `lac-v1/scripts/bootstrap.sh` |
-| `doctor.sh` | First docker service runs locally (postgres, pgmq, mailpit) | `lac-v1/scripts/doctor.sh` |
-| `db-reset.sh` | First Drizzle migration lands in `packages/db` | `lac-v1/scripts/db-reset.sh` |
-| `tunnel.sh` | First webhook integration ships (Stripe, OAuth callback, mobile QA) | `lac-v1/scripts/tunnel.sh` |
+| Script         | Trigger to enable                                                   | Reference (LAC source)        |
+| -------------- | ------------------------------------------------------------------- | ----------------------------- |
+| `bootstrap.sh` | `.env.example` exists + `docker compose` lands                      | `lac-v1/scripts/bootstrap.sh` |
+| `doctor.sh`    | First docker service runs locally (postgres, pgmq, mailpit)         | `lac-v1/scripts/doctor.sh`    |
+| `db-reset.sh`  | First Drizzle migration lands in `packages/db`                      | `lac-v1/scripts/db-reset.sh`  |
+| `tunnel.sh`    | First webhook integration ships (Stripe, OAuth callback, mobile QA) | `lac-v1/scripts/tunnel.sh`    |
 
 ## Enablement procedure
 
@@ -29,4 +29,4 @@ Stubs rot before first use. When the trigger fires months later, an editor will 
 
 ## Scripts that will likely never come back
 
-- `seed-dev.sh` (bash wrapper around `pnpm seed:dev`) — once `pnpm seed:dev` exists in `packages/db`, the wrapper adds zero value on macOS dev. Document `DATABASE_URL` env in `packages/db/README.md` instead.
+- `seed-dev.sh` (bash wrapper around `pnpm --filter @workspace/db db:seed`) — the wrapper adds zero value on macOS dev. Document `DATABASE_URL` env in `packages/db/README.md` instead.

@@ -4,6 +4,8 @@
 - Date: 2026-05-11
 - Deciders: Hleb Tkachenko
 
+> **Amendment 2026-06-07:** Implemented (Status header left intact). `Money<Currency>` and `FxRate<From, To>` live in `packages/shared/src/api/primitives.ts` and `packages/db` (`types.ts`, `columns.ts`); `numeric(19,4)` storage is in the schema.
+
 ## Context and Problem Statement
 
 The platform is an accounting tool. Every amount that lands in the database is regulated:
@@ -76,11 +78,11 @@ sold as runtime-safe.
 
 ## FX rate rules (the non-obvious part)
 
-| Rule | Why |
-|------|-----|
-| **Never auto-invert.** EUR→CZK at 24.50 does NOT imply CZK→EUR at 0.040816. | Under CZ accounting practice, each direction is a separately declared rate. An organization can have a CZK→EUR rate from the CNB and a EUR→CZK rate from a commercial bank. Auto-inverting masks the difference. |
-| **Never substitute neighbor date.** Friday's rate is not Saturday's rate. | Czech accounting law requires the rate for the booking date, not the nearest available date. Substituting silently rewrites the legal record. |
-| **Precedence: org override → CNB daily fix → error.** | Organizations can declare manual rates for specific dates (e.g., a forward contract closing rate). Manual override beats the CNB rate. Missing both: caller error. |
+| Rule                                                                                    | Why                                                                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Never auto-invert.** EUR→CZK at 24.50 does NOT imply CZK→EUR at 0.040816.             | Under CZ accounting practice, each direction is a separately declared rate. An organization can have a CZK→EUR rate from the CNB and a EUR→CZK rate from a commercial bank. Auto-inverting masks the difference.                                           |
+| **Never substitute neighbor date.** Friday's rate is not Saturday's rate.               | Czech accounting law requires the rate for the booking date, not the nearest available date. Substituting silently rewrites the legal record.                                                                                                              |
+| **Precedence: org override → CNB daily fix → error.**                                   | Organizations can declare manual rates for specific dates (e.g., a forward contract closing rate). Manual override beats the CNB rate. Missing both: caller error.                                                                                         |
 | **Books are CZK-only in v1.** Foreign postings carry both native amount and CZK amount. | Czech statutory bookkeeping is CZK; foreign-currency invoices are recorded at booking-date rate and revalued at year-end per §24(6) of zákon 563/1991 Sb. v1 ships single-currency reporting; multi-currency reporting comes when accounting bundle ships. |
 
 `FxRate.convert` enforces all four. There is no `FxRate.nearestRate`, no `FxRate.inverse()`,
@@ -116,7 +118,7 @@ manual rate, batch import logs and skips, etc.).
 - **Always-store-in-CZK + foreign-amount in jsonb.** Considered. Rejected because journal
   entries against foreign-currency bank accounts need direct queryability of the foreign
   amount (`SELECT sum(amount) FROM ledger_entry WHERE account_id = (eur_bank) AND currency
-  = 'EUR'`). Foreign-amount-in-jsonb makes that an unindexable expression scan.
+= 'EUR'`). Foreign-amount-in-jsonb makes that an unindexable expression scan.
 
 ## Consequences
 

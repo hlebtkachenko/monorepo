@@ -34,6 +34,10 @@ Cloudflare edge (free) ── DDoS + WAF + CDN ── DNS for afframe.com
 AWS Fargate task (one task per env)                │
     ├── web (Next.js :3000)                        │
     ├── api (NestJS :3001)                         │
+    ├── admin (Next.js :3100)                      │
+    ├── pgbouncer                                  │
+    ├── cerbos                                     │
+    ├── openfga                                    │
     └── cloudflared sidecar                        │
     │                                              │
     │ Postgres                                     │ MX records
@@ -43,7 +47,7 @@ AWS RDS Postgres 18 (isolated subnet)        Cloudflare Email Routing
                                                     └─→ EMAIL_FORWARD_TO secret
 ```
 
-Email outbound flows via AWS SES (once production-approved) or Resend (immediate). Logs flow to CloudWatch (ECS infra) and Grafana Cloud free (app).
+Email outbound flows via Resend (SES is off the table — production access denied). Logs flow to CloudWatch (ECS infra) and Grafana Cloud free (app).
 
 ## One-time owner setup
 
@@ -221,11 +225,14 @@ a "Reset link sent" toast despite the silent failure. Always check the
 web container logs for `resend.send failed` before debugging anywhere else
 when "the email never arrived".
 
-### 8. AWS SES (outbound transactional, larger free tier - wait 24-48h for approval)
+### 8. AWS SES — NOT PURSUED (production access denied; Resend is the permanent transactional provider)
+
+> **Historical note — steps below are no longer applicable.** AWS SES production access was denied (sandbox capped at 200/day to verified addresses only). Resend is the permanent transactional email provider for all environments. The steps below are kept for reference only; do not execute them.
 
 ```bash
-aws ses verify-domain-identity --domain afframe.com --region eu-central-1
-aws ses verify-domain-dkim --domain afframe.com --region eu-central-1
+# NOT APPLICABLE — kept for historical reference only
+# aws ses verify-domain-identity --domain afframe.com --region eu-central-1
+# aws ses verify-domain-dkim --domain afframe.com --region eu-central-1
 ```
 
 Both commands return DNS records. Add them at Cloudflare DNS. SES auto-verifies in 5-15 min.
@@ -517,7 +524,7 @@ The smoke-failure auto-rollback (workflow's "Roll back ECS service to last-known
 
 When you see `::error::smoke failed AND migrations were applied this deploy`:
 
-1. **Inspect what landed.** Connect via the tunnel (`### 1. Open a tunnel to RDS` above) and read `_app_migrations`:
+1. **Inspect what landed.** Read `_app_migrations` directly — use Drizzle Studio against `DATABASE_DIRECT_URL`, or run the migration ECS task with an overridden command. No bastion exists; there is no tunnel-to-RDS step in this runbook.
 
    ```sql
    SELECT filename, applied_at

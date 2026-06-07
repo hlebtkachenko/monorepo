@@ -6,7 +6,7 @@ Operator runbook for the Turborepo Remote Cache deployed on Cloudflare Workers +
 
 - **Architecture decision**: [ADR-0021](../adr/0021-turborepo-remote-cache-cloudflare.md)
 - **Worker source (vendored)**: [`infra/cloudflare/`](../../infra/cloudflare/) (vendored from [AdiRishi/turborepo-remote-cache-cloudflare](https://github.com/AdiRishi/turborepo-remote-cache-cloudflare) v4.0.0 — see [SOURCE.md](../../infra/cloudflare/SOURCE.md))
-- **Deploy workflow**: [`.github/workflows/_deploy-cloudflare.yml`](../../.github/workflows/_deploy-cloudflare.yml)
+- **Deploy workflow**: [`deploy-cloudflare.yml`](../../.github/workflows/deploy-cloudflare.yml)
 - **Consumer composite step**: [`.github/actions/setup/action.yml`](../../.github/actions/setup/action.yml) — "Configure Turbo Remote Cache defaults"
 - **Asset inventory**: `CF-WORKER-TURBO`, `CF-R2-TURBO` in [`docs/INVENTORY.md`](../INVENTORY.md)
 

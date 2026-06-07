@@ -9,6 +9,7 @@
     "format": "turbo format",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test",
     "knip": "knip",
     "check:brand-placeholders": "node scripts/check-brand-placeholders.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",

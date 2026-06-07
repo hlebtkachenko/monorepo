@@ -2,7 +2,7 @@
 
 > Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
 
-Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` runs. Staging deploys are live; production deploys additionally require approval in the `production` GitHub environment and have not been run yet.
+Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` runs. Staging deploys are live; production deploys additionally require approval in the `production` GitHub environment (first prod deploy: v0.2.5, 2026-06-01).
 
 ## Trigger matrix
 
@@ -34,20 +34,9 @@ cosign verify-attestation --type slsaprovenance "$IMAGE" \
 
 Fail = stop. Do not proceed with an unverifiable image.
 
-## Canary stages
+## Deploy mechanics
 
-`_deploy-aws.yml` (production path) runs canary stages:
-
-1. 5% of traffic for 10 minutes. Watch error rate, p95 latency, business KPIs.
-2. 25% of traffic for 10 minutes. Same watch.
-3. 100%.
-
-Halt conditions (auto-rollback):
-
-- Error rate > baseline + 1pp.
-- p95 latency > baseline x 1.5.
-- 5xx rate > 0.1%.
-- Manual halt at any stage via `gh workflow run _rollback.yml`.
+`_deploy-aws.yml` performs a single ECS rolling deploy — there is no canary logic. The workflow renders a new ECS task definition, triggers a rolling update (two-task minimum during rollout), watches health checks for ~5 minutes, and auto-aborts with an ECS circuit-breaker rollback on failure. There is no `_rollback.yml` workflow.
 
 ## Rollback triggers
 

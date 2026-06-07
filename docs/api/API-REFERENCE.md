@@ -152,21 +152,29 @@ registerDocsRoutes(app, document)
 ```ts
 // apps/api/src/docs.ts
 export function registerDocsRoutes(app, document) {
-  app.getHttpAdapter().get("/v1/openapi.json", (_req, res) => {
-    res.type("application/json").send(document)
+  const adapter = app.getHttpAdapter()
+
+  adapter.get("/v1/openapi.json", (_req, res) => {
+    res.type("application/json").send(JSON.stringify(document))
   })
 
-  app.use(
-    "/v1/docs",
-    apiReference({
-      content: document,
-      pageTitle: "Afframe Public API · Reference",
-    }),
-  )
+  adapter.get("/v1/docs", (_req, res) => {
+    res.redirect(301, "/")
+  })
+
+  const scalarHandler = apiReference({
+    content: document,
+    pageTitle: "Afframe Public API · Reference",
+    // ... theme, auth, custom CSS
+  })
+
+  adapter.get("/", (req, res) => {
+    scalarHandler(req, res)
+  })
 }
 ```
 
-Two routes, registered once at boot.
+Three routes, registered once at boot: the spec at `/v1/openapi.json`, a 301 redirect from `/v1/docs` to `/`, and Scalar mounted path-exact at `/`.
 
 ### Rendered HTML
 
@@ -288,7 +296,7 @@ Smoke-checking a built bundle locally requires either running through `tsx` (the
 
 ## 9. Examples
 
-Real endpoints, real shapes. These are the two operations that exist today.
+Real endpoints, real shapes. These are the four operations that exist today (ping, organization, status, feedback).
 
 ### `GET /v1/ping`
 

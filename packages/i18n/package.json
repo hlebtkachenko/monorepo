@@ -22,7 +22,7 @@
     "@types/node": "^25.9.1",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^10.4.0",
+    "eslint": "^10.4.1",
     "next": "16.2.6",
     "typescript": "^6.0.3"
   },

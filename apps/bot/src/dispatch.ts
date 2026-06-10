@@ -59,7 +59,10 @@ export function parseCommand(name: string, args: string): ParseResult {
           kind: "rollback",
           workflow: "_deploy-aws.yml",
           ref: "main",
-          inputs: { environment: env, image_tag: tag },
+          // Input name must match the workflow_dispatch declaration in
+          // _deploy-aws.yml (`image_tag_override`) — GitHub 422s on
+          // undeclared inputs and the dispatch never fires.
+          inputs: { environment: env, image_tag_override: tag },
           label: `rollback ${env} → ${tag}`,
         },
       }

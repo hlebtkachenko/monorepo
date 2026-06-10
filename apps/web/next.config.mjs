@@ -3,6 +3,29 @@ import createNextIntlPlugin from "next-intl/plugin"
 
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts")
 
+// `next dev` needs 'unsafe-eval' (React Refresh) + a ws: HMR socket; the
+// production header stays strict. headers() is evaluated at build time, so
+// NODE_ENV is reliable here (development under `next dev`, production in the
+// image build).
+const isDev = process.env.NODE_ENV === "development"
+
+// img-src includes https://*.amazonaws.com: avatars render from short-lived
+// presigned S3 GET URLs (apps/web/app/_lib/avatar-storage.ts). connect-src
+// allows Sentry for the (currently DSN-less) client SDK wiring.
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data: https://*.amazonaws.com",
+  "font-src 'self'",
+  `connect-src 'self' https://*.sentry.io${isDev ? " ws:" : ""}`,
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
+].join("; ")
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: [
@@ -15,6 +38,30 @@ const nextConfig = {
     "@workspace/email",
   ],
   output: "standalone",
+  poweredByHeader: false,
+  // Site-wide security headers (H1). proxy.ts still sets the stricter
+  // `Referrer-Policy: no-referrer` on /auth/* + /onboarding/* — the
+  // middleware-set header wins over this config value for those paths.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
+          },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+          { key: "Content-Security-Policy", value: contentSecurityPolicy },
+        ],
+      },
+    ]
+  },
 }
 
 // withSentryConfig stays the outermost wrapper so that source-map uploads see

@@ -90,10 +90,12 @@ export function proxy(request: NextRequest): NextResponse {
  *   /favicon-{16,32,48}-{light,dark}.png  — adaptive tab favicon rasters
  *   /icon-{192,512}.png, /maskable-512.png — PWA install icons
  *                    (all served from public/)
+ *   /robots.txt      — metadata route, must stay anonymous-readable
+ *   /.well-known/*   — security.txt etc. (served from public/)
  *   /                — public landing page
  */
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|manifest\\.webmanifest|favicon-(?:16|32|48)-(?:light|dark)\\.png|icon-(?:192|512)\\.png|maskable-512\\.png|$).*)",
+    "/((?!api|_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|manifest\\.webmanifest|robots\\.txt|\\.well-known/.*|favicon-(?:16|32|48)-(?:light|dark)\\.png|icon-(?:192|512)\\.png|maskable-512\\.png|$).*)",
   ],
 }

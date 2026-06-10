@@ -18,6 +18,22 @@ interface CwAlarm {
   NewStateReason?: string
 }
 
+// Genuine SNS confirmation endpoints only — e.g. sns.eu-central-1.amazonaws.com.
+// Without the pin, a forged SubscriptionConfirmation makes the worker GET any
+// attacker URL (token-gated SSRF).
+const SNS_HOSTNAME_RE = /^sns\.[a-z0-9-]+\.amazonaws\.com$/
+
+/** True when the SubscribeURL parses, is https:, and points at an SNS host. */
+export function isValidSubscribeUrl(raw: string): boolean {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return false
+  }
+  return url.protocol === "https:" && SNS_HOSTNAME_RE.test(url.hostname)
+}
+
 /** Confirm an SNS HTTPS subscription by GETting its SubscribeURL. Returns true on 2xx. */
 export async function confirmSubscription(
   envelope: SnsEnvelope,
@@ -25,6 +41,7 @@ export async function confirmSubscription(
 ): Promise<boolean> {
   if (envelope.Type !== "SubscriptionConfirmation" || !envelope.SubscribeURL)
     return false
+  if (!isValidSubscribeUrl(envelope.SubscribeURL)) return false
   try {
     const res = await fetchImpl(envelope.SubscribeURL)
     return res.ok

@@ -62,7 +62,10 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     BUILD_SHA=$BUILD_SHA \
     BUILD_TIME=$BUILD_TIME \
-    BUILD_VERSION=$BUILD_VERSION
+    BUILD_VERSION=$BUILD_VERSION \
+    # Admin never registers accounts: Better Auth's /sign-up/email rejects
+    # when this is set (packages/auth/src/server.ts emailAndPassword.disableSignUp).
+    AUTH_DISABLE_SIGNUP=1
 
 # apt-get upgrade pulls Debian-Security point releases for base packages
 # (e.g. libgnutls30 deb12u6 -> deb12u7), patching base-image CVEs at the

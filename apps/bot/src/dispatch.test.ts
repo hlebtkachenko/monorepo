@@ -24,9 +24,11 @@ describe("parseCommand", () => {
   it("rollback requires env + tag", () => {
     expect(parseCommand("rollback", "staging").error).toMatch(/Usage/)
     const { plan } = parseCommand("rollback", "staging sha-abc123")
+    // Input name must match _deploy-aws.yml's workflow_dispatch declaration
+    // (image_tag_override) or GitHub rejects the dispatch with 422.
     expect(plan?.inputs).toEqual({
       environment: "staging",
-      image_tag: "sha-abc123",
+      image_tag_override: "sha-abc123",
     })
   })
 

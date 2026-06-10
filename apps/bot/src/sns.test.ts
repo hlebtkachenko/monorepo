@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { snsToEvent, confirmSubscription } from "./sns.js"
+import { snsToEvent, confirmSubscription, isValidSubscribeUrl } from "./sns.js"
 
 describe("snsToEvent", () => {
   it("ALARM CloudWatch message -> infra error event", () => {
@@ -48,19 +48,68 @@ describe("snsToEvent", () => {
   })
 })
 
+describe("isValidSubscribeUrl", () => {
+  it("accepts a genuine https SNS endpoint", () => {
+    expect(
+      isValidSubscribeUrl(
+        "https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription&Token=abc",
+      ),
+    ).toBe(true)
+  })
+
+  it("rejects http:, non-SNS hosts, lookalike hosts, and junk", () => {
+    expect(
+      isValidSubscribeUrl("http://sns.eu-central-1.amazonaws.com/confirm"),
+    ).toBe(false)
+    expect(isValidSubscribeUrl("https://evil.example/confirm")).toBe(false)
+    expect(
+      isValidSubscribeUrl(
+        "https://sns.eu-central-1.amazonaws.com.evil.example/confirm",
+      ),
+    ).toBe(false)
+    expect(
+      isValidSubscribeUrl("https://foo.sns.eu-central-1.amazonaws.com/x"),
+    ).toBe(false)
+    expect(isValidSubscribeUrl("not a url")).toBe(false)
+  })
+})
+
 describe("confirmSubscription", () => {
-  it("GETs the SubscribeURL and returns true on 2xx", async () => {
+  it("GETs a valid SubscribeURL and returns true on 2xx", async () => {
     let hit = ""
     const fake = (async (url: string | URL | Request) => {
       hit = String(url)
       return new Response(null, { status: 200 })
     }) as unknown as typeof fetch
     const ok = await confirmSubscription(
-      { Type: "SubscriptionConfirmation", SubscribeURL: "https://sns/confirm" },
+      {
+        Type: "SubscriptionConfirmation",
+        SubscribeURL:
+          "https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription",
+      },
       fake,
     )
     expect(ok).toBe(true)
-    expect(hit).toBe("https://sns/confirm")
+    expect(hit).toBe(
+      "https://sns.eu-central-1.amazonaws.com/?Action=ConfirmSubscription",
+    )
+  })
+
+  it("never fetches a SubscribeURL outside the SNS host pin", async () => {
+    let called = false
+    const fake = (async () => {
+      called = true
+      return new Response(null, { status: 200 })
+    }) as unknown as typeof fetch
+    const ok = await confirmSubscription(
+      {
+        Type: "SubscriptionConfirmation",
+        SubscribeURL: "https://attacker.example/exfil",
+      },
+      fake,
+    )
+    expect(ok).toBe(false)
+    expect(called).toBe(false)
   })
 
   it("returns false for a non-confirmation envelope", async () => {

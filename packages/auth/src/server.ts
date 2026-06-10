@@ -67,6 +67,24 @@ export function resolveAuditAction(
 }
 
 /**
+ * Resolve the client IP for audit events. Cloudflare always overwrites
+ * `cf-connecting-ip` with the true connecting address, so it wins. Without
+ * it (local dev, direct hits) fall back to the LAST `x-forwarded-for` hop —
+ * the first hop is client-supplied and spoofable behind Cloudflare, which
+ * appends the real IP to any inbound XFF list. A multi-hop list previously
+ * went raw into `truncateIp`, which returns null for any comma list, so
+ * spoofed XFF nulled the audit-trail IP entirely (F-5).
+ */
+export function resolveAuditIp(headers: Headers): string | null {
+  const cf = headers.get("cf-connecting-ip")
+  if (cf) return cf
+  const xff = headers.get("x-forwarded-for")
+  if (!xff) return null
+  const hops = xff.split(",")
+  return hops[hops.length - 1]?.trim() || null
+}
+
+/**
  * Determine whether a Better Auth `hooks.after` ctx response succeeded.
  * A missing returned value or an APIError/non-200 Response = failure.
  */
@@ -292,6 +310,12 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    // Surface-level sign-up kill switch (A-5). The admin container sets
+    // AUTH_DISABLE_SIGNUP=1 (apps/admin/Dockerfile) so its BA catchall
+    // rejects /sign-up/email — the admin origin must never register
+    // accounts. The web container leaves it unset: the token-gated signup
+    // flow calls auth.api.signUpEmail and must keep working.
+    disableSignUp: process.env.AUTH_DISABLE_SIGNUP === "1",
     // autoSignIn issues a session on signUpEmail and (via the nextCookies
     // plugin below) pipes the Set-Cookie through Next's cookies() store
     // automatically. The onboarding password action used to call
@@ -305,10 +329,31 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       await sendEmail(passwordResetEmail({ to: user.email, url }))
     },
+    // The password-reset flow exists because the password may be known to
+    // someone else — leaving their sessions alive for up to 30 days defeats
+    // it (F-2; BA default is false).
+    revokeSessionsOnPasswordReset: true,
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
       await sendEmail(verifyEmailEmail({ to: user.email, url }))
+    },
+  },
+  // Explicit rate-limit posture (F-3). BA's default already gates on
+  // NODE_ENV=production; the extra AUTH_TOKEN_ENV check keeps the limiter
+  // OFF for the e2e suite, which runs `next start` (NODE_ENV=production)
+  // with AUTH_TOKEN_ENV=dev (apps/web/playwright.config.ts). Deployed
+  // containers set AUTH_TOKEN_ENV=stg|prd (infra/cdk/lib/app-stack.ts).
+  // Defaults kept: window 10 s, max 100, memory storage — per-task counters
+  // on Fargate (limit multiplies by task count, resets on restart);
+  // accepted until Redis/secondaryStorage lands. BA's built-in special
+  // rules (3/10 s sign-in/up, 3/60 s reset) stay active; customRules wins
+  // over them and closes the TOTP/backup brute-force window — those paths
+  // otherwise fall in the generic 100/10 s bucket.
+  rateLimit: {
+    enabled: IS_PROD && process.env.AUTH_TOKEN_ENV !== "dev",
+    customRules: {
+      "/two-factor/*": { window: 60, max: 3 },
     },
   },
   advanced: {
@@ -318,6 +363,17 @@ export const auth = betterAuth({
       // UUID so the type matches when BA generates the value before
       // delegating to Drizzle.
       generateId: "uuid",
+    },
+    // Rate-limit key + session ip_address source (F-5). BA's default is
+    // x-forwarded-for FIRST hop — client-controlled behind Cloudflare
+    // (CF appends the real IP to any inbound XFF list), so an attacker
+    // could rotate fake first-hop IPs to evade the sign-in limiter.
+    // `cf-connecting-ip` is always overwritten by Cloudflare. Verified
+    // fallback in BA 1.6.11 (utils/get-request-ip.mjs): header absent →
+    // 127.0.0.1 in dev/test, null in production (rate limiting skipped
+    // with a one-time logger warning, session ip stays null).
+    ipAddress: {
+      ipAddressHeaders: ["cf-connecting-ip"],
     },
     // Cross-subdomain cookies. The session cookie needs to be readable
     // from `app.`, `admin.`, and `api.afframe.com` (web, admin, and any
@@ -355,7 +411,7 @@ export const auth = betterAuth({
 
       const rawIp =
         ctx.request instanceof Request
-          ? (ctx.request.headers.get("x-forwarded-for") ?? null)
+          ? resolveAuditIp(ctx.request.headers)
           : null
       const rawUa =
         ctx.request instanceof Request
@@ -416,6 +472,15 @@ export const auth = betterAuth({
       sendMagicLink: async ({ email, url }) => {
         await sendEmail(magicLinkEmail({ to: email, url }))
       },
+      // Product signup is token-gated (afkey-sig flow); without this a
+      // magic link for an unknown email CREATES the account on click —
+      // an open-registration bypass (F-4). Verified in BA 1.6.11: the
+      // gate fires at /magic-link/verify (redirects with
+      // error=new_user_signup_disabled); the send endpoint still returns
+      // a uniform {status:true} and sends the email regardless of
+      // account existence, so the login UI's "check your email" copy
+      // stays truthful and account existence is not enumerable.
+      disableSignUp: true,
     }),
     // MUST be last in the plugin chain (per Better Auth docs). nextCookies
     // hooks into outgoing responses and forwards the Set-Cookie BA emits

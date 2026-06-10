@@ -18,6 +18,19 @@ export interface AnswerView {
 }
 
 /**
+ * Validate an /ask callbackUrl: must parse and be https:. The worker POSTs the
+ * answer + a Bearer token there — without the scheme pin a caller holding the
+ * ingest secret could point the relay at any plaintext endpoint.
+ */
+export function isHttpsUrl(raw: string): boolean {
+  try {
+    return new URL(raw).protocol === "https:"
+  } catch {
+    return false
+  }
+}
+
+/**
  * Should the onTimeout policy be applied now? Only once, while still unanswered and past TTL.
  * The caller persists it via setDecision (first-answer-wins), so a late tap can't overwrite it.
  */

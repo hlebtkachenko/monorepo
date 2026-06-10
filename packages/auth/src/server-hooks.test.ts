@@ -142,6 +142,41 @@ describe("resolveAuditAction — path-to-action mapping", () => {
 })
 
 // ---------------------------------------------------------------------------
+// Unit: resolveAuditIp — cf-connecting-ip first, else LAST XFF hop (F-5)
+// ---------------------------------------------------------------------------
+
+describe("resolveAuditIp — audit-trail IP attribution", () => {
+  it("prefers cf-connecting-ip over x-forwarded-for", async () => {
+    const { resolveAuditIp } = await import("./server")
+    const headers = new Headers({
+      "cf-connecting-ip": "203.0.113.7",
+      "x-forwarded-for": "198.51.100.1, 203.0.113.7",
+    })
+    expect(resolveAuditIp(headers)).toBe("203.0.113.7")
+  })
+
+  it("takes the LAST x-forwarded-for hop when cf-connecting-ip is absent", async () => {
+    const { resolveAuditIp } = await import("./server")
+    const headers = new Headers({
+      "x-forwarded-for": "spoofed-client-value, 198.51.100.1, 203.0.113.7",
+    })
+    expect(resolveAuditIp(headers)).toBe("203.0.113.7")
+  })
+
+  it("handles a single-hop x-forwarded-for", async () => {
+    const { resolveAuditIp } = await import("./server")
+    const headers = new Headers({ "x-forwarded-for": "203.0.113.7" })
+    expect(resolveAuditIp(headers)).toBe("203.0.113.7")
+  })
+
+  it("returns null when neither header is present or XFF is blank", async () => {
+    const { resolveAuditIp } = await import("./server")
+    expect(resolveAuditIp(new Headers())).toBeNull()
+    expect(resolveAuditIp(new Headers({ "x-forwarded-for": " " }))).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // BA version pin assertion
 // ---------------------------------------------------------------------------
 

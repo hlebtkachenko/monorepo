@@ -19,6 +19,11 @@ import { deleteAvatar, uploadAvatar } from "../../../_lib/avatar-storage"
 export const dynamic = "force-dynamic"
 
 const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+// Pre-parse cap: the 2 MB file + multipart framing overhead. request.formData()
+// buffers the whole body in memory, so oversized bodies must be rejected from
+// the Content-Length header BEFORE parsing; the post-parse file.size check
+// stays the authoritative gate.
+const MAX_CONTENT_LENGTH = 3 * 1024 * 1024 // 3 MB
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg"])
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -26,6 +31,13 @@ export async function POST(request: Request): Promise<NextResponse> {
   const userId = session?.user?.id
   if (!userId) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
+  }
+
+  // Absent header (e.g. chunked transfer) falls through to the authoritative
+  // post-parse checks below.
+  const contentLength = request.headers.get("content-length")
+  if (contentLength !== null && Number(contentLength) > MAX_CONTENT_LENGTH) {
+    return NextResponse.json({ error: "payload too large" }, { status: 413 })
   }
 
   let formData: FormData

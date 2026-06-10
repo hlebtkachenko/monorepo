@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { answerView, shouldApplyTimeout } from "./hitl.js"
+import { answerView, isHttpsUrl, shouldApplyTimeout } from "./hitl.js"
 import type { ApprovalRecord } from "./state/store.js"
 
 function ap(over: Partial<ApprovalRecord> = {}): ApprovalRecord {
@@ -80,6 +80,20 @@ describe("answerView", () => {
       timedOut: false,
       decision: null,
     })
+  })
+})
+
+describe("isHttpsUrl", () => {
+  it("accepts https URLs only", () => {
+    expect(isHttpsUrl("https://example.com/callback")).toBe(true)
+    expect(isHttpsUrl("https://example.com:8443/cb?x=1")).toBe(true)
+  })
+  it("rejects http, other schemes, and junk", () => {
+    expect(isHttpsUrl("http://example.com/callback")).toBe(false)
+    expect(isHttpsUrl("ftp://example.com")).toBe(false)
+    expect(isHttpsUrl("javascript:alert(1)")).toBe(false)
+    expect(isHttpsUrl("not a url")).toBe(false)
+    expect(isHttpsUrl("")).toBe(false)
   })
 })
 

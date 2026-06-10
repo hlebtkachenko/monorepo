@@ -29,6 +29,11 @@ export type PasswordRuleKey = (typeof PASSWORD_RULES)[number]["key"]
 export const PasswordSchema = z
   .string()
   .min(12, { error: "password.length" })
+  // Mirrors Better Auth's maxPasswordLength so over-long input fails at the
+  // form boundary instead of as a late opaque BA endpoint error. Literal
+  // message (not an i18n slug): form error renderers pass non-"password.*"
+  // strings through verbatim.
+  .max(128, { error: "Use at most 128 characters." })
   .refine((pw) => /\d/.test(pw), { error: "password.number" })
   .refine((pw) => /[^A-Za-z0-9]/.test(pw), { error: "password.symbol" })
   .refine((pw) => /[a-z]/.test(pw) && /[A-Z]/.test(pw), {

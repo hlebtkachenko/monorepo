@@ -33,6 +33,26 @@ describe("PasswordSchema — boundary and rule coverage", () => {
     })
   })
 
+  describe("max-length rule — boundary at 128 characters (matches Better Auth maxPasswordLength)", () => {
+    it("accepts exactly 128-character password (at threshold)", () => {
+      const pw = "Aa1!" + "x".repeat(124)
+      expect(pw.length).toBe(128)
+      const result = PasswordSchema.safeParse(pw)
+      expect(result.success).toBe(true)
+    })
+
+    it("rejects 129-character password (one above threshold)", () => {
+      const pw = "Aa1!" + "x".repeat(125)
+      expect(pw.length).toBe(129)
+      const result = PasswordSchema.safeParse(pw)
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message)
+        expect(messages).toContain("Use at most 128 characters.")
+      }
+    })
+  })
+
   describe("number rule", () => {
     it("rejects a password with no digit", () => {
       // 12 chars, mixed case, symbol, no digit

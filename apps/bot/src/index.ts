@@ -17,7 +17,7 @@ import { createStore } from "./state/store.js"
 import { randomToken } from "./dispatch.js"
 import { emitIssue } from "./emit.js"
 import { deliverFromEnv } from "./deliver.js"
-import { answerView, shouldApplyTimeout } from "./hitl.js"
+import { answerView, isHttpsUrl, shouldApplyTimeout } from "./hitl.js"
 import type { IssueEvent } from "./issues/types.js"
 import { confirmSubscription, snsToEvent, type SnsEnvelope } from "./sns.js"
 import {
@@ -123,6 +123,9 @@ function createApp(env: Env) {
         { error: `onTimeout must be one of: ${options.join(", ")}` },
         400,
       )
+    }
+    if (body.callbackUrl && !isHttpsUrl(body.callbackUrl)) {
+      return c.json({ error: "callbackUrl must be a valid https: URL" }, 400)
     }
     const id = body.id?.trim() || randomToken()
     const now = Date.now()
@@ -238,7 +241,15 @@ function createApp(env: Env) {
     const update = await c.req.json().catch(() => null)
     if (!update) return c.text("bad request", 400)
     await bot.init()
-    await bot.handleUpdate(update)
+    try {
+      await bot.handleUpdate(update)
+    } catch (err) {
+      // grammY routes errors to bot.catch only via handleUpdates /
+      // webhookCallback; a direct handleUpdate throws. Ack 200 anyway —
+      // a 500 makes Telegram re-deliver the same update repeatedly
+      // (retry storm + duplicate side effects on non-idempotent paths).
+      console.error("bot handler error", err)
+    }
     return c.json({ ok: true })
   })
 

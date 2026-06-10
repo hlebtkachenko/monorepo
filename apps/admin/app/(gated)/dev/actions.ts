@@ -7,6 +7,8 @@ import { issueInvite, type InviteRole } from "@workspace/auth/invite-issuer"
 import { withAdminBypass } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
 
+import { assertAdminCaller } from "../assert-admin-caller"
+
 const WEB_BASE_URL = process.env.WEB_BASE_URL ?? "http://localhost:3010"
 
 export interface SignupTokenResult {
@@ -20,6 +22,7 @@ export async function generateSignupTokenAction(input: {
   workspace: string
   ttlDays: number
 }): Promise<SignupTokenResult> {
+  await assertAdminCaller()
   try {
     const ttlSeconds = Math.max(60, Math.round(input.ttlDays * 86400))
     const { rawToken } = await mintToken({
@@ -49,6 +52,7 @@ export async function generateInviteTokenAction(input: {
   role: InviteRole
   ttlDays: number
 }): Promise<InviteTokenResult> {
+  await assertAdminCaller()
   try {
     const ttlSeconds = Math.max(60, Math.round(input.ttlDays * 86400))
     const result = await issueInvite({
@@ -77,6 +81,7 @@ export interface OutboxMessage {
 }
 
 export async function fetchOutboxAction(): Promise<OutboxMessage[]> {
+  await assertAdminCaller()
   try {
     const res = await fetch(`${WEB_BASE_URL}/api/dev/outbox`, {
       cache: "no-store",
@@ -96,6 +101,7 @@ export interface OrgChoice {
 }
 
 export async function listOrganizationsAction(): Promise<OrgChoice[]> {
+  await assertAdminCaller()
   try {
     return await withAdminBypass(async (tx) => {
       const rows = await tx

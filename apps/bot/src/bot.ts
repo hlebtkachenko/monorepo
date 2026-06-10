@@ -57,6 +57,13 @@ export function createBot(env: Env): Bot {
   const allowed = Number(env.TELEGRAM_USER_ID)
   const store = createStore(env.DB)
 
+  // Error boundary: without it a throw inside any handler rejects
+  // bot.handleUpdate, the webhook returns 500, and Telegram re-delivers the
+  // same update repeatedly — retry storm + duplicate side effects.
+  bot.catch((err) => {
+    console.error("bot handler error", err)
+  })
+
   // Allowlist guard — only the owner may drive the bot. Everyone else is silently dropped.
   bot.use(async (ctx, next) => {
     if (!isAllowedUser(ctx.from?.id, allowed)) {

@@ -339,7 +339,7 @@ describe("runCallback — pickers", () => {
     expect(stored?.kind).toBe("rollback")
     expect(JSON.parse(stored!.payload).inputs).toEqual({
       environment: "staging",
-      image_tag: "sha-abc1234",
+      image_tag_override: "sha-abc1234",
     })
   })
 

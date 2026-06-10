@@ -21,6 +21,10 @@ export const DEV_PREVIEW_COOKIE = "app-dev-preview"
 
 export async function isDevPreview(): Promise<boolean> {
   if (process.env.NODE_ENV === "production") return false
+  // Double-gate: the flag previously gated only the cookie-SETTER route, so
+  // a hand-forged cookie bypassed it in any non-production build. The
+  // consumer must check it too.
+  if (process.env.ENABLE_DEV_PREVIEW !== "1") return false
   const store = await cookies()
   return store.get(DEV_PREVIEW_COOKIE)?.value === "1"
 }

@@ -44,7 +44,11 @@ describe("deadManToIssue", () => {
 })
 
 describe("HEARTBEATS registry", () => {
-  it("includes the bot scan + nightly dast", () => {
-    expect(HEARTBEATS.map((h) => h.key).sort()).toEqual(["dast", "scan"])
+  it("includes the bot scan + nightly dast + status-page prober", () => {
+    expect(HEARTBEATS.map((h) => h.key).sort()).toEqual([
+      "dast",
+      "scan",
+      "status-page",
+    ])
   })
 })

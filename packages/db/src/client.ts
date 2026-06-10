@@ -54,6 +54,16 @@ function getSqlClient(): ReturnType<typeof postgres> {
       max: 10,
       idle_timeout: 20,
       connect_timeout: 10,
+      // pgbouncer runs in transaction pooling mode (pool_mode = transaction):
+      // server connections are shared across clients per-transaction, so
+      // named prepared statements (the postgres-js default) only work by the
+      // grace of pgbouncer >= 1.21's protocol-level prepared-statement
+      // tracking and its max_prepared_statements default (200) — an implicit
+      // dependency nobody pinned, and a cap that statement churn across
+      // 3 apps x 10 conns can exceed under load ("prepared statement ...
+      // does not exist"). `prepare: false` removes the dependency entirely
+      // and matches every test/script connection in the repo (DB-02).
+      prepare: false,
     })
     fireProbeOnce()
   }
@@ -134,6 +144,9 @@ async function runStartupProbe(): Promise<void> {
   const probeClient = postgres(readDatabaseUrl(), {
     max: 1,
     connect_timeout: 10,
+    // Same pgbouncer URL as the pool — same DB-02 rationale (no prepared
+    // statements through transaction pooling).
+    prepare: false,
   })
   try {
     const rows = await probeClient<

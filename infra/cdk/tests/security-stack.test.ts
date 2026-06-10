@@ -14,7 +14,7 @@ describe("SecurityStack", () => {
 
   it("creates the kill-switch Lambda with correct runtime + handler", () => {
     template.hasResourceProperties("AWS::Lambda::Function", {
-      Runtime: "nodejs20.x",
+      Runtime: "nodejs22.x",
       Handler: "index.handler",
       FunctionName: "monorepo-test-cost-killswitch",
     })
@@ -22,7 +22,7 @@ describe("SecurityStack", () => {
 
   it("creates the RDS restart watcher Lambda", () => {
     template.hasResourceProperties("AWS::Lambda::Function", {
-      Runtime: "nodejs20.x",
+      Runtime: "nodejs22.x",
       Handler: "index.handler",
       FunctionName: "monorepo-test-rds-restart-watcher",
     })
@@ -243,7 +243,7 @@ describe("SecurityStack auto-cold-pause (staging + production)", () => {
     template.hasResourceProperties("AWS::Lambda::Function", {
       FunctionName: "monorepo-staging-autostop",
       Handler: "index.handler",
-      Runtime: "nodejs20.x",
+      Runtime: "nodejs22.x",
     })
   })
 

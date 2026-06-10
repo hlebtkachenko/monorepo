@@ -12,8 +12,11 @@ import type { Construct } from "constructs"
  * + `monorepo-production-management`, so the second one was charged. One
  * account trail captures management events for every env at no charge.
  *
- * Management events only, single-region (includeGlobalServiceEvents=true still
- * captures IAM/STS/etc.), file validation on, 90-day bucket lifecycle.
+ * Management events only, MULTI-region (INF-7: the classic compromised-key
+ * pattern is spinning compute in an unused region — a single-region trail
+ * leaves no trace of it; the first management trail is free either way,
+ * multi-region only grows S3 storage marginally), file validation on,
+ * 90-day bucket lifecycle.
  *
  * Deploy ONCE, manually: `cdk deploy Audit` — same pattern as
  * SecretsBootstrap. NOT wired into the per-env deploy workflow (it spans
@@ -50,7 +53,7 @@ export class AuditStack extends Stack {
       trailName: "monorepo-account-management",
       bucket: this.auditBucket,
       includeGlobalServiceEvents: true,
-      isMultiRegionTrail: false,
+      isMultiRegionTrail: true,
       enableFileValidation: true,
       managementEvents: ReadWriteType.ALL,
     })

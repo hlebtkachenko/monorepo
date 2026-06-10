@@ -501,6 +501,22 @@ export class AppStack extends Stack {
         // block when this var is non-empty (host-only cookie on localhost
         // dev). Derived from the two-level domain to stay correct on both
         // `app.afframe.com` and `app-staging.afframe.com`.
+        //
+        // ┌─ H6 PREP (cookie apex — NOT flipped yet, needs Hleb's go).
+        // │  `Domain=.afframe.com` sends this session cookie to EVERY
+        // │  *.afframe.com host, including `status.afframe.com` — the
+        // │  OpenStatus box on the OVH VPS, OUTSIDE the AWS trust boundary.
+        // │  A compromised status host passively harvests valid session
+        // │  cookies (admin included). Verified consumers (2026-06-10):
+        // │  apps/api never reads BA sessions (API-key guard only); the
+        // │  ONLY consumer is the app→admin session carry-over convenience,
+        // │  and admin has its own full login (password + 2FA + allowlist).
+        // │  TO FLIP: delete this line AND the matching line in the admin
+        // │  container below — server.ts then falls back to a host-only
+        // │  cookie per app. Operators re-login on admin once. Tracked as
+        // │  docs/LAUNCH-CHECKLIST.md #7. Telegram ask NOT yet sent (no
+        // │  secret in the Wave H workspace) — run the ask.ts command
+        // └─ logged in .context/exec/wave-h.md, or decide at checklist #7.
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.domain),
         // Outbound email from-address. Must be on a Resend/SES-verified
         // domain — otherwise the transport rejects the send.
@@ -790,6 +806,9 @@ export class AppStack extends Stack {
         // Same cross-subdomain cookie domain as the web container so an
         // operator signed into `app.afframe.com` carries the session to
         // `admin.afframe.com`. See web container comment above.
+        // H6 PREP: delete together with the web container's line to scope
+        // cookies per-host (see the H6 PREP block above; flip is gated on
+        // Hleb's approval — docs/LAUNCH-CHECKLIST.md #7).
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.adminDomain),
         // Comma-separated workspace ids whose members may sign into admin.
         // Empty => nobody is authorized (the gate fails closed). Changing
@@ -814,12 +833,21 @@ export class AppStack extends Stack {
         // verification. Admin sends from the same parent address.
         EMAIL_FROM: props.mailFromAddress,
         EMAIL_TRANSPORT: "resend",
+        // Telegram dev-bot ingest — same wiring as web/api (OBS-03: admin was
+        // the only app container without it, so its error surfaces could not
+        // report even after the reporter code shipped). notifierFromEnv()
+        // no-ops if BOT_INGEST_URL / NOTIFY_SHARED_SECRET unset.
+        BOT_INGEST_URL: "https://bot.afframe.com/ingest",
       },
       secrets: {
         // Shared with web: sessions must verify across both apps.
         BETTER_AUTH_SECRET: EcsSecret.fromSsmParameter(betterAuthSecretParam),
         // forgot/reset-password send mail via Resend.
         RESEND_API_KEY: EcsSecret.fromSsmParameter(resendApiKeyParam),
+        // Bearer for the bot /ingest + /issue (error capture). Mirrors web.
+        NOTIFY_SHARED_SECRET: EcsSecret.fromSsmParameter(
+          notifySharedSecretParam,
+        ),
         // app_user (RLS-bound runtime role). Same role as web — admin's
         // staff queries are equally RLS-scoped. Any admin operation that
         // legitimately needs to read across tenants funnels through

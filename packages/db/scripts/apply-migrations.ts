@@ -1,5 +1,5 @@
 // TODO follow-up:
-// - B1: SQL splitter is naive (split on /;\s*\n/), may corrupt DO blocks combined with CONCURRENTLY. Latent until first such migration.
+// - B1: SQL splitter is naive (split on /;\s*\n/), may corrupt DO blocks combined with CONCURRENTLY. Latent until first such migration. (Comment-line handling fixed — see scripts/split-statements.ts.)
 // - B3: 0007_pgboss.sql intentionally lacks BEGIN/COMMIT (DO blocks are atomic per-block). Document if confusing.
 // - B6: DATABASE_DIRECT_URL validation is shallow. Add current_user='app_owner' assertion if migration ownership errors appear.
 
@@ -8,6 +8,7 @@ import { readFile, readdir } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, resolve } from "node:path"
 import postgres from "postgres"
+import { splitSqlStatements } from "./split-statements"
 
 /**
  * apply-migrations.ts
@@ -198,16 +199,13 @@ async function main(): Promise<void> {
         if (needsOutsideTransaction(body)) {
           // Run outside transaction: split on semicolons and execute each
           // statement individually. This is necessary for CONCURRENTLY operations
-          // and ALTER TYPE ... ADD VALUE.
-          const statements = body
-            .split(/;\s*\n/)
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0 && !s.startsWith("--"))
+          // and ALTER TYPE ... ADD VALUE. Comment LINES are stripped before the
+          // empty-chunk filter so a comment-prefixed statement is not silently
+          // dropped (DB-08; see scripts/split-statements.ts + its unit test).
+          const statements = splitSqlStatements(body)
 
           for (const stmt of statements) {
-            if (stmt) {
-              await client.unsafe(stmt)
-            }
+            await client.unsafe(stmt)
           }
         } else {
           await client.unsafe(body)

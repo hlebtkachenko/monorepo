@@ -45,7 +45,8 @@ export default async function GatedLayout({
   const { allowed, workspaceId } = await checkAllowlist(session.user.id)
 
   if (!allowed) {
-    // workspaceId is null for denied users; writeAuditEventGlobal skips when absent.
+    // workspaceId is null for denied users; writeAuditEventGlobal inserts the
+    // event with workspace_id = NULL (nullable since migration 0021).
     void writeAuditEventGlobal({
       workspaceId: workspaceId ?? undefined,
       actorUserId: session.user.id,

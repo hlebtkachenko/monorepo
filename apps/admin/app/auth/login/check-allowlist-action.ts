@@ -31,7 +31,8 @@ export async function checkAdminAllowlistAction(): Promise<boolean> {
   if (!allowed) {
     void writeAuditEventGlobal({
       // workspaceId is null for denied users (no allowlisted workspace matched).
-      // writeAuditEventGlobal silently skips when workspaceId is absent.
+      // writeAuditEventGlobal inserts with workspace_id = NULL in that case
+      // (nullable since migration 0021), so the denial IS persisted.
       workspaceId: workspaceId ?? undefined,
       actorUserId: session.user.id,
       action: "auth.admin.allowlist_denied",

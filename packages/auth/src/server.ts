@@ -428,11 +428,12 @@ export const auth = betterAuth({
         null
 
       // All auth events are global-tier: no workspace binding exists at this
-      // hook level. writeAuditEventGlobal skips the write when workspaceId is
-      // absent (audit_event.workspace_id NOT NULL with FK). Pre-account events
-      // (failed logins for unknown users) are therefore not persisted — the
-      // forensic gap closes for workspace-bound sessions only.
-      // writeAuditEventGlobal never throws into the auth flow.
+      // hook level. writeAuditEventGlobal inserts with workspace_id = NULL
+      // when workspaceId is absent (nullable since migration 0021 / AFF-208),
+      // so pre-account events (failed logins for unknown users) ARE persisted;
+      // tenant-bound RLS policies exclude NULL rows, so only withAdminBypass
+      // reads can see them. writeAuditEventGlobal never throws into the auth
+      // flow.
       await writeAuditEventGlobal({
         actorUserId: userId,
         action,

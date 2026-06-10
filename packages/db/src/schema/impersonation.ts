@@ -21,9 +21,11 @@ export const impersonation = pgTable("impersonation", {
     .notNull()
     .default(sql`uuidv7()`)
     .primaryKey(),
+  // NO ACTION (migration 0023): impersonation is a compliance/audit record —
+  // it must not cascade-delete with the workspace (aligns with audit_event).
   workspace_id: uuid("workspace_id")
     .notNull()
-    .references(() => workspace.id, { onDelete: "cascade" }),
+    .references(() => workspace.id, { onDelete: "no action" }),
   organization_id: uuid("organization_id").references(() => organization.id, {
     onDelete: "set null",
   }),

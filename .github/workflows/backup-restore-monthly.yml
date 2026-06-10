@@ -13,7 +13,9 @@
 # design — the daily backup is the write side, this workflow is the
 # read-back validation.
 #
-# Advisory until the first green run (continue-on-error true).
+# A failed drill is a real incident (restore validation has no other
+# execution vehicle), so the job fails loudly AND pings the bot's /issue
+# (same pattern as other workflow notifies; no-op if the secret is unset).
 
 name: backup-restore-monthly
 
@@ -41,7 +43,9 @@ jobs:
   drill:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true # ADVISORY — flip to required after first green run
+    # continue-on-error deliberately NOT set: it made `gh run list` show the
+    # run green while the job failed (DB-06) — the drill's only failure mode
+    # was silent. A red run + the failure notify below are the contract.
     environment: ${{ inputs.environment || 'staging' }}
     permissions:
       id-token: write
@@ -105,23 +109,29 @@ jobs:
             echo "::error::Stack ${STACK} did not export Backup-${ENV_NAME}-BucketName"
             exit 1
           fi
-          SUBNETS=$(aws ec2 describe-subnets \
+          # Subnet discovery is scoped to THIS env's Network stack via the
+          # aws:cloudformation stack-name tag (single shared AWS account —
+          # an unscoped tag:aws-cdk:subnet-name filter matches BOTH envs'
+          # public subnets). JSON output + jq join produces the comma-joined
+          # list run-task needs; the old `--output text` variant separated
+          # ids with TABS, so the `${SUBNETS// /,}` space-join was a no-op
+          # and run-task failed on "Subnet ID must match subnet-[0-9a-f]+".
+          SUBNETS_JSON=$(aws ec2 describe-subnets \
             --region "$AWS_REGION" \
             --filters "Name=tag:aws-cdk:subnet-name,Values=public" \
-            --query 'Subnets[].SubnetId' \
-            --output text)
+                      "Name=tag:aws:cloudformation:stack-name,Values=Network-${ENV_NAME}" \
+            --query 'Subnets[].{Id:SubnetId,Vpc:VpcId}' \
+            --output json)
+          SUBNETS=$(jq -r 'map(.Id) | join(",")' <<<"$SUBNETS_JSON")
+          VPC=$(jq -r '.[0].Vpc // empty' <<<"$SUBNETS_JSON")
+          if [ -z "$SUBNETS" ] || [ -z "$VPC" ]; then
+            echo "::error::Could not resolve public subnets for Network-${ENV_NAME}"
+            exit 1
+          fi
           # SG: filter by the cluster's VPC + the CDK stack-name tag the
           # BackupStack inherits onto every nested resource. AppSg construct
           # mangles to AppSgABC123 in CFN logical id, so we can't filter on
           # logical id directly.
-          # describe-subnets accepts space-separated subnet ids — split the
-          # SUBNETS string deliberately. shellcheck SC2086 disabled inline.
-          # shellcheck disable=SC2086
-          VPC=$(aws ec2 describe-subnets \
-            --region "$AWS_REGION" \
-            --subnet-ids $SUBNETS \
-            --query 'Subnets[0].VpcId' \
-            --output text)
           # JMESPath uses backticks for literals; the surrounding single
           # quotes prevent bash from expanding them. shellcheck SC2016
           # disabled inline.
@@ -140,7 +150,7 @@ jobs:
             echo "cluster=$CLUSTER"
             echo "task_def=$TASK_DEF"
             echo "bucket=$BUCKET"
-            echo "subnets=${SUBNETS// /,}"
+            echo "subnets=$SUBNETS"
             echo "security_group=$SG"
           } >> "$GITHUB_OUTPUT"
 
@@ -192,7 +202,39 @@ jobs:
           # organization_membership resource_grant tool_call_log).
           bash infra/scripts/restore-drill.sh
 
-      - name: Alarm on failure
+      - name: Alarm on failure (Telegram + deduped Linear issue via bot)
         if: failure()
+        env:
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           echo "::error::Monthly backup-restore drill failed. Investigate via CloudWatch Logs /ecs/monorepo-${ENV_NAME}/backup."
+          if [ -z "$INGEST_SECRET" ]; then
+            echo "::warning::INGEST_SECRET unset — skipping drill-failure alert"
+            exit 0
+          fi
+          echo "::add-mask::$INGEST_SECRET"
+          body=$(jq -n \
+            --arg env "$ENV_NAME" --arg id "$RUN_ID" --arg url "$RUN_URL" \
+            '{
+              source: "ci-failure",
+              title: ("Backup-restore drill failed (" + $env + ")"),
+              body: ("Monthly backup-restore drill failed for **" + $env + "**. Restore validation has no other execution vehicle — treat as an incident. Logs: CloudWatch `/ecs/monorepo-" + $env + "/backup` + the run."),
+              fingerprintParts: ["backup-restore-drill", $env],
+              area: "infra",
+              risk: "high",
+              runId: ($id | tonumber),
+              runUrl: $url
+            }')
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST "https://bot.afframe.com/issue" \
+            -H "authorization: Bearer ${INGEST_SECRET}" \
+            -H "content-type: application/json" \
+            -d "$body")
+          echo "bot /issue: HTTP $code"
+          # Best-effort: do not mask the drill failure if the bot is down
+          # (the bot watchdog covers bot downtime separately).
+          if [ "$code" -ge 500 ]; then
+            echo "::warning::bot /issue returned $code"
+          fi

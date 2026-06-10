@@ -220,6 +220,7 @@ describe("AppStack Fargate hardening", () => {
       []) as Array<{
       Name?: string
       Environment?: Array<{ Name?: string; Value?: string }>
+      Secrets?: Array<{ Name?: string }>
     }>
     const admin = containers.find((c) => c.Name === "admin")
     expect(admin).toBeDefined()
@@ -248,6 +249,10 @@ describe("AppStack Fargate hardening", () => {
     // gets its OWN cookie scope (the two test domains are deliberately
     // on different apex domains).
     expect(envByName["BETTER_AUTH_COOKIE_DOMAIN"]).toBe(".example.net")
+    // OBS-03: admin must be able to report errors to the bot like web/api.
+    expect(envByName["BOT_INGEST_URL"]).toBe("https://bot.afframe.com/ingest")
+    const adminSecretNames = (admin?.Secrets ?? []).map((s) => s.Name)
+    expect(adminSecretNames).toContain("NOTIFY_SHARED_SECRET")
   })
 
   it("references the 3 workflow-managed secrets via SSM SecureString (M4)", () => {

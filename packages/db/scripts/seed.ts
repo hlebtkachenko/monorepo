@@ -30,7 +30,7 @@
  * Usage:
  *   DATABASE_URL=postgres://... pnpm --filter @workspace/db db:seed
  */
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import {
   app_user,
   organization,
@@ -59,10 +59,18 @@ async function main(): Promise<void> {
     }
 
     // Workspace ---------------------------------------------------------
+    // Keyed on (created_by_user_id, display_name) — keyed on the creator
+    // alone, a re-run with a different SEED_WORKSPACE_NAME would silently
+    // reuse the old workspace (DB-14).
     const [existingWorkspace] = await tx
       .select({ id: workspace.id, display_name: workspace.display_name })
       .from(workspace)
-      .where(eq(workspace.created_by_user_id, user.id))
+      .where(
+        and(
+          eq(workspace.created_by_user_id, user.id),
+          eq(workspace.display_name, workspaceName),
+        ),
+      )
       .limit(1)
 
     let workspaceId: string
@@ -96,10 +104,19 @@ async function main(): Promise<void> {
     }
 
     // Workspace membership ----------------------------------------------
+    // Keyed on (user_id, workspace_id) — keyed on user_id alone, a user who
+    // already had a membership in ANY other workspace (e.g. created via
+    // onboarding first) made the seed skip this workspace's membership and
+    // wire organization_membership to a row from a different workspace (DB-14).
     const [existingWsMembership] = await tx
       .select({ id: workspace_membership.id })
       .from(workspace_membership)
-      .where(eq(workspace_membership.user_id, user.id))
+      .where(
+        and(
+          eq(workspace_membership.user_id, user.id),
+          eq(workspace_membership.workspace_id, workspaceId),
+        ),
+      )
       .limit(1)
 
     let wsMembershipId: string
@@ -160,10 +177,17 @@ async function main(): Promise<void> {
     }
 
     // Organization membership -------------------------------------------
+    // Keyed on (user_id, organization_id) — same scoping fix as the
+    // workspace_membership check above (DB-14).
     const [existingOrgMembership] = await tx
       .select({ id: organization_membership.id })
       .from(organization_membership)
-      .where(eq(organization_membership.user_id, user.id))
+      .where(
+        and(
+          eq(organization_membership.user_id, user.id),
+          eq(organization_membership.organization_id, organizationId),
+        ),
+      )
       .limit(1)
 
     if (existingOrgMembership) {

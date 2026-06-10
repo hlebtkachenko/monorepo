@@ -8,6 +8,9 @@ import {
   TreatMissingData,
 } from "aws-cdk-lib/aws-cloudwatch"
 import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions"
+import { EventField, Rule, RuleTargetInput } from "aws-cdk-lib/aws-events"
+import { SnsTopic } from "aws-cdk-lib/aws-events-targets"
+import { FilterPattern, MetricFilter } from "aws-cdk-lib/aws-logs"
 import { Topic } from "aws-cdk-lib/aws-sns"
 import {
   DefaultDashboardFactory,
@@ -256,9 +259,11 @@ export class ObservabilityStack extends Stack {
     })
     s3BucketSize.addAlarmAction(snsAction)
 
-    // 4) CloudWatch Logs ingestion: 1 GB/h summed across web, api,
-    // cloudflared log groups. Log ingestion is $0.50/GB - a runaway loop
-    // can torch tens of dollars per hour.
+    // 4) CloudWatch Logs ingestion: 1 GB/h summed across ALL seven service
+    // log groups. Log ingestion is $0.50/GB - a runaway loop can torch tens
+    // of dollars per hour. admin/pgbouncer/cerbos/openfga were originally
+    // excluded (INF-8) — a log-flood there billed identically but was only
+    // caught by the slower dollar budget.
     const ingestMetric = (id: string, logGroupName: string) =>
       new Metric({
         namespace: "AWS/Logs",
@@ -272,15 +277,31 @@ export class ObservabilityStack extends Stack {
     const cwLogsIngest = new Alarm(this, "CwLogsIngestHigh", {
       alarmName: `monorepo-${props.envName}-cwlogs-ingest-high`,
       alarmDescription:
-        "CloudWatch Logs incoming bytes > 1 GB in 1h across web, api, cloudflared. Possible log-flood.",
+        "CloudWatch Logs incoming bytes > 1 GB in 1h across web, api, admin, cloudflared, pgbouncer, cerbos, openfga. Possible log-flood.",
       metric: new MathExpression({
-        expression: "web + api + tunnel",
+        expression: "web + api + tunnel + admin + pgbouncer + cerbos + openfga",
         usingMetrics: {
           web: ingestMetric("web", props.appStack.webLogGroup.logGroupName),
           api: ingestMetric("api", props.appStack.apiLogGroup.logGroupName),
           tunnel: ingestMetric(
             "tunnel",
             props.appStack.tunnelLogGroup.logGroupName,
+          ),
+          admin: ingestMetric(
+            "admin",
+            props.appStack.adminLogGroup.logGroupName,
+          ),
+          pgbouncer: ingestMetric(
+            "pgbouncer",
+            props.appStack.pgbouncerLogGroup.logGroupName,
+          ),
+          cerbos: ingestMetric(
+            "cerbos",
+            props.appStack.cerbosLogGroup.logGroupName,
+          ),
+          openfga: ingestMetric(
+            "openfga",
+            props.appStack.openfgaLogGroup.logGroupName,
           ),
         },
         period: Duration.hours(1),
@@ -293,9 +314,10 @@ export class ObservabilityStack extends Stack {
     cwLogsIngest.addAlarmAction(snsAction)
     cwLogsIngest.addAlarmAction(killSwitchAction)
 
-    // 5) ECR pull anomaly: 50 pulls/h across both repos summed. ECR pulls
-    // outside our deploy cadence (a few times a day) signal compromise of
-    // the pull-side IAM role.
+    // 5) ECR pull anomaly: 50 pulls/h across all three app repos summed.
+    // ECR pulls outside our deploy cadence (a few times a day) signal
+    // compromise of the pull-side IAM role. The admin repo was originally
+    // missing from the expression (INF-9).
     const pullMetric = (id: string, repoName: string) =>
       new Metric({
         namespace: "AWS/ECR",
@@ -309,12 +331,16 @@ export class ObservabilityStack extends Stack {
     const ecrPullAnomaly = new Alarm(this, "EcrPullAnomalyHigh", {
       alarmName: `monorepo-${props.envName}-ecr-pull-anomaly`,
       alarmDescription:
-        "ECR pulls > 50 in 1h across web+api repos. Possible compromised pull credentials.",
+        "ECR pulls > 50 in 1h across web+api+admin repos. Possible compromised pull credentials.",
       metric: new MathExpression({
-        expression: "web + api",
+        expression: "web + api + admin",
         usingMetrics: {
           web: pullMetric("web", props.dataStack.webRepository.repositoryName),
           api: pullMetric("api", props.dataStack.apiRepository.repositoryName),
+          admin: pullMetric(
+            "admin",
+            props.dataStack.adminRepository.repositoryName,
+          ),
         },
         period: Duration.hours(1),
       }),
@@ -357,6 +383,170 @@ export class ObservabilityStack extends Stack {
       cwLogsIngest,
       ecrPullAnomaly,
     }
+
+    // ----- Application-health alarms (OBS-06) -----
+    //
+    // Everything above is cost/resource protection; nothing told an operator
+    // "the app is down / erroring". These four signals close that gap. All
+    // are alert-only (BillingTopic → email + the bot's /sns subscription in
+    // production) — none feed the kill-switch.
+
+    // a) ECS task stopped unexpectedly. Without Container Insights there is
+    // no RunningTaskCount metric, so use the free EventBridge Task State
+    // Change stream instead. Scoped to the app service's task group and to
+    // stop reasons that mean "crash" (essential container exit, failed
+    // health checks) — deliberate scale-to-zero (auto-pause, kill-switch,
+    // deploys) stops tasks with "Scaling activity initiated by …" and stays
+    // quiet. The message is shaped like a CloudWatch alarm JSON so the bot's
+    // /sns route renders it as a first-class alarm with a stable dedup
+    // fingerprint (apps/bot/src/sns.ts parses Message for AlarmName).
+    new Rule(this, "EcsTaskStoppedRule", {
+      ruleName: `monorepo-${props.envName}-ecs-task-stopped`,
+      description:
+        "App task stopped because an essential container exited or failed health checks",
+      eventPattern: {
+        source: ["aws.ecs"],
+        detailType: ["ECS Task State Change"],
+        detail: {
+          clusterArn: [props.appStack.cluster.clusterArn],
+          lastStatus: ["STOPPED"],
+          group: [`service:${serviceName}`],
+          stoppedReason: [
+            { prefix: "Essential container" },
+            { prefix: "Task failed container health checks" },
+          ],
+        },
+      },
+      targets: [
+        new SnsTopic(this.billingTopic, {
+          message: RuleTargetInput.fromObject({
+            AlarmName: `monorepo-${props.envName}-ecs-task-stopped`,
+            NewStateValue: "ALARM",
+            NewStateReason: `App task stopped: ${EventField.fromPath(
+              "$.detail.stoppedReason",
+            )} (task ${EventField.fromPath("$.detail.taskArn")})`,
+          }),
+        }),
+      ],
+    })
+
+    // b) RDS connection pressure. db.t4g.micro tops out at ~110 connections
+    // (RDS LEAST(DBInstanceClassMemory/9531392, 5000) formula); steady state
+    // through pgbouncer is ~20 server connections. 50 sustained for 15 min
+    // means pooling broke (DB-02 regression, direct-connection leak) or the
+    // instance is undersized — page before max_connections errors start.
+    const rdsConnectionsHigh = new Alarm(this, "RdsConnectionsHigh", {
+      alarmName: `monorepo-${props.envName}-rds-connections-high`,
+      alarmDescription:
+        "RDS DatabaseConnections >= 50 for 3x5min (t4g.micro max ~110, pgbouncer steady ~20). Pooling regression or undersized instance.",
+      metric: new Metric({
+        namespace: "AWS/RDS",
+        metricName: "DatabaseConnections",
+        dimensionsMap: {
+          DBInstanceIdentifier: props.dataStack.database.instanceIdentifier,
+        },
+        statistic: Stats.AVERAGE,
+        period: Duration.minutes(5),
+      }),
+      threshold: 50,
+      evaluationPeriods: 3,
+      datapointsToAlarm: 3,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    rdsConnectionsHigh.addAlarmAction(snsAction)
+
+    // c) Server-error log-metric filters on web + api. Logs are unstructured
+    // text (CloudWatch-MVP posture, OBS-08 accepted), so these are term
+    // filters, not status-code parsers: the api's Nest ConsoleLogger stamps
+    // " ERROR " on error-level lines (DomainExceptionFilter logs every
+    // unhandled 5xx); the web filter matches the stable token emitted by
+    // apps/web/instrumentation.ts onRequestError plus bare console stack
+    // headers. Thresholds are deliberately modest — tune after launch.
+    const errorMetric = (
+      id: string,
+      logGroup: typeof props.appStack.webLogGroup,
+      metricName: string,
+      pattern: ReturnType<typeof FilterPattern.anyTerm>,
+    ) =>
+      new MetricFilter(this, id, {
+        logGroup,
+        metricNamespace: `monorepo/${props.envName}`,
+        metricName,
+        filterPattern: pattern,
+        metricValue: "1",
+      }).metric({ statistic: Stats.SUM, period: Duration.minutes(5) })
+
+    const webServerErrors = new Alarm(this, "WebServerErrorsHigh", {
+      alarmName: `monorepo-${props.envName}-web-server-errors-high`,
+      alarmDescription:
+        "apps/web server-side errors >= 5 in 5 min (instrumentation.ts onRequestError token + console error headers).",
+      metric: errorMetric(
+        "WebServerErrorsFilter",
+        props.appStack.webLogGroup,
+        "WebServerErrors",
+        FilterPattern.anyTerm("[web-server-error]", "Error:"),
+      ),
+      threshold: 5,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    webServerErrors.addAlarmAction(snsAction)
+
+    const apiServerErrors = new Alarm(this, "ApiServerErrorsHigh", {
+      alarmName: `monorepo-${props.envName}-api-server-errors-high`,
+      alarmDescription:
+        "apps/api error-level log lines >= 5 in 5 min (Nest ConsoleLogger ERROR token; DomainExceptionFilter logs every unhandled 5xx).",
+      metric: errorMetric(
+        "ApiServerErrorsFilter",
+        props.appStack.apiLogGroup,
+        "ApiServerErrors",
+        FilterPattern.anyTerm("ERROR"),
+      ),
+      threshold: 5,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    apiServerErrors.addAlarmAction(snsAction)
+
+    // ----- Backup freshness (INF-11) -----
+    //
+    // The nightly 03:00 UTC backup task is the only thing writing to its log
+    // group, so "no IncomingBytes for two consecutive 12h buckets" == "no
+    // backup ran in the last day". Buckets align to 00:00/12:00 UTC; the
+    // 03:00 run lands in the 00–12 bucket every day, so a missed night
+    // alarms within ~21–33h of the last successful run. TreatMissingData
+    // BREACHING is the point: a silent pipeline (no log events at all) is
+    // exactly the failure this guards. NOTE: while the env is cold-paused
+    // (RDS stopped → backup cannot run) this alarm sits in ALARM — that is
+    // intended signal, not noise; it fires once on transition.
+    //
+    // The log-group name is the BackupStack convention
+    // (`/ecs/monorepo-<env>/backup`, backup-stack.ts) referenced by name to
+    // avoid an Observability→Backup stack dependency cycle (BackupStack is
+    // instantiated after this stack in bin/app.ts).
+    const backupFreshness = new Alarm(this, "BackupFreshnessStale", {
+      alarmName: `monorepo-${props.envName}-backup-freshness-stale`,
+      alarmDescription:
+        "No log activity from the nightly backup task for ~24h+. Backups are stale or the pipeline is wedged — verify the S3 backups bucket.",
+      metric: new Metric({
+        namespace: "AWS/Logs",
+        metricName: "IncomingBytes",
+        dimensionsMap: {
+          LogGroupName: `/ecs/monorepo-${props.envName}/backup`,
+        },
+        statistic: Stats.SUM,
+        period: Duration.hours(12),
+      }),
+      threshold: 1,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: ComparisonOperator.LESS_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.BREACHING,
+    })
+    backupFreshness.addAlarmAction(snsAction)
 
     // Workflow uses this output to look up the topic and subscribe the
     // operator email via `aws sns subscribe --protocol email`. See the

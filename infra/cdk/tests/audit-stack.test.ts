@@ -16,7 +16,7 @@ describe("AuditStack (account-global)", () => {
     template.hasResourceProperties("AWS::CloudTrail::Trail", {
       TrailName: "monorepo-account-management",
       EnableLogFileValidation: true,
-      IsMultiRegionTrail: false,
+      IsMultiRegionTrail: true,
       IncludeGlobalServiceEvents: true,
     })
   })

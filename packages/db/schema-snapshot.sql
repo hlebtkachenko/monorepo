@@ -1239,6 +1239,12 @@ CREATE INDEX api_key_key_hash_idx ON public.api_key USING btree (key_hash);
 CREATE INDEX api_key_organization_idx ON public.api_key USING btree (organization_id);
 
 --
+-- Name: api_key_workspace_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX api_key_workspace_idx ON public.api_key USING btree (workspace_id);
+
+--
 -- Name: app_user_phone_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1335,10 +1341,22 @@ CREATE INDEX auth_verification_expires_idx ON public.auth_verification USING btr
 CREATE INDEX auth_verification_identifier_idx ON public.auth_verification USING btree (identifier);
 
 --
+-- Name: auth_verification_workspace_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX auth_verification_workspace_idx ON public.auth_verification USING btree (workspace_id);
+
+--
 -- Name: impersonation_actor_started_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX impersonation_actor_started_idx ON public.impersonation USING btree (actor_user_id, started_at DESC);
+
+--
+-- Name: impersonation_auth_session_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX impersonation_auth_session_idx ON public.impersonation USING btree (auth_session_id);
 
 --
 -- Name: impersonation_open_idx; Type: INDEX; Schema: public; Owner: -
@@ -1375,6 +1393,12 @@ CREATE INDEX organization_membership_user_idx ON public.organization_membership 
 --
 
 CREATE INDEX organization_membership_workspace_idx ON public.organization_membership USING btree (workspace_id) WHERE (active = true);
+
+--
+-- Name: organization_membership_ws_membership_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX organization_membership_ws_membership_idx ON public.organization_membership USING btree (workspace_membership_id);
 
 --
 -- Name: organization_self_idx; Type: INDEX; Schema: public; Owner: -
@@ -1471,12 +1495,6 @@ CREATE INDEX tool_call_log_tool_name_trgm_idx ON public.tool_call_log USING gin 
 --
 
 CREATE INDEX two_factor_user_id_idx ON public.two_factor USING btree (user_id);
-
---
--- Name: workspace_billing_workspace_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX workspace_billing_workspace_idx ON public.workspace_billing USING btree (workspace_id);
 
 --
 -- Name: workspace_membership_active_unique; Type: INDEX; Schema: public; Owner: -
@@ -1727,7 +1745,7 @@ ALTER TABLE ONLY public.impersonation
 --
 
 ALTER TABLE ONLY public.impersonation
-    ADD CONSTRAINT impersonation_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
+    ADD CONSTRAINT impersonation_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
 
 --
 -- Name: organization_membership organization_membership_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

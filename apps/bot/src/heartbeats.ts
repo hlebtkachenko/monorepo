@@ -17,6 +17,15 @@ export const HEARTBEATS: HeartbeatSpec[] = [
   { key: "scan", label: "Bot health scan (cron)", maxAgeMs: 13 * HOUR },
   // Nightly nuclei DAST: beats once a day from nuclei-dast.yml.
   { key: "dast", label: "Nightly DAST (nuclei)", maxAgeMs: 26 * HOUR },
+  // OpenStatus prober on the OVH VPS (OBS-10: "the watchdog has no watchdog").
+  // A VPS-side cron POSTs /beat hourly once wired (launch-checklist OBS-10
+  // same-morning ops item); until the first beat arrives the dead-man stays
+  // quiet by design (never-seen keys don't false-alarm — see staleHeartbeats).
+  {
+    key: "status-page",
+    label: "Status page prober (OpenStatus)",
+    maxAgeMs: 3 * HOUR,
+  },
 ]
 
 export interface BeatEntry {

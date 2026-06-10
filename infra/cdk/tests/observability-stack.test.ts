@@ -130,4 +130,69 @@ describe("ObservabilityStack", () => {
       expect(actions[0]?.Ref).toMatch(/^BillingTopic/)
     }
   })
+
+  it("has the 4 app-health/backup alarms (OBS-06 + INF-11)", () => {
+    for (const name of [
+      "monorepo-test-rds-connections-high",
+      "monorepo-test-web-server-errors-high",
+      "monorepo-test-api-server-errors-high",
+      "monorepo-test-backup-freshness-stale",
+    ]) {
+      template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+        AlarmName: name,
+      })
+    }
+    // Backup freshness must treat MISSING data as breaching — a silent
+    // pipeline emits no log events at all, which is exactly the failure.
+    template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+      AlarmName: "monorepo-test-backup-freshness-stale",
+      TreatMissingData: "breaching",
+      ComparisonOperator: "LessThanThreshold",
+    })
+  })
+
+  it("cwlogs-ingest sums all 7 service log groups (INF-8)", () => {
+    const alarms = template.findResources("AWS::CloudWatch::Alarm")
+    const ingest = Object.values(alarms).find(
+      (a) =>
+        (a as { Properties?: { AlarmName?: string } }).Properties?.AlarmName ===
+        "monorepo-test-cwlogs-ingest-high",
+    ) as { Properties?: { Metrics?: unknown[] } } | undefined
+    const serialized = JSON.stringify(ingest?.Properties?.Metrics ?? [])
+    expect(serialized).toContain(
+      "web + api + tunnel + admin + pgbouncer + cerbos + openfga",
+    )
+  })
+
+  it("ecr-pull-anomaly includes the admin repo (INF-9)", () => {
+    const alarms = template.findResources("AWS::CloudWatch::Alarm")
+    const pulls = Object.values(alarms).find(
+      (a) =>
+        (a as { Properties?: { AlarmName?: string } }).Properties?.AlarmName ===
+        "monorepo-test-ecr-pull-anomaly",
+    ) as { Properties?: { Metrics?: unknown[] } } | undefined
+    const serialized = JSON.stringify(pulls?.Properties?.Metrics ?? [])
+    expect(serialized).toContain("web + api + admin")
+  })
+
+  it("ECS task-stopped EventBridge rule filters to crash reasons only (OBS-06a)", () => {
+    template.hasResourceProperties("AWS::Events::Rule", {
+      Name: "monorepo-test-ecs-task-stopped",
+      EventPattern: {
+        source: ["aws.ecs"],
+        "detail-type": ["ECS Task State Change"],
+        detail: {
+          lastStatus: ["STOPPED"],
+          stoppedReason: [
+            { prefix: "Essential container" },
+            { prefix: "Task failed container health checks" },
+          ],
+        },
+      },
+    })
+  })
+
+  it("creates the 2 server-error metric filters (OBS-06c)", () => {
+    template.resourceCountIs("AWS::Logs::MetricFilter", 2)
+  })
 })

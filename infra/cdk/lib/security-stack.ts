@@ -96,7 +96,7 @@ export class SecurityStack extends Stack {
 
     this.killSwitchFn = new LambdaFunction(this, "KillSwitchFn", {
       functionName: `monorepo-${props.envName}-cost-killswitch`,
-      runtime: Runtime.NODEJS_20_X,
+      runtime: Runtime.NODEJS_22_X,
       handler: "index.handler",
       code: Code.fromAsset(path.join(__dirname, "lambda", "killswitch")),
       timeout: Duration.seconds(30),
@@ -469,7 +469,7 @@ export class SecurityStack extends Stack {
       "RdsRestartWatcherFn",
       {
         functionName: `monorepo-${props.envName}-rds-restart-watcher`,
-        runtime: Runtime.NODEJS_20_X,
+        runtime: Runtime.NODEJS_22_X,
         handler: "index.handler",
         code: Code.fromAsset(
           path.join(__dirname, "lambda", "rds-restart-watcher"),
@@ -544,7 +544,7 @@ export class SecurityStack extends Stack {
 
       const autoStopFn = new LambdaFunction(this, "AutoStopFn", {
         functionName: `monorepo-${props.envName}-autostop`,
-        runtime: Runtime.NODEJS_20_X,
+        runtime: Runtime.NODEJS_22_X,
         handler: "index.handler",
         code: Code.fromAsset(path.join(__dirname, "lambda", "autostop")),
         timeout: Duration.seconds(30),

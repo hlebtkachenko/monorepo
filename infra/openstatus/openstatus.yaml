@@ -9,22 +9,30 @@
 # does NOT support self-host — see STATUS-PAGE.md "CLI does not target
 # self-host". On self-host, monitors are applied via the dashboard UI;
 # this YAML is the source-of-truth for what was configured, not a file
-# any tool currently consumes.
+# any tool currently consumes. ANY change here therefore also needs the
+# matching dashboard click — tracked as a launch-checklist item (OBS-13).
 #
 # `regions` references the private-location probe registered on the VPS.
 # In the dashboard the location is named "OVH EU"; reconcile any internal
 # slug at apply time.
 #
-# Production monitors carry `active: false` until production is deployed
-# (`app.afframe.com`, `api.afframe.com`, `admin.afframe.com` are prepared
-# but not yet live). Flip to `active: true` after the first production
-# deploy.
+# Sleeping-page awareness (OBS-12): a cold-paused env serves HTTP 503 from
+# the `afframe-sleeping` Cloudflare Worker (infra/cloudflare-sleeping/ —
+# HTML page, JSON `{"error":"service_unavailable"}` on api hosts). Staging
+# parks ~6 days/week, so its monitors must treat that deliberate 503 as OK.
+# The distinguishing failure while parked is Cloudflare error 1033 / HTTP
+# 530 (tunnel dead, no sleeping route bound) — hence `statusCode not_eq 530`
+# on the staging monitors instead of `eq 200`. Production monitors stay
+# strict (`eq 200`): post-launch prod runs 24/7 (LAUNCH-CHECKLIST #2) and a
+# sleeping page in a customer's face IS an incident. Until that un-park
+# happens, expect the prod monitors to read "down" while prod is
+# deliberately paused — pause them in the dashboard if the noise matters.
 
 web-app-prod:
   name: "App (production)"
   description: "afframe.com web app reachability — app.afframe.com/api/version"
   frequency: "1m"
-  active: false # PROD NOT DEPLOYED YET — flip after first production deploy
+  active: true # OBS-09: production deployed since 2026-05 — monitor it
   regions:
     - ovh-eu
   retry: 3
@@ -43,7 +51,7 @@ api-prod:
   name: "API (production)"
   description: "afframe.com API health — api.afframe.com/api/health, body must report ok"
   frequency: "1m"
-  active: false # PROD NOT DEPLOYED YET
+  active: true # OBS-09
   regions:
     - ovh-eu
   retry: 3
@@ -65,13 +73,35 @@ admin-prod:
   name: "Admin (production)"
   description: "afframe.com admin app reachability — admin.afframe.com/api/health"
   frequency: "1m"
-  active: false # PROD NOT DEPLOYED YET
+  active: true # OBS-09
   regions:
     - ovh-eu
   retry: 3
   kind: http
   request:
     url: https://admin.afframe.com/api/health
+    method: GET
+    headers:
+      User-Agent: openstatus-afframe
+  assertions:
+    - kind: statusCode
+      compare: eq
+      target: 200
+    - kind: textBody
+      compare: contains
+      target: '"ok":true'
+
+bot-worker:
+  name: "Dev bot (Cloudflare Worker)"
+  description: "bot.afframe.com/health — the single choke point for EVERY alert path (errors, alarms, asks). OBS-11: if the Worker dies, all alerting dies silently; this is the external watchdog's watchdog (the GHA bot-watchdog covers it from a third failure domain)."
+  frequency: "5m"
+  active: true
+  regions:
+    - ovh-eu
+  retry: 3
+  kind: http
+  request:
+    url: https://bot.afframe.com/health
     method: GET
     headers:
       User-Agent: openstatus-afframe
@@ -103,9 +133,17 @@ dns-afframe:
       compare: not_eq
       target: "0.0.0.0"
 
+# Staging monitors (OBS-12): sleeping-page-aware. Staging is parked ~6
+# days/week; the deliberate 503 sleeping page must NOT read as "down".
+# `statusCode not_eq 530` means: anything the tunnel/edge can still serve
+# (200 live, 503 asleep) is OK; Cloudflare error 1033/530 — tunnel dead
+# with no sleeping route bound, the genuinely-broken state — alarms.
+# Trade-off (accepted): an in-app 5xx while staging is AWAKE does not trip
+# these monitors; deploy smoke + the prod-parity monitors above carry that.
+
 staging-web:
   name: "App (staging)"
-  description: "app-staging.afframe.com web app — private, kept off the public status page"
+  description: "app-staging.afframe.com web app — private, kept off the public status page. Sleeping-page-aware: 200 (live) and 503 (parked) both pass; only 530 (tunnel down) fails."
   frequency: "5m"
   active: true
   regions:
@@ -119,12 +157,12 @@ staging-web:
       User-Agent: openstatus-afframe
   assertions:
     - kind: statusCode
-      compare: eq
-      target: 200
+      compare: not_eq
+      target: 530
 
 staging-api:
   name: "API (staging)"
-  description: "api-staging.afframe.com API health — private, kept off the public status page"
+  description: "api-staging.afframe.com API health — private, kept off the public status page. Sleeping-page-aware: 200 (live) and 503 (parked) both pass; only 530 (tunnel down) fails."
   frequency: "5m"
   active: true
   regions:
@@ -138,15 +176,12 @@ staging-api:
       User-Agent: openstatus-afframe
   assertions:
     - kind: statusCode
-      compare: eq
-      target: 200
-    - kind: textBody
-      compare: contains
-      target: '"status":"ok"'
+      compare: not_eq
+      target: 530
 
 staging-admin:
   name: "Admin (staging)"
-  description: "admin-staging.afframe.com admin app — private, kept off the public status page"
+  description: "admin-staging.afframe.com admin app — private, kept off the public status page. Sleeping-page-aware: 200 (live) and 503 (parked) both pass; only 530 (tunnel down) fails."
   frequency: "5m"
   active: true
   regions:
@@ -160,8 +195,5 @@ staging-admin:
       User-Agent: openstatus-afframe
   assertions:
     - kind: statusCode
-      compare: eq
-      target: 200
-    - kind: textBody
-      compare: contains
-      target: '"ok":true'
+      compare: not_eq
+      target: 530

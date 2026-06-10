@@ -131,15 +131,36 @@ export default async function WorkspaceChooserPage() {
 
 async function listWorkspacesForUser(userId: string): Promise<WorkspaceRow[]> {
   return await withAdminBypass(async (db) => {
-    const memberships = await db
+    // Single round-trip: workspace memberships LEFT JOINed to the user's
+    // active org memberships in each workspace, grouped in JS. Replaces the
+    // previous one-org-query-per-workspace loop (W+1 round trips).
+    const rows = await db
       .select({
         workspaceId: workspace.id,
         displayName: workspace.display_name,
         onboardingAt: workspace.onboarding_completed_at,
         role: workspace_membership.role,
+        orgId: organization.id,
+        orgSlug: organization.slug,
+        orgLegalName: organization.legal_name,
       })
       .from(workspace_membership)
       .innerJoin(workspace, eq(workspace.id, workspace_membership.workspace_id))
+      .leftJoin(
+        organization_membership,
+        and(
+          eq(
+            organization_membership.workspace_id,
+            workspace_membership.workspace_id,
+          ),
+          eq(organization_membership.user_id, userId),
+          eq(organization_membership.active, true),
+        ),
+      )
+      .leftJoin(
+        organization,
+        eq(organization.id, organization_membership.organization_id),
+      )
       .where(
         and(
           eq(workspace_membership.user_id, userId),
@@ -147,34 +168,27 @@ async function listWorkspacesForUser(userId: string): Promise<WorkspaceRow[]> {
         ),
       )
 
-    const out: WorkspaceRow[] = []
-    for (const m of memberships) {
-      const orgs = await db
-        .select({
-          id: organization.id,
-          slug: organization.slug,
-          legal_name: organization.legal_name,
+    const byWorkspace = new Map<string, WorkspaceRow>()
+    for (const row of rows) {
+      let ws = byWorkspace.get(row.workspaceId)
+      if (!ws) {
+        ws = {
+          id: row.workspaceId,
+          display_name: row.displayName,
+          onboarding_completed_at: row.onboardingAt,
+          role: row.role,
+          organizations: [],
+        }
+        byWorkspace.set(row.workspaceId, ws)
+      }
+      if (row.orgId && row.orgSlug && row.orgLegalName) {
+        ws.organizations.push({
+          id: row.orgId,
+          slug: row.orgSlug,
+          legal_name: row.orgLegalName,
         })
-        .from(organization_membership)
-        .innerJoin(
-          organization,
-          eq(organization.id, organization_membership.organization_id),
-        )
-        .where(
-          and(
-            eq(organization_membership.user_id, userId),
-            eq(organization_membership.workspace_id, m.workspaceId),
-            eq(organization_membership.active, true),
-          ),
-        )
-      out.push({
-        id: m.workspaceId,
-        display_name: m.displayName,
-        onboarding_completed_at: m.onboardingAt,
-        role: m.role,
-        organizations: orgs,
-      })
+      }
     }
-    return out
+    return [...byWorkspace.values()]
   })
 }

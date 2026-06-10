@@ -131,7 +131,9 @@ export function IconButton({
     )
     inner = (
       <>
-        <span className="flex size-8 items-center justify-center rounded-sm text-icon group-hover:bg-icon-hover-bg group-data-[active]:bg-icon-active-bg group-data-[active]:text-icon-active">
+        {/* Keyboard focus ring lives on the icon square — the same
+            surface that paints hover/active. */}
+        <span className="flex size-8 items-center justify-center rounded-sm text-icon group-hover:bg-icon-hover-bg group-focus-visible:ring-2 group-focus-visible:ring-ring/50 group-data-[active]:bg-icon-active-bg group-data-[active]:text-icon-active">
           {glyph}
         </span>
         <span className="w-full truncate px-0.5 text-center text-[length:var(--rail-label-size)] leading-tight font-[number:var(--rail-label-weight)] tracking-[var(--rail-label-tracking)] text-rail-label group-hover:text-rail-label-active group-data-[active]:text-rail-label-active">
@@ -143,7 +145,7 @@ export function IconButton({
     // icon-only square, or a horizontal pill — the whole element is the
     // hover/active surface.
     rootClasses = cn(
-      "group inline-flex shrink-0 items-center rounded-sm text-icon transition-[background-color,transform] outline-none active:translate-y-px",
+      "group inline-flex shrink-0 items-center rounded-sm text-icon transition-[background-color,transform] outline-none focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px",
       // `data-[active]` = explicit selected prop; `aria-expanded` = this
       // button is an open menu/popover trigger — both paint the selected box.
       tone === "sidekick"

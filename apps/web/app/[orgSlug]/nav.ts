@@ -1,4 +1,5 @@
 import type { RailMenuEntry } from "@workspace/ui/blocks/app-rail"
+import type { BottomNavItem } from "@workspace/ui/blocks/app-shell"
 
 /**
  * Rail menu for the organization surface. Pure data — edit this list to
@@ -32,6 +33,21 @@ export function orgRailNav(orgSlug: string): RailMenuEntry[] {
     },
     "separator",
     { label: "Directory", icon: "BookUser", href: `/${orgSlug}/directory` },
+    { label: "Settings", icon: "Settings", href: `/${orgSlug}/settings` },
+  ]
+}
+
+/**
+ * Mobile bottom-bar subset of the org nav — a bottom bar holds 4-5
+ * items, not the full rail. Subset choice pending product sign-off
+ * (flagged in the PR); icons/hrefs mirror `orgRailNav`.
+ */
+export function orgBottomNav(orgSlug: string): BottomNavItem[] {
+  return [
+    { label: "Company", icon: "Goal", href: `/${orgSlug}` },
+    { label: "Accounting", icon: "Calculator", href: `/${orgSlug}/accounting` },
+    { label: "Records", icon: "FolderBookmark", href: `/${orgSlug}/documents` },
+    { label: "Finance", icon: "PiggyBank", href: `/${orgSlug}/finance` },
     { label: "Settings", icon: "Settings", href: `/${orgSlug}/settings` },
   ]
 }

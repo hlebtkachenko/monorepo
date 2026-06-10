@@ -17,9 +17,9 @@ import {
   ContextMenuTrigger,
 } from "@workspace/ui/components/context-menu"
 import {
+  ArrowUpRight,
   Code,
   Copy,
-  ExternalLink,
   FolderOpen,
   Pencil,
   Trash2,
@@ -50,7 +50,7 @@ export function ContextMenuDemo() {
           <ContextMenuShortcut>⌘C</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem>
-          <ExternalLink />
+          <ArrowUpRight />
           Open in new tab
         </ContextMenuItem>
         <ContextMenuSub>

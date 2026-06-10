@@ -218,7 +218,7 @@ export function BugReportDialog({
             className={cn(
               "min-w-24 transition-colors",
               submitState === "success" &&
-                "bg-emerald-600 text-white hover:bg-emerald-600",
+                "bg-success text-success-foreground hover:bg-success",
             )}
             data-state={submitState}
           >

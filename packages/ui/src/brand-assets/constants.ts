@@ -19,7 +19,7 @@ export const BRAND_BILLING_EMAIL = "billing@afframe.com"
 export const BRAND_LEGAL_EMAIL = "support@afframe.com"
 export const BRAND_PRIVACY_EMAIL = "support@afframe.com"
 export const BRAND_SECURITY_EMAIL = "support@afframe.com"
-export const BRAND_NOREPLY_EMAIL = "noreply@afframe.com"
+export const BRAND_NOREPLY_EMAIL = "no-reply@afframe.com"
 
 // Public-facing URLs
 export const BRAND_MARKETING_URL = "https://afframe.com"

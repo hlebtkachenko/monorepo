@@ -2,6 +2,7 @@
 
 import { useCallback } from "react"
 import { usePathname } from "next/navigation"
+import { useTranslations } from "@workspace/i18n/client"
 import { toast } from "@workspace/ui/components/sonner"
 import {
   AppContextMenu,
@@ -29,6 +30,7 @@ export function AppContextMenuClient({
   user,
 }: AppContextMenuClientProps) {
   const pathname = usePathname()
+  const tBrand = useTranslations("brand")
 
   const onReportBug = useCallback(async (payload: BugReportPayload) => {
     // Forwarded to apps/api `POST /v1/feedback` via the `reportFeedback`
@@ -57,7 +59,7 @@ export function AppContextMenuClient({
       orgSlug={orgSlug}
       user={user}
       appConfig={{
-        appName: "the Afframe accounting platform",
+        appName: `the ${tBrand("name")} accounting platform`,
         repoName: "monorepo",
         framework: "Next.js 16 (App Router) + Turborepo + pnpm workspaces",
       }}

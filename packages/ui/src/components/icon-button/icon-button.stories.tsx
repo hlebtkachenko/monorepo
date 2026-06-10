@@ -40,3 +40,31 @@ export const Disabled: Story = {
 export const AsLink: Story = {
   args: { icon: "Goal", label: "Company", href: "#" },
 }
+
+export const LabelPositionBeside: Story = {
+  args: { icon: "Goal", label: "Company", labelPosition: "beside" },
+}
+
+export const LabelPositionBelow: Story = {
+  args: { icon: "Goal", label: "Company", labelPosition: "below" },
+}
+
+export const ToneSidekick: Story = {
+  args: { icon: "Sparkles", label: "Sidekick", tone: "sidekick" },
+}
+
+export const TooltipSideTop: Story = {
+  args: { icon: "Inbox", tooltip: "Inbox", tooltipSide: "top" },
+}
+
+export const TooltipSideRight: Story = {
+  args: { icon: "Inbox", tooltip: "Inbox", tooltipSide: "right" },
+}
+
+export const TooltipSideBottom: Story = {
+  args: { icon: "Inbox", tooltip: "Inbox", tooltipSide: "bottom" },
+}
+
+export const TooltipSideLeft: Story = {
+  args: { icon: "Inbox", tooltip: "Inbox", tooltipSide: "left" },
+}

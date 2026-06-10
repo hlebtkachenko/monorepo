@@ -2,24 +2,20 @@
 #
 # Two checks:
 #   1. Drift — regenerate apps/mcp/src/tools/generated/ and fail on any diff.
-#   2. Coverage — every committed spec operationId must have a corresponding
-#      file under apps/mcp/src/tools/generated/. Catches a contributor adding
-#      an endpoint, regenerating the SDK, but skipping `pnpm --filter @afframe/mcp gen`.
+#   2. Coverage — every committed spec operationId (GET + POST) must have a
+#      corresponding file under apps/mcp/src/tools/generated/. Catches a
+#      contributor adding an endpoint, regenerating the SDK, but skipping
+#      `pnpm --filter @afframe/mcp gen`.
 #
-# Advisory until the first green PR cycle.
+# Required-check shim pattern (same as boundaries.yml / knip.yml): triggers
+# on every PR, `changes` does path detection internally, the `mcp-coverage`
+# aggregator owns the stable check name (paths-filter trap, #295).
 
 name: MCP coverage
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "apps/api/openapi/**"
-      - "packages/shared/src/api/**"
-      - "apps/mcp/src/tools/generated/**"
-      - "apps/mcp/scripts/gen-tools.ts"
-      - "apps/mcp/package.json"
-      - ".github/workflows/mcp-coverage.yml"
   push:
     branches: [main]
     paths:
@@ -32,10 +28,40 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  coverage:
-    name: Regenerate + cover
+  changes:
     runs-on: ubuntu-latest
-    continue-on-error: true # ADVISORY
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            relevant:
+              - 'apps/api/openapi/**'
+              - 'packages/shared/src/api/**'
+              - 'apps/mcp/src/tools/generated/**'
+              - 'apps/mcp/scripts/gen-tools.ts'
+              - 'apps/mcp/package.json'
+              - 'scripts/governance/check-mcp-coverage.mjs'
+              - '.github/workflows/mcp-coverage.yml'
+
+  mcp-coverage-run:
+    name: Regenerate + cover
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -70,4 +96,20 @@ jobs:
             echo "::error::MCP coverage gap. Run 'pnpm gen:all' and commit."
             exit 1
           fi
-          echo "Every spec operation has a generated MCP tool."
+          echo "Every spec GET/POST operation has a generated MCP tool."
+
+  # Aggregation shim. `mcp-coverage` is the stable status-check name for the
+  # ruleset required-check flip. Treats `skipped` as success.
+  mcp-coverage:
+    needs: [changes, mcp-coverage-run]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Aggregate mcp-coverage result
+        run: |
+          if echo '${{ join(needs.*.result, ',') }}' | grep -qE 'failure|cancelled'; then
+            echo "mcp-coverage failed."; exit 1
+          fi
+          echo "mcp-coverage passed (or skipped — no relevant changes)."

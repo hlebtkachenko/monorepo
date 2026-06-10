@@ -1,6 +1,6 @@
 # `@afframe/mcp` — MCP Server Design
 
-> **[Wip — implemented in-repo, not published.]** `apps/mcp` ships a working stdio MCP server with codegen-generated tools for the GET operations (`ping`, `getOrganization`, `getStatus`). POST tool generation is not wired yet (AFF-236), there is no npm publish pipeline, and no Streamable-HTTP transport. Sections beyond the shipped stdio surface remain design intent ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
+> **[Wip — implemented in-repo, not published.]** `apps/mcp` ships a working stdio MCP server with codegen-generated tools for the GET operations (`ping`, `getOrganization`, `getStatus`) and POST operations (`createFeedback` — request bodies become Zod `inputSchema`s; AFF-236). There is no npm publish pipeline and no Streamable-HTTP transport. Sections beyond the shipped stdio surface remain design intent ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
 
 Design + usage reference for the official Model Context Protocol server exposing `api.afframe.com/v1` to LLM clients (Claude Desktop, Claude Code, Cursor, ChatGPT desktop, ...).
 
@@ -60,7 +60,7 @@ Roughly 20-30 tools at GA. Stripe ships ~30, Linear ~25, Sentry ~20 — pattern 
     "afframe-read": {
       "command": "npx",
       "args": ["-y", "@afframe/mcp@latest", "--scope=read"],
-      "env": { "AFFRAME_API_KEY": "affk_test_..." }
+      "env": { "AFFRAME_API_KEY": "affk_live_..." }
     }
   }
 }
@@ -78,7 +78,7 @@ Roughly 20-30 tools at GA. Stripe ships ~30, Linear ~25, Sentry ~20 — pattern 
 ### Local (npx)
 
 ```text
-$ AFFRAME_API_KEY=affk_test_… npx -y @afframe/mcp
+$ AFFRAME_API_KEY=affk_live_… npx -y @afframe/mcp
 ```
 
 - `AFFRAME_API_KEY` is mandatory. Fail-fast with a friendly error otherwise.

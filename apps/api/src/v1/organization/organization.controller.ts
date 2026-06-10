@@ -1,4 +1,4 @@
-import { Controller, Get, UseFilters, UseGuards } from "@nestjs/common"
+import { Controller, Get, UseGuards } from "@nestjs/common"
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -12,7 +12,6 @@ import { eq, withOrganization } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
-import { DomainExceptionFilter } from "../domain-exception.filter"
 import { GetOrganizationResponseDto } from "../dto"
 
 /**
@@ -24,7 +23,6 @@ import { GetOrganizationResponseDto } from "../dto"
 @ApiTags("Organization")
 @ApiBearerAuth()
 @UseGuards(ApiKeyGuard)
-@UseFilters(DomainExceptionFilter)
 @Controller({ path: "organization", version: "1" })
 export class OrganizationController {
   @Get()

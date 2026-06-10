@@ -6,7 +6,6 @@ import {
   HttpStatus,
   Logger,
   Post,
-  UseFilters,
 } from "@nestjs/common"
 import { CreateFeedbackRequestSchema } from "@workspace/shared/api"
 import { ValidationError } from "@workspace/shared/errors"
@@ -17,7 +16,6 @@ import type {
   CreateFeedbackResponse,
   FeedbackContext,
 } from "@workspace/shared/api"
-import { DomainExceptionFilter } from "../domain-exception.filter"
 import { notifierFromEnv } from "@workspace/notify"
 
 /**
@@ -236,7 +234,6 @@ async function createLinearIssue(
 }
 
 @ApiTags("Feedback")
-@UseFilters(DomainExceptionFilter)
 @Controller({ path: "feedback", version: "1" })
 export class FeedbackController {
   private readonly logger = new Logger(FeedbackController.name)

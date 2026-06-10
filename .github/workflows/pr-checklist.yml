@@ -5,7 +5,9 @@
 # scope. Re-runs on push so the comment stays in sync with the diff.
 #
 # The full checklist source-of-truth: docs/conventions/ENDPOINT-ADDITION.md.
-# Advisory until the first green PR cycle.
+# No paths filter by design — the scope detection runs on every PR, and the
+# `pr-checklist` job name is the stable status-check context for the ruleset
+# required-check flip.
 
 name: PR checklist
 
@@ -21,11 +23,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checklist:
-    name: Render scope-aware checklist
+  pr-checklist:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true # ADVISORY
     permissions:
       contents: read
       pull-requests: write
@@ -54,6 +54,10 @@ jobs:
           echo "comment_file=/tmp/comment.md" >> "$GITHUB_OUTPUT"
 
       - name: Post sticky comment
+        # Fork PRs get a read-only token — posting would fail and red the
+        # required context. Scope detection above still gates; only the
+        # comment is skipped on forks.
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
         with:
           path: /tmp/comment.md

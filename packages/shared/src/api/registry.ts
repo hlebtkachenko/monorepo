@@ -88,8 +88,9 @@ const bearerAuth = registry.registerComponent("securitySchemes", "bearer", {
   scheme: "bearer",
   bearerFormat: "API key",
   description:
-    "API key in the form `affk_live_…` (production) or `affk_test_…` " +
-    "(sandbox). Send as `Authorization: Bearer <key>`.",
+    "API key in the form `affk_live_…`. Send as " +
+    "`Authorization: Bearer <key>`. Sandbox keys (`affk_test_…`) are not " +
+    "issued yet — see the sandbox roadmap in the docs.",
 })
 
 /**
@@ -375,9 +376,10 @@ export function buildOpenApiDocument(): OpenAPIDocument {
       version: API_VERSION,
       description:
         "Public API for the Afframe accounting platform. Authenticate with " +
-        "an API key as a bearer token in the form `affk_live_…` (production) " +
-        "or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape " +
-        "envelope; rate limits are surfaced via IETF `RateLimit-*` headers." +
+        "an API key as a bearer token in the form `affk_live_…`. Sandbox " +
+        "keys (`affk_test_…`) are not issued yet. Errors are returned in a " +
+        "Plaid-shape envelope; rate limits are surfaced via IETF " +
+        "`RateLimit-*` headers." +
         "\n\n" +
         "Service status: [status.afframe.com](https://status.afframe.com) " +
         "(programmatic at `GET /v1/status`).",

@@ -6,16 +6,17 @@
 
 ## 1. Live today
 
-- **Per API key**, not per IP. Behind the Cloudflare Tunnel every request shares the sidecar's loopback IP — IP-based throttling would create one global bucket. Source: `apps/api/src/v1/api-key-throttler.guard.ts`.
+- **Per API key**, not per IP. Keyed on `sha256(bearer)`; unauthenticated requests fall back to the client IP (`trust proxy` resolves it from the Cloudflare Tunnel hop). Source: `apps/api/src/v1/api-key-throttler.guard.ts`.
 - **Default**: 100 requests / 60 s window.
 - **Storage**: NestJS `ThrottlerModule` in-memory (single Fargate task — see `ADR-0008`).
-- **429 response**: 429 carries IETF `RateLimit-*` headers and a `Retry-After` header (set by `ThrottlerGuard` via the `headerPrefix="RateLimit"` override). Body: standard NestJS `ThrottlerException` (no JSON error envelope yet).
+- **Headers**: every response carries the IETF `RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` headers; 429s add `Retry-After` (set by `ThrottlerGuard` via the `headerPrefix="RateLimit"` override).
+- **429 body**: the standard JSON error envelope with `code: "rate_limited"` (`DomainExceptionFilter` maps `ThrottlerException`). Pinned by `apps/api/src/v1/throttler-envelope.test.ts`.
 
 ---
 
-## 2. [Concept] launch-ready
+## 2. Response shape
 
-### Response headers on every response
+### [Live] Response headers on every response
 
 ```
 RateLimit-Limit: 100
@@ -25,7 +26,7 @@ RateLimit-Reset: 32
 
 Follows the [IETF `draft-ietf-httpapi-ratelimit-headers`](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/) convention (singular `RateLimit-*`, NOT the older `X-RateLimit-*`).
 
-### 429 response shape
+### [Live] 429 response shape
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -41,17 +42,15 @@ RateLimit-Reset: 32
   "error": {
     "code": "rate_limited",
     "error_type": "RATE_LIMITED",
-    "message": "Rate limit exceeded for this API key. Retry after 32 seconds.",
-    // [Concept — contingent on future docs surface]
-    "documentation_url": "https://api.afframe.com/docs/rate-limits",
+    "message": "Too many requests. See the RateLimit-* headers for the reset window.",
     "requestId": "ab544b02-…"
   }
 }
 ```
 
-`Retry-After` is seconds (integer). Always > 0.
+`Retry-After` is seconds (integer). Always > 0. (`documentation_url` is **[Concept]** — not emitted until a hosted error registry exists; see [`ERRORS.md`](./ERRORS.md).)
 
-### Per-route tier overrides
+### [Concept] Per-route tier overrides
 
 | Route                                        | Limit     | Why                                 |
 | -------------------------------------------- | --------- | ----------------------------------- |

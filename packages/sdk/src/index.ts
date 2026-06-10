@@ -21,7 +21,7 @@ export type { paths, components, operations } from "./generated/openapi"
 
 /** SDK client configuration. */
 export interface AfframeOptions {
-  /** API key — `affk_live_…` or `affk_test_…`. */
+  /** API key — `affk_live_…` (sandbox `affk_test_…` keys: not issued yet). */
   apiKey: string
   /** Base URL. Default `https://api.afframe.com`. Override for staging or a local container. */
   baseUrl?: string

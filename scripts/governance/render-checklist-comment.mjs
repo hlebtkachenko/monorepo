@@ -31,7 +31,6 @@ if (
       "Nest controller in `apps/api/src/v1/<resource>/` mounted on `V1Module`.",
       "`pnpm gen:all` run; spec + SDK + MCP outputs committed.",
       "E2E test covering tenant isolation added under `apps/api/src/**/*.test.ts` or `apps/web/e2e/`.",
-      "Changeset entry under `.changeset/`.",
       "`pnpm verify` green locally.",
     ],
   })
@@ -43,7 +42,6 @@ if (data.scopes.includes("sdk") && !data.scopes.includes("api-endpoint")) {
     items: [
       "If the SDK public surface changed, document the change in `docs/api/SDK.md`.",
       "Regenerate from the spec rather than hand-editing `packages/sdk/src/generated/`.",
-      "Changeset entry if this is a release-bearing change.",
     ],
   })
 }

@@ -1,16 +1,17 @@
-import { Injectable } from "@nestjs/common"
-import { ThrottlerGuard } from "@nestjs/throttler"
-import type { Request } from "express"
+import { Injectable, type ExecutionContext } from "@nestjs/common"
+import { ThrottlerGuard, type ThrottlerLimitDetail } from "@nestjs/throttler"
+import type { Request, Response } from "express"
 import { hashApiKey } from "@workspace/auth/tokens"
 
 /**
  * Resolve the rate-limit bucket key for a request.
  *
- * Behind the Cloudflare Tunnel every request reaches the api from the
- * cloudflared sidecar on 127.0.0.1, so an IP tracker collapses every caller
- * into one bucket. Keying on `sha256(bearer token)` gives each API key its
- * own quota. Unauthenticated requests (no bearer) fall back to IP — they are
- * 401'd by ApiKeyGuard anyway.
+ * Keying on `sha256(bearer token)` gives each API key its own quota.
+ * Unauthenticated requests (no bearer) fall back to IP — that covers the
+ * public endpoints (/v1/status, /v1/feedback), where per-client buckets only
+ * work because main.ts sets `trust proxy` to resolve the real client IP
+ * through the Cloudflare Tunnel hop (otherwise every caller would collapse
+ * into the sidecar's loopback bucket).
  *
  * The token is hashed, never used raw, so a tracker key cannot leak a usable
  * credential into throttler storage or logs.
@@ -45,5 +46,26 @@ export class ApiKeyThrottlerGuard extends ThrottlerGuard {
   ): Promise<string> {
     const request = req as unknown as Request
     return resolveThrottleKey(request.headers?.authorization, request.ip)
+  }
+
+  /**
+   * The parent class sets the `RateLimit-*` quota headers only on ALLOWED
+   * responses and bare `Retry-After` on the 429 — but the published
+   * contract (docs/api/RATE-LIMITS.md §2 + the OpenAPI 429 response)
+   * promises the IETF quota headers on the 429 itself. Set them before
+   * the parent throws; the DomainExceptionFilter then renders the
+   * `rate_limited` envelope body.
+   */
+  protected override async throwThrottlingException(
+    context: ExecutionContext,
+    detail: ThrottlerLimitDetail,
+  ): Promise<void> {
+    const { res } = this.getRequestResponse(context) as unknown as {
+      res: Response
+    }
+    res.header(`${this.headerPrefix}-Limit`, String(detail.limit))
+    res.header(`${this.headerPrefix}-Remaining`, "0")
+    res.header(`${this.headerPrefix}-Reset`, String(detail.timeToBlockExpire))
+    await super.throwThrottlingException(context, detail)
   }
 }

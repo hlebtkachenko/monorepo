@@ -138,8 +138,11 @@ export interface components {
         /** @description Plaid-shape error envelope. Every non-2xx response from `/v1/*` is wrapped in this object. */
         ApiError: {
             error: {
-                /** @description Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`. */
-                code: string;
+                /**
+                 * @description Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`. New codes may be added over time (MINOR change) — treat unknown codes by their `error_type` family.
+                 * @enum {string}
+                 */
+                code: "bad_request" | "unauthorized" | "forbidden" | "not_found" | "conflict" | "idempotency_conflict" | "stale_resource" | "feature_not_enabled" | "payload_too_large" | "validation_error" | "rate_limited" | "internal_error";
                 /** @description Plaid-shape family (INVALID_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, VALIDATION, RATE_LIMITED, INTERNAL, …). */
                 error_type?: string;
                 /** @description Developer-facing message. Safe to log. */
@@ -153,7 +156,7 @@ export interface components {
                 documentation_url?: string;
                 /** @description Echoes the `X-Request-Id` header for support tickets. */
                 requestId: string;
-                /** @description Field-level error breakdown. Present on `422 validation_error`; absent on most other codes. */
+                /** @description Field-level error breakdown. Reserved for `422 validation_error`; not emitted today. */
                 details?: {
                     path: string;
                     code: string;

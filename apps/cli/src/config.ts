@@ -7,9 +7,9 @@ import { dirname, join } from "node:path"
  * Path: `~/.config/afframe/config.toml`. Mode `0600` on write.
  *
  * Multi-profile is supported via prefix:
- *   default.api_key = "affk_test_..."
+ *   default.api_key = "affk_live_..."
  *   default.api_base = "https://api.afframe.com"
- *   staging.api_key = "affk_test_..."
+ *   staging.api_key = "affk_live_..."
  *
  * AFFRAME_API_KEY / AFFRAME_API_BASE env vars override the active profile.
  * AFFRAME_PROFILE selects which profile to use (default: "default").

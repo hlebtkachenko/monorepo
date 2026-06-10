@@ -14,7 +14,7 @@ Adopts the [IETF `Idempotency-Key`](https://datatracker.ietf.org/doc/html/draft-
 
 ```http
 POST /v1/invoices HTTP/1.1
-Authorization: Bearer affk_test_...
+Authorization: Bearer affk_live_...
 Idempotency-Key: 7c9c2c30-7a2d-4d9c-8b9a-1d3f2e6a8b0c
 Content-Type: application/json
 

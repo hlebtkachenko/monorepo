@@ -4,19 +4,15 @@
 # the committed apps/api/openapi/v1.json. A diff after that step means a
 # contributor edited the registry / spec without running `pnpm gen:all`.
 #
-# Advisory until the first green PR cycle (see docs/conventions/CI-POLICY.md).
+# Required-check shim pattern (same as boundaries.yml / knip.yml): triggers
+# on every PR, `changes` does path detection internally, the `sdk-drift`
+# aggregator owns the stable check name (paths-filter trap, #295).
 
 name: SDK drift
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "apps/api/openapi/**"
-      - "packages/shared/src/api/**"
-      - "packages/sdk/src/generated/**"
-      - "packages/sdk/package.json"
-      - ".github/workflows/sdk-drift.yml"
   push:
     branches: [main]
     paths:
@@ -29,10 +25,38 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  drift:
-    name: Regenerate SDK + diff
+  changes:
     runs-on: ubuntu-latest
-    continue-on-error: true # ADVISORY
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            relevant:
+              - 'apps/api/openapi/**'
+              - 'packages/shared/src/api/**'
+              - 'packages/sdk/src/generated/**'
+              - 'packages/sdk/package.json'
+              - '.github/workflows/sdk-drift.yml'
+
+  sdk-drift-run:
+    name: Regenerate SDK + diff
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -60,3 +84,19 @@ jobs:
             exit 1
           fi
           echo "SDK generated types match the committed spec."
+
+  # Aggregation shim. `sdk-drift` is the stable status-check name for the
+  # ruleset required-check flip. Treats `skipped` as success.
+  sdk-drift:
+    needs: [changes, sdk-drift-run]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Aggregate sdk-drift result
+        run: |
+          if echo '${{ join(needs.*.result, ',') }}' | grep -qE 'failure|cancelled'; then
+            echo "sdk-drift failed."; exit 1
+          fi
+          echo "sdk-drift passed (or skipped — no relevant changes)."

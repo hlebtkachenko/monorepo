@@ -24,7 +24,7 @@ Design + usage reference for the official command-line wrapper of `api.afframe.c
 
 ### Auth — universal
 
-- `afframe login` — prompts for `affk_live_` / `affk_test_` key, validates with `GET /v1/me` (concept), writes to config, sets `default` profile.
+- `afframe login` — prompts for an `affk_live_` key (sandbox `affk_test_` keys: not issued yet), validates with `GET /v1/me` (concept), writes to config, sets `default` profile.
 - `afframe logout` — clears the active profile.
 - `afframe whoami` — prints `{ key_id, organization, workspace, scopes, mode: live|test }` — critical given our three-tier RLS.
 - `afframe config set/get/list` — multi-profile (e.g., `--profile production`).
@@ -90,9 +90,9 @@ oclif emits these.
 ```text
 $ afframe login
 
-Paste an API key (affk_live_... or affk_test_...): ****
+Paste an API key (affk_live_...): ****
 ✓ Authenticated as principal=usr_01HXY... org=org_01HXY... workspace=ws_01HXY...
-✓ Mode: TEST
+✓ Mode: LIVE
 ✓ Wrote ~/.config/afframe/config.toml
 ```
 

@@ -22,6 +22,22 @@ Sentry.init({
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule)
 
+  // Graceful shutdown: ECS sends SIGTERM on deploy/scale-in; without
+  // shutdown hooks Nest never closes the HTTP server and in-flight
+  // requests are dropped at task kill instead of drained.
+  app.enableShutdownHooks()
+
+  // Trust exactly one proxy hop. Per ADR-0008 the only path to this
+  // process is the cloudflared sidecar on loopback: client -> Cloudflare
+  // edge (appends the real client IP to X-Forwarded-For) -> tunnel ->
+  // cloudflared (passes the edge-set headers through) -> this listener. Without this, `req.ip` is always
+  // the sidecar's loopback address, so ALL unauthenticated traffic
+  // (/v1/status, /v1/feedback) shares ONE throttler bucket — a single
+  // anonymous spammer can 429 every legitimate anonymous caller. With one
+  // trusted hop Express takes the last X-Forwarded-For entry (the value
+  // cloudflared appended), which a client cannot spoof through the tunnel.
+  app.set("trust proxy", 1)
+
   // CSP stays on helmet's strict defaults, with one relaxation: Scalar's
   // docs page boots from the jsDelivr CDN and runs an inline
   // `Scalar.createApiReference(...)` initializer, so `script-src` adds the

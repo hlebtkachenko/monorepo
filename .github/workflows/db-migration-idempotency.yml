@@ -1,16 +1,16 @@
 name: DB migration idempotency
 
-# Runs when migration SQL files change on a PR.
 # Applies migrations twice and diffs the pg_dump output — any diff means
 # the runner applied something on the second pass, which is a bug.
 #
-# ADVISORY — not a required check yet. Flip after first green PR cycle.
+# Required-check shim pattern (same as boundaries.yml / knip.yml): triggers
+# on every PR, `changes` does path detection internally, the
+# `db-migration-idempotency` aggregator owns the stable check name
+# (paths-filter trap, #295).
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "packages/db/migrations/**"
 
 permissions: {}
 
@@ -19,10 +19,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  idempotency:
-    name: Apply migrations twice, diff schema
+  changes:
     runs-on: ubuntu-latest
-    continue-on-error: true # ADVISORY
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            relevant:
+              - 'packages/db/migrations/**'
+              - '.github/workflows/db-migration-idempotency.yml'
+
+  db-migration-idempotency-run:
+    name: Apply migrations twice, diff schema
+    needs: [changes]
+    if: needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     services:
@@ -130,3 +155,19 @@ jobs:
             exit 1
           fi
           echo "Schema is identical after two passes. Migrations are idempotent."
+
+  # Aggregation shim. `db-migration-idempotency` is the stable status-check
+  # name for the ruleset required-check flip. Treats `skipped` as success.
+  db-migration-idempotency:
+    needs: [changes, db-migration-idempotency-run]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Aggregate db-migration-idempotency result
+        run: |
+          if echo '${{ join(needs.*.result, ',') }}' | grep -qE 'failure|cancelled'; then
+            echo "db-migration-idempotency failed."; exit 1
+          fi
+          echo "db-migration-idempotency passed (or skipped — no migration changes)."

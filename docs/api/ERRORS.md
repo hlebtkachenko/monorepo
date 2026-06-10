@@ -1,6 +1,8 @@
 # Error Envelope + Code Registry
 
-> Public-facing rules for how `api.afframe.com/v1` reports errors. Mix of **[Live]** behaviour (`DomainExceptionFilter`) and **[Concept]** Plaid-shape extension planned before public launch.
+> Public-facing rules for how `api.afframe.com/v1` reports errors. The Plaid-shape envelope (`code`, `error_type`, `message`, `requestId`) is **[Live]** via `DomainExceptionFilter`; `display_message`, `documentation_url`, and the `details[]` array remain **[Concept]** (schema-optional, not emitted).
+>
+> **Single source of truth:** `API_ERROR_CODES` in `packages/shared/src/errors.ts`. The OpenAPI `Error.code` enum derives from it (`packages/shared/src/api/common.ts`), the filter only emits codes from it (unregistered codes are coerced + logged), and §4 below mirrors it. Tests: `packages/shared/src/api/common.test.ts`, `apps/api/src/v1/domain-exception.filter.test.ts`.
 >
 > **2026-05-21 note:** `documentation_url` was emitted in earlier
 > envelopes pointing at `api.afframe.com/docs/errors#<code>`. That
@@ -19,17 +21,18 @@
 {
   "error": {
     "code": "unauthorized",
+    "error_type": "UNAUTHORIZED",
     "message": "Missing API key",
     "requestId": "ab544b02-…"
   }
 }
 ```
 
-Produced by `apps/api/src/v1/domain-exception.filter.ts`. `requestId` echoes the `X-Request-Id` response header.
+Produced by `apps/api/src/v1/domain-exception.filter.ts` (registered globally via `APP_FILTER` on `V1Module`). `requestId` echoes the `X-Request-Id` response header. 429s from the throttler use the same envelope (`rate_limited`) — pinned by `apps/api/src/v1/throttler-envelope.test.ts`.
 
 ### [Concept] launch-ready
 
-Backwards-compatible extension that adopts Plaid's richer shape:
+Backwards-compatible extension that adopts the rest of Plaid's richer shape:
 
 ```json
 {
@@ -78,10 +81,9 @@ Optional `details` array carries field-level breakdown for validation failures:
 
 The mapping `DomainError` → `error_type` is centralized in `apps/api/src/v1/domain-exception.filter.ts`. Adding a new family requires:
 
-1. New `DomainError` subclass in `packages/shared/src/errors.ts`.
-2. Mapping line in the filter.
-3. Row in this table.
-4. Row in the OpenAPI `Error` schema.
+1. New `DomainError` subclass + `API_ERROR_CODES` entry in `packages/shared/src/errors.ts` (the OpenAPI `Error.code` enum regenerates from it via `pnpm gen:all`).
+2. Mapping line in the filter (`DOMAIN_CODE_STATUS` / `STATUS_FAMILY`).
+3. Row in this table and in §4.
 
 ---
 
@@ -89,56 +91,58 @@ The mapping `DomainError` → `error_type` is centralized in `apps/api/src/v1/do
 
 - `code` is **snake_case**, ≤64 chars, ASCII only.
 - `code` is namespaced when ambiguity threatens: `invoice_already_finalized` not `already_finalized`.
-- Adding a code is MINOR (additive). Renaming is MAJOR (requires deprecation alias for one major).
-- Every code MUST appear in this registry **and** the OpenAPI `Error.code` enum.
+- Adding a code is MINOR (additive). Renaming is MAJOR (requires deprecation alias for one major). Because additions are MINOR, the runtime envelope schema keeps `code` as a plain string — clients must tolerate unknown codes by falling back to the `error_type` family.
+- Every code lives in `API_ERROR_CODES` (`packages/shared/src/errors.ts`); the OpenAPI `Error.code` enum and §4 derive from it. The filter coerces any unregistered code to `bad_request` and logs an error.
 - A code MUST be reproducible in the sandbox via `/v1/sandbox/raise_error` (concept) so partners can test their handlers.
 
 ---
 
 ## 4. Code catalog
 
-### Live today
+### Registered — `API_ERROR_CODES` (= the OpenAPI `Error.code` enum)
 
-| code                    | error_type      | HTTP | Note                                   |
-| ----------------------- | --------------- | ---- | -------------------------------------- |
-| `unauthorized`          | UNAUTHORIZED    | 401  | Missing / invalid bearer               |
-| `forbidden`             | FORBIDDEN       | 403  | Authz denied (today: API key inactive) |
-| `not_found`             | NOT_FOUND       | 404  |                                        |
-| `conflict`              | CONFLICT        | 409  | Generic state conflict                 |
-| `validation_failed`     | VALIDATION      | 422  | Zod validation tripped                 |
-| `bad_request`           | INVALID_REQUEST | 400  |                                        |
-| `internal_server_error` | INTERNAL        | 500  | Stack trace not exposed in production  |
+| code                   | error_type        | HTTP | Status                                                       |
+| ---------------------- | ----------------- | ---- | ------------------------------------------------------------ |
+| `bad_request`          | INVALID_REQUEST   | 400  | Live — fallback for unmapped 4xx + unregistered codes        |
+| `unauthorized`         | UNAUTHORIZED      | 401  | Live — missing / invalid bearer                              |
+| `forbidden`            | FORBIDDEN         | 403  | Live — authz denied (today: API key inactive)                |
+| `not_found`            | NOT_FOUND         | 404  | Live                                                         |
+| `conflict`             | CONFLICT          | 409  | Live mapping; no emitter on the current read-only surface    |
+| `idempotency_conflict` | CONFLICT          | 409  | Reserved — emitter lands with server-side idempotency        |
+| `stale_resource`       | CONFLICT          | 409  | Reserved — emitter lands with optimistic-concurrency updates |
+| `feature_not_enabled`  | FORBIDDEN         | 403  | Reserved — emitter lands with entitlement gating             |
+| `payload_too_large`    | PAYLOAD_TOO_LARGE | 413  | Reserved — body-size cap enforcement pending                 |
+| `validation_error`     | VALIDATION        | 422  | Live — Zod validation tripped (e.g. `POST /v1/feedback`)     |
+| `rate_limited`         | RATE_LIMITED      | 429  | Live — throttler, with `Retry-After` + `RateLimit-*` headers |
+| `internal_error`       | INTERNAL          | 500  | Live — stack trace never exposed                             |
 
-### Concept — added with domain endpoints (AFF-71)
+### Concept — added with domain endpoints (AFF-71); not in the enum yet
 
-| code                          | error_type               | HTTP | Note                                                        |
-| ----------------------------- | ------------------------ | ---- | ----------------------------------------------------------- |
-| `invoice_already_finalized`   | CONFLICT                 | 409  |                                                             |
-| `invoice_not_in_draft`        | CONFLICT                 | 409  |                                                             |
-| `journal_period_closed`       | CONFLICT                 | 409  |                                                             |
-| `fx_rate_missing`             | NOT_FOUND                | 404  | No rate on requested date — no auto-substitution (ADR-0013) |
-| `idempotency_key_conflict`    | IDEMPOTENCY_KEY_CONFLICT | 409  | Same key, different payload                                 |
-| `idempotency_key_in_progress` | CONFLICT                 | 409  | First request still processing                              |
-| `rate_limited`                | RATE_LIMITED             | 429  | With `Retry-After`                                          |
-| `payload_too_large`           | PAYLOAD_TOO_LARGE        | 413  |                                                             |
-| `webhook_signature_invalid`   | UNAUTHORIZED             | 401  | Returned ONLY by `POST /v1/cli/listen` echo verification    |
+| code                          | error_type   | HTTP | Note                                                        |
+| ----------------------------- | ------------ | ---- | ----------------------------------------------------------- |
+| `invoice_already_finalized`   | CONFLICT     | 409  |                                                             |
+| `invoice_not_in_draft`        | CONFLICT     | 409  |                                                             |
+| `journal_period_closed`       | CONFLICT     | 409  |                                                             |
+| `fx_rate_missing`             | NOT_FOUND    | 404  | No rate on requested date — no auto-substitution (ADR-0013) |
+| `idempotency_key_in_progress` | CONFLICT     | 409  | First request still processing                              |
+| `webhook_signature_invalid`   | UNAUTHORIZED | 401  | Returned ONLY by `POST /v1/cli/listen` echo verification    |
 
 ---
 
 ## 5. SDK handling
 
-`@afframe/sdk` exports typed `Error` subclasses ([`SDK.md`](./SDK.md)). The default mapping:
+`@afframe/sdk` exports typed `Error` subclasses ([`SDK.md`](./SDK.md)). Mapping is by **HTTP status** (`errorFromResponse` in `packages/sdk/src/errors.ts`); the envelope `code` is carried verbatim on every instance (`err.code`):
 
-| code                         | SDK class           |
-| ---------------------------- | ------------------- |
-| `validation_failed`          | `ValidationError`   |
-| `rate_limited`               | `RateLimitError`    |
-| `unauthorized`               | `UnauthorizedError` |
-| `forbidden`                  | `ForbiddenError`    |
-| `not_found`                  | `NotFoundError`     |
-| `conflict`, `*_conflict`     | `ConflictError`     |
-| `internal_server_error`, 5xx | `ServerError`       |
-| Unknown / future             | `ApiError` (base)   |
+| HTTP status     | SDK class                         |
+| --------------- | --------------------------------- |
+| 401             | `UnauthorizedError`               |
+| 403             | `ForbiddenError`                  |
+| 404             | `NotFoundError`                   |
+| 409             | `ConflictError`                   |
+| 422             | `ValidationError`                 |
+| 429             | `RateLimitError` (+ `retryAfter`) |
+| 5xx             | `ServerError`                     |
+| Other / unknown | `AfframeApiError` (base)          |
 
 ---
 

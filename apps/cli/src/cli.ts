@@ -24,7 +24,9 @@ program
 
 program
   .command("login")
-  .description("Authenticate by pasting an affk_live_ or affk_test_ API key.")
+  .description(
+    "Authenticate by pasting an affk_live_ API key (sandbox affk_test_ keys: not issued yet).",
+  )
   .addOption(
     new Option("--api-key <key>", "API key (non-interactive)").env(
       "AFFRAME_API_KEY",
@@ -45,9 +47,7 @@ program
           program.error("--api-key required (non-interactive)", { exitCode: 1 })
         }
         const rl = createInterface({ input, output })
-        apiKey = (
-          await rl.question("Paste an API key (affk_live_… or affk_test_…): ")
-        ).trim()
+        apiKey = (await rl.question("Paste an API key (affk_live_…): ")).trim()
         rl.close()
       }
       if (!apiKey) program.error("No API key provided", { exitCode: 1 })

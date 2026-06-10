@@ -1,6 +1,11 @@
 # Sandbox + Test Mode
 
 > **[Concept]** Not implemented. The contract below is what `api.afframe.com/v1` ships before public launch.
+>
+> **No sandbox keys exist today.** No `affk_test_…` key is issued anywhere, and the live
+> verifier (`verifyApiKey` in `packages/auth/src/api-key-verifier.ts`) accepts only the
+> `affk_live_` prefix — an `affk_test_…` bearer gets a `401 unauthorized`. The public spec
+> says so explicitly; do not advertise sandbox keys on any live surface until this ships.
 
 A first-class test environment, Plaid-style. Every signup gets one. No credit card. No separate domain.
 

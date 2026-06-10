@@ -6,20 +6,17 @@
 #      as db-schema-drift.yml). Regenerate with `pnpm --filter api emit:openapi`.
 #   2. Lint — Spectral validates the spec against apps/api/.spectral.yaml.
 #
-# Advisory until the first green PR cycle (see docs/conventions/CI-POLICY.md).
+# Required-check shim pattern (same as boundaries.yml / knip.yml): the
+# workflow triggers on EVERY PR (no paths filter — a required check behind a
+# paths filter hangs as "Expected" forever, see #295); a `changes` job does
+# the path detection internally and the `openapi-lint` aggregator job owns
+# the stable check name for the ruleset flip.
 
 name: OpenAPI lint
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "apps/api/src/**"
-      - "apps/api/scripts/emit-openapi.ts"
-      - "apps/api/openapi/**"
-      - "apps/api/.spectral.yaml"
-      - "packages/shared/src/api/**"
-      - ".github/workflows/openapi-lint.yml"
   push:
     branches: [main]
     paths:
@@ -32,10 +29,39 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  openapi:
-    name: Emit drift + Spectral lint
+  changes:
     runs-on: ubuntu-latest
-    continue-on-error: true # ADVISORY — flip to required after first green run
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            relevant:
+              - 'apps/api/src/**'
+              - 'apps/api/scripts/emit-openapi.ts'
+              - 'apps/api/openapi/**'
+              - 'apps/api/.spectral.yaml'
+              - 'packages/shared/src/api/**'
+              - '.github/workflows/openapi-lint.yml'
+
+  openapi-run:
+    name: Emit drift + Spectral lint
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -71,3 +97,20 @@ jobs:
           name: openapi-v1-spec
           path: apps/api/openapi/v1.json
           retention-days: 7
+
+  # Aggregation shim. `openapi-lint` is the stable status-check name for the
+  # ruleset required-check flip. Always runs; treats `skipped` (no relevant
+  # changes) as success — matching the `boundaries` / `knip` shims.
+  openapi-lint:
+    needs: [changes, openapi-run]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Aggregate openapi-lint result
+        run: |
+          if echo '${{ join(needs.*.result, ',') }}' | grep -qE 'failure|cancelled'; then
+            echo "openapi-lint failed."; exit 1
+          fi
+          echo "openapi-lint passed (or skipped — no relevant changes)."

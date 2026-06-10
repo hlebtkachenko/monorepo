@@ -3,7 +3,7 @@
   "info": {
     "title": "Afframe Public API",
     "version": "1.0.0",
-    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Errors are returned in a Plaid-shape envelope; rate limits are surfaced via IETF `RateLimit-*` headers.\n\nService status: [status.afframe.com](https://status.afframe.com) (programmatic at `GET /v1/status`).",
+    "description": "Public API for the Afframe accounting platform. Authenticate with an API key as a bearer token in the form `affk_live_…`. Sandbox keys (`affk_test_…`) are not issued yet. Errors are returned in a Plaid-shape envelope; rate limits are surfaced via IETF `RateLimit-*` headers.\n\nService status: [status.afframe.com](https://status.afframe.com) (programmatic at `GET /v1/status`).",
     "contact": {
       "name": "Afframe support",
       "email": "support@afframe.com",
@@ -44,7 +44,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "API key",
-        "description": "API key in the form `affk_live_…` (production) or `affk_test_…` (sandbox). Send as `Authorization: Bearer <key>`."
+        "description": "API key in the form `affk_live_…`. Send as `Authorization: Bearer <key>`. Sandbox keys (`affk_test_…`) are not issued yet — see the sandbox roadmap in the docs."
       }
     },
     "responses": {
@@ -253,7 +253,21 @@
             "properties": {
               "code": {
                 "type": "string",
-                "description": "Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`."
+                "description": "Stable machine-readable error code. SDKs map this to typed error classes; do not switch on `message`. New codes may be added over time (MINOR change) — treat unknown codes by their `error_type` family.",
+                "enum": [
+                  "bad_request",
+                  "unauthorized",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "idempotency_conflict",
+                  "stale_resource",
+                  "feature_not_enabled",
+                  "payload_too_large",
+                  "validation_error",
+                  "rate_limited",
+                  "internal_error"
+                ]
               },
               "error_type": {
                 "type": "string",
@@ -297,7 +311,7 @@
                     "message"
                   ]
                 },
-                "description": "Field-level error breakdown. Present on `422 validation_error`; absent on most other codes."
+                "description": "Field-level error breakdown. Reserved for `422 validation_error`; not emitted today."
               }
             },
             "required": [

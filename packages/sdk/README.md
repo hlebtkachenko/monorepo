@@ -16,7 +16,7 @@ pnpm add @afframe/sdk
 import { Afframe } from "@afframe/sdk"
 
 const afframe = new Afframe({
-  apiKey: process.env.AFFRAME_API_KEY!, // affk_live_… or affk_test_…
+  apiKey: process.env.AFFRAME_API_KEY!, // affk_live_… (sandbox affk_test_ keys: not issued yet)
   // Optional:
   // baseUrl: "https://api-staging.afframe.com",
   // timeoutMs: 30_000,

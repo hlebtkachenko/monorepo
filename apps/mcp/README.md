@@ -16,7 +16,7 @@ Lets LLM clients (Claude Desktop, Claude Code, Cursor, ChatGPT Desktop, …) cal
       "command": "npx",
       "args": ["-y", "@afframe/mcp@latest"],
       "env": {
-        "AFFRAME_API_KEY": "affk_test_..."
+        "AFFRAME_API_KEY": "affk_live_..."
       }
     }
   }
@@ -27,7 +27,7 @@ Override the base URL for staging or local dev:
 
 ```json
 "env": {
-  "AFFRAME_API_KEY": "affk_test_...",
+  "AFFRAME_API_KEY": "affk_live_...",
   "AFFRAME_API_BASE": "http://127.0.0.1:3001"
 }
 ```

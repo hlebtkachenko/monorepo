@@ -25,3 +25,35 @@ rules:
   # The spec describes a deployed public API: server + info must be present.
   oas3-api-servers: error
   info-description: warn
+
+  # House rule (advisory): every operation needs a short summary — Scalar
+  # uses it as the sidebar label; codegen'd MCP tools use it as the title.
+  afframe-operation-summary:
+    description: Every operation should declare a summary.
+    severity: warn
+    given: $.paths[*][get,post,put,patch,delete,options,head]
+    then:
+      field: summary
+      function: truthy
+
+  # House rule (advisory): every named component schema needs a description —
+  # SDK docs and MCP tool inputSchemas inherit them.
+  afframe-component-schema-description:
+    description: Every component schema should carry a description.
+    severity: warn
+    given: $.components.schemas[*]
+    then:
+      field: description
+      function: truthy
+
+  # House rule (advisory): error responses must reference the shared ApiError
+  # envelope component instead of inlining a one-off shape (ADR-0023).
+  afframe-error-responses-use-envelope:
+    description: 4xx/5xx responses should $ref the shared error response components.
+    severity: warn
+    # Inspect the unresolved document — the whole point is to see the $ref.
+    resolved: false
+    given: $.paths[*][get,post,put,patch,delete].responses[?(@property.match(/^[45]/))]
+    then:
+      field: $ref
+      function: truthy

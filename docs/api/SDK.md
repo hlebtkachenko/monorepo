@@ -31,7 +31,7 @@ Design + usage reference for the official TypeScript client of `api.afframe.com/
 import { Afframe } from "@afframe/sdk"
 
 const afframe = new Afframe({
-  apiKey: process.env.AFFRAME_API_KEY!, // affk_live_... or affk_test_...
+  apiKey: process.env.AFFRAME_API_KEY!, // affk_live_... (sandbox affk_test_ keys: not issued yet)
   // Optional:
   baseUrl: "https://api.afframe.com", // default
   timeoutMs: 30_000, // default

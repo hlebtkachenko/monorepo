@@ -13,9 +13,11 @@
 # commits the result. Out-of-band updates are the intended workflow —
 # schema changes always require a snapshot bump.
 #
-# Advisory until first green PR cycle. drizzle-kit introspect is forbidden
-# by ADR-0009, so this is the alternative for tracking schema-vs-migration
-# parity.
+# Required-check shim pattern (same as boundaries.yml / knip.yml): triggers
+# on every PR, `changes` does path detection internally, the
+# `db-schema-drift` aggregator owns the stable check name (paths-filter
+# trap, #295). drizzle-kit introspect is forbidden by ADR-0009, so this is
+# the alternative for tracking schema-vs-migration parity.
 #
 # ── KNOWN LIMITATION: model↔migration index drift ────────────────────────────
 # This workflow compares applied migrations against the committed SQL snapshot
@@ -38,12 +40,6 @@ name: DB schema drift
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "packages/db/migrations/**"
-      - "packages/db/schema-snapshot.sql"
-      - "packages/db/src/schema/**"
-      - "scripts/db-schema-snapshot.sh"
-      - ".github/workflows/db-schema-drift.yml"
   push:
     branches: [main]
     paths:
@@ -57,10 +53,38 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  drift:
-    name: Migration vs schema snapshot
+  changes:
     runs-on: ubuntu-latest
-    continue-on-error: true # ADVISORY — flip to required after first green run
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: filter
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        with:
+          filters: |
+            relevant:
+              - 'packages/db/migrations/**'
+              - 'packages/db/schema-snapshot.sql'
+              - 'packages/db/src/schema/**'
+              - 'scripts/db-schema-snapshot.sh'
+              - '.github/workflows/db-schema-drift.yml'
+
+  db-schema-drift-run:
+    name: Migration vs schema snapshot
+    needs: [changes]
+    if: github.event_name == 'push' || needs.changes.outputs.relevant == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     services:
@@ -164,3 +188,19 @@ jobs:
           name: schema-drift-current
           path: /tmp/current-schema.sql
           retention-days: 7
+
+  # Aggregation shim. `db-schema-drift` is the stable status-check name for
+  # the ruleset required-check flip. Treats `skipped` as success.
+  db-schema-drift:
+    needs: [changes, db-schema-drift-run]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Aggregate db-schema-drift result
+        run: |
+          if echo '${{ join(needs.*.result, ',') }}' | grep -qE 'failure|cancelled'; then
+            echo "db-schema-drift failed."; exit 1
+          fi
+          echo "db-schema-drift passed (or skipped — no relevant changes)."

@@ -14,12 +14,12 @@ import { readFileSync, readdirSync } from "node:fs"
 
 const SPEC_PATH = "apps/api/openapi/v1.json"
 const TOOLS_DIR = "apps/mcp/src/tools/generated"
-// `apps/mcp/scripts/gen-tools.ts` currently emits MCP tools only for GET
-// methods — openapi-fetch requires `{ body }` as the second arg for
-// POST/PUT/PATCH and the body-schema → MCP inputSchema wiring is a
-// separate feature (tracked in AFF-236). Mirror that skip here so the
-// coverage check fails only on missing GET tools.
-const METHODS = ["get"]
+// `apps/mcp/scripts/gen-tools.ts` emits MCP tools for GET and POST
+// operations (POST bodies become Zod inputSchemas). PUT/PATCH/DELETE are
+// still skipped by the generator (no such operation exists yet; they need
+// path-parameter wiring) — keep this list in sync with the generator's
+// method skip when that lands.
+const METHODS = ["get", "post"]
 
 const spec = JSON.parse(readFileSync(SPEC_PATH, "utf8"))
 const ops = []

@@ -1,7 +1,6 @@
-import { Controller, Get, UseFilters } from "@nestjs/common"
+import { Controller, Get } from "@nestjs/common"
 import { ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger"
 import type { StatusResponse } from "@workspace/shared/api"
-import { DomainExceptionFilter } from "../domain-exception.filter"
 
 /**
  * `GET /v1/status` — service health summary.
@@ -94,7 +93,6 @@ function synthesizedFallback(): StatusResponse {
 }
 
 @ApiTags("Status")
-@UseFilters(DomainExceptionFilter)
 @Controller({ path: "status", version: "1" })
 export class StatusController {
   @Get()

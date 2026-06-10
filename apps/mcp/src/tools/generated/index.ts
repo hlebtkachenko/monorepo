@@ -4,15 +4,18 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { registerPing } from "./ping"
 import { registerGetOrganization } from "./getOrganization"
 import { registerGetStatus } from "./getStatus"
+import { registerCreateFeedback } from "./createFeedback"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
   registerGetOrganization(server, client)
   registerGetStatus(server, client)
+  registerCreateFeedback(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
   "ping",
   "getOrganization",
   "getStatus",
+  "createFeedback",
 ] as const

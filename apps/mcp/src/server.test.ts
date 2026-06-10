@@ -22,6 +22,8 @@ describe("@afframe/mcp tool registry", () => {
     expect(GENERATED_TOOL_OPERATION_IDS.length).toBeGreaterThan(0)
     expect(GENERATED_TOOL_OPERATION_IDS).toContain("ping")
     expect(GENERATED_TOOL_OPERATION_IDS).toContain("getOrganization")
+    // POST operations are codegen'd too (body -> Zod inputSchema).
+    expect(GENERATED_TOOL_OPERATION_IDS).toContain("createFeedback")
   })
 
   it("registers every generated tool exactly once", () => {

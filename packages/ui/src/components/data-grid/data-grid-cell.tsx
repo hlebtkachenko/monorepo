@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import type { DataGridCellProps } from "./data-grid"
+import type { CellOpts, DataGridCellProps } from "./data-grid"
 import {
   CheckboxCell,
   DateCell,
@@ -15,31 +15,25 @@ import {
   UrlCell,
 } from "./data-grid-cell-variants"
 
+type CellComponent = <TData>(props: DataGridCellProps<TData>) => React.ReactNode
+
+const CELL_COMPONENTS: Record<CellOpts["variant"], CellComponent> = {
+  "short-text": ShortTextCell,
+  "long-text": LongTextCell,
+  number: NumberCell,
+  url: UrlCell,
+  checkbox: CheckboxCell,
+  select: SelectCell,
+  "multi-select": MultiSelectCell,
+  date: DateCell,
+  file: FileCell,
+}
+
 function DataGridCellImpl<TData>(props: DataGridCellProps<TData>) {
   const variant =
     props.cell.column.columnDef.meta?.cell?.variant ?? "short-text"
-
-  switch (variant) {
-    case "long-text":
-      return <LongTextCell {...props} />
-    case "number":
-      return <NumberCell {...props} />
-    case "url":
-      return <UrlCell {...props} />
-    case "checkbox":
-      return <CheckboxCell {...props} />
-    case "select":
-      return <SelectCell {...props} />
-    case "multi-select":
-      return <MultiSelectCell {...props} />
-    case "date":
-      return <DateCell {...props} />
-    case "file":
-      return <FileCell {...props} />
-    case "short-text":
-    default:
-      return <ShortTextCell {...props} />
-  }
+  const CellVariant = CELL_COMPONENTS[variant]
+  return <CellVariant {...props} />
 }
 
 export const DataGridCell = React.memo(DataGridCellImpl, (prev, next) => {

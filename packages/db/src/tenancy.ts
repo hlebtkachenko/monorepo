@@ -37,7 +37,7 @@
  */
 
 import { sql } from "drizzle-orm"
-import type { ExtractTablesWithRelations } from "drizzle-orm"
+import type { ExtractTablesWithRelations, SQL } from "drizzle-orm"
 import type { PgTransaction } from "drizzle-orm/pg-core"
 import type { PostgresJsQueryResultHKT } from "drizzle-orm/postgres-js"
 import { db } from "./client"
@@ -49,8 +49,8 @@ import type * as schema from "./schema/index"
 
 /**
  * Unique symbols used as brand keys. Not exported as values; only the types
- * below are consumed by callers. The cast `tx as unknown as OrganizationBoundDb`
- * happens exactly once inside `withOrganization`, after all GUCs are set.
+ * below are consumed by callers. The cast `tx as unknown as <BoundDb>`
+ * happens exactly once inside `withTenantGuc`, after all GUCs are set.
  */
 export const organizationBrand: unique symbol = Symbol("OrganizationBound")
 export const workspaceBrand: unique symbol = Symbol("WorkspaceBound")
@@ -85,13 +85,32 @@ export type AdminBypassBound = { readonly [adminBypassBrand]: true }
 export type AdminBypassDb = AnyTx & AdminBypassBound
 
 // ---------------------------------------------------------------------------
+// Raw-row executor
+// ---------------------------------------------------------------------------
+
+/**
+ * Typed executor for raw `sql` queries. Drizzle types `tx.execute(sql...)` as
+ * a driver-specific result shape, so callers used to scatter
+ * `(await tx.execute(...)) as unknown as Array<...>` double-casts at every raw
+ * query. This helper is the single audited home for that cast. The row type is
+ * asserted, not validated — keep `T` honest with the SELECT list.
+ */
+export async function executeRows<T>(
+  executor: Pick<AnyTx, "execute">,
+  query: SQL,
+): Promise<T[]> {
+  return (await executor.execute(query)) as unknown as T[]
+}
+
+// ---------------------------------------------------------------------------
 // Internal GUC helpers
 // ---------------------------------------------------------------------------
 
 async function readGuc(tx: AnyTx, name: string): Promise<string | null> {
-  const rows = (await tx.execute<{ value: string | null }>(
+  const rows = await executeRows<{ value: string | null }>(
+    tx,
     sql`SELECT current_setting(${name}, true) AS value`,
-  )) as unknown as Array<{ value: string | null }>
+  )
   const v = rows[0]?.value
   return v == null || v === "" ? null : v
 }
@@ -129,6 +148,45 @@ async function restorePriorGucs(
   }
 }
 
+/**
+ * Shared transaction scaffolding for `withOrganization` / `withWorkspace`:
+ * open (or nest into via SAVEPOINT) a transaction, snapshot prior tenancy
+ * GUCs when composed, set the trigger-reading `app.app_user_role_name` GUC,
+ * run the tier-specific `bindGucs` step, hand the branded tx to `fn`, and
+ * restore prior GUCs in `finally`. One body to audit instead of two clones.
+ */
+async function withTenantGuc<T, Bound extends AnyTx>(
+  outerTx: AnyTx | undefined,
+  bindGucs: (tx: AnyTx, composed: boolean) => Promise<void>,
+  fn: (db: Bound) => Promise<T>,
+): Promise<T> {
+  const runner = outerTx ?? db
+  const composed = outerTx !== undefined
+  return await runner.transaction(async (tx) => {
+    const prior = composed
+      ? {
+          orgId: await readGuc(tx, "app.organization_id"),
+          userId: await readGuc(tx, "app.user_id"),
+          workspaceId: await readGuc(tx, "app.workspace_id"),
+        }
+      : null
+    try {
+      // RDS rejects ALTER ROLE/DATABASE SET for custom GUCs, so set the
+      // trigger-reading GUC per transaction. Mirrors withAdminBypass. Idempotent
+      // on local stacks where 00-roles.sql already sets the same value via
+      // ALTER ROLE app_user SET.
+      await tx.execute(sql`SET LOCAL app.app_user_role_name = 'app_user'`)
+      await bindGucs(tx, composed)
+      // The brand cast happens exactly once, here, after all GUCs are set.
+      return await fn(tx as unknown as Bound)
+    } finally {
+      if (prior) {
+        await restorePriorGucs(tx, prior)
+      }
+    }
+  })
+}
+
 // ---------------------------------------------------------------------------
 // withOrganization
 // ---------------------------------------------------------------------------
@@ -157,22 +215,9 @@ export async function withOrganization<T>(
   fn: (db: OrganizationBoundDb) => Promise<T>,
   outerTx?: AnyTx,
 ): Promise<T> {
-  const runner = outerTx ?? db
-  const composed = outerTx !== undefined
-  return await runner.transaction(async (tx) => {
-    const prior = composed
-      ? {
-          orgId: await readGuc(tx, "app.organization_id"),
-          userId: await readGuc(tx, "app.user_id"),
-          workspaceId: await readGuc(tx, "app.workspace_id"),
-        }
-      : null
-    try {
-      // RDS rejects ALTER ROLE/DATABASE SET for custom GUCs, so set the
-      // trigger-reading GUC per transaction. Mirrors withAdminBypass. Idempotent
-      // on local stacks where 00-roles.sql already sets the same value via
-      // ALTER ROLE app_user SET.
-      await tx.execute(sql`SET LOCAL app.app_user_role_name = 'app_user'`)
+  return await withTenantGuc<T, OrganizationBoundDb>(
+    outerTx,
+    async (tx, composed) => {
       await tx.execute(
         sql`SELECT set_config('app.organization_id', ${organizationId}, true)`,
       )
@@ -187,9 +232,10 @@ export async function withOrganization<T>(
       // Derive parent workspace_id from the organization row so workspace-tier
       // RLS policies resolve inside the org-bound tx without a separate
       // withWorkspace frame.
-      const wsRows = (await tx.execute<{ workspace_id: string | null }>(
+      const wsRows = await executeRows<{ workspace_id: string | null }>(
+        tx,
         sql`SELECT workspace_id FROM organization WHERE id = ${organizationId}::uuid`,
-      )) as unknown as Array<{ workspace_id: string | null }>
+      )
       if (!wsRows[0]) {
         throw new Error(
           `withOrganization: organization not found: ${organizationId}`,
@@ -205,14 +251,9 @@ export async function withOrganization<T>(
         // app.workspace_id to avoid inheriting an unrelated workspace.
         await tx.execute(sql`SELECT set_config('app.workspace_id', '', true)`)
       }
-
-      return await fn(tx as unknown as OrganizationBoundDb)
-    } finally {
-      if (prior) {
-        await restorePriorGucs(tx, prior)
-      }
-    }
-  })
+    },
+    fn,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -237,22 +278,9 @@ export async function withWorkspace<T>(
   fn: (db: WorkspaceBoundDb) => Promise<T>,
   outerTx?: AnyTx,
 ): Promise<T> {
-  const runner = outerTx ?? db
-  const composed = outerTx !== undefined
-  return await runner.transaction(async (tx) => {
-    const prior = composed
-      ? {
-          orgId: await readGuc(tx, "app.organization_id"),
-          userId: await readGuc(tx, "app.user_id"),
-          workspaceId: await readGuc(tx, "app.workspace_id"),
-        }
-      : null
-    try {
-      // RDS rejects ALTER ROLE/DATABASE SET for custom GUCs, so set the
-      // trigger-reading GUC per transaction. Mirrors withAdminBypass. Idempotent
-      // on local stacks where 00-roles.sql already sets the same value via
-      // ALTER ROLE app_user SET.
-      await tx.execute(sql`SET LOCAL app.app_user_role_name = 'app_user'`)
+  return await withTenantGuc<T, WorkspaceBoundDb>(
+    outerTx,
+    async (tx, composed) => {
       await tx.execute(
         sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`,
       )
@@ -266,14 +294,9 @@ export async function withWorkspace<T>(
           sql`SELECT set_config('app.organization_id', '', true)`,
         )
       }
-
-      return await fn(tx as unknown as WorkspaceBoundDb)
-    } finally {
-      if (prior) {
-        await restorePriorGucs(tx, prior)
-      }
-    }
-  })
+    },
+    fn,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -324,10 +347,11 @@ export async function withAdminBypass<T>(
     // Probe whether the current login role holds app_admin before attempting
     // SET LOCAL ROLE. A failing SET ROLE aborts the transaction and poisons
     // every subsequent statement; the defensive probe avoids that.
-    const probe = await tx.execute<{ has: boolean }>(
+    const probe = await executeRows<{ has: boolean }>(
+      tx,
       sql`SELECT pg_has_role(current_user, 'app_admin', 'MEMBER') AS has`,
     )
-    const row = (probe as unknown as Array<{ has: boolean }>)[0]
+    const row = probe[0]
     if (!row?.has) {
       // Fail loudly: running tenant-unscoped admin queries under FORCE RLS
       // without BYPASSRLS returns zero rows silently and every caller treats
@@ -342,9 +366,10 @@ export async function withAdminBypass<T>(
     // transaction keeps the elevated role until we restore it explicitly.
     const priorRole = composed
       ? ((
-          (await tx.execute<{ current_user: string }>(
+          await executeRows<{ current_user: string }>(
+            tx,
             sql`SELECT current_user`,
-          )) as unknown as Array<{ current_user: string }>
+          )
         )[0]?.current_user ?? null)
       : null
 

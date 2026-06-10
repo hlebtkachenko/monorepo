@@ -151,30 +151,19 @@ export function parseCellKey(key: string): CellPosition {
   return { rowIndex: Number(r), columnId: rest.join(":") }
 }
 
+const ROW_HEIGHT_META: Record<RowHeightValue, { px: number; lines: number }> = {
+  short: { px: 36, lines: 1 },
+  medium: { px: 56, lines: 2 },
+  tall: { px: 76, lines: 3 },
+  "extra-tall": { px: 96, lines: 4 },
+}
+
 export function getRowHeightValue(value: RowHeightValue): number {
-  switch (value) {
-    case "short":
-      return 36
-    case "medium":
-      return 56
-    case "tall":
-      return 76
-    case "extra-tall":
-      return 96
-  }
+  return ROW_HEIGHT_META[value].px
 }
 
 export function getLineCount(value: RowHeightValue): number {
-  switch (value) {
-    case "short":
-      return 1
-    case "medium":
-      return 2
-    case "tall":
-      return 3
-    case "extra-tall":
-      return 4
-  }
+  return ROW_HEIGHT_META[value].lines
 }
 
 export function getEmptyCellValue(
@@ -186,32 +175,29 @@ export function getEmptyCellValue(
   return ""
 }
 
+const COLUMN_VARIANT_META: Record<
+  CellOpts["variant"],
+  {
+    icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
+    label: string
+  }
+> = {
+  "short-text": { label: "Short text", icon: BaselineIcon },
+  "long-text": { label: "Long text", icon: TextInitialIcon },
+  number: { label: "Number", icon: HashIcon },
+  url: { label: "URL", icon: LinkIcon },
+  checkbox: { label: "Checkbox", icon: CheckSquareIcon },
+  select: { label: "Select", icon: ListIcon },
+  "multi-select": { label: "Multi-select", icon: ListChecksIcon },
+  date: { label: "Date", icon: CalendarIcon },
+  file: { label: "File", icon: FileIconBase },
+}
+
 export function getColumnVariant(variant?: CellOpts["variant"]): {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   label: string
 } | null {
-  switch (variant) {
-    case "short-text":
-      return { label: "Short text", icon: BaselineIcon }
-    case "long-text":
-      return { label: "Long text", icon: TextInitialIcon }
-    case "number":
-      return { label: "Number", icon: HashIcon }
-    case "url":
-      return { label: "URL", icon: LinkIcon }
-    case "checkbox":
-      return { label: "Checkbox", icon: CheckSquareIcon }
-    case "select":
-      return { label: "Select", icon: ListIcon }
-    case "multi-select":
-      return { label: "Multi-select", icon: ListChecksIcon }
-    case "date":
-      return { label: "Date", icon: CalendarIcon }
-    case "file":
-      return { label: "File", icon: FileIconBase }
-    default:
-      return null
-  }
+  return variant ? COLUMN_VARIANT_META[variant] : null
 }
 
 export function getUrlHref(urlString: string): string {

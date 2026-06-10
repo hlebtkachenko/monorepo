@@ -12,6 +12,7 @@ export {
   withOrganization,
   withWorkspace,
   withAdminBypass,
+  executeRows,
   organizationBrand,
   workspaceBrand,
   adminBypassBrand,

@@ -70,6 +70,12 @@ import { reportFeedback } from "./report-feedback"
 // uses for its page-edge insets, so menus sit on the same spacing grid.
 const MENU_GAP = 8
 
+// Q22 (pre-launch): the Help-menu entries below this flag have no real
+// destinations/handlers yet (see the TODO(org-header) at their JSX). They are
+// hidden for launch so the primary shell ships no dead menu items; flip to
+// `true` to re-enable them while wiring the destinations.
+const SHOW_UNWIRED_HELP_ITEMS = false
+
 // Shared sizing for the header dropdowns: 14px text (--menu-text-size),
 // 16px icons (default), 8px gap, 6×8px item padding (→32px rows), 8px
 // container padding, full-bleed 8px-margin dividers. Width sizes to content
@@ -209,35 +215,39 @@ export function OrgHeaderActions({
           sideOffset={MENU_GAP}
           className={HEADER_MENU}
         >
-          {/* TODO(org-header): wire real destinations/handlers — placeholders. */}
-          <DropdownMenuItem>
-            <DocsIcon />
-            Documentation
-            <ExternalIcon className="ml-auto size-3" />
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <KnowledgeIcon />
-            Knowledge base
-            <ExternalIcon className="ml-auto size-3" />
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <ContactIcon />
-            Contact us
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <KeyboardIcon />
-            Keyboard shortcuts
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <WhatsNewIcon />
-            What&apos;s new?
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <StatusIcon />
-            <BrandName /> status
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {SHOW_UNWIRED_HELP_ITEMS && (
+            <>
+              {/* TODO(org-header): wire real destinations/handlers — placeholders. */}
+              <DropdownMenuItem>
+                <DocsIcon />
+                Documentation
+                <ExternalIcon className="ml-auto size-3" />
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <KnowledgeIcon />
+                Knowledge base
+                <ExternalIcon className="ml-auto size-3" />
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <ContactIcon />
+                Contact us
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>
+                <KeyboardIcon />
+                Keyboard shortcuts
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <WhatsNewIcon />
+                What&apos;s new?
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <StatusIcon />
+                <BrandName /> status
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {/* Grant support access — a real menuitem so it joins the menu's
               roving focus (keyboard reachable). Enter or click toggles; the
               Switch is presentational (pointer-events-none + aria-label) and
@@ -451,7 +461,9 @@ export function OrgHeaderActions({
 
 /**
  * "Get Started" CTA — a white pill with the same border as the search
- * input. 22×90; label at the shared `--icon-label-size`.
+ * input. Visible box 32×90 (h-8, aligned with the 32px IconButton row inside
+ * the 40px header); the transparent `before:` overlay extends the hit area to
+ * ≥40px for touch (WCAG 2.5.5/2.5.8). Label at the shared `--icon-label-size`.
  */
 function GetStartedButton() {
   return (
@@ -459,7 +471,7 @@ function GetStartedButton() {
       type="button"
       variant="outline"
       size="sm"
-      className="h-[22px] w-[90px] rounded-md border-input px-0 text-[length:var(--icon-label-size)] text-rail-label-active"
+      className="relative h-8 w-[90px] rounded-md border-input px-0 text-[length:var(--icon-label-size)] text-rail-label-active before:absolute before:-inset-x-1 before:-inset-y-1 before:content-['']"
     >
       Get Started
     </Button>

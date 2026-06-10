@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react"
 
+import { IconProvider } from "@workspace/ui/icon-packs"
+
 import { AppShell } from "./app-shell"
+import { AppShellBottomNav } from "./app-shell-bottom-nav"
 import { ShellSkeleton } from "./skeletons/shell-skeleton"
 import { ErrorShell } from "./skeletons/error-shell"
 
@@ -59,6 +62,74 @@ export const ShellSidebarCollapsed: ShellStory = {
       assistant={<AssistantPlaceholder />}
       defaultSidebarOpen={false}
     />
+  ),
+}
+
+export const AssistantVariantShell: ShellStory = {
+  render: () => (
+    <AppShell
+      header={<HeaderPlaceholder />}
+      rail={<RailPlaceholder />}
+      sidebar={<SidebarPlaceholder />}
+      assistant={<AssistantPlaceholder />}
+      assistantVariant="shell"
+      defaultAssistantOpen
+    />
+  ),
+}
+
+export const AssistantVariantDropdown: ShellStory = {
+  render: () => (
+    <AppShell
+      header={<HeaderPlaceholder />}
+      rail={<RailPlaceholder />}
+      sidebar={<SidebarPlaceholder />}
+      assistant={<AssistantPlaceholder />}
+      assistantVariant="dropdown"
+      defaultAssistantOpen
+    />
+  ),
+}
+
+/**
+ * Mobile (<md): rail hidden, sidebar/assistant open as Sheets via the
+ * main-card toggles, bottom nav bar from the navigation-bottom-mobile
+ * component. View at a phone viewport — at desktop widths this story
+ * looks identical to `Shell`.
+ */
+export const ShellMobile: ShellStory = {
+  parameters: {
+    viewport: { defaultViewport: "mobile1" },
+  },
+  render: () => (
+    <IconProvider>
+      <AppShell
+        header={<HeaderPlaceholder />}
+        rail={<RailPlaceholder />}
+        sidebar={<SidebarPlaceholder />}
+        assistant={<AssistantPlaceholder />}
+        bottomNav={
+          <AppShellBottomNav
+            currentPath="/acme/accounting"
+            items={[
+              { label: "Company", icon: "Goal", href: "/acme" },
+              {
+                label: "Accounting",
+                icon: "Calculator",
+                href: "/acme/accounting",
+              },
+              {
+                label: "Records",
+                icon: "FolderBookmark",
+                href: "/acme/documents",
+              },
+              { label: "Finance", icon: "PiggyBank", href: "/acme/finance" },
+              { label: "Settings", icon: "Settings", href: "/acme/settings" },
+            ]}
+          />
+        }
+      />
+    </IconProvider>
   ),
 }
 

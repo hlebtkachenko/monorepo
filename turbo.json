@@ -38,6 +38,7 @@
       "outputLogs": "new-only"
     },
     "lint": {
+      "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"]
     },
     "format": {
@@ -49,6 +50,7 @@
       "env": ["AWS_ACCOUNT_ID", "APP_DOMAIN"]
     },
     "test": {
+      "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
       "env": ["HOME"]
     },

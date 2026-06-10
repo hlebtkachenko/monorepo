@@ -150,13 +150,25 @@ Email:
 - Provider: Cloudflare Email Routing
 - Routing: catch-all + specific rules configured in Cloudflare dashboard
 - ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md) → Email layer
+- `support+feedback@afframe.com`: delivery target of the in-app feedback
+  flow (`apps/api/src/v1/feedback/feedback.controller.ts`,
+  `SUPPORT_INBOX`). It is served ONLY by the catch-all — an
+  exact-rules-only routing cleanup would silently black-hole feedback
+  email. Keep the catch-all or add an explicit rule first.
 
 ### `no-reply@afframe.com` (outbound)
 
-- Sent by: `apps/web` (prod + staging) — auth, magic links, invites
+- Sent by: all three app containers (prod + staging) — `apps/web` (auth,
+  magic links, invites), `apps/api` (feedback notifications),
+  `apps/admin` (auth/password resets). CDK wires `EMAIL_FROM` +
+  `RESEND_API_KEY` into web, api, and admin task containers.
 - Provider: Resend
 - Configured: CDK `app-stack.ts` → `EMAIL_FROM`
 - DKIM: signed by provider on the `afframe.com` zone
+- Note: the sender is `no-reply@` (hyphenated). The brand constant
+  `BRAND_NOREPLY_EMAIL` (`packages/ui/src/brand-assets/constants.ts`)
+  must match this exact address — any UI copy printing the sender goes
+  through that constant.
 
 ### `notifications@afframe.com` (outbound)
 
@@ -190,17 +202,17 @@ These files embed a hostname in code or product copy and are NOT sourced
 from environment variables. A rename is a coordinated change, not just a
 GitHub Actions variable flip.
 
-| File                                        | What                                  | Host                            |
-| ------------------------------------------- | ------------------------------------- | ------------------------------- |
-| `packages/i18n/src/messages/en.json`        | "Return to afframe.com" link href     | apex + `status` + `app-staging` |
-| `apps/api/src/openapi.ts`                   | OpenAPI `addServer()` literal         | `api.afframe.com`               |
-| `apps/api/openapi/v1.json`                  | OpenAPI spec server URL (generated)   | `api.afframe.com`               |
-| `apps/api/src/v1/v1.module.ts`              | JSDoc describing public API surface   | `api.afframe.com`               |
-| `apps/admin/app/api/auth/[...all]/route.ts` | Comment documenting `BETTER_AUTH_URL` | `admin.afframe.com`             |
-| `apps/web/app/auth/mfa/layout.tsx`          | UI copy reference                     | apex                            |
-| `packages/shared/src/api/common.ts`         | JSDoc                                 | `api.afframe.com`               |
-| `packages/db/migrations/0015_api_key.sql`   | Migration comment                     | `api.afframe.com`               |
-| `packages/auth/src/server.ts`               | Error message example                 | `app-staging.afframe.com`       |
+| File                                        | What                                                                           | Host                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------- |
+| `packages/i18n/src/messages/en.json`        | "Return to afframe.com" link href, status link, `you@afframe.com` placeholders | apex + `status`           |
+| `apps/api/src/openapi.ts`                   | OpenAPI `addServer()` literal                                                  | `api.afframe.com`         |
+| `apps/api/openapi/v1.json`                  | OpenAPI spec server URL (generated)                                            | `api.afframe.com`         |
+| `apps/api/src/v1/v1.module.ts`              | JSDoc describing public API surface                                            | `api.afframe.com`         |
+| `apps/admin/app/api/auth/[...all]/route.ts` | Comment documenting `BETTER_AUTH_URL`                                          | `admin.afframe.com`       |
+| `apps/web/app/auth/mfa/layout.tsx`          | UI copy reference                                                              | apex                      |
+| `packages/shared/src/api/common.ts`         | JSDoc                                                                          | `api.afframe.com`         |
+| `packages/db/migrations/0015_api_key.sql`   | Migration comment                                                              | `api.afframe.com`         |
+| `packages/auth/src/server.ts`               | Error message example                                                          | `app-staging.afframe.com` |
 
 Source-of-URL contract for Cloudflare Workers (`cache.afframe.com`):
 the deploy workflow `.github/workflows/_deploy-cloudflare.yml` reads

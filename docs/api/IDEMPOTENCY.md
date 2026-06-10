@@ -83,7 +83,7 @@ Purge job runs daily — drops rows where `expires_at < now()`. RLS scoped by `o
 4. **On `409 idempotency_key_in_progress`** — back off and retry. The previous call hasn't finished.
 5. **On `409 idempotency_key_conflict`** — your payload differs. Use a new key.
 
-`@afframe/sdk` defaults: generates a UUID v4 if you don't pass `idempotencyKey`, reuses on automatic retries, surfaces `Idempotent-Replayed` via a returned `replayed: boolean` field.
+`@afframe/sdk` today: the SDK does NOT auto-generate a key. Callers pass `Idempotency-Key` directly as a header on the request (`client.POST("/v1/...", { headers: { "idempotency-key": k }, body })`). The retry layer reuses the same header on automatic retries and only retries mutations when the header is present (`packages/sdk/src/client.ts`). Auto-generation + a `replayed` field are possible future SDK additions, not current behavior. The server side (storage/replay of the key) is also not implemented yet — see the [Concept] banner above.
 
 ---
 

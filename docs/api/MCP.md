@@ -1,8 +1,8 @@
 # `@afframe/mcp` — MCP Server Design
 
-> **[Concept]** Not implemented. Tracked under the developer-platform initiative ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
+> **[Wip — implemented in-repo, not published.]** `apps/mcp` ships a working stdio MCP server with codegen-generated tools for the GET operations (`ping`, `getOrganization`, `getStatus`). POST tool generation is not wired yet (AFF-236), there is no npm publish pipeline, and no Streamable-HTTP transport. Sections beyond the shipped stdio surface remain design intent ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
 
-Reference design for the official Model Context Protocol server exposing `api.afframe.com/v1` to LLM clients (Claude Desktop, Claude Code, Cursor, ChatGPT desktop, ...).
+Design + usage reference for the official Model Context Protocol server exposing `api.afframe.com/v1` to LLM clients (Claude Desktop, Claude Code, Cursor, ChatGPT desktop, ...).
 
 ---
 

@@ -2,11 +2,13 @@
 
 **Research, context dossiers, and large reference docs that Linear issues depend on.**
 
-Linear ([team Afframe, key `AFF`](https://linear.app/hapddev/team/AFF)) is where
-issues and todos live. Linear issue bodies are deliberately short — they describe
-_what to do_. The supporting material — multi-page audits, dependency graphs,
-debug maps, migration plans, scope research that several issues share — lives
-here.
+[Linear](https://linear.app/hapddev) is where issues and todos live —
+route by function per `AGENTS.md` § Issue Tracking: product engineering →
+`DEV`, product discovery → `PRO`, sales → `SAL`, operations → `OPS`. The
+legacy `AFF` team is FROZEN — never file new work there. Linear issue
+bodies are deliberately short — they describe _what to do_. The
+supporting material — multi-page audits, dependency graphs, debug maps,
+migration plans, scope research that several issues share — lives here.
 
 A file in this directory is a **stable reference** that one or more Linear issues
 point to. Updating progress against the work happens in Linear, not in the file.

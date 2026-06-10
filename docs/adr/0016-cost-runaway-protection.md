@@ -71,6 +71,42 @@ The earlier "~$50 worst-case ceiling" in Consequences was an estimate derived fr
 
 Pre-existing manual budget `monorepo-staging-hard-cap-50` (created via CLI 2026-05-19 before this amendment landed) must be deleted before the CDK-managed `monorepo-${env}-hardcap50` deploys, otherwise the two coexist with identical wiring.
 
+## Amendment (2026-05-31): cost-review restructuring — budgets, RDS stop, alarm allowlist, account trail
+
+The AFF cost review of 2026-05-31 reshaped the implemented design; this
+amendment records the as-built state (`infra/cdk/lib/security-stack.ts`).
+
+**Budgets.** The $40 MonthlyTotal + $5 S3 + $20 RDS + $25 ECS sub-budget
+set and the HardCap50 budget (2026-05-19 amendment) were replaced by:
+
+- Per env: `Total` **$55** (kill-switch at 100%, ops email at 80%) +
+  `DataTransfer` **$10** (alert-only; replaces the removed
+  Container-Insights fargate-egress alarm).
+- Production only: `AccountTotal` **$55** — account-wide, untagged,
+  kill-switch-wired. Codifies the CLI stop-gap budget
+  `monorepo-account-total-guard-temp` as a managed resource.
+
+**Kill-switch scope.** The Lambda now stops **RDS as well as ECS** on a
+breach (the old design left ~$16/mo/env of RDS running). It stops the
+instance, tags it `cost-stop-requested=true`, and the RdsRestartWatcher
+re-stops it after AWS's ~7-day forced restart. Fully reversible via
+`aws rds start-db-instance`.
+
+**Alarm allowlist.** `KILL_SWITCH_ALARM_NAMES` is down to 4 alarms:
+`fargate-cpu-critical`, `fargate-memory-critical`, `s3-put-rate-high`,
+`cwlogs-ingest-high`. `fargate-network-out-high` was removed with
+Container Insights (its metric no longer publishes); egress runaway is
+capped by the DataTransfer + Total budgets instead.
+
+**CloudTrail.** The per-env trail moved to the account-global
+`AuditStack` (`infra/cdk/lib/audit-stack.ts`), still single-region
+management events.
+
+**Auto-cold-pause.** An AutoStop Lambda cold-pauses idle envs (ECS→0 +
+RDS stop) after a max-uptime TTL. `AUTO_STOP_ENVS` currently includes
+`production` as an explicit **pre-v1 exception** — it MUST be removed at
+v1 launch (see `docs/LAUNCH-CHECKLIST.md` and the in-code banner).
+
 ## Alternatives considered
 
 - **GuardDuty + WAF.** $5-15/mo, detection-only. Doesn't auto-stop. Cloudflare WAF is already in front; AWS WAF would duplicate. Revisit at first paying customer.

@@ -47,7 +47,7 @@ AWS RDS Postgres 18 (isolated subnet)        Cloudflare Email Routing
                                                     └─→ EMAIL_FORWARD_TO secret
 ```
 
-Email outbound flows via Resend (SES is off the table — production access denied). Logs flow to CloudWatch (ECS infra) and Grafana Cloud free (app).
+Email outbound flows via Resend (SES is off the table — production access denied). All container logs (infra + app) flow to CloudWatch via the awslogs driver; Honeycomb (ADR-0002) is the planned app-telemetry sink but the otel-collector sidecar is currently unwired.
 
 ## One-time owner setup
 
@@ -574,9 +574,12 @@ Better Auth and `packages/email` automatically. Source of truth is
 Rotating `BETTER_AUTH_SECRET` invalidates every active session. Plan a
 maintenance window before rotating. Invite / signup / login-email
 tokens are opaque DB rows (`auth_token`, ADR-0022) and survive a
-session-secret rotation — only the BA session cookie depends on this
-secret. Rotation procedure (Vault `kv put` → SSM sync → ECS rolling
-restart): [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md).
+session-secret rotation. **WARNING: enrolled TOTP secrets + backup codes
+do NOT survive — they are encrypted with this secret, so rotation
+permanently bricks all 2FA enrollments (mass MFA lockout, not just a
+re-login).** Read the warning at the top of
+[`SECRETS-ROTATION.md`](SECRETS-ROTATION.md) before rotating; the
+procedure (Vault `kv put` → SSM sync → ECS rolling restart) is there too.
 
 ## DNS - final wiring after first deploy
 

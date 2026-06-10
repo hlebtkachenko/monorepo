@@ -4,32 +4,32 @@ Decisions worth recording: the ones a future contributor (human or agent) would 
 
 ## Index
 
-| #                                                   | Title                                                                 | Status   |
-| --------------------------------------------------- | --------------------------------------------------------------------- | -------- |
-| [0001](0001-iac-platform-hybrid-tofu-cdk.md)        | IaC platform: hybrid OpenTofu + AWS CDK                               | Accepted |
-| [0002](0002-observability-honeycomb.md)             | Observability: Honeycomb for traces and events                        | Accepted |
-| [0003](0003-coverage-risk-weighted.md)              | Test coverage: risk-weighted, not flat percentage                     | Accepted |
-| [0004](0004-no-self-hosted-runners.md)              | CI runners: GitHub-hosted only, no self-hosted                        | Accepted |
-| [0005](0005-container-runtime-docker-desktop.md)    | Container runtime on Mac: Docker Desktop                              | Accepted |
-| [0006](0006-cred-manager-granted.md)                | AWS credential manager: Granted CLI                                   | Accepted |
-| [0007](0007-mvp-single-account-cdk-only.md)         | MVP single-account: CDK-only, archive OpenTofu platform layer         | Accepted |
-| [0008](0008-cloudflare-tunnel-and-email.md)         | Cloudflare Tunnel front door + Cloudflare/SES email split             | Accepted |
-| [0009](0009-orm-and-migration-style.md)             | ORM + migration style: drizzle-orm types-only + handwritten SQL       | Accepted |
-| [0010](0010-multi-tenant-rls.md)                    | Multi-tenant RLS design (workspace + organization tiers)              | Proposed |
-| [0011](0011-audit-log.md)                           | Audit log: two-table append-only with two-pass redaction              | Proposed |
-| [0012](0012-local-postgres-infra.md)                | Local Postgres development infrastructure                             | Accepted |
-| [0013](0013-money-and-fx.md)                        | Money + FX representation (`numeric(19,4)` + `Money<Currency>` brand) | Proposed |
-| [0014](0014-audit-retention.md)                     | Audit retention and lifecycle                                         | Proposed |
-| [0015](0015-bundler-module-resolution.md)           | Monorepo `moduleResolution: Bundler`; relative imports omit `.js`     | Accepted |
-| [0016](0016-cost-runaway-protection.md)             | AWS cost-runaway protection (alarms + kill-switch + budgets)          | Accepted |
-| [0017](0017-workers-pgboss-only.md)                 | Workers backed by pg-boss only (drop BullMQ + ioredis)                | Accepted |
-| [0018](0018-three-layer-authz.md)                   | Three-layer authorization (RLS + OpenFGA + Cerbos)                    | Accepted |
-| [0019](0019-status-page-and-uptime-monitoring.md)   | Status page + uptime monitoring (OpenStatus self-hosted on OVH)       | Accepted |
-| [0020](0020-public-api-foundation.md)               | Public API foundation: NestJS-native contracts on a webpack bundle    | Accepted |
-| [0021](0021-turborepo-remote-cache-cloudflare.md)   | Turborepo remote cache on Cloudflare                                  | Accepted |
-| [0022](0022-unified-opaque-tokens.md)               | Unified opaque-token design (`auth_token`)                            | Proposed |
-| [0023](0023-public-api-developer-platform.md)       | Public API developer platform (pages, CLI, MCP, SDK, webhooks)        | Accepted |
-| [0024](0024-developer-platform-codegen-pipeline.md) | Developer-platform codegen pipeline                                   | Accepted |
+| #                                                   | Title                                                                 | Status             |
+| --------------------------------------------------- | --------------------------------------------------------------------- | ------------------ |
+| [0001](0001-iac-platform-hybrid-tofu-cdk.md)        | IaC platform: hybrid OpenTofu + AWS CDK                               | Superseded by 0007 |
+| [0002](0002-observability-honeycomb.md)             | Observability: Honeycomb for traces and events                        | Accepted           |
+| [0003](0003-coverage-risk-weighted.md)              | Test coverage: risk-weighted, not flat percentage                     | Accepted           |
+| [0004](0004-no-self-hosted-runners.md)              | CI runners: GitHub-hosted only, no self-hosted                        | Accepted           |
+| [0005](0005-container-runtime-docker-desktop.md)    | Container runtime on Mac: Docker Desktop                              | Accepted           |
+| [0006](0006-cred-manager-granted.md)                | AWS credential manager: Granted CLI                                   | Accepted           |
+| [0007](0007-mvp-single-account-cdk-only.md)         | MVP single-account: CDK-only, archive OpenTofu platform layer         | Accepted           |
+| [0008](0008-cloudflare-tunnel-and-email.md)         | Cloudflare Tunnel front door + Cloudflare/SES email split             | Accepted           |
+| [0009](0009-orm-and-migration-style.md)             | ORM + migration style: drizzle-orm types-only + handwritten SQL       | Accepted           |
+| [0010](0010-multi-tenant-rls.md)                    | Multi-tenant RLS design (workspace + organization tiers)              | Accepted           |
+| [0011](0011-audit-log.md)                           | Audit log: two-table append-only with two-pass redaction              | Proposed           |
+| [0012](0012-local-postgres-infra.md)                | Local Postgres development infrastructure                             | Accepted           |
+| [0013](0013-money-and-fx.md)                        | Money + FX representation (`numeric(19,4)` + `Money<Currency>` brand) | Proposed           |
+| [0014](0014-audit-retention.md)                     | Audit retention and lifecycle                                         | Proposed           |
+| [0015](0015-bundler-module-resolution.md)           | Monorepo `moduleResolution: Bundler`; relative imports omit `.js`     | Accepted           |
+| [0016](0016-cost-runaway-protection.md)             | AWS cost-runaway protection (alarms + kill-switch + budgets)          | Accepted           |
+| [0017](0017-workers-pgboss-only.md)                 | Workers backed by pg-boss only (drop BullMQ + ioredis)                | Accepted           |
+| [0018](0018-three-layer-authz.md)                   | Three-layer authorization (RLS + OpenFGA + Cerbos)                    | Accepted           |
+| [0019](0019-status-page-and-uptime-monitoring.md)   | Status page + uptime monitoring (OpenStatus self-hosted on OVH)       | Accepted           |
+| [0020](0020-public-api-foundation.md)               | Public API foundation: NestJS-native contracts on a webpack bundle    | Accepted           |
+| [0021](0021-turborepo-remote-cache-cloudflare.md)   | Turborepo remote cache on Cloudflare                                  | Accepted           |
+| [0022](0022-unified-opaque-tokens.md)               | Unified opaque-token design (`auth_token`)                            | Proposed           |
+| [0023](0023-public-api-developer-platform.md)       | Public API developer platform (pages, CLI, MCP, SDK, webhooks)        | Accepted           |
+| [0024](0024-developer-platform-codegen-pipeline.md) | Developer-platform codegen pipeline                                   | Accepted           |
 
 Append in commit order, never reshuffled. Numbers are immutable after merge.
 

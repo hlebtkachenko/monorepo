@@ -28,7 +28,7 @@ These rules are enforced by ESLint, Git hooks, and reviewer judgement. See the f
 
 - Unit + integration: Vitest 4.x. `pnpm test` for full run.
 - Storybook: `pnpm --filter @workspace/ui storybook` (dev), `pnpm --filter @workspace/ui build-storybook` (CI).
-- E2E: Playwright (config TBA when backend ships).
+- E2E: Playwright auth-flow suite at `apps/web/e2e/` (config: `apps/web/playwright.config.ts`, boots a Postgres 18 testcontainer + seeded owner). Run: `pnpm --filter web exec playwright test`. CI: `.github/workflows/e2e.yml`.
 
 Tests are mandatory for non-trivial work. Mock the database only when documented; default is real Postgres via testcontainers.
 
@@ -78,7 +78,9 @@ pnpm test         # all tests
 
 ## CI Checks
 
-Every PR triggers (advisory until promoted to required-status):
+Every PR triggers (the required/advisory matrix lives in
+`docs/conventions/CI-POLICY.md` — most of the checks below are required
+today):
 
 | Check               | What it does                                  |
 | ------------------- | --------------------------------------------- |

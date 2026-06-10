@@ -259,15 +259,16 @@ Mutating `document` after `buildOpenApiDocument` returns is forbidden. If you ne
 
 ## 7. Adding or changing endpoints
 
-Every public API endpoint flows through seven steps. See `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md` for the full procedure with exact paths and diffs.
+Every public API endpoint flows through six steps. See `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md` for the full procedure with exact paths and diffs.
 
 1. **Author the Zod schema** in `packages/shared/src/api/<resource>.ts`. Chain `.openapi({ description, example })` on every public field.
 2. **Register the operation** via `registry.registerPath({ ... })` in `packages/shared/src/api/registry.ts`. Reference the schema by name. Spread `ERROR_RESPONSE_REFS` into the `responses` map.
 3. **Implement the controller** under `apps/api/src/v1/<resource>/`, mounted on `V1Module`. Read principal from the API key guard; never accept `organization_id` / `workspace_id` / `role` as input.
 4. **Run `pnpm gen:all`** from the repo root. Commit the regenerated `apps/api/openapi/v1.json`, `packages/sdk/src/generated/`, and `apps/mcp/src/tools/generated/`.
 5. **Write an E2E test** with tenant isolation. Co-locate under `apps/api/src/**/*.test.ts` (NestJS testing module) or `apps/web/e2e/` (Playwright auth-bound flow).
-6. **Add a changeset** entry under `.changeset/` summarising the surface change.
-7. **`pnpm verify` green** locally (typecheck + lint + test + boundaries + openapi-lint).
+6. **`pnpm verify` green** locally (typecheck + lint + test + boundaries + openapi-lint).
+
+SDK versioning/publishing (changesets + npm publish) is not wired yet — tracked as future work; do not add `.changeset/` entries.
 
 ---
 

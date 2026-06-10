@@ -259,9 +259,10 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## CI / CD
 
-- Existing required checks: `ci`, `gitleaks` (advisory). New advisory checks added: `workflow-lint`, `codeql`, `dependency-review`, `commitlint`, `size-limit`, `osv-scanner`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E), `openapi-lint` (OpenAPI spec drift + Spectral lint), `nuclei-dast` (nightly DAST scan of live prod + staging hosts; probe-skips any host that is down/maintenance/parked, active-but-safe profile, SARIF → Security tab — see `docs/runbooks/DAST-NUCLEI.md`).
+- Required checks (11 contexts in `.github/rulesets/main.json`): `ci`, `gitleaks`, `lint` (commitlint), `Analyze (javascript-typescript)` (CodeQL), `review` (dependency-review), `scan-pr / osv-scan` (osv-scanner), `knip`, `check` (paired-files), `boundaries`, `conv-title`, `size-cap`. A failure in any of these blocks merge. The full required/advisory matrix lives in `docs/conventions/CI-POLICY.md` — treat that file as the single source of truth.
+- Advisory (run but don't block): `workflow-lint`, `size-limit`, `container-scan`, `_supply-chain` (called from release), `e2e` (Playwright auth-flow E2E), `openapi-lint` (OpenAPI spec drift + Spectral lint), `sdk-drift`, `mcp-coverage`, `pr-checklist`, `db-schema-drift`, `db-migration-idempotency`, `nuclei-dast` (nightly DAST scan of live prod + staging hosts; probe-skips any host that is down/maintenance/parked, active-but-safe profile, SARIF → Security tab — see `docs/runbooks/DAST-NUCLEI.md`).
 - All new workflows ship as ADVISORY. Hleb flips required-status manually after a green PR cycle.
-- Branch protection / PR-required rules are managed manually by Hleb (see `docs/conventions/CI-POLICY.md`).
+- Branch protection / PR-required rules are managed manually by Hleb via the ruleset (see `docs/conventions/CI-POLICY.md`).
 - Hardening conventions: default-deny `permissions: {}`, per-job least privilege, SHA-pinned actions with trailing version comment, `step-security/harden-runner` (audit), concurrency cancellation on PRs.
 - Reusable workflows under `.github/workflows/_*.yml`: `_supply-chain.yml`, `_build-image.yml`, `_deploy-aws.yml` (the `guard` job requires `vars.AWS_BOOTSTRAPPED=true`, now set — staging deploys run; production stays gated by the `production` GitHub environment).
 - Composite bootstrap: `./.github/actions/setup` (pnpm + Node 24 + frozen install).
@@ -309,11 +310,10 @@ Rule: never format a Telegram message or hold the bot token anywhere but `apps/b
 
 ## Endpoint Addition Rules
 
-Every public API endpoint flows through the same seven steps. CI gates
-(`openapi-lint`, `sdk-drift`, `mcp-coverage`, `docs-coverage`,
-`pr-checklist`) catch deviations; the pre-push `endpoint-checklist`
-lefthook hook catches the most common one (registry edited, codegen not
-regenerated).
+Every public API endpoint flows through the same six steps. CI gates
+(`openapi-lint`, `sdk-drift`, `mcp-coverage`, `pr-checklist`) catch
+deviations; the pre-push `endpoint-checklist` lefthook hook catches the
+most common one (registry edited, codegen not regenerated).
 
 1. **Author the Zod schema** in `packages/shared/src/api/<resource>.ts`.
    Chain `.openapi({ description, example })` on every public field.
@@ -329,10 +329,11 @@ regenerated).
 5. **Write an E2E test** with tenant isolation. Co-locate under
    `apps/api/src/**/*.test.ts` (NestJS testing module) or
    `apps/web/e2e/` (Playwright auth-bound flow).
-6. **Add a changeset** entry under `.changeset/` summarising the
-   surface change.
-7. **`pnpm verify` green** locally (typecheck + lint + test +
+6. **`pnpm verify` green** locally (typecheck + lint + test +
    boundaries + openapi-lint).
+
+SDK versioning/publishing (changesets + npm publish) is not wired yet —
+tracked as future work; do not add `.changeset/` entries.
 
 Full procedure with diffs: `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`.
 Convention reference: `docs/conventions/ENDPOINT-ADDITION.md`.

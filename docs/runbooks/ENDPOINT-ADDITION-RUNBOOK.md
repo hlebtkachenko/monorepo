@@ -21,10 +21,7 @@ pnpm --filter @workspace/shared --filter api --filter @afframe/sdk --filter @aff
 
 # 4. Write the E2E test
 
-# 5. Changeset
-pnpm changeset
-
-# 6. Verify everything
+# 5. Verify everything
 pnpm verify
 ```
 
@@ -173,21 +170,14 @@ it("404s when the invoice belongs to a different tenant", async () => {
 Confirms RLS isolation. Skipping this is the single most common cause
 of cross-tenant data leaks.
 
-## Step 6. Changeset
-
-```bash
-pnpm changeset      # describe the surface change
-```
-
-Add a `.changeset/` entry summarising the surface change (new endpoint,
-response field additions, etc.). `pnpm changeset status` fails the
-release pipeline if this is missing.
-
-## Step 7. Verify
+## Step 6. Verify
 
 ```bash
 pnpm verify         # typecheck + lint + test + boundaries + openapi-lint
 ```
+
+SDK versioning/publishing (changesets + npm publish) is not wired yet —
+tracked as future work; do not add `.changeset/` entries.
 
 ## Common mistakes
 
@@ -198,5 +188,3 @@ pnpm verify         # typecheck + lint + test + boundaries + openapi-lint
   principal. The AI tool input schemas explicitly forbid this; the
   Cerbos policy bind would reject a request anyway.
 - **Inlining error responses.** Always spread `ERROR_RESPONSE_REFS`.
-- **Skipping the changeset.** `pnpm changeset status` fails the
-  release pipeline.

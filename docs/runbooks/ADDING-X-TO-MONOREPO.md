@@ -81,7 +81,6 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
 1. Extend `AfframeClientOptions` in `packages/sdk/src/client.ts`.
 2. Wire the option through `createAfframeClient`.
 3. Document in `packages/sdk/README.md`.
-4. Changeset entry.
 
 ## A new env var
 

@@ -25,7 +25,6 @@ Section labels track which package reads the variable.
 | `NODE_ENV`         | yes      | runtime | `development` \| `production` \| `test`                                                                                                                                                                                                                                                                    |
 | `PORT`             | no       | dev     | web listen port (3000 default)                                                                                                                                                                                                                                                                             |
 | `HOST`             | no       | dev     | web listen host (`0.0.0.0` default)                                                                                                                                                                                                                                                                        |
-| `APP_ENV`          | yes      | runtime | `development` \| `staging` \| `production`                                                                                                                                                                                                                                                                 |
 | `APP_DOMAIN`       | yes      | runtime | public hostname (no protocol), e.g. `app.afframe.com`                                                                                                                                                                                                                                                      |
 | `API_INTERNAL_URL` | no       | runtime | Server-only base URL for apps/api, used by the `reportFeedback` server action to forward in-app bug reports to `POST /v1/feedback` (server-to-server, no browser CORS). Defaults to `http://localhost:3001` for local dev; in Fargate point it at the internal task address. Never exposed to the browser. |
 
@@ -47,6 +46,8 @@ Public API contract:
 | Var               | Required | Notes                                                                                                                                                                                                                                                                                         |
 | ----------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `AFFRAME_MCP_URL` | no       | Public URL of a Streamable-HTTP MCP server. When set, the Scalar reference at `/` advertises it through `mcp.url`; when unset, the MCP slot stays disabled. `apps/mcp` ships as stdio today, so this is empty for prod / staging until an HTTP wrapper lands. Read by `apps/api/src/docs.ts`. |
+| `STATUS_API_URL`  | no       | Upstream OpenStatus summary endpoint for `GET /v1/status`. Default `https://status.afframe.com/api/v1/status`. Read by `apps/api/src/v1/status/status.controller.ts`.                                                                                                                         |
+| `APP_ENV`         | no       | Environment name (`production` / `staging`). Sole runtime reader: `packages/shared/src/api/registry.ts` `resolveServers()` — gates the staging server entry in the generated OpenAPI document. Set on all three containers by CDK (`infra/cdk/lib/app-stack.ts`).                             |
 
 The `EDITOR_ENABLED` gate on `/editor` was dropped on 2026-05-21 (the
 redirect target `editor.scalar.com` is public; the spec it points at is
@@ -74,6 +75,7 @@ the Better Auth / Database / Email vars below. `PORT` defaults to `3100`.
 | --------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ADMIN_DOMAIN`              | yes      | Admin public hostname (no protocol), e.g. `admin.afframe.com`. Its own per-env value, **not** a subdomain of `APP_DOMAIN` (prod web is `app.afframe.com`, admin is `admin.afframe.com`). In CI it comes from the `ADMIN_DOMAIN_{ENV}` GitHub Actions variable; `infra/cdk/bin/app.ts` requires it and `app-stack.ts` sets the admin container's `BETTER_AUTH_URL` from it. Full host inventory: [`docs/DOMAINS-AND-EMAIL.md`](DOMAINS-AND-EMAIL.md). |
 | `ADMIN_WORKSPACE_ALLOWLIST` | no       | Comma-separated `workspace` ids whose members may sign into admin. Empty/unset → the gate denies everyone (fail closed). In prod it comes from the `ADMIN_WORKSPACE_ALLOWLIST` GitHub Actions variable, surfaced into the admin container by `infra/cdk/lib/app-stack.ts`.                                                                                                                                                                           |
+| `WEB_BASE_URL`              | no       | Base URL of the web app used by the admin dev dashboard actions (signup-link minting, dev outbox proxy — `apps/admin/app/(gated)/dev/actions.ts`). Default `http://localhost:3010`.                                                                                                                                                                                                                                                                  |
 
 ## Telegram dev bot (apps/bot + app-side notify)
 
@@ -93,22 +95,23 @@ These are **Worker** secrets/vars, not app env. Pushed from GitHub repo secrets 
 
 ## Database (packages/db + drizzle migrations + workers)
 
-| Var                   | Path                 | Notes                                                                                                  |
-| --------------------- | -------------------- | ------------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`        | runtime app queries  | pgBouncer transaction mode, port 6432, role `app_user`. FORCE RLS active.                              |
-| `DATABASE_DIRECT_URL` | migrations + workers | Direct Postgres port 5432, role `app_owner`. pg-boss requires direct (advisory locks + LISTEN/NOTIFY). |
+| Var                        | Path                 | Notes                                                                                                                                                                                            |
+| -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`             | runtime app queries  | pgBouncer transaction mode, port 6432, role `app_user`. FORCE RLS active.                                                                                                                        |
+| `DATABASE_DIRECT_URL`      | migrations + workers | Direct Postgres port 5432, role `app_owner`. pg-boss requires direct (advisory locks + LISTEN/NOTIFY).                                                                                           |
+| `DB_STARTUP_PROBE_LENIENT` | runtime (Fargate)    | `1` = the startup probe logs instead of throwing when the DB is briefly unreachable (RDS still waking). Set by `infra/cdk/lib/app-stack.ts`; unset locally. Read by `packages/db/src/client.ts`. |
 
 Migration runner refuses to run against port 6432. See `packages/db/scripts/apply-migrations.ts`.
 
 ## Better Auth (packages/auth — identity only)
 
-| Var                           | Required | Notes                                                                                                                                                                                                                                                                                  |
-| ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`          | yes      | 32+ bytes; `openssl rand -base64 33`. NEVER commit. In prod: stored in Vault at `platform/{env}/better-auth-secret` (source of truth), synced to AWS SSM SecureString `/monorepo/{env}/better-auth-secret`; ECS reads SSM via `EcsSecret.fromSsmParameter`. Rotate via `vault kv put`. |
-| `BETTER_AUTH_URL`             | yes      | Absolute origin (e.g. `https://app-staging.afframe.com`). Prod: missing → `resolveBaseURL()` throws at startup.                                                                                                                                                                        |
-| `NEXT_PUBLIC_BETTER_AUTH_URL` | yes      | Same value as `BETTER_AUTH_URL`, surfaced to the browser.                                                                                                                                                                                                                              |
-| `BETTER_AUTH_COOKIE_DOMAIN`   | no       | Leading-dot domain (e.g. `.afframe.com`) for cross-subdomain session cookies. Required once the admin / api surfaces all share the same Better Auth session. Unset on `localhost` dev so the session cookie stays host-only. Read by `packages/auth/src/server.ts`.                    |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | yes      | CSV of allowed origins. Include every host the client may POST from.                                                                                                                                                                                                                   |
+| Var                           | Required  | Notes                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`          | yes       | 32+ bytes; `openssl rand -base64 33`. NEVER commit. In prod: stored in Vault at `platform/{env}/better-auth-secret` (source of truth), synced to AWS SSM SecureString `/monorepo/{env}/better-auth-secret`; ECS reads SSM via `EcsSecret.fromSsmParameter`. Rotate via `vault kv put`.                                |
+| `BETTER_AUTH_URL`             | yes       | Absolute origin (e.g. `https://app-staging.afframe.com`). Prod: missing → `resolveBaseURL()` throws at startup.                                                                                                                                                                                                       |
+| `BETTER_AUTH_COOKIE_DOMAIN`   | no        | Leading-dot domain (e.g. `.afframe.com`) for cross-subdomain session cookies. Required once the admin / api surfaces all share the same Better Auth session. Unset on `localhost` dev so the session cookie stays host-only. Read by `packages/auth/src/server.ts`.                                                   |
+| `AUTH_TOKEN_ENV`              | prod: yes | Deploy-env code stamped into opaque auth tokens (`dev` \| `stg` \| `prd`) — the cross-env replay gate of ADR-0022. Read by `packages/auth/src/tokens/auth-token.ts` (`resolveAuthTokenEnv()`): invalid value throws; unset + `NODE_ENV=production` throws (CDK sets it per env); unset elsewhere falls back to `dev`. |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | yes       | CSV of allowed origins. Include every host the client may POST from.                                                                                                                                                                                                                                                  |
 
 `resolveBaseURL()` in `packages/auth/src/server.ts` is the canonical reader.
 Server actions that build absolute URLs (invite + magic link emails) MUST call
@@ -147,10 +150,11 @@ role. CI reads the account id from a GitHub Actions secret only.
 
 ## Observability (apps/api, apps/web)
 
-| Var                 | Notes                                                                 |
-| ------------------- | --------------------------------------------------------------------- |
-| `SENTRY_DSN`        | empty = noop (SDK gated by `Boolean(SENTRY_DSN)`)                     |
-| `HONEYCOMB_API_KEY` | DEFERRED per ADR-0002; configs in `infra/observability/` ship UNWIRED |
+| Var                 | Notes                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SENTRY_DSN`        | empty = noop (SDK gated by `Boolean(SENTRY_DSN)`)                                                                                                |
+| `HONEYCOMB_API_KEY` | DEFERRED per ADR-0002; configs in `infra/observability/` ship UNWIRED                                                                            |
+| `LOG_LEVEL`         | pino level for the shared `@workspace/observability` logger (`packages/observability/src/logger.ts`). Default `info` in prod, `debug` elsewhere. |
 
 `tracesSampleRate` is hardcoded to 0 at MVP (errors only); see
 `.context/decision-observability-mvp.md`.
@@ -168,11 +172,12 @@ L2 — OpenFGA sidecar at `localhost:8080` HTTP in the api task. `store_id` +
 `infra/openfga/bootstrap.mjs`. In dev, run that script against a local
 OpenFGA container and paste the echoed values.
 
-| Var                | Notes                                                |
-| ------------------ | ---------------------------------------------------- |
-| `OPENFGA_API_URL`  | `http://localhost:8080`                              |
-| `OPENFGA_STORE_ID` | from SSM in prod; from `bootstrap.mjs` stdout in dev |
-| `OPENFGA_MODEL_ID` | from SSM in prod; from `bootstrap.mjs` stdout in dev |
+| Var                | Notes                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `OPENFGA_API_URL`  | `http://localhost:8080`                                                                                      |
+| `OPENFGA_STORE_ID` | from SSM in prod; from `bootstrap.mjs` stdout in dev                                                         |
+| `OPENFGA_MODEL_ID` | from SSM in prod; from `bootstrap.mjs` stdout in dev                                                         |
+| `MONOREPO_ENV`     | env name used by `infra/openfga/bootstrap.mjs` (store name + SSM path); CLI arg wins, then this, then `dev`. |
 
 L3 — Cerbos sidecar at `localhost:3593` gRPC.
 
@@ -190,8 +195,13 @@ Default `1` in `apps/web/.env.example` and `scripts/generate-env.sh`; must be ab
 | `ENABLE_DEV_OUTBOX`  | Enables `GET /api/dev/outbox` (in-memory email list — contains password-reset and invite-token links). |
 | `ENABLE_DEV_PREVIEW` | Enables `GET /api/dev/preview` (sets/clears the auth-guard bypass cookie).                             |
 
-## Test containers (vitest integration tests)
+## Dev / test only
 
-| Var                           | Notes                                                                 |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `TESTCONTAINERS_REUSE_ENABLE` | `1` reuses containers across runs (faster local). `0` or unset in CI. |
+Read only by test runners and local tooling — never set in staging or
+production.
+
+| Var                           | Notes                                                                                                                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TESTCONTAINERS_REUSE_ENABLE` | `1` reuses containers across runs (faster local). `0` or unset in CI.                                                                                                         |
+| `SKIP_TESTCONTAINER`          | `true` = the web vitest globalSetup (`apps/web/tests/global-setup.ts`) skips booting Postgres and expects `DATABASE_URL` / `DATABASE_DIRECT_URL` to be provided (CI pattern). |
+| `PGBOUNCER_URL`               | When set, enables the pgBouncer transaction-mode canary suite (`packages/db/tests/pgbouncer-canary.test.ts`); unset = suite skipped.                                          |

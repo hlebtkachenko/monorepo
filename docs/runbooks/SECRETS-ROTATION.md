@@ -1,8 +1,21 @@
 # BETTER_AUTH_SECRET / RESEND_API_KEY Rotation Runbook
 
-Rotation cycle for the Vault-backed app secrets. No data is lost during
-rotation; for `BETTER_AUTH_SECRET`, users experience at most one forced
-re-login.
+Rotation cycle for the Vault-backed app secrets.
+
+> **WARNING — rotating `BETTER_AUTH_SECRET` permanently bricks all
+> enrolled 2FA.** The Better Auth twoFactor plugin encrypts TOTP secrets
+> AND backup codes symmetrically with `BETTER_AUTH_SECRET`. A new secret
+> cannot decrypt the existing `two_factor` rows, so every enrolled user
+> fails verification forever ("Invalid code") — this is NOT a forced
+> re-login, it is a mass MFA lockout. Do not rotate in production with
+> 2FA users unless you have either (a) a decrypt-with-old /
+> re-encrypt-with-new migration script over the `two_factor` rows, or
+> (b) a forced 2FA re-enrollment plan with user comms. Known incident:
+> 2FA "Invalid code" for all users after a secret change; the only
+> recovery was reset + re-enroll.
+
+For users without 2FA, the impact of a `BETTER_AUTH_SECRET` rotation is
+one forced re-login. `RESEND_API_KEY` rotation is zero-impact.
 
 The same procedure applies to any secret under `platform/{env}/*` in
 Vault (`better-auth-secret`, `resend-api-key`). Substitute the key name.
@@ -31,7 +44,10 @@ Better Auth 1.6.x does not natively accept an array of secrets (primary +
 fallback). Sessions signed with the previous secret become invalid on
 cutover. Rotate at a low-traffic window (e.g. Sunday 02:00 UTC) so forced
 re-logins hit the fewest active sessions. Staging sessions are ephemeral
-(CI teardown), so staging rotations are always zero-impact.
+(CI teardown), so staging rotations are always zero-impact — unless a
+staging account has 2FA enrolled (see the warning at the top: TOTP +
+backup codes are encrypted with the secret and do not survive rotation
+in ANY environment).
 
 `RESEND_API_KEY` has no such constraint — old + new keys both work until
 the old one is revoked in the Resend dashboard, so its rotation is
@@ -81,6 +97,14 @@ vault kv get -field=value platform/production/better-auth-secret
 
 ### Step 3 — write the new value to Vault
 
+> **STOP — `BETTER_AUTH_SECRET` only:** this write is the point of no
+> return for 2FA. Every enrolled TOTP secret + backup code is encrypted
+> with the OLD secret and becomes permanently undecryptable once the new
+> value reaches the running tasks. Before proceeding, confirm the 2FA
+> migration script has run (or the forced re-enrollment comms are out).
+> Rollback via `vault kv rollback` restores 2FA only if no user
+> re-enrolled in between.
+
 ```bash
 printf '%s' "<new-value>" | \
   vault kv put platform/production/better-auth-secret value=-
@@ -126,9 +150,9 @@ The first 8 chars should match the new value.
 
 ### Step 6 — grace window + cleanup
 
-`BETTER_AUTH_SECRET`: monitor `auth.login.failed_password` +
-session-not-found in Honeycomb/Sentry for 24h. A spike = users on the old
-secret; advise re-login.
+`BETTER_AUTH_SECRET`: monitor `auth.login.failed_password` audit events
+(`audit_event` table) + session-not-found errors in the CloudWatch log
+groups for 24h. A spike = users on the old secret; advise re-login.
 
 `RESEND_API_KEY`: once Step 5 confirms the new key live, **revoke the old
 key in the Resend dashboard** and send a test email to confirm delivery.
@@ -181,6 +205,8 @@ the primary. Both secrets would be separate Vault keys synced to SSM.
 
 ## Checklist
 
+- [ ] (BETTER_AUTH) 2FA plan in place: re-encrypt migration ran, or
+      re-enrollment comms sent (see warning at top)
 - [ ] New value generated (`openssl rand -base64 48` / Resend dashboard)
 - [ ] Current value snapshotted locally (Step 2) — discarded after Step 6
 - [ ] `vault kv put platform/{env}/<name>` written

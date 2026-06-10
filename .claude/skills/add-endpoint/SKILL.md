@@ -4,7 +4,7 @@ description: |
   Walk a contributor through adding a public API endpoint to the
   Afframe monorepo. Triggers when the user says "add endpoint <resource>",
   "/add-endpoint <resource>", "scaffold an endpoint", "new public API
-  operation", or invokes any phrasing that maps to the seven-step
+  operation", or invokes any phrasing that maps to the six-step
   endpoint-addition workflow at
   `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`. The skill enforces the
   drift-gated codegen seam: every step in the right order, no hand-edits
@@ -51,20 +51,22 @@ Before writing any code:
    `validation_error`, …), and (c) an SDK roundtrip test that calls the
    endpoint through `@afframe/sdk`.
 
-## Seven-step workflow
+## Six-step workflow
 
 For a worked example using `GET /v1/invoices/:invoiceId`, see the
 runbook. The steps in order:
 
-| #   | What               | Where                                                 |
-| --- | ------------------ | ----------------------------------------------------- |
-| 1   | Zod schema         | `packages/shared/src/api/<resource>.ts`               |
-| 2   | Register operation | `packages/shared/src/api/registry.ts`                 |
-| 3   | NestJS controller  | `apps/api/src/v1/<resource>/<resource>.controller.ts` |
-| 4   | Codegen            | `pnpm gen:all` (regenerates spec + SDK + MCP)         |
-| 5   | E2E test           | `apps/api/src/**/*.test.ts` or `apps/web/e2e/**`      |
-| 6   | Changeset          | `pnpm changeset` (describe the surface change)        |
-| 7   | Verify             | `pnpm verify` (typecheck + lint + test + boundaries)  |
+| #   | What               | Where                                                               |
+| --- | ------------------ | ------------------------------------------------------------------- |
+| 1   | Zod schema         | `packages/shared/src/api/<resource>.ts`                             |
+| 2   | Register operation | `packages/shared/src/api/registry.ts`                               |
+| 3   | NestJS controller  | `apps/api/src/v1/<resource>/<resource>.controller.ts`               |
+| 4   | Codegen            | `pnpm gen:all` (regenerates spec + SDK + MCP)                       |
+| 5   | E2E test           | `apps/api/src/**/*.test.ts` or `apps/web/e2e/**`                    |
+| 6   | Verify             | `pnpm verify` (typecheck + lint + test + boundaries + openapi-lint) |
+
+SDK versioning/publishing (changesets + npm publish) is not wired yet —
+tracked as future work; do not add `.changeset/` entries.
 
 ## Open questions to ask the user before scaffolding
 

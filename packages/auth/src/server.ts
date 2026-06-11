@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth"
-import { createAuthMiddleware } from "better-auth/api"
+import { APIError, createAuthMiddleware } from "better-auth/api"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
 import { admin, magicLink, twoFactor } from "better-auth/plugins"
@@ -88,16 +88,22 @@ export function resolveAuditIp(headers: Headers): string | null {
  * Determine whether a Better Auth `hooks.after` ctx response succeeded.
  * A missing returned value or an APIError/non-200 Response = failure.
  */
-function isSuccess(returned: unknown): boolean {
+export function isSuccess(returned: unknown): boolean {
   if (returned == null) return false
   if (returned instanceof Response) return returned.status === 200
-  // APIError objects carry a numeric `status` property.
-  if (
-    typeof returned === "object" &&
-    "status" in (returned as object) &&
-    typeof (returned as { status: unknown }).status === "number"
-  ) {
-    return false
+  if (returned instanceof APIError) return false
+  // Structural fallback for error-like objects that dodge the instanceof
+  // (duplicated better-call install): better-call's APIError carries the
+  // HTTP status NAME in `status` ("UNAUTHORIZED") and the number in
+  // `statusCode` — a `typeof status === "number"` probe alone misses it,
+  // which silently audited every failed login as success (T2 tripwire).
+  if (typeof returned === "object") {
+    const { statusCode, status } = returned as {
+      statusCode?: unknown
+      status?: unknown
+    }
+    if (typeof statusCode === "number") return statusCode < 400
+    if (typeof status === "number") return status < 400
   }
   return true
 }

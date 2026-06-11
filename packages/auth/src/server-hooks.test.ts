@@ -8,10 +8,10 @@
  *   1. Unit tests for `resolveAuditAction` — exhaustive path-to-action mapping,
  *      no DB, no BA.
  *   2. Integration tests — BA flow not disrupted by the hook (no throw), using a
- *      live testcontainer. Audit rows are NOT asserted here because the BA hook
- *      calls `writeAuditEventGlobal` with no workspace_id (none available at hook
- *      time), which silently skips the write. DB-level assertions live in
- *      packages/db/tests/write-audit-event.test.ts.
+ *      live testcontainer. Since migration 0021 (AFF-208) `writeAuditEventGlobal`
+ *      persists workspace_id = NULL rows, so the hook's writes DO land; row-level
+ *      assertions live in packages/db/tests/write-audit-event.test.ts and the
+ *      auth-audit e2e (apps/web/e2e/auth-audit.spec.ts).
  *   3. Version pin assertion.
  */
 
@@ -138,6 +138,39 @@ describe("resolveAuditAction — path-to-action mapping", () => {
     expect(resolveAuditAction("/session", true)).toBeNull()
     expect(resolveAuditAction("/user/update-user", true)).toBeNull()
     expect(resolveAuditAction("", true)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Unit: isSuccess — APIError detection (T2 regression: better-call APIError
+// carries the HTTP status NAME in `status`, the number in `statusCode`; the
+// old numeric-`status` probe classified every failed login as success)
+// ---------------------------------------------------------------------------
+
+describe("isSuccess — hooks.after outcome classification", () => {
+  it("classifies a thrown better-auth APIError as failure", async () => {
+    const { isSuccess } = await import("./server")
+    const { APIError } = await import("better-auth/api")
+    expect(isSuccess(new APIError("UNAUTHORIZED"))).toBe(false)
+    expect(isSuccess(new APIError("BAD_REQUEST"))).toBe(false)
+  })
+
+  it("classifies APIError-shaped objects without class identity as failure", async () => {
+    const { isSuccess } = await import("./server")
+    // Duplicated better-call install: same shape, different class.
+    expect(isSuccess({ status: "UNAUTHORIZED", statusCode: 401 })).toBe(false)
+    expect(isSuccess({ status: 401 })).toBe(false)
+  })
+
+  it("classifies missing/error responses as failure, success shapes as success", async () => {
+    const { isSuccess } = await import("./server")
+    expect(isSuccess(null)).toBe(false)
+    expect(isSuccess(undefined)).toBe(false)
+    expect(isSuccess(new Response(null, { status: 401 }))).toBe(false)
+    expect(isSuccess(new Response(null, { status: 200 }))).toBe(true)
+    // BA success payloads: session objects, `{ status: true }` acks.
+    expect(isSuccess({ token: "x", user: { id: "u1" } })).toBe(true)
+    expect(isSuccess({ status: true })).toBe(true)
   })
 })
 

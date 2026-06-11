@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "db:generate": "node -e \"console.error('drizzle-kit generate is forbidden in this repo. Migrations are handwritten SQL in packages/db/migrations/. See ADR-0009.'); process.exit(1)\"",
     "db:migrate": "tsx scripts/apply-migrations.ts",
+    "db:new-migration": "tsx scripts/new-migration.ts",
     "db:push": "node -e \"console.error('drizzle-kit push is forbidden in this repo. Apply migrations via pnpm db:migrate. See ADR-0009.'); process.exit(1)\"",
     "db:studio": "drizzle-kit studio",
     "db:schema-snapshot": "bash ../../scripts/db-schema-snapshot.sh > schema-snapshot.sql",

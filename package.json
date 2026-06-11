@@ -8,8 +8,9 @@
     "lint": "turbo lint",
     "format": "turbo format",
     "typecheck": "turbo typecheck",
+    "typecheck:watch": "turbo watch typecheck",
     "test": "turbo test",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm turbo boundaries && pnpm exec spectral lint apps/api/openapi/v1.json --ruleset apps/api/.spectral.yaml",
     "knip": "knip",
     "check:brand-placeholders": "node scripts/check-brand-placeholders.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
@@ -39,6 +40,6 @@
   },
   "packageManager": "pnpm@11.0.9",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   }
 }

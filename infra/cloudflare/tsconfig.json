@@ -1,17 +1,12 @@
 {
+  "extends": "@workspace/typescript-config/cloudflare-worker.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "ES2022",
-    "moduleResolution": "Bundler",
-    "types": ["@cloudflare/workers-types/experimental"],
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true
+    // src/ is vendored from AdiRishi/turborepo-remote-cache-cloudflare
+    // (see SOURCE.md), written without noUncheckedIndexedAccess. Keep the
+    // flag off here to stay byte-identical with upstream instead of
+    // patching vendored source. Every non-vendored worker inherits the
+    // flag from the preset.
+    "noUncheckedIndexedAccess": false
   },
   "include": ["src/**/*.ts"]
 }

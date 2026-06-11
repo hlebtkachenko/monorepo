@@ -117,6 +117,45 @@ jobs:
           SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES: "false"
           SYFT_FORMAT_CYCLONEDX_JSON_VERSION: "1.6"
 
+      # 1b. SBOM diff gate (ADVISORY — continue-on-error). Diffs the fresh
+      # SBOM against the previous release's published sbom.cdx.json and
+      # fails on any ADDED component that carries a copyleft license or a
+      # HIGH/CRITICAL CVE (osv-scanner results). scripts/sbom-diff.mjs is
+      # the gate logic; first release (no prior SBOM asset) skips cleanly.
+      # osv-scanner pin + checksum mirror .devcontainer/Dockerfile.
+      - name: SBOM diff vs previous release (advisory)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          OSV_VERSION: "2.3.8"
+          OSV_CHECKSUM: "bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc"
+        run: |
+          set -euo pipefail
+          prev_tag=$(gh release list --limit 10 --exclude-drafts --json tagName --jq '.[].tagName' \
+            | grep -vFx "$VERSION" | head -n1 || true)
+          if [ -z "$prev_tag" ]; then
+            echo "No previous release found — skipping SBOM diff."
+            exit 0
+          fi
+          if ! gh release download "$prev_tag" --pattern 'sbom.cdx.json' --output prev-sbom.cdx.json; then
+            echo "Release $prev_tag has no sbom.cdx.json asset — skipping SBOM diff."
+            exit 0
+          fi
+          curl -fsSL "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64" \
+            -o /usr/local/bin/osv-scanner
+          echo "${OSV_CHECKSUM}  /usr/local/bin/osv-scanner" | sha256sum -c -
+          chmod +x /usr/local/bin/osv-scanner
+          rc=0
+          osv-scanner scan source --format json --output osv-results.json sbom.cdx.json || rc=$?
+          # rc=1 means "vulnerabilities found" (expected input for the gate);
+          # anything higher is a scanner error.
+          if [ "$rc" -gt 1 ]; then
+            echo "osv-scanner failed (exit $rc)"
+            exit "$rc"
+          fi
+          node scripts/sbom-diff.mjs prev-sbom.cdx.json sbom.cdx.json osv-results.json
+
       # 2. SLSA L2 build provenance
       - name: Attest build provenance
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0

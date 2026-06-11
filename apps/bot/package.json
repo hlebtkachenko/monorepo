@@ -17,10 +17,11 @@
   "dependencies": {
     "@workspace/notify": "workspace:*",
     "grammy": "^1.43.0",
-    "hono": "^4.12.22"
+    "hono": "^4.12.23"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260524.1",
+    "@cloudflare/workers-types": "^4.20260526.1",
+    "@workspace/typescript-config": "workspace:*",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7",
     "wrangler": "^4.94.0"

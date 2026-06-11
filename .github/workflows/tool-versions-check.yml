@@ -14,13 +14,16 @@ name: Tool versions check
 #   fga CLI     — openfga-model-test.yml FGA_CLI_VERSION
 #   cerbos      — cerbos-policies-test.yml CERBOS_VERSION
 #   squawk      — db-migration-lint.yml `cargo install ... --version`
+#   osv-scanner — _supply-chain.yml OSV_VERSION (sbom-diff step; pin +
+#                 checksum mirror .devcontainer/Dockerfile)
 #   postgres:18-alpine digest — e2e.yml POSTGRES_IMAGE_DIGEST vs the live
 #                 Docker Hub tag (the testcontainers helper deliberately
 #                 floats; only the CI digest pin is tracked here)
 #
 # NOT covered on purpose: lefthook.yml tools (gitleaks/actionlint/infisical/
 # osv-scanner resolve from the developer's PATH, no pinned version);
-# .nvmrc / engines (a `>=` floor, not a pin — revisit if a .nvmrc lands);
+# engines (a `>=` floor, not a pin) and .nvmrc (tracks the CI Node major
+# from .github/actions/setup — bumped together, manually, with CI);
 # compose image pins (Dependabot docker-compose ecosystem, dependabot.yml);
 # devcontainer tools (dev-only, accepted exception — recon DEP-11).
 #
@@ -122,6 +125,11 @@ jobs:
             "$(grep -oP 'cargo install squawk --locked --version \K[0-9.]+' .github/workflows/db-migration-lint.yml)" \
             "$(latest_gh sbdchd/squawk)" \
             ".github/workflows/db-migration-lint.yml"
+
+          compare "osv-scanner" \
+            "$(grep -oP 'OSV_VERSION: "\K[0-9.]+' .github/workflows/_supply-chain.yml)" \
+            "$(latest_gh google/osv-scanner)" \
+            ".github/workflows/_supply-chain.yml (version + sha256; mirror .devcontainer/Dockerfile)"
 
           compare "postgres:18-alpine digest" \
             "$(grep -oP 'POSTGRES_IMAGE_DIGEST: "\Ksha256:[a-f0-9]+' .github/workflows/e2e.yml)" \

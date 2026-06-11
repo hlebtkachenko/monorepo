@@ -52,12 +52,14 @@
     "test": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
-      "env": ["HOME"]
+      "env": ["HOME"],
+      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!**/*.md"],
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*"]
     },
     "build-storybook": {
       "dependsOn": ["^build"],

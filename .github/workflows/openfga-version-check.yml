@@ -1,14 +1,16 @@
-name: OpenFGA + pgbouncer version check
+name: OpenFGA + pgbouncer + cloudflared version check
 
-# Checks the openfga/openfga and edoburu/pgbouncer image versions pinned as
-# TypeScript string literals in infra/cdk/lib/app-stack.ts against their
-# upstream GitHub release tags. Dependabot Docker only scans Dockerfile FROM
-# lines, so these registry pins are invisible to it — this workflow fills the
-# gap per the CLAUDE.md Dependency Update Coverage Rule.
+# Checks the openfga/openfga, edoburu/pgbouncer, and cloudflare/cloudflared
+# image versions pinned as TypeScript string literals in
+# infra/cdk/lib/app-stack.ts against their upstream GitHub release tags.
+# Dependabot Docker only scans Dockerfile FROM lines, so these registry pins
+# are invisible to it — this workflow fills the gap per the CLAUDE.md
+# Dependency Update Coverage Rule.
 #
 # Upstream sources:
-#   openfga/openfga    — https://github.com/openfga/openfga/releases
-#   edoburu/pgbouncer  — https://github.com/edoburu/docker-pgbouncer/releases
+#   openfga/openfga        — https://github.com/openfga/openfga/releases
+#   edoburu/pgbouncer      — https://github.com/edoburu/docker-pgbouncer/releases
+#   cloudflare/cloudflared — https://github.com/cloudflare/cloudflared/releases
 
 on:
   schedule:
@@ -35,6 +37,17 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: Ensure issue labels exist
+        # DEP-01: `gh issue create --label X` fails when the label does not
+        # exist in the repo (this broke 3 consecutive weekly runs). Create
+        # idempotently — `|| true` swallows the "already exists" error.
+        run: |
+          gh label create openfga-update --color 0E8A16 --description "openfga/openfga image pin behind upstream" --repo "$GITHUB_REPOSITORY" || true
+          gh label create pgbouncer-update --color 0E8A16 --description "edoburu/pgbouncer image pin behind upstream" --repo "$GITHUB_REPOSITORY" || true
+          gh label create cloudflared-update --color 0E8A16 --description "cloudflare/cloudflared image pin behind upstream" --repo "$GITHUB_REPOSITORY" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check openfga/openfga version
         id: openfga
@@ -97,11 +110,11 @@ jobs:
 
           | | Version |
           |---|---|
-          | Current pin | \`v${{ steps.openfga.outputs.current }}\` |
-          | Latest release | \`v${{ steps.openfga.outputs.latest }}\` |
+          | Current pin | `v${{ steps.openfga.outputs.current }}` |
+          | Latest release | `v${{ steps.openfga.outputs.latest }}` |
 
-          **File to update:** \`infra/cdk/lib/app-stack.ts\`
-          Search for \`ContainerImage.fromRegistry("openfga/openfga:\` and bump the tag.
+          **File to update:** `infra/cdk/lib/app-stack.ts`
+          Search for `ContainerImage.fromRegistry("openfga/openfga:` and bump the tag.
 
           Verify the release notes at https://github.com/openfga/openfga/releases before updating.
           BODY
@@ -129,13 +142,69 @@ jobs:
 
           | | Version |
           |---|---|
-          | Current pin | \`v${{ steps.pgbouncer.outputs.current }}\` |
-          | Latest release | \`v${{ steps.pgbouncer.outputs.latest }}\` |
+          | Current pin | `v${{ steps.pgbouncer.outputs.current }}` |
+          | Latest release | `v${{ steps.pgbouncer.outputs.latest }}` |
 
-          **File to update:** \`infra/cdk/lib/app-stack.ts\`
-          Search for \`ContainerImage.fromRegistry("edoburu/pgbouncer:\` and bump the tag.
+          **File to update:** `infra/cdk/lib/app-stack.ts`
+          Search for `ContainerImage.fromRegistry("edoburu/pgbouncer:` and bump the tag.
 
           Verify the release notes at https://github.com/edoburu/docker-pgbouncer/releases before updating.
+          BODY
+          )"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check cloudflare/cloudflared version
+        id: cloudflared
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # cloudflared releases are tagged YYYY.M.P (no v prefix). The CDK
+          # pin is the public-ingress edge for all three prod hosts.
+          CURRENT=$(grep -oP 'cloudflare/cloudflared:\K[0-9]+\.[0-9]+\.[0-9]+' infra/cdk/lib/app-stack.ts | head -1)
+          LATEST=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/cloudflare/cloudflared/releases/latest \
+            | jq -r '.tag_name | ltrimstr("v")')
+          echo "current=$CURRENT"
+          echo "latest=$LATEST"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for existing cloudflared issue
+        if: steps.cloudflared.outputs.has_updates == 'true'
+        id: existing-cloudflared
+        run: |
+          COUNT=$(gh issue list --label cloudflared-update --state open --json number --jq length)
+          echo "exists=$COUNT" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create cloudflared issue
+        if: steps.cloudflared.outputs.has_updates == 'true' && steps.existing-cloudflared.outputs.exists == '0'
+        run: |
+          gh issue create \
+            --title "chore: cloudflare/cloudflared update available (${{ steps.cloudflared.outputs.latest }})" \
+            --label cloudflared-update \
+            --body "$(cat <<'BODY'
+          New **cloudflare/cloudflared** release detected.
+
+          | | Version |
+          |---|---|
+          | Current pin | `${{ steps.cloudflared.outputs.current }}` |
+          | Latest release | `${{ steps.cloudflared.outputs.latest }}` |
+
+          **Files to update:**
+          1. `infra/cdk/lib/app-stack.ts` — search for `ContainerImage.fromRegistry("cloudflare/cloudflared:` and bump the tag (takes effect at next deploy).
+          2. `infra/vault/compose.yaml` — the Vault VPS sidecar pins the same image **with a digest**; bump tag + digest together (digest from https://hub.docker.com/r/cloudflare/cloudflared/tags), then `docker compose pull && docker compose up -d cloudflared` on the VPS.
+
+          Verify the release notes at https://github.com/cloudflare/cloudflared/releases before updating.
           BODY
           )"
         env:

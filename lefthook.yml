@@ -178,17 +178,14 @@ pre-push:
         - "packages/db/src/**"
         - "packages/observability/src/**"
       run: |
-        bad=()
-        for f in packages/db/migrations/*.sql; do
-          [ -e "$f" ] || continue
-          base=$(basename "$f")
-          if ! echo "$base" | grep -qE '^[0-9]{4}_[a-z][a-z0-9_]*\.sql$'; then
-            bad+=("$base")
-          fi
-        done
-        if [ ${#bad[@]} -gt 0 ]; then
+        # POSIX sh only (DX-14): lefthook executes `run` via sh, which is
+        # dash in the devcontainer — bash arrays would die with
+        # 'Syntax error: "(" unexpected'.
+        bad=$(find packages/db/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; \
+          | grep -vE '^[0-9]{4}_[a-z][a-z0-9_]*\.sql$' || true)
+        if [ -n "$bad" ]; then
           echo "[lefthook db-smoke] FAIL: migration filenames must match NNNN_<snake>.sql:"
-          printf '  %s\n' "${bad[@]}"
+          echo "$bad" | sed 's/^/  /'
           exit 1
         fi
         matches=$(grep -rn 'lac_' packages/db/src/ packages/observability/src/ 2>/dev/null || true)

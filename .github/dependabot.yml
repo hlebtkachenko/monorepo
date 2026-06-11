@@ -57,6 +57,20 @@ updates:
       prefix: "chore"
       include: scope
 
+  # Docker base image used by apps/admin Dockerfile (the admin Next.js
+  # runtime — deployed prod container, digest-pinned like web/api).
+  - package-ecosystem: docker
+    directory: /apps/admin
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      apps-admin-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
   # Docker base image used by infra/Dockerfile.backup (ECS Scheduled Task in
   # BackupStack). Pinned per ADR-0015; bumped via Dependabot.
   - package-ecosystem: docker
@@ -107,6 +121,23 @@ updates:
       day: monday
     groups:
       infra-compose-pgtap-docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore"
+      include: scope
+
+  # Image pins inside the local-dev compose stack
+  # (infra/compose/docker-compose.dev.yml: postgres-exporter, mailpit, plus
+  # the pgbouncer/cerbos pins that duplicate the CDK copies). The `docker`
+  # entries above only read Dockerfile FROM lines; the docker-compose
+  # ecosystem reads compose `image:` keys.
+  - package-ecosystem: docker-compose
+    directory: /infra/compose
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      infra-compose-images:
         patterns: ["*"]
     commit-message:
       prefix: "chore"

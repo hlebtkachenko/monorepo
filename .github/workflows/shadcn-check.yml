@@ -37,6 +37,15 @@ jobs:
             echo "has_updates=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Ensure issue label exists
+        # DEP-01: `gh issue create --label X` fails when the label does not
+        # exist in the repo. Create idempotently — `|| true` swallows the
+        # "already exists" error.
+        if: steps.diff.outputs.has_updates == 'true'
+        run: gh label create shadcn-update --color 0E8A16 --description "Upstream shadcn/ui component drift" --repo "$GITHUB_REPOSITORY" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check for existing issue
         if: steps.diff.outputs.has_updates == 'true'
         id: existing

@@ -43,18 +43,43 @@ runs:
           echo "turbo remote cache: disabled (TURBO_API or TURBO_TOKEN unset)" >> "$GITHUB_STEP_SUMMARY"
         fi
 
-    - name: Restore turbo cache
-      # Content-addressed primary key — same input hash on a different
-      # branch hits the cache (cross-branch sharing). Falls back through
-      # increasingly broad prefixes so a partial match still warms the
-      # `.turbo` directory rather than starting cold.
-      # Inputs that invalidate the cache: dependency graph (lockfile +
-      # package.json), turbo config (turbo.json, tsconfig.json),
-      # eslint config (lint task inputs).
+    - name: Restore turbo cache (read-only)
+      # Per-job key (`github.job`) — the previous run-wide shared key meant
+      # only the first-finishing job saved, every other job restored a stale
+      # entry from a different SHA, and ALL jobs paid a 29-50s Post-Run save
+      # attempt (CICD-04). Content-addressed hash segment keeps cross-branch
+      # sharing; prefix restore-keys warm the `.turbo` directory on a partial
+      # match. Inputs that invalidate: dependency graph (lockfile +
+      # package.json), turbo config (turbo.json, tsconfig.json), eslint
+      # config (lint task inputs).
+      #
+      # Restore-only on every event EXCEPT push to main (PRs, schedules,
+      # dispatches): the Cloudflare remote cache (ADR-0021) is the real
+      # cross-run layer, so paying a save per PR job bought nothing. Main
+      # pushes save below — per-job keys, so there is no cross-job save race
+      # (matrix legs of one job still share a key; loser logs a harmless
+      # "Unable to reserve cache" warning).
+      if: github.event_name != 'push' || github.ref != 'refs/heads/main'
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: .turbo
+        key: turbo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-${{ github.sha }}
+        restore-keys: |
+          turbo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-
+          turbo-${{ runner.os }}-${{ github.job }}-
+
+    - name: Restore + save turbo cache (main push)
+      # Writer side of the layer above. Only push-to-main runs save (post-job
+      # hook), and the per-job key means each job owns its own entry — PR jobs
+      # that also run on main pushes then restore the latest main entry via
+      # restore-keys. Jobs that never run on main (knip, boundaries,
+      # size-limit, schedule-only checks) stay cold at this layer; the remote
+      # Cloudflare cache covers them.
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: .turbo
-        key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-${{ github.sha }}
+        key: turbo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-${{ github.sha }}
         restore-keys: |
-          turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-
-          turbo-${{ runner.os }}-
+          turbo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-
+          turbo-${{ runner.os }}-${{ github.job }}-

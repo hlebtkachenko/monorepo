@@ -125,15 +125,31 @@ jobs:
       # "context deadline exceeded", which aborts the whole e2e run before any
       # test executes. Pre-pull with retry/backoff so the container reuses a
       # locally-present image and a transient Hub blip no longer fails the job.
-      - name: Pre-pull Postgres testcontainer image (Docker Hub flakiness guard)
+      #
+      # Digest-pinned (T12): the pull resolves the manifest-list digest below,
+      # then tags it as the floating `postgres:18-alpine` ref the testcontainer
+      # helper requests (packages/testcontainers/src/postgres.ts — deliberately
+      # un-digested there for local dev). testcontainers' default pull policy
+      # skips the pull when the image is already present, so CI runs are
+      # digest-reproducible without touching the shared helper. Drift between
+      # this digest and the live 18-alpine tag is tracked by
+      # tool-versions-check.yml (files an issue).
+      - name: Pre-pull Postgres testcontainer image (digest-pinned, Docker Hub flakiness guard)
+        env:
+          # postgres:18-alpine manifest-list digest, verified 2026-06-11.
+          POSTGRES_IMAGE_DIGEST: "sha256:96d56f7f57c6aacd1fcb908bc83b345ec5f83231ee486dd66a1baadce274db88"
         run: |
           image="postgres:18-alpine"
+          pinned="postgres@${POSTGRES_IMAGE_DIGEST}"
           for attempt in 1 2 3 4 5; do
-            if docker pull "$image"; then exit 0; fi
-            echo "::warning::docker pull $image failed (attempt $attempt/5); retrying in $((attempt * 10))s"
+            if docker pull "$pinned"; then
+              docker tag "$pinned" "$image"
+              exit 0
+            fi
+            echo "::warning::docker pull $pinned failed (attempt $attempt/5); retrying in $((attempt * 10))s"
             sleep $((attempt * 10))
           done
-          echo "::error::could not pull $image after 5 attempts (Docker Hub unreachable)"
+          echo "::error::could not pull $pinned after 5 attempts (Docker Hub unreachable)"
           exit 1
 
       - name: Run E2E tests

@@ -78,11 +78,11 @@ Workflow-level `paths:` filters on the trigger block create stuck PRs when the w
 
 ### In-workflow job/step skip via `changes` upstream
 
-Three workflows use the same pattern: a `changes` job runs `dorny/paths-filter` to compute outputs, real jobs gate on those outputs via `if:`, and a final aggregator job owns the required-check name and treats `skipped` as non-failure (only `failure|cancelled` red the aggregator). The required status check stays posted on every PR even when the real job skips. See `ci.yml:284-312` (the `ci` aggregator) for the canonical example.
+Three workflows use the same pattern: a `changes` job runs `dorny/paths-filter` to compute outputs, real jobs gate on those outputs via `if:`, and a final aggregator job owns the required-check name and treats `skipped` as non-failure (only `failure|cancelled` red the aggregator). The required status check stays posted on every PR even when the real job skips. See the `ci` aggregator job in `ci.yml` for the canonical example.
 
 | Workflow         | Required check name | Real job             | Gated on                                                                                    | What skipping saves                   |
 | ---------------- | ------------------- | -------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `ci.yml`         | `ci`                | `storybook-*`        | `packages/ui/**`                                                                            | ~220s on non-UI PRs                   |
+| `ci.yml`         | `ci`                | `storybook`          | `packages/ui/**`                                                                            | ~3-4 min of job time on non-UI PRs    |
 | `ci.yml`         | `ci`                | `lint-typecheck`     | `code` filter (apps/\*\*, packages/\*\*, infra/cdk/\*\*, lockfile, tsconfig, turbo.json)    | ~60-90s runner setup on docs-only PRs |
 | `ci.yml`         | `ci`                | `unit-test`          | `code` filter (same as above)                                                               | ~60-90s runner setup on docs-only PRs |
 | `ci.yml`         | `ci`                | `build`              | `code` filter (same as above)                                                               | ~2-4 min on docs-only PRs             |
@@ -90,7 +90,9 @@ Three workflows use the same pattern: a `changes` job runs `dorny/paths-filter` 
 | `knip.yml`       | `knip`              | `knip-run`           | source filter (\*\*/\_.{ts,tsx,js,jsx,mjs,cjs}, \*\*/package.json, lockfile, knip config)   | ~60-120s on docs/infra-only PRs       |
 | `boundaries.yml` | `boundaries`        | `boundaries-run`     | source filter (\*\*/\_.{ts,tsx,mts,cts}, \*\*/package.json, tsconfig, turbo.json, lockfile) | ~30-60s on docs/infra-only PRs        |
 
-`storybook-test` is a 2-shard matrix (`--shard=N/2` on `@storybook/test-runner`). `storybook-build` runs once and uploads `packages/ui/storybook-static` as a 1-day-retention artifact; both shards download it. Net storybook wall on UI PRs: ~220-240s (sequential) → ~130-140s (build + max(shard)).
+`storybook` builds and tests in a single job (build ~70s turbo-cached + unsharded `@storybook/test-runner` ~150s). An earlier build + 2-shard-matrix split with an artifact handoff was measured net SLOWER end-to-end (each shard paid ~70s setup + ~40s Playwright deps + ~35s cache save for ~80s of test work) and was collapsed back (CICD-02). Re-shard only when the unsharded test phase alone exceeds ~5 min.
+
+`coverage` (`pnpm turbo test:coverage`, ui-scoped) runs as its own advisory job gated on the `code` filter — it is deliberately NOT in the `ci` aggregator's `needs`, so a coverage failure cannot block merge and it no longer sits on the `unit-test` critical path (CICD-03).
 
 ### `--affected` policy
 
@@ -113,7 +115,7 @@ Three workflows use the same pattern: a `changes` job runs `dorny/paths-filter` 
 | --------------------------- | ------------- | --------------------------------------------------------------------------------- |
 | `gitleaks`                  | `0`           | Full-history secret scan.                                                         |
 | `lint-typecheck`            | `0`           | `turbo --affected` needs base ref reachable.                                      |
-| `unit-test`                 | `0`           | Same.                                                                             |
+| `unit-test`, `coverage`     | `0`           | Same.                                                                             |
 | `storybook`, `build`, `e2e` | default (`1`) | No `--affected` here; full history is dead weight.                                |
 | `changes` (paths-filter)    | default (`1`) | `dorny/paths-filter` reads the PR diff via the GitHub API, not local git history. |
 
@@ -121,11 +123,11 @@ Three workflows use the same pattern: a `changes` job runs `dorny/paths-filter` 
 
 Turborepo Remote Cache runs on Cloudflare Workers + R2. Architecture decision: [ADR-0021](../adr/0021-turborepo-remote-cache-cloudflare.md). Operator runbook: [`docs/runbooks/CI-TURBO-REMOTE-CACHE.md`](../runbooks/CI-TURBO-REMOTE-CACHE.md).
 
-| Layer                                    | What it caches                        | Backend                                                   | Quota                |
-| ---------------------------------------- | ------------------------------------- | --------------------------------------------------------- | -------------------- |
-| Local `.turbo` (per-runner)              | Most recent task outputs              | Runner filesystem                                         | Tmpfs                |
-| GitHub Actions cache (content-addressed) | `.turbo` snapshot keyed on input hash | GH built-in                                               | 10 GiB/repo (LRU)    |
-| **Cloudflare Workers + R2 (remote)**     | All task outputs, cross-branch        | Worker `cache.afframe.com` → R2 bucket `turbo-cache-prod` | R2 free tier (10 GB) |
+| Layer                                    | What it caches                                                                                                | Backend                                                   | Quota                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------- |
+| Local `.turbo` (per-runner)              | Most recent task outputs                                                                                      | Runner filesystem                                         | Tmpfs                |
+| GitHub Actions cache (content-addressed) | `.turbo` snapshot, per-job key on input hash — restore-only on PRs/schedules, saved on push to main (CICD-04) | GH built-in                                               | 10 GiB/repo (LRU)    |
+| **Cloudflare Workers + R2 (remote)**     | All task outputs, cross-branch                                                                                | Worker `cache.afframe.com` → R2 bucket `turbo-cache-prod` | R2 free tier (10 GB) |
 
 **Fail-open posture.** The composite step "Configure Turbo Remote Cache defaults" in `.github/actions/setup/action.yml` uses `continue-on-error: true`, and turbo CLI treats a remote-cache HTTP failure as a cache miss (rebuilds locally). No CI required-check depends on the remote cache being live. A Cloudflare outage at the cache layer slows CI on cached jobs but cannot red the build.
 

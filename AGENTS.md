@@ -116,7 +116,8 @@ Before adding a new versioned dependency, verify which category it falls into. I
 Current custom checks:
 
 - `shadcn-check.yml` — shadcn/ui source-copied components
-- `openfga-version-check.yml` — OpenFGA + pgbouncer pinned image versions
+- `openfga-version-check.yml` — OpenFGA + pgbouncer + cloudflared pinned image versions
+- `tool-versions-check.yml` — monthly: pnpm `packageManager` pin, CI tool binaries (gitleaks, infisical, trufflehog, actionlint, fga, cerbos, squawk), e2e postgres digest pin
 
 ## Code Standards
 

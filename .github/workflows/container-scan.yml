@@ -111,12 +111,25 @@ jobs:
 
       - if: steps.guard.outputs.exists == 'true'
         name: Build local image (no push)
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker buildx build --platform linux/arm64 \
-            --load -t local/${{ matrix.app }}:scan \
-            -f apps/${{ matrix.app }}/Dockerfile .
+        # docker/build-push-action instead of a raw `docker buildx build` so
+        # the GitHub Actions cache backend (type=gha) is wired up — the raw
+        # CLI has no access to ACTIONS_RUNTIME_TOKEN. Mirrors the deploy
+        # pipeline's cache setup (_deploy-aws.yml build-images job) with a
+        # scan-scoped cache key, cutting the QEMU arm64 rebuild (~150-237s
+        # per app cold) to a cache-hit restore on unchanged layers (CICD-06).
+        # provenance/sbom off to keep a single loadable image manifest.
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: local/${{ matrix.app }}:scan
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=scan-${{ matrix.app }}
+          cache-to: type=gha,scope=scan-${{ matrix.app }},mode=max
 
       - if: steps.guard.outputs.exists == 'true'
         name: Trivy image scan

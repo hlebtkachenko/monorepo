@@ -1,0 +1,174 @@
+name: Tool versions check
+
+# Monthly drift check for version pins Dependabot cannot track (per the
+# CLAUDE.md Dependency Update Coverage Rule; template:
+# _template-update-check.yml.example). Covered pins:
+#
+#   pnpm        — root package.json `packageManager` (also synced into the 3
+#                 app Dockerfiles, infra/Dockerfile.openfga-bootstrap,
+#                 .devcontainer/Dockerfile — bump together)
+#   gitleaks    — ci.yml GITLEAKS_VERSION
+#   infisical   — ci.yml INFISICAL_VERSION
+#   trufflehog  — ci.yml TRUFFLEHOG_VERSION
+#   actionlint  — workflow-lint.yml release-download URL
+#   fga CLI     — openfga-model-test.yml FGA_CLI_VERSION
+#   cerbos      — cerbos-policies-test.yml CERBOS_VERSION
+#   squawk      — db-migration-lint.yml `cargo install ... --version`
+#   postgres:18-alpine digest — e2e.yml POSTGRES_IMAGE_DIGEST vs the live
+#                 Docker Hub tag (the testcontainers helper deliberately
+#                 floats; only the CI digest pin is tracked here)
+#
+# NOT covered on purpose: lefthook.yml tools (gitleaks/actionlint/infisical/
+# osv-scanner resolve from the developer's PATH, no pinned version);
+# .nvmrc / engines (a `>=` floor, not a pin — revisit if a .nvmrc lands);
+# compose image pins (Dependabot docker-compose ecosystem, dependabot.yml);
+# devcontainer tools (dev-only, accepted exception — recon DEP-11).
+#
+# Advisory: files one grouped issue (label tool-versions-update) on drift.
+
+on:
+  schedule:
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: tool-versions-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Compare pinned tool versions against upstream
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          latest_gh() {
+            curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              "https://api.github.com/repos/$1/releases/latest" \
+              | jq -r '.tag_name | ltrimstr("v")'
+          }
+
+          drift_rows=""
+          add_drift() { # name current latest where
+            drift_rows="${drift_rows}| $1 | \`$2\` | \`$3\` | \`$4\` |"$'\n'
+          }
+
+          compare() { # name current latest where
+            echo "$1: current=$2 latest=$3"
+            if [ -z "$2" ] || [ -z "$3" ] || [ "$3" = "null" ]; then
+              echo "::error::$1: could not resolve versions (current='$2', latest='$3')"
+              exit 1
+            fi
+            if [ "$2" != "$3" ]; then
+              add_drift "$1" "$2" "$3" "$4"
+            fi
+          }
+
+          PNPM_CURRENT=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          PNPM_LATEST=$(curl -fsSL https://registry.npmjs.org/pnpm/latest | jq -r '.version')
+          compare "pnpm" "$PNPM_CURRENT" "$PNPM_LATEST" "package.json packageManager (+ 5 synced copies, see workflow header)"
+
+          compare "gitleaks" \
+            "$(grep -oP 'GITLEAKS_VERSION: "\K[0-9.]+' .github/workflows/ci.yml)" \
+            "$(latest_gh gitleaks/gitleaks)" \
+            ".github/workflows/ci.yml"
+
+          compare "infisical" \
+            "$(grep -oP 'INFISICAL_VERSION: "\K[0-9.]+' .github/workflows/ci.yml)" \
+            "$(latest_gh Infisical/cli)" \
+            ".github/workflows/ci.yml"
+
+          compare "trufflehog" \
+            "$(grep -oP 'TRUFFLEHOG_VERSION: "\K[0-9.]+' .github/workflows/ci.yml)" \
+            "$(latest_gh trufflesecurity/trufflehog)" \
+            ".github/workflows/ci.yml"
+
+          compare "actionlint" \
+            "$(grep -oP 'actionlint/releases/download/v\K[0-9.]+' .github/workflows/workflow-lint.yml | head -1)" \
+            "$(latest_gh rhysd/actionlint)" \
+            ".github/workflows/workflow-lint.yml (URL + sha256 line)"
+
+          compare "fga CLI" \
+            "$(grep -oP 'FGA_CLI_VERSION: "\K[0-9.]+' .github/workflows/openfga-model-test.yml)" \
+            "$(latest_gh openfga/cli)" \
+            ".github/workflows/openfga-model-test.yml (version + sha256 line)"
+
+          compare "cerbos" \
+            "$(grep -oP 'CERBOS_VERSION: "\K[0-9.]+' .github/workflows/cerbos-policies-test.yml)" \
+            "$(latest_gh cerbos/cerbos)" \
+            ".github/workflows/cerbos-policies-test.yml (version + sha256 line)"
+
+          compare "squawk" \
+            "$(grep -oP 'cargo install squawk --locked --version \K[0-9.]+' .github/workflows/db-migration-lint.yml)" \
+            "$(latest_gh sbdchd/squawk)" \
+            ".github/workflows/db-migration-lint.yml"
+
+          compare "postgres:18-alpine digest" \
+            "$(grep -oP 'POSTGRES_IMAGE_DIGEST: "\Ksha256:[a-f0-9]+' .github/workflows/e2e.yml)" \
+            "$(curl -fsSL https://hub.docker.com/v2/repositories/library/postgres/tags/18-alpine | jq -r '.digest')" \
+            ".github/workflows/e2e.yml"
+
+          if [ -n "$drift_rows" ]; then
+            echo "has_updates=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "Monthly tool-versions check found pins behind upstream."
+              echo ""
+              echo "| Tool | Pinned | Latest | Where |"
+              echo "|---|---|---|---|"
+              printf '%s' "$drift_rows"
+              echo ""
+              echo "Review each upstream changelog before bumping. Update the"
+              echo "pinned sha256 checksums alongside the version where noted."
+            } > drift-issue-body.md
+            cat drift-issue-body.md
+          else
+            echo "has_updates=false" >> "$GITHUB_OUTPUT"
+            echo "All tracked tool pins are at upstream latest."
+          fi
+
+      - name: Ensure issue label exists
+        if: steps.check.outputs.has_updates == 'true'
+        # `gh issue create --label X` fails when the label is missing;
+        # create idempotently (`|| true` swallows "already exists").
+        run: gh label create tool-versions-update --color 0E8A16 --description "Non-Dependabot tool pins behind upstream" --repo "$GITHUB_REPOSITORY" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for existing issue
+        if: steps.check.outputs.has_updates == 'true'
+        id: existing
+        run: |
+          COUNT=$(gh issue list --label tool-versions-update --state open --json number --jq length)
+          echo "exists=$COUNT" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create issue
+        if: steps.check.outputs.has_updates == 'true' && steps.existing.outputs.exists == '0'
+        run: |
+          gh issue create \
+            --title "chore: tool version pins behind upstream (monthly check)" \
+            --label tool-versions-update \
+            --body-file drift-issue-body.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

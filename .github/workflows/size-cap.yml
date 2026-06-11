@@ -7,7 +7,11 @@ name: Size cap
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # labeled/unlabeled so adding (or removing) `size-cap-override` re-evaluates
+    # immediately. The label-skip below reads the event payload, which is frozen
+    # at trigger time — without these, a label added after `opened` never
+    # re-runs and the check stays red on a re-run (the payload still lacks it).
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions: {}
 

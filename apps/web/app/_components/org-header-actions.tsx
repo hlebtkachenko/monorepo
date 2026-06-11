@@ -70,12 +70,6 @@ import { reportFeedback } from "./report-feedback"
 // uses for its page-edge insets, so menus sit on the same spacing grid.
 const MENU_GAP = 8
 
-// Q22 (pre-launch): the Help-menu entries below this flag have no real
-// destinations/handlers yet (see the TODO(org-header) at their JSX). They are
-// hidden for launch so the primary shell ships no dead menu items; flip to
-// `true` to re-enable them while wiring the destinations.
-const SHOW_UNWIRED_HELP_ITEMS = false
-
 // Shared sizing for the header dropdowns: 14px text (--menu-text-size),
 // 16px icons (default), 8px gap, 6×8px item padding (→32px rows), 8px
 // container padding, full-bleed 8px-margin dividers. Width sizes to content
@@ -232,39 +226,35 @@ export function OrgHeaderActions({
           sideOffset={MENU_GAP}
           className={HEADER_MENU}
         >
-          {SHOW_UNWIRED_HELP_ITEMS && (
-            <>
-              {/* TODO(org-header): wire real destinations/handlers — placeholders. */}
-              <DropdownMenuItem>
-                <DocsIcon />
-                Documentation
-                <ExternalIcon className="ml-auto size-3" />
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <KnowledgeIcon />
-                Knowledge base
-                <ExternalIcon className="ml-auto size-3" />
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <ContactIcon />
-                Contact us
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <KeyboardIcon />
-                Keyboard shortcuts
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <WhatsNewIcon />
-                What&apos;s new?
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <StatusIcon />
-                <BrandName /> status
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
+          {/* TODO(org-header): wire real destinations/handlers — placeholders. */}
+          <DropdownMenuItem>
+            <DocsIcon />
+            Documentation
+            <ExternalIcon className="ml-auto size-3" />
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <KnowledgeIcon />
+            Knowledge base
+            <ExternalIcon className="ml-auto size-3" />
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <ContactIcon />
+            Contact us
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem>
+            <KeyboardIcon />
+            Keyboard shortcuts
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <WhatsNewIcon />
+            What&apos;s new?
+          </DropdownMenuItem>
+          <DropdownMenuItem>
+            <StatusIcon />
+            <BrandName /> status
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           {/* Grant support access — a real menuitem so it joins the menu's
               roving focus (keyboard reachable). Enter or click toggles; the
               Switch is presentational (pointer-events-none + aria-label) and

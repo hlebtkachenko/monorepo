@@ -64,7 +64,8 @@ export function LoginPasswordForm({ email }: Props) {
         magicLinkResendIn: (s) => t("magicLinkResendIn", { seconds: s }),
         invalidCredentials: tErrors("invalidCredentials"),
         signInFailed: tErrors("signInFailed"),
-        validationFor: (key) => tValidation(key),
+        validationFor: (key) =>
+          tValidation(key as Parameters<typeof tValidation>[0]),
       }}
     />
   )

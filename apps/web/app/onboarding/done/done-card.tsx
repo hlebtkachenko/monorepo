@@ -71,7 +71,13 @@ export function DoneCard({ role }: Props) {
     setServerError(null)
     const result = await completeOnboardingAction()
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "createWorkspaceFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "createWorkspaceFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       setSubmitting(false)
       return
     }

@@ -1,0 +1,534 @@
+{
+  "brand": {
+    "name": "Afframe",
+    "tagline": "Účetní platforma navržená pro AI agenty",
+    "shortDescription": "<BRAND-SHORT-DESCRIPTION>",
+    "description": "<BRAND-DESCRIPTION>",
+    "elevatorPitch": "<BRAND-ELEVATOR-PITCH>",
+    "mission": "<BRAND-MISSION>",
+    "vision": "<BRAND-VISION>",
+    "valueProp": "<BRAND-VALUE-PROP>",
+    "legalName": "H&A PD LIMITED",
+    "legalAddress": "West Kensington Court, Edith Villas, London, England, W14 9AB",
+    "mailingAddress": "West Kensington Court, Edith Villas, London, England, W14 9AB",
+    "vatId": "<BRAND-VAT-ID>",
+    "registrationId": "14381245",
+    "copyrightHolder": "© {year} Afframe",
+    "ogTitle": "<BRAND-OG-TITLE>",
+    "ogDescription": "<BRAND-OG-DESCRIPTION>",
+    "metaKeywords": "<BRAND-META-KEYWORDS>",
+    "returnLinkLabel": "Zpět na afframe.com",
+    "returnLinkHref": "https://afframe.com"
+  },
+  "layout": {
+    "footer": {
+      "privacy": "Soukromí",
+      "terms": "Podmínky",
+      "status": "Stav"
+    }
+  },
+  "common": {
+    "back": "Zpět",
+    "continue": "Pokračovat",
+    "cancel": "Zrušit",
+    "submit": "Odeslat",
+    "submitting": "Pracujeme…",
+    "comingSoon": "Již brzy",
+    "skipForNow": "Přeskočit",
+    "step": "Krok {current} z {total}"
+  },
+  "auth": {
+    "aside": {
+      "headline": "Klidnější místo pro vedení účetnictví. Nově s agenty.",
+      "subtitle": "{brand} spojuje doklady, účetní zápisy a výkazy do jednoho pracovního prostoru, kde mohou účetní spolupracovat s AI agenty.",
+      "partnersLabel": "Firmy, které používají {brand}",
+      "quote": {
+        "text": "Afframe nahradil pět nástrojů a vrátil nám páteční večery. Náš tým má konečně čas radit klientům, místo aby honil účtenky.",
+        "author": "Lukáš Krejčí",
+        "role": "Řídící partner, Krejčí & Partneři"
+      }
+    },
+    "login": {
+      "metaTitle": "Přihlášení",
+      "email": {
+        "title": "Přihlaste se do {brand}",
+        "description": "Zadejte svůj pracovní e-mail a pokračujte.",
+        "label": "Pracovní e-mail",
+        "placeholder": "jmeno@firma.cz",
+        "submit": "Pokračovat",
+        "submitting": "Pokračujeme…",
+        "noAccount": "Nemáte účet?",
+        "contactSupport": "Kontaktovat podporu",
+        "contactSalesPrompt": "Chcete začít používat {brand} ve své firmě?",
+        "contactSalesCta": "Kontaktovat obchodní tým"
+      },
+      "password": {
+        "title": "Zadejte heslo",
+        "description": "Zadejte heslo a pokračujte do {brand}.",
+        "label": "Heslo",
+        "rememberMe": "Zapamatovat si mě na tomto zařízení",
+        "forgot": "Zapomněli jste?",
+        "submit": "Přihlásit se",
+        "submitting": "Přihlašujeme…",
+        "useDifferentEmail": "Použít jiný e-mail",
+        "emailMeLink": "Poslat mi přihlašovací odkaz e-mailem",
+        "magicLinkSentTitle": "Zkontrolujte svůj e-mail",
+        "magicLinkSentDescription": "Poslali jsme přihlašovací odkaz na {email}. Otevřete ho na tomto zařízení a pokračujte.",
+        "magicLinkResend": "Poslat odkaz znovu",
+        "magicLinkResendIn": "Znovu za {seconds} s"
+      },
+      "mfa": {
+        "title": "Dvoufaktorové ověření",
+        "description": "Zadejte 6místný kód z ověřovací aplikace pro {email}.",
+        "label": "Ověřovací kód",
+        "submit": "Ověřit a pokračovat",
+        "submitting": "Ověřujeme…",
+        "useRecoveryCode": "Použít záložní kód",
+        "useAuthenticator": "Použít kód z ověřovací aplikace",
+        "recoveryTitle": "Zadejte záložní kód",
+        "recoveryDescription": "Zadejte jeden ze záložních kódů, které jste si uložili při zapnutí dvoufaktorového ověření pro {email}.",
+        "recoveryLabel": "Záložní kód",
+        "recoveryPlaceholder": "abcde-12345"
+      },
+      "sso": {
+        "label": "Pokračovat přes SSO",
+        "tooltip": "Již brzy"
+      },
+      "magicLink": {
+        "label": "Přihlásit se přihlašovacím odkazem",
+        "tooltip": "Již brzy"
+      },
+      "divider": "nebo"
+    },
+    "mfa": {
+      "setup": {
+        "metaTitle": "Nastavení dvoufaktorového ověření",
+        "backToProfile": "Zpět na profil",
+        "password": {
+          "title": "Nastavte dvoufaktorové ověření",
+          "description": "Potvrďte heslo a přidejte ověřovací aplikaci.",
+          "label": "Současné heslo",
+          "submit": "Pokračovat",
+          "submitting": "Začínáme…",
+          "errorGeneric": "Nastavení se nepodařilo zahájit.",
+          "errorMissingUri": "Server nevrátil TOTP URI. Zkuste to znovu.",
+          "errorMissingBackup": "Server nevrátil záložní kódy. Bez záložních kódů nelze dvoufaktorové ověření zapnout."
+        },
+        "verify": {
+          "title": "Naskenujte kód ověřovací aplikací",
+          "description": "Naskenujte kód aplikací Google Authenticator, 1Password, Authy nebo jinou TOTP aplikací a poté zadejte 6místný kód, který vygeneruje.",
+          "step1": "Krok 1 – naskenujte QR kód",
+          "step1Description": "Naskenujte kód ověřovací aplikací, nebo na něj klepněte a zkopírujte nastavovací URI do schránky.",
+          "continue": "Mám naskenováno – pokračovat",
+          "backToScan": "Zpět na skenování",
+          "step2": "Krok 2 – zadejte 6místný kód",
+          "step2Description": "Otevřete ověřovací aplikaci a zadejte 6místný kód, který zobrazuje pro {brand}.",
+          "secretLabel": "Tajný klíč (ruční zadání)",
+          "secretHint": "Nemůžete skenovat? Přidejte tento tajný klíč do ověřovací aplikace ručně.",
+          "copy": "Kopírovat",
+          "copied": "Zkopírováno",
+          "label": "6místný kód",
+          "submit": "Potvrdit a zapnout",
+          "submitting": "Ověřujeme…",
+          "errorGeneric": "Neplatný kód. Zkuste to znovu."
+        },
+        "backup": {
+          "title": "Uložte si záložní kódy",
+          "description": "Pomocí těchto kódů se přihlásíte, pokud ztratíte ověřovací aplikaci. Každý kód funguje jen jednou. Uložte si je do správce hesel nebo si je vytiskněte – znovu se už nezobrazí.",
+          "copy": "Kopírovat kódy",
+          "copied": "Zkopírováno",
+          "acknowledge": "Záložní kódy jsem si uložil(a) na bezpečné místo. Rozumím, že se znovu nezobrazí.",
+          "submit": "Pokračovat",
+          "errorNotAcknowledged": "Než budete pokračovat, potvrďte, že jste si záložní kódy uložili."
+        }
+      }
+    },
+    "forgot": {
+      "metaTitle": "Zapomenuté heslo",
+      "title": "Zapomněli jste heslo?",
+      "description": "Pokud účet existuje, pošleme vám na e-mail odkaz pro obnovení hesla.",
+      "label": "Pracovní e-mail",
+      "placeholder": "jmeno@firma.cz",
+      "submit": "Poslat odkaz pro obnovení",
+      "submitting": "Odesíláme…",
+      "backToLogin": "Zpět na přihlášení",
+      "sent": {
+        "title": "Zkontrolujte svůj e-mail",
+        "description": "Pokud pro {email} existuje účet, odkaz pro obnovení hesla je na cestě.",
+        "resend": "Poslat odkaz znovu",
+        "resendIn": "Znovu za {seconds} s"
+      }
+    },
+    "reset": {
+      "metaTitle": "Obnovení hesla",
+      "title": "Nastavte si nové heslo",
+      "description": "Zvolte silné heslo o délce alespoň 12 znaků.",
+      "newPasswordLabel": "Nové heslo",
+      "confirmPasswordLabel": "Potvrzení hesla",
+      "submit": "Obnovit heslo",
+      "submitting": "Ukládáme…",
+      "backToLogin": "Zpět na přihlášení",
+      "invalidLink": {
+        "title": "Neplatný odkaz",
+        "description": "Tomuto odkazu pro obnovení chybí token. Vyžádejte si nový na stránce zapomenutého hesla.",
+        "requestNew": "Vyžádat nový odkaz"
+      },
+      "success": {
+        "title": "Heslo změněno",
+        "description": "Vaše heslo bylo obnoveno. Nyní se můžete přihlásit novým heslem.",
+        "signIn": "Přihlásit se"
+      }
+    },
+    "errors": {
+      "no-workspace-access": "Jste přihlášeni, ale k tomuto účtu není připojen žádný pracovní prostor. Požádejte podporu o pozvánku.",
+      "signup-email-mismatch": "Vaše registrační pozvánka je pro jiný e-mail, než pod kterým jste přihlášeni. Odhlaste se a otevřete odkaz z pozvánky znovu.",
+      "signup-session-expired": "Platnost registračního odkazu vypršela. Požádejte podporu o novou pozvánku.",
+      "invite-session-expired": "Platnost odkazu s pozvánkou vypršela. Požádejte odesílatele, aby ji poslal znovu.",
+      "missing-signup-token": "Registračnímu odkazu chybí token.",
+      "missing-invite-token": "Odkazu s pozvánkou chybí token.",
+      "expired": "Platnost odkazu vypršela. Vyžádejte si nový.",
+      "invalid": "Odkaz je neplatný nebo s ním bylo manipulováno.",
+      "wrong_kind": "Odkaz patří k jinému postupu.",
+      "disabled": "Tento postup je momentálně vypnutý. Kontaktujte podporu.",
+      "signInFailed": "Přihlášení se nezdařilo",
+      "emailAlreadyRegistered": "Účet s tímto e-mailem už existuje. Přihlaste se svým stávajícím heslem.",
+      "invalidCredentials": "E-mail nebo heslo není správné.",
+      "invalidCode": "Kód nesouhlasí. Zkuste to znovu.",
+      "loginSessionExpired": "Vaše přihlašovací relace vypršela. Začněte prosím znovu.",
+      "resetFailed": "Heslo se nepodařilo obnovit.",
+      "resetSent": "Pokud účet existuje, odkaz pro obnovení je na cestě.",
+      "couldNotSendReset": "E-mail pro obnovení se nepodařilo odeslat. Zkuste to za chvíli."
+    },
+    "validation": {
+      "email": {
+        "required": "Zadejte e-mailovou adresu.",
+        "invalid": "Zadejte platnou e-mailovou adresu."
+      },
+      "password": {
+        "required": "Zadejte heslo.",
+        "mismatch": "Hesla se neshodují.",
+        "length": "Alespoň 12 znaků",
+        "number": "Obsahuje číslici",
+        "symbol": "Obsahuje symbol",
+        "mixedCase": "Obsahuje velká i malá písmena"
+      },
+      "otp": {
+        "format": "Zadejte 6místný kód."
+      },
+      "token": {
+        "required": "Chybí token pro obnovení."
+      },
+      "name": {
+        "required": "Zadejte své jméno.",
+        "tooLong": "Jméno je příliš dlouhé."
+      },
+      "phone": {
+        "tooLong": "Telefonní číslo je příliš dlouhé.",
+        "format": "Zadejte platné telefonní číslo."
+      },
+      "workspace": {
+        "required": "Zadejte název pracovního prostoru.",
+        "tooLong": "Název pracovního prostoru je příliš dlouhý."
+      },
+      "invites": {
+        "tooMany": "Najednou můžete pozvat nejvýše 50 lidí."
+      }
+    },
+    "signup": {
+      "metaTitle": "Vítejte",
+      "welcome": {
+        "title": "Jste tady. Pusťme se do práce.",
+        "description": "Potvrďte svou pozvánku vystavenou podporou {brand}, platnou 7 dní.",
+        "issuedTo": "Vystaveno pro",
+        "role": "Role",
+        "ownerRole": "Vlastník pracovního prostoru",
+        "validity": "Platnost 7 dní od vystavení",
+        "continue": "Zahájit nastavení",
+        "wrongInvite": "Špatná pozvánka?",
+        "contactSupport": "Kontaktovat podporu {brand}",
+        "alreadyHave": "Už máte účet?",
+        "signIn": "Přihlásit se"
+      },
+      "mismatch": {
+        "title": "Jste přihlášeni jako někdo jiný",
+        "description": "Jste přihlášeni jako {sessionEmail}. Tento registrační odkaz byl vystaven pro {claimEmail}.",
+        "instruction": "Odhlaste se a pokračujte s tímto registračním odkazem.",
+        "signOut": "Odhlásit se a pokračovat"
+      },
+      "landing": {
+        "metaTitle": "Pokračovat v registraci",
+        "title": "Vaše pozvánka je připravena",
+        "description": "Klikněte níže a pokračujte v nastavení účtu jako {email}.",
+        "descriptionGeneric": "Pokračujte kliknutím na tlačítko níže.",
+        "continue": "Pokračovat k registraci",
+        "invalid": {
+          "title": "Odkaz je neplatný nebo vypršel",
+          "description": "Registrační odkaz už byl použit, vypršel nebo je neplatný. Kontaktujte podporu a vyžádejte si novou pozvánku.",
+          "contactSupport": "Kontaktovat podporu"
+        }
+      }
+    },
+    "invite": {
+      "metaTitle": "Pozvánka",
+      "welcome": {
+        "title": "Dostali jste pozvánku",
+        "description": "Přidejte se k týmu v {brand} a navažte tam, kde ostatní skončili.",
+        "decline": "Odmítnout pozvánku",
+        "emailLabel": "E-mail",
+        "roleLabel": "Role",
+        "continueExisting": "Přijmout pozvánku",
+        "continueNew": "Přijmout pozvánku",
+        "submittingExisting": "Připojujeme…",
+        "divider": "nebo",
+        "signInExisting": "Přihlásit se k existujícímu účtu",
+        "footnote": "Přijetím souhlasíte s podmínkami služby a zásadami ochrany soukromí {brand}. Pozvánka vyprší za 7 dní."
+      },
+      "mismatch": {
+        "title": "Jste přihlášeni jako někdo jiný",
+        "description": "Jste přihlášeni jako {sessionEmail}. Tento odkaz s pozvánkou byl vystaven pro {claimEmail}.",
+        "instruction": "Odhlaste se a pokračujte s touto pozvánkou.",
+        "signOut": "Odhlásit se a pokračovat"
+      },
+      "landing": {
+        "metaTitle": "Pokračovat k pozvánce",
+        "title": "Vaše pozvánka je připravena",
+        "descriptionGeneric": "Pokračujte kliknutím na tlačítko níže.",
+        "continue": "Pokračovat k pozvánce",
+        "invalid": {
+          "title": "Odkaz je neplatný nebo vypršel",
+          "description": "Odkaz s pozvánkou už byl použit, vypršel nebo je neplatný. Požádejte správce svého týmu o novou pozvánku.",
+          "contactSupport": "Kontaktovat podporu"
+        }
+      }
+    }
+  },
+  "onboarding": {
+    "shell": {
+      "progressLabel": "Průběh nastavení",
+      "stepIndicator": "Krok {current} z {total}"
+    },
+    "profile": {
+      "metaTitle": "Váš profil",
+      "title": "Řekněte nám, kdo jste",
+      "description": "Podle toho přizpůsobíme {brand} i to, jak vás uvidí kolegové.",
+      "avatarLabel": "Profilová fotka",
+      "avatarUpload": "Nahrát fotku",
+      "avatarEdit": "Upravit fotku",
+      "avatarHint": "PNG nebo JPG.",
+      "avatarRemove": "Odstranit fotku",
+      "avatarTooLarge": "Obrázek je příliš velký.",
+      "avatarWrongType": "Použijte obrázek PNG nebo JPG.",
+      "firstName": "Jméno",
+      "firstNamePlaceholder": "Jana",
+      "lastName": "Příjmení",
+      "lastNamePlaceholder": "Nováková",
+      "phone": "Telefon",
+      "phoneHint": "Používá se pro obnovení účtu a bezpečnostní upozornění.",
+      "phonePlaceholder": "+420123456789",
+      "locale": "Jazyk",
+      "timezone": "Časové pásmo",
+      "submit": "Pokračovat",
+      "submitting": "Ukládáme…"
+    },
+    "experience": {
+      "metaTitle": "Vaše zkušenosti",
+      "title": "Jak dobře znáte účetnictví?",
+      "description": "Přizpůsobíme prostředí vaší úrovni. Později to můžete změnit.",
+      "submit": "Pokračovat",
+      "submitting": "Ukládáme…",
+      "options": {
+        "new": {
+          "title": "S účetnictvím začínám",
+          "description": "Teprve se rozkoukávám."
+        },
+        "some": {
+          "title": "Mám základní zkušenosti",
+          "description": "Účetnictví jsem vedl(a) příležitostně."
+        },
+        "bookkeeper": {
+          "title": "Účetní",
+          "description": "S účetními knihami pracuji den co den."
+        },
+        "accountant": {
+          "title": "Certifikovaný účetní",
+          "description": "Jsem certifikovaný/á účetní."
+        }
+      }
+    },
+    "password": {
+      "metaTitle": "Zvolte si heslo",
+      "title": "Zvolte si heslo",
+      "description": "Zvolte silné heslo o délce alespoň 12 znaků. Budete se jím přihlašovat spolu s {email}.",
+      "emailLabel": "E-mail",
+      "newPasswordLabel": "Heslo",
+      "confirmPasswordLabel": "Potvrzení hesla",
+      "submit": "Vytvořit účet",
+      "submitting": "Vytváříme účet…"
+    },
+    "workspace": {
+      "metaTitle": "Váš pracovní prostor",
+      "title": "Nastavte si pracovní prostor",
+      "description": "Pracovní prostor je domovem vašeho týmu a klientů v {brand}.",
+      "displayName": "Název pracovního prostoru",
+      "displayNamePlaceholder": "např. Krejčí & Partneři",
+      "useCase": "Jak budete {brand} používat?",
+      "useCaseOptions": {
+        "firm": {
+          "title": "Pro účetní kancelář",
+          "description": "Vedeme účetnictví více klientům."
+        },
+        "biz": {
+          "title": "Pro vlastní firmu",
+          "description": "Vedeme si vlastní účetnictví."
+        }
+      },
+      "teamSize": "Velikost týmu",
+      "teamSizeOptions": {
+        "solo": "Jen já",
+        "sm": "2 – 5",
+        "md": "6 – 20",
+        "lg": "21 – 50",
+        "xl": "50+"
+      },
+      "submit": "Pokračovat",
+      "submitting": "Ukládáme…"
+    },
+    "plan": {
+      "metaTitle": "Vyberte si plán",
+      "title": "Vyberte si plán",
+      "description": "Plán můžete kdykoli změnit. Během beta verze není potřeba platební karta.",
+      "submit": "Pokračovat",
+      "submitting": "Ukládáme…",
+      "perMonth": "/měs.",
+      "plans": {
+        "starter": {
+          "name": "Starter",
+          "price": "Zdarma",
+          "description": "Pro samostatné účetní, kteří začínají.",
+          "features": {
+            "f1": "Až 1 organizace",
+            "f2": "Až 2 uživatelé",
+            "f3": "Základní účetní kniha + výkazy"
+          }
+        },
+        "growth": {
+          "name": "Growth",
+          "price": "$29",
+          "description": "Rostoucí kanceláře s více klienty.",
+          "badge": "Nejoblíbenější",
+          "features": {
+            "f1": "Až 10 organizací",
+            "f2": "Až 20 uživatelů",
+            "f3": "Agenti + automatizace",
+            "f4": "Prioritní podpora"
+          }
+        },
+        "scale": {
+          "name": "Scale",
+          "price": "$99",
+          "description": "Zavedené kanceláře s rozsáhlým provozem.",
+          "features": {
+            "f1": "Neomezený počet organizací",
+            "f2": "Neomezený počet uživatelů",
+            "f3": "Vlastní agenti + SSO",
+            "f4": "Vyhrazený customer success manažer"
+          }
+        }
+      }
+    },
+    "team": {
+      "metaTitle": "Pozvěte svůj tým",
+      "title": "Pozvěte svůj tým",
+      "description": "Přidejte lidi, se kterými budete pracovat. Další můžete pozvat kdykoli později.",
+      "addAnother": "Přidat dalšího",
+      "emailPlaceholder": "kolega@firma.cz",
+      "roleLabel": "Role",
+      "submit": "Odeslat pozvánky",
+      "submitting": "Ukládáme…",
+      "skip": "Přeskočit",
+      "note": "Pozvánky se odešlou okamžitě. Další kolegy můžete kdykoli pozvat později v nastavení pracovního prostoru.",
+      "toast": {
+        "sentTitle": "{count, plural, one {# pozvánka odeslána} few {# pozvánky odeslány} many {# pozvánky odesláno} other {# pozvánek odesláno}}",
+        "sentDescription": "Každá pozvánka obsahuje odkaz pro připojení k vašemu pracovnímu prostoru. Pokud do několika minut nedorazí, požádejte kolegu, ať zkontroluje složku se spamem.",
+        "failedTitle": "{count, plural, one {# pozvánku se nepodařilo odeslat} few {# pozvánky se nepodařilo odeslat} many {# pozvánky se nepodařilo odeslat} other {# pozvánek se nepodařilo odeslat}}",
+        "failedDescription": "Některé pozvánky se nepodařilo odeslat. Tyto kolegy můžete znovu pozvat později v nastavení pracovního prostoru."
+      }
+    },
+    "done": {
+      "metaTitle": "Vše je připraveno",
+      "title": "Vše je připraveno",
+      "description": "Váš pracovní prostor je připraven. Tady jsou další kroky.",
+      "open": "Otevřít {brand}",
+      "timelineLabel": "Průběh nastavení",
+      "timeline": {
+        "step1": "Profil",
+        "step2": "Zkušenosti",
+        "step3": "Účet",
+        "step4": "Pracovní prostor",
+        "step5": "Plán",
+        "step6": "Tým",
+        "step7": "Hotovo"
+      },
+      "nextSteps": {
+        "title": "Další kroky",
+        "addOrg": "Přidejte první organizaci",
+        "addOrgDescription": "Založte účetnictví klienta nebo vlastní firmy.",
+        "inviteMore": "Pozvěte další kolegy",
+        "inviteMoreDescription": "V nastavení pracovního prostoru.",
+        "exploreAgents": "Prozkoumejte AI agenty",
+        "exploreAgentsDescription": "Podívejte se, jak vám agenti mohou ulevit od rutinní práce."
+      }
+    },
+    "revalidate": {
+      "metaTitle": "Potvrďte svou totožnost",
+      "title": "Potvrďte svou totožnost",
+      "description": "Z bezpečnostních důvodů prosím před pokračováním znovu zadejte heslo.",
+      "passwordLabel": "Heslo",
+      "submit": "Potvrdit",
+      "submitting": "Potvrzujeme…",
+      "invalidCredentials": "Nesprávné heslo. Zkuste to znovu.",
+      "error": "Něco se pokazilo. Zkuste to znovu."
+    },
+    "errors": {
+      "sessionExpired": "Vaše relace nastavení vypršela. Přihlaste se a pokračujte.",
+      "createAccountFailed": "Účet se nepodařilo vytvořit.",
+      "createWorkspaceFailed": "Pracovní prostor se nepodařilo vytvořit.",
+      "savePlanFailed": "Volbu plánu se nepodařilo uložit.",
+      "saveProfileFailed": "Profil se nepodařilo uložit.",
+      "persistOnboardingFailed": "Nastavení účtu se nepodařilo dokončit.",
+      "uploadAvatarFailed": "Profilovou fotku se nepodařilo nahrát.",
+      "saveExperienceFailed": "Vaše zkušenosti se nepodařilo uložit.",
+      "saveTeamFailed": "Pozvánky se nepodařilo uložit.",
+      "noActiveWorkspace": "Váš pracovní prostor jsme nenašli. Přihlaste se znovu a pokračujte.",
+      "acceptInviteFailed": "Pozvánku se nepodařilo přijmout.",
+      "emailAlreadyRegistered": "Účet s tímto e-mailem už existuje. Přihlaste se svým stávajícím heslem.",
+      "invalidInput": "Některá pole nejsou vyplněna správně. Zkontrolujte formulář a zkuste to znovu.",
+      "inviteEmailMismatch": "Tato pozvánka je adresována jinému e-mailu. Odhlaste se a otevřete odkaz znovu s pozvanou adresou."
+    }
+  },
+  "admin": {
+    "auth": {
+      "statusLabel": "Stav",
+      "statusHref": "https://status.afframe.com",
+      "aside": {
+        "quote": {
+          "text": "Když si nikdo nestěžuje, buď všechno funguje, nebo nefungují notifikace.",
+          "author": "Zdroj",
+          "role": "Podpora, po jednom špatném pondělí"
+        }
+      },
+      "login": {
+        "email": {
+          "title": "Přihlaste se do {brand} <admin>Admin</admin>",
+          "placeholder": "jmeno@afframe.com"
+        },
+        "password": {
+          "description": "Zadejte heslo a pokračujte do {brand} Admin."
+        }
+      },
+      "forgot": {
+        "placeholder": "jmeno@afframe.com"
+      }
+    }
+  }
+}

@@ -47,7 +47,8 @@ export function LoginMfaForm({ email }: Props) {
         recoveryPlaceholder: t("recoveryPlaceholder"),
         useAuthenticator: t("useAuthenticator"),
         invalidCode: tErrors("invalidCode"),
-        validationFor: (key) => tValidation(key),
+        validationFor: (key) =>
+          tValidation(key as Parameters<typeof tValidation>[0]),
       }}
     />
   )

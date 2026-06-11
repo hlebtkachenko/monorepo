@@ -27,7 +27,7 @@ import { LanguagePicker } from "../../_components/language-picker"
 import { RevalidateForm } from "./revalidate-form"
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("auth.revalidate")
+  const t = await getTranslations("onboarding.revalidate")
   return { title: t("metaTitle") }
 }
 
@@ -41,7 +41,7 @@ export default async function RevalidatePage() {
   const tBrand = await getTranslations("brand")
   const tLayout = await getTranslations("layout.footer")
   const tAside = await getTranslations("auth.aside")
-  const tRevalidate = await getTranslations("auth.revalidate")
+  const tRevalidate = await getTranslations("onboarding.revalidate")
   const brand = tBrand("name")
 
   return (

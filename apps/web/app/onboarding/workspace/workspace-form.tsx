@@ -65,7 +65,8 @@ export function WorkspaceForm() {
 
   function translate(msg: string | undefined): string | undefined {
     if (!msg) return undefined
-    if (msg.startsWith("workspace.")) return tValidation(msg)
+    if (msg.startsWith("workspace."))
+      return tValidation(msg as Parameters<typeof tValidation>[0])
     return msg
   }
 
@@ -73,7 +74,13 @@ export function WorkspaceForm() {
     setServerError(null)
     const result = await submitWorkspaceAction(values)
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "createWorkspaceFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "createWorkspaceFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       return
     }
     router.push("/onboarding/plan")

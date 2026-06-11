@@ -1,3 +1,5 @@
+/// <reference path="./global.d.ts" />
+
 /**
  * Client-side helpers. Re-export from next-intl so consumers can:
  *

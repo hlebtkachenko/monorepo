@@ -64,7 +64,8 @@ export function PasswordForm({ email, role }: Props) {
 
   function translate(msg: string | undefined): string | undefined {
     if (!msg) return undefined
-    if (msg.startsWith("password.")) return tValidation(msg)
+    if (msg.startsWith("password."))
+      return tValidation(msg as Parameters<typeof tValidation>[0])
     return msg
   }
 
@@ -72,7 +73,13 @@ export function PasswordForm({ email, role }: Props) {
     setServerError(null)
     const result = await submitPasswordAction(values)
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "createAccountFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "createAccountFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       return
     }
 

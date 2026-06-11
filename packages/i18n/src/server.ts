@@ -1,3 +1,5 @@
+/// <reference path="./global.d.ts" />
+
 /**
  * Server-side helpers for Server Components, Route Handlers, and Server
  * Actions. Re-export from next-intl/server so consumers can:

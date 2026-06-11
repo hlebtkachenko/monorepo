@@ -64,7 +64,13 @@ export function ExperienceForm({ initial }: Props) {
     setServerError(null)
     const result = await submitExperienceAction(values)
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "saveExperienceFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "saveExperienceFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       return
     }
     router.push("/onboarding/password")

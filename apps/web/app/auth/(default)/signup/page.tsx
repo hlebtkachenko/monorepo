@@ -4,6 +4,7 @@ import Link from "next/link"
 import { auth } from "@workspace/auth/server"
 import { truncateIp } from "@workspace/auth/tokens"
 import { getTranslations } from "@workspace/i18n/server"
+import { BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"
 import {
   AuthTokenContinueCard,
   AuthTokenInvalidCard,
@@ -180,13 +181,13 @@ export default async function SignupWelcomePage({ searchParams }: PageProps) {
 
       <Text variant="muted">
         {t("wrongInvite")}{" "}
-        <Link
-          href="#"
+        <a
+          href={`mailto:${BRAND_SUPPORT_EMAIL}`}
           className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
         >
           {t("contactSupport", { brand: brandName })}
           <ArrowUpRight className="size-3" aria-hidden="true" />
-        </Link>
+        </a>
       </Text>
     </div>
   )
@@ -214,7 +215,7 @@ async function renderInvalid() {
       title={t("invalid.title")}
       description={t("invalid.description")}
       contactLabel={t("invalid.contactSupport")}
-      contactHref="#"
+      contactHref={`mailto:${BRAND_SUPPORT_EMAIL}`}
     />
   )
 }

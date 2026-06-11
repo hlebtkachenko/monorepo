@@ -3,6 +3,13 @@
 // Every outbound sender (api, web, workers, CI glue) imports this so the message
 // shape is agreed in one place.
 
+export {
+  clientIp,
+  isSameOrigin,
+  createRateLimiter,
+  type RateLimiterOptions,
+} from "./request-gate"
+
 export type AlertLevel = "info" | "success" | "warn" | "error"
 
 /** The body of a POST /ingest call. `buttons` are one-tap labels (label == callback data). */

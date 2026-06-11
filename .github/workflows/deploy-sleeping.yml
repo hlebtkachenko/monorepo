@@ -37,6 +37,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # Install workspace deps (incl. wrangler) with pnpm BEFORE the
+      # wrangler-action. Without this the action finds no local wrangler and
+      # falls back to `npm i wrangler`, which dies on this package's
+      # `workspace:*` devDep (`npm error EUNSUPPORTEDPROTOCOL`). Same pattern as
+      # deploy-bot.yml. The action then uses the pnpm-installed wrangler.
+      - uses: ./.github/actions/setup
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:

@@ -9,7 +9,7 @@
     "model.fga"
   ],
   "dependencies": {
-    "@aws-sdk/client-ssm": "^3.1053.0",
+    "@aws-sdk/client-ssm": "^3.1061.0",
     "@openfga/sdk": "^0.9.6",
     "@openfga/syntax-transformer": "^0.2.1"
   }

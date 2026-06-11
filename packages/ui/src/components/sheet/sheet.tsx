@@ -72,7 +72,9 @@ function SheetContent({
           <SheetPrimitive.Close data-slot="sheet-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-3 right-3"
+              // 28px (icon-sm) at md+; ≥40px touch target below md where the
+              // sheet is the mobile drawer (DEV-77 / WCAG 2.5.8).
+              className="absolute top-3 right-3 max-md:size-10"
               size="icon-sm"
             >
               <XIcon />

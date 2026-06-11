@@ -38,7 +38,9 @@ function NavigationBottomMobileList({
         "fixed inset-x-0 bottom-0 z-10",
         "flex w-full items-center justify-around",
         "min-h-14 shrink-0",
-        "border-t border-border bg-background/60 backdrop-blur-sm",
+        // App-chrome surface: use the shell token family (DEV-77), matching
+        // the rail/header rather than the global card/background tokens.
+        "border-t border-border-subtle bg-shell-surface/60 backdrop-blur-sm",
         "pb-[env(safe-area-inset-bottom,0px)]",
         className,
       )}

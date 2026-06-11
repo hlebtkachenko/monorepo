@@ -162,6 +162,7 @@ function ChartTooltipContent({
   color,
   nameKey,
   labelKey,
+  locale = "en-US",
 }: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
   React.ComponentProps<"div"> & {
     hideLabel?: boolean
@@ -169,6 +170,12 @@ function ChartTooltipContent({
     indicator?: "line" | "dot" | "dashed"
     nameKey?: string
     labelKey?: string
+    /**
+     * BCP-47 locale for numeric tooltip values (e.g. "cs-CZ" renders
+     * `1 234,56`). Defaults to "en-US" so SSR + client markup stay
+     * consistent when no locale is threaded in.
+     */
+    locale?: string
   } & Omit<
     RechartsPrimitive.DefaultTooltipContentProps<
       TooltipValueType,
@@ -287,8 +294,7 @@ function ChartTooltipContent({
                       {item.value != null && (
                         <span className="font-mono font-medium text-foreground tabular-nums">
                           {typeof item.value === "number"
-                            ? // hardcoded en-US for SSR consistency
-                              item.value.toLocaleString("en-US")
+                            ? item.value.toLocaleString(locale)
                             : String(item.value)}
                         </span>
                       )}

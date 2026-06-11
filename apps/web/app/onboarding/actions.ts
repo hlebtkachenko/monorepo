@@ -68,8 +68,12 @@ async function getActiveUserId(): Promise<string | null> {
   return session?.user?.id ?? null
 }
 
-function firstErrorKey(zodIssues: Array<{ message: string }>): string {
-  return zodIssues[0]?.message ?? "invalid"
+// Server-side validation failures surface one generic error. Field-level
+// messages are the client form's job; the zod issue messages are
+// `auth.validation` keys, which the `onboarding.errors` namespace the forms
+// resolve against can never contain — passing them through rendered raw keys.
+function firstErrorKey(_zodIssues: Array<{ message: string }>): string {
+  return "invalidInput"
 }
 
 // ---------------------------------------------------------------------------

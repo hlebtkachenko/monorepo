@@ -27,7 +27,7 @@ export function RevalidateForm() {
   const search = useSearchParams()
   const next = sanitizeNext(search.get("next"))
 
-  const t = useTranslations("auth.revalidate")
+  const t = useTranslations("onboarding.revalidate")
 
   const [password, setPassword] = useState("")
   const [submitting, setSubmitting] = useState(false)

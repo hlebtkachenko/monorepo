@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
 import { truncateIp } from "@workspace/auth/tokens"
 import { getTranslations } from "@workspace/i18n/server"
+import { BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"
 import {
   AuthTokenContinueCard,
   AuthTokenInvalidCard,
@@ -121,7 +122,7 @@ async function renderInvalid() {
       title={t("invalid.title")}
       description={t("invalid.description")}
       contactLabel={t("invalid.contactSupport")}
-      contactHref="#"
+      contactHref={`mailto:${BRAND_SUPPORT_EMAIL}`}
     />
   )
 }

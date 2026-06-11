@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import {
+  clientIp,
+  createRateLimiter,
   isIgnorableError,
+  isSameOrigin,
   notifierFromEnv,
   sanitizeError,
 } from "@workspace/notify"
@@ -28,63 +31,14 @@ interface ClientErrorBody {
 //      today; same accepted posture as Better Auth's memory rate limiter). The bot-side
 //      fingerprint dedup remains the second line of defense.
 
-const BUCKET_CAPACITY = 5
-const REFILL_PER_MS = 5 / 60_000 // 5 tokens per minute
-const MAX_TRACKED_IPS = 10_000
-const buckets = new Map<string, { tokens: number; last: number }>()
-
-function clientIp(req: Request): string {
-  // Cloudflare always overwrites cf-connecting-ip; behind the tunnel the
-  // LAST XFF hop is the CF-appended real client (first hops are spoofable).
-  const cf = req.headers.get("cf-connecting-ip")
-  if (cf) return cf
-  const xff = req.headers.get("x-forwarded-for")
-  if (xff) {
-    const last = xff.split(",").at(-1)?.trim()
-    if (last) return last
-  }
-  return "unknown"
-}
-
-function allowByRate(ip: string): boolean {
-  const now = Date.now()
-  // Bound memory: a flood of distinct (spoofed) IPs would otherwise grow the
-  // map without limit. Clearing resets everyone's bucket — acceptable trade.
-  if (buckets.size > MAX_TRACKED_IPS) buckets.clear()
-  const bucket = buckets.get(ip) ?? { tokens: BUCKET_CAPACITY, last: now }
-  bucket.tokens = Math.min(
-    BUCKET_CAPACITY,
-    bucket.tokens + (now - bucket.last) * REFILL_PER_MS,
-  )
-  bucket.last = now
-  if (bucket.tokens < 1) {
-    buckets.set(ip, bucket)
-    return false
-  }
-  bucket.tokens -= 1
-  buckets.set(ip, bucket)
-  return true
-}
-
-function isSameOrigin(req: Request): boolean {
-  const site = req.headers.get("sec-fetch-site")
-  if (site) return site === "same-origin"
-  // No fetch metadata (older browsers, non-browser clients): fall back to the
-  // Origin header, which browsers always attach to POSTs. Callers with
-  // neither header are not our reporter — reject. Behind the Cloudflare
-  // Tunnel the process-visible Host is the container listener (ADR-0008);
-  // the public host arrives in x-forwarded-host.
-  const origin = req.headers.get("origin")
-  if (!origin) return false
-  try {
-    return (
-      new URL(origin).host ===
-      (req.headers.get("x-forwarded-host") ?? req.headers.get("host"))
-    )
-  } catch {
-    return false
-  }
-}
+// Per-IP token bucket (OBS-14): 5 reports, refilling 5/min. The same-origin +
+// rate-limit helpers are shared with the admin sink via @workspace/notify
+// (DEV-81). The bucket stays per-app/per-instance.
+const allowByRate = createRateLimiter({
+  capacity: 5,
+  refillPerMs: 5 / 60_000,
+  maxTrackedIps: 10_000,
+})
 
 // Next.js redacts server-component error messages in production builds, so
 // ALL distinct RSC errors arrive with this one generic message. When it

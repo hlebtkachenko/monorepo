@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import {
+  clientIp,
+  createRateLimiter,
   isIgnorableError,
+  isSameOrigin,
   notifierFromEnv,
   sanitizeError,
 } from "@workspace/notify"
@@ -23,56 +26,14 @@ interface ClientErrorBody {
 // and therefore PER-INSTANCE (limits multiply by task count, reset on restart;
 // desiredCount=1 today) — accepted, same posture as the web route.
 
-const BUCKET_CAPACITY = 5
-const REFILL_PER_MS = 5 / 60_000 // 5 tokens per minute
-const MAX_TRACKED_IPS = 10_000
-const buckets = new Map<string, { tokens: number; last: number }>()
-
-function clientIp(req: Request): string {
-  const cf = req.headers.get("cf-connecting-ip")
-  if (cf) return cf
-  const xff = req.headers.get("x-forwarded-for")
-  if (xff) {
-    const last = xff.split(",").at(-1)?.trim()
-    if (last) return last
-  }
-  return "unknown"
-}
-
-function allowByRate(ip: string): boolean {
-  const now = Date.now()
-  if (buckets.size > MAX_TRACKED_IPS) buckets.clear()
-  const bucket = buckets.get(ip) ?? { tokens: BUCKET_CAPACITY, last: now }
-  bucket.tokens = Math.min(
-    BUCKET_CAPACITY,
-    bucket.tokens + (now - bucket.last) * REFILL_PER_MS,
-  )
-  bucket.last = now
-  if (bucket.tokens < 1) {
-    buckets.set(ip, bucket)
-    return false
-  }
-  bucket.tokens -= 1
-  buckets.set(ip, bucket)
-  return true
-}
-
-function isSameOrigin(req: Request): boolean {
-  const site = req.headers.get("sec-fetch-site")
-  if (site) return site === "same-origin"
-  // Behind the Cloudflare Tunnel the process-visible Host is the container
-  // listener (ADR-0008); the public host arrives in x-forwarded-host.
-  const origin = req.headers.get("origin")
-  if (!origin) return false
-  try {
-    return (
-      new URL(origin).host ===
-      (req.headers.get("x-forwarded-host") ?? req.headers.get("host"))
-    )
-  } catch {
-    return false
-  }
-}
+// Per-IP token bucket (OBS-14): 5 reports, refilling 5/min. The same-origin +
+// rate-limit helpers are shared with the web sink via @workspace/notify
+// (DEV-81). The bucket stays per-app/per-instance.
+const allowByRate = createRateLimiter({
+  capacity: 5,
+  refillPerMs: 5 / 60_000,
+  maxTrackedIps: 10_000,
+})
 
 // Next.js redacts server-component error messages in production; when the
 // generic message arrives, the digest is the only distinguishing datum.

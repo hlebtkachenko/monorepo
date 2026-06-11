@@ -202,13 +202,30 @@ export function OrgHeaderActions({
 
   return (
     <TooltipProvider delayDuration={200}>
+      {/* Below md the header band is too narrow for the full cluster (the
+          search input flexes to zero width) — only Sidekick + profile stay;
+          Get Started, Inbox, Tasks, and Help are desktop-only for v1. */}
       <GetStartedButton />
-      <IconButton icon="Inbox" tooltip="Inbox" tooltipSide="bottom" />
-      <IconButton icon="ListTodo" tooltip="Tasks" tooltipSide="bottom" />
+      <IconButton
+        icon="Inbox"
+        tooltip="Inbox"
+        tooltipSide="bottom"
+        className="max-md:hidden"
+      />
+      <IconButton
+        icon="ListTodo"
+        tooltip="Tasks"
+        tooltipSide="bottom"
+        className="max-md:hidden"
+      />
 
       <DropdownMenu modal={false}>
         <HeaderMenuTrigger tooltip="Get help">
-          <IconButton icon="CircleHelp" aria-label="Get help" />
+          <IconButton
+            icon="CircleHelp"
+            aria-label="Get help"
+            className="max-md:hidden"
+          />
         </HeaderMenuTrigger>
         <DropdownMenuContent
           align="start"
@@ -471,7 +488,7 @@ function GetStartedButton() {
       type="button"
       variant="outline"
       size="sm"
-      className="relative h-8 w-[90px] rounded-md border-input px-0 text-[length:var(--icon-label-size)] text-rail-label-active before:absolute before:-inset-x-1 before:-inset-y-1 before:content-['']"
+      className="relative h-8 w-[90px] rounded-md border-input px-0 text-[length:var(--icon-label-size)] text-rail-label-active before:absolute before:-inset-x-1 before:-inset-y-1 before:content-[''] max-md:hidden"
     >
       Get Started
     </Button>

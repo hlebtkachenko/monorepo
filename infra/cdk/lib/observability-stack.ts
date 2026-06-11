@@ -12,6 +12,7 @@ import { Topic } from "aws-cdk-lib/aws-sns"
 import {
   DefaultDashboardFactory,
   MonitoringFacade,
+  SnsAlarmActionStrategy,
 } from "cdk-monitoring-constructs"
 import type { Construct } from "constructs"
 import type { AppStack } from "./app-stack.js"
@@ -63,14 +64,32 @@ export class ObservabilityStack extends Stack {
   constructor(scope: Construct, id: string, props: ObservabilityStackProps) {
     super(scope, id, props)
 
+    // Created before the MonitoringFacade because the facade's default alarm
+    // action publishes here.
+    this.billingTopic = new Topic(this, "BillingTopic", {
+      displayName: `monorepo-${props.envName} regional alerts`,
+    })
+
+    // Email subscriber is workflow-managed (`aws sns subscribe --protocol
+    // email`, with ::add-mask:: on the address). Keeping the email out
+    // of the CDK template keeps it out of `cdk diff` output + CI logs.
+    // Workflow finds this topic via the BillingTopicArn CfnOutput below.
+
     // CloudWatch Dashboard names are account-global (per-region). The
     // facade's default DashboardFactory uses the construct id ("MonitoringFacade")
     // as the dashboard name, which collides across env stacks. Inject an
     // env-prefixed factory so staging + production own distinct dashboards.
+    //
+    // `action` wires every facade-generated alarm (Service-CPU/Memory-Warning,
+    // Postgres-CPU-Warning/Critical, Postgres FreeStorage Warning) to the
+    // BillingTopic. Without it the facade renders alarms with NO AlarmActions
+    // — they bill $0.10/mo each and never notify anyone (found live
+    // 2026-06-11: 10 actionless alarms across both envs).
     const monitoring = new MonitoringFacade(this, "MonitoringFacade", {
       alarmFactoryDefaults: {
         actionsEnabled: true,
         alarmNamePrefix: `monorepo-${props.envName}`,
+        action: new SnsAlarmActionStrategy({ onAlarmTopic: this.billingTopic }),
       },
       dashboardFactory: new DefaultDashboardFactory(this, "Dashboards", {
         dashboardNamePrefix: `monorepo-${props.envName}`,
@@ -99,15 +118,6 @@ export class ObservabilityStack extends Stack {
         Warning: { minCount: 5_000_000_000 },
       },
     })
-
-    this.billingTopic = new Topic(this, "BillingTopic", {
-      displayName: `monorepo-${props.envName} regional alerts`,
-    })
-
-    // Email subscriber is workflow-managed (`aws sns subscribe --protocol
-    // email`, with ::add-mask:: on the address). Keeping the email out
-    // of the CDK template keeps it out of `cdk diff` output + CI logs.
-    // Workflow finds this topic via the BillingTopicArn CfnOutput below.
 
     const snsAction = new SnsAction(this.billingTopic)
     const killSwitchAction = new SnsAction(props.killSwitchTopic)

@@ -89,4 +89,45 @@ describe("ObservabilityStack", () => {
     const all = template.findResources("AWS::CloudWatch::Alarm")
     expect(Object.keys(all).length).toBeGreaterThanOrEqual(7)
   })
+
+  it("leaves no alarm without an AlarmAction (every alarm must notify someone)", () => {
+    // Found live 2026-06-11: the facade-generated Warning/Critical alarms
+    // (Service-CPU/Memory-Warning, Postgres-CPU-*, Postgres FreeStorage)
+    // rendered with NO AlarmActions — billed $0.10/mo each, never paged.
+    // The facade's alarmFactoryDefaults.action (SnsAlarmActionStrategy →
+    // BillingTopic) fixes that; this invariant keeps any future alarm —
+    // facade or manual — from shipping actionless.
+    const all = template.findResources("AWS::CloudWatch::Alarm")
+    for (const [logicalId, alarm] of Object.entries(all)) {
+      const props = (
+        alarm as {
+          Properties?: { AlarmName?: string; AlarmActions?: unknown[] }
+        }
+      ).Properties
+      expect(
+        props?.AlarmActions?.length ?? 0,
+        `${props?.AlarmName ?? logicalId} has no AlarmActions`,
+      ).toBeGreaterThanOrEqual(1)
+    }
+  })
+
+  it("wires the facade-generated warning alarms to the BillingTopic", () => {
+    const all = template.findResources("AWS::CloudWatch::Alarm")
+    const facadeAlarms = Object.values(all).filter((a) => {
+      const name = (a as { Properties?: { AlarmName?: string } }).Properties
+        ?.AlarmName
+      // Facade names use TitleCase segments (e.g. monorepo-test-Service-CPU-Usage-Warning),
+      // manual alarms are all-lowercase.
+      return name?.startsWith("monorepo-test-") && /[A-Z]/.test(name.slice(14))
+    }) as { Properties?: { AlarmActions?: { Ref?: string }[] } }[]
+
+    // monitorSimpleFargateService (CPU+Memory Warning) + monitorRdsInstance
+    // (CPU Warning+Critical, FreeStorage Warning) = 5 facade alarms.
+    expect(facadeAlarms.length).toBe(5)
+    for (const alarm of facadeAlarms) {
+      const actions = alarm.Properties?.AlarmActions ?? []
+      expect(actions.length).toBe(1)
+      expect(actions[0]?.Ref).toMatch(/^BillingTopic/)
+    }
+  })
 })

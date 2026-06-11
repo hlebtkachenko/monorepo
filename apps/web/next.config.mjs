@@ -23,7 +23,13 @@ const contentSecurityPolicy = [
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-  "upgrade-insecure-requests",
+  // `upgrade-insecure-requests` rewrites every subresource fetch to https.
+  // Correct in production (always https). In dev it breaks the http localhost
+  // server: WebKit honors the upgrade on loopback, so CSS/JS/fonts are fetched
+  // over https://localhost (which the dev server can't answer) and the page
+  // renders unstyled; Chromium silently exempts loopback, hiding the bug.
+  // Production only.
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ")
 
 /** @type {import('next').NextConfig} */
@@ -47,10 +53,17 @@ const nextConfig = {
       {
         source: "/(.*)",
         headers: [
-          {
-            key: "Strict-Transport-Security",
-            value: "max-age=31536000; includeSubDomains",
-          },
+          // HSTS is an https-only directive; browsers ignore it over http, so
+          // on the http dev server it is dead weight at best and a pin risk at
+          // worst. Production only.
+          ...(isDev
+            ? []
+            : [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=31536000; includeSubDomains",
+                },
+              ]),
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {

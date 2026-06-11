@@ -18,6 +18,9 @@ overrides:
   tmp: ">=0.2.6"
   # Force >=6.15.2: qs.stringify DoS fix. Transitive via express (body-parser) + supertest (superagent).
   qs: ">=6.15.2"
+  # Force >=18.2.1: CVE-2026-48038 RangeError DoS via recursive link() schemas.
+  # Transitive (dev/test only) via @storybook/test-runner -> jest-process-manager -> wait-on.
+  joi: ">=18.2.1"
   # Force >=4.12.21: 4 GHSAs in transitive 4.12.18 via @modelcontextprotocol/sdk
   # (Set-Cookie injection, IPv6 deny bypass, JWT scheme accept-any, mount-prefix
   # routing). SDK's own range is ^4.11.4, so dedupes onto our direct 4.12.23.

@@ -81,7 +81,6 @@ export async function readOnboardingState(): Promise<State> {
     try {
       setAuthCookie(cookieStore, "ons", raw, {
         ttlSecondsOverride: remainingSeconds,
-        insecureLocalDev: process.env.NODE_ENV !== "production",
       })
     } catch {
       // Server components cannot always set cookies; ignore the error.
@@ -111,7 +110,6 @@ export async function writeOnboardingState(partial: State): Promise<void> {
   })
   setAuthCookie(cookieStore, "ons", rawToken, {
     ttlSecondsOverride: COOKIE_TTL_SECONDS,
-    insecureLocalDev: process.env.NODE_ENV !== "production",
   })
 }
 

@@ -39,12 +39,12 @@ export async function setActiveWorkspaceCookie(
     payload: { workspaceId },
     ttlSeconds: COOKIE_TTL_SECONDS,
   })
-  // The __Host- prefix requires Secure. In local dev (non-HTTPS) the
-  // cookie will be rejected by the browser; the dev workaround is to
-  // toggle insecureLocalDev for non-prod.
+  // The __Host- prefix requires Secure, and setAuthCookie throws on the
+  // insecureLocalDev + __Host- combination — never pass the flag for this
+  // kind. Browsers accept Secure cookies on http://localhost, so plain
+  // `pnpm dev` works without any workaround.
   setAuthCookie(cookieStore, "wks", rawToken, {
     ttlSecondsOverride: COOKIE_TTL_SECONDS,
-    insecureLocalDev: process.env.NODE_ENV !== "production",
   })
 }
 

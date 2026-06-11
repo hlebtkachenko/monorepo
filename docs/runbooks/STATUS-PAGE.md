@@ -447,7 +447,7 @@ hard requirement or a hard-won workaround:
       (the response-validator's `region` enum doesn't include private-location slugs —
       an upstream self-host quirk). **Save anyway**. Scheduled checks run fine.
     - For production monitors (`web-app-prod`, `api-prod`, `admin-prod`): set
-      **Active: OFF**. Production is not deployed yet; flip on after the first prod deploy.
+      **Active: OFF** by default. Production is deployed (live since v0.2.5) — flip these ON if they are not already.
     - For the DNS monitor: assertion `A · Not Equal · 0.0.0.0` (the UI requires a target
       — no "not empty" option).
 

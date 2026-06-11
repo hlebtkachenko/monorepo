@@ -1,7 +1,8 @@
 {
   // Afframe Telegram bot — sole owner of all Telegram I/O.
-  // Local experiment: run with `wrangler dev` (reads .dev.vars). NOT deployed yet.
-  // Secrets in prod go via `wrangler secret put`; routes/custom-domain added at deploy time.
+  // Deployed to Cloudflare Workers at bot.afframe.com (ENVIRONMENT=production) via
+  // .github/workflows/deploy-bot.yml. Local dev: `wrangler dev` (reads .dev.vars,
+  // local SQLite). Prod secrets via `wrangler secret put`.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "afframe-bot",
   "main": "src/index.ts",
@@ -20,9 +21,10 @@
     // Public API base for the /status lightweight ping (hits ${API_URL}/api/health).
     "API_URL": "https://api.afframe.com",
   },
-  // Bot state (dedup, approvals, heartbeats, snooze). database_id is filled after
-  // `wrangler d1 create afframe-bot` (a credentialed manual step). Local `wrangler dev`
-  // uses a local SQLite simulation and ignores the id.
+  // Bot state (dedup, approvals, heartbeats, snooze). The deploy-bot workflow runs
+  // `wrangler d1 create afframe-bot` (idempotent) and injects the real database_id
+  // into the CI workspace copy at deploy time, so the committed PLACEHOLDER is
+  // expected. Local `wrangler dev` uses a local SQLite simulation and ignores the id.
   "d1_databases": [
     {
       "binding": "DB",

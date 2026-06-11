@@ -59,6 +59,32 @@ describe("ObservabilityStack", () => {
     expect(mem?.Properties?.AlarmActions?.length).toBe(2)
   })
 
+  it("has the vault-ssm-sync-stale liveness alarm on the Monorepo/VaultSync metric, SNS-only", () => {
+    // Fires when the VPS secret-mirror loop stops emitting SyncSuccess for
+    // 15 min. SNS only (1 action) — a dead sync must not trip the
+    // kill-switch and stop a running service.
+    const alarms = template.findResources("AWS::CloudWatch::Alarm")
+    const stale = Object.values(alarms).find(
+      (a) =>
+        (a as { Properties?: { AlarmName?: string } }).Properties?.AlarmName ===
+        "monorepo-test-vault-ssm-sync-stale",
+    ) as
+      | {
+          Properties?: {
+            Namespace?: string
+            MetricName?: string
+            TreatMissingData?: string
+            AlarmActions?: unknown[]
+          }
+        }
+      | undefined
+
+    expect(stale?.Properties?.Namespace).toBe("Monorepo/VaultSync")
+    expect(stale?.Properties?.MetricName).toBe("SyncSuccess")
+    expect(stale?.Properties?.TreatMissingData).toBe("breaching")
+    expect(stale?.Properties?.AlarmActions?.length).toBe(1)
+  })
+
   it("has at least 7 alarms total (5 attack + 2 critical + monitoring facade)", () => {
     const all = template.findResources("AWS::CloudWatch::Alarm")
     expect(Object.keys(all).length).toBeGreaterThanOrEqual(7)

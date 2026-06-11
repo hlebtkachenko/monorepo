@@ -420,17 +420,17 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
    - Choice A: GHA workflow `sync-vault-to-ssm.yml` triggered on Vault webhook (Vault sends notification → workflow pulls + writes to SSM)
    - Choice B: Systemd timer on VPS runs every 5 minutes, `vault kv get` then `aws ssm put-parameter`
    - **Pick B for simplicity** — VPS has Vault locally, AWS CLI available, no external orchestration needed
-   - Script at `/usr/local/sbin/vault-to-ssm-sync.sh`:
-     - Loop over: `(staging, production) × (better-auth-secret, resend-api-key)`
-     - For each: `vault kv get -field=value platform/data/${env}/${name}` → `aws ssm put-parameter --name /monorepo/${env}/${name} --type SecureString --overwrite --value -`
-     - Skip if Vault value matches current SSM value (avoid spurious writes)
-     - On each successful sync, write a heartbeat: `aws ssm put-parameter --name /monorepo/${env}/sync-heartbeat --value $(date -u +%s) --overwrite`
+   - Script at `/usr/local/sbin/vault-to-ssm-sync` (as built):
+     - Loop over: `(staging, production) × (better-auth-secret, resend-api-key, notify-shared-secret)`
+     - Vault preflight (`vault token lookup`) — sealed Vault / expired token aborts the run with exit 1 so liveness is withheld and the staleness alarm + drift workflow trip, instead of skip-all-keys being counted as a clean pass.
+     - Change detection by **local state** on the VPS (`/var/lib/vault-to-ssm`, systemd `StateDirectory`, root-only): per key, the sha256 of the last-synced plaintext + the SSM parameter `Version` returned by our own PutParameter. Vault-side change → hash mismatch → rewrite. SSM-side tamper → `GetParameter` _without_ decryption (metadata only, no KMS) shows an unexpected `Version` → heal from Vault within one 5-min cycle. Steady state costs **zero KMS** (the original decrypt-and-compare burned ~17k KMS requests/10 days — 85% of the 20k/mo Free Tier). Nothing secret-derived is stored in AWS: a sha256 of a structured secret in a plaintext param would be an offline brute-force target.
+     - On each clean env pass: write `/monorepo/${env}/sync-heartbeat` (epoch seconds, **type String** — not secret, no KMS; consumed by `secrets-drift.yml` and the post-deploy verify in `_deploy-aws.yml`) and emit a CloudWatch liveness datapoint `Monorepo/VaultSync SyncSuccess{Env=${env}}=1`.
    - Timer: every 5 minutes
    - First run manual to bootstrap initial values
 
-3. **Drift / staleness detection**:
-   - CloudWatch alarm: alarm if the SSM heartbeat parameter `/monorepo/${env}/sync-heartbeat` is older than 15 minutes (use the metric value parsed from the parameter's `LastModifiedDate` via a tiny EventBridge-triggered Lambda, OR use a CloudWatch synthetic via canary)
-   - CI smoke test (`.github/workflows/secrets-drift.yml`, runs daily): for each Vault-backed key, read from Vault, read from SSM, fail if values diverge
+3. **Drift / staleness detection** (as built):
+   - CloudWatch alarm `monorepo-${env}-vault-ssm-sync-stale` (in `observability-stack.ts`): fires when no `Monorepo/VaultSync SyncSuccess` datapoint lands for 15 min (3 × 5-min periods, `treatMissingData: BREACHING`), wired to the regional `BillingTopic`. This is the heartbeat alarm the original plan described but never built — now backed by a real metric instead of an unbuilt `LastModifiedDate` Lambda.
+   - CI smoke test (`.github/workflows/secrets-drift.yml`, runs daily): for each Vault-backed key, read from Vault, read from SSM, fail if values diverge; also fails if either env's `sync-heartbeat` is > 15 min stale
    - This guards against silent rot between deploys
 
 4. **CDK refactor** (full enumeration; the plan's original 7-line list was incomplete — actual touch surface is ~15 lines).

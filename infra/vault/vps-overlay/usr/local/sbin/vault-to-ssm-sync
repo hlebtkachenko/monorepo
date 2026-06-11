@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # Vault → AWS SSM SecureString sync (AFF-245 M4).
 #
-# Reads 2 secrets from Vault (per env) and writes them to SSM SecureString,
-# skipping when the values already match (avoids spurious version bumps +
-# cost). Runs every 5 min via /etc/systemd/system/vault-to-ssm-sync.timer.
+# Mirrors the app secrets from Vault (per env) into SSM SecureString — the
+# runtime cache ECS reads at task start. Runs every 5 min via
+# /etc/systemd/system/vault-to-ssm-sync.timer.
 #
-# Synced keys (Vault path → SSM parameter):
-#   platform/staging/better-auth-secret      → /monorepo/staging/better-auth-secret
-#   platform/staging/resend-api-key          → /monorepo/staging/resend-api-key
-#   platform/production/better-auth-secret   → /monorepo/production/better-auth-secret
-#   platform/production/resend-api-key       → /monorepo/production/resend-api-key
+# Synced keys (Vault path → SSM parameter), per env {staging,production}:
+#   platform/${env}/better-auth-secret    → /monorepo/${env}/better-auth-secret
+#   platform/${env}/resend-api-key        → /monorepo/${env}/resend-api-key
+#   platform/${env}/notify-shared-secret  → /monorepo/${env}/notify-shared-secret
 #
 # (`vault kv get` is KV-v2-aware: it auto-translates `platform/${k}` to the
 # API path `platform/data/${k}`. Passing `data/` explicitly would double it.)
@@ -19,16 +18,41 @@
 # Vault is reachable). It flows direct from the GH repo secret to SSM
 # via a step in _deploy-aws.yml.
 #
-# Drift heartbeat: after each successful pass, the script writes the
-# current epoch timestamp to /monorepo/${env}/sync-heartbeat (SecureString,
-# even though the value isn't secret — kept SecureString for uniform IAM).
-# A CloudWatch alarm pages if either heartbeat is > 15 min stale.
+# Change detection (zero KMS in steady state):
+#   Per-key state lives LOCALLY in ${STATE_DIR} (systemd StateDirectory,
+#   root-only): line 1 = sha256 of the last-synced plaintext, line 2 = the
+#   SSM parameter Version our own PutParameter returned.
+#     - Vault-side change: sha256(Vault value) != stored hash → rewrite.
+#     - SSM-side tamper:   GetParameter WITHOUT --with-decryption returns
+#       only metadata + ciphertext (no kms:Decrypt). A Version different
+#       from the stored one means an out-of-band write → heal from Vault
+#       (source of truth) within one 5-min cycle.
+#   An unchanged secret therefore costs zero KMS requests. The previous
+#   decrypt-and-compare design burned ~17k KMS requests / 10 days (85% of
+#   the 20k/mo Free Tier) on idle polling; KMS (kms:Encrypt via the
+#   aws/ssm key) is now paid only on a real write. Nothing derived from a
+#   secret value (hash or otherwise) is ever stored in AWS — sha256 of a
+#   structured secret in a plaintext parameter would be an offline
+#   brute-force target.
+#
+# Liveness (two consumers, both must stay in sync with this script):
+#   1. /monorepo/${env}/sync-heartbeat — epoch seconds, type String (NOT
+#      SecureString: the value is not secret and String costs no KMS).
+#      Read by .github/workflows/secrets-drift.yml (daily, fails if > 15
+#      min stale) and the post-deploy verify in _deploy-aws.yml.
+#   2. CloudWatch Monorepo/VaultSync SyncSuccess{Env=${env}} = 1 — feeds
+#      the monorepo-${env}-vault-ssm-sync-stale alarm (observability
+#      stack), which pages within 15 min if this loop dies.
+#   Both are written only after a CLEAN pass for the env, and never when
+#   Vault is unreachable (the preflight below exits 1 first), so a dead or
+#   half-dead sync trips the alarm instead of being masked.
 #
 # Exit codes:
-#   0  — all keys synced (or already in sync)
-#   1  — required env var missing OR Vault unreachable
-#   2  — at least one SSM write failed (heartbeat still touched if R2-like
-#         backups are unblocked; sentinel file is created on partial failure)
+#   0  — all keys synced (or already in sync), heartbeat + liveness emitted
+#   1  — required env var missing OR Vault unreachable / token invalid
+#   2  — at least one SSM write or liveness emit failed; sentinel file is
+#         created (heartbeat + metric withheld for the failed env so the
+#         staleness alarm + drift workflow trip)
 #
 # Tracks: AFF-245 M4. Plan: docs/plans/SECRETS-MIGRATION.md § M4 task 2.
 
@@ -53,7 +77,10 @@ REQUIRED_VARS=(
   # The script can rely on the AWS CLI default credential chain if running
   # on an EC2/ECS host, but the VPS isn't AWS-hosted, so explicit env vars
   # are required here. They differ from the unseal user — this user only
-  # needs ssm:PutParameter + kms:GenerateDataKey on the default aws/ssm key.
+  # needs ssm:PutParameter/GetParameter on the synced params, kms:Encrypt +
+  # kms:GenerateDataKey via the default aws/ssm key (no kms:Decrypt — this
+  # script never reads a SecureString back), and cloudwatch:PutMetricData
+  # on the Monorepo/VaultSync namespace.
   AWS_ACCESS_KEY_ID
   AWS_SECRET_ACCESS_KEY
 )
@@ -64,21 +91,43 @@ for v in "${REQUIRED_VARS[@]}"; do
   fi
 done
 
+# Local change-detection state. systemd injects $STATE_DIRECTORY when the
+# unit declares StateDirectory=vault-to-ssm; the fallback covers manual
+# root runs. Files hold a secret-derived hash → keep them root-only.
+STATE_DIR="${STATE_DIRECTORY:-/var/lib/vault-to-ssm}"
+mkdir -p "$STATE_DIR"
+umask 077
+
 SENTINEL=/var/run/vault-to-ssm-sync.failed
 rm -f "$SENTINEL"
 
-# --- helper: vault GET + SSM PUT, skipping if equal ---------------------
+# --- Vault preflight ------------------------------------------------------
+#
+# `vault kv get` failures inside sync_one are treated as "key not seeded
+# yet" and skipped. Without this preflight, a sealed Vault / expired token
+# would skip ALL keys, count every env as clean, and emit liveness — the
+# exact failure the staleness alarm exists to catch would be masked.
+if ! vault token lookup >/dev/null 2>&1; then
+  echo "[vault-to-ssm] Vault unreachable or token invalid (vault token lookup failed); aborting" >&2
+  exit 1
+fi
 
-# Args: $1 env (staging|production), $2 key (better-auth-secret|resend-api-key)
+# --- helper: vault GET, hash+version compare, SSM PUT on change ----------
+
+# Args: $1 env (staging|production), $2 key
+# Returns non-zero if an SSM write failed (caller maps to exit 2).
 sync_one() {
   local env="$1"
   local key="$2"
   local vault_path="platform/${env}/${key}"
   local ssm_name="/monorepo/${env}/${key}"
+  local state_file="${STATE_DIR}/${env}--${key}"
 
   echo "[vault-to-ssm] ${vault_path} → ${ssm_name}"
 
   # `vault kv get -field=value` exits 2 if the key is missing — guard.
+  # (Vault reachability/auth is established by the preflight above, so a
+  # failure here means the key genuinely isn't seeded.)
   local vault_val
   if ! vault_val=$(vault kv get -field=value "$vault_path" 2>/dev/null); then
     echo "[vault-to-ssm] WARN: ${vault_path} not present in Vault (skipping)" >&2
@@ -89,41 +138,81 @@ sync_one() {
     return 0
   fi
 
-  # `aws ssm get-parameter` returns 254 (or ParameterNotFound) on missing
-  # name. Treat missing as "value differs, write needed".
-  local ssm_val
-  ssm_val=$(aws ssm get-parameter \
-    --name "$ssm_name" --with-decryption \
-    --region "$AWS_REGION" \
-    --query 'Parameter.Value' --output text 2>/dev/null || echo "__MISSING__")
-
-  if [[ "$ssm_val" == "$vault_val" ]]; then
-    echo "[vault-to-ssm]   already in sync; skipping write"
-    return 0
+  local vault_hash stored_hash="" stored_version=""
+  vault_hash=$(printf '%s' "$vault_val" | sha256sum | cut -d' ' -f1)
+  if [[ -r "$state_file" ]]; then
+    stored_hash=$(sed -n '1p' "$state_file")
+    stored_version=$(sed -n '2p' "$state_file")
   fi
 
-  # Use --value via stdin to keep the secret off the process arglist.
-  printf '%s' "$vault_val" | aws ssm put-parameter \
+  local reason
+  if [[ "$vault_hash" != "$stored_hash" ]]; then
+    reason="vault value changed (or first sync)"
+  else
+    # Plaintext unchanged — verify nobody rewrote the SSM param out-of-band.
+    # No --with-decryption → metadata only, no KMS request.
+    local current_version
+    current_version=$(aws ssm get-parameter \
+      --name "$ssm_name" \
+      --region "$AWS_REGION" \
+      --query 'Parameter.Version' --output text 2>/dev/null || echo "__MISSING__")
+    if [[ "$current_version" == "$stored_version" ]]; then
+      echo "[vault-to-ssm]   in sync (hash + version match); no write"
+      return 0
+    fi
+    reason="SSM version drift (expected ${stored_version}, found ${current_version}); healing from Vault"
+  fi
+
+  # Write the SecureString (1 kms:Encrypt via aws/ssm) and capture the new
+  # Version from the PutParameter response — no read-back needed. Value is
+  # piped via stdin to keep the secret off the process arglist.
+  local new_version
+  if ! new_version=$(printf '%s' "$vault_val" | aws ssm put-parameter \
     --name "$ssm_name" \
     --type SecureString \
     --overwrite \
     --region "$AWS_REGION" \
-    --value file:///dev/stdin >/dev/null
-  echo "[vault-to-ssm]   updated (was \"$([ "$ssm_val" = "__MISSING__" ] && echo missing || echo different)\")"
+    --value file:///dev/stdin \
+    --query 'Version' --output text); then
+    echo "[vault-to-ssm]   ERROR: SecureString write failed for ${ssm_name}" >&2
+    return 1
+  fi
+  # State is written AFTER the successful SSM write: a crash in between
+  # leaves stale state, so the next run re-detects and retries — never the
+  # reverse (state claiming "synced" while SSM is stale).
+  printf '%s\n%s\n' "$vault_hash" "$new_version" > "$state_file"
+  echo "[vault-to-ssm]   wrote v${new_version} (${reason})"
 }
 
-# --- write heartbeat -----------------------------------------------------
+# --- liveness: SSM heartbeat (workflows) + CW metric (alarm) -------------
 
+# Epoch-seconds heartbeat consumed by secrets-drift.yml and the post-deploy
+# verify in _deploy-aws.yml. Type String: the timestamp is not a secret,
+# and String writes cost no KMS (the old SecureString heartbeat was 2
+# guaranteed KMS Encrypts per run for no security benefit).
 write_heartbeat() {
   local env="$1"
   local now
   now=$(date -u +%s)
   aws ssm put-parameter \
     --name "/monorepo/${env}/sync-heartbeat" \
-    --type SecureString \
+    --type String \
     --overwrite \
     --region "$AWS_REGION" \
     --value "$now" >/dev/null
+}
+
+# One datapoint per clean env pass; the monorepo-${env}-vault-ssm-sync-stale
+# alarm fires when none arrives for 15 min. PutMetricData is scoped by IAM
+# to the Monorepo/VaultSync namespace.
+emit_sync_metric() {
+  local env="$1"
+  aws cloudwatch put-metric-data \
+    --namespace "Monorepo/VaultSync" \
+    --metric-name "SyncSuccess" \
+    --dimensions "Env=${env}" \
+    --value 1 \
+    --region "$AWS_REGION" >/dev/null
 }
 
 # --- main loop -----------------------------------------------------------
@@ -131,14 +220,24 @@ write_heartbeat() {
 FAILED=0
 
 for env in staging production; do
+  env_ok=1
   for key in better-auth-secret resend-api-key notify-shared-secret; do
     if ! sync_one "$env" "$key"; then
       FAILED=1
+      env_ok=0
     fi
   done
-  if ! write_heartbeat "$env"; then
-    echo "[vault-to-ssm] WARN: heartbeat write failed for $env" >&2
-    FAILED=1
+  # Heartbeat + metric only on a clean pass: a partial failure must trip
+  # the staleness alarm and the drift workflow, not be masked by them.
+  if [[ "$env_ok" == "1" ]]; then
+    if ! write_heartbeat "$env"; then
+      echo "[vault-to-ssm] WARN: heartbeat write failed for $env" >&2
+      FAILED=1
+    fi
+    if ! emit_sync_metric "$env"; then
+      echo "[vault-to-ssm] WARN: liveness metric emit failed for $env" >&2
+      FAILED=1
+    fi
   fi
 done
 

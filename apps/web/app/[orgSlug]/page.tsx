@@ -7,10 +7,11 @@ import { AppShell } from "@workspace/ui/blocks/app-shell"
 
 import { presignAvatarRead } from "../_lib/avatar-storage"
 import { getRequestSession } from "./_lib/request-session"
+import { AppBottomNav } from "../_components/app-bottom-nav"
 import { AppRailNav } from "../_components/app-rail-nav"
 import { IconPackSwitcher } from "../_components/icon-pack-switcher"
 import { OrgHeaderActions } from "../_components/org-header-actions"
-import { orgRailNav } from "./nav"
+import { orgBottomNav, orgRailNav } from "./nav"
 
 export const metadata = {
   title: "Dashboard",
@@ -74,6 +75,7 @@ export default async function OrgDashboardPage({
         />
       }
       rail={<AppRailNav items={orgRailNav(orgSlug)} />}
+      bottomNav={<AppBottomNav items={orgBottomNav(orgSlug)} />}
       sidebar={<div className="size-full" />}
       assistant={<div className="size-full" />}
       logoHref={`/${orgSlug}`}

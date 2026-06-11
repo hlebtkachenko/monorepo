@@ -92,7 +92,7 @@ export default async function AuthLayout({
           </AuthShellFooter>
         </AuthShellLeft>
         <AuthShellAside>
-          <AuthAside variant="photo" image="/auth/aside-bg.jpg" bgAlign="left">
+          <AuthAside variant="photo" image="/auth/aside-bg.webp" bgAlign="left">
             <AuthAsideTop>
               <AuthAsideHeadline>{tAside("headline")}</AuthAsideHeadline>
               <AuthAsideSubtitle>

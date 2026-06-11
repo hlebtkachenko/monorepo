@@ -20,8 +20,6 @@
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@sentry/nextjs": "^10.53.1",
-    "@tanstack/react-query": "^5.100.14",
-    "@tanstack/react-table": "^8.21.3",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",
@@ -39,10 +37,7 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-hook-form": "^7.76.1",
-    "server-only": "^0.0.1",
-    "sonner": "^2.0.7",
-    "zod": "^4.4.2",
-    "zustand": "^5.0.13"
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
@@ -64,13 +59,13 @@
   },
   "size-limit": [
     {
-      "name": "Per-chunk JS budget",
+      "name": "Total JS (brotli)",
       "path": ".next/static/**/*.js",
       "limit": "1.5 MB",
       "running": false
     },
     {
-      "name": "Total client bundle",
+      "name": "Total JS (raw)",
       "path": ".next/static/**/*.js",
       "limit": "5 MB",
       "brotli": false,

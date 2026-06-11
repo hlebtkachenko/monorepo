@@ -40,7 +40,8 @@ export function LoginEmailForm() {
         contactSalesPrompt: t("contactSalesPrompt", { brand: brandName }),
         contactSalesCta: t("contactSalesCta"),
         errorFor: (code) => tErrors(code),
-        validationFor: (key) => tValidation(key),
+        validationFor: (key) =>
+          tValidation(key as Parameters<typeof tValidation>[0]),
         signInFailed: tErrors("signInFailed"),
       }}
     />

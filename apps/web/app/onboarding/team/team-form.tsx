@@ -51,8 +51,15 @@ export function TeamForm() {
 
   function announceResult(invitesSent: number, failures: number) {
     if (invitesSent > 0) {
+      // Dev-only hint stays out of the message catalog (it is not
+      // user-facing copy): the console transport prints invite links to
+      // the terminal, and /api/dev/outbox lists captured emails.
+      const devHint =
+        process.env.NODE_ENV === "development"
+          ? " Dev: invite links print to the terminal and /api/dev/outbox."
+          : ""
       toast.success(t("toast.sentTitle", { count: invitesSent }), {
-        description: t("toast.sentDescription"),
+        description: t("toast.sentDescription") + devHint,
         duration: 8000,
       })
     }
@@ -68,7 +75,13 @@ export function TeamForm() {
     setServerError(null)
     const result = await submitTeamAction(values)
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "saveTeamFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "saveTeamFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       return
     }
     announceResult(result.invitesSent ?? 0, result.failures?.length ?? 0)
@@ -79,7 +92,13 @@ export function TeamForm() {
     setServerError(null)
     const result = await submitTeamAction({ invites: [] })
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "saveTeamFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "saveTeamFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       return
     }
     router.push("/onboarding/done")

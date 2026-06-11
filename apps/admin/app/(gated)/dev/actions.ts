@@ -6,6 +6,7 @@ import { mintToken } from "@workspace/auth/tokens"
 import { issueInvite, type InviteRole } from "@workspace/auth/invite-issuer"
 import { withAdminBypass } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
+import { getBrandText } from "@workspace/ui/brand-assets/server"
 
 import { assertAdminCaller } from "../assert-admin-caller"
 
@@ -55,11 +56,12 @@ export async function generateInviteTokenAction(input: {
   await assertAdminCaller()
   try {
     const ttlSeconds = Math.max(60, Math.round(input.ttlDays * 86400))
+    const { name: brandName } = await getBrandText()
     const result = await issueInvite({
       email: input.email.trim(),
       organizationId: input.organizationId.trim(),
       role: input.role,
-      brandName: "Afframe",
+      brandName,
       baseUrl: WEB_BASE_URL,
       ttlSeconds,
       issuedByUserId: null,

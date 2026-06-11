@@ -19,7 +19,7 @@
     "@workspace/i18n": "workspace:*",
     "@workspace/notify": "workspace:*",
     "@workspace/ui": "workspace:*",
-    "better-auth": "~1.6.14",
+    "better-auth": "~1.6.11",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",

@@ -10,7 +10,6 @@
  * Usage: pnpm --filter @workspace/db db:new-migration <snake_case_name>
  */
 
-import { existsSync } from "node:fs"
 import { readdir, writeFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, resolve } from "node:path"
@@ -40,14 +39,13 @@ const numbers = entries
 const next = String(Math.max(0, ...numbers) + 1).padStart(4, "0")
 const filename = `${next}_${name}.sql`
 const path = resolve(migrationsDir, filename)
-if (existsSync(path)) {
-  console.error(`${filename} already exists — refusing to overwrite.`)
-  process.exit(1)
-}
 
-await writeFile(
-  path,
-  `-- ${filename}
+// `wx` makes the existence check and the write one atomic operation —
+// no separate existsSync (check-then-act race).
+try {
+  await writeFile(
+    path,
+    `-- ${filename}
 --
 -- <What this migration does and why.>
 --
@@ -55,8 +53,15 @@ await writeFile(
 -- Tenant-scoped tables need organization_id + a FORCE RLS pgPolicy using
 -- current_setting('app.organization_id').
 `,
-  { flag: "wx" },
-)
+    { flag: "wx" },
+  )
+} catch (err) {
+  if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+    console.error(`${filename} already exists — refusing to overwrite.`)
+    process.exit(1)
+  }
+  throw err
+}
 
 console.log(`created packages/db/migrations/${filename}`)
 console.log("After writing the SQL:")

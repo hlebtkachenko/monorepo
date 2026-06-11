@@ -65,9 +65,14 @@ jobs:
         #   events (failed login of unknown email) can persist with NULL
         #   workspace_id. RLS guards keep tenant reads scoped. Pre-prod, no
         #   existing clients to break.
+        # - require-concurrent-index-creation / require-concurrent-index-deletion:
+        #   the migration runner wraps every file in a transaction, and
+        #   CONCURRENTLY cannot run inside one. 0023 documents the trade-off
+        #   inline (tables are tiny pre-v1; revisit before tool_call_log /
+        #   auth_token grow — same revisit marker as require-timeout-settings).
         run: |
           set -euo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
           squawk \
-            --exclude prefer-text-field,disallowed-unique-constraint,require-timeout-settings,ban-drop-column,ban-drop-table,ban-drop-not-null,prefer-bigint-over-int,prefer-bigint-over-smallint,constraint-missing-not-valid,adding-foreign-key-constraint \
+            --exclude prefer-text-field,disallowed-unique-constraint,require-timeout-settings,ban-drop-column,ban-drop-table,ban-drop-not-null,prefer-bigint-over-int,prefer-bigint-over-smallint,constraint-missing-not-valid,adding-foreign-key-constraint,require-concurrent-index-creation,require-concurrent-index-deletion \
             packages/db/migrations/*.sql

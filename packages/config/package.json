@@ -12,9 +12,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.1053.0",
-    "@aws-sdk/client-ssm": "^3.1053.0",
-    "@aws-sdk/credential-providers": "^3.1053.0"
+    "@aws-sdk/client-secrets-manager": "^3.1061.0",
+    "@aws-sdk/client-ssm": "^3.1061.0",
+    "@aws-sdk/credential-providers": "^3.1061.0"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

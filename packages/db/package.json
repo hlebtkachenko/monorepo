@@ -24,7 +24,7 @@
     "db:new-migration": "tsx scripts/new-migration.ts",
     "db:push": "node -e \"console.error('drizzle-kit push is forbidden in this repo. Apply migrations via pnpm db:migrate. See ADR-0009.'); process.exit(1)\"",
     "db:studio": "drizzle-kit studio",
-    "db:schema-snapshot": "bash ../../scripts/db-schema-snapshot.sh > schema-snapshot.sql",
+    "db:schema-snapshot": "bash ../../scripts/db-schema-snapshot.sh > schema-snapshot.sql.tmp && test -s schema-snapshot.sql.tmp && mv -f schema-snapshot.sql.tmp schema-snapshot.sql || { rm -f schema-snapshot.sql.tmp; echo '[db:schema-snapshot] pg_dump failed or produced empty output - existing snapshot left untouched (is local Postgres running?)' >&2; exit 1; }",
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

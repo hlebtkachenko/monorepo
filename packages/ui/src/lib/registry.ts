@@ -15,9 +15,9 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/blocks/app-shell",
     sourceType: "custom",
     description:
-      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; an outer ResizablePanelGroup splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card across the group's only ResizableHandle, with a real gap. Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and ErrorShell (error.tsx / not-found.tsx).",
+      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; a flex layout splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card, with a real gap. Below md the rail hides, sidebar/assistant become sheets, and an optional bottomNav bar renders (AppShellBottomNav). Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and ErrorShell (error.tsx / not-found.tsx).",
     categories: ["block", "layout", "app"],
-    dependencies: ["button", "resizable", "skeleton"],
+    dependencies: ["button", "navigation-bottom-mobile", "sheet", "skeleton"],
   },
   "app-header": {
     source: "src/blocks/app-header",
@@ -95,6 +95,14 @@ export const registry: Record<string, ComponentMeta> = {
       "Block — right-panel decorative aside with photo / dark / tone variants, headline + subtitle + quote + animated logo marquee slots, prefers-reduced-data fallback. Composes Marquee.",
     categories: ["block", "layout", "auth"],
     dependencies: ["marquee"],
+  },
+  "auth-shell-chrome": {
+    source: "src/blocks/auth",
+    sourceType: "custom",
+    description:
+      "Block — shared chrome of every auth + onboarding screen: AuthShellChromeFooter (© line + build version, Privacy/Terms/Status links wired to BRAND_* URL constants, trailing LanguagePicker slot) and AuthShellChromeAside (photo AuthAside with headline + subtitle + quote + partner marquee). Plus AuthTokenContinueCard / AuthTokenInvalidCard, the shared landing cards for token-link flows (signup + invite). Presentational, server-component-safe; localized strings arrive resolved via props.",
+    categories: ["block", "layout", "auth"],
+    dependencies: ["auth-aside", "button", "heading", "marquee", "text"],
   },
   "password-input": {
     source: "custom",

@@ -11,6 +11,7 @@ import { CreateFeedbackRequestSchema } from "@workspace/shared/api"
 import { ValidationError } from "@workspace/shared/errors"
 import { ApiCreatedResponse, ApiOperation, ApiTags } from "@nestjs/swagger"
 import { sendEmail } from "@workspace/email"
+import { BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets/constants"
 import type {
   CreateFeedbackRequest,
   CreateFeedbackResponse,
@@ -42,7 +43,9 @@ import { notifierFromEnv } from "@workspace/notify"
  * (falls back to IP for unauthenticated requests).
  */
 
-const SUPPORT_INBOX = "support+feedback@afframe.com"
+// Gmail-style sub-addressing on the brand support inbox: routes to the
+// same mailbox with an auto-applied "feedback" label.
+const SUPPORT_INBOX = BRAND_SUPPORT_EMAIL.replace("@", "+feedback@")
 const LINEAR_API = "https://api.linear.app/graphql"
 
 // Fire-and-forget Telegram ping for every feedback; no-op when the bot env is unset.

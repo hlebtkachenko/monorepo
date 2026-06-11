@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { LoginEmailSchema, type LoginEmailInput } from "@workspace/shared/auth"
+import { BRAND_SALES_EMAIL } from "@workspace/ui/brand-assets"
 import { Button } from "@workspace/ui/components/button"
 import {
   Field,
@@ -209,7 +210,7 @@ export function LoginEmailForm({
           <Text variant="muted">
             {messages.contactSalesPrompt}{" "}
             <a
-              href="#"
+              href={`mailto:${BRAND_SALES_EMAIL}`}
               className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
             >
               {messages.contactSalesCta}

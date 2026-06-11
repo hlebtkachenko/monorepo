@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react"
-import { Chart, type ChartConfig } from "./chart"
+import {
+  Chart,
+  ChartContainer,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "./chart"
 
 const meta: Meta<typeof Chart> = {
   title: "Components/Chart",
@@ -371,5 +376,31 @@ export const SparkBar: Story = {
       index="month"
       categories={["revenue"]}
     />
+  ),
+}
+
+// ===== Tooltip locale =====
+
+const tooltipPayload = [
+  {
+    name: "revenue",
+    dataKey: "revenue",
+    graphicalItemId: "revenue",
+    value: 1234567.89,
+    color: "var(--chart-1)",
+    payload: { month: "Jan", revenue: 1234567.89 },
+  },
+]
+
+export const TooltipLocaleCzech: Story = {
+  render: () => (
+    <div className="flex items-start gap-8">
+      <ChartContainer config={seriesConfig} className="aspect-auto h-40">
+        <ChartTooltipContent active payload={tooltipPayload} />
+      </ChartContainer>
+      <ChartContainer config={seriesConfig} className="aspect-auto h-40">
+        <ChartTooltipContent active payload={tooltipPayload} locale="cs-CZ" />
+      </ChartContainer>
+    </div>
   ),
 }

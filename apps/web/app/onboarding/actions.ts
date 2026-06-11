@@ -1,7 +1,6 @@
 "use server"
 
 import { headers } from "next/headers"
-import { redirect } from "next/navigation"
 import { and, eq, sql } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { getBetterAuthUrl } from "@workspace/auth/env"
@@ -29,6 +28,7 @@ import {
   type WorkspaceInput,
 } from "@workspace/shared/auth"
 
+import { logServerError } from "../../lib/log-server-error"
 import { isEmailAlreadyRegistered } from "../auth/_lib/email-error"
 import { issueInvite, revokePendingInvites } from "../auth/_lib/issue-invite"
 import { materializeInvite } from "../auth/_lib/materialize-invite"
@@ -68,8 +68,12 @@ async function getActiveUserId(): Promise<string | null> {
   return session?.user?.id ?? null
 }
 
-function firstErrorKey(zodIssues: Array<{ message: string }>): string {
-  return zodIssues[0]?.message ?? "invalid"
+// Server-side validation failures surface one generic error. Field-level
+// messages are the client form's job; the zod issue messages are
+// `auth.validation` keys, which the `onboarding.errors` namespace the forms
+// resolve against can never contain — passing them through rendered raw keys.
+function firstErrorKey(_zodIssues: Array<{ message: string }>): string {
+  return "invalidInput"
 }
 
 // ---------------------------------------------------------------------------
@@ -216,7 +220,7 @@ export async function submitPasswordAction(
       if (isEmailAlreadyRegistered(err)) {
         return { ok: false, errorKey: "emailAlreadyRegistered" }
       }
-      console.error("[onboarding/password] signUpEmail failed", err)
+      logServerError("onboarding/password signUpEmail failed", err)
       return { ok: false, errorKey: "createAccountFailed" }
     }
   }
@@ -242,7 +246,7 @@ export async function submitPasswordAction(
         .where(eq(app_user.id, userId))
     })
   } catch (err) {
-    console.error("[onboarding/password] persist profile failed", err)
+    logServerError("onboarding/password persist profile failed", err)
     return { ok: false, errorKey: "persistOnboardingFailed" }
   }
 
@@ -256,7 +260,7 @@ export async function submitPasswordAction(
         inviteRawToken: rawInviteToken,
       })
     } catch (err) {
-      console.error("[onboarding/password] materializeInvite failed", err)
+      logServerError("onboarding/password materializeInvite failed", err)
       return { ok: false, errorKey: "acceptInviteFailed" }
     }
     await clearOnboardingState()
@@ -356,7 +360,7 @@ export async function submitWorkspaceAction(
       })
     })
   } catch (err) {
-    console.error("[onboarding/workspace] create workspace failed", err)
+    logServerError("onboarding/workspace create workspace failed", err)
     return { ok: false, errorKey: "createWorkspaceFailed" }
   }
 
@@ -487,11 +491,12 @@ export async function submitTeamAction(
   const baseUrl = getBetterAuthUrl()
   const brandName = await loadBrandName()
 
-  const failures: Array<{ email: string; reason: string }> = []
-  let sent = 0
-  for (const row of parsed.data.invites) {
-    if (!row.email) continue
-    try {
+  // Rows are independent: revoke+issue per invitee runs concurrently
+  // (each is a DB write + an outbound email POST), with per-row failure
+  // collection preserved via allSettled.
+  const rows = parsed.data.invites.filter((row) => row.email)
+  const results = await Promise.allSettled(
+    rows.map(async (row) => {
       await revokePendingInvites({
         organizationId: defaultOrgId,
         email: row.email,
@@ -504,21 +509,30 @@ export async function submitTeamAction(
         baseUrl,
         brandName,
       })
+    }),
+  )
+
+  const failures: Array<{ email: string; reason: string }> = []
+  let sent = 0
+  results.forEach((result, i) => {
+    if (result.status === "fulfilled") {
       sent++
-    } catch (err) {
-      console.error("[onboarding/team] issueInvite failed", row.email, err)
-      failures.push({
-        email: row.email,
-        reason: err instanceof Error ? err.message : "unknown",
-      })
+      return
     }
-  }
+    // No invitee email in the log line — that is PII in CloudWatch.
+    logServerError("onboarding/team issueInvite failed", result.reason)
+    failures.push({
+      email: rows[i]!.email,
+      reason:
+        result.reason instanceof Error ? result.reason.message : "unknown",
+    })
+  })
 
   // Mark step 3 complete only when the action made forward progress:
   // at least one invite was sent, OR the user explicitly submitted an
   // empty list ("Skip for now"). If every invite failed, leave the step
   // open so the user can retry.
-  const requestedCount = parsed.data.invites.filter((r) => r.email).length
+  const requestedCount = rows.length
   if (sent > 0 || requestedCount === 0) {
     try {
       await withWorkspace(workspaceId, userId, async (db) => {
@@ -585,11 +599,4 @@ export async function completeOnboardingAction(): Promise<ActionResult> {
 
   await clearSignupCookie()
   return { ok: true }
-}
-
-export async function abandonOnboardingAction(): Promise<void> {
-  await clearOnboardingState()
-  await clearSignupCookie()
-  await clearInviteCookie()
-  redirect("/auth/login")
 }

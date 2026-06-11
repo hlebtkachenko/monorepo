@@ -196,13 +196,30 @@ export function OrgHeaderActions({
 
   return (
     <TooltipProvider delayDuration={200}>
+      {/* Below md the header band is too narrow for the full cluster (the
+          search input flexes to zero width) — only Sidekick + profile stay;
+          Get Started, Inbox, Tasks, and Help are desktop-only for v1. */}
       <GetStartedButton />
-      <IconButton icon="Inbox" tooltip="Inbox" tooltipSide="bottom" />
-      <IconButton icon="ListTodo" tooltip="Tasks" tooltipSide="bottom" />
+      <IconButton
+        icon="Inbox"
+        tooltip="Inbox"
+        tooltipSide="bottom"
+        className="max-md:hidden"
+      />
+      <IconButton
+        icon="ListTodo"
+        tooltip="Tasks"
+        tooltipSide="bottom"
+        className="max-md:hidden"
+      />
 
       <DropdownMenu modal={false}>
         <HeaderMenuTrigger tooltip="Get help">
-          <IconButton icon="CircleHelp" aria-label="Get help" />
+          <IconButton
+            icon="CircleHelp"
+            aria-label="Get help"
+            className="max-md:hidden"
+          />
         </HeaderMenuTrigger>
         <DropdownMenuContent
           align="start"
@@ -451,7 +468,9 @@ export function OrgHeaderActions({
 
 /**
  * "Get Started" CTA — a white pill with the same border as the search
- * input. 22×90; label at the shared `--icon-label-size`.
+ * input. Visible box 32×90 (h-8, aligned with the 32px IconButton row inside
+ * the 40px header); the transparent `before:` overlay extends the hit area to
+ * ≥40px for touch (WCAG 2.5.5/2.5.8). Label at the shared `--icon-label-size`.
  */
 function GetStartedButton() {
   return (
@@ -459,7 +478,7 @@ function GetStartedButton() {
       type="button"
       variant="outline"
       size="sm"
-      className="h-[22px] w-[90px] rounded-md border-input px-0 text-[length:var(--icon-label-size)] text-rail-label-active"
+      className="relative h-8 w-[90px] rounded-md border-input px-0 text-[length:var(--icon-label-size)] text-rail-label-active before:absolute before:-inset-x-1 before:-inset-y-1 before:content-[''] max-md:hidden"
     >
       Get Started
     </Button>

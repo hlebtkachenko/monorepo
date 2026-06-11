@@ -321,6 +321,32 @@ export async function seedToolCallLog(
 }
 
 /**
+ * Seed an api_key row for a given organization (+ its workspace).
+ * Requires admin client (superuser) to bypass RLS during seeding.
+ * Only the SHA-256 hash of a raw key ever lands in the table; the
+ * random base36 string here stands in for that hash.
+ */
+export async function seedApiKey(
+  sql: postgres.Sql,
+  orgId: string,
+  workspaceId: string,
+): Promise<string> {
+  const [row] = await sql<Array<{ id: string }>>`
+    INSERT INTO api_key (organization_id, workspace_id, name, prefix, key_hash)
+    VALUES (
+      ${orgId}::uuid,
+      ${workspaceId}::uuid,
+      'rls-test-key',
+      'affk_test_xxxx',
+      ${"hash-" + Math.random().toString(36).slice(2) + Date.now().toString(36)}
+    )
+    RETURNING id
+  `
+  if (!row) throw new Error("Failed to seed api_key")
+  return row.id
+}
+
+/**
  * Delete all test data in the correct FK order (child before parent).
  *
  * tool_call_log and audit_event are append-only: BEFORE TRUNCATE triggers
@@ -350,6 +376,7 @@ export async function truncateAll(sql: postgres.Sql): Promise<void> {
     // disables FK-driven cascades, so they must be deleted explicitly here or
     // they would be orphaned (and a future app_user delete would not cascade).
     await tx.unsafe(`DELETE FROM auth_token`)
+    await tx.unsafe(`DELETE FROM api_key`)
     await tx.unsafe(`DELETE FROM tool_call_log`)
     await tx.unsafe(`DELETE FROM audit_event`)
     await tx.unsafe(`DELETE FROM organization_membership`)

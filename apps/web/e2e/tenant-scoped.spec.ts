@@ -116,9 +116,14 @@ test.describe("Tenant-scoped page access", () => {
       timeout: 10_000,
     })
 
-    // The org sidebar nav must be present, confirming the layout rendered.
-    // `nav` is the semantic element used for the sidebar link list.
-    await expect(page.locator("nav")).toBeVisible()
+    // The org rail nav must be present, confirming the layout rendered.
+    // Scope to the AppRail's data-slot — a bare `nav` locator violates
+    // Playwright strict mode (two app-rail navs exist transiently during
+    // hydration, plus other semantic <nav> elements), so target the slot
+    // and assert on the first match.
+    await expect(
+      page.locator('nav[data-slot="app-rail"]').first(),
+    ).toBeVisible()
 
     // The AppShell renders its left rail — verify it's present, confirming
     // the shell mounted. Target the rail's data-slot specifically: the shell

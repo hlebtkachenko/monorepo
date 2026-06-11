@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { ORGANIZATION_SCOPED_TABLES } from "../src/policies/rls.js"
 import {
   adminClient,
+  seedApiKey,
   seedTwoOrganizations,
   seedToolCallLog,
   truncateAll,
@@ -121,7 +122,108 @@ describe("RLS cross-organization isolation", () => {
              VALUES ('${orgAId}'::uuid, 'leak_test', 'leak-key-1', 'human', '{}')`,
           )
         }),
-      ).rejects.toThrow()
+      ).rejects.toThrow(/row-level security/)
+    })
+  })
+
+  describe("api_key isolation", () => {
+    // api_key rows hold credential hashes — a cross-org leak here is
+    // credential disclosure, the worst-case RLS failure. T7: behavioral
+    // coverage for the 3rd ORGANIZATION_SCOPED_TABLE (the harness already
+    // exercises organization + tool_call_log).
+    let workspaceId: string
+    let orgAId: string
+    let orgBId: string
+    let keyAId: string
+
+    beforeAll(async () => {
+      const seed = await seedTwoOrganizations(adminSql)
+      workspaceId = seed.workspaceId
+      orgAId = seed.orgAId
+      orgBId = seed.orgBId
+      keyAId = await seedApiKey(adminSql, orgAId, workspaceId)
+    })
+
+    it("org A session sees org A's key", async () => {
+      const rows = await userSql.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${orgAId}', true)`,
+        )
+        return tx.unsafe<Array<{ id: string }>>(
+          `SELECT id FROM api_key WHERE id = '${keyAId}'::uuid`,
+        )
+      })
+      expect(rows.map((r) => r.id)).toContain(keyAId)
+    })
+
+    it("org B session sees zero rows for org A's key (SELECT leak)", async () => {
+      const rows = await userSql.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${orgBId}', true)`,
+        )
+        return tx.unsafe<Array<{ id: string }>>(`SELECT id FROM api_key`)
+      })
+      expect(rows.filter((r) => r.id === keyAId)).toHaveLength(0)
+    })
+
+    it("org B session cannot UPDATE org A's key (row invisible, 0 affected)", async () => {
+      const updated = await userSql.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${orgBId}', true)`,
+        )
+        return tx.unsafe<Array<{ id: string }>>(
+          `UPDATE api_key SET revoked_at = now()
+           WHERE id = '${keyAId}'::uuid
+           RETURNING id`,
+        )
+      })
+      expect(updated).toHaveLength(0)
+
+      // The row is untouched — verify via the admin client (bypasses RLS).
+      const [row] = await adminSql<Array<{ revoked_at: string | null }>>`
+        SELECT revoked_at FROM api_key WHERE id = ${keyAId}::uuid
+      `
+      expect(row?.revoked_at).toBeNull()
+    })
+
+    it("org B session cannot DELETE org A's key (row invisible, 0 affected)", async () => {
+      const deleted = await userSql.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${orgBId}', true)`,
+        )
+        return tx.unsafe<Array<{ id: string }>>(
+          `DELETE FROM api_key WHERE id = '${keyAId}'::uuid RETURNING id`,
+        )
+      })
+      expect(deleted).toHaveLength(0)
+
+      const [row] = await adminSql<Array<{ id: string }>>`
+        SELECT id FROM api_key WHERE id = ${keyAId}::uuid
+      `
+      expect(row?.id).toBe(keyAId)
+    })
+
+    it("empty GUC returns zero rows (NULLIF guard)", async () => {
+      const rows = await userSql.begin(async (tx) => {
+        await tx.unsafe(`SELECT set_config('app.organization_id', '', true)`)
+        return tx.unsafe<Array<{ id: string }>>(`SELECT id FROM api_key`)
+      })
+      expect(rows).toHaveLength(0)
+    })
+
+    it("WITH CHECK blocks INSERT with foreign org_id", async () => {
+      // Scope to org B, try to plant a key under org A.
+      await expect(
+        userSql.begin(async (tx) => {
+          await tx.unsafe(
+            `SELECT set_config('app.organization_id', '${orgBId}', true)`,
+          )
+          await tx.unsafe(
+            `INSERT INTO api_key (organization_id, workspace_id, name, prefix, key_hash)
+             VALUES ('${orgAId}'::uuid, '${workspaceId}'::uuid, 'leak-key', 'affk_test_leak', 'leak-hash-${Date.now()}')`,
+          )
+        }),
+      ).rejects.toThrow(/row-level security/)
     })
   })
 

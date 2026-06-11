@@ -33,24 +33,33 @@ function adminSql(): postgres.Sql {
 }
 
 test.describe("Auth audit events — failed login", () => {
-  // Pre-account auth events (failed login of any email, since hooks.after
-  // runs without a workspace binding) are not yet persisted: the current
-  // `audit_event.workspace_id NOT NULL` constraint causes
-  // writeAuditEventGlobal to silently skip. Tracked in AFF-208 — re-enable
-  // once that ticket lands either a nullable workspace_id migration or a
-  // separate workspace-optional audit table.
-  test.skip("two failed login attempts produce two auth.login.failed_password rows", async ({
+  // Auth events are global-tier: migration 0021 (AFF-208) made
+  // `audit_event.workspace_id` nullable and writeAuditEventGlobal now
+  // persists NULL-workspace rows (DB-level proof in
+  // packages/db/tests/write-audit-event.test.ts). This spec covers the
+  // remaining end-to-end gap: BA hooks.after -> audit row through the real
+  // web app.
+  //
+  // Tripwire for the failure-classification path: `isSuccess()` in
+  // packages/auth/src/server.ts once treated only a numeric `status` as
+  // failure, but better-call's APIError carries a STRING status
+  // ("UNAUTHORIZED"; the number lives in `statusCode`) — every failed login
+  // was audited as `auth.login.success` (actor_user_id NULL). Fixed
+  // 2026-06-11 (instanceof APIError + statusCode probe, unit cases in
+  // packages/auth/src/server-hooks.test.ts); this spec caught it and guards
+  // the regression.
+  test("two failed login attempts produce two auth.login.failed_password rows", async ({
     page,
   }) => {
     const sql = adminSql()
     try {
-      // Baseline: count existing failed-login rows before the test.
-      const [before] = await sql<Array<{ count: string }>>`
-        SELECT count(*)::text AS count
-        FROM audit_event
-        WHERE action = 'auth.login.failed_password'
+      // Time-window anchor (DB clock, not the runner's): under local
+      // fullyParallel other specs' failed logins could otherwise supply
+      // the row delta.
+      const [anchor] = await sql<Array<{ now: string }>>`
+        SELECT now()::text AS now
       `
-      const countBefore = Number(before?.count ?? 0)
+      const testStart = anchor!.now
 
       // Attempt 1 — wrong password via the browser UI.
       await page.goto("/auth/login")
@@ -74,14 +83,22 @@ test.describe("Auth audit events — failed login", () => {
       // Allow a brief moment for the async audit write to complete.
       await page.waitForTimeout(500)
 
-      const [after] = await sql<Array<{ count: string }>>`
-        SELECT count(*)::text AS count
+      // Rows written during this test, with the shape the hook promises:
+      // global-tier (workspace_id NULL) and pre-auth (actor_user_id NULL).
+      const rows = await sql<
+        Array<{ workspace_id: string | null; actor_user_id: string | null }>
+      >`
+        SELECT workspace_id::text, actor_user_id::text
         FROM audit_event
         WHERE action = 'auth.login.failed_password'
+          AND created_at > ${testStart}::timestamptz
       `
-      const countAfter = Number(after?.count ?? 0)
 
-      expect(countAfter - countBefore).toBeGreaterThanOrEqual(2)
+      expect(rows.length).toBeGreaterThanOrEqual(2)
+      for (const row of rows) {
+        expect(row.workspace_id).toBeNull()
+        expect(row.actor_user_id).toBeNull()
+      }
     } finally {
       await sql.end({ timeout: 5 })
     }

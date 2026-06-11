@@ -1,7 +1,10 @@
 import { CfnOutput, Duration, Stack, type StackProps } from "aws-cdk-lib"
 import {
   Alarm,
+  AlarmRule,
+  AlarmState,
   ComparisonOperator,
+  CompositeAlarm,
   MathExpression,
   Metric,
   Stats,
@@ -519,18 +522,24 @@ export class ObservabilityStack extends Stack {
     // 03:00 run lands in the 00–12 bucket every day, so a missed night
     // alarms within ~21–33h of the last successful run. TreatMissingData
     // BREACHING is the point: a silent pipeline (no log events at all) is
-    // exactly the failure this guards. NOTE: while the env is cold-paused
-    // (RDS stopped → backup cannot run) this alarm sits in ALARM — that is
-    // intended signal, not noise; it fires once on transition.
+    // exactly the failure this guards.
     //
-    // The log-group name is the BackupStack convention
+    // Power-aware: a deliberately cold-paused env (RDS stopped, backup task
+    // idle, no backups by design) would otherwise leave this in permanent
+    // ALARM. So the stale-metric alarm below is gated by a "DB is running"
+    // probe through a composite alarm — only the composite pages, and only
+    // when backups are stale WHILE the database is actually running (a real
+    // wedged-pipeline incident). A stopped DB leaves the probe OK, so the
+    // composite stays OK and never pages on a paused env.
+    //
+    // The backup log-group name is the BackupStack convention
     // (`/ecs/monorepo-<env>/backup`, backup-stack.ts) referenced by name to
     // avoid an Observability→Backup stack dependency cycle (BackupStack is
     // instantiated after this stack in bin/app.ts).
-    const backupFreshness = new Alarm(this, "BackupFreshnessStale", {
-      alarmName: `monorepo-${props.envName}-backup-freshness-stale`,
+    const backupStale = new Alarm(this, "BackupFreshnessStaleMetric", {
+      alarmName: `monorepo-${props.envName}-backup-freshness-stale-metric`,
       alarmDescription:
-        "No log activity from the nightly backup task for ~24h+. Backups are stale or the pipeline is wedged — verify the S3 backups bucket.",
+        "No log activity from the nightly backup task for ~24h+. Gated by the db-running probe via the backup-freshness composite alarm.",
       metric: new Metric({
         namespace: "AWS/Logs",
         metricName: "IncomingBytes",
@@ -545,6 +554,42 @@ export class ObservabilityStack extends Stack {
       datapointsToAlarm: 2,
       comparisonOperator: ComparisonOperator.LESS_THAN_THRESHOLD,
       treatMissingData: TreatMissingData.BREACHING,
+    })
+
+    // "DB is running" probe. RDS emits CPUUtilization every minute while up
+    // and nothing while stopped, so SAMPLE_COUNT >= 1 over a 12h bucket means
+    // "the database ran during this window". NOT_BREACHING on missing data so
+    // a stopped (cold-paused) DB resolves to OK = not running.
+    const dbRunning = new Alarm(this, "BackupFreshnessDbRunning", {
+      alarmName: `monorepo-${props.envName}-db-running-probe`,
+      alarmDescription:
+        "Helper for the backup-freshness composite: ALARM = the RDS instance is emitting metrics (running). Gates the backup alarm so a cold-paused env does not page.",
+      metric: new Metric({
+        namespace: "AWS/RDS",
+        metricName: "CPUUtilization",
+        dimensionsMap: {
+          DBInstanceIdentifier: props.dataStack.database.instanceIdentifier,
+        },
+        statistic: Stats.SAMPLE_COUNT,
+        period: Duration.hours(12),
+      }),
+      threshold: 1,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+
+    // Pages only when backups are stale AND the DB is running. The two child
+    // alarms carry no action by design — the composite is what notifies.
+    const backupFreshness = new CompositeAlarm(this, "BackupFreshnessStale", {
+      compositeAlarmName: `monorepo-${props.envName}-backup-freshness-stale`,
+      alarmDescription:
+        "Backups are stale or the pipeline is wedged WHILE the database is running — verify the S3 backups bucket. Suppressed while the env is cold-paused (RDS stopped).",
+      alarmRule: AlarmRule.allOf(
+        AlarmRule.fromAlarm(backupStale, AlarmState.ALARM),
+        AlarmRule.fromAlarm(dbRunning, AlarmState.ALARM),
+      ),
     })
     backupFreshness.addAlarmAction(snsAction)
 

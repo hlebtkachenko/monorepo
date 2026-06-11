@@ -14,12 +14,16 @@ StandardOutput=journal
 StandardError=journal
 
 # Same sandbox shape as vault-backup.service (M2). /var/run for the
-# failure sentinel; /root for the .env read (read-only).
+# failure sentinel; /root for the .env read (read-only). StateDirectory
+# gives the script /var/lib/vault-to-ssm (exposed as $STATE_DIRECTORY,
+# writable despite ProtectSystem=strict) for its local change-detection
+# state: per-key sha256-of-plaintext + last-written SSM Version.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
 ReadWritePaths=/var/run
+StateDirectory=vault-to-ssm
 
 # 5-min runs should complete in ~5s normally; 2-min ceiling guards against
 # hung network calls.

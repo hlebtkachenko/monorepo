@@ -315,6 +315,31 @@ export class ObservabilityStack extends Stack {
     })
     ecrPullAnomaly.addAlarmAction(snsAction)
 
+    // 6) Vault→SSM sync liveness. The VPS sync timer emits a SyncSuccess
+    // datapoint (Env dimension) on each clean pass, every 5 min. No
+    // datapoint for 15 min (3 missing periods, treated as breaching) means
+    // the secret-mirror loop is dead — SSM SecureStrings would silently
+    // drift from Vault and ECS could boot with stale secrets. SNS only, not
+    // the kill-switch: a dead sync must never stop a running service.
+    const vaultSyncStale = new Alarm(this, "VaultSsmSyncStale", {
+      alarmName: `monorepo-${props.envName}-vault-ssm-sync-stale`,
+      alarmDescription:
+        "No Vault→SSM sync-success datapoint for 15 min. The VPS secret-mirror loop is down; SSM SecureStrings may be drifting from Vault.",
+      metric: new Metric({
+        namespace: "Monorepo/VaultSync",
+        metricName: "SyncSuccess",
+        dimensionsMap: { Env: props.envName },
+        statistic: Stats.SUM,
+        period: Duration.minutes(5),
+      }),
+      threshold: 1,
+      evaluationPeriods: 3,
+      datapointsToAlarm: 3,
+      comparisonOperator: ComparisonOperator.LESS_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.BREACHING,
+    })
+    vaultSyncStale.addAlarmAction(snsAction)
+
     this.attackVectorAlarms = {
       rdsNetworkOut,
       s3PutRate,

@@ -146,7 +146,7 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
     // Original invariant: vault-unseal-vps must NOT have unrestricted KMS
     // access — that user's KMS calls are scoped to the unseal Key ARN.
     //
-    // M4 exception: vault-ssm-sync needs kms:GenerateDataKey + kms:Decrypt
+    // M4 exception: vault-ssm-sync needs kms:Encrypt + kms:GenerateDataKey
     // on the AWS-managed `alias/aws/ssm` key (default SecureString
     // encryption). AWS-managed-key resource policies do not honour an
     // ARN-scoped Allow from another principal's policy — the SSM API
@@ -195,9 +195,12 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
     template.hasOutput("VaultSsmSyncUserName", {})
   })
 
-  it("vault-ssm-sync has ssm:PutParameter/GetParameter scoped to the 6 sync params", () => {
-    // Scoped to the 4 secret + 2 heartbeat params. No `*`. No
+  it("vault-ssm-sync has ssm:PutParameter/GetParameter scoped to the 8 sync params", () => {
+    // Scoped to the 6 secret + 2 heartbeat params. No `*`. No
     // ssm:DeleteParameter (compromised key can overwrite, never erase).
+    // Change-detection state lives locally on the VPS — no hash-of-secret
+    // sidecar params in SSM (a sha256 of a structured secret in a plaintext
+    // param would be an offline brute-force target).
     template.hasResourceProperties("AWS::IAM::Policy", {
       PolicyDocument: {
         Statement: Match.arrayWith([
@@ -205,15 +208,19 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
             Sid: "VaultSsmSyncWriteScopedParams",
             Effect: "Allow",
             Action: Match.arrayWith(["ssm:PutParameter", "ssm:GetParameter"]),
-            // Resource is an array of 6 ARN strings — one per param.
+            // Resource is an array of 8 ARN strings — one per param.
             Resource: Match.arrayWith([
               Match.stringLikeRegexp("/monorepo/staging/better-auth-secret$"),
               Match.stringLikeRegexp("/monorepo/staging/resend-api-key$"),
+              Match.stringLikeRegexp("/monorepo/staging/notify-shared-secret$"),
               Match.stringLikeRegexp("/monorepo/staging/sync-heartbeat$"),
               Match.stringLikeRegexp(
                 "/monorepo/production/better-auth-secret$",
               ),
               Match.stringLikeRegexp("/monorepo/production/resend-api-key$"),
+              Match.stringLikeRegexp(
+                "/monorepo/production/notify-shared-secret$",
+              ),
               Match.stringLikeRegexp("/monorepo/production/sync-heartbeat$"),
             ]),
           }),
@@ -227,24 +234,51 @@ describe("SecretsStack — Vault auto-unseal KMS + IAM", () => {
     })
   })
 
-  it("vault-ssm-sync KMS access is gated by kms:ViaService = ssm.<region>.amazonaws.com", () => {
+  it("vault-ssm-sync KMS access is write-path only, gated by kms:ViaService = ssm.<region>.amazonaws.com", () => {
     // The AWS-managed alias/aws/ssm key gates SecureString crypto. The
     // policy is `Resource: *` (managed-key constraint) but the
     // kms:ViaService condition narrows the action to ssm-only calls
-    // — the same hardening AWS docs recommend.
+    // — the same hardening AWS docs recommend. The Action list is matched
+    // EXACTLY: kms:Encrypt (standard-tier SecureString writes) +
+    // kms:GenerateDataKey (advanced-tier), and crucially NO kms:Decrypt —
+    // the sync detects change via local state + parameter Version and
+    // never reads a SecureString back.
     template.hasResourceProperties("AWS::IAM::Policy", {
       PolicyDocument: {
         Statement: Match.arrayWith([
           Match.objectLike({
             Sid: "VaultSsmSyncKmsForSsmDefaultKey",
             Effect: "Allow",
-            Action: Match.arrayWith(["kms:GenerateDataKey", "kms:Decrypt"]),
+            Action: ["kms:Encrypt", "kms:GenerateDataKey"],
             Resource: "*",
             Condition: {
               StringEquals: Match.objectLike({
                 "kms:ViaService": Match.stringLikeRegexp(
                   "^ssm\\.[a-z0-9-]+\\.amazonaws\\.com$",
                 ),
+              }),
+            },
+          }),
+        ]),
+      },
+    })
+  })
+
+  it("vault-ssm-sync PutMetricData is scoped to the Monorepo/VaultSync namespace", () => {
+    // The liveness heartbeat is a CloudWatch metric. PutMetricData has no
+    // resource-level scoping, so the namespace condition is the only
+    // boundary — this key must not be able to publish anywhere else.
+    template.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Sid: "VaultSsmSyncPutLivenessMetric",
+            Effect: "Allow",
+            Action: "cloudwatch:PutMetricData",
+            Resource: "*",
+            Condition: {
+              StringEquals: Match.objectLike({
+                "cloudwatch:namespace": "Monorepo/VaultSync",
               }),
             },
           }),

@@ -64,7 +64,13 @@ export function PlanForm() {
     setServerError(null)
     const result = await submitPlanAction(values)
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "savePlanFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "savePlanFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       return
     }
     router.push("/onboarding/team")

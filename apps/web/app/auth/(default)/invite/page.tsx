@@ -1,13 +1,13 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { auth } from "@workspace/auth/server"
 import { truncateIp } from "@workspace/auth/tokens"
 import { getTranslations } from "@workspace/i18n/server"
-import { Button } from "@workspace/ui/components/button"
-import { Heading } from "@workspace/ui/components/heading"
-import { Text } from "@workspace/ui/components/text"
-import { ArrowRightIcon, ArrowUpRight } from "@workspace/ui/lib/icons"
+import { BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"
+import {
+  AuthTokenContinueCard,
+  AuthTokenInvalidCard,
+} from "@workspace/ui/blocks/auth"
 
 import { isDevPreview } from "@/lib/dev-preview"
 import { checkSignupRateLimit } from "@/lib/signup-rate-limit"
@@ -103,47 +103,26 @@ export default async function InviteWelcomePage({ searchParams }: PageProps) {
 async function renderContinueForm(token: string) {
   const t = await getTranslations("auth.invite.landing")
   const tBrand = await getTranslations("brand")
-  const brandName = tBrand("name")
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <Heading level={2} className="mt-0">
-          {t("title")}
-        </Heading>
-        <Text variant="muted">{t("descriptionGeneric")}</Text>
-      </header>
-
-      <form method="POST" action="/auth/invite/consume">
-        <input type="hidden" name="token" value={token} />
-        <Button type="submit" size="xl" className="w-full">
-          {t("continue")}
-          <ArrowRightIcon className="size-4" aria-hidden="true" />
-        </Button>
-      </form>
-
-      <Text variant="muted" className="text-sm">
-        {brandName}
-      </Text>
-    </div>
+    <AuthTokenContinueCard
+      title={t("title")}
+      description={t("descriptionGeneric")}
+      continueLabel={t("continue")}
+      action="/auth/invite/consume"
+      token={token}
+      footnote={tBrand("name")}
+    />
   )
 }
 
 async function renderInvalid() {
   const t = await getTranslations("auth.invite.landing")
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <Heading level={2} className="mt-0">
-          {t("invalid.title")}
-        </Heading>
-        <Text variant="muted">{t("invalid.description")}</Text>
-      </header>
-      <Button asChild size="xl">
-        <Link href="#">
-          {t("invalid.contactSupport")}
-          <ArrowUpRight className="size-4" aria-hidden="true" />
-        </Link>
-      </Button>
-    </div>
+    <AuthTokenInvalidCard
+      title={t("invalid.title")}
+      description={t("invalid.description")}
+      contactLabel={t("invalid.contactSupport")}
+      contactHref={`mailto:${BRAND_SUPPORT_EMAIL}`}
+    />
   )
 }

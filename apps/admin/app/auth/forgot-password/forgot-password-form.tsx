@@ -25,7 +25,8 @@ export function ForgotPasswordForm() {
         sentDescription: (email) => t("sent.description", { email }),
         sentResend: t("sent.resend"),
         sentResendIn: (seconds) => t("sent.resendIn", { seconds }),
-        validationFor: (key) => tValidation(key),
+        validationFor: (key) =>
+          tValidation(key as Parameters<typeof tValidation>[0]),
       }}
     />
   )

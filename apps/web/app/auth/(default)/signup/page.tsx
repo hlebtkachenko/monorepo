@@ -4,6 +4,11 @@ import Link from "next/link"
 import { auth } from "@workspace/auth/server"
 import { truncateIp } from "@workspace/auth/tokens"
 import { getTranslations } from "@workspace/i18n/server"
+import { BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"
+import {
+  AuthTokenContinueCard,
+  AuthTokenInvalidCard,
+} from "@workspace/ui/blocks/auth"
 import { Button } from "@workspace/ui/components/button"
 import { Field, FieldGroup, FieldLabel } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
@@ -176,13 +181,13 @@ export default async function SignupWelcomePage({ searchParams }: PageProps) {
 
       <Text variant="muted">
         {t("wrongInvite")}{" "}
-        <Link
-          href="#"
+        <a
+          href={`mailto:${BRAND_SUPPORT_EMAIL}`}
           className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
         >
           {t("contactSupport", { brand: brandName })}
           <ArrowUpRight className="size-3" aria-hidden="true" />
-        </Link>
+        </a>
       </Text>
     </div>
   )
@@ -191,47 +196,26 @@ export default async function SignupWelcomePage({ searchParams }: PageProps) {
 async function renderContinueForm(token: string) {
   const t = await getTranslations("auth.signup.landing")
   const tBrand = await getTranslations("brand")
-  const brandName = tBrand("name")
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <Heading level={2} className="mt-0">
-          {t("title")}
-        </Heading>
-        <Text variant="muted">{t("descriptionGeneric")}</Text>
-      </header>
-
-      <form method="POST" action="/auth/signup/consume">
-        <input type="hidden" name="token" value={token} />
-        <Button type="submit" size="xl" className="w-full">
-          {t("continue")}
-          <ArrowRightIcon className="size-4" aria-hidden="true" />
-        </Button>
-      </form>
-
-      <Text variant="muted" className="text-sm">
-        {brandName}
-      </Text>
-    </div>
+    <AuthTokenContinueCard
+      title={t("title")}
+      description={t("descriptionGeneric")}
+      continueLabel={t("continue")}
+      action="/auth/signup/consume"
+      token={token}
+      footnote={tBrand("name")}
+    />
   )
 }
 
 async function renderInvalid() {
   const t = await getTranslations("auth.signup.landing")
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <Heading level={2} className="mt-0">
-          {t("invalid.title")}
-        </Heading>
-        <Text variant="muted">{t("invalid.description")}</Text>
-      </header>
-      <Button asChild size="xl">
-        <Link href="#">
-          {t("invalid.contactSupport")}
-          <ArrowUpRight className="size-4" aria-hidden="true" />
-        </Link>
-      </Button>
-    </div>
+    <AuthTokenInvalidCard
+      title={t("invalid.title")}
+      description={t("invalid.description")}
+      contactLabel={t("invalid.contactSupport")}
+      contactHref={`mailto:${BRAND_SUPPORT_EMAIL}`}
+    />
   )
 }

@@ -138,7 +138,7 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
       msg.startsWith("phone.") ||
       msg.startsWith("email.")
     ) {
-      return tValidation(msg)
+      return tValidation(msg as Parameters<typeof tValidation>[0])
     }
     return msg
   }
@@ -196,7 +196,13 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
     setServerError(null)
     const result = await submitProfileAction(values)
     if (!result.ok) {
-      setServerError(tErrors(result.errorKey ?? "saveProfileFailed"))
+      setServerError(
+        tErrors(
+          (result.errorKey ?? "saveProfileFailed") as Parameters<
+            typeof tErrors
+          >[0],
+        ),
+      )
       return
     }
 

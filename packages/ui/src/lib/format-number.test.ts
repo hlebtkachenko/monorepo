@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { formatNumber, parseNumber } from "./format-number"
+import { formatMoney, formatNumber, parseNumber } from "./format-number"
 
 const NBSP = " "
 
@@ -49,6 +49,51 @@ describe("formatNumber", () => {
 
   it("returns empty string for Infinity", () => {
     expect(formatNumber(Number.POSITIVE_INFINITY)).toBe("")
+  })
+
+  it("formats with an explicit locale", () => {
+    expect(formatNumber(1000000, { locale: "en-US" })).toBe("1,000,000.00")
+  })
+})
+
+describe("formatMoney", () => {
+  it("formats CZK minor units in cs-CZ by default", () => {
+    expect(formatMoney({ amount: 123456n, currency: "CZK" })).toBe(
+      `1${NBSP}234,56${NBSP}Kč`,
+    )
+  })
+
+  it("formats with an explicit locale", () => {
+    expect(formatMoney({ amount: 123456n, currency: "USD" }, "en-US")).toBe(
+      "$1,234.56",
+    )
+  })
+
+  it("formats negative amounts", () => {
+    expect(formatMoney({ amount: -50n, currency: "CZK" })).toBe(
+      `-0,50${NBSP}Kč`,
+    )
+  })
+
+  it("formats zero", () => {
+    expect(formatMoney({ amount: 0n, currency: "CZK" })).toBe(`0,00${NBSP}Kč`)
+  })
+
+  it("stays exact beyond Number.MAX_SAFE_INTEGER", () => {
+    expect(
+      formatMoney({ amount: 9007199254740993n, currency: "EUR" }, "en-US"),
+    ).toBe("€90,071,992,547,409.93")
+  })
+
+  it("formats zero-fraction-digit currencies (JPY)", () => {
+    expect(formatMoney({ amount: 1234n, currency: "JPY" }, "en-US")).toBe(
+      "¥1,234",
+    )
+  })
+
+  it("returns empty string for null and undefined", () => {
+    expect(formatMoney(null)).toBe("")
+    expect(formatMoney(undefined)).toBe("")
   })
 })
 

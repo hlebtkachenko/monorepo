@@ -2,27 +2,40 @@
 
 import * as React from "react"
 
-import { fontawesomeIcons } from "./fontawesome"
 import { lucideIcons } from "./lucide"
-import { phosphorIcons } from "./phosphor"
 import type { IconMap, IconPackName } from "./types"
-
-/**
- * Registered icon packs. Add a new pack:
- *   1. Create `packages/ui/src/icon-packs/<pack>/index.ts` exporting
- *      `<pack>Icons` with `satisfies IconMap`.
- *   2. Add the import + entry below.
- *   3. Add the literal name to `IconPackName` in `./types`.
- *   4. `pnpm check:icon-packs` enforces parity in CI.
- */
-const PACKS: Record<IconPackName, IconMap> = {
-  lucide: lucideIcons,
-  phosphor: phosphorIcons,
-  fontawesome: fontawesomeIcons,
-}
 
 const DEFAULT_PACK: IconPackName = "lucide"
 const STORAGE_KEY = "afframe-icon-pack"
+
+type LazyPackName = Exclude<IconPackName, "lucide">
+
+/**
+ * Registered icon packs. Lucide is the default pack and ships statically
+ * in the shared bundle; every other pack loads on demand via dynamic
+ * `import()` so its icon library stays out of the first-load JS (WP-01).
+ *
+ * Add a new pack:
+ *   1. Create `packages/ui/src/icon-packs/<pack>/index.ts(x)` exporting
+ *      `<pack>Icons` with `satisfies IconMap`.
+ *   2. Add a loader entry below.
+ *   3. Add the literal name to `IconPackName` in `./types`.
+ *   4. `pnpm check:icon-packs` enforces parity in CI.
+ */
+const LAZY_PACK_LOADERS: Record<LazyPackName, () => Promise<IconMap>> = {
+  phosphor: () => import("./phosphor").then((m) => m.phosphorIcons),
+  fontawesome: () => import("./fontawesome").then((m) => m.fontawesomeIcons),
+}
+
+// Module-level cache: each pack's chunk is fetched once per session;
+// later provider mounts and re-switches resolve synchronously.
+const loadedPacks: Partial<Record<IconPackName, IconMap>> = {
+  lucide: lucideIcons,
+}
+
+function isPackName(value: string): value is IconPackName {
+  return value === DEFAULT_PACK || Object.hasOwn(LAZY_PACK_LOADERS, value)
+}
 
 interface IconPackContextValue {
   pack: IconPackName
@@ -50,38 +63,82 @@ interface IconProviderProps {
  * the active pack. Persists the user's choice in localStorage; the
  * default is hydrated from `defaultPack` (which a parent server
  * layout can derive from a cookie if you want zero-flash SSR).
+ *
+ * Non-default packs are code-split: switching to one (or hydrating a
+ * stored choice) fetches its chunk first, then swaps `pack` + icon map
+ * atomically. Until the chunk resolves the current pack keeps
+ * rendering — the default lucide pack never flashes or re-renders.
  */
 export function IconProvider({
   defaultPack = DEFAULT_PACK,
   storageKey = STORAGE_KEY,
   children,
 }: IconProviderProps) {
-  const [pack, setPackState] = React.useState<IconPackName>(defaultPack)
+  const [active, setActive] = React.useState<{
+    pack: IconPackName
+    icons: IconMap
+  }>(() => {
+    const cached = loadedPacks[defaultPack]
+    return cached
+      ? { pack: defaultPack, icons: cached }
+      : { pack: DEFAULT_PACK, icons: lucideIcons }
+  })
 
-  // Hydrate from localStorage after mount (avoid SSR mismatch).
+  // Latest pack the user (or hydration) asked for — guards against a
+  // slow chunk resolving after a newer switch already won.
+  const requestedPack = React.useRef<IconPackName>(active.pack)
+
+  const activate = React.useCallback((next: IconPackName) => {
+    requestedPack.current = next
+    const cached = loadedPacks[next]
+    if (cached) {
+      setActive((prev) =>
+        prev.pack === next ? prev : { pack: next, icons: cached },
+      )
+      return
+    }
+    void LAZY_PACK_LOADERS[next as LazyPackName]()
+      .then((icons) => {
+        loadedPacks[next] = icons
+        if (requestedPack.current === next) {
+          setActive((prev) =>
+            prev.pack === next ? prev : { pack: next, icons },
+          )
+        }
+      })
+      .catch(() => {
+        // Chunk fetch failed (offline, deploy skew) — keep the current pack.
+      })
+  }, [])
+
+  // Hydrate from localStorage after mount (avoid SSR mismatch). A stored
+  // non-default pack loads lazily; the default pack is a no-op (the
+  // functional setState bails out, so no extra render).
   React.useEffect(() => {
     if (typeof window === "undefined") return
     const stored = window.localStorage.getItem(storageKey)
-    if (stored && stored in PACKS) {
-      setPackState(stored as IconPackName)
-    }
-  }, [storageKey])
+    const wanted = stored && isPackName(stored) ? stored : defaultPack
+    activate(wanted)
+  }, [storageKey, defaultPack, activate])
 
   const setPack = React.useCallback(
     (next: IconPackName) => {
-      setPackState(next)
       if (typeof window !== "undefined") {
         window.localStorage.setItem(storageKey, next)
       }
+      activate(next)
     },
-    [storageKey],
+    [storageKey, activate],
   )
 
-  const packContext = React.useMemo(() => ({ pack, setPack }), [pack, setPack])
+  const packContext = React.useMemo(
+    () => ({ pack: active.pack, setPack }),
+    [active.pack, setPack],
+  )
 
   return (
     <IconPackContext.Provider value={packContext}>
-      <IconMapContext.Provider value={PACKS[pack]}>
+      <IconMapContext.Provider value={active.icons}>
         {children}
       </IconMapContext.Provider>
     </IconPackContext.Provider>

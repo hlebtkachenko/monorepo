@@ -446,12 +446,12 @@
       "submit": "Send invites",
       "submitting": "Saving…",
       "skip": "Skip for now",
-      "note": "Invites are saved as drafts and sent when you first add an organization.",
+      "note": "Invites are sent right away. You can always invite more teammates later from workspace settings.",
       "toast": {
         "sentTitle": "{count, plural, one {# invite sent} other {# invites sent}}",
-        "sentDescription": "If you don't see the email, the dev console transport prints links to your terminal — or visit /api/dev/outbox.",
+        "sentDescription": "Each invitation includes a link to join your workspace. If it doesn't arrive within a few minutes, ask your teammate to check their spam folder.",
         "failedTitle": "{count, plural, one {# invite failed} other {# invites failed}}",
-        "failedDescription": "Check the dev-server log for the underlying error."
+        "failedDescription": "We couldn't send some invitations. You can invite those teammates again later from workspace settings."
       }
     },
     "done": {
@@ -502,6 +502,7 @@
       "noActiveWorkspace": "We couldn't find your workspace. Sign in again to continue.",
       "acceptInviteFailed": "Could not accept the invitation.",
       "emailAlreadyRegistered": "An account with this email already exists. Sign in with your existing password instead.",
+      "invalidInput": "Some fields are invalid. Check the form and try again.",
       "inviteEmailMismatch": "This invitation is addressed to a different email. Sign out and open the link again with the invited address."
     }
   },

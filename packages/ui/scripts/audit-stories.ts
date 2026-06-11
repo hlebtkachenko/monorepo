@@ -14,6 +14,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, basename } from "node:path"
 
 const COMPONENTS_DIR = join(import.meta.dirname, "../src/components")
+const BLOCKS_DIR = join(import.meta.dirname, "../src/blocks")
 const FIX_MODE = process.argv.includes("--fix")
 
 interface VariantInfo {
@@ -24,8 +25,10 @@ interface VariantInfo {
 
 interface ComponentAudit {
   name: string
+  dir: string
   variants: VariantInfo[]
   hasDisabledProp: boolean
+  hasStoriesFile: boolean
   existingStories: string[]
   missingStories: string[]
 }
@@ -231,11 +234,13 @@ function auditComponent(componentDir: string): ComponentAudit | null {
 
   const hasDisabledProp = /\bdisabled\b\s*[?:]/.test(source)
 
+  let hasStoriesFile = true
   let existingStories: string[] = []
   try {
     existingStories = extractExistingStories(readFileSync(storiesFile, "utf-8"))
   } catch {
     // no stories file yet
+    hasStoriesFile = false
   }
 
   const expectedStories: string[] = []
@@ -259,8 +264,10 @@ function auditComponent(componentDir: string): ComponentAudit | null {
 
   return {
     name,
+    dir: componentDir,
     variants: allVariants,
     hasDisabledProp,
+    hasStoriesFile,
     existingStories,
     missingStories,
   }
@@ -340,9 +347,14 @@ function generateMissingStories(
 }
 
 function main() {
-  const dirs = readdirSync(COMPONENTS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => join(COMPONENTS_DIR, d.name))
+  // Components AND blocks — a block without a stories file (e.g. the
+  // app-header gap) must be visible to this audit, not just variant gaps.
+  const dirs = [COMPONENTS_DIR, BLOCKS_DIR]
+    .flatMap((root) =>
+      readdirSync(root, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => join(root, d.name)),
+    )
     .sort()
 
   const audits: ComponentAudit[] = []
@@ -364,11 +376,28 @@ function main() {
   console.log("\n📋 Story Coverage Audit")
   console.log("=".repeat(60))
 
-  const incomplete = audits.filter((a) => a.missingStories.length > 0)
-  const complete = audits.filter(
-    (a) => a.missingStories.length === 0 && a.variants.length > 0,
+  const noStoriesFile = audits.filter((a) => !a.hasStoriesFile)
+  const incomplete = audits.filter(
+    (a) => a.hasStoriesFile && a.missingStories.length > 0,
   )
-  const noVariants = audits.filter((a) => a.variants.length === 0)
+  const complete = audits.filter(
+    (a) =>
+      a.hasStoriesFile &&
+      a.missingStories.length === 0 &&
+      a.variants.length > 0,
+  )
+  const noVariants = audits.filter(
+    (a) => a.hasStoriesFile && a.variants.length === 0,
+  )
+
+  if (noStoriesFile.length > 0) {
+    console.log(
+      `\n❌ No stories file (${noStoriesFile.length} components/blocks):`,
+    )
+    for (const audit of noStoriesFile) {
+      console.log(`  ${audit.name} (${audit.dir})`)
+    }
+  }
 
   if (incomplete.length > 0) {
     console.log(
@@ -387,7 +416,7 @@ function main() {
       }
 
       if (FIX_MODE) {
-        generateMissingStories(audit, join(COMPONENTS_DIR, audit.name))
+        generateMissingStories(audit, audit.dir)
         console.log(`    -> Generated ${audit.missingStories.length} stories`)
       }
     }
@@ -409,15 +438,18 @@ function main() {
 
   console.log(`\n${"=".repeat(60)}`)
   console.log(
-    `Total: ${totalComponents} components, ${totalMissing} missing stories`,
+    `Total: ${totalComponents} components, ${totalMissing} missing stories, ${noStoriesFile.length} missing stories files`,
   )
-  if (totalMissing === 0) {
+  const hasGaps = totalMissing > 0 || noStoriesFile.length > 0
+  if (!hasGaps) {
     console.log("All detectable variants have stories!")
   } else if (!FIX_MODE) {
-    console.log("Run with --fix to generate missing stories")
+    console.log(
+      "Run with --fix to generate missing variant stories (missing stories files need manual authoring)",
+    )
   }
 
-  process.exit(totalMissing > 0 ? 1 : 0)
+  process.exit(hasGaps ? 1 : 0)
 }
 
 main()

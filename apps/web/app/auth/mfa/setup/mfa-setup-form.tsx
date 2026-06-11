@@ -113,7 +113,8 @@ export function MfaSetupForm() {
 
   function translateOtpValidation(msg: string | undefined): string | undefined {
     if (!msg) return undefined
-    if (msg.startsWith("otp.")) return tValidation(msg)
+    if (msg.startsWith("otp."))
+      return tValidation(msg as Parameters<typeof tValidation>[0])
     return msg
   }
 

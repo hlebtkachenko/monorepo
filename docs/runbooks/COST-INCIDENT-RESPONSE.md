@@ -128,7 +128,7 @@ After the AWS-forced 7-day restart, the watcher Lambda will re-stop the instance
 
 The killswitch and AWS Budgets in this stack do NOT attach IAM-deny policies, so they cannot lock the operator (`claude-cli` user or any human) out of the AWS console or CLI. If a future change adds Budget Actions of type `APPLY_IAM_POLICY`:
 
-1. Use the root account credentials from the break-glass store (sealed envelope, office safe).
+1. Use the root account credentials from the break-glass store (offline dual-custody escrow, off-repo).
 2. AWS Console -> IAM -> Users -> `claude-cli` (or affected principal) -> Detach the deny policy.
 3. Open an incident and ADR follow-up.
 

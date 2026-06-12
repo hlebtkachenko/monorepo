@@ -218,11 +218,11 @@ is deleted after the 7-day soak. Full chain + audit verification in
 
 For emergency access when normal IAM / Cloudflare-Access login is unavailable (e.g. locked-out admin):
 
-1. Sealed envelope in the office safe contains:
+1. An offline break-glass record (off-repo, dual custody) holds:
    - Root account credentials.
    - Backup MFA codes.
 2. Two-person rule when a second human is available.
 3. Document use immediately in incident channel `#inc-YYYYMMDD-<slug>`.
 4. Replace credentials and rotate MFA within 24 hours of use.
 
-**Solo dev caveat**: Hleb is the sole approver right now. Two-person rule is aspirational until a second admin exists. The risk is documented; mitigation is to keep the envelope physically in a separate location from primary devices.
+**Solo dev caveat**: Hleb is the sole approver right now. Two-person rule is aspirational until a second admin exists. The risk is documented; mitigation is to keep the break-glass record in offline dual-custody escrow, physically apart from primary devices.

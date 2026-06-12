@@ -63,7 +63,7 @@ docker compose logs vault | tail -20
 # 6. Initialize Vault (ONE-TIME, IRREVERSIBLE — captures unseal keys + root token).
 docker compose exec vault vault operator init -key-shares=5 -key-threshold=3
 #    Capture the 5 unseal keys + initial root token from stdout. Store in
-#    macOS Keychain (3) + paper at safe-deposit (2) per the irreversible-ops
+#    macOS Keychain (3) + offline escrow (2) per the irreversible-ops
 #    register. NEVER paste them into Slack / Linear / a chat with an LLM.
 
 # 7. Verify auto-unseal works.
@@ -107,7 +107,7 @@ Pre-requisites:
 - Cloudflare R2 bucket `afframe-vault-backup` (EU region) created + R2 API
   token scoped read/write to that bucket only.
 - Restic repo password generated (`openssl rand -base64 32`), escrowed to
-  macOS Keychain entry `afframe-vault-restic-password` + paper-at-safe-deposit.
+  macOS Keychain entry `afframe-vault-restic-password` + offline escrow.
 - **B2 secondary mirror is deferred per [AFF-246](https://linear.app/hapddev/issue/AFF-246)**;
   ship the R2-only config. The script auto-detects the missing B2 env vars
   and skips the weekly mirror cleanly — re-enable later by populating

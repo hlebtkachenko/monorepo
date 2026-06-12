@@ -23,7 +23,7 @@ import type { Construct } from "constructs"
  *      Key ARN — never `Resource: *`. The user has no console access; only
  *      programmatic credentials, generated out-of-band by the operator via
  *      `aws iam create-access-key --user-name vault-unseal-vps` after the
- *      first deploy. Credentials live in macOS Keychain + paper-at-safe-deposit
+ *      first deploy. Credentials live in macOS Keychain + offline escrow
  *      per `docs/plans/SECRETS-MIGRATION.md` § irreversible-ops register.
  *      Rotate the access key every 90 days.
  *
@@ -139,7 +139,7 @@ export class SecretsStack extends Stack {
     //
     // Access keys generated out-of-band:
     //   aws iam create-access-key --user-name vault-ssm-sync
-    // and stored in macOS Keychain + paper-at-safe-deposit. Rotate every
+    // and stored in macOS Keychain + offline escrow. Rotate every
     // 90 days.
     this.vaultSsmSyncUser = new User(this, "VaultSsmSyncUser", {
       userName: "vault-ssm-sync",
@@ -231,7 +231,7 @@ export class SecretsStack extends Stack {
     new CfnOutput(this, "VaultUnsealUserName", {
       value: this.vaultUnsealUser.userName,
       description:
-        "IAM user name. Generate access keys with `aws iam create-access-key --user-name vault-unseal-vps` after this stack deploys; store output in macOS Keychain + paper-at-safe-deposit.",
+        "IAM user name. Generate access keys with `aws iam create-access-key --user-name vault-unseal-vps` after this stack deploys; store output in macOS Keychain + offline escrow.",
     })
 
     new CfnOutput(this, "VaultAwsAuthVerifierUserName", {
@@ -243,7 +243,7 @@ export class SecretsStack extends Stack {
     new CfnOutput(this, "VaultSsmSyncUserName", {
       value: this.vaultSsmSyncUser.userName,
       description:
-        "IAM user that /usr/local/sbin/vault-to-ssm-sync on the VPS authenticates as while mirroring Vault → SSM SecureString every 5 min (M4). Generate access keys with `aws iam create-access-key --user-name vault-ssm-sync`; store in macOS Keychain + paper-at-safe-deposit. Rotate every 90 days.",
+        "IAM user that /usr/local/sbin/vault-to-ssm-sync on the VPS authenticates as while mirroring Vault → SSM SecureString every 5 min (M4). Generate access keys with `aws iam create-access-key --user-name vault-ssm-sync`; store in macOS Keychain + offline escrow. Rotate every 90 days.",
     })
   }
 }

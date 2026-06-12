@@ -21,6 +21,10 @@ overrides:
   # Force >=18.2.1: CVE-2026-48038 RangeError DoS via recursive link() schemas.
   # Transitive (dev/test only) via @storybook/test-runner -> jest-process-manager -> wait-on.
   joi: ">=18.2.1"
+  # Pin 1.6.11: auth-critical, manual bumps only. 1.6.14 ships @better-auth/kysely-adapter
+  # 1.6.14, which imports DEFAULT_MIGRATION_LOCK_TABLE from kysely 0.29.2 (no such export) and
+  # breaks the Turbopack build. Bump better-auth deliberately + retest, never via a group bump.
+  better-auth: "1.6.11"
   # Force >=4.12.21: 4 GHSAs in transitive 4.12.18 via @modelcontextprotocol/sdk
   # (Set-Cookie injection, IPv6 deny bypass, JWT scheme accept-any, mount-prefix
   # routing). SDK's own range is ^4.11.4, so dedupes onto our direct 4.12.23.

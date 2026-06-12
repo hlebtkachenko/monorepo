@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@afframe/sdk": "workspace:*",
-    "commander": "^14.0.0"
+    "commander": "^15.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",

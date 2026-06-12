@@ -132,7 +132,7 @@ AWS console.
 Today: solo dev. Primary contact: Hleb. Channels: Telegram (via the
 bot) and the operator email (repo secret `EMAIL_FORWARD_TO`; SNS
 subscriptions). Escalation: email to break-glass contact (break-glass
-record: sealed envelope, office safe).
+record: offline dual-custody escrow, off-repo).
 
 This is **not adequate** for a regulated production launch with paying customers. Before that:
 

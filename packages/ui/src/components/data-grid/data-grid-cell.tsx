@@ -32,7 +32,9 @@ const CELL_COMPONENTS: Record<CellOpts["variant"], CellComponent> = {
 function DataGridCellImpl<TData>(props: DataGridCellProps<TData>) {
   const variant =
     props.cell.column.columnDef.meta?.cell?.variant ?? "short-text"
-  const CellVariant = CELL_COMPONENTS[variant]
+  // Out-of-union variant strings can arrive through cast columnDef.meta;
+  // fall back to ShortTextCell like the pre-Record switch default did.
+  const CellVariant = CELL_COMPONENTS[variant] ?? ShortTextCell
   return <CellVariant {...props} />
 }
 

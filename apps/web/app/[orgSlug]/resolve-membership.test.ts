@@ -348,6 +348,7 @@ describe("slug validation (SLUG_RE + RESERVED_SLUGS)", () => {
   it("rejects slugs that do not match the pattern", () => {
     const invalid = [
       "",
+      "   ",
       "-leading-dash",
       "trailing-dash-",
       "UPPERCASE",

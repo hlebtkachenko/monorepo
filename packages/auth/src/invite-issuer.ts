@@ -255,24 +255,3 @@ export async function findOrganizationOwner(
     return row?.user_id ?? null
   })
 }
-
-/**
- * Mark all expired-but-still-pending invites as 'expired'. Called by
- * the daily cleanup worker. The auth_token-wide `expireDueAuthTokens`
- * helper from `@workspace/auth/tokens` does the same thing for every
- * kind; this thin wrapper exists so the workers job keeps its
- * 'invite-only' semantics for ops dashboards.
- */
-export async function expireDuePendingInvites(): Promise<number> {
-  return await withAdminBypass(async (db) => {
-    const result = (await db.execute(
-      sql`UPDATE auth_token
-          SET status = 'expired'
-          WHERE kind = 'inv'
-            AND status = 'pending'
-            AND expires_at < now()
-          RETURNING id`,
-    )) as unknown as Array<{ id: string }>
-    return result.length
-  })
-}

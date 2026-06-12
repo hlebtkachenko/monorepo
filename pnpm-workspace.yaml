@@ -35,6 +35,11 @@ overrides:
   # break the 8.x/10.x require() consumers (exceljs, dockerode, storybook tooling); 11.1.1
   # is the last CJS-capable release and still exports the v1/v4 those consumers use.
   "uuid@<11.1.1": "11.1.1"
+  # Pin 1.46.1: es-toolkit 1.47.0 reshaped its internal isUnsafeProperty module so the
+  # Storybook (vite/rolldown) dep-optimizer prebundle of recharts emits a broken CJS interop
+  # (`require_isUnsafeProperty is not a function`), crashing every chart story in test-storybook.
+  # Transitive via recharts (^1.39.3). Hold at the last-good until es-toolkit ships a fix.
+  es-toolkit: "1.46.1"
 allowBuilds:
   "@nestjs/core": true
   # @parcel/watcher pulled in transitively by next-intl message loader.

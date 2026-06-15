@@ -15,9 +15,9 @@
   "dependencies": {
     "@cerbos/core": "^0.31.0",
     "@cerbos/grpc": "^0.27.1",
-    "@nestjs/common": "^11.1.24",
-    "@nestjs/core": "^11.1.24",
-    "@nestjs/platform-express": "^11.1.24",
+    "@nestjs/common": "^11.1.25",
+    "@nestjs/core": "^11.1.25",
+    "@nestjs/platform-express": "^11.1.25",
     "@nestjs/swagger": "^11.4.4",
     "@nestjs/throttler": "^6.5.0",
     "@openfga/sdk": "^0.9.6",

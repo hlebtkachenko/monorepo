@@ -27,7 +27,7 @@
     "@aws-sdk/client-ecs": "^3.1063.0",
     "@aws-sdk/client-rds": "^3.1063.0",
     "@aws-sdk/client-sns": "^3.1063.0",
-    "@aws-sdk/client-ssm": "^3.1061.0",
+    "@aws-sdk/client-ssm": "^3.1063.0",
     "@types/node": "^25.9.2",
     "@workspace/typescript-config": "workspace:*",
     "aws-cdk": "^2.1126.0",

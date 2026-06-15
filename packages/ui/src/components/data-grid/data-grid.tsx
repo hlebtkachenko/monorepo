@@ -197,7 +197,9 @@ export function getColumnVariant(variant?: CellOpts["variant"]): {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   label: string
 } | null {
-  return variant ? COLUMN_VARIANT_META[variant] : null
+  // Nullish fallback mirrors the pre-Record switch default: an
+  // out-of-union variant (cast columnDef.meta) resolves to null.
+  return variant ? (COLUMN_VARIANT_META[variant] ?? null) : null
 }
 
 export function getUrlHref(urlString: string): string {

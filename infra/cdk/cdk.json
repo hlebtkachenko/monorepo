@@ -22,6 +22,7 @@
     "@aws-cdk/aws-cloudfront:defaultSecurityPolicyTLSv1.2_2021": true,
     "@aws-cdk/aws-ecs:reduceEc2FargateCloudWatchPermissions": true,
     "@aws-cdk/core:newStyleStackSynthesis": true,
+    "@aws-cdk/core:defaultCrossStackReferences": "strong",
     "homeRegion": "eu-central-1",
     "drRegion": "eu-west-1",
     "validEnvironments": ["staging", "production"],

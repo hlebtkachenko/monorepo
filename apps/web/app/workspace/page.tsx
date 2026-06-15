@@ -181,7 +181,18 @@ async function listWorkspacesForUser(userId: string): Promise<WorkspaceRow[]> {
         }
         byWorkspace.set(row.workspaceId, ws)
       }
-      if (row.orgId && row.orgSlug && row.orgLegalName) {
+      // LEFT JOIN miss leaves all org columns null: narrow on the join
+      // key (orgId), not column truthiness, so an org row with an
+      // empty-string legal_name still lists. The slug keeps an explicit
+      // empty check on purpose: an empty/whitespace-only slug (impossible
+      // under the DB CHECK, guarded here anyway) would render a broken
+      // /[orgSlug] link.
+      if (
+        row.orgId !== null &&
+        row.orgSlug !== null &&
+        row.orgSlug.trim() !== "" &&
+        row.orgLegalName !== null
+      ) {
         ws.organizations.push({
           id: row.orgId,
           slug: row.orgSlug,

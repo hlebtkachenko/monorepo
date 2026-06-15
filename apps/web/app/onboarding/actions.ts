@@ -4,7 +4,7 @@ import { headers } from "next/headers"
 import { and, eq, sql } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { getBetterAuthUrl } from "@workspace/auth/env"
-import { notifierFromEnv } from "@workspace/notify"
+import { notifierFromEnv, sanitizeError } from "@workspace/notify"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
 import {
   app_user,
@@ -523,8 +523,12 @@ export async function submitTeamAction(
     logServerError("onboarding/team issueInvite failed", result.reason)
     failures.push({
       email: rows[i]!.email,
+      // Same sanitizeError gate the log line above goes through; never
+      // ship a raw error message (it can embed the recipient address).
       reason:
-        result.reason instanceof Error ? result.reason.message : "unknown",
+        result.reason instanceof Error
+          ? sanitizeError(result.reason, "onboarding/team").message
+          : "unknown",
     })
   })
 

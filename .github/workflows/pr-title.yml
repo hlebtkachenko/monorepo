@@ -46,6 +46,7 @@ jobs:
             ai
             api
             auth
+            bot
             bundle
             ci
             cli

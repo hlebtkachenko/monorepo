@@ -9,7 +9,7 @@
 #   1. `packages/db/migrations/*.sql` is journaled and applied — this is
 #      what creates the `app_user` role (0002_auth.sql) + all app tables.
 #   2. The `app_user` role's RDS password is set to match `appUserSecret`
-#      (per runbook docs/runbooks/AWS-DEPLOY.md). Without this sync the
+#      (per runbook docs/runbooks/AWS-SETUP.md). Without this sync the
 #      web/admin/api containers can't authenticate via pgbouncer.
 #   3. The `openfga` schema is created — the sibling openfga-migrate
 #      container's `openfga migrate` command will create its goose tables

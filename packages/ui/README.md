@@ -54,4 +54,4 @@ pnpm --filter @workspace/ui audit:stories:fix  # generate missing baseline stori
 - CSS custom property tokens only (`var(--primary)`, etc.) — no hardcoded colours.
 - Dark mode via `.dark` class and token system.
 - Every component registered in `src/lib/registry.ts`.
-- See `docs/runbooks/COMPONENT-MIGRATION-RUNBOOK.md` for adding non-shadcn components.
+- See `docs/runbooks/COMPONENT-MIGRATION.md` for adding non-shadcn components.

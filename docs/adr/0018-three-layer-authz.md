@@ -136,7 +136,7 @@ Follow-up work required:
   duplicate them). The edge-runtime `proxy.ts` keeps its cookie-only optimistic check.
 - Integration tests covering all 3 layers in combination, including defense-in-depth
   cases (RLS blocks even when OpenFGA allows).
-- Manual prod bootstrap step in `docs/runbooks/AWS-DEPLOY.md` — operator runs
+- Manual prod bootstrap step in `docs/runbooks/AWS-SETUP.md` — operator runs
   `CREATE SCHEMA openfga AUTHORIZATION app_owner` + `openfga migrate` + `bootstrap.mjs`
   once before the first `cdk deploy App-{env}`.
 

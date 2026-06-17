@@ -1,4 +1,4 @@
-# AWS Deploy
+# AWS Setup
 
 > Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This runbook covers the operational steps; the inventory file is the source of truth for what each host is.
 

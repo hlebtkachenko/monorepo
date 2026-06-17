@@ -80,7 +80,7 @@ export interface AppStackProps extends StackProps {
   readonly adminDomain: string
   /**
    * Outbound email "From" address. MUST be on a Resend-verified domain
-   * (see `docs/runbooks/AWS-DEPLOY.md` "Email sender verification"). The
+   * (see `docs/runbooks/AWS-SETUP.md` "Email sender verification"). The
    * web + admin containers both send from this address. Defaults via the
    * `MAIL_FROM_ADDRESS` env var in `bin/app.ts`, with a hard fallback to
    * `no-reply@afframe.com` (the currently-verified parent domain).
@@ -530,12 +530,12 @@ export class AppStack extends Stack {
         // (e.g. `no-reply-staging@…`) is a future tightening once the
         // subdomains are independently verified — DMARC posture improves
         // and inbox-side distinction becomes possible. Documented in
-        // `docs/runbooks/AWS-DEPLOY.md` "Email sender verification".
+        // `docs/runbooks/AWS-SETUP.md` "Email sender verification".
         EMAIL_FROM: props.mailFromAddress,
         // Force the Resend transport. Without this, packages/email's
         // pickTransport() would also accept SES via AWS_REGION; in MVP we
         // want every deploy on the same provider until SES production
-        // access is approved (docs/runbooks/AWS-DEPLOY.md step 8).
+        // access is approved (docs/runbooks/AWS-SETUP.md step 8).
         EMAIL_TRANSPORT: "resend",
         // pgbouncer-routed DB connection — same loopback path the api uses.
         // packages/db reads only DATABASE_URL, composed by /bin/sh from
@@ -712,7 +712,7 @@ export class AppStack extends Stack {
         ),
         // Identifiers from SSM populated by bootstrap.mjs. CDK fails at
         // synth/deploy time if the parameters don't exist — the operator
-        // runbook (docs/runbooks/AWS-DEPLOY.md) creates them before the
+        // runbook (docs/runbooks/AWS-SETUP.md) creates them before the
         // first App-{env} deploy.
         OPENFGA_STORE_ID: EcsSecret.fromSsmParameter(openfgaStoreIdParam),
         OPENFGA_MODEL_ID: EcsSecret.fromSsmParameter(openfgaModelIdParam),
@@ -906,7 +906,7 @@ export class AppStack extends Stack {
     // block below for the deeper note on why we don't override the default.
     //
     // Per-tenant role separation (ADR-0010 app_user) is a follow-up;
-    // see docs/runbooks/AWS-DEPLOY.md "Follow-up: per-tenant role split".
+    // see docs/runbooks/AWS-SETUP.md "Follow-up: per-tenant role split".
     //
     // pgbouncer container hardening note (2026-05-17): readonlyRootFilesystem
     // is intentionally OFF and the previous /etc/pgbouncer scratch volume is
@@ -939,7 +939,7 @@ export class AppStack extends Stack {
     // (api stays on app_owner; web + admin connect as app_user with RLS
     // applying). Both upstream URLs target the same RDS host:port:db, so
     // there is no second pool to manage. See
-    // `docs/runbooks/AWS-DEPLOY.md` "Follow-up: per-tenant role split"
+    // `docs/runbooks/AWS-SETUP.md` "Follow-up: per-tenant role split"
     // for the operator rotation procedure and the
     // post-deploy `GRANT app_admin TO app_owner` revert.
     const pgbouncerContainer = taskDef.addContainer("pgbouncer", {
@@ -1106,7 +1106,7 @@ export class AppStack extends Stack {
     // sessions and the pool semantics don't apply. Bootstrap
     // (CREATE SCHEMA openfga + openfga migrate + bootstrap.mjs) runs from
     // an operator workstation against a port-forwarded RDS BEFORE the
-    // first cdk deploy App-{env}; see docs/runbooks/AWS-DEPLOY.md.
+    // first cdk deploy App-{env}; see docs/runbooks/AWS-SETUP.md.
     //
     // openfga/openfga:v1.15.1 is a Chainguard distroless image — no
     // /bin/sh, no busybox. We pass URI + username/password as separate
@@ -1208,7 +1208,7 @@ export class AppStack extends Stack {
     // ─── Bootstrap init containers ───────────────────────────────────────
     //
     // First-deploy of a fresh environment needs three DB bootstrap steps
-    // (per docs/runbooks/AWS-DEPLOY.md):
+    // (per docs/runbooks/AWS-SETUP.md):
     //
     //   1. Apply Drizzle migrations (creates app_user role + all tables)
     //   2. ALTER ROLE app_user PASSWORD <from-appUserSecret>

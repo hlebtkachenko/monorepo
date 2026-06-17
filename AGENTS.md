@@ -101,8 +101,8 @@ READ the source file first. Never guess exports. The export list is at the botto
 
 Agent-specific runbooks live in `docs/runbooks/`:
 
-- `SHOWCASE-RUNBOOK.md`: instructions for adding component demos to the showcase page
-- `COMPONENT-MIGRATION-RUNBOOK.md`: workflow for adding non-shadcn components from external registries
+- `SHOWCASE.md`: instructions for adding component demos to the showcase page
+- `COMPONENT-MIGRATION.md`: workflow for adding non-shadcn components from external registries
 
 ## Dependency Update Coverage Rule
 
@@ -271,7 +271,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 ## Infrastructure
 
 - Single-account AWS CDK v2 (`infra/cdk/`), single region eu-central-1. Stacks: network, data, app, security, observability, backup. See ADR-0007.
-- AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-DEPLOY.md`.
+- AWS account is connected; bootstrap completed 2026-05-11 (`vars.AWS_BOOTSTRAPPED=true`). Account ID, role ARNs, and secret values live in GitHub Actions repo/environment secrets, never committed — the `<TBD>` markers in docs are deliberate public-repo placeholders. Bootstrap procedure: `docs/runbooks/AWS-SETUP.md`.
 - Public host classes (Cloudflare Tunnel → Fargate task, one task per env, 7 containers):
 
   | Class | Production | Staging |
@@ -287,7 +287,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 ### Budgets & Cost-Runaway Protection
 
 - AWS Budgets Actions can DETACH IAM policies or stop services. Never deploy Budget changes without `cdk diff` review. A misconfigured Budget action can lock the operator out of the account.
-- Cost-runaway alarms + Lambda kill-switch live in `infra/cdk/lib/observability-stack.ts` + `infra/cdk/lib/security-stack.ts`. See [ADR 0016](docs/adr/0016-cost-runaway-protection.md) and [docs/runbooks/COST-INCIDENT-RESPONSE.md](docs/runbooks/COST-INCIDENT-RESPONSE.md).
+- Cost-runaway alarms + Lambda kill-switch live in `infra/cdk/lib/observability-stack.ts` + `infra/cdk/lib/security-stack.ts`. See [ADR 0016](docs/adr/0016-cost-runaway-protection.md) and [docs/runbooks/COST-INCIDENT.md](docs/runbooks/COST-INCIDENT.md).
 - After first deploy: confirm SNS email subscription via the AWS confirmation link or alerts arrive silently.
 
 ## Telegram Dev Control Plane

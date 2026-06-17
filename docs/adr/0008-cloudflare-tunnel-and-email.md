@@ -132,7 +132,7 @@ added pgbouncer, cerbos, and openfga. This amendment adds `admin`:
   existing `:3001` container at $0.
 
 Two new Cloudflare Tunnel public hostnames route into the same task — $0
-infra, no CDK change, configured manually (see `docs/runbooks/AWS-DEPLOY.md`):
+infra, no CDK change, configured manually (see `docs/runbooks/AWS-SETUP.md`):
 
 - `api.afframe.com` → `http://localhost:3001` (the existing NestJS container)
 - `admin.afframe.com` → `http://localhost:3100` (the new admin container). The
@@ -178,7 +178,7 @@ ESLint config does not enforce this; reviewers do.
 ## References
 
 - ADR 0007 (single-account CDK-only, parent decision)
-- `docs/runbooks/AWS-DEPLOY.md` (operational guide, updated to match)
+- `docs/runbooks/AWS-SETUP.md` (operational guide, updated to match)
 - `.context/attachments/AWS-PLATFORM-OVERVIEW.md` gotcha #16 (App Runner not in eu-central-1), gotcha #1 (NAT-GW per-GB), gotcha #11 (Public IPv4 charges)
 - `.context/attachments/aws-products-review.md` ALB + NAT verdicts
 - `.context/attachments/aws-tco-decisions.md` cost-per-line analysis

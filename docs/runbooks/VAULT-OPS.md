@@ -510,5 +510,5 @@ Operations listed there are NEVER executed without:
 - [`SECRETS.md`](SECRETS.md) — secrets convention (post-migration form)
 - [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md) — rotation playbooks per secret type
 - [`DR-DRILL.md`](DR-DRILL.md) — disaster recovery drill (Vault restore)
-- [`AWS-DEPLOY.md`](AWS-DEPLOY.md) — CDK deploy wiring chain
-- [`COST-INCIDENT-RESPONSE.md`](COST-INCIDENT-RESPONSE.md) — cost-runaway kill switch (KMS Key is part of the registry)
+- [`AWS-SETUP.md`](AWS-SETUP.md) — CDK deploy wiring chain
+- [`COST-INCIDENT.md`](COST-INCIDENT.md) — cost-runaway kill switch (KMS Key is part of the registry)

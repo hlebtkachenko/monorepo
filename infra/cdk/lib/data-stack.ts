@@ -168,7 +168,7 @@ export class DataStack extends Stack {
     // `app_user` runtime credentials. The role itself is created by migration
     // `packages/db/migrations/0002_auth.sql` (CREATE ROLE app_user LOGIN
     // PASSWORD 'dev_user'). The operator runbook
-    // (docs/runbooks/AWS-DEPLOY.md "Follow-up: per-tenant role split") rotates
+    // (docs/runbooks/AWS-SETUP.md "Follow-up: per-tenant role split") rotates
     // RDS to this password via `ALTER ROLE app_user PASSWORD '<from-secret>'`
     // on the bastion before flipping traffic over. CDK ONLY creates the
     // secret value; it does not run that ALTER ROLE because RDS is private

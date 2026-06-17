@@ -902,7 +902,7 @@ jobs:
     # Production deploys pause here for human approval. Configured on the
     # `production` GitHub Environment via deployment-protection-rules
     # (required-reviewers). Staging has no protection rule so deploys
-    # flow through. See docs/runbooks/AWS-DEPLOY.md "Production deploy
+    # flow through. See docs/runbooks/AWS-SETUP.md "Production deploy
     # approval".
     environment: ${{ inputs.environment }}
     permissions:
@@ -1193,7 +1193,7 @@ jobs:
       # Apply pending `packages/db/migrations/*.sql` to RDS via a one-off
       # ECS Fargate task that reuses the Backup TaskDef (it already has
       # the network + `app_owner` secret wiring). Replaces the operator-
-      # driven bastion `pnpm db:migrate` step in docs/runbooks/AWS-DEPLOY.md.
+      # driven bastion `pnpm db:migrate` step in docs/runbooks/AWS-SETUP.md.
       #
       # Runs BEFORE `cdk deploy App-*` so:
       #   1. New schema (auth_token, audit_event.workspace_id nullable, etc.)
@@ -1285,7 +1285,7 @@ jobs:
           # falls back to no-reply@afframe.com (the Resend-verified parent
           # domain). Set vars.MAIL_FROM_ADDRESS_{ENV} to override per-env
           # once you verify a per-env subdomain on Resend. See
-          # docs/runbooks/AWS-DEPLOY.md "Email sender verification".
+          # docs/runbooks/AWS-SETUP.md "Email sender verification".
           MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS }}
           # ALERT_EMAIL is intentionally NOT passed to CDK. The operator
           # email never enters CFN templates / `cdk diff` snapshots / CI
@@ -1654,10 +1654,10 @@ jobs:
           # the PR F bug (SSM tag poisoning): automation does the right
           # thing in steady state but the wrong thing when state has
           # moved. Refuse to roll back, page the operator, point them at
-          # the runbook (docs/runbooks/AWS-DEPLOY.md "Migration rollback
+          # the runbook (docs/runbooks/AWS-SETUP.md "Migration rollback
           # recovery"). Recovery is forward-fix in nearly all cases.
           if [ "${MIGRATIONS_APPLIED:-false}" = "true" ]; then
-            echo "::error::smoke failed AND migrations were applied this deploy. Auto-rollback is unsafe — old task def would meet new schema. Aborting rollback. See docs/runbooks/AWS-DEPLOY.md#migration-rollback-recovery for the manual path (forward-fix or PITR + manual task-def revert)."
+            echo "::error::smoke failed AND migrations were applied this deploy. Auto-rollback is unsafe — old task def would meet new schema. Aborting rollback. See docs/runbooks/AWS-SETUP.md#migration-rollback-recovery for the manual path (forward-fix or PITR + manual task-def revert)."
             exit 1
           fi
           CLUSTER="monorepo-${ENV_NAME}"

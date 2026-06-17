@@ -111,7 +111,7 @@ Bad deploy suspected → [ROLLBACK.md](ROLLBACK.md) (SSM
 `gh workflow run _deploy-aws.yml ... -f image_tag_override=<tag>`).
 
 Cost-runaway / kill-switch fired →
-[COST-INCIDENT-RESPONSE.md](COST-INCIDENT-RESPONSE.md).
+[COST-INCIDENT.md](COST-INCIDENT.md).
 
 ## Vendor outage triage
 

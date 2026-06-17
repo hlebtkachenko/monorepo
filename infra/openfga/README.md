@@ -100,7 +100,7 @@ Re-running `bootstrap.mjs` is store-safe: the existing store is reused (found by
 
 ## Production Bootstrap (automated)
 
-All three steps (schema CREATE, `openfga migrate`, `bootstrap.mjs`) run as init containers inside App-{env}'s ECS task on every cold start. No operator action. See `docs/runbooks/AWS-DEPLOY.md` section "Bootstrap chain: schemas + openfga model (automated)" for the per-container breakdown.
+All three steps (schema CREATE, `openfga migrate`, `bootstrap.mjs`) run as init containers inside App-{env}'s ECS task on every cold start. No operator action. See `docs/runbooks/AWS-SETUP.md` section "Bootstrap chain: schemas + openfga model (automated)" for the per-container breakdown.
 
 `bootstrap.mjs` itself is the same script the in-cluster `openfga-bootstrap` container runs. Each task cold start: starts an OpenFGA process locally, calls this script, writes SSM via the task role, exits. Run it from a laptop only as an escape hatch when the init-container chain is wedged.
 

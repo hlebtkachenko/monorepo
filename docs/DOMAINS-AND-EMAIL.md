@@ -60,7 +60,7 @@ Email:
 - Behind: Cloudflare Tunnel
 - Source-of-URL var: `vars.APP_DOMAIN_PRODUCTION`
 - ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md)
-- Runbook: [AWS-DEPLOY.md](runbooks/AWS-DEPLOY.md)
+- Runbook: [AWS-SETUP.md](runbooks/AWS-SETUP.md)
 
 ### app-staging.afframe.com
 
@@ -69,7 +69,7 @@ Email:
 - Behind: Cloudflare Tunnel
 - Source-of-URL var: `vars.APP_DOMAIN_STAGING`
 - ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md)
-- Runbook: [AWS-DEPLOY.md](runbooks/AWS-DEPLOY.md)
+- Runbook: [AWS-SETUP.md](runbooks/AWS-SETUP.md)
 
 ### api.afframe.com
 
@@ -184,7 +184,7 @@ Email:
 Procedures live in the runbooks — they have the exact file-by-file steps and
 authorization gates. Pick by host class:
 
-- **AWS Fargate host** (web / api / admin): [AWS-DEPLOY.md](runbooks/AWS-DEPLOY.md) §§ 8-9
+- **AWS Fargate host** (web / api / admin): [AWS-SETUP.md](runbooks/AWS-SETUP.md) §§ 8-9
 - **OVH-served host** (status / monitoring): [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
 - **Cloudflare Worker host** (cache / future workers): [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - **Inbound email alias**: Cloudflare dashboard → Email → Routing Rules

@@ -2,10 +2,9 @@ import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import localFont from "next/font/local"
 import { NextIntlClientProvider } from "next-intl"
-import { getLocale, getMessages } from "next-intl/server"
+import { getLocale, getMessages, getTranslations } from "next-intl/server"
 
 import "@workspace/ui/globals.css"
-import { getBrandText } from "@workspace/ui/brand-assets/server"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
 import { BRAND_ICONS, BRAND_THEME_COLOR } from "@workspace/ui/lib/brand"
@@ -16,7 +15,7 @@ export const viewport: Viewport = {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { name } = await getBrandText()
+  const name = (await getTranslations("brand"))("name")
   const title = `${name} Admin`
   return {
     title: { default: title, template: `%s · ${title}` },

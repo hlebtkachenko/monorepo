@@ -16,13 +16,7 @@ export function orgRailNav(orgSlug: string): RailMenuEntry[] {
       icon: "FolderBookmark",
       href: `/${orgSlug}/documents`,
     },
-    {
-      label: "Finance",
-      icon: "PiggyBank",
-      href: `/${orgSlug}/finance`,
-      iconSize: 24,
-      iconStrokeWidth: 1.5,
-    },
+    { label: "Finance", icon: "ReceiptEuro", href: `/${orgSlug}/finance` },
     { label: "HR", icon: "Users", href: `/${orgSlug}/hr` },
     { label: "Assets", icon: "BriefcaseBusiness", href: `/${orgSlug}/assets` },
     { label: "Closing", icon: "CalendarClock", href: `/${orgSlug}/closing` },
@@ -47,7 +41,7 @@ export function orgBottomNav(orgSlug: string): BottomNavItem[] {
     { label: "Company", icon: "Goal", href: `/${orgSlug}` },
     { label: "Accounting", icon: "Calculator", href: `/${orgSlug}/accounting` },
     { label: "Records", icon: "FolderBookmark", href: `/${orgSlug}/documents` },
-    { label: "Finance", icon: "PiggyBank", href: `/${orgSlug}/finance` },
+    { label: "Finance", icon: "ReceiptEuro", href: `/${orgSlug}/finance` },
     { label: "Settings", icon: "Settings", href: `/${orgSlug}/settings` },
   ]
 }

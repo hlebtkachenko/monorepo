@@ -55,11 +55,11 @@ interface AppRailProps {
 }
 
 const SHELL_RAIL_WIDTH_VAR = "--shell-rail-width"
-// Rail geometry. Expanded mirrors the `--shell-rail-width: 60px` default in
+// Rail geometry. Expanded mirrors the `--shell-rail-width: 70px` default in
 // globals.css; collapsed is the icon-only width. Module constants, not props:
 // no caller overrode these, and the AppShell reads the width back off the
 // `--shell-rail-width` var this effect writes.
-const RAIL_WIDTH_EXPANDED = "60px"
+const RAIL_WIDTH_EXPANDED = "70px"
 const RAIL_WIDTH_COLLAPSED = "50px"
 
 function isItem(entry: RailMenuEntry): entry is RailMenuItem {
@@ -90,7 +90,7 @@ function activeHrefFor(
 /**
  * App-shell rail navigation. Stacked icon-above-label items in two
  * modes:
- *   - `expanded`  (60px) → icon + label centered, stacked
+ *   - `expanded`  (70px) → icon + label centered, stacked
  *   - `icon-only` (50px) → labels hidden; hover shows a right tooltip
  *
  * Mode toggles via right-click `ContextMenu` and persists to
@@ -140,24 +140,40 @@ export function AppRail({
           // Stop the global AppContextMenu from also firing.
           onContextMenu={(e) => e.stopPropagation()}
           className={cn(
-            "flex h-full flex-col items-center overflow-x-hidden overflow-y-auto pt-[var(--rail-pad-top)] pb-2",
-            // Inter-item gap from tokens; icon-only is tighter (no labels).
-            "data-[mode=expanded]:gap-y-[var(--rail-gap)] data-[mode=icon-only]:gap-y-[var(--rail-gap-collapsed)]",
+            "flex h-full flex-col items-center overflow-hidden",
             className,
           )}
         >
-          {items.map((entry, i) =>
-            isItem(entry) ? (
-              <RailNavItem
-                key={entry.href ?? `${entry.label}-${i}`}
-                item={entry}
-                mode={mode}
-                active={entry.href != null && entry.href === activeHref}
-              />
-            ) : (
-              <RailSeparator key={`sep-${i}`} />
-            ),
-          )}
+          {/* Scrolling item list. The toggle below stays pinned; items
+              scroll behind it. */}
+          <div
+            data-mode={mode}
+            className="flex min-h-0 w-full flex-1 flex-col items-center overflow-x-hidden overflow-y-auto pt-[var(--rail-pad-top)] data-[mode=expanded]:gap-y-[var(--rail-gap)] data-[mode=icon-only]:gap-y-[var(--rail-gap-collapsed)]"
+          >
+            {items.map((entry, i) =>
+              isItem(entry) ? (
+                <RailNavItem
+                  key={entry.href ?? `${entry.label}-${i}`}
+                  item={entry}
+                  mode={mode}
+                  active={entry.href != null && entry.href === activeHref}
+                />
+              ) : (
+                <RailSeparator key={`sep-${i}`} mode={mode} />
+              ),
+            )}
+          </div>
+          {/* Pinned collapse/expand toggle — fixed at the bottom; the list
+              above scrolls behind it (bg-canvas masks the overlap). Sits
+              before the bottom pad. */}
+          <div className="flex w-full shrink-0 flex-col items-center bg-canvas pt-2 pb-2">
+            <RailToggle
+              mode={mode}
+              onToggle={() =>
+                setMode(mode === "expanded" ? "icon-only" : "expanded")
+              }
+            />
+          </div>
         </nav>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-44 p-2 [&_[data-slot=context-menu-radio-item]]:gap-2 [&_[data-slot=context-menu-radio-item]]:py-1.5 [&_[data-slot=context-menu-radio-item]]:pl-2">
@@ -207,16 +223,48 @@ function RailNavItem({
   )
 }
 
-function RailSeparator() {
+function RailSeparator({ mode }: { mode: RailMode }) {
+  // The nav applies a uniform flex gap (`--rail-gap` / `--rail-gap-collapsed`)
+  // between every child. To give the separator its OWN spacing, cancel that
+  // gap with margin and re-add the separator's top/bottom tokens: the
+  // effective space above/below becomes `--rail-separator-gap-top` /
+  // `-bottom`, independent of the item gap and of each other.
+  const activeGap =
+    mode === "expanded" ? "var(--rail-gap)" : "var(--rail-gap-collapsed)"
   return (
     <div
       role="separator"
       aria-orientation="horizontal"
-      // No own margins — the nav's `--rail-gap` is the only spacing, so
-      // the gap before and after the separator is equal.
+      style={{
+        marginTop: `calc(var(--rail-separator-gap-top) - ${activeGap})`,
+        marginBottom: `calc(var(--rail-separator-gap-bottom) - ${activeGap})`,
+      }}
       className="flex h-[3px] w-[var(--rail-separator-width)] items-center justify-center"
     >
-      <div className="h-px w-full bg-rail-separator" />
+      <div className="h-[1.25px] w-full bg-rail-separator" />
     </div>
+  )
+}
+
+/**
+ * Pinned rail collapse/expand toggle. Icon + tooltip flip with the mode;
+ * no label in either state. Toggles the same `mode` the right-click menu
+ * controls, so the AppShell width animates in sync.
+ */
+function RailToggle({
+  mode,
+  onToggle,
+}: {
+  mode: RailMode
+  onToggle: () => void
+}) {
+  const expanded = mode === "expanded"
+  return (
+    <IconButton
+      icon={expanded ? "PanelLeftClose" : "PanelLeftOpen"}
+      aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
+      tooltip={expanded ? "Collapse" : "Expand"}
+      onClick={onToggle}
+    />
   )
 }

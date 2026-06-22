@@ -9,7 +9,6 @@ import { presignAvatarRead } from "../_lib/avatar-storage"
 import { getRequestSession } from "./_lib/request-session"
 import { AppBottomNav } from "../_components/app-bottom-nav"
 import { AppRailNav } from "../_components/app-rail-nav"
-import { IconPackSwitcher } from "../_components/icon-pack-switcher"
 import { OrgHeaderActions } from "../_components/org-header-actions"
 import { orgBottomNav, orgRailNav } from "./nav"
 
@@ -80,9 +79,8 @@ export default async function OrgDashboardPage({
       assistant={<div className="size-full" />}
       logoHref={`/${orgSlug}`}
     >
-      {/* Temporary dev-only control for visually verifying the icon-pack
-          swap. Gated out of production until the real settings UI ships. */}
-      {process.env.NODE_ENV !== "production" && <IconPackSwitcher />}
+      {/* Org dashboard body — TBD. Icon-pack switching now lives in the
+          profile menu (Icons submenu). */}
     </AppShell>
   )
 }

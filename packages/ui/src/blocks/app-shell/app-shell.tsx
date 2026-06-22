@@ -3,10 +3,9 @@
 import * as React from "react"
 
 import { Logo } from "@workspace/ui/brand-assets"
-import { Button } from "@workspace/ui/components/button"
+import { IconButton } from "@workspace/ui/components/icon-button"
 import { Sheet, SheetContent, SheetTitle } from "@workspace/ui/components/sheet"
 import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
-import { PanelLeftIcon, PanelRight } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 interface AppShellProps {
@@ -418,10 +417,9 @@ export function AppShell({
             >
               {sidebar !== undefined && (
                 <div className="absolute top-2 left-2 z-10">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
+                  <IconButton
+                    icon={sidebarIsOpen ? "PanelLeftClose" : "PanelLeftOpen"}
+                    iconSize={16}
                     aria-label={
                       sidebarIsOpen
                         ? isMobile
@@ -429,27 +427,36 @@ export function AppShell({
                           : "Collapse sidebar"
                         : "Open sidebar"
                     }
+                    tooltip={
+                      <span className="text-[6px]">
+                        {sidebarIsOpen ? "Collapse" : "Expand"}
+                      </span>
+                    }
+                    tooltipSide="bottom"
                     onClick={toggleSidebar}
-                    className="max-md:size-10"
-                  >
-                    <PanelLeftIcon className="size-4 text-sidekick-icon" />
-                  </Button>
+                    className="[--icon-stroke-width-active:1.5] [--icon-stroke-width:1.25] max-md:size-10"
+                  />
                 </div>
               )}
               {assistant !== undefined && (
                 <div className="absolute top-2 right-2 z-10">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
+                  <IconButton
+                    icon={
+                      assistantIsOpen ? "PanelRightClose" : "PanelRightOpen"
+                    }
+                    iconSize={16}
                     aria-label={
                       assistantIsOpen ? "Close assistant" : "Open assistant"
                     }
+                    tooltip={
+                      <span className="text-[6px]">
+                        {assistantIsOpen ? "Collapse" : "Expand"}
+                      </span>
+                    }
+                    tooltipSide="bottom"
                     onClick={toggleAssistant}
-                    className="max-md:size-10"
-                  >
-                    <PanelRight className="size-4 text-sidekick-icon" />
-                  </Button>
+                    className="[--icon-stroke-width-active:1.5] [--icon-stroke-width:1.25] max-md:size-10"
+                  />
                 </div>
               )}
               {children}

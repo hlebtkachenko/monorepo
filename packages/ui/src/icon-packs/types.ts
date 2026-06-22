@@ -180,6 +180,10 @@ export const ICON_NAMES = [
   "Workflow",
   "HatGlasses",
   "CreditCard",
+  "ReceiptEuro",
+  "Shapes",
+  "Command",
+  "StickyNotePlus",
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

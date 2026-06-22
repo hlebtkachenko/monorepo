@@ -53,7 +53,7 @@ import {
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { XIcon } from "@workspace/ui/lib/icons"
+import { XCircle, XIcon } from "@workspace/ui/lib/icons"
 import { Switch } from "@workspace/ui/components/switch"
 import {
   Tooltip,
@@ -61,7 +61,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
-import { useIcons } from "@workspace/ui/icon-packs"
+import {
+  useIconPack,
+  useIcons,
+  type IconPackName,
+} from "@workspace/ui/icon-packs"
 
 import { signOutAction } from "../auth/_lib/account-actions"
 import { reportFeedback } from "./report-feedback"
@@ -142,6 +146,7 @@ export function OrgHeaderActions({
   const router = useRouter()
   const locale = useLocale()
   const { theme = "system", setTheme } = useTheme()
+  const { pack, setPack } = useIconPack()
   const [supportAccess, setSupportAccess] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -151,8 +156,8 @@ export function OrgHeaderActions({
   const DocsIcon = icons.FileText
   const KnowledgeIcon = icons.BookOpen
   const ContactIcon = icons.MessageCircle
-  const KeyboardIcon = icons.Keyboard
-  const WhatsNewIcon = icons.GitPullRequestArrow
+  const KeyboardIcon = icons.Command
+  const WhatsNewIcon = icons.StickyNotePlus
   const StatusIcon = icons.Activity
   const ExternalIcon = icons.ArrowUpRight
   const InfoIcon = icons.Info
@@ -161,6 +166,7 @@ export function OrgHeaderActions({
   const SettingsIcon = icons.Settings
   const ThemeIcon = icons.Sun
   const LanguageIcon = icons.Globe
+  const IconsIcon = icons.Shapes
 
   // Persist the chosen locale (NEXT_LOCALE cookie, 1y) + refresh so the
   // server re-resolves messages — same mechanism as the footer LanguagePicker.
@@ -177,10 +183,13 @@ export function OrgHeaderActions({
     if (next) {
       toast.success("Support access on", {
         description: "Our support team can now view your workspace.",
+        closeButton: true,
       })
     } else {
-      toast.info("Support access off", {
+      toast("Support access off", {
+        icon: <XCircle className="size-4" />,
         description: "Our support team can no longer view your workspace.",
+        closeButton: true,
       })
     }
   }
@@ -401,6 +410,29 @@ export function OrgHeaderActions({
 
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
+              <IconsIcon />
+              Icons
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuRadioGroup
+                value={pack}
+                onValueChange={(v) => setPack(v as IconPackName)}
+              >
+                <DropdownMenuRadioItem value="lucide">
+                  Lucide
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="phosphor">
+                  Phosphor
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="fontawesome">
+                  Font Awesome
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
               <LanguageIcon />
               Language
             </DropdownMenuSubTrigger>
@@ -417,7 +449,10 @@ export function OrgHeaderActions({
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem onSelect={() => setSignOutOpen(true)}>
+          <DropdownMenuItem
+            variant="destructive"
+            onSelect={() => setSignOutOpen(true)}
+          >
             <LogOut />
             Sign out
           </DropdownMenuItem>

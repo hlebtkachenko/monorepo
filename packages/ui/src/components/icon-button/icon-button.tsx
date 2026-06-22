@@ -45,7 +45,9 @@ export interface IconButtonProps extends Omit<
   tone?: "default" | "sidekick"
   /** Glyph size in px. Default: `--icon-size` (20). */
   iconSize?: number
-  /** Glyph stroke width (lucide). Default: pack default. */
+  /** Glyph stroke width (lucide). Omit to follow the global
+   *  `--icon-stroke-width` token (1.25 idle / 1.5 active); set to force an
+   *  exact width that overrides the token. */
   iconStrokeWidth?: number
   /** Render as a link (`<a>`) instead of a `<button>`. */
   href?: string
@@ -113,8 +115,19 @@ export function IconButton({
     (Icon ? (
       <Icon
         className={cn("shrink-0", !iconSize && "size-[var(--icon-size)]")}
-        style={iconSize ? { width: iconSize, height: iconSize } : undefined}
-        strokeWidth={iconStrokeWidth}
+        style={
+          iconSize || iconStrokeWidth != null
+            ? {
+                ...(iconSize ? { width: iconSize, height: iconSize } : null),
+                // Explicit override beats the global --icon-stroke-width token
+                // (inline style > stylesheet rule). Omitted → the glyph follows
+                // the token: 1.25 idle, 1.5 on hover/selected.
+                ...(iconStrokeWidth != null
+                  ? { strokeWidth: iconStrokeWidth }
+                  : null),
+              }
+            : undefined
+        }
       />
     ) : null)
 
@@ -136,7 +149,7 @@ export function IconButton({
         <span className="flex size-8 items-center justify-center rounded-sm text-icon group-hover:bg-icon-hover-bg group-focus-visible:ring-2 group-focus-visible:ring-ring/50 group-data-[active]:bg-icon-active-bg group-data-[active]:text-icon-active">
           {glyph}
         </span>
-        <span className="w-full truncate px-0.5 text-center text-[length:var(--rail-label-size)] leading-tight font-[number:var(--rail-label-weight)] tracking-[var(--rail-label-tracking)] text-rail-label group-hover:text-rail-label-active group-data-[active]:text-rail-label-active">
+        <span className="w-full truncate text-center text-[length:var(--rail-label-size)] leading-tight font-[number:var(--rail-label-weight)] tracking-[var(--rail-label-tracking)] text-rail-label group-hover:text-rail-label-active group-data-[active]:text-rail-label-active">
           {label}
         </span>
       </>

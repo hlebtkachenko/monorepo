@@ -39,6 +39,7 @@ const TYPES = [
 // conventional-commit conventions. New SDK / MCP / CLI surfaces landed in
 // Phase B, so allow their scope tokens here.
 const SCOPES = [
+  "accounting",
   "admin",
   "ai",
   "api",

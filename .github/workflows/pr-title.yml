@@ -42,6 +42,7 @@ jobs:
             style
             revert
           scopes: |
+            accounting
             admin
             ai
             api

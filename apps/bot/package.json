@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@workspace/notify": "workspace:*",
-    "grammy": "^1.43.0",
-    "hono": "^4.12.23"
+    "grammy": "^1.44.0",
+    "hono": "^4.12.25"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260608.1",

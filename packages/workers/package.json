@@ -21,7 +21,7 @@
     "@workspace/notify": "workspace:*",
     "@workspace/observability": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "pg-boss": "^12.18.2"
+    "pg-boss": "^12.19.1"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

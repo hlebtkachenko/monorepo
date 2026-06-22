@@ -33,7 +33,7 @@
     "postgres": "^3.4.7"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^12.0.1",
+    "@testcontainers/postgresql": "^12.0.2",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/testcontainers": "workspace:*",

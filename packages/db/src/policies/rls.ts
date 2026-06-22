@@ -34,6 +34,26 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "api_key",
   "organization",
   "tool_call_log",
+  // Accounting Records System — organization_isolation applied in
+  // 0026_accounting_rls.sql. (Books are VIEWS, not tables; not listed here.)
+  "ucetni_jednotka",
+  "protistrana",
+  "majetek",
+  "kategorie",
+  "ucetni_obdobi",
+  "ucetni_pripad",
+  "ucetni_doklad",
+  "doklad_radek",
+  "dilci_zaznam",
+  "uctovy_rozvrh",
+  "ucet",
+  "odpisovy_plan",
+  "inventurni_soupis",
+  "ucetni_zapis",
+  "zapis_radek",
+  "penezni_denik_radek",
+  "vystup",
+  "podpis",
 ] as const
 
 export type OrganizationScopedTable =

@@ -20,6 +20,16 @@ SET row_security = off;
 CREATE SCHEMA public;
 
 --
+-- Name: accounting_regime; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.accounting_regime AS ENUM (
+    'PODVOJNE',
+    'JEDNODUCHE',
+    'DANOVA_EVIDENCE'
+);
+
+--
 -- Name: actor_kind; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -52,6 +62,16 @@ CREATE TYPE public.billing_plan AS ENUM (
 );
 
 --
+-- Name: dilci_druh; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.dilci_druh AS ENUM (
+    'zaklad',
+    'dph',
+    'zaokr'
+);
+
+--
 -- Name: invite_status; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -60,6 +80,15 @@ CREATE TYPE public.invite_status AS ENUM (
     'accepted',
     'revoked',
     'expired'
+);
+
+--
+-- Name: kategorie_typ; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.kategorie_typ AS ENUM (
+    'prijem',
+    'vydaj'
 );
 
 --
@@ -72,6 +101,104 @@ CREATE TYPE public.organization_role AS ENUM (
     'member',
     'agent',
     'guest'
+);
+
+--
+-- Name: penezni_denik_misto; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.penezni_denik_misto AS ENUM (
+    'hotovost',
+    'banka'
+);
+
+--
+-- Name: penezni_denik_smer; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.penezni_denik_smer AS ENUM (
+    'prijem',
+    'vydaj'
+);
+
+--
+-- Name: podpis_typ; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.podpis_typ AS ENUM (
+    'za_pripad',
+    'za_zauctovani'
+);
+
+--
+-- Name: ucet_typ; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.ucet_typ AS ENUM (
+    'A',
+    'P',
+    'N',
+    'V',
+    'podrozvahovy'
+);
+
+--
+-- Name: ucetni_doklad_typ; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.ucetni_doklad_typ AS ENUM (
+    'FP',
+    'FV',
+    'BV',
+    'ID',
+    'pokladni',
+    'sberny'
+);
+
+--
+-- Name: ucetni_obdobi_stav; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.ucetni_obdobi_stav AS ENUM (
+    'otevreno',
+    'uzavreno'
+);
+
+--
+-- Name: ucetni_obdobi_typ; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.ucetni_obdobi_typ AS ENUM (
+    'kalendar',
+    'hospodarsky'
+);
+
+--
+-- Name: ucetni_zapis_druh; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.ucetni_zapis_druh AS ENUM (
+    'jednoduchy',
+    'slozeny'
+);
+
+--
+-- Name: ucetni_zapis_oprava_typ; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.ucetni_zapis_oprava_typ AS ENUM (
+    'storno',
+    'doplnkovy'
+);
+
+--
+-- Name: vystup_typ; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.vystup_typ AS ENUM (
+    'ZAVERKA',
+    'PREHLEDY',
+    'DPFO'
 );
 
 --
@@ -104,6 +231,55 @@ CREATE TYPE public.workspace_use_case AS ENUM (
     'firm',
     'biz'
 );
+
+--
+-- Name: zapis_strana; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.zapis_strana AS ENUM (
+    'MD',
+    'D'
+);
+
+--
+-- Name: app_assert_zapis_balanced(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_assert_zapis_balanced(p_zapis_id uuid) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_regime accounting_regime;
+  v_count  integer;
+  v_md     numeric(19,4);
+  v_d      numeric(19,4);
+BEGIN
+  SELECT regime INTO v_regime FROM ucetni_zapis WHERE id = p_zapis_id;
+  IF NOT FOUND THEN
+    -- zapis no longer exists (delete is blocked by R8 anyway); nothing to check.
+    RETURN;
+  END IF;
+  IF v_regime <> 'PODVOJNE' THEN
+    RETURN;
+  END IF;
+
+  SELECT count(*),
+         COALESCE(SUM(castka) FILTER (WHERE strana = 'MD'), 0),
+         COALESCE(SUM(castka) FILTER (WHERE strana = 'D'),  0)
+    INTO v_count, v_md, v_d
+    FROM zapis_radek
+   WHERE zapis_id = p_zapis_id;
+
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'ucetni_zapis % (PODVOJNE) has no zapis_radek lines (R3/R4 §13/2)', p_zapis_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF v_md <> v_d THEN
+    RAISE EXCEPTION 'ucetni_zapis % is unbalanced: Σ(MD)=% Σ(Dal)=% (R4 §13/2)', p_zapis_id, v_md, v_d
+      USING ERRCODE = 'check_violation';
+  END IF;
+END;
+$$;
 
 --
 -- Name: app_audit_event_ws_org_consistent(); Type: FUNCTION; Schema: public; Owner: -
@@ -180,6 +356,27 @@ END;
 $$;
 
 --
+-- Name: app_block_closed_period(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_block_closed_period() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_stav ucetni_obdobi_stav;
+BEGIN
+  SELECT stav INTO v_stav FROM ucetni_obdobi WHERE id = NEW.obdobi_id;
+  IF v_stav = 'uzavreno' THEN
+    RAISE EXCEPTION
+      'ucetni_obdobi % is closed (uzavreno): no new % allowed (R12 §17). Post into an open period.',
+      NEW.obdobi_id, TG_TABLE_NAME
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+--
 -- Name: app_block_mutation_audit_event(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -188,6 +385,21 @@ CREATE FUNCTION public.app_block_mutation_audit_event() RETURNS trigger
     AS $$
 BEGIN
   RAISE EXCEPTION 'audit_event is append-only: % blocked', TG_OP
+    USING ERRCODE = 'check_violation';
+END;
+$$;
+
+--
+-- Name: app_block_mutation_posting(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_block_mutation_posting() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION
+    '% is append-only (R8 §35): % blocked. Post a storno / doplňkový correction (a new ucetni_zapis with opravuje_zapis_id).',
+    TG_TABLE_NAME, TG_OP
     USING ERRCODE = 'check_violation';
 END;
 $$;
@@ -231,6 +443,19 @@ CREATE FUNCTION public.app_block_truncate_auth_token() RETURNS trigger
 BEGIN
   RAISE EXCEPTION
     'auth_token is append-only at table level; TRUNCATE is blocked.'
+    USING ERRCODE = 'feature_not_supported';
+END;
+$$;
+
+--
+-- Name: app_block_truncate_posting(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_block_truncate_posting() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RAISE EXCEPTION '% is append-only (R8 §35); TRUNCATE is blocked.', TG_TABLE_NAME
     USING ERRCODE = 'feature_not_supported';
 END;
 $$;
@@ -597,7 +822,48 @@ BEGIN
 END;
 $$;
 
+--
+-- Name: app_zapis_balance_from_radek(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_zapis_balance_from_radek() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM app_assert_zapis_balanced(NEW.zapis_id);
+  RETURN NULL;
+END;
+$$;
+
+--
+-- Name: app_zapis_balance_from_zapis(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_zapis_balance_from_zapis() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM app_assert_zapis_balanced(NEW.id);
+  RETURN NULL;
+END;
+$$;
+
 SET default_table_access_method = heap;
+
+--
+-- Name: admin_staff_role; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_staff_role (
+    user_id uuid NOT NULL,
+    role text NOT NULL,
+    granted_by uuid,
+    granted_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    CONSTRAINT admin_staff_role_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'admin'::text, 'developer'::text, 'designer'::text, 'support'::text, 'security'::text, 'guest'::text])))
+);
+
+ALTER TABLE ONLY public.admin_staff_role FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: admin_workspace_allowlist; Type: TABLE; Schema: public; Owner: -
@@ -756,6 +1022,41 @@ CREATE TABLE public.auth_verification (
 );
 
 --
+-- Name: dilci_zaznam; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.dilci_zaznam (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    doklad_radek_id uuid NOT NULL,
+    druh public.dilci_druh NOT NULL,
+    castka numeric(19,4) NOT NULL,
+    dph_sazba numeric(5,2),
+    dph_castka numeric(19,4),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.dilci_zaznam FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: doklad_radek; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.doklad_radek (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    doklad_id uuid NOT NULL,
+    pripad_id uuid NOT NULL,
+    popis text,
+    castka numeric(19,4) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.doklad_radek FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: feature_flag; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -791,6 +1092,65 @@ CREATE TABLE public.impersonation (
 );
 
 ALTER TABLE ONLY public.impersonation FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: inventurni_soupis; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.inventurni_soupis (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    datum date NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.inventurni_soupis FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: kategorie; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.kategorie (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    typ public.kategorie_typ NOT NULL,
+    nazev text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.kategorie FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: majetek; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.majetek (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    nazev text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.majetek FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: odpisovy_plan; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.odpisovy_plan (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    majetek_id uuid NOT NULL,
+    metoda text NOT NULL,
+    mesicni_castka numeric(19,4) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.odpisovy_plan FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: organization; Type: TABLE; Schema: public; Owner: -
@@ -832,6 +1192,29 @@ CREATE TABLE public.organization_membership (
 );
 
 ALTER TABLE ONLY public.organization_membership FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: penezni_denik_radek; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.penezni_denik_radek (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    zapis_id uuid NOT NULL,
+    regime public.accounting_regime NOT NULL,
+    dilci_id uuid,
+    kategorie_id uuid,
+    misto public.penezni_denik_misto NOT NULL,
+    smer public.penezni_denik_smer NOT NULL,
+    danovy boolean NOT NULL,
+    prubezny boolean DEFAULT false NOT NULL,
+    zaklad_dane numeric(19,4),
+    castka numeric(19,4) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT penezni_denik_radek_regime_chk CHECK ((regime = ANY (ARRAY['JEDNODUCHE'::public.accounting_regime, 'DANOVA_EVIDENCE'::public.accounting_regime])))
+);
+
+ALTER TABLE ONLY public.penezni_denik_radek FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: permission_rule; Type: TABLE; Schema: public; Owner: -
@@ -886,6 +1269,37 @@ CREATE TABLE public.permissions_outbox (
     CONSTRAINT permissions_outbox_payload_user_valid CHECK ((((payload ->> 'user'::text) IS NOT NULL) AND ((payload ->> 'user'::text) ~ '^[a-z][a-z0-9_]*:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'::text))),
     CONSTRAINT permissions_outbox_payload_workspace_id_valid CHECK ((((payload ->> 'workspace_id'::text) IS NOT NULL) AND (((payload ->> 'workspace_id'::text))::uuid IS NOT NULL)))
 );
+
+--
+-- Name: podpis; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.podpis (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    doklad_id uuid,
+    zapis_id uuid,
+    typ public.podpis_typ NOT NULL,
+    podepsal uuid NOT NULL,
+    okamzik timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT podpis_exactly_one_target CHECK (((doklad_id IS NOT NULL) <> (zapis_id IS NOT NULL)))
+);
+
+ALTER TABLE ONLY public.podpis FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: protistrana; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.protistrana (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    nazev text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.protistrana FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: resource_grant; Type: TABLE; Schema: public; Owner: -
@@ -965,6 +1379,274 @@ CREATE TABLE public.two_factor_policy (
 ALTER TABLE ONLY public.two_factor_policy FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: ucet; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ucet (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    rozvrh_id uuid NOT NULL,
+    parent_id uuid,
+    cislo text NOT NULL,
+    trida smallint NOT NULL,
+    typ public.ucet_typ NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ucet_no_self_parent CHECK (((parent_id IS NULL) OR (parent_id <> id)))
+);
+
+ALTER TABLE ONLY public.ucet FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_doklad; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ucetni_doklad (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    obdobi_id uuid NOT NULL,
+    protistrana_id uuid,
+    typ public.ucetni_doklad_typ NOT NULL,
+    oznaceni text NOT NULL,
+    okamzik_vyhotoveni timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.ucetni_doklad FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_jednotka; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ucetni_jednotka (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    regime public.accounting_regime NOT NULL,
+    nazev text NOT NULL,
+    ico character varying(16),
+    platce_dph boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.ucetni_jednotka FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_obdobi; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ucetni_obdobi (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    typ public.ucetni_obdobi_typ NOT NULL,
+    od date NOT NULL,
+    "do" date NOT NULL,
+    stav public.ucetni_obdobi_stav DEFAULT 'otevreno'::public.ucetni_obdobi_stav NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ucetni_obdobi_dates_chk CHECK ((od <= "do"))
+);
+
+ALTER TABLE ONLY public.ucetni_obdobi FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_pripad; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ucetni_pripad (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    protistrana_id uuid,
+    popis text NOT NULL,
+    datum_uskutecneni date NOT NULL,
+    typ text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.ucetni_pripad FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_zapis; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ucetni_zapis (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    obdobi_id uuid NOT NULL,
+    doklad_id uuid NOT NULL,
+    pripad_id uuid NOT NULL,
+    odpisovy_plan_id uuid,
+    inventura_id uuid,
+    opravuje_zapis_id uuid,
+    oprava_typ public.ucetni_zapis_oprava_typ,
+    datum date NOT NULL,
+    regime public.accounting_regime NOT NULL,
+    druh public.ucetni_zapis_druh NOT NULL,
+    odpovedna_osoba uuid NOT NULL,
+    okamzik_zauctovani timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ucetni_zapis_oprava_consistency CHECK (((opravuje_zapis_id IS NULL) = (oprava_typ IS NULL)))
+);
+
+ALTER TABLE ONLY public.ucetni_zapis FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: uctovy_rozvrh; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.uctovy_rozvrh (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    rok smallint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.uctovy_rozvrh FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: zapis_radek; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.zapis_radek (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    zapis_id uuid NOT NULL,
+    regime public.accounting_regime NOT NULL,
+    ucet_id uuid NOT NULL,
+    dilci_id uuid,
+    strana public.zapis_strana NOT NULL,
+    castka numeric(19,4) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT zapis_radek_regime_chk CHECK ((regime = 'PODVOJNE'::public.accounting_regime))
+);
+
+ALTER TABLE ONLY public.zapis_radek FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: v_denik; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_denik WITH (security_invoker='on') AS
+ SELECT zr.organization_id,
+    z.id AS zapis_id,
+    z.datum,
+    z.doklad_id,
+    d.typ AS doklad_typ,
+    d.oznaceni AS doklad_oznaceni,
+    z.pripad_id,
+    zr.id AS zapis_radek_id,
+    zr.ucet_id,
+    u.cislo AS ucet_cislo,
+    zr.strana,
+    zr.castka
+   FROM (((public.zapis_radek zr
+     JOIN public.ucetni_zapis z ON ((zr.zapis_id = z.id)))
+     JOIN public.ucet u ON ((zr.ucet_id = u.id)))
+     JOIN public.ucetni_doklad d ON ((z.doklad_id = d.id)))
+  WHERE (z.regime = 'PODVOJNE'::public.accounting_regime);
+
+--
+-- Name: v_hlavni_kniha; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_hlavni_kniha WITH (security_invoker='on') AS
+ SELECT u.organization_id,
+    u.id AS ucet_id,
+    u.cislo AS ucet_cislo,
+    u.typ AS ucet_typ,
+    u.parent_id,
+    COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'MD'::public.zapis_strana)), (0)::numeric) AS md_total,
+    COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'D'::public.zapis_strana)), (0)::numeric) AS d_total,
+    (COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'MD'::public.zapis_strana)), (0)::numeric) - COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'D'::public.zapis_strana)), (0)::numeric)) AS zustatek
+   FROM ((public.ucet u
+     JOIN public.zapis_radek zr ON ((zr.ucet_id = u.id)))
+     JOIN public.ucetni_zapis z ON ((zr.zapis_id = z.id)))
+  WHERE (z.regime = 'PODVOJNE'::public.accounting_regime)
+  GROUP BY u.id, u.organization_id, u.cislo, u.typ, u.parent_id;
+
+--
+-- Name: v_kniha_analytickych_uctu; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_kniha_analytickych_uctu WITH (security_invoker='on') AS
+ SELECT u.organization_id,
+    u.id AS ucet_id,
+    u.cislo AS ucet_cislo,
+    u.parent_id AS synteticky_ucet_id,
+    COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'MD'::public.zapis_strana)), (0)::numeric) AS md_total,
+    COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'D'::public.zapis_strana)), (0)::numeric) AS d_total,
+    (COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'MD'::public.zapis_strana)), (0)::numeric) - COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'D'::public.zapis_strana)), (0)::numeric)) AS zustatek
+   FROM ((public.ucet u
+     JOIN public.zapis_radek zr ON ((zr.ucet_id = u.id)))
+     JOIN public.ucetni_zapis z ON ((zr.zapis_id = z.id)))
+  WHERE ((z.regime = 'PODVOJNE'::public.accounting_regime) AND (u.parent_id IS NOT NULL))
+  GROUP BY u.id, u.organization_id, u.cislo, u.parent_id;
+
+--
+-- Name: v_kniha_podrozvahovych_uctu; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_kniha_podrozvahovych_uctu WITH (security_invoker='on') AS
+ SELECT u.organization_id,
+    u.id AS ucet_id,
+    u.cislo AS ucet_cislo,
+    COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'MD'::public.zapis_strana)), (0)::numeric) AS md_total,
+    COALESCE(sum(zr.castka) FILTER (WHERE (zr.strana = 'D'::public.zapis_strana)), (0)::numeric) AS d_total
+   FROM ((public.ucet u
+     JOIN public.zapis_radek zr ON ((zr.ucet_id = u.id)))
+     JOIN public.ucetni_zapis z ON ((zr.zapis_id = z.id)))
+  WHERE ((z.regime = 'PODVOJNE'::public.accounting_regime) AND (u.typ = 'podrozvahovy'::public.ucet_typ))
+  GROUP BY u.id, u.organization_id, u.cislo;
+
+--
+-- Name: v_penezni_denik; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_penezni_denik WITH (security_invoker='on') AS
+ SELECT pdr.organization_id,
+    z.id AS zapis_id,
+    z.datum,
+    z.regime,
+    z.doklad_id,
+    pdr.id AS radek_id,
+    pdr.misto,
+    pdr.smer,
+    pdr.danovy,
+    pdr.prubezny,
+    pdr.kategorie_id,
+    k.typ AS kategorie_typ,
+    k.nazev AS kategorie_nazev,
+    pdr.zaklad_dane,
+    pdr.castka
+   FROM ((public.penezni_denik_radek pdr
+     JOIN public.ucetni_zapis z ON ((pdr.zapis_id = z.id)))
+     LEFT JOIN public.kategorie k ON ((pdr.kategorie_id = k.id)))
+  WHERE (z.regime = ANY (ARRAY['JEDNODUCHE'::public.accounting_regime, 'DANOVA_EVIDENCE'::public.accounting_regime]));
+
+--
+-- Name: vystup; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.vystup (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    jednotka_id uuid NOT NULL,
+    obdobi_id uuid NOT NULL,
+    typ public.vystup_typ NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.vystup FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: workspace; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1029,6 +1711,13 @@ CREATE TABLE public.workspace_membership (
 );
 
 ALTER TABLE ONLY public.workspace_membership FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: admin_staff_role admin_staff_role_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_staff_role
+    ADD CONSTRAINT admin_staff_role_pkey PRIMARY KEY (user_id);
 
 --
 -- Name: admin_workspace_allowlist admin_workspace_allowlist_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1115,6 +1804,34 @@ ALTER TABLE ONLY public.auth_verification
     ADD CONSTRAINT auth_verification_pkey PRIMARY KEY (id);
 
 --
+-- Name: dilci_zaznam dilci_zaznam_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dilci_zaznam
+    ADD CONSTRAINT dilci_zaznam_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: dilci_zaznam dilci_zaznam_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dilci_zaznam
+    ADD CONSTRAINT dilci_zaznam_pkey PRIMARY KEY (id);
+
+--
+-- Name: doklad_radek doklad_radek_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.doklad_radek
+    ADD CONSTRAINT doklad_radek_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: doklad_radek doklad_radek_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.doklad_radek
+    ADD CONSTRAINT doklad_radek_pkey PRIMARY KEY (id);
+
+--
 -- Name: feature_flag feature_flag_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1127,6 +1844,62 @@ ALTER TABLE ONLY public.feature_flag
 
 ALTER TABLE ONLY public.impersonation
     ADD CONSTRAINT impersonation_pkey PRIMARY KEY (id);
+
+--
+-- Name: inventurni_soupis inventurni_soupis_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inventurni_soupis
+    ADD CONSTRAINT inventurni_soupis_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: inventurni_soupis inventurni_soupis_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inventurni_soupis
+    ADD CONSTRAINT inventurni_soupis_pkey PRIMARY KEY (id);
+
+--
+-- Name: kategorie kategorie_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.kategorie
+    ADD CONSTRAINT kategorie_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: kategorie kategorie_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.kategorie
+    ADD CONSTRAINT kategorie_pkey PRIMARY KEY (id);
+
+--
+-- Name: majetek majetek_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.majetek
+    ADD CONSTRAINT majetek_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: majetek majetek_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.majetek
+    ADD CONSTRAINT majetek_pkey PRIMARY KEY (id);
+
+--
+-- Name: odpisovy_plan odpisovy_plan_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.odpisovy_plan
+    ADD CONSTRAINT odpisovy_plan_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: odpisovy_plan odpisovy_plan_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.odpisovy_plan
+    ADD CONSTRAINT odpisovy_plan_pkey PRIMARY KEY (id);
 
 --
 -- Name: organization_membership organization_membership_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1157,6 +1930,13 @@ ALTER TABLE public.organization
     ADD CONSTRAINT organization_slug_not_reserved CHECK ((NOT public.app_is_reserved_org_slug((slug)::text))) NOT VALID;
 
 --
+-- Name: penezni_denik_radek penezni_denik_radek_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.penezni_denik_radek
+    ADD CONSTRAINT penezni_denik_radek_pkey PRIMARY KEY (id);
+
+--
 -- Name: permission_rule permission_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1176,6 +1956,27 @@ ALTER TABLE ONLY public.permission_template
 
 ALTER TABLE ONLY public.permissions_outbox
     ADD CONSTRAINT permissions_outbox_pkey PRIMARY KEY (id);
+
+--
+-- Name: podpis podpis_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podpis
+    ADD CONSTRAINT podpis_pkey PRIMARY KEY (id);
+
+--
+-- Name: protistrana protistrana_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.protistrana
+    ADD CONSTRAINT protistrana_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: protistrana protistrana_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.protistrana
+    ADD CONSTRAINT protistrana_pkey PRIMARY KEY (id);
 
 --
 -- Name: resource_grant resource_grant_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -1206,6 +2007,167 @@ ALTER TABLE ONLY public.two_factor_policy
     ADD CONSTRAINT two_factor_policy_pkey PRIMARY KEY (workspace_id);
 
 --
+-- Name: ucet ucet_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucet
+    ADD CONSTRAINT ucet_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: ucet ucet_id_rozvrh_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucet
+    ADD CONSTRAINT ucet_id_rozvrh_unique UNIQUE (id, rozvrh_id);
+
+--
+-- Name: ucet ucet_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucet
+    ADD CONSTRAINT ucet_pkey PRIMARY KEY (id);
+
+--
+-- Name: ucet ucet_rozvrh_cislo_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucet
+    ADD CONSTRAINT ucet_rozvrh_cislo_unique UNIQUE (rozvrh_id, cislo);
+
+--
+-- Name: ucetni_doklad ucetni_doklad_cislo_rada_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_doklad
+    ADD CONSTRAINT ucetni_doklad_cislo_rada_unique UNIQUE (organization_id, obdobi_id, typ, oznaceni);
+
+--
+-- Name: ucetni_doklad ucetni_doklad_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_doklad
+    ADD CONSTRAINT ucetni_doklad_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: ucetni_doklad ucetni_doklad_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_doklad
+    ADD CONSTRAINT ucetni_doklad_pkey PRIMARY KEY (id);
+
+--
+-- Name: ucetni_jednotka ucetni_jednotka_id_org_regime_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_jednotka
+    ADD CONSTRAINT ucetni_jednotka_id_org_regime_unique UNIQUE (id, organization_id, regime);
+
+--
+-- Name: ucetni_jednotka ucetni_jednotka_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_jednotka
+    ADD CONSTRAINT ucetni_jednotka_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: ucetni_jednotka ucetni_jednotka_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_jednotka
+    ADD CONSTRAINT ucetni_jednotka_organization_id_key UNIQUE (organization_id);
+
+--
+-- Name: ucetni_jednotka ucetni_jednotka_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_jednotka
+    ADD CONSTRAINT ucetni_jednotka_pkey PRIMARY KEY (id);
+
+--
+-- Name: ucetni_obdobi ucetni_obdobi_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_obdobi
+    ADD CONSTRAINT ucetni_obdobi_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: ucetni_obdobi ucetni_obdobi_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_obdobi
+    ADD CONSTRAINT ucetni_obdobi_pkey PRIMARY KEY (id);
+
+--
+-- Name: ucetni_pripad ucetni_pripad_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_pripad
+    ADD CONSTRAINT ucetni_pripad_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: ucetni_pripad ucetni_pripad_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_pripad
+    ADD CONSTRAINT ucetni_pripad_pkey PRIMARY KEY (id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_id_org_regime_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_id_org_regime_unique UNIQUE (id, organization_id, regime);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_pkey PRIMARY KEY (id);
+
+--
+-- Name: uctovy_rozvrh uctovy_rozvrh_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.uctovy_rozvrh
+    ADD CONSTRAINT uctovy_rozvrh_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: uctovy_rozvrh uctovy_rozvrh_org_rok_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.uctovy_rozvrh
+    ADD CONSTRAINT uctovy_rozvrh_org_rok_unique UNIQUE (organization_id, rok);
+
+--
+-- Name: uctovy_rozvrh uctovy_rozvrh_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.uctovy_rozvrh
+    ADD CONSTRAINT uctovy_rozvrh_pkey PRIMARY KEY (id);
+
+--
+-- Name: vystup vystup_period_type_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vystup
+    ADD CONSTRAINT vystup_period_type_unique UNIQUE (organization_id, obdobi_id, typ);
+
+--
+-- Name: vystup vystup_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vystup
+    ADD CONSTRAINT vystup_pkey PRIMARY KEY (id);
+
+--
 -- Name: workspace_billing workspace_billing_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1225,6 +2187,19 @@ ALTER TABLE ONLY public.workspace_membership
 
 ALTER TABLE ONLY public.workspace
     ADD CONSTRAINT workspace_pkey PRIMARY KEY (id);
+
+--
+-- Name: zapis_radek zapis_radek_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.zapis_radek
+    ADD CONSTRAINT zapis_radek_pkey PRIMARY KEY (id);
+
+--
+-- Name: admin_staff_role_role_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX admin_staff_role_role_idx ON public.admin_staff_role USING btree (role);
 
 --
 -- Name: api_key_key_hash_idx; Type: INDEX; Schema: public; Owner: -
@@ -1347,6 +2322,36 @@ CREATE INDEX auth_verification_identifier_idx ON public.auth_verification USING 
 CREATE INDEX auth_verification_workspace_idx ON public.auth_verification USING btree (workspace_id);
 
 --
+-- Name: dilci_zaznam_doklad_radek_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX dilci_zaznam_doklad_radek_idx ON public.dilci_zaznam USING btree (doklad_radek_id);
+
+--
+-- Name: dilci_zaznam_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX dilci_zaznam_org_idx ON public.dilci_zaznam USING btree (organization_id);
+
+--
+-- Name: doklad_radek_doklad_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX doklad_radek_doklad_idx ON public.doklad_radek USING btree (doklad_id);
+
+--
+-- Name: doklad_radek_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX doklad_radek_org_idx ON public.doklad_radek USING btree (organization_id);
+
+--
+-- Name: doklad_radek_pripad_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX doklad_radek_pripad_idx ON public.doklad_radek USING btree (pripad_id);
+
+--
 -- Name: impersonation_actor_started_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1375,6 +2380,24 @@ CREATE INDEX impersonation_target_started_idx ON public.impersonation USING btre
 --
 
 CREATE INDEX impersonation_workspace_started_idx ON public.impersonation USING btree (workspace_id, started_at DESC);
+
+--
+-- Name: inventurni_soupis_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX inventurni_soupis_jednotka_idx ON public.inventurni_soupis USING btree (jednotka_id);
+
+--
+-- Name: odpisovy_plan_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX odpisovy_plan_jednotka_idx ON public.odpisovy_plan USING btree (jednotka_id);
+
+--
+-- Name: odpisovy_plan_majetek_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX odpisovy_plan_majetek_idx ON public.odpisovy_plan USING btree (majetek_id);
 
 --
 -- Name: organization_membership_org_idx; Type: INDEX; Schema: public; Owner: -
@@ -1419,6 +2442,30 @@ CREATE INDEX organization_workspace_idx ON public.organization USING btree (work
 CREATE UNIQUE INDEX organization_workspace_slug_unique ON public.organization USING btree (workspace_id, slug);
 
 --
+-- Name: penezni_denik_radek_dilci_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX penezni_denik_radek_dilci_idx ON public.penezni_denik_radek USING btree (dilci_id);
+
+--
+-- Name: penezni_denik_radek_kategorie_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX penezni_denik_radek_kategorie_idx ON public.penezni_denik_radek USING btree (kategorie_id);
+
+--
+-- Name: penezni_denik_radek_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX penezni_denik_radek_org_idx ON public.penezni_denik_radek USING btree (organization_id);
+
+--
+-- Name: penezni_denik_radek_zapis_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX penezni_denik_radek_zapis_idx ON public.penezni_denik_radek USING btree (zapis_id);
+
+--
 -- Name: permission_rule_category_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1447,6 +2494,24 @@ CREATE UNIQUE INDEX permission_template_workspace_name_unique ON public.permissi
 --
 
 CREATE INDEX permissions_outbox_unprocessed_idx ON public.permissions_outbox USING btree (created_at) WHERE ((processed_at IS NULL) AND (failed_at IS NULL));
+
+--
+-- Name: podpis_doklad_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX podpis_doklad_idx ON public.podpis USING btree (doklad_id);
+
+--
+-- Name: podpis_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX podpis_org_idx ON public.podpis USING btree (organization_id);
+
+--
+-- Name: podpis_zapis_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX podpis_zapis_idx ON public.podpis USING btree (zapis_id);
 
 --
 -- Name: resource_grant_membership_idx; Type: INDEX; Schema: public; Owner: -
@@ -1497,6 +2562,132 @@ CREATE INDEX tool_call_log_tool_name_trgm_idx ON public.tool_call_log USING gin 
 CREATE INDEX two_factor_user_id_idx ON public.two_factor USING btree (user_id);
 
 --
+-- Name: ucet_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucet_org_idx ON public.ucet USING btree (organization_id);
+
+--
+-- Name: ucet_parent_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucet_parent_idx ON public.ucet USING btree (parent_id);
+
+--
+-- Name: ucet_rozvrh_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucet_rozvrh_idx ON public.ucet USING btree (rozvrh_id);
+
+--
+-- Name: ucetni_doklad_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_doklad_jednotka_idx ON public.ucetni_doklad USING btree (jednotka_id);
+
+--
+-- Name: ucetni_doklad_obdobi_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_doklad_obdobi_idx ON public.ucetni_doklad USING btree (obdobi_id);
+
+--
+-- Name: ucetni_doklad_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_doklad_org_idx ON public.ucetni_doklad USING btree (organization_id);
+
+--
+-- Name: ucetni_doklad_protistrana_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_doklad_protistrana_idx ON public.ucetni_doklad USING btree (protistrana_id);
+
+--
+-- Name: ucetni_obdobi_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_obdobi_jednotka_idx ON public.ucetni_obdobi USING btree (jednotka_id);
+
+--
+-- Name: ucetni_obdobi_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_obdobi_org_idx ON public.ucetni_obdobi USING btree (organization_id);
+
+--
+-- Name: ucetni_pripad_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_pripad_jednotka_idx ON public.ucetni_pripad USING btree (jednotka_id);
+
+--
+-- Name: ucetni_pripad_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_pripad_org_idx ON public.ucetni_pripad USING btree (organization_id);
+
+--
+-- Name: ucetni_pripad_protistrana_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_pripad_protistrana_idx ON public.ucetni_pripad USING btree (protistrana_id);
+
+--
+-- Name: ucetni_zapis_doklad_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_zapis_doklad_idx ON public.ucetni_zapis USING btree (doklad_id);
+
+--
+-- Name: ucetni_zapis_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_zapis_jednotka_idx ON public.ucetni_zapis USING btree (jednotka_id);
+
+--
+-- Name: ucetni_zapis_obdobi_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_zapis_obdobi_idx ON public.ucetni_zapis USING btree (obdobi_id);
+
+--
+-- Name: ucetni_zapis_opravuje_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_zapis_opravuje_idx ON public.ucetni_zapis USING btree (opravuje_zapis_id);
+
+--
+-- Name: ucetni_zapis_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_zapis_org_idx ON public.ucetni_zapis USING btree (organization_id);
+
+--
+-- Name: ucetni_zapis_pripad_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ucetni_zapis_pripad_idx ON public.ucetni_zapis USING btree (pripad_id);
+
+--
+-- Name: uctovy_rozvrh_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX uctovy_rozvrh_jednotka_idx ON public.uctovy_rozvrh USING btree (jednotka_id);
+
+--
+-- Name: vystup_jednotka_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vystup_jednotka_idx ON public.vystup USING btree (jednotka_id);
+
+--
+-- Name: vystup_obdobi_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX vystup_obdobi_idx ON public.vystup USING btree (obdobi_id);
+
+--
 -- Name: workspace_membership_active_unique; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1513,6 +2704,30 @@ CREATE INDEX workspace_membership_user_idx ON public.workspace_membership USING 
 --
 
 CREATE INDEX workspace_membership_workspace_role_idx ON public.workspace_membership USING btree (workspace_id, role);
+
+--
+-- Name: zapis_radek_dilci_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX zapis_radek_dilci_idx ON public.zapis_radek USING btree (dilci_id);
+
+--
+-- Name: zapis_radek_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX zapis_radek_org_idx ON public.zapis_radek USING btree (organization_id);
+
+--
+-- Name: zapis_radek_ucet_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX zapis_radek_ucet_idx ON public.zapis_radek USING btree (ucet_id);
+
+--
+-- Name: zapis_radek_zapis_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX zapis_radek_zapis_idx ON public.zapis_radek USING btree (zapis_id);
 
 --
 -- Name: app_user app_user_email_normalize; Type: TRIGGER; Schema: public; Owner: -
@@ -1587,6 +2802,24 @@ CREATE TRIGGER organization_self_id_sync BEFORE INSERT OR UPDATE ON public.organ
 CREATE TRIGGER organization_workspace_immutable BEFORE UPDATE ON public.organization FOR EACH ROW EXECUTE FUNCTION public.app_organization_workspace_immutable();
 
 --
+-- Name: penezni_denik_radek penezni_denik_radek_block_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER penezni_denik_radek_block_delete BEFORE DELETE ON public.penezni_denik_radek FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_posting();
+
+--
+-- Name: penezni_denik_radek penezni_denik_radek_block_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER penezni_denik_radek_block_truncate BEFORE TRUNCATE ON public.penezni_denik_radek FOR EACH STATEMENT EXECUTE FUNCTION public.app_block_truncate_posting();
+
+--
+-- Name: penezni_denik_radek penezni_denik_radek_block_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER penezni_denik_radek_block_update BEFORE UPDATE ON public.penezni_denik_radek FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_posting();
+
+--
 -- Name: resource_grant resource_grant_consistent; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1617,6 +2850,42 @@ CREATE TRIGGER tool_call_log_no_truncate BEFORE TRUNCATE ON public.tool_call_log
 CREATE TRIGGER two_factor_policy_set_updated_at BEFORE UPDATE ON public.two_factor_policy FOR EACH ROW EXECUTE FUNCTION public.app_two_factor_policy_set_updated_at();
 
 --
+-- Name: ucetni_doklad ucetni_doklad_reject_closed_period; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ucetni_doklad_reject_closed_period BEFORE INSERT ON public.ucetni_doklad FOR EACH ROW EXECUTE FUNCTION public.app_block_closed_period();
+
+--
+-- Name: ucetni_zapis ucetni_zapis_balanced; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER ucetni_zapis_balanced AFTER INSERT ON public.ucetni_zapis DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.app_zapis_balance_from_zapis();
+
+--
+-- Name: ucetni_zapis ucetni_zapis_block_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ucetni_zapis_block_delete BEFORE DELETE ON public.ucetni_zapis FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_posting();
+
+--
+-- Name: ucetni_zapis ucetni_zapis_block_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ucetni_zapis_block_truncate BEFORE TRUNCATE ON public.ucetni_zapis FOR EACH STATEMENT EXECUTE FUNCTION public.app_block_truncate_posting();
+
+--
+-- Name: ucetni_zapis ucetni_zapis_block_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ucetni_zapis_block_update BEFORE UPDATE ON public.ucetni_zapis FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_posting();
+
+--
+-- Name: ucetni_zapis ucetni_zapis_reject_closed_period; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ucetni_zapis_reject_closed_period BEFORE INSERT ON public.ucetni_zapis FOR EACH ROW EXECUTE FUNCTION public.app_block_closed_period();
+
+--
 -- Name: workspace_billing workspace_billing_email_normalize; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -1627,6 +2896,44 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 --
 
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
+
+--
+-- Name: zapis_radek zapis_radek_balanced; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE CONSTRAINT TRIGGER zapis_radek_balanced AFTER INSERT ON public.zapis_radek DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.app_zapis_balance_from_radek();
+
+--
+-- Name: zapis_radek zapis_radek_block_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER zapis_radek_block_delete BEFORE DELETE ON public.zapis_radek FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_posting();
+
+--
+-- Name: zapis_radek zapis_radek_block_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER zapis_radek_block_truncate BEFORE TRUNCATE ON public.zapis_radek FOR EACH STATEMENT EXECUTE FUNCTION public.app_block_truncate_posting();
+
+--
+-- Name: zapis_radek zapis_radek_block_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER zapis_radek_block_update BEFORE UPDATE ON public.zapis_radek FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_posting();
+
+--
+-- Name: admin_staff_role admin_staff_role_granted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_staff_role
+    ADD CONSTRAINT admin_staff_role_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES public.app_user(id) ON DELETE SET NULL;
+
+--
+-- Name: admin_staff_role admin_staff_role_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_staff_role
+    ADD CONSTRAINT admin_staff_role_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
 
 --
 -- Name: admin_workspace_allowlist admin_workspace_allowlist_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1713,6 +3020,27 @@ ALTER TABLE ONLY public.auth_verification
     ADD CONSTRAINT auth_verification_workspace_fk FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
+-- Name: dilci_zaznam dilci_zaznam_doklad_radek_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dilci_zaznam
+    ADD CONSTRAINT dilci_zaznam_doklad_radek_fk FOREIGN KEY (doklad_radek_id, organization_id) REFERENCES public.doklad_radek(id, organization_id);
+
+--
+-- Name: doklad_radek doklad_radek_doklad_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.doklad_radek
+    ADD CONSTRAINT doklad_radek_doklad_fk FOREIGN KEY (doklad_id, organization_id) REFERENCES public.ucetni_doklad(id, organization_id);
+
+--
+-- Name: doklad_radek doklad_radek_pripad_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.doklad_radek
+    ADD CONSTRAINT doklad_radek_pripad_fk FOREIGN KEY (pripad_id, organization_id) REFERENCES public.ucetni_pripad(id, organization_id);
+
+--
 -- Name: impersonation impersonation_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1746,6 +3074,41 @@ ALTER TABLE ONLY public.impersonation
 
 ALTER TABLE ONLY public.impersonation
     ADD CONSTRAINT impersonation_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: inventurni_soupis inventurni_soupis_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inventurni_soupis
+    ADD CONSTRAINT inventurni_soupis_jednotka_fk FOREIGN KEY (jednotka_id, organization_id) REFERENCES public.ucetni_jednotka(id, organization_id);
+
+--
+-- Name: kategorie kategorie_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.kategorie
+    ADD CONSTRAINT kategorie_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: majetek majetek_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.majetek
+    ADD CONSTRAINT majetek_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: odpisovy_plan odpisovy_plan_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.odpisovy_plan
+    ADD CONSTRAINT odpisovy_plan_jednotka_fk FOREIGN KEY (jednotka_id, organization_id) REFERENCES public.ucetni_jednotka(id, organization_id);
+
+--
+-- Name: odpisovy_plan odpisovy_plan_majetek_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.odpisovy_plan
+    ADD CONSTRAINT odpisovy_plan_majetek_fk FOREIGN KEY (majetek_id, organization_id) REFERENCES public.majetek(id, organization_id);
 
 --
 -- Name: organization_membership organization_membership_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1783,11 +3146,60 @@ ALTER TABLE ONLY public.organization
     ADD CONSTRAINT organization_workspace_fk FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
 
 --
+-- Name: penezni_denik_radek penezni_denik_radek_dilci_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.penezni_denik_radek
+    ADD CONSTRAINT penezni_denik_radek_dilci_fk FOREIGN KEY (dilci_id, organization_id) REFERENCES public.dilci_zaznam(id, organization_id);
+
+--
+-- Name: penezni_denik_radek penezni_denik_radek_kategorie_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.penezni_denik_radek
+    ADD CONSTRAINT penezni_denik_radek_kategorie_fk FOREIGN KEY (kategorie_id, organization_id) REFERENCES public.kategorie(id, organization_id);
+
+--
+-- Name: penezni_denik_radek penezni_denik_radek_zapis_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.penezni_denik_radek
+    ADD CONSTRAINT penezni_denik_radek_zapis_fk FOREIGN KEY (zapis_id, organization_id, regime) REFERENCES public.ucetni_zapis(id, organization_id, regime);
+
+--
 -- Name: permission_template permission_template_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.permission_template
     ADD CONSTRAINT permission_template_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
+
+--
+-- Name: podpis podpis_doklad_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podpis
+    ADD CONSTRAINT podpis_doklad_fk FOREIGN KEY (doklad_id, organization_id) REFERENCES public.ucetni_doklad(id, organization_id);
+
+--
+-- Name: podpis podpis_podepsal_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podpis
+    ADD CONSTRAINT podpis_podepsal_fkey FOREIGN KEY (podepsal) REFERENCES public.app_user(id);
+
+--
+-- Name: podpis podpis_zapis_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.podpis
+    ADD CONSTRAINT podpis_zapis_fk FOREIGN KEY (zapis_id, organization_id) REFERENCES public.ucetni_zapis(id, organization_id);
+
+--
+-- Name: protistrana protistrana_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.protistrana
+    ADD CONSTRAINT protistrana_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
 
 --
 -- Name: resource_grant resource_grant_membership_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -1839,6 +3251,146 @@ ALTER TABLE ONLY public.two_factor
     ADD CONSTRAINT two_factor_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
 
 --
+-- Name: ucet ucet_parent_same_chart_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucet
+    ADD CONSTRAINT ucet_parent_same_chart_fk FOREIGN KEY (parent_id, rozvrh_id) REFERENCES public.ucet(id, rozvrh_id);
+
+--
+-- Name: ucet ucet_rozvrh_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucet
+    ADD CONSTRAINT ucet_rozvrh_fk FOREIGN KEY (rozvrh_id, organization_id) REFERENCES public.uctovy_rozvrh(id, organization_id);
+
+--
+-- Name: ucetni_doklad ucetni_doklad_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_doklad
+    ADD CONSTRAINT ucetni_doklad_jednotka_fk FOREIGN KEY (jednotka_id, organization_id) REFERENCES public.ucetni_jednotka(id, organization_id);
+
+--
+-- Name: ucetni_doklad ucetni_doklad_obdobi_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_doklad
+    ADD CONSTRAINT ucetni_doklad_obdobi_fk FOREIGN KEY (obdobi_id, organization_id) REFERENCES public.ucetni_obdobi(id, organization_id);
+
+--
+-- Name: ucetni_doklad ucetni_doklad_protistrana_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_doklad
+    ADD CONSTRAINT ucetni_doklad_protistrana_fk FOREIGN KEY (protistrana_id, organization_id) REFERENCES public.protistrana(id, organization_id);
+
+--
+-- Name: ucetni_jednotka ucetni_jednotka_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_jednotka
+    ADD CONSTRAINT ucetni_jednotka_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: ucetni_obdobi ucetni_obdobi_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_obdobi
+    ADD CONSTRAINT ucetni_obdobi_jednotka_fk FOREIGN KEY (jednotka_id, organization_id) REFERENCES public.ucetni_jednotka(id, organization_id);
+
+--
+-- Name: ucetni_pripad ucetni_pripad_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_pripad
+    ADD CONSTRAINT ucetni_pripad_jednotka_fk FOREIGN KEY (jednotka_id, organization_id) REFERENCES public.ucetni_jednotka(id, organization_id);
+
+--
+-- Name: ucetni_pripad ucetni_pripad_protistrana_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_pripad
+    ADD CONSTRAINT ucetni_pripad_protistrana_fk FOREIGN KEY (protistrana_id, organization_id) REFERENCES public.protistrana(id, organization_id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_doklad_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_doklad_fk FOREIGN KEY (doklad_id, organization_id) REFERENCES public.ucetni_doklad(id, organization_id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_inventura_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_inventura_fk FOREIGN KEY (inventura_id, organization_id) REFERENCES public.inventurni_soupis(id, organization_id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_jednotka_fk FOREIGN KEY (jednotka_id, organization_id, regime) REFERENCES public.ucetni_jednotka(id, organization_id, regime);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_obdobi_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_obdobi_fk FOREIGN KEY (obdobi_id, organization_id) REFERENCES public.ucetni_obdobi(id, organization_id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_odpisovy_plan_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_odpisovy_plan_fk FOREIGN KEY (odpisovy_plan_id, organization_id) REFERENCES public.odpisovy_plan(id, organization_id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_odpovedna_osoba_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_odpovedna_osoba_fkey FOREIGN KEY (odpovedna_osoba) REFERENCES public.app_user(id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_opravuje_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_opravuje_fk FOREIGN KEY (opravuje_zapis_id, organization_id) REFERENCES public.ucetni_zapis(id, organization_id);
+
+--
+-- Name: ucetni_zapis ucetni_zapis_pripad_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ucetni_zapis
+    ADD CONSTRAINT ucetni_zapis_pripad_fk FOREIGN KEY (pripad_id, organization_id) REFERENCES public.ucetni_pripad(id, organization_id);
+
+--
+-- Name: uctovy_rozvrh uctovy_rozvrh_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.uctovy_rozvrh
+    ADD CONSTRAINT uctovy_rozvrh_jednotka_fk FOREIGN KEY (jednotka_id, organization_id) REFERENCES public.ucetni_jednotka(id, organization_id);
+
+--
+-- Name: vystup vystup_jednotka_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vystup
+    ADD CONSTRAINT vystup_jednotka_fk FOREIGN KEY (jednotka_id, organization_id) REFERENCES public.ucetni_jednotka(id, organization_id);
+
+--
+-- Name: vystup vystup_obdobi_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.vystup
+    ADD CONSTRAINT vystup_obdobi_fk FOREIGN KEY (obdobi_id, organization_id) REFERENCES public.ucetni_obdobi(id, organization_id);
+
+--
 -- Name: workspace_billing workspace_billing_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1867,10 +3419,37 @@ ALTER TABLE ONLY public.workspace_membership
     ADD CONSTRAINT workspace_membership_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
+-- Name: zapis_radek zapis_radek_dilci_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.zapis_radek
+    ADD CONSTRAINT zapis_radek_dilci_fk FOREIGN KEY (dilci_id, organization_id) REFERENCES public.dilci_zaznam(id, organization_id);
+
+--
+-- Name: zapis_radek zapis_radek_ucet_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.zapis_radek
+    ADD CONSTRAINT zapis_radek_ucet_fk FOREIGN KEY (ucet_id, organization_id) REFERENCES public.ucet(id, organization_id);
+
+--
+-- Name: zapis_radek zapis_radek_zapis_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.zapis_radek
+    ADD CONSTRAINT zapis_radek_zapis_fk FOREIGN KEY (zapis_id, organization_id, regime) REFERENCES public.ucetni_zapis(id, organization_id, regime);
+
+--
 -- Name: admin_workspace_allowlist admin_allowlist_read; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY admin_allowlist_read ON public.admin_workspace_allowlist FOR SELECT TO app_user USING (true);
+
+--
+-- Name: admin_staff_role; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_staff_role ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: admin_workspace_allowlist; Type: ROW SECURITY; Schema: public; Owner: -
@@ -1927,6 +3506,18 @@ ALTER TABLE public.auth_token ENABLE ROW LEVEL SECURITY;
 CREATE POLICY auth_token_deny_all ON public.auth_token USING (false) WITH CHECK (false);
 
 --
+-- Name: dilci_zaznam; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.dilci_zaznam ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: doklad_radek; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.doklad_radek ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: impersonation; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -1943,6 +3534,30 @@ CREATE POLICY impersonation_target_self_read ON public.impersonation FOR SELECT 
 --
 
 CREATE POLICY impersonation_ws_admin_read ON public.impersonation FOR SELECT TO app_user USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+
+--
+-- Name: inventurni_soupis; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.inventurni_soupis ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: kategorie; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.kategorie ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: majetek; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.majetek ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: odpisovy_plan; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.odpisovy_plan ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: organization_membership org_membership_org_read; Type: POLICY; Schema: public; Owner: -
@@ -1981,10 +3596,64 @@ ALTER TABLE public.organization ENABLE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON public.api_key USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: dilci_zaznam organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.dilci_zaznam USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: doklad_radek organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.doklad_radek USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inventurni_soupis organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.inventurni_soupis USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: kategorie organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.kategorie USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: majetek organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.majetek USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: odpisovy_plan organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.odpisovy_plan USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: organization organization_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY organization_isolation ON public.organization USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: penezni_denik_radek organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.penezni_denik_radek USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: podpis organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.podpis USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: protistrana organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.protistrana USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: tool_call_log organization_isolation; Type: POLICY; Schema: public; Owner: -
@@ -1993,10 +3662,70 @@ CREATE POLICY organization_isolation ON public.organization USING ((organization
 CREATE POLICY organization_isolation ON public.tool_call_log USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: ucet organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.ucet USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ucetni_doklad organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.ucetni_doklad USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ucetni_jednotka organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.ucetni_jednotka USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ucetni_obdobi organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.ucetni_obdobi USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ucetni_pripad organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.ucetni_pripad USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ucetni_zapis organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.ucetni_zapis USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: uctovy_rozvrh organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.uctovy_rozvrh USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: vystup organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.vystup USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: zapis_radek organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.zapis_radek USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: organization_membership; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.organization_membership ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: penezni_denik_radek; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.penezni_denik_radek ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: permission_template; Type: ROW SECURITY; Schema: public; Owner: -
@@ -2021,6 +3750,18 @@ CREATE POLICY permission_template_ws_read ON public.permission_template FOR SELE
 --
 
 CREATE POLICY permission_template_ws_write ON public.permission_template USING (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid))) WITH CHECK (((workspace_id IS NOT NULL) AND (workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND (is_system = false)));
+
+--
+-- Name: podpis; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.podpis ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: protistrana; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.protistrana ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: resource_grant; Type: ROW SECURITY; Schema: public; Owner: -
@@ -2079,6 +3820,54 @@ CREATE POLICY two_factor_policy_ws_admin_all ON public.two_factor_policy TO app_
 CREATE POLICY two_factor_policy_ws_member_read ON public.two_factor_policy FOR SELECT TO app_user USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_member(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
 
 --
+-- Name: ucet; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ucet ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_doklad; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ucetni_doklad ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_jednotka; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ucetni_jednotka ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_obdobi; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ucetni_obdobi ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_pripad; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ucetni_pripad ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ucetni_zapis; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ucetni_zapis ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: uctovy_rozvrh; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.uctovy_rozvrh ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: vystup; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.vystup ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: workspace; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -2125,6 +3914,12 @@ CREATE POLICY ws_membership_admin_write ON public.workspace_membership USING (((
 --
 
 CREATE POLICY ws_membership_self_read ON public.workspace_membership FOR SELECT USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND (user_id = (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+
+--
+-- Name: zapis_radek; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.zapis_radek ENABLE ROW LEVEL SECURITY;
 
 --
 --

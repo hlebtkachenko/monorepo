@@ -381,6 +381,28 @@ export async function truncateAll(sql: postgres.Sql): Promise<void> {
     await tx.unsafe(`DELETE FROM audit_event`)
     await tx.unsafe(`DELETE FROM organization_membership`)
     await tx.unsafe(`DELETE FROM workspace_membership`)
+    // Accounting Records System tables (child→parent). They FK to organization,
+    // so they must be cleared before DELETE FROM organization. The posting tables
+    // are append-only, but session_replication_role = replica (above) disables
+    // their BEFORE triggers for this cleanup transaction.
+    await tx.unsafe(`DELETE FROM zapis_radek`)
+    await tx.unsafe(`DELETE FROM penezni_denik_radek`)
+    await tx.unsafe(`DELETE FROM podpis`)
+    await tx.unsafe(`DELETE FROM vystup`)
+    await tx.unsafe(`DELETE FROM ucetni_zapis`)
+    await tx.unsafe(`DELETE FROM dilci_zaznam`)
+    await tx.unsafe(`DELETE FROM doklad_radek`)
+    await tx.unsafe(`DELETE FROM ucetni_doklad`)
+    await tx.unsafe(`DELETE FROM ucetni_pripad`)
+    await tx.unsafe(`DELETE FROM odpisovy_plan`)
+    await tx.unsafe(`DELETE FROM inventurni_soupis`)
+    await tx.unsafe(`DELETE FROM ucet`)
+    await tx.unsafe(`DELETE FROM uctovy_rozvrh`)
+    await tx.unsafe(`DELETE FROM ucetni_obdobi`)
+    await tx.unsafe(`DELETE FROM ucetni_jednotka`)
+    await tx.unsafe(`DELETE FROM kategorie`)
+    await tx.unsafe(`DELETE FROM majetek`)
+    await tx.unsafe(`DELETE FROM protistrana`)
     await tx.unsafe(`DELETE FROM organization`)
     await tx.unsafe(`DELETE FROM workspace`)
     await tx.unsafe(`DELETE FROM auth_account`)

@@ -28,7 +28,7 @@
     "eslint": "^10.4.1",
     "next": "16.2.7",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "next": "^16.2.6"

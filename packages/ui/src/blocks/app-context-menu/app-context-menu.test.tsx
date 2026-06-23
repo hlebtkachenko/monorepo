@@ -153,6 +153,22 @@ describe("AppContextMenu", () => {
     ).toBeTruthy()
   })
 
+  // Regression guard: ContextMenuTrigger hardcodes `select-none`. This trigger
+  // wraps the ENTIRE app body, so if that leaks here every page becomes
+  // unselectable. The trigger must re-enable selection (select-text).
+  it("keeps the wrapped app body selectable (no stranded select-none)", () => {
+    render(
+      <AppContextMenu pathname={SAMPLE_PATHNAME}>
+        <p>hi</p>
+      </AppContextMenu>,
+    )
+    const trigger = document.querySelector(
+      "[data-slot='app-context-menu-trigger']",
+    )
+    expect(trigger).not.toHaveClass("select-none")
+    expect(trigger).toHaveClass("select-text")
+  })
+
   it("opens menu with flat structure (no submenu)", () => {
     render(
       <AppContextMenu pathname={SAMPLE_PATHNAME}>

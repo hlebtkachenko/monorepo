@@ -207,7 +207,10 @@ export function AppContextMenu({
   return (
     <>
       <ContextMenu>
-        <ContextMenuTrigger asChild disabled={bypass}>
+        {/* `ContextMenuTrigger` hardcodes `select-none`; since this trigger
+            wraps the ENTIRE app body, that would make every page unselectable.
+            Re-enable selection here (tailwind-merge drops the select-none). */}
+        <ContextMenuTrigger asChild disabled={bypass} className="select-text">
           <div
             data-slot="app-context-menu-trigger"
             className="min-h-svh"

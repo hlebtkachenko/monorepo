@@ -349,6 +349,34 @@ export function AppShell({
     document.body.style.userSelect = ""
   }
 
+  // The sidebar's open/close toggle lives in two places depending on state:
+  // when the sidebar is open (desktop), it sits in the SIDEBAR panel's own
+  // header, right-aligned; when closed — or always on mobile, where the
+  // sidebar is a Sheet and its inline header is hidden — it sits in the
+  // CONTENT header instead. Same button, different parent.
+  const renderSidebarToggle = (align: "left" | "right") =>
+    sidebar !== undefined ? (
+      <IconButton
+        icon={sidebarIsOpen ? "PanelLeftClose" : "PanelLeftOpen"}
+        aria-label={
+          sidebarIsOpen
+            ? isMobile
+              ? "Close sidebar"
+              : "Collapse sidebar"
+            : "Open sidebar"
+        }
+        tooltip={sidebarIsOpen ? "Collapse" : "Expand"}
+        tooltipSide="bottom"
+        onClick={toggleSidebar}
+        className={cn(
+          // Soften the teleport between the two headers: fade + slight
+          // zoom in wherever it mounts, instead of a hard pop.
+          "animate-in duration-200 fade-in-0 zoom-in-95 max-md:size-10",
+          align === "right" && "ml-auto",
+        )}
+      />
+    ) : null
+
   return (
     <AppShellContext.Provider value={shellContext}>
       <div
@@ -412,7 +440,9 @@ export function AppShell({
                   style={{ width: sidebarOpen ? sidebarWidth : 0 }}
                   className="flex shrink-0 flex-col overflow-hidden transition-[width] duration-300 ease-in-out max-md:hidden"
                 >
-                  <PanelHeader />
+                  <PanelHeader>
+                    {sidebarIsOpen && renderSidebarToggle("right")}
+                  </PanelHeader>
                   <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
                     {sidebar}
                   </div>
@@ -445,22 +475,7 @@ export function AppShell({
               className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden"
             >
               <PanelHeader>
-                {sidebar !== undefined && (
-                  <IconButton
-                    icon={sidebarIsOpen ? "PanelLeftClose" : "PanelLeftOpen"}
-                    aria-label={
-                      sidebarIsOpen
-                        ? isMobile
-                          ? "Close sidebar"
-                          : "Collapse sidebar"
-                        : "Open sidebar"
-                    }
-                    tooltip={sidebarIsOpen ? "Collapse" : "Expand"}
-                    tooltipSide="bottom"
-                    onClick={toggleSidebar}
-                    className="max-md:size-10"
-                  />
-                )}
+                {(!sidebarIsOpen || isMobile) && renderSidebarToggle("left")}
                 {assistant !== undefined && (
                   <IconButton
                     icon={

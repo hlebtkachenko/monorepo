@@ -369,6 +369,18 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Paint the document canvas (and thus the Safari overscroll rubber-band)
+     with the shell's grey --canvas — but ONLY on pages that mount the app
+     shell (or its loading/error variants), so auth / onboarding pages keep
+     their white background. Without an html background, the body's
+     bg-background (white) propagates to the viewport and the overscroll glow
+     reads white; scoping html's background via :has() a shell marker stops
+     that, per layout. The `^=` prefix covers app-shell, app-shell-skeleton
+     (loading.tsx) and app-shell-error (error.tsx) so the canvas never flashes
+     white between states. */
+  html:has([data-slot^="app-shell"]) {
+    @apply bg-canvas;
+  }
   body {
     @apply bg-background text-foreground;
   }

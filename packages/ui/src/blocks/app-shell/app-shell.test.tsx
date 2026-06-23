@@ -64,7 +64,7 @@ describe("AppShell", () => {
     expect(
       container.querySelector("[data-slot='app-shell-assistant']"),
     ).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: /close assistant/i }))
+    fireEvent.click(screen.getByRole("button", { name: /collapse assistant/i }))
     expect(
       container.querySelector("[data-slot='app-shell-assistant']"),
     ).toBeNull()

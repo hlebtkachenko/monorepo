@@ -91,6 +91,30 @@ const SHELL_CARD_CLASS =
 const ASSISTANT_DROPDOWN_CARD =
   "rounded-lg border border-foreground/10 bg-popover text-popover-foreground"
 
+// Per-panel header bar: full width, 45px tall, bottom hairline in the shell
+// border tone (same token the panels/rail use). Every panel (sidebar /
+// content / assistant) opens with one; it holds the panel's open/close
+// toggle(s) and, later, its title content.
+//
+// Inside sits the "safe zone": content is inset 8px on the sides and 6px top/
+// bottom (the header's padding). 45 − 1px border − 12px = a 32px content row,
+// exactly the toggle height.
+function PanelHeader({ children }: { children?: React.ReactNode }) {
+  return (
+    <div
+      data-slot="app-shell-panel-header"
+      className="flex h-[45px] shrink-0 items-stretch border-b border-border-subtle px-2 py-1.5"
+    >
+      <div
+        data-slot="app-shell-panel-header-safe-zone"
+        className="flex flex-1 items-center gap-1"
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 interface AppShellContextValue {
   /** Whether the assistant panel is currently open. */
   assistantOpen: boolean
@@ -386,9 +410,12 @@ export function AppShell({
                 <aside
                   data-slot="app-shell-sidebar"
                   style={{ width: sidebarOpen ? sidebarWidth : 0 }}
-                  className="shrink-0 overflow-x-hidden overflow-y-auto transition-[width] duration-300 ease-in-out max-md:hidden"
+                  className="flex shrink-0 flex-col overflow-hidden transition-[width] duration-300 ease-in-out max-md:hidden"
                 >
-                  {sidebar}
+                  <PanelHeader />
+                  <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+                    {sidebar}
+                  </div>
                 </aside>
                 <div
                   role="separator"
@@ -398,12 +425,14 @@ export function AppShell({
                   onPointerUp={onSidebarHandlePointerUp}
                   onPointerCancel={onSidebarHandlePointerUp}
                   className={cn(
-                    // 4px transparent hit area with 1px line inside
-                    // (always visible); the ::before overlay widens the
-                    // grab zone to 12px without adding layout width.
-                    // `touch-none` blocks the browser's drag-to-scroll
-                    // on touch devices so the resize gesture wins.
-                    "relative w-1 shrink-0 cursor-col-resize touch-none select-none before:absolute before:-inset-x-1 before:inset-y-0 max-md:hidden",
+                    // Zero layout width: the sidebar + content panels touch,
+                    // so their header bottom-borders connect into one line
+                    // with only the 1px divider crossing — no 4px card-surface
+                    // gap. The ::before overlay still gives an ~8px grab zone
+                    // without taking layout space; `touch-none` lets the resize
+                    // gesture win over drag-to-scroll on touch. z-10 keeps the
+                    // hit area above the adjacent panel content.
+                    "relative z-10 w-0 shrink-0 cursor-col-resize touch-none select-none before:absolute before:-inset-x-1 before:inset-y-0 max-md:hidden",
                     !sidebarOpen && "pointer-events-none invisible",
                   )}
                 >
@@ -413,13 +442,12 @@ export function AppShell({
             )}
             <main
               data-slot="app-shell-main"
-              className="relative h-full flex-1 overflow-auto"
+              className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden"
             >
-              {sidebar !== undefined && (
-                <div className="absolute top-2 left-2 z-10">
+              <PanelHeader>
+                {sidebar !== undefined && (
                   <IconButton
                     icon={sidebarIsOpen ? "PanelLeftClose" : "PanelLeftOpen"}
-                    iconSize={16}
                     aria-label={
                       sidebarIsOpen
                         ? isMobile
@@ -427,39 +455,34 @@ export function AppShell({
                           : "Collapse sidebar"
                         : "Open sidebar"
                     }
-                    tooltip={
-                      <span className="text-[6px]">
-                        {sidebarIsOpen ? "Collapse" : "Expand"}
-                      </span>
-                    }
+                    tooltip={sidebarIsOpen ? "Collapse" : "Expand"}
                     tooltipSide="bottom"
                     onClick={toggleSidebar}
-                    className="[--icon-stroke-width-active:1.5] [--icon-stroke-width:1.25] max-md:size-10"
+                    className="max-md:size-10"
                   />
-                </div>
-              )}
-              {assistant !== undefined && (
-                <div className="absolute top-2 right-2 z-10">
+                )}
+                {assistant !== undefined && (
                   <IconButton
                     icon={
                       assistantIsOpen ? "PanelRightClose" : "PanelRightOpen"
                     }
-                    iconSize={16}
                     aria-label={
-                      assistantIsOpen ? "Close assistant" : "Open assistant"
+                      assistantIsOpen
+                        ? isMobile
+                          ? "Close assistant"
+                          : "Collapse assistant"
+                        : "Open assistant"
                     }
-                    tooltip={
-                      <span className="text-[6px]">
-                        {assistantIsOpen ? "Collapse" : "Expand"}
-                      </span>
-                    }
+                    tooltip={assistantIsOpen ? "Collapse" : "Expand"}
                     tooltipSide="bottom"
                     onClick={toggleAssistant}
-                    className="[--icon-stroke-width-active:1.5] [--icon-stroke-width:1.25] max-md:size-10"
+                    className="ml-auto max-md:size-10"
                   />
-                </div>
-              )}
-              {children}
+                )}
+              </PanelHeader>
+              <div className="relative min-h-0 flex-1 overflow-auto">
+                {children}
+              </div>
             </main>
           </div>
 
@@ -478,13 +501,16 @@ export function AppShell({
                 data-slot="app-shell-assistant"
                 style={{ width: assistantWidth }}
                 className={cn(
-                  "h-full shrink-0 overflow-x-hidden overflow-y-auto max-md:hidden",
+                  "flex h-full shrink-0 flex-col overflow-hidden max-md:hidden",
                   assistantVariant === "dropdown"
                     ? ASSISTANT_DROPDOWN_CARD
                     : SHELL_CARD_CLASS,
                 )}
               >
-                {assistant}
+                <PanelHeader />
+                <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+                  {assistant}
+                </div>
               </aside>
             </>
           )}

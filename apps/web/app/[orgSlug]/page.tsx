@@ -3,13 +3,18 @@ import { withAdminBypass } from "@workspace/db"
 import { app_user } from "@workspace/db/schema"
 import { getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
-import { AppShell } from "@workspace/ui/blocks/app-shell"
+import { AppShell, AssistantScaffold } from "@workspace/ui/blocks/app-shell"
 
 import { presignAvatarRead } from "../_lib/avatar-storage"
 import { getRequestSession } from "./_lib/request-session"
 import { AppBottomNav } from "../_components/app-bottom-nav"
 import { AppRailNav } from "../_components/app-rail-nav"
+import { ContentDemoBody } from "../_components/content-demo/content-demo-body"
+import { ContentDemoHeader } from "../_components/content-demo/content-demo-header"
+import { OrgContentProvider } from "../_components/content-demo/context"
 import { OrgHeaderActions } from "../_components/org-header-actions"
+import { OrgSidebar } from "../_components/org-sidebar"
+import { SidebarModuleTitle } from "../_components/sidebar-module-title"
 import { orgBottomNav, orgRailNav } from "./nav"
 
 export const metadata = {
@@ -59,28 +64,39 @@ export default async function OrgDashboardPage({
 }) {
   const { orgSlug } = await params
   const { userName, userImage } = await getHeaderUser()
+  // Build the rail nav once — the rail renders it and the sidebar module title
+  // derives the active module from the same list, so they can't drift.
+  const railNav = orgRailNav(orgSlug)
   return (
-    <AppShell
-      header={
-        <AppHeader
-          actions={
-            <OrgHeaderActions
-              userName={userName}
-              userImage={userImage}
-              orgSlug={orgSlug}
-              version={getBuildVersion()}
-            />
-          }
-        />
-      }
-      rail={<AppRailNav items={orgRailNav(orgSlug)} />}
-      bottomNav={<AppBottomNav items={orgBottomNav(orgSlug)} />}
-      sidebar={<div className="size-full" />}
-      assistant={<div className="size-full" />}
-      logoHref={`/${orgSlug}`}
-    >
-      {/* Org dashboard body — TBD. Icon-pack switching now lives in the
-          profile menu (Icons submenu). */}
-    </AppShell>
+    // OrgContentProvider wraps the shell so the content header (tabs, page
+    // actions) and the body (toolbar + table) share state across the two
+    // app-shell slots. TEMP: the Content Panel demo lives in `_components/
+    // content-demo` — replace with real, route-driven content later.
+    <OrgContentProvider>
+      <AppShell
+        header={
+          <AppHeader
+            actions={
+              <OrgHeaderActions
+                userName={userName}
+                userImage={userImage}
+                orgSlug={orgSlug}
+                version={getBuildVersion()}
+              />
+            }
+          />
+        }
+        rail={<AppRailNav items={railNav} />}
+        bottomNav={<AppBottomNav items={orgBottomNav(orgSlug)} />}
+        sidebar={<OrgSidebar orgSlug={orgSlug} />}
+        sidebarHeader={<SidebarModuleTitle items={railNav} />}
+        contentHeader={<ContentDemoHeader />}
+        assistant={<AssistantScaffold />}
+        defaultAssistantOpen
+        logoHref={`/${orgSlug}`}
+      >
+        <ContentDemoBody />
+      </AppShell>
+    </OrgContentProvider>
   )
 }

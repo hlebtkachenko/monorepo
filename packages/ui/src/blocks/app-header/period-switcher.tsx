@@ -74,7 +74,7 @@ export function PeriodSwitcher({
   const LockOpenGlyph = icons.LockOpen
   const CheckGlyph = icons.Check
   const AddGlyph = icons.Plus
-  const ManageGlyph = icons.CalendarDays
+  const ManageGlyph = icons.Calendars
   const ExternalGlyph = icons.ArrowUpRight
 
   const active = periods.find((p) => p.id === value)

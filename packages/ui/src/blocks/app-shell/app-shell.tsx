@@ -8,10 +8,24 @@ import { Sheet, SheetContent, SheetTitle } from "@workspace/ui/components/sheet"
 import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { useResizeHandle, type ResizeHandlers } from "./use-resize-handle"
+
 interface AppShellProps {
   header?: React.ReactNode
   rail?: React.ReactNode
   sidebar?: React.ReactNode
+  /**
+   * Title content for the sidebar panel's header bar (left of the
+   * collapse toggle) — typically the active Module name. Truncates.
+   */
+  sidebarHeader?: React.ReactNode
+  /**
+   * Header content for the CONTENT panel's 45px header bar — typically the
+   * active Page/Subpage title + its tabs (compose with the app-content
+   * block's `ContentHeader`). Sits between the sidebar toggle (left) and the
+   * assistant toggle (right). The body (rows below the header) is `children`.
+   */
+  contentHeader?: React.ReactNode
   assistant?: React.ReactNode
   /**
    * Mobile bottom navigation, rendered only below the `md` breakpoint
@@ -78,7 +92,8 @@ const SIZES = {
 }
 
 // Shared card chrome — used by both the main card and the assistant
-// card. Each card adds its own overflow rule on top.
+// card. The main card adds `overflow-hidden` inline; the assistant card
+// scrolls on its inner body, not the card itself.
 const SHELL_CARD_CLASS =
   "rounded-md border border-border-subtle bg-shell-surface"
 
@@ -111,6 +126,39 @@ function PanelHeader({ children }: { children?: React.ReactNode }) {
       >
         {children}
       </div>
+    </div>
+  )
+}
+
+// Vertical resize handle between two panels: a zero-/handle-width strip that
+// captures the drag (transparent ~8px grab zone via the `before` overlay) and
+// hides below md. The five pointer events are wired here so the sidebar and
+// assistant handles can never drift out of sync. Children render inside (the
+// sidebar passes a 1px divider line).
+function ResizeHandle({
+  handlers,
+  className,
+  children,
+}: {
+  handlers: ResizeHandlers
+  className?: string
+  children?: React.ReactNode
+}) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      onPointerDown={handlers.onPointerDown}
+      onPointerMove={handlers.onPointerMove}
+      onPointerUp={handlers.onPointerUp}
+      onPointerCancel={handlers.onPointerUp}
+      onLostPointerCapture={handlers.onPointerUp}
+      className={cn(
+        "relative shrink-0 cursor-col-resize touch-none select-none before:absolute before:-inset-x-1 before:inset-y-0 max-md:hidden",
+        className,
+      )}
+    >
+      {children}
     </div>
   )
 }
@@ -177,6 +225,8 @@ export function AppShell({
   header,
   rail,
   sidebar,
+  sidebarHeader,
+  contentHeader,
   assistant,
   bottomNav,
   children,
@@ -196,28 +246,23 @@ export function AppShell({
   const [assistantWidth, setAssistantWidth] = React.useState(
     SIZES.assistantDefault,
   )
-  const dragStateRef = React.useRef<{
-    startX: number
-    startWidth: number
-  } | null>(null)
-  const assistantDragRef = React.useRef<{
-    startX: number
-    startWidth: number
-  } | null>(null)
-
-  // Restore body chrome if the component unmounts mid-drag. Pointer
-  // capture is auto-released by the browser when the element leaves
-  // the DOM, but body styles we mutated need explicit cleanup.
-  React.useEffect(() => {
-    return () => {
-      if (dragStateRef.current || assistantDragRef.current) {
-        document.body.style.cursor = ""
-        document.body.style.userSelect = ""
-        dragStateRef.current = null
-        assistantDragRef.current = null
-      }
-    }
-  }, [])
+  // Both panels resize with the same Pointer-Events drag (manual, not
+  // react-resizable-panels — see the SIZES note). The hook owns the per-drag
+  // state + body-chrome cleanup; the assistant handle sits on the panel's LEFT,
+  // so its delta is inverted (drag left grows it).
+  const sidebarHandle = useResizeHandle({
+    width: sidebarWidth,
+    setWidth: setSidebarWidth,
+    min: SIZES.sidebarMin,
+    max: SIZES.sidebarMax,
+  })
+  const assistantHandle = useResizeHandle({
+    width: assistantWidth,
+    setWidth: setAssistantWidth,
+    min: SIZES.assistantMin,
+    max: SIZES.assistantMax,
+    invert: true,
+  })
 
   // Below md the panels live in Sheets, so the toggles (and the
   // keyboard shortcuts + `useAppShell` consumers) route there. Clicks
@@ -276,78 +321,6 @@ export function AppShell({
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [hasSidebar, hasAssistant, toggleSidebar, toggleAssistant])
-
-  const onSidebarHandlePointerDown = (
-    e: React.PointerEvent<HTMLDivElement>,
-  ) => {
-    // Only respond to primary button (mouse) / first contact (touch).
-    if (e.button !== undefined && e.button !== 0) return
-    e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragStateRef.current = { startX: e.clientX, startWidth: sidebarWidth }
-    document.body.style.cursor = "col-resize"
-    document.body.style.userSelect = "none"
-  }
-
-  const onSidebarHandlePointerMove = (
-    e: React.PointerEvent<HTMLDivElement>,
-  ) => {
-    if (!dragStateRef.current) return
-    const delta = e.clientX - dragStateRef.current.startX
-    const next = Math.max(
-      SIZES.sidebarMin,
-      Math.min(SIZES.sidebarMax, dragStateRef.current.startWidth + delta),
-    )
-    setSidebarWidth(next)
-  }
-
-  const onSidebarHandlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragStateRef.current) return
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-    dragStateRef.current = null
-    document.body.style.cursor = ""
-    document.body.style.userSelect = ""
-  }
-
-  // Assistant resize: same Pointer-Events drag as the sidebar, but the
-  // handle sits to the panel's LEFT, so dragging left GROWS it (inverted
-  // delta).
-  const onAssistantHandlePointerDown = (
-    e: React.PointerEvent<HTMLDivElement>,
-  ) => {
-    if (e.button !== undefined && e.button !== 0) return
-    e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    assistantDragRef.current = { startX: e.clientX, startWidth: assistantWidth }
-    document.body.style.cursor = "col-resize"
-    document.body.style.userSelect = "none"
-  }
-
-  const onAssistantHandlePointerMove = (
-    e: React.PointerEvent<HTMLDivElement>,
-  ) => {
-    if (!assistantDragRef.current) return
-    const delta = assistantDragRef.current.startX - e.clientX
-    const next = Math.max(
-      SIZES.assistantMin,
-      Math.min(SIZES.assistantMax, assistantDragRef.current.startWidth + delta),
-    )
-    setAssistantWidth(next)
-  }
-
-  const onAssistantHandlePointerUp = (
-    e: React.PointerEvent<HTMLDivElement>,
-  ) => {
-    if (!assistantDragRef.current) return
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-    assistantDragRef.current = null
-    document.body.style.cursor = ""
-    document.body.style.userSelect = ""
-  }
 
   // The sidebar's open/close toggle lives in two places depending on state:
   // when the sidebar is open (desktop), it sits in the SIDEBAR panel's own
@@ -441,33 +414,29 @@ export function AppShell({
                   className="flex shrink-0 flex-col overflow-hidden transition-[width] duration-300 ease-in-out max-md:hidden"
                 >
                   <PanelHeader>
+                    {sidebarHeader != null && (
+                      <div className="ml-2 min-w-0 flex-1">{sidebarHeader}</div>
+                    )}
                     {sidebarIsOpen && renderSidebarToggle("right")}
                   </PanelHeader>
                   <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
                     {sidebar}
                   </div>
                 </aside>
-                <div
-                  role="separator"
-                  aria-orientation="vertical"
-                  onPointerDown={onSidebarHandlePointerDown}
-                  onPointerMove={onSidebarHandlePointerMove}
-                  onPointerUp={onSidebarHandlePointerUp}
-                  onPointerCancel={onSidebarHandlePointerUp}
+                {/* Zero layout width: the sidebar + content panels touch, so
+                    their header bottom-borders connect into one line with only
+                    the 1px divider crossing — no card-surface gap. The ::before
+                    overlay still gives an ~8px grab zone; z-10 keeps the hit
+                    area above the adjacent panel content. */}
+                <ResizeHandle
+                  handlers={sidebarHandle}
                   className={cn(
-                    // Zero layout width: the sidebar + content panels touch,
-                    // so their header bottom-borders connect into one line
-                    // with only the 1px divider crossing — no 4px card-surface
-                    // gap. The ::before overlay still gives an ~8px grab zone
-                    // without taking layout space; `touch-none` lets the resize
-                    // gesture win over drag-to-scroll on touch. z-10 keeps the
-                    // hit area above the adjacent panel content.
-                    "relative z-10 w-0 shrink-0 cursor-col-resize touch-none select-none before:absolute before:-inset-x-1 before:inset-y-0 max-md:hidden",
+                    "z-10 w-0",
                     !sidebarOpen && "pointer-events-none invisible",
                   )}
                 >
                   <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-subtle" />
-                </div>
+                </ResizeHandle>
               </>
             )}
             <main
@@ -476,6 +445,9 @@ export function AppShell({
             >
               <PanelHeader>
                 {(!sidebarIsOpen || isMobile) && renderSidebarToggle("left")}
+                {contentHeader != null && (
+                  <div className="ml-1 min-w-0 flex-1">{contentHeader}</div>
+                )}
                 {assistant !== undefined && (
                   <IconButton
                     icon={
@@ -503,14 +475,9 @@ export function AppShell({
 
           {assistantOpen && assistant !== undefined && (
             <>
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                onPointerDown={onAssistantHandlePointerDown}
-                onPointerMove={onAssistantHandlePointerMove}
-                onPointerUp={onAssistantHandlePointerUp}
-                onPointerCancel={onAssistantHandlePointerUp}
-                className="relative w-[var(--shell-handle-width)] shrink-0 cursor-col-resize touch-none bg-transparent select-none before:absolute before:-inset-x-1 before:inset-y-0 max-md:hidden"
+              <ResizeHandle
+                handlers={assistantHandle}
+                className="w-[var(--shell-handle-width)] bg-transparent"
               />
               <aside
                 data-slot="app-shell-assistant"
@@ -522,6 +489,9 @@ export function AppShell({
                     : SHELL_CARD_CLASS,
                 )}
               >
+                {/* Empty header reserves the 45px band so the assistant's
+                    bottom hairline aligns with the sidebar + content headers —
+                    the assistant's own toggle lives in the content header. */}
                 <PanelHeader />
                 <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
                   {assistant}

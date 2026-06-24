@@ -129,7 +129,7 @@
   --icon-size: 20px;
   /* Icon stroke width — token-driven so one value flips every lucide glyph
      site-wide (and survives reload: it's source CSS, not runtime state).
-     Idle 1.25; interactive icon tiles raise it to the active value on
+     Idle 1.5; interactive icon tiles raise it to the active value (1.75) on
      hover/selected (rule in @layer base). Lucide is the only stroke-based
      pack — phosphor + fontawesome are fill-based and ignore stroke width. */
   --icon-stroke-width: 1.5;

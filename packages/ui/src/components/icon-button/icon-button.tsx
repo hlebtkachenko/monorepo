@@ -46,7 +46,7 @@ export interface IconButtonProps extends Omit<
   /** Glyph size in px. Default: `--icon-size` (20). */
   iconSize?: number
   /** Glyph stroke width (lucide). Omit to follow the global
-   *  `--icon-stroke-width` token (1.25 idle / 1.5 active); set to force an
+   *  `--icon-stroke-width` token (1.5 idle / 1.75 active); set to force an
    *  exact width that overrides the token. */
   iconStrokeWidth?: number
   /** Render as a link (`<a>`) instead of a `<button>`. */
@@ -121,7 +121,7 @@ export function IconButton({
                 ...(iconSize ? { width: iconSize, height: iconSize } : null),
                 // Explicit override beats the global --icon-stroke-width token
                 // (inline style > stylesheet rule). Omitted → the glyph follows
-                // the token: 1.25 idle, 1.5 on hover/selected.
+                // the token: 1.5 idle, 1.75 on hover/selected.
                 ...(iconStrokeWidth != null
                   ? { strokeWidth: iconStrokeWidth }
                   : null),

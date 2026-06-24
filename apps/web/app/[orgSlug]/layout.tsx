@@ -12,6 +12,8 @@ import { AppHeader } from "@workspace/ui/blocks/app-header"
 
 import { AppContextMenuClient } from "../_components/app-context-menu-client"
 import { OrgHeaderActions } from "../_components/org-header-actions"
+import { OrgSwitcherClient } from "../_components/org-switcher"
+import { PeriodSwitcherClient } from "../_components/period-switcher"
 import { OrgShell } from "../_components/org-shell"
 import { presignAvatarRead } from "../_lib/avatar-storage"
 import { getRequestSession } from "./_lib/request-session"
@@ -99,6 +101,12 @@ export default async function OrgLayout({
   )
   const header = (
     <AppHeader
+      leftContent={
+        <>
+          <OrgSwitcherClient orgSlug={orgSlug} />
+          <PeriodSwitcherClient />
+        </>
+      }
       actions={
         <OrgHeaderActions
           userName={userName}

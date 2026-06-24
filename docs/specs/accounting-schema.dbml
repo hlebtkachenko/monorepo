@@ -1,0 +1,227 @@
+// =============================================================================
+// Accounting Records System — v2 GROUND LAYER (DBML)
+// =============================================================================
+// STATUS: design/eval only. NOT migrated. Live schema is the Czech v1
+// (packages/db/migrations/0024-0028). Paste into https://dbdiagram.io.
+//
+// SCOPE: ONLY the organized ground layer — platform anchor, law reference tables,
+// period/regime/size/VAT links, business activity (CZ-NACE), workspace-shared
+// counterparty. Capture / chart of accounts / posting / output come later,
+// table by table.
+//
+// organization IS the účetní jednotka (thin: workspace_id, slug, person_type).
+// Identity lives on the org's own counterparty (self_of_organization_id).
+// counterparty is workspace-shared across all orgs in the office. workspace /
+// organization / app_user are platform tables (faithful stubs).
+// =============================================================================
+
+Project accounting_v2_ground {
+  database_type: 'PostgreSQL'
+  Note: 'CZ accounting ground layer. Law as reference tables; org links to them over time. counterparty shared at workspace tier; an org-self row is edit/delete-protected via RLS.'
+}
+
+// --- Enums -------------------------------------------------------------------
+
+enum person_type {
+  NATURAL
+  LEGAL
+}
+enum period_status {
+  OPEN
+  CLOSED
+}
+enum vat_filing_period {
+  MONTHLY
+  QUARTERLY
+}
+enum book_kind {
+  LEDGER
+  CASH_JOURNAL
+}
+
+// --- Platform tables (faithful stubs) ----------------------------------------
+
+Table app_user {
+  id    uuid [pk]
+  email text
+}
+
+Table workspace {
+  id                 uuid        [pk]
+  created_by_user_id uuid        [not null]
+  display_name       text        [not null]
+  plan               text        [not null, default: 'starter']
+  created_at         timestamptz [not null, default: `now()`]
+  updated_at         timestamptz [not null, default: `now()`]
+  Note: 'Accounting office (parent tenant). Subset of real columns.'
+}
+
+// --- Reference tables (the law) ----------------------------------------------
+
+Table regime {
+  code                       text      [pk]
+  name                       text      [not null]
+  requires_chart_of_accounts boolean   [not null]
+  book_kind                  book_kind [not null]
+  Note: 'DOUBLE_ENTRY / SINGLE_ENTRY / TAX_RECORDS + effects.'
+}
+
+Table legal_form {
+  code                   text        [pk]
+  name                   text        [not null]
+  person_type            person_type [not null]
+  mandatory_double_entry boolean     [not null, default: false]
+  audit_possible         boolean     [not null, default: true]
+  Note: 's.r.o./a.s./spolek/nadace/OSVČ + obligations.'
+}
+
+Table legal_form_allowed_regime {
+  legal_form_code text [not null]
+  regime_code     text [not null]
+  indexes { (legal_form_code, regime_code) [pk] }
+  Note: 'Which regimes each legal form may use (§4 matrix).'
+}
+
+Table accounting_size {
+  code                  text          [pk]
+  name                  text          [not null]
+  max_assets            "numeric(19,4)"
+  max_net_turnover      "numeric(19,4)"
+  max_average_employees integer
+  Note: 'MICRO/SMALL/MEDIUM/LARGE + 2-of-3 thresholds (§1b).'
+}
+
+Table vat_regime {
+  code text [pk]
+  name text [not null]
+  Note: 'NON_PAYER / PAYER / IDENTIFIED_PERSON + how each works.'
+}
+
+Table business_activity {
+  code        text     [pk]
+  level       smallint [not null]
+  parent_code text
+  name_cs     text     [not null]
+  name_en     text
+  Note: 'Předmět podnikání = CZ-NACE 2025, 5-level hierarchy (~1763 rows). A -> 01 -> 01.1 -> 01.11 -> 01.11.0.'
+}
+
+// --- Organization (= účetní jednotka; platform-owned, target shape) ----------
+
+Table organization {
+  id           uuid          [pk]
+  workspace_id uuid          [not null]
+  slug         "varchar(64)" [not null]
+  person_type  person_type   [not null]
+  created_at   timestamptz   [not null, default: `now()`]
+  updated_at   timestamptz   [not null, default: `now()`]
+  indexes {
+    (id, workspace_id) [unique]   // composite-FK anchor for the capture layer
+  }
+  Note: 'Thin. person_type (FO/PO) IMMUTABLE — gates legal_form+regime. Identity on the self-counterparty; fiscal/regime/size in accounting_period. Live table also has organization_id(=id)/legal_name/legal_subject_kind/fiscal_year_start_month — reshape is a platform migration.'
+}
+
+Table organization_business_activity {
+  organization_id        uuid [not null]
+  business_activity_code text [not null]
+  indexes { (organization_id, business_activity_code) [pk] }
+  Note: 'Org předmět podnikání (M:N to CZ-NACE).'
+}
+
+// --- Org ↔ law links (time-bound) --------------------------------------------
+
+Table accounting_period {
+  id                   uuid          [pk, default: `uuidv7()`]
+  organization_id      uuid          [not null]
+  period_start         date          [not null]
+  period_end           date          [not null]
+  status               period_status [not null, default: 'OPEN']
+  regime_code          text          [not null]
+  accounting_size_code text
+  created_at           timestamptz   [not null, default: `now()`]
+  updated_at           timestamptz   [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (id, organization_id, regime_code) [unique]
+  }
+  Note: 'One účetní období. regime fixed per period (immutable until closed); size assessed at period_end (§1b).'
+}
+
+Table vat_status {
+  id              uuid              [pk, default: `uuidv7()`]
+  organization_id uuid              [not null]
+  vat_regime_code text              [not null]
+  valid_from      date              [not null]
+  valid_to        date
+  filing_period   vat_filing_period
+  created_at      timestamptz       [not null, default: `now()`]
+  Note: 'Time-versioned VAT status, independent of účetní období. valid_to null = current.'
+}
+
+// --- Counterparty (workspace-shared) -----------------------------------------
+
+Table counterparty {
+  id                      uuid        [pk, default: `uuidv7()`]
+  workspace_id            uuid        [not null]
+  self_of_organization_id uuid        [unique]
+  created_at              timestamptz [not null, default: `now()`]
+  updated_at              timestamptz [not null, default: `now()`]
+  indexes { (id, workspace_id) [unique] }
+  Note: 'Shared across all orgs in the workspace. self_of_organization_id set = this row IS that org identity (one per org). RLS: shared read; a self row is not editable by other orgs and not deletable while its org exists (ON DELETE SET NULL). Identity columns enriched later.'
+}
+
+// --- Read surface (SQL only — not a table, DBML can't model views) -----------
+// VIEW organization_identity (security_invoker = true): organization LEFT JOIN
+// counterparty ON self_of_organization_id. Exposes org -> its self-counterparty
+// (id + identity cols once added) without a column on the thin organization table
+// and without a junction (the link is a static 1:1). App accessor
+// getSelfCounterparty(orgId) reads this view (built with the v2 domain package).
+// See accounting-schema.sql for the DDL + contract.
+
+// --- Table groups ------------------------------------------------------------
+
+TableGroup platform {
+  app_user
+  workspace
+}
+TableGroup law_reference {
+  regime
+  legal_form
+  legal_form_allowed_regime
+  accounting_size
+  vat_regime
+  business_activity
+}
+TableGroup organization_core {
+  organization
+  organization_business_activity
+}
+TableGroup org_links {
+  accounting_period
+  vat_status
+}
+TableGroup shared {
+  counterparty
+}
+
+// --- Relationships -----------------------------------------------------------
+Ref: workspace.created_by_user_id > app_user.id
+
+Ref: legal_form_allowed_regime.legal_form_code > legal_form.code
+Ref: legal_form_allowed_regime.regime_code     > regime.code
+Ref: business_activity.parent_code             > business_activity.code
+
+Ref: organization.workspace_id > workspace.id
+
+Ref: organization_business_activity.organization_id        > organization.id
+Ref: organization_business_activity.business_activity_code  > business_activity.code
+
+Ref: accounting_period.organization_id      > organization.id
+Ref: accounting_period.regime_code          > regime.code
+Ref: accounting_period.accounting_size_code > accounting_size.code
+
+Ref: vat_status.organization_id  > organization.id
+Ref: vat_status.vat_regime_code  > vat_regime.code
+
+Ref: counterparty.workspace_id            > workspace.id
+Ref: counterparty.self_of_organization_id > organization.id

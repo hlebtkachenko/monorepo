@@ -9,17 +9,29 @@ import { OrgSwitcher } from "@workspace/ui/blocks/app-header"
  * ── DATA SEAM (all values below are MOCK for visual review) ──────────────
  * Wire real data here when it exists (tracked in GitHub issue #394):
  *
- *  • currentOrg.name / role  → `resolveMembership()` in
- *    `app/[orgSlug]/layout.tsx` already returns `legalName` + `role`; thread
- *    them down to the page (like `getHeaderUser()` does) and pass in.
+ *  • currentOrg.name / role  → `resolveMembership()` (`app/[orgSlug]/
+ *    layout.tsx`) returns `legalName` + `role`, but it is PRIVATE to the
+ *    layout and not passed to the page — add a shared `getOrgIdentity(slug,
+ *    userId)` helper or a page-level query (the page already does its own
+ *    `getHeaderUser()`). NOTE: `role` is the lowercase DB enum
+ *    (`owner|admin|member|agent|guest`); the prop wants a HUMAN-READABLE
+ *    label, so map it here (owner → "Owner") — the component renders it
+ *    verbatim.
  *  • currentOrg.memberCount  → `SELECT COUNT(*) FROM organization_membership
  *    WHERE organization_id = $1 AND active = true`.
  *  • recentOrgs              → `listWorkspacesForUser()` in
- *    `app/workspace/page.tsx` already lists every accessible org (slug +
- *    legal_name); "recent" ordering needs a `last_accessed_at` column that
- *    is NOT in the schema yet — until then this is a static sample.
+ *    `app/workspace/page.tsx` lists every accessible org (slug + legal_name);
+ *    "recent" ordering needs a `last_accessed_at` column that is NOT in the
+ *    schema yet — until then this is a static sample. Pass only orgs the user
+ *    is a member of (slice to the 3 the component shows).
  *  • logoUrl                 → no org logo in schema yet; the grey initial
- *    square stands in. Pass the real URL once org branding lands.
+ *    square stands in. When org branding lands, validate the stored URL is
+ *    `https:` (the avatar renders it as a raw <img src>).
+ *
+ * SECURITY (at wiring): every `*Href` / `org.href` is rendered into a raw
+ * `<a href>` with no sanitization. Build them as server-side internal path
+ * strings from a trusted slug (`/${slug}`) — never store/forward a full URL
+ * or a user-controlled scheme (React does not block `javascript:` in href).
  */
 export function OrgSwitcherClient({ orgSlug }: { orgSlug: string }) {
   // MOCK — replace with real org identity (see seam note above).

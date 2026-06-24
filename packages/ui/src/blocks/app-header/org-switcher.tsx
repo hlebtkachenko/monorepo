@@ -141,7 +141,7 @@ export function OrgSwitcher({
             {/* leading-none centers the glyph on the icon row (matches the
                 right-side IconButton labels); py-1 gives the descenders room
                 so truncate's overflow-hidden can't clip them. */}
-            <span className="truncate py-1 leading-none">
+            <span className="min-w-0 truncate py-1 leading-none">
               {currentOrg.name}
             </span>
             <ChevronIcon className="size-4 shrink-0 text-icon" />
@@ -193,7 +193,7 @@ export function OrgSwitcher({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Recent organisations</DropdownMenuLabel>
-              {recentOrgs.map((org) => (
+              {recentOrgs.slice(0, 3).map((org) => (
                 <DropdownMenuItem key={org.id} asChild>
                   <a href={org.href}>
                     <OrgAvatar

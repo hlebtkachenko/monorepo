@@ -50,6 +50,19 @@ describe("PeriodSwitcher", () => {
     ).toBeInTheDocument()
   })
 
+  it("drives the lock glyph from the closed flag (open = brand green, closed = muted)", async () => {
+    const user = userEvent.setup()
+    wrap() // PERIODS: 2026 open, 2025 + 2024 closed
+    await user.click(
+      screen.getByRole("button", { name: /switch accounting period/i }),
+    )
+    const open = screen.getByRole("menuitem", { name: /01\.2026 – 12\.2026/ })
+    const closed = screen.getByRole("menuitem", { name: /01\.2025 – 12\.2025/ })
+    // The leading glyph in each row is the lock state.
+    expect(open.querySelector("svg")).toHaveClass("text-brand-primary-light")
+    expect(closed.querySelector("svg")).toHaveClass("text-muted-foreground")
+  })
+
   it("lists every period + an Add period action", async () => {
     const user = userEvent.setup()
     wrap()

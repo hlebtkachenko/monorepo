@@ -88,12 +88,12 @@ export function PeriodSwitcher({
             aria-label="Switch accounting period"
             className={cn(
               HEADER_SWITCHER_TRIGGER,
-              "text-[length:var(--icon-label-size)]",
+              "max-w-[200px] text-[length:var(--icon-label-size)]",
               className,
             )}
           >
             <CalendarGlyph className="size-[var(--icon-size)] shrink-0 text-icon" />
-            <span className="truncate py-1 leading-none">
+            <span className="min-w-0 truncate py-1 leading-none">
               {active?.headerLabel ?? active?.label ?? "–"}
             </span>
             <ChevronIcon className="size-4 shrink-0 text-icon" />

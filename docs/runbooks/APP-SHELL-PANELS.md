@@ -91,8 +91,8 @@ inside. The sidebar/assistant toggles live in it.
 ## Header context switchers (`AppHeader` `leftContent`)
 
 The 40px global header has a left slot (`AppHeader leftContent`) for the
-**context switchers** that sit above the sidebar, left edge (8px inset,
-desktop-only — hidden below `md`). Two ship today, both in
+**context switchers** that sit above the sidebar, flush to the left (rail)
+edge, desktop-only — hidden below `md`. Two ship today, both in
 `packages/ui/src/blocks/app-header`:
 
 | Component        | Trigger                                   | Dropdown                                                                                                                                               |

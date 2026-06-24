@@ -11,6 +11,7 @@ import {
 } from "@workspace/ui/components/context-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import type { IconName } from "@workspace/ui/icon-packs"
+import { longestPrefixMatch } from "@workspace/ui/lib/active-path"
 import { cn } from "@workspace/ui/lib/utils"
 
 export type RailMode = "expanded" | "icon-only"
@@ -75,16 +76,28 @@ function activeHrefFor(
   items: RailMenuEntry[],
   currentPath: string | undefined,
 ): string | null {
-  if (!currentPath) return null
-  let best: string | null = null
+  const hrefs = items
+    .filter(isItem)
+    .map((entry) => entry.href)
+    .filter((href): href is string => Boolean(href))
+  return longestPrefixMatch(hrefs, currentPath)
+}
+
+/**
+ * Resolve the active rail item (the longest-prefix `href` match) for a
+ * path — e.g. to title the Module the user is currently in. Returns null
+ * when nothing matches or no path is given.
+ */
+export function activeRailEntry(
+  items: RailMenuEntry[],
+  currentPath: string | undefined,
+): RailMenuItem | null {
+  const href = activeHrefFor(items, currentPath)
+  if (!href) return null
   for (const entry of items) {
-    if (!isItem(entry) || !entry.href) continue
-    const h = entry.href
-    const matches =
-      currentPath === h || currentPath.startsWith(h.endsWith("/") ? h : `${h}/`)
-    if (matches && (best === null || h.length > best.length)) best = h
+    if (isItem(entry) && entry.href === href) return entry
   }
-  return best
+  return null
 }
 
 /**

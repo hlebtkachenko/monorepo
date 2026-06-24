@@ -88,6 +88,29 @@ inside. The sidebar/assistant toggles live in it.
 
 ---
 
+## Header context switchers (`AppHeader` `leftContent`)
+
+The 40px global header has a left slot (`AppHeader leftContent`) for the
+**context switchers** that sit above the sidebar, left edge (8px inset,
+desktop-only — hidden below `md`). Two ship today, both in
+`packages/ui/src/blocks/app-header`:
+
+| Component        | Trigger                                   | Dropdown                                                                                                                                               |
+| ---------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OrgSwitcher`    | org name + chevron                        | current-org identity (grey-initial avatar · name · role · member count · check) + Settings / Invite, recent orgs (≤3), Create new, Manage in Workspace |
+| `PeriodSwitcher` | calendar icon + `MM.YYYY – MM.YYYY` range | every period with a **lock** (closed) / **lock-open** (open) glyph on the left, the active one checked, + Add period                                   |
+
+Both are **presentational + router-agnostic** (data + hrefs in, like
+`AppSidebar`). Surface wrappers feed them:
+`apps/web/app/_components/org-switcher.tsx` + `period-switcher.tsx` — **both
+all-mock today** (see the `DATA SEAM` block at the top of each file for exactly
+which query/table backs each field). The org avatar is a grey initial square
+standing in for a real logo (none in schema yet). Menu chrome reuses the shared
+`HEADER_MENU` class + `initialsOf` from `app-header/header-menu.tsx` (one source
+for the profile / help / switcher menus — do not re-copy the class string).
+
+---
+
 ## Tokens (do NOT hardcode colors)
 
 App-chrome surfaces use the **shell token family**, NOT the global shadcn
@@ -360,5 +383,12 @@ Tracked in GitHub issue
   (`apps/web/app/_components/content-demo`) is a saved, dev-only preview of the
   Table archetype — a reference to copy, not a shipped page. Tab reorder in the
   manage-tabs menu is not built (show/hide + add only).
+- **Header switchers** (`org-switcher.tsx` / `period-switcher.tsx`): org
+  identity (name/role from `resolveMembership`, a member-count query), recent
+  orgs (`listWorkspacesForUser` + a `last_accessed_at` column for true
+  recency), org logo, and the whole accounting-period set (no
+  `accounting_period` table yet — schema has only
+  `organization.fiscal_year_start_month`). Each file's `DATA SEAM` block names
+  the exact source.
 
 When you wire a real source, delete the corresponding mock and update this list.

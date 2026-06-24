@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { cva } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
 import { cn } from "@workspace/ui/lib/utils"
@@ -8,11 +8,17 @@ const headingVariants = cva(
   "scroll-m-20 font-heading tracking-tight first:mt-0",
   {
     variants: {
+      // The visual type scale. Numeric steps are the page-content display
+      // sizes (mirror the h1–h4 base styles); named tokens are sized for a
+      // specific chrome context and kept off the document margin flow.
       level: {
         1: "mt-10 text-4xl font-bold lg:text-5xl compact:mt-6 compact:text-2xl compact:font-semibold",
         2: "mt-8 text-3xl font-semibold compact:mt-4 compact:text-xl",
         3: "mt-6 text-2xl font-semibold compact:mt-3 compact:text-lg",
         4: "mt-4 text-xl font-semibold compact:mt-2 compact:text-base",
+        // Sidebar panel header — h5's type size (one step below h4) in both
+        // densities, minus the document margin.
+        "sidebar-xl": "text-lg font-semibold compact:text-sm",
       },
     },
     defaultVariants: {
@@ -22,6 +28,7 @@ const headingVariants = cva(
 )
 
 type HeadingLevel = 1 | 2 | 3 | 4
+type HeadingSize = HeadingLevel | "sidebar-xl"
 
 const headingElements = {
   1: "h1",
@@ -32,26 +39,35 @@ const headingElements = {
 
 function Heading({
   level,
+  size,
   asChild = false,
   className,
   ...props
-}: React.ComponentProps<"h1"> &
-  VariantProps<typeof headingVariants> & {
-    level?: HeadingLevel
-    asChild?: boolean
-  }) {
+}: React.ComponentProps<"h1"> & {
+  /** Semantic element rendered (h1–h4). Default 1. */
+  level?: HeadingLevel
+  /**
+   * Visual size token. Defaults to `level`, so semantics and size match for
+   * page content. Pass it to decouple the two — e.g. a semantic `<h2>`
+   * rendered at the `"sidebar-xl"` size for the sidebar panel header.
+   */
+  size?: HeadingSize
+  asChild?: boolean
+}) {
   const resolvedLevel = level ?? 1
+  const resolvedSize = size ?? resolvedLevel
   const Comp = asChild ? Slot.Root : headingElements[resolvedLevel]
 
   return (
     <Comp
       data-slot="heading"
       data-level={resolvedLevel}
-      className={cn(headingVariants({ level: resolvedLevel }), className)}
+      data-size={resolvedSize}
+      className={cn(headingVariants({ level: resolvedSize }), className)}
       {...props}
     />
   )
 }
 
 export { Heading, headingVariants }
-export type { HeadingLevel }
+export type { HeadingLevel, HeadingSize }

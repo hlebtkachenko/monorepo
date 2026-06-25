@@ -16,7 +16,17 @@ import { OrgSwitcherClient } from "../_components/org-switcher"
 import { PeriodSwitcherClient } from "../_components/period-switcher"
 import { OrgShell } from "../_components/org-shell"
 import { presignAvatarRead } from "../_lib/avatar-storage"
+import { getHeaderOrgData } from "./_lib/header-org"
 import { getRequestSession } from "./_lib/request-session"
+
+// DB role enum → human-readable label rendered verbatim in the org switcher.
+const ROLE_LABELS: Record<ResolvedMembership["role"], string> = {
+  owner: "Owner",
+  admin: "Admin",
+  member: "Member",
+  agent: "Agent",
+  guest: "Guest",
+}
 
 // Mirrors the DB CHECK constraint on organization.slug:
 //   slug ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
@@ -94,16 +104,33 @@ export default async function OrgLayout({
 
   // Chrome data for the persistent shell header — fetched server-side (needs
   // the session + a private-bucket avatar presign) and passed into the client
-  // shell as a node.
-  const { userName, userImage } = await getHeaderUser(
-    session.user.id,
-    session.user.email,
-  )
+  // shell as a node. The header user + org-switcher data are independent reads,
+  // so they run concurrently.
+  const [{ userName, userImage }, orgData] = await Promise.all([
+    getHeaderUser(session.user.id, session.user.email),
+    getHeaderOrgData({
+      organizationId: membership.organizationId,
+      userId: session.user.id,
+    }),
+  ])
   const header = (
     <AppHeader
       leftContent={
         <>
-          <OrgSwitcherClient orgSlug={orgSlug} />
+          <OrgSwitcherClient
+            orgSlug={orgSlug}
+            currentOrg={{
+              id: membership.organizationId,
+              name: membership.legalName,
+              role: ROLE_LABELS[membership.role],
+              memberCount: orgData.memberCount,
+            }}
+            recentOrgs={orgData.otherOrgs.map((o) => ({
+              id: o.id,
+              name: o.name,
+              href: `/${o.slug}`,
+            }))}
+          />
           <PeriodSwitcherClient />
         </>
       }

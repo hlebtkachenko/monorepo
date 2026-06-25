@@ -67,3 +67,74 @@ export const billingPlan = pgEnum("billing_plan", [
   "growth",
   "scale",
 ])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE accounting_regime AS ENUM
+export const accountingRegime = pgEnum("accounting_regime", [
+  "PODVOJNE",
+  "JEDNODUCHE",
+  "DANOVA_EVIDENCE",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE ucetni_obdobi_typ AS ENUM
+export const ucetniObdobiTyp = pgEnum("ucetni_obdobi_typ", [
+  "kalendar",
+  "hospodarsky",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE ucetni_obdobi_stav AS ENUM
+export const ucetniObdobiStav = pgEnum("ucetni_obdobi_stav", [
+  "otevreno",
+  "uzavreno",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE ucetni_doklad_typ AS ENUM
+export const ucetniDokladTyp = pgEnum("ucetni_doklad_typ", [
+  "FP",
+  "FV",
+  "BV",
+  "ID",
+  "pokladni",
+  "sberny",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE dilci_druh AS ENUM
+export const dilciDruh = pgEnum("dilci_druh", ["zaklad", "dph", "zaokr"])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE ucetni_zapis_druh AS ENUM
+export const ucetniZapisDruh = pgEnum("ucetni_zapis_druh", [
+  "jednoduchy",
+  "slozeny",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE ucetni_zapis_oprava_typ AS ENUM
+export const ucetniZapisOpravaTyp = pgEnum("ucetni_zapis_oprava_typ", [
+  "storno",
+  "doplnkovy",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE zapis_strana AS ENUM
+export const zapisStrana = pgEnum("zapis_strana", ["MD", "D"])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE ucet_typ AS ENUM
+export const ucetTyp = pgEnum("ucet_typ", ["A", "P", "N", "V", "podrozvahovy"])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE penezni_denik_misto AS ENUM
+export const penezniDenikMisto = pgEnum("penezni_denik_misto", [
+  "hotovost",
+  "banka",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE penezni_denik_smer AS ENUM
+export const penezniDenikSmer = pgEnum("penezni_denik_smer", [
+  "prijem",
+  "vydaj",
+])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE vystup_typ AS ENUM
+export const vystupTyp = pgEnum("vystup_typ", ["ZAVERKA", "PREHLEDY", "DPFO"])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE podpis_typ AS ENUM
+export const podpisTyp = pgEnum("podpis_typ", ["za_pripad", "za_zauctovani"])
+
+// Mirrors: packages/db/migrations/0024_accounting_enums_core.sql — CREATE TYPE kategorie_typ AS ENUM
+export const kategorieTyp = pgEnum("kategorie_typ", ["prijem", "vydaj"])

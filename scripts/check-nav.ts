@@ -21,8 +21,9 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
 import { MODULE_NAV, orgRailNav } from "../apps/web/app/[orgSlug]/_nav/org-nav"
 
 const SLUG = "__slug__"
-// Routes that intentionally exist without a nav entry (deep detail pages, etc.).
-const HIDDEN_ROUTES = new Set<string>([])
+// Routes that intentionally exist without a nav entry (deep detail pages, the
+// saved content-panel demo, etc.).
+const HIDDEN_ROUTES = new Set<string>(["demo"])
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ORG_DIR = join(here, "..", "apps", "web", "app", "[orgSlug]")

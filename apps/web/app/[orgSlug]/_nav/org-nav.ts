@@ -4,14 +4,17 @@ import type {
   SidebarNavEntry,
   SidebarNavPage,
 } from "@workspace/ui/blocks/app-sidebar"
-import type { IconName } from "@workspace/ui/icon-packs"
 import { longestPrefixMatch } from "@workspace/ui/lib/active-path"
 
 import { accountingNav } from "../accounting/nav"
+import { assetsNav } from "../assets/nav"
 import { closingNav } from "../closing/nav"
+import { directoryNav } from "../directory/nav"
 import { documentsNav } from "../documents/nav"
 import { financeNav } from "../finance/nav"
 import { hrNav } from "../hr/nav"
+import { reportsNav } from "../reports/nav"
+import { settingsNav } from "../settings/nav"
 
 /**
  * Org-surface nav, single source. The RAIL (modules) + the manual extras (bottom
@@ -56,16 +59,11 @@ export function orgBottomNav(orgSlug: string): BottomNavItem[] {
   ]
 }
 
-// The org index ("Company") + flat single-page modules: their trees are trivial,
-// so they live here rather than as one-line co-located files. Modules with real
-// sub-pages get a co-located `<module>/nav.ts`.
+// The org index ("Company") has no module folder, so its trivial tree lives
+// here. Every actual module folder owns a co-located `<module>/nav.ts`.
 function companyNav(base: string): SidebarNavEntry[] {
   return [{ label: "Overview", href: base, icon: "Goal" }]
 }
-
-const overviewOnly =
-  (icon: IconName) =>
-  (base: string): SidebarNavEntry[] => [{ label: "Overview", href: base, icon }]
 
 /**
  * module key (first path segment after the org slug, "" for the index) → its
@@ -80,10 +78,10 @@ export const MODULE_NAV: Record<string, (base: string) => SidebarNavEntry[]> = {
   finance: financeNav,
   hr: hrNav,
   closing: closingNav,
-  assets: overviewOnly("BriefcaseBusiness"),
-  reports: overviewOnly("ChartNoAxesCombined"),
-  directory: overviewOnly("BookUser"),
-  settings: overviewOnly("Settings"),
+  assets: assetsNav,
+  reports: reportsNav,
+  directory: directoryNav,
+  settings: settingsNav,
 }
 
 /** First path segment of a rail href after the org slug ("" for the index). */

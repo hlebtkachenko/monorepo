@@ -1,29 +1,17 @@
-import { ContentDemoBody } from "../_components/content-demo/content-demo-body"
-import { ContentDemoHeader } from "../_components/content-demo/content-demo-header"
-import { OrgContentProvider } from "../_components/content-demo/context"
-import { OrgPageHeader } from "../_components/org-page-header"
+import { ModulePage } from "./_components/module-page"
 
-export const metadata = {
-  title: "Dashboard",
-}
+export const metadata = { title: "Company" }
 
 /**
- * Company dashboard — the org index BODY. The persistent shell (rail, sidebar,
- * header, assistant) is mounted by `layout.tsx`; this page only fills the
- * content body.
- *
- * TEMP: still the invoices demo. `OrgContentProvider` links the demo's content
- * header (tabs + page actions, portaled into the shell's content-header slot via
- * `OrgPageHeader`) to its body (toolbar + table + inspector). Replace with real
- * route-driven content later — see the Content Panel variants taxonomy.
+ * Company overview — the org index. Clean module landing like the others; the
+ * old invoices demo moved to `/<org>/demo` (saved for reference). The persistent
+ * shell is mounted by `layout.tsx`; this page only fills the content body.
  */
-export default function CompanyDashboardPage() {
+export default function CompanyPage() {
   return (
-    <OrgContentProvider>
-      <OrgPageHeader>
-        <ContentDemoHeader />
-      </OrgPageHeader>
-      <ContentDemoBody />
-    </OrgContentProvider>
+    <ModulePage
+      title="Company"
+      description="Organization overview and key figures."
+    />
   )
 }

@@ -3,7 +3,7 @@ import { withAdminBypass } from "@workspace/db"
 import { app_user } from "@workspace/db/schema"
 import { getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
-import { AppShell, AssistantScaffold } from "@workspace/ui/blocks/app-shell"
+import { AppShell } from "@workspace/ui/blocks/app-shell"
 
 import { presignAvatarRead } from "../_lib/avatar-storage"
 import { getRequestSession } from "./_lib/request-session"
@@ -91,8 +91,14 @@ export default async function OrgDashboardPage({
         sidebar={<OrgSidebar orgSlug={orgSlug} />}
         sidebarHeader={<SidebarModuleTitle items={railNav} />}
         contentHeader={<ContentDemoHeader />}
-        assistant={<AssistantScaffold />}
-        defaultAssistantOpen
+        // Assistant panel is a deferred task — keep the panel + toggle wired
+        // (the shell still has all five panels) but leave the body an empty
+        // placeholder, closed by default, until the real Sidekick is built.
+        assistant={
+          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+            Assistant — coming soon
+          </div>
+        }
         logoHref={`/${orgSlug}`}
       >
         <ContentDemoBody />

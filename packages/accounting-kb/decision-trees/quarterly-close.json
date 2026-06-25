@@ -1,0 +1,227 @@
+{
+  "schema_version": "1.0",
+  "title": "Czech Quarterly Close Decision Tree",
+  "description": "Machine-readable process tree for čtvrtletní uzávěrka. Use for AI agent routing of quarterly close tasks.",
+  "originating_wave": 4,
+  "originating_slot": "N4C.4",
+  "last_verified": "2026-05-24",
+  "confidence": "medium",
+  "nodes": [
+    {
+      "id": "START",
+      "type": "trigger",
+      "label": "Quarter-end date reached",
+      "description": "Q1: 31 Mar, Q2: 30 Jun, Q3: 30 Sep, Q4: 31 Dec",
+      "next": "CHECK_INVOICES"
+    },
+    {
+      "id": "CHECK_INVOICES",
+      "type": "check",
+      "label": "All invoices posted for full quarter?",
+      "yes": "CHECK_BANK",
+      "no": "POST_INVOICES"
+    },
+    {
+      "id": "POST_INVOICES",
+      "type": "action",
+      "label": "Post missing invoices and document timing",
+      "next": "CHECK_BANK"
+    },
+    {
+      "id": "CHECK_BANK",
+      "type": "check",
+      "label": "Bank reconciliation complete?",
+      "yes": "CHECK_DPH_PLATCE",
+      "no": "RECONCILE_BANK"
+    },
+    {
+      "id": "RECONCILE_BANK",
+      "type": "action",
+      "label": "Reconcile account 221 against bank statement",
+      "next": "CHECK_DPH_PLATCE"
+    },
+    {
+      "id": "CHECK_DPH_PLATCE",
+      "type": "check",
+      "label": "Entity is DPH plátce?",
+      "yes": "CHECK_QUARTERLY_PERIOD",
+      "no": "CHECK_DPPO"
+    },
+    {
+      "id": "CHECK_QUARTERLY_PERIOD",
+      "type": "check",
+      "label": "On quarterly DPH period? (turnover < 10M CZK, ≥ 12 months as plátce)",
+      "yes": "CHECK_EU_GOODS",
+      "no": "MONTHLY_DAP_NOTE"
+    },
+    {
+      "id": "MONTHLY_DAP_NOTE",
+      "type": "info",
+      "label": "Monthly plátce: DAP/KH filed monthly — no quarterly DPH DAP",
+      "next": "CHECK_DPPO"
+    },
+    {
+      "id": "CHECK_EU_GOODS",
+      "type": "check",
+      "label": "Any EU goods deliveries (IDD) this quarter?",
+      "yes": "SH_MONTHLY_TRIGGER",
+      "no": "SH_QUARTERLY"
+    },
+    {
+      "id": "SH_MONTHLY_TRIGGER",
+      "type": "action",
+      "label": "File SH monthly for this quarter and remainder of calendar year",
+      "detail": "File catch-up SH for all months in quarter before first IDD; continue monthly through 31 Dec",
+      "legal_ref": "ZDPH § 102",
+      "next": "FILE_DAP_KH"
+    },
+    {
+      "id": "SH_QUARTERLY",
+      "type": "action",
+      "label": "File SH quarterly simultaneous with DAP (services only)",
+      "legal_ref": "ZDPH § 102",
+      "next": "FILE_DAP_KH"
+    },
+    {
+      "id": "FILE_DAP_KH",
+      "type": "action",
+      "label": "Prepare and file DAP + KH",
+      "deadlines": {
+        "Q1": "25 April",
+        "Q2": "25 July (Saturday 2026 → 27 July)",
+        "Q3": "25 October (Sunday 2026 → 26 October)",
+        "Q4": "25 January following year"
+      },
+      "legal_ref": "ZDPH § 101",
+      "next": "CHECK_DPPO"
+    },
+    {
+      "id": "CHECK_DPPO",
+      "type": "check",
+      "label": "DPPO quarterly záloha due this quarter?",
+      "description": "Due if prior-year DPPO > 150,000 CZK. Dates: Q1=15 Mar, Q2=15 Jun, Q3=15 Sep, Q4=15 Dec",
+      "yes": "PAY_DPPO_ZALOHA",
+      "no": "CHECK_PRIOR_ERRORS"
+    },
+    {
+      "id": "PAY_DPPO_ZALOHA",
+      "type": "action",
+      "label": "Pay 25% of last known DPPO. Account: MD 341 / D 221",
+      "legal_ref": "ZDP § 38a odst. 3",
+      "next": "CHECK_ZALOHA_ALIGNMENT"
+    },
+    {
+      "id": "CHECK_ZALOHA_ALIGNMENT",
+      "type": "check",
+      "label": "Is estimated 2026 DPPO >> advance schedule?",
+      "description": "Estimate: YTD profit × 0.21 × 12/months. If significantly higher, consider záloha reduction request.",
+      "yes": "ESCALATE_ZALOHA",
+      "no": "CHECK_PRIOR_ERRORS"
+    },
+    {
+      "id": "ESCALATE_ZALOHA",
+      "type": "escalation",
+      "label": "Consult tax advisor — § 38a odst. 7 záloha reduction request before next due date",
+      "next": "CHECK_PRIOR_ERRORS"
+    },
+    {
+      "id": "CHECK_PRIOR_ERRORS",
+      "type": "check",
+      "label": "Any prior-quarter errors discovered?",
+      "yes": "DETERMINE_ERROR_TYPE",
+      "no": "CHECK_CSU"
+    },
+    {
+      "id": "DETERMINE_ERROR_TYPE",
+      "type": "branch",
+      "label": "Determine error type",
+      "branches": [
+        {
+          "condition": "DPH underreported",
+          "action": "File dodatečné DAP. Pay additional DPH + úrok z prodlení.",
+          "legal_ref": "Daňový řád § 141 + ZDPH § 43"
+        },
+        {
+          "condition": "KH error",
+          "action": "File opravné KH promptly",
+          "legal_ref": "ZDPH § 101c"
+        },
+        {
+          "condition": "SH error",
+          "action": "File opravné souhrnné hlášení",
+          "legal_ref": "ZDPH § 102"
+        },
+        {
+          "condition": "DPPO záloha miscalculated",
+          "action": "Reconcile at next advance date or in annual return",
+          "legal_ref": "ZDP § 38a"
+        }
+      ],
+      "next": "CHECK_CSU"
+    },
+    {
+      "id": "CHECK_CSU",
+      "type": "check",
+      "label": "ČSÚ quarterly statistical forms due?",
+      "description": "Check ISSV portal. Applies to entities selected by ČSÚ under Act 89/1995.",
+      "yes": "FILE_CSU",
+      "no": "CHECK_OSVČ"
+    },
+    {
+      "id": "FILE_CSU",
+      "type": "action",
+      "label": "Submit ČSÚ forms via ISSV portal within 30 days of quarter end",
+      "legal_ref": "Act 89/1995 § 10",
+      "next": "CHECK_OSVČ"
+    },
+    {
+      "id": "CHECK_OSVČ",
+      "type": "check",
+      "label": "Entity is OSVČ with quarterly DPFO advance due?",
+      "description": "Due if prior-year DPFO from business > 150,000 CZK. Same dates as DPPO.",
+      "yes": "PAY_OSVČ_ZALOHA",
+      "no": "MGMT_REPORTS"
+    },
+    {
+      "id": "PAY_OSVČ_ZALOHA",
+      "type": "action",
+      "label": "Pay 25% of last known DPFO from business",
+      "legal_ref": "ZDP § 38a",
+      "next": "MGMT_REPORTS"
+    },
+    {
+      "id": "MGMT_REPORTS",
+      "type": "action",
+      "label": "Prepare management reports: výsledovka + rozvaha. Review DPPO advance tracking.",
+      "next": "VIES_CHECK"
+    },
+    {
+      "id": "VIES_CHECK",
+      "type": "action",
+      "label": "Validate EU customer VAT numbers via VIES portal. Document results.",
+      "url": "https://ec.europa.eu/taxation_customs/vies/",
+      "next": "SIGN_OFF"
+    },
+    {
+      "id": "SIGN_OFF",
+      "type": "end",
+      "label": "Quarterly close complete. Sign off and archive."
+    }
+  ],
+  "escalation_thresholds": {
+    "dph_additional_liability_czk": 50000,
+    "dppo_zaloha_vs_estimate_ratio": 1.3,
+    "eu_vies_invalid": true,
+    "nespolehlivy_platce": true
+  },
+  "key_deadlines_2026": {
+    "Q1_DAP_KH_SH": "2026-04-25",
+    "Q1_DPPO_ZALOHA": "2026-03-15",
+    "Q2_DAP_KH_SH": "2026-07-27",
+    "Q2_DPPO_ZALOHA": "2026-06-15",
+    "Q3_DAP_KH_SH": "2026-10-26",
+    "Q3_DPPO_ZALOHA": "2026-09-15",
+    "Q4_DAP_KH_SH": "2027-01-25",
+    "Q4_DPPO_ZALOHA": "2026-12-15"
+  }
+}

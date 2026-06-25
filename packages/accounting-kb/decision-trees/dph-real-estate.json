@@ -1,0 +1,271 @@
+{
+  "_meta": {
+    "title": "DPH rate decision tree — nemovitost transactions 2026",
+    "version": "R2B.3",
+    "source_law": "Act 235/2004 Sb. (ZDPH)",
+    "effective_date": "2024-01-01",
+    "status": "redo",
+    "redo_of": "dph-real-estate-decision-tree.json (W1.8)",
+    "redo_reason": "Q-807 / R6: previous tree cited § 56a (rental) as rate basis for dodání. Correct basis is § 49 odst. 3 for social housing; § 47(1)(a) for all other taxable dodání.",
+    "closes": ["Q-20260523-807", "Q-20260523-808"],
+    "primary_source": "F2A.10-paragraf-56-real-estate.md",
+    "key_corrections": [
+      "§ 56a NEVER applies to dodání — rental only",
+      "§ 48 NEVER applies to dodání — construction services only",
+      "§ 49 odst. 3 is the ONLY reduced-rate basis for dodání",
+      "5-year clock has two alternative triggers (kolaudační rozhodnutí OR first use)"
+    ]
+  },
+  "social_housing_thresholds": {
+    "bytova_jednotka_max_m2": 120,
+    "rodinny_dum_max_m2": 350,
+    "bytovy_dum_rule": "Qualifies only if NO single unit exceeds 120 m² (§ 48 odst. 5 písm. a)",
+    "institutional_types": [
+      "domov pro seniory",
+      "domov se zvláštním režimem",
+      "chráněné bydlení",
+      "azylový dům",
+      "dům na půl cesty",
+      "nízkoprahové denní centrum",
+      "zařízení sociální péče",
+      "zařízení pro péči o děti do 3 let",
+      "ubytovací zařízení pro žáky, studenty nebo zaměstnance"
+    ],
+    "basis": "§ 48 odst. 5–6 Act 235/2004 Sb."
+  },
+  "five_year_clock": {
+    "primary_trigger": "Date of first kolaudační rozhodnutí (§ 56 odst. 3 písm. a bod 1)",
+    "alternative_trigger": "Date of first use (první užívání) — ONLY when no kolaudační rozhodnutí is issued (§ 56 odst. 3 písm. b bod 1)",
+    "substantial_change_restart": "New 5-year period starts from kolaudační rozhodnutí after substantial change (§ 56 odst. 3 písm. a bod 2)",
+    "old_building_act_note": "For properties approved under Building Act 183/2006 Sb. (before 1 July 2024): clock started from kolaudační souhlas (the then-applicable document)"
+  },
+  "nodes": [
+    {
+      "id": "Q1",
+      "question": "Is the supplier a plátce DPH?",
+      "branches": [
+        {
+          "condition": "supplier_NOT_platce",
+          "output": {
+            "rate": "mimo_scope_dph",
+            "note": "Non-plátce supplier: transaction outside DPH scope for that supplier"
+          }
+        },
+        {
+          "condition": "supplier_IS_platce",
+          "goto": "Q2"
+        }
+      ]
+    },
+    {
+      "id": "Q2",
+      "question": "Type of transaction: dodání (sale/supply) or nájem (rental)?",
+      "branches": [
+        {
+          "condition": "najem_rental",
+          "goto": "NAJEM_BRANCH"
+        },
+        {
+          "condition": "dodani_sale_supply",
+          "goto": "Q3"
+        }
+      ]
+    },
+    {
+      "id": "NAJEM_BRANCH",
+      "basis": "§ 56a Act 235/2004 Sb.",
+      "note": "§ 56a governs rental ONLY — never applies to dodání",
+      "outputs": [
+        {
+          "type": "Dlouhodobý nájem bytové jednotky / obytného prostoru (residential long-term)",
+          "rate": "osvobozeno_bez_naroku",
+          "option_to_tax": false,
+          "basis": "§ 56a odst. 1 (no election allowed for residential rental)"
+        },
+        {
+          "type": "Krátkodobý nájem (≤ 48 hours) stavby/jednotky",
+          "rate": "taxable_21pct",
+          "basis": "§ 56a odst. 2 (short-term rental not exempt)"
+        },
+        {
+          "type": "Ubytovací služby (CZ-CPA 55)",
+          "rate": "taxable_21pct",
+          "basis": "§ 56a odst. 1 písm. b)"
+        },
+        {
+          "type": "Nájem nebytového prostoru nebo pozemku — long-term, to non-plátce",
+          "rate": "osvobozeno_bez_naroku",
+          "option_to_tax": false,
+          "basis": "§ 56a odst. 1"
+        },
+        {
+          "type": "Nájem nebytového prostoru nebo pozemku — long-term, both parties plátce",
+          "rate": "osvobozeno_bez_naroku",
+          "option_to_tax": true,
+          "option_rate": "21pct",
+          "option_basis": "§ 56a odst. 3"
+        },
+        {
+          "type": "Nájem parkovacích míst",
+          "rate": "taxable_21pct",
+          "basis": "§ 56a odst. 1 písm. c)"
+        }
+      ]
+    },
+    {
+      "id": "Q3",
+      "question": "Is this a pozemek (land only, without permanently attached building on same functional unit)?",
+      "branches": [
+        {
+          "condition": "stavebni_pozemek",
+          "output": {
+            "rate": "21pct",
+            "basis": "§ 56 odst. 2 (stavební pozemek not exempt) + § 47 odst. 1 písm. a)"
+          }
+        },
+        {
+          "condition": "other_pozemek_no_building_no_construction_plan",
+          "output": {
+            "rate": "osvobozeno_bez_naroku",
+            "option_to_tax": true,
+            "option_condition": "buyer is plátce",
+            "option_basis": "§ 56 odst. 6",
+            "basis": "§ 56 odst. 1"
+          }
+        },
+        {
+          "condition": "stavba_jednotka_or_pozemek_forming_functional_unit",
+          "goto": "Q4"
+        }
+      ]
+    },
+    {
+      "id": "Q4",
+      "question": "Is this a vybraná nemovitá věc (stavba, jednotka, inženýrská síť, or pozemek forming functional unit with stavba)?",
+      "note": "§ 56 odst. 5 list: (a) stavba pevně spojená se zemí, (b) jednotka, (c) inženýrská síť, (d) pozemek forming functional unit with attached building, (e) underground structure, (f) right in rem / building right",
+      "branches": [
+        {
+          "condition": "yes_vybrana_nemovita_vec",
+          "goto": "Q5"
+        }
+      ]
+    },
+    {
+      "id": "Q5",
+      "question": "Is the supply within 5 years of the kolaudační rozhodnutí (or first use if no rozhodnutí)?",
+      "clock_reference": "five_year_clock (see above)",
+      "branches": [
+        {
+          "condition": "after_5_years",
+          "output": {
+            "rate": "osvobozeno_bez_naroku",
+            "option_to_tax": true,
+            "option_condition": "buyer is plátce DPH",
+            "option_rate": "21pct_or_12pct_if_social",
+            "option_basis": "§ 56 odst. 6",
+            "basis": "§ 56 odst. 3"
+          }
+        },
+        {
+          "condition": "within_5_years_prvotni_prodej_window",
+          "goto": "Q6_social"
+        }
+      ]
+    },
+    {
+      "id": "Q6_social",
+      "question": "Does the property qualify as stavba pro sociální bydlení?",
+      "social_test_reference": "social_housing_thresholds (see above)",
+      "branches": [
+        {
+          "condition": "social_housing_YES",
+          "output": {
+            "rate": "12pct",
+            "basis": "§ 49 odst. 3 Act 235/2004 Sb. + § 47 odst. 1 písm. b)",
+            "note": "§ 49 odst. 3 is the ONLY statutory basis for 12% on dodání. § 56a and § 48 are NOT applicable to dodání."
+          }
+        },
+        {
+          "condition": "social_housing_NO",
+          "output": {
+            "rate": "21pct",
+            "basis": "§ 47 odst. 1 písm. a) — standard rate applies; no reduced-rate provision exists for non-social residential dodání",
+            "note": "Examples: bytová jednotka > 120 m², luxury apartment, rodinný dům > 350 m², commercial unit"
+          }
+        }
+      ]
+    }
+  ],
+  "common_scenarios": [
+    {
+      "scenario": "Developer (plátce) sells new bytová jednotka 95 m² to citizen — prvotní prodej",
+      "rate": "12%",
+      "basis": "§ 49 odst. 3 písm. d) — unit ≤ 120 m² = byt pro sociální bydlení"
+    },
+    {
+      "scenario": "Developer (plátce) sells new bytová jednotka 145 m² to citizen — prvotní prodej",
+      "rate": "21%",
+      "basis": "§ 47 odst. 1 písm. a) — unit > 120 m², not social housing, no reduced-rate provision"
+    },
+    {
+      "scenario": "Developer (plátce) sells new rodinný dům 280 m² — prvotní prodej",
+      "rate": "12%",
+      "basis": "§ 49 odst. 3 písm. a) — rodinný dům ≤ 350 m² = social housing"
+    },
+    {
+      "scenario": "Developer (plátce) sells new rodinný dům 400 m² — prvotní prodej",
+      "rate": "21%",
+      "basis": "§ 47 odst. 1 písm. a) — > 350 m², not social housing"
+    },
+    {
+      "scenario": "Plátce sells bytový dům where one penthouse is 130 m² — prvotní prodej",
+      "rate": "21%",
+      "basis": "§ 47 odst. 1 písm. a) — one unit > 120 m² disqualifies entire building from social housing under § 48 odst. 5 písm. a)"
+    },
+    {
+      "scenario": "Seller (plátce) sells any property > 5 years after kolaudace, buyer is citizen (non-plátce)",
+      "rate": "osvobozeno_bez_naroku",
+      "basis": "§ 56 odst. 3"
+    },
+    {
+      "scenario": "Seller (plátce) sells property > 5 years after kolaudace, both parties plátce, opt for tax",
+      "rate": "21% (12% if social housing)",
+      "basis": "§ 56 odst. 6 (option) + § 47 or § 49"
+    },
+    {
+      "scenario": "Developer sells stavební pozemek (plátce)",
+      "rate": "21%",
+      "basis": "§ 56 odst. 2 (not exempt) + § 47 odst. 1 písm. a)"
+    },
+    {
+      "scenario": "Sale of agricultural land (not stavební pozemek, no building)",
+      "rate": "osvobozeno_bez_naroku",
+      "basis": "§ 56 odst. 1"
+    },
+    {
+      "scenario": "Developer sells office / commercial unit (nebytový prostor) — prvotní prodej",
+      "rate": "21%",
+      "basis": "§ 47 odst. 1 písm. a) — commercial, no reduced-rate provision"
+    },
+    {
+      "scenario": "Landlord (plátce) rents bytová jednotka to tenant long-term",
+      "rate": "osvobozeno_bez_naroku",
+      "basis": "§ 56a odst. 1 — no option to elect taxation for residential rental"
+    },
+    {
+      "scenario": "Developer sells domov pro seniory (nursing home) — prvotní prodej",
+      "rate": "12%",
+      "basis": "§ 49 odst. 3 písm. a) — domov pro seniory = stavba pro sociální bydlení per § 48 odst. 5 písm. f)"
+    },
+    {
+      "scenario": "Construction company invoices developer for completing bytový dům (all units ≤ 120 m²)",
+      "rate": "12%",
+      "basis": "§ 48 odst. 1 — construction SERVICES on stavba pro bydlení. NOTE: § 48 applies here because this is a service invoice, NOT a dodání rate"
+    },
+    {
+      "scenario": "Construction company invoices developer for completing social housing",
+      "rate": "12%",
+      "basis": "§ 49 odst. 1 — construction SERVICES for social housing. NOTE: service invoice only"
+    }
+  ]
+}

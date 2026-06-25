@@ -1,0 +1,436 @@
+{
+  "_meta": {
+    "title": "DPH Rate Classifier — Czech VAT Rate by Transaction Category (R2B.2 REDO)",
+    "redo_of": "W1.4/rate-classifier.json",
+    "primary_source": "F2A.1-act-235-rates-annexes.md",
+    "source": "Act 235/2004 Sb. § 47 + Příloha č. 2 (services) + Příloha č. 3 (goods) + § 71i (books exemption)",
+    "source_url": "https://www.kurzy.cz/zakony/235-2004-zakon-o-dani-z-pridane-hodnoty-dph/",
+    "last_verified": "2026-05-24",
+    "confidence": "high",
+    "note": "Covers ~80 typical transaction types for AI-assisted DPH rate suggestion. REDO: Removed 4 incorrect '0% rate' book entries. Replaced with correct § 71i exempt-with-deduction treatment. Corrected all Příloha 1→3 references for goods. Corrected Příloha 5/6 PDP attribution.",
+    "schema_version": "2.0",
+    "errors_corrected": [
+      "H-V14-001: Removed rate=0 entries for Printed books, E-books, Audiobooks, Newspapers — replaced with treatment=exempt-with-deduction per § 71i or 12% per Příloha č. 3",
+      "H-V14-003: Corrected all 'Příloha č. 1' goods references to 'Příloha č. 3'",
+      "H-V14-002: Corrected PDP legal_ref from 'Příloha 5' to 'Příloha 6' for emission allowances and mobiles"
+    ],
+    "rates": {
+      "standard": 21,
+      "reduced": 12,
+      "note": "No 0% / nulová sazba exists in § 47. Books use § 71i exempt-with-deduction mechanism."
+    }
+  },
+  "rate_classifier": [
+    {
+      "category": "Software — SaaS subscription",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — electronic service",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Software — on-premise licence",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — IP licence",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Hardware (computers, servers, peripherals)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — goods",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "IT consulting and development services",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — professional services",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Accounting and bookkeeping services",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — professional services",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Legal services",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — professional services",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Advertising and marketing services",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — services",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Mobile phone handsets (retail B2C or B2B below 100,000 CZK)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — goods",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004",
+      "note": "For B2B batches above 100,000 CZK between plátci: PDP applies under § 92c + Příloha č. 6 item 2"
+    },
+    {
+      "category": "Mobile phone handsets (B2B batch >100,000 CZK, plátce-to-plátce)",
+      "rate": 21,
+      "treatment": "taxable-pdp",
+      "basis": "Standard rate; PDP mechanism applies — buyer self-assesses",
+      "legal_ref": "§ 92c + Příloha č. 6 item 2 Act 235/2004",
+      "note": "Rate is 21% but invoiced without DPH under PDP. KH: supplier A1, buyer B1."
+    },
+    {
+      "category": "Passenger cars (new)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — goods",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Clothing and footwear",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — goods",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Furniture",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — goods",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Office supplies",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — goods",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Telecommunications — fixed and mobile services (retail B2B/B2C)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — telecom services",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004",
+      "note": "Wholesale telecom services between plátci may be subject to PDP under § 92c + Příloha č. 6 item 6"
+    },
+    {
+      "category": "Internet access services",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — electronic communications",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Alcoholic beverages (served at restaurant)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — explicitly excluded from reduced-rate catering",
+      "legal_ref": "§ 47 + Příloha č. 2 exclusion Act 235/2004"
+    },
+    {
+      "category": "Beer (served at restaurant or take-away)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — alcoholic",
+      "legal_ref": "Příloha č. 2 exclusion Act 235/2004"
+    },
+    {
+      "category": "Wine (served at restaurant or take-away)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — alcoholic",
+      "legal_ref": "Příloha č. 2 exclusion Act 235/2004"
+    },
+    {
+      "category": "Electricity and gas (industrial / commercial customers)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — energy supply (not residential heating fuel)",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Transport — freight and logistics (road, rail, air)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — transport services",
+      "legal_ref": "§ 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Hotel and accommodation (CZ-CPA 55.x)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2 accommodation services",
+      "legal_ref": "Příloha č. 2 Act 235/2004; § 47 odst. 1 písm. b)"
+    },
+    {
+      "category": "Catering — food served at restaurant/café (non-alcoholic)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — stravovací služby in Příloha č. 2",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Take-away food",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — food product rate per Příloha č. 3",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Non-alcoholic beverages (juice, water, coffee — restaurant)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — food/drink in Příloha č. 3 and/or Příloha č. 2",
+      "legal_ref": "Příloha č. 3 + Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Grocery food — bread, dairy, meat, vegetables",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3 basic foodstuffs (CN 01–05, 07–23, 25)",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Baby food and infant formula",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Animal feed (pet food, livestock feed)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Pharmaceutical products (medicines, drugs)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Medical devices (certified)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Children's car seats",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Wheelchairs and mobility aids",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3",
+      "legal_ref": "Příloha č. 3 Act 235/2004"
+    },
+    {
+      "category": "Public transport — urban and suburban (bus, tram, metro, train)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2 regular collective transport (CZ-CPA 49)",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Hairdresser and barber services",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Shoe repair and minor clothing repair",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2 drobné opravy",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Bicycle repair (minor)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2 drobné opravy",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Fitness centres and sports facility entry",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Concerts, theatre, cinema entry tickets",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2 cultural services",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Domestic cleaning services (residential)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Funeral services",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Cemetery maintenance",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Construction of residential buildings (social housing)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — § 48 + Příloha č. 2",
+      "legal_ref": "§ 48 + Příloha č. 2 Act 235/2004",
+      "note": "PDP applies for plátce-to-plátce construction under § 92e. Rate is 21% for plátce-to-neplátce."
+    },
+    {
+      "category": "Water supply and sewage treatment (municipal)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 2 (CZ-CPA 36.00.2, 37)",
+      "legal_ref": "Příloha č. 2 Act 235/2004"
+    },
+    {
+      "category": "Newspapers and magazines (primarily editorial, advertising < 50%)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — Příloha č. 3 (CN 4902)",
+      "legal_ref": "Příloha č. 3 Act 235/2004; § 47 odst. 1 písm. b)",
+      "note": "Excludes publications where advertising > 50% of content, or exclusively/predominantly musical audio or audiovisual"
+    },
+    {
+      "category": "Printed books",
+      "rate": null,
+      "treatment": "exempt-with-deduction",
+      "basis": "Osvobozeno od daně s nárokem na odpočet — not a rate under § 47",
+      "legal_ref": "§ 71i Act 235/2004 Sb.",
+      "note": "Economic effect = 0% output DPH + full input DPH deduction retained. Legal mechanism is exemption under § 71i, NOT nulová sazba. DAP: řádek 26. CN 4901."
+    },
+    {
+      "category": "E-books / digital books",
+      "rate": null,
+      "treatment": "exempt-with-deduction",
+      "basis": "Osvobozeno od daně s nárokem na odpočet — not a rate under § 47",
+      "legal_ref": "§ 71i Act 235/2004 Sb.",
+      "note": "Defined as electronic version of publications covered by § 71i odst. 1 definition."
+    },
+    {
+      "category": "Audiobooks",
+      "rate": null,
+      "treatment": "exempt-with-deduction",
+      "basis": "Osvobozeno od daně s nárokem na odpočet — not a rate under § 47",
+      "legal_ref": "§ 71i Act 235/2004 Sb.",
+      "note": "Audio recording of book content — 'zvukový záznam přednesu jejich obsahu' per § 71i odst. 1."
+    },
+    {
+      "category": "Financial services — loans, deposits, currency exchange",
+      "rate": null,
+      "treatment": "exempt-without-deduction",
+      "basis": "Exempt — no DPH; no input deduction for attributable inputs",
+      "legal_ref": "§ 54 Act 235/2004"
+    },
+    {
+      "category": "Insurance services",
+      "rate": null,
+      "treatment": "exempt-without-deduction",
+      "basis": "Exempt — no DPH",
+      "legal_ref": "§ 55 Act 235/2004"
+    },
+    {
+      "category": "Rental of residential property (standard long-term)",
+      "rate": null,
+      "treatment": "exempt-without-deduction",
+      "basis": "Exempt — default",
+      "legal_ref": "§ 56a Act 235/2004",
+      "note": "Landlord may opt to tax if both parties are plátci — then 21% applies. Short-term rental (<48h) is taxable at 12% under Příloha č. 2."
+    },
+    {
+      "category": "Transfer of older real property (>5 years from first kolaudační rozhodnutí or first use)",
+      "rate": null,
+      "treatment": "exempt-without-deduction",
+      "basis": "Exempt — default after 5-year period",
+      "legal_ref": "§ 56 odst. 3 Act 235/2004",
+      "note": "5-year clock starts from kolaudační rozhodnutí OR first use, whichever is earlier. Parties can opt to tax under § 56 odst. 6."
+    },
+    {
+      "category": "Transfer of new real property (<5 years — residential)",
+      "rate": 12,
+      "treatment": "taxable",
+      "basis": "Reduced — residential building, § 48 + § 47 odst. 1 písm. b)",
+      "legal_ref": "§ 48 + § 56 Act 235/2004",
+      "note": "12% for bytový dům / rodinný dům. Commercial/non-residential first sale: 21%."
+    },
+    {
+      "category": "Transfer of new real property (<5 years — commercial/non-residential)",
+      "rate": 21,
+      "treatment": "taxable",
+      "basis": "Standard — non-residential building",
+      "legal_ref": "§ 56 + § 47 odst. 1 písm. a) Act 235/2004"
+    },
+    {
+      "category": "Export of goods to non-EU countries",
+      "rate": null,
+      "treatment": "exempt-with-deduction",
+      "basis": "Exempt with deduction right — § 66",
+      "legal_ref": "§ 66 Act 235/2004"
+    },
+    {
+      "category": "Intra-EU supply of goods to VAT-registered buyer (ICD)",
+      "rate": null,
+      "treatment": "exempt-with-deduction",
+      "basis": "Exempt with deduction right — § 64",
+      "legal_ref": "§ 64 Act 235/2004"
+    },
+    {
+      "category": "Construction works (CZ-CPA 41-43, plátce-to-plátce)",
+      "rate": 21,
+      "treatment": "taxable-pdp",
+      "basis": "Standard rate; PDP mechanism applies between plátci (invoice without DPH, buyer self-assesses)",
+      "legal_ref": "§ 92e Act 235/2004 — self-contained, CZ-CPA codes 41-43 as of 2015-01-01",
+      "note": "Rate is 21% but invoiced without DPH under PDP. KH: supplier A1, buyer B1. Plátce-to-neplátce: charge DPH at applicable rate normally."
+    },
+    {
+      "category": "Scrap metal — ferrous and non-ferrous (plátce-to-plátce)",
+      "rate": 21,
+      "treatment": "taxable-pdp",
+      "basis": "Standard rate; PDP mechanism applies",
+      "legal_ref": "§ 92c + Příloha č. 5 Act 235/2004"
+    },
+    {
+      "category": "Emission allowances — EU ETS (plátce-to-plátce)",
+      "rate": 21,
+      "treatment": "taxable-pdp",
+      "basis": "Standard rate; PDP mechanism applies",
+      "legal_ref": "§ 92c + Příloha č. 6 item 1 Act 235/2004"
+    }
+  ]
+}

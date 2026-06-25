@@ -1,0 +1,717 @@
+{
+  "meta": {
+    "title": "Směrná účtová osnova — Podnikatelé (Decree 500/2002 Sb.)",
+    "decree": "500/2002 Sb.",
+    "regime": "podnikatelé",
+    "generated": "2026-05-23",
+    "generator": "wave-1a-W1.3-sonnet",
+    "status": "corrected",
+    "corrected_by": "K2C.1-sonnet",
+    "corrected_at": "2026-05-23",
+    "confidence": "medium",
+    "sources": [
+      { "name": "Decree 500/2002 Sb.", "url": "https://e-sbirka.gov.cz/sb/2002/500" },
+      { "name": "Act 563/1991 Sb.", "url": "https://e-sbirka.gov.cz/sb/1991/563" },
+      { "name": "ČÚS 001–024", "url": "https://www.mfcr.cz/cs/legislativa/ucetni-standardy/2020/ceske-ucetni-standardy-pro-podnikatele-42776" }
+    ],
+    "notes": "Account numbers follow směrná účtová osnova Příloha č. 1 to Decree 500/2002 Sb. Entity-specific analytic codes (4th+ digit) are suggestions only — each entity defines its own účtový rozvrh per § 14 Act 563/1991 Sb. Classes 8–9 are freely defined by entity; not included here."
+  },
+  "classes": [
+    {
+      "class_id": "0",
+      "name_cz": "Dlouhodobý majetek",
+      "name_en": "Long-term Assets",
+      "cus_reference": "ČÚS 008, 011, 013",
+      "cus_note": "ČÚS 014 was repealed; class 0 group 06x long-term financial assets now governed by ČÚS 008 + ČÚS 011",
+      "groups": [
+        {
+          "group_id": "01",
+          "name_cz": "Dlouhodobý nehmotný majetek",
+          "name_en": "Long-term Intangible Assets",
+          "accounts": [
+            { "id": "011", "name_cz": "Zřizovací výdaje", "name_en": "Formation Costs", "normal_balance": "MD", "deprecated": true, "note": "No new capitalization post-2016" },
+            { "id": "012", "name_cz": "Nehmotné výsledky výzkumu a vývoje", "name_en": "R&D Intangibles", "normal_balance": "MD" },
+            { "id": "013", "name_cz": "Software", "name_en": "Software", "normal_balance": "MD" },
+            { "id": "014", "name_cz": "Ocenitelná práva", "name_en": "Valuable Rights", "normal_balance": "MD" },
+            { "id": "015", "name_cz": "Goodwill", "name_en": "Goodwill", "normal_balance": "MD", "note": "Amortized max 60 months" },
+            { "id": "019", "name_cz": "Jiný dlouhodobý nehmotný majetek", "name_en": "Other Long-term Intangible Assets", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "02",
+          "name_cz": "Dlouhodobý hmotný majetek odpisovaný",
+          "name_en": "Depreciable Long-term Tangible Assets",
+          "accounts": [
+            { "id": "021", "name_cz": "Stavby", "name_en": "Buildings and Structures", "normal_balance": "MD" },
+            { "id": "022", "name_cz": "Samostatné hmotné movité věci a soubory hmotných movitých věcí", "name_en": "Tangible Movable Assets — individual items and sets", "normal_balance": "MD" },
+            { "id": "025", "name_cz": "Pěstitelské celky trvalých porostů", "name_en": "Perennial Cultivated Plantations", "normal_balance": "MD" },
+            { "id": "026", "name_cz": "Dospělá zvířata a jejich skupiny", "name_en": "Mature Animals", "normal_balance": "MD" },
+            { "id": "029", "name_cz": "Jiný dlouhodobý hmotný majetek", "name_en": "Other Depreciable Tangible Assets", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "03",
+          "name_cz": "Dlouhodobý hmotný majetek neodpisovaný",
+          "name_en": "Non-depreciable Long-term Tangible Assets",
+          "accounts": [
+            { "id": "031", "name_cz": "Pozemky", "name_en": "Land", "normal_balance": "MD", "note": "Cannot be depreciated" },
+            { "id": "032", "name_cz": "Umělecká díla a sbírky", "name_en": "Works of Art and Collections", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "04",
+          "name_cz": "Pořízení dlouhodobého majetku",
+          "name_en": "Long-term Asset Acquisition in Progress",
+          "accounts": [
+            { "id": "041", "name_cz": "Pořízení dlouhodobého nehmotného majetku", "name_en": "DNM Acquisition in Progress", "normal_balance": "MD" },
+            { "id": "042", "name_cz": "Pořízení dlouhodobého hmotného majetku", "name_en": "DHM Acquisition in Progress", "normal_balance": "MD" },
+            { "id": "043", "name_cz": "Pořízení dlouhodobého finančního majetku", "name_en": "Financial Asset Acquisition in Progress", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "05",
+          "name_cz": "Poskytnuté zálohy na dlouhodobý majetek",
+          "name_en": "Advances for Long-term Assets",
+          "accounts": [
+            { "id": "051", "name_cz": "Poskytnuté zálohy na DNM", "name_en": "Advances for Intangible Assets", "normal_balance": "MD" },
+            { "id": "052", "name_cz": "Poskytnuté zálohy na DHM", "name_en": "Advances for Tangible Assets", "normal_balance": "MD" },
+            { "id": "053", "name_cz": "Poskytnuté zálohy na finanční majetek", "name_en": "Advances for Financial Assets", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "06",
+          "name_cz": "Dlouhodobý finanční majetek",
+          "name_en": "Long-term Financial Assets",
+          "cus_reference": "ČÚS 008, ČÚS 011",
+          "accounts": [
+            { "id": "061", "name_cz": "Podíly — ovládaná nebo ovládající osoba", "name_en": "Equity Stakes — Controlled/Controlling", "normal_balance": "MD" },
+            { "id": "062", "name_cz": "Podíly — podstatný vliv", "name_en": "Equity Stakes — Significant Influence", "normal_balance": "MD" },
+            { "id": "063", "name_cz": "Ostatní dlouhodobé cenné papíry a podíly", "name_en": "Other Long-term Securities", "normal_balance": "MD" },
+            { "id": "065", "name_cz": "Dluhové cenné papíry držené do splatnosti", "name_en": "Debt Securities Held to Maturity", "normal_balance": "MD" },
+            { "id": "066", "name_cz": "Půjčky a úvěry — ovládaná nebo ovládající osoba", "name_en": "Loans to/from Controlled Entity", "normal_balance": "MD" },
+            { "id": "067", "name_cz": "Půjčky a úvěry — podstatný vliv", "name_en": "Loans to/from Associates", "normal_balance": "MD" },
+            { "id": "069", "name_cz": "Jiný dlouhodobý finanční majetek", "name_en": "Other Long-term Financial Assets", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "07",
+          "name_cz": "Oprávky k dlouhodobému nehmotnému majetku",
+          "name_en": "Accumulated Amortization — DNM",
+          "accounts": [
+            { "id": "071", "name_cz": "Oprávky k zřizovacím výdajům", "name_en": "Accumulated Amort. — Formation Costs", "normal_balance": "D" },
+            { "id": "072", "name_cz": "Oprávky k nehmotným výsledkům VaV", "name_en": "Accumulated Amort. — R&D", "normal_balance": "D" },
+            { "id": "073", "name_cz": "Oprávky k softwaru", "name_en": "Accumulated Amort. — Software", "normal_balance": "D" },
+            { "id": "074", "name_cz": "Oprávky k ocenitelným právům", "name_en": "Accumulated Amort. — Valuable Rights", "normal_balance": "D" },
+            { "id": "075", "name_cz": "Oprávky ke goodwillu", "name_en": "Accumulated Amort. — Goodwill", "normal_balance": "D" },
+            { "id": "079", "name_cz": "Oprávky k jinému DNM", "name_en": "Accumulated Amort. — Other DNM", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "08",
+          "name_cz": "Oprávky k dlouhodobému hmotnému majetku",
+          "name_en": "Accumulated Depreciation — DHM",
+          "accounts": [
+            { "id": "081", "name_cz": "Oprávky ke stavbám", "name_en": "Accumulated Depr. — Buildings", "normal_balance": "D" },
+            { "id": "082", "name_cz": "Oprávky k hmotným movitým věcem", "name_en": "Accumulated Depr. — Movables", "normal_balance": "D" },
+            { "id": "085", "name_cz": "Oprávky k pěstitelským celkům", "name_en": "Accumulated Depr. — Plantations", "normal_balance": "D" },
+            { "id": "086", "name_cz": "Oprávky k dospělým zvířatům", "name_en": "Accumulated Depr. — Animals", "normal_balance": "D" },
+            { "id": "089", "name_cz": "Oprávky k jinému DHM", "name_en": "Accumulated Depr. — Other DHM", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "09",
+          "name_cz": "Opravné položky k dlouhodobému majetku",
+          "name_en": "Impairment Allowances — Long-term Assets",
+          "accounts": [
+            { "id": "091", "name_cz": "Opravná položka k DNM", "name_en": "Impairment — DNM", "normal_balance": "D" },
+            { "id": "092", "name_cz": "Opravná položka k DHM", "name_en": "Impairment — DHM", "normal_balance": "D" },
+            { "id": "093", "name_cz": "Opravná položka k nedokončenému DNM", "name_en": "Impairment — DNM in Progress", "normal_balance": "D" },
+            { "id": "094", "name_cz": "Opravná položka k nedokončenému DHM", "name_en": "Impairment — DHM in Progress", "normal_balance": "D" },
+            { "id": "095", "name_cz": "Opravná položka k poskytnutým zálohám", "name_en": "Impairment — Advances for LT Assets", "normal_balance": "D" },
+            { "id": "096", "name_cz": "Opravná položka k finančnímu majetku", "name_en": "Impairment — Financial Assets", "normal_balance": "D" }
+          ]
+        }
+      ]
+    },
+    {
+      "class_id": "1",
+      "name_cz": "Zásoby",
+      "name_en": "Inventories",
+      "cus_reference": "ČÚS 015",
+      "groups": [
+        {
+          "group_id": "11",
+          "name_cz": "Materiál",
+          "name_en": "Raw Materials",
+          "accounting_methods": ["Method A", "Method B"],
+          "accounts": [
+            { "id": "111", "name_cz": "Pořízení materiálu", "name_en": "Material Acquisition (Method A accumulator)", "normal_balance": "MD", "method_a_only": true },
+            { "id": "112", "name_cz": "Materiál na skladě", "name_en": "Material in Warehouse", "normal_balance": "MD" },
+            { "id": "119", "name_cz": "Materiál na cestě", "name_en": "Material in Transit", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "12",
+          "name_cz": "Zásoby vlastní výroby",
+          "name_en": "Own-production Inventories",
+          "accounts": [
+            { "id": "121", "name_cz": "Nedokončená výroba", "name_en": "Work in Progress", "normal_balance": "MD", "change_account": "611" },
+            { "id": "122", "name_cz": "Polotovary vlastní výroby", "name_en": "Semi-finished Products", "normal_balance": "MD", "change_account": "612" },
+            { "id": "123", "name_cz": "Výrobky", "name_en": "Finished Goods", "normal_balance": "MD", "change_account": "613" },
+            { "id": "124", "name_cz": "Mladá a ostatní zvířata", "name_en": "Young and Other Animals", "normal_balance": "MD", "change_account": "614" }
+          ]
+        },
+        {
+          "group_id": "13",
+          "name_cz": "Zboží",
+          "name_en": "Goods for Resale",
+          "accounting_methods": ["Method A", "Method B"],
+          "accounts": [
+            { "id": "131", "name_cz": "Pořízení zboží", "name_en": "Goods Acquisition (Method A accumulator)", "normal_balance": "MD", "method_a_only": true },
+            { "id": "132", "name_cz": "Zboží na skladě a v prodejnách", "name_en": "Goods in Warehouse and Shops", "normal_balance": "MD" },
+            { "id": "139", "name_cz": "Zboží na cestě", "name_en": "Goods in Transit", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "15",
+          "name_cz": "Poskytnuté zálohy na zásoby",
+          "name_en": "Advances for Inventories",
+          "accounts": [
+            { "id": "151", "name_cz": "Poskytnuté zálohy na materiál", "name_en": "Advances for Materials", "normal_balance": "MD" },
+            { "id": "152", "name_cz": "Poskytnuté zálohy na zboží", "name_en": "Advances for Goods", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "19",
+          "name_cz": "Opravné položky k zásobám",
+          "name_en": "Impairment Allowances — Inventories",
+          "accounts": [
+            { "id": "191", "name_cz": "Opravná položka k materiálu", "name_en": "Impairment — Material", "normal_balance": "D" },
+            { "id": "192", "name_cz": "Opravná položka k nedokončené výrobě", "name_en": "Impairment — WIP", "normal_balance": "D" },
+            { "id": "193", "name_cz": "Opravná položka k polotovarům", "name_en": "Impairment — Semi-finished", "normal_balance": "D" },
+            { "id": "194", "name_cz": "Opravná položka k výrobkům", "name_en": "Impairment — Finished Goods", "normal_balance": "D" },
+            { "id": "195", "name_cz": "Opravná položka k mladým zvířatům", "name_en": "Impairment — Young Animals", "normal_balance": "D" },
+            { "id": "196", "name_cz": "Opravná položka ke zboží", "name_en": "Impairment — Goods", "normal_balance": "D" }
+          ]
+        }
+      ]
+    },
+    {
+      "class_id": "2",
+      "name_cz": "Krátkodobý finanční majetek a peněžní prostředky",
+      "name_en": "Short-term Financial Assets and Cash",
+      "cus_reference": "ČÚS 016",
+      "groups": [
+        {
+          "group_id": "21",
+          "name_cz": "Peníze",
+          "name_en": "Physical Cash",
+          "accounts": [
+            { "id": "211", "name_cz": "Pokladna", "name_en": "Cash Till", "normal_balance": "MD" },
+            { "id": "213", "name_cz": "Ceniny", "name_en": "Stamps and Vouchers", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "22",
+          "name_cz": "Účty v bankách",
+          "name_en": "Bank Accounts",
+          "accounts": [
+            { "id": "221", "name_cz": "Bankovní účty", "name_en": "Bank Accounts", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "23",
+          "name_cz": "Krátkodobé bankovní úvěry",
+          "name_en": "Short-term Bank Loans",
+          "accounts": [
+            { "id": "231", "name_cz": "Krátkodobé bankovní úvěry", "name_en": "Short-term Bank Loans", "normal_balance": "D" },
+            { "id": "232", "name_cz": "Eskontní úvěry", "name_en": "Discounted Bills Credit", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "24",
+          "name_cz": "Jiné krátkodobé finanční výpomoci",
+          "name_en": "Other Short-term Financial Assistance",
+          "accounts": [
+            { "id": "241", "name_cz": "Emitované krátkodobé dluhopisy", "name_en": "Issued Short-term Bonds", "normal_balance": "D" },
+            { "id": "249", "name_cz": "Ostatní krátkodobé finanční výpomoci", "name_en": "Other Short-term Assistance", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "25",
+          "name_cz": "Krátkodobý finanční majetek",
+          "name_en": "Short-term Financial Assets",
+          "accounts": [
+            { "id": "251", "name_cz": "Majetkové cenné papíry k obchodování", "name_en": "Equity Securities Held for Trading", "normal_balance": "MD", "measurement": "fair_value" },
+            { "id": "252", "name_cz": "Vlastní akcie a obchodní podíly", "name_en": "Own Shares and Stakes", "normal_balance": "MD" },
+            { "id": "253", "name_cz": "Dluhové cenné papíry k obchodování", "name_en": "Debt Securities Held for Trading", "normal_balance": "MD", "measurement": "fair_value" },
+            { "id": "255", "name_cz": "Vlastní dluhopisy", "name_en": "Own Bonds Repurchased", "normal_balance": "MD" },
+            { "id": "256", "name_cz": "Dluhové CP do 1 roku držené do splatnosti", "name_en": "Short-term Debt Securities HTM", "normal_balance": "MD", "measurement": "amortized_cost" },
+            { "id": "257", "name_cz": "Ostatní realizovatelné cenné papíry", "name_en": "Other Available-for-sale Securities", "normal_balance": "MD" },
+            { "id": "259", "name_cz": "Pořízení krátkodobého finančního majetku", "name_en": "ST Financial Asset Acquisition", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "26",
+          "name_cz": "Převody mezi finančními účty",
+          "name_en": "Transfers Between Financial Accounts",
+          "accounts": [
+            { "id": "261", "name_cz": "Peníze na cestě", "name_en": "Cash in Transit", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "29",
+          "name_cz": "Opravné položky ke krátkodobému finančnímu majetku",
+          "name_en": "Impairment — Short-term Financial Assets",
+          "accounts": [
+            { "id": "291", "name_cz": "Opravná položka ke krátkodobému fin. majetku", "name_en": "Impairment — ST Financial Assets", "normal_balance": "D" }
+          ]
+        }
+      ]
+    },
+    {
+      "class_id": "3",
+      "name_cz": "Zúčtovací vztahy",
+      "name_en": "Settlement Accounts",
+      "cus_reference": "ČÚS 017",
+      "groups": [
+        {
+          "group_id": "31",
+          "name_cz": "Pohledávky",
+          "name_en": "Receivables",
+          "accounts": [
+            { "id": "311", "name_cz": "Pohledávky z obchodních vztahů", "name_en": "Trade Receivables", "normal_balance": "MD" },
+            { "id": "312", "name_cz": "Směnky k inkasu", "name_en": "Bills of Exchange Receivable", "normal_balance": "MD" },
+            { "id": "313", "name_cz": "Pohledávky za eskontované CP", "name_en": "Receivables for Discounted Securities", "normal_balance": "MD" },
+            { "id": "314", "name_cz": "Poskytnuté zálohy", "name_en": "Advances Paid", "normal_balance": "MD" },
+            { "id": "315", "name_cz": "Ostatní pohledávky", "name_en": "Other Receivables", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "32",
+          "name_cz": "Závazky",
+          "name_en": "Payables",
+          "accounts": [
+            { "id": "321", "name_cz": "Závazky z obchodních vztahů", "name_en": "Trade Payables", "normal_balance": "D" },
+            { "id": "322", "name_cz": "Směnky k úhradě", "name_en": "Bills of Exchange Payable", "normal_balance": "D" },
+            { "id": "324", "name_cz": "Přijaté zálohy", "name_en": "Advances Received", "normal_balance": "D" },
+            { "id": "325", "name_cz": "Ostatní závazky", "name_en": "Other Payables", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "33",
+          "name_cz": "Zúčtování se zaměstnanci",
+          "name_en": "Employee Settlements",
+          "accounts": [
+            { "id": "331", "name_cz": "Zaměstnanci — mzdové závazky", "name_en": "Employee Wage Payables", "normal_balance": "D" },
+            { "id": "333", "name_cz": "Ostatní závazky vůči zaměstnancům", "name_en": "Other Employee Payables", "normal_balance": "D" },
+            { "id": "335", "name_cz": "Pohledávky za zaměstnanci", "name_en": "Receivables from Employees", "normal_balance": "MD" },
+            { "id": "336", "name_cz": "Zúčtování s institucemi SP a ZP", "name_en": "Social + Health Insurance Settlements", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "34",
+          "name_cz": "Zúčtování daní a dotací",
+          "name_en": "Tax and Subsidy Settlements",
+          "accounts": [
+            { "id": "341", "name_cz": "Daň z příjmů", "name_en": "Income Tax Payable/Receivable", "normal_balance": "D" },
+            { "id": "342", "name_cz": "Ostatní přímé daně", "name_en": "Other Direct Taxes (withholding)", "normal_balance": "D" },
+            { "id": "343", "name_cz": "Daň z přidané hodnoty", "name_en": "VAT (DPH)", "normal_balance": "mixed", "analytics": ["by_rate_21", "by_rate_12", "by_rate_0", "input", "output"] },
+            { "id": "344", "name_cz": "Daň silniční", "name_en": "Road Tax", "normal_balance": "D" },
+            { "id": "345", "name_cz": "Ostatní daně a poplatky", "name_en": "Other Taxes and Fees", "normal_balance": "D" },
+            { "id": "346", "name_cz": "Dotace ze státního rozpočtu", "name_en": "State Budget Subsidies", "normal_balance": "mixed" },
+            { "id": "347", "name_cz": "Ostatní dotace", "name_en": "Other Subsidies", "normal_balance": "mixed" }
+          ]
+        },
+        {
+          "group_id": "35",
+          "name_cz": "Pohledávky za společníky",
+          "name_en": "Receivables from Partners",
+          "accounts": [
+            { "id": "351", "name_cz": "Pohledávky za ovládanými osobami", "name_en": "Receivables from Subsidiaries", "normal_balance": "MD" },
+            { "id": "353", "name_cz": "Pohledávky za účastníky sdružení", "name_en": "Receivables from Consortium Members", "normal_balance": "MD" },
+            { "id": "354", "name_cz": "Pohledávky za společníky — úhrada ztráty", "name_en": "Partner Loss Coverage Receivable", "normal_balance": "MD" },
+            { "id": "355", "name_cz": "Ostatní pohledávky za společníky", "name_en": "Other Partner Receivables", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "36",
+          "name_cz": "Závazky ke společníkům",
+          "name_en": "Payables to Partners",
+          "accounts": [
+            { "id": "361", "name_cz": "Závazky k ovládaným osobám", "name_en": "Payables to Subsidiaries", "normal_balance": "D" },
+            { "id": "364", "name_cz": "Závazky — rozdělení zisku (dividendy)", "name_en": "Dividend Payables", "normal_balance": "D" },
+            { "id": "365", "name_cz": "Ostatní závazky ke společníkům", "name_en": "Other Partner Payables", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "37",
+          "name_cz": "Jiné pohledávky a závazky",
+          "name_en": "Other Receivables and Payables",
+          "accounts": [
+            { "id": "373", "name_cz": "Pohledávky a závazky z pevných operací", "name_en": "Forward Contract Positions", "normal_balance": "mixed" },
+            { "id": "378", "name_cz": "Jiné pohledávky", "name_en": "Other Receivables", "normal_balance": "MD" },
+            { "id": "379", "name_cz": "Jiné závazky", "name_en": "Other Payables", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "38",
+          "name_cz": "Přechodné účty aktiv a pasiv",
+          "name_en": "Accrual and Deferral Accounts",
+          "accounts": [
+            { "id": "381", "name_cz": "Náklady příštích období", "name_en": "Prepaid Expenses", "normal_balance": "MD" },
+            { "id": "382", "name_cz": "Komplexní náklady příštích období", "name_en": "Complex Prepaid Expenses", "normal_balance": "MD" },
+            { "id": "383", "name_cz": "Výdaje příštích období", "name_en": "Accrued Expenses", "normal_balance": "D" },
+            { "id": "384", "name_cz": "Výnosy příštích období", "name_en": "Deferred Revenue", "normal_balance": "D" },
+            { "id": "385", "name_cz": "Příjmy příštích období", "name_en": "Accrued Revenue", "normal_balance": "MD" },
+            { "id": "388", "name_cz": "Dohadné účty aktivní", "name_en": "Estimated Receivables", "normal_balance": "MD" },
+            { "id": "389", "name_cz": "Dohadné účty pasivní", "name_en": "Estimated Payables / Accrued Liabilities", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "39",
+          "name_cz": "Opravné položky a vnitřní zúčtování",
+          "name_en": "Impairment and Internal Clearing",
+          "accounts": [
+            { "id": "391", "name_cz": "Opravná položka k pohledávkám", "name_en": "Receivable Impairment Allowance", "normal_balance": "D" },
+            { "id": "395", "name_cz": "Vnitřní zúčtování", "name_en": "Internal Clearing", "normal_balance": "mixed" },
+            { "id": "398", "name_cz": "Spojovací účet při sdružení", "name_en": "Consortium Linking Account", "normal_balance": "mixed" }
+          ]
+        }
+      ]
+    },
+    {
+      "class_id": "4",
+      "name_cz": "Kapitálové účty a dlouhodobé závazky",
+      "name_en": "Equity and Long-term Liabilities",
+      "cus_reference": "ČÚS 012, ČÚS 003",
+      "groups": [
+        {
+          "group_id": "41",
+          "name_cz": "Základní kapitál a kapitálové fondy",
+          "name_en": "Registered Capital and Capital Funds",
+          "accounts": [
+            { "id": "411", "name_cz": "Základní kapitál", "name_en": "Registered / Share Capital", "normal_balance": "D" },
+            { "id": "412", "name_cz": "Emisní ážio", "name_en": "Share Premium", "normal_balance": "D" },
+            { "id": "413", "name_cz": "Ostatní kapitálové fondy", "name_en": "Other Capital Funds", "normal_balance": "D" },
+            { "id": "414", "name_cz": "Oceňovací rozdíly z přecenění majetku", "name_en": "Revaluation Differences", "normal_balance": "D" },
+            { "id": "418", "name_cz": "Oceňovací rozdíly z přeměn", "name_en": "Revaluation Differences — Transformations", "normal_balance": "D" },
+            { "id": "419", "name_cz": "Změny základního kapitálu", "name_en": "Capital Changes in Progress", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "42",
+          "name_cz": "Fondy ze zisku a převedené výsledky",
+          "name_en": "Profit Funds and Retained Earnings",
+          "accounts": [
+            { "id": "421", "name_cz": "Rezervní fond", "name_en": "Legal Reserve Fund", "normal_balance": "D" },
+            { "id": "422", "name_cz": "Nedělitelný fond", "name_en": "Indivisible Fund (Cooperatives)", "normal_balance": "D" },
+            { "id": "423", "name_cz": "Statutární fondy", "name_en": "Statutory Funds", "normal_balance": "D" },
+            { "id": "427", "name_cz": "Ostatní fondy", "name_en": "Other Voluntary Funds", "normal_balance": "D" },
+            { "id": "428", "name_cz": "Nerozdělený zisk minulých let", "name_en": "Retained Earnings — Prior Years", "normal_balance": "D" },
+            { "id": "429", "name_cz": "Neuhrazená ztráta minulých let", "name_en": "Accumulated Losses — Prior Years", "normal_balance": "MD" }
+          ]
+        },
+        {
+          "group_id": "43",
+          "name_cz": "Výsledek hospodaření",
+          "name_en": "Current-year Result",
+          "accounts": [
+            { "id": "431", "name_cz": "Výsledek hospodaření ve schvalovacím řízení", "name_en": "Result Awaiting Approval", "normal_balance": "mixed" }
+          ]
+        },
+        {
+          "group_id": "45",
+          "name_cz": "Rezervy",
+          "name_en": "Provisions",
+          "accounts": [
+            { "id": "451", "name_cz": "Zákonné rezervy", "name_en": "Statutory Provisions (Tax-deductible)", "normal_balance": "D" },
+            { "id": "453", "name_cz": "Rezerva na daň z příjmů", "name_en": "Income Tax Provision", "normal_balance": "D" },
+            { "id": "459", "name_cz": "Ostatní rezervy", "name_en": "Other Provisions (Accounting)", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "46",
+          "name_cz": "Dlouhodobé bankovní úvěry",
+          "name_en": "Long-term Bank Loans",
+          "accounts": [
+            { "id": "461", "name_cz": "Dlouhodobé bankovní úvěry", "name_en": "Long-term Bank Loans", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "47",
+          "name_cz": "Dlouhodobé závazky",
+          "name_en": "Other Long-term Liabilities",
+          "accounts": [
+            { "id": "471", "name_cz": "Závazky k ovládaným osobám", "name_en": "LT Payables to Subsidiaries", "normal_balance": "D" },
+            { "id": "473", "name_cz": "Emitované dluhopisy", "name_en": "Bonds Issued (Long-term)", "normal_balance": "D" },
+            { "id": "474", "name_cz": "Závazky z pronájmu", "name_en": "Lease Obligations", "normal_balance": "D" },
+            { "id": "475", "name_cz": "Dlouhodobé přijaté zálohy", "name_en": "Long-term Advances Received", "normal_balance": "D" },
+            { "id": "479", "name_cz": "Ostatní dlouhodobé závazky", "name_en": "Other Long-term Payables", "normal_balance": "D" }
+          ]
+        },
+        {
+          "group_id": "48",
+          "name_cz": "Odložená daň",
+          "name_en": "Deferred Tax",
+          "accounts": [
+            { "id": "481", "name_cz": "Odložený daňový závazek a pohledávka", "name_en": "Deferred Tax Liability / Asset", "normal_balance": "mixed" }
+          ]
+        },
+        {
+          "group_id": "49",
+          "name_cz": "Individuální podnikatel",
+          "name_en": "Sole Trader Equity",
+          "accounts": [
+            { "id": "491", "name_cz": "Účet individuálního podnikatele", "name_en": "Sole Trader Capital Account", "normal_balance": "D" }
+          ]
+        }
+      ]
+    },
+    {
+      "class_id": "5",
+      "name_cz": "Náklady",
+      "name_en": "Expenses",
+      "cus_reference": "ČÚS 019",
+      "normal_balance_all": "MD",
+      "groups": [
+        {
+          "group_id": "50",
+          "name_cz": "Spotřebované nákupy",
+          "name_en": "Consumed Purchases",
+          "accounts": [
+            { "id": "501", "name_cz": "Spotřeba materiálu", "name_en": "Material Consumption" },
+            { "id": "502", "name_cz": "Spotřeba energie", "name_en": "Energy Consumption" },
+            { "id": "503", "name_cz": "Spotřeba ostatních neskladovatelných dodávek", "name_en": "Other Non-storable Consumables" },
+            { "id": "504", "name_cz": "Prodané zboží", "name_en": "Cost of Goods Sold" }
+          ]
+        },
+        {
+          "group_id": "51",
+          "name_cz": "Služby",
+          "name_en": "Services",
+          "accounts": [
+            { "id": "511", "name_cz": "Opravy a udržování", "name_en": "Repairs and Maintenance" },
+            { "id": "512", "name_cz": "Cestovné", "name_en": "Travel Expenses" },
+            { "id": "513", "name_cz": "Náklady na reprezentaci", "name_en": "Entertainment (non-deductible)", "tax_deductible": false },
+            { "id": "518", "name_cz": "Ostatní služby", "name_en": "Other Services" }
+          ]
+        },
+        {
+          "group_id": "52",
+          "name_cz": "Osobní náklady",
+          "name_en": "Personnel Costs",
+          "accounts": [
+            { "id": "521", "name_cz": "Mzdové náklady", "name_en": "Wage Costs" },
+            { "id": "522", "name_cz": "Příjmy společníků ze závislé činnosti", "name_en": "Partner Employment Income" },
+            { "id": "523", "name_cz": "Odměny členům orgánů", "name_en": "Board/Supervisory Board Fees" },
+            { "id": "524", "name_cz": "Zákonné sociální pojištění (zaměstnavatel)", "name_en": "Employer Social + Health Insurance" },
+            { "id": "525", "name_cz": "Ostatní sociální pojištění", "name_en": "Voluntary Supplementary Insurance" },
+            { "id": "526", "name_cz": "Sociální náklady individuálního podnikatele", "name_en": "Sole Proprietor Social Costs" },
+            { "id": "527", "name_cz": "Zákonné sociální náklady", "name_en": "Statutory Employee Benefits" },
+            { "id": "528", "name_cz": "Ostatní sociální náklady", "name_en": "Voluntary Employee Benefits" }
+          ]
+        },
+        {
+          "group_id": "53",
+          "name_cz": "Daně a poplatky",
+          "name_en": "Taxes and Fees",
+          "accounts": [
+            { "id": "531", "name_cz": "Daň silniční", "name_en": "Road Tax" },
+            { "id": "532", "name_cz": "Daň z nemovitých věcí", "name_en": "Real Property Tax" },
+            { "id": "538", "name_cz": "Ostatní daně a poplatky", "name_en": "Other Taxes and Fees" }
+          ]
+        },
+        {
+          "group_id": "54",
+          "name_cz": "Jiné provozní náklady",
+          "name_en": "Other Operating Expenses",
+          "accounts": [
+            { "id": "541", "name_cz": "ZC prodaného dlouhodobého majetku", "name_en": "NBV of Disposed LT Assets" },
+            { "id": "542", "name_cz": "Prodaný materiál", "name_en": "Cost of Sold Material" },
+            { "id": "543", "name_cz": "Dary", "name_en": "Charitable Gifts (partly non-deductible)" },
+            { "id": "544", "name_cz": "Smluvní pokuty a úroky z prodlení", "name_en": "Contractual Penalties Paid" },
+            { "id": "545", "name_cz": "Ostatní pokuty a penále", "name_en": "Other Fines (non-deductible)", "tax_deductible": false },
+            { "id": "546", "name_cz": "Odpis pohledávky", "name_en": "Receivable Write-off" },
+            { "id": "548", "name_cz": "Ostatní provozní náklady", "name_en": "Other Operating Expenses" },
+            { "id": "549", "name_cz": "Manka a škody provozní", "name_en": "Operational Shortages and Losses" }
+          ]
+        },
+        {
+          "group_id": "55",
+          "name_cz": "Odpisy, rezervy, opravné položky",
+          "name_en": "Depreciation, Provisions, Impairment",
+          "accounts": [
+            { "id": "551", "name_cz": "Odpisy DNM a DHM", "name_en": "Depreciation and Amortization" },
+            { "id": "552", "name_cz": "Tvorba zákonných rezerv", "name_en": "Statutory Provision Creation" },
+            { "id": "554", "name_cz": "Tvorba ostatních rezerv", "name_en": "Other Provision Creation" },
+            { "id": "558", "name_cz": "Tvorba zákonných opravných položek", "name_en": "Statutory Receivable Allowances" },
+            { "id": "559", "name_cz": "Tvorba ostatních opravných položek", "name_en": "Other Impairment Allowances" }
+          ]
+        },
+        {
+          "group_id": "56",
+          "name_cz": "Finanční náklady",
+          "name_en": "Financial Expenses",
+          "accounts": [
+            { "id": "561", "name_cz": "Prodané cenné papíry a podíly", "name_en": "Cost of Securities Sold" },
+            { "id": "562", "name_cz": "Úroky", "name_en": "Interest Expense" },
+            { "id": "563", "name_cz": "Kurzové ztráty", "name_en": "FX Losses" },
+            { "id": "564", "name_cz": "Náklady z přecenění CP", "name_en": "FV Losses — Securities" },
+            { "id": "566", "name_cz": "Náklady z finančního majetku", "name_en": "Financial Asset Losses" },
+            { "id": "567", "name_cz": "Náklady z derivátů", "name_en": "Derivative Losses" },
+            { "id": "568", "name_cz": "Ostatní finanční náklady", "name_en": "Other Financial Expenses" },
+            { "id": "569", "name_cz": "Manka a škody na finančním majetku", "name_en": "Financial Asset Shortages" }
+          ]
+        },
+        {
+          "group_id": "57",
+          "name_cz": "Rezervy finanční",
+          "name_en": "Financial Provisions and Impairment",
+          "accounts": [
+            { "id": "574", "name_cz": "Tvorba finančních rezerv", "name_en": "Financial Provision Creation" },
+            { "id": "579", "name_cz": "Tvorba opravných položek — finanční", "name_en": "Financial Impairment Allowances" }
+          ]
+        },
+        {
+          "group_id": "58",
+          "name_cz": "Mimořádné náklady (zrušeno 2016)",
+          "name_en": "Extraordinary Expenses (retired 2016)",
+          "deprecated": true
+        },
+        {
+          "group_id": "59",
+          "name_cz": "Daně z příjmů a převodové účty",
+          "name_en": "Income Tax and Transfer Accounts",
+          "accounts": [
+            { "id": "591", "name_cz": "Daň z příjmů splatná", "name_en": "Current Income Tax Expense" },
+            { "id": "592", "name_cz": "Daň z příjmů odložená", "name_en": "Deferred Tax Expense" },
+            { "id": "595", "name_cz": "Dodatečné odvody daně", "name_en": "Additional Tax Charges" },
+            { "id": "596", "name_cz": "Převod podílu na výsledku hospodaření", "name_en": "Result Share Transfer to Partners" },
+            { "id": "597", "name_cz": "Převod provozních nákladů", "name_en": "Transfer of Operating Expenses" },
+            { "id": "598", "name_cz": "Převod finančních nákladů", "name_en": "Transfer of Financial Expenses" }
+          ]
+        }
+      ]
+    },
+    {
+      "class_id": "6",
+      "name_cz": "Výnosy",
+      "name_en": "Revenues",
+      "cus_reference": "ČÚS 019",
+      "normal_balance_all": "D",
+      "groups": [
+        {
+          "group_id": "60",
+          "name_cz": "Tržby za vlastní výkony a zboží",
+          "name_en": "Sales Revenue",
+          "accounts": [
+            { "id": "601", "name_cz": "Tržby za vlastní výrobky", "name_en": "Revenue from Own Products" },
+            { "id": "602", "name_cz": "Tržby z prodeje služeb", "name_en": "Service Revenue" },
+            { "id": "604", "name_cz": "Tržby za prodané zboží", "name_en": "Revenue from Goods Sold" }
+          ]
+        },
+        {
+          "group_id": "61",
+          "name_cz": "Změny stavu zásob vlastní výroby",
+          "name_en": "Changes in Own-production Inventory",
+          "accounts": [
+            { "id": "611", "name_cz": "Změna stavu nedokončené výroby", "name_en": "Change in WIP", "counter_account": "121" },
+            { "id": "612", "name_cz": "Změna stavu polotovarů", "name_en": "Change in Semi-finished", "counter_account": "122" },
+            { "id": "613", "name_cz": "Změna stavu výrobků", "name_en": "Change in Finished Goods", "counter_account": "123" },
+            { "id": "614", "name_cz": "Změna stavu zvířat", "name_en": "Change in Animal State", "counter_account": "124" }
+          ]
+        },
+        {
+          "group_id": "62",
+          "name_cz": "Aktivace",
+          "name_en": "Capitalization",
+          "accounts": [
+            { "id": "621", "name_cz": "Aktivace materiálu a zboží", "name_en": "Capitalization of Material/Goods" },
+            { "id": "622", "name_cz": "Aktivace vnitropodnikových služeb", "name_en": "Capitalization of Internal Services" },
+            { "id": "623", "name_cz": "Aktivace DNM", "name_en": "Capitalization of Created DNM" },
+            { "id": "624", "name_cz": "Aktivace DHM", "name_en": "Capitalization of Created DHM" }
+          ]
+        },
+        {
+          "group_id": "64",
+          "name_cz": "Jiné provozní výnosy",
+          "name_en": "Other Operating Revenue",
+          "accounts": [
+            { "id": "641", "name_cz": "Tržby z prodeje DHM", "name_en": "Revenue from Asset Sales" },
+            { "id": "642", "name_cz": "Tržby z prodeje materiálu", "name_en": "Revenue from Material Sales" },
+            { "id": "644", "name_cz": "Smluvní pokuty — přijaté", "name_en": "Contractual Penalties Received" },
+            { "id": "646", "name_cz": "Výnosy z odepsaných pohledávek", "name_en": "Recovered Written-off Receivables" },
+            { "id": "648", "name_cz": "Ostatní provozní výnosy", "name_en": "Other Operating Revenue" }
+          ]
+        },
+        {
+          "group_id": "66",
+          "name_cz": "Finanční výnosy",
+          "name_en": "Financial Revenue",
+          "accounts": [
+            { "id": "661", "name_cz": "Tržby z prodeje CP a podílů", "name_en": "Revenue from Securities Sold" },
+            { "id": "662", "name_cz": "Úroky", "name_en": "Interest Income" },
+            { "id": "663", "name_cz": "Kurzové zisky", "name_en": "FX Gains" },
+            { "id": "664", "name_cz": "Výnosy z přecenění CP a derivátů", "name_en": "FV Gains — Securities and Derivatives" },
+            { "id": "665", "name_cz": "Výnosy z dlouhodobého fin. majetku", "name_en": "Income from LT Financial Assets (Dividends)" },
+            { "id": "666", "name_cz": "Výnosy z krátkodobého fin. majetku", "name_en": "Income from ST Financial Assets" },
+            { "id": "667", "name_cz": "Výnosy z derivátových operací", "name_en": "Derivative Gains" },
+            { "id": "668", "name_cz": "Ostatní finanční výnosy", "name_en": "Other Financial Revenue" }
+          ]
+        },
+        {
+          "group_id": "68",
+          "name_cz": "Mimořádné výnosy (zrušeno 2016)",
+          "name_en": "Extraordinary Revenue (retired 2016)",
+          "deprecated": true
+        },
+        {
+          "group_id": "69",
+          "name_cz": "Převodové účty",
+          "name_en": "Transfer Accounts",
+          "accounts": [
+            { "id": "697", "name_cz": "Převod provozních výnosů", "name_en": "Transfer of Operating Revenue" },
+            { "id": "698", "name_cz": "Převod finančních výnosů", "name_en": "Transfer of Financial Revenue" }
+          ]
+        }
+      ]
+    },
+    {
+      "class_id": "7",
+      "name_cz": "Závěrkové a podrozvahové účty",
+      "name_en": "Closing and Off-balance-sheet Accounts",
+      "cus_reference": "ČÚS 002",
+      "groups": [
+        {
+          "group_id": "70",
+          "name_cz": "Závěrkové účty",
+          "name_en": "Closing Accounts",
+          "accounts": [
+            { "id": "701", "name_cz": "Počáteční účet rozvažný", "name_en": "Opening Balance Sheet Account", "normal_balance": "technical", "period_use": "year_open_only" },
+            { "id": "702", "name_cz": "Konečný účet rozvažný", "name_en": "Closing Balance Sheet Account", "normal_balance": "technical", "period_use": "year_close_only" },
+            { "id": "710", "name_cz": "Účet zisků a ztrát", "name_en": "Profit and Loss Account", "normal_balance": "technical", "period_use": "year_close_only" }
+          ]
+        },
+        {
+          "group_id": "75-79",
+          "name_cz": "Podrozvahové účty",
+          "name_en": "Off-balance-sheet Accounts",
+          "note": "Entity-specific; common ranges for leases (75x), guarantees (76x), contingencies (77x-78x)"
+        }
+      ]
+    },
+    {
+      "class_id": "8",
+      "name_cz": "Vnitropodnikové účetnictví",
+      "name_en": "Internal Accounting",
+      "note": "Freely defined by entity. No mandatory structure. See class-8-9.md for patterns."
+    },
+    {
+      "class_id": "9",
+      "name_cz": "Vnitropodnikové účetnictví",
+      "name_en": "Internal Accounting",
+      "note": "Freely defined by entity. No mandatory structure."
+    }
+  ]
+}

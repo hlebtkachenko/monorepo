@@ -1,0 +1,166 @@
+{
+  "schema": "monthly-close-deadlines-calendar-v1",
+  "description": "Machine-readable calendar of every monthly deadline by entity type and obligation. All dates assume no weekend/holiday adjustment unless noted. Adjustments apply per Act 280/2009 § 33 (next business day if deadline falls on weekend/holiday).",
+  "last_updated": "2026-05-24",
+  "year": 2026,
+  "slot": "N4C.3",
+  "legal_basis": {
+    "DPH_DAP": "Act 235/2004 § 101",
+    "KH": "Act 235/2004 § 101e",
+    "SH": "Act 235/2004 § 102 odst. 3",
+    "SP": "Act 589/1992 § 17",
+    "ZP": "Act 592/1992 § 5",
+    "DPFO_zaloh": "Act 586/1992 § 38h odst. 9",
+    "weekend_shift": "Act 280/2009 § 33"
+  },
+  "monthly_obligations": [
+    {
+      "obligation_id": "DPH_DAP",
+      "name": "Daňové přiznání DPH",
+      "name_en": "VAT Return",
+      "day_of_following_month": 25,
+      "applies_to": ["platce_DPH_monthly"],
+      "not_applies_to": ["platce_DPH_quarterly", "neplátce", "identifikovana_osoba"],
+      "filing_channel": ["DIS+", "Datova_schranka", "EPO"],
+      "notes": "Same deadline as KH and SH"
+    },
+    {
+      "obligation_id": "KH",
+      "name": "Kontrolní hlášení",
+      "name_en": "VAT Control Statement",
+      "day_of_following_month": 25,
+      "applies_to": ["platce_DPH_monthly", "platce_DPH_quarterly_monthly_KH"],
+      "not_applies_to": ["neplátce"],
+      "filing_channel": ["DIS+", "Datova_schranka"],
+      "notes": "Paper NOT accepted. Quarterly payers file KH monthly regardless of DAP period."
+    },
+    {
+      "obligation_id": "SH",
+      "name": "Souhrnné hlášení",
+      "name_en": "EC Sales List",
+      "day_of_following_month": 25,
+      "applies_to": ["platce_DPH_monthly_with_ICD_or_B2B_services"],
+      "not_applies_to": ["entities_without_EU_sales"],
+      "filing_channel": ["DIS+", "Datova_schranka"],
+      "notes": "Only required in months where ICD or qualifying B2B cross-border services occurred"
+    },
+    {
+      "obligation_id": "SP_REMITTANCE",
+      "name": "Pojistné na sociální zabezpečení (SP)",
+      "name_en": "Social Insurance Payment",
+      "day_of_following_month": 20,
+      "applies_to": ["all_employers_with_employees"],
+      "not_applies_to": ["OSVC_no_employees"],
+      "filing_channel": ["bank_transfer_to_CSSZ"],
+      "notes": "Both employer and employee portions combined into one payment. Variable symbol = employer registration number."
+    },
+    {
+      "obligation_id": "ZP_REMITTANCE",
+      "name": "Pojistné na zdravotní pojištění (ZP)",
+      "name_en": "Health Insurance Payment",
+      "day_of_following_month": 20,
+      "applies_to": ["all_employers_with_employees"],
+      "not_applies_to": ["OSVC_no_employees"],
+      "filing_channel": ["bank_transfer_to_each_ZP_fund"],
+      "notes": "Separate payment to each health insurer where employees are enrolled (VZP, CPZP, OZP, ZPMV, RBP, etc.)"
+    },
+    {
+      "obligation_id": "CSSZ_PREHLED",
+      "name": "Přehled o výši pojistného ČSSZ",
+      "name_en": "CSSZ Social Insurance Monthly Summary",
+      "day_of_following_month": 20,
+      "applies_to": ["all_employers_with_employees"],
+      "not_applies_to": [],
+      "filing_channel": ["CSSZ_ePortal", "Datova_schranka"],
+      "notes": "Separate from the payment; must include employee count and total assessment base"
+    },
+    {
+      "obligation_id": "DPFO_ZALOH",
+      "name": "Záloha na daň ze závislé činnosti",
+      "name_en": "Income Tax Withholding (monthly remittance)",
+      "day_of_following_month": 20,
+      "applies_to": ["all_employers_with_employees"],
+      "not_applies_to": [],
+      "filing_channel": ["bank_transfer_to_FU"],
+      "notes": "DPH srážková (flat rate) and zálohová (progressive) both due 20th. Variable symbol = employer DIČ."
+    },
+    {
+      "obligation_id": "NET_WAGES",
+      "name": "Výplata čisté mzdy",
+      "name_en": "Net Wage Payment to Employees",
+      "day_of_following_month": "per_vyplatni_termin",
+      "applies_to": ["all_employers"],
+      "not_applies_to": [],
+      "filing_channel": ["bank_transfer_to_employees"],
+      "notes": "Date set in employment contract (výplatní termín). Typically last working day of month or 5th–15th of following month. If no date agreed: last day of calendar month per Act 262/2006 § 141."
+    }
+  ],
+  "entity_type_obligations": {
+    "platce_DPH_monthly": {
+      "description": "Plátce DPH with turnover ≥ 10M CZK in prior year, or newly registered plátce (first 12 months)",
+      "monthly_filings": ["DPH_DAP", "KH", "SH_if_applicable"],
+      "day_of_month_deadline_DPH": 25
+    },
+    "platce_DPH_quarterly": {
+      "description": "Plátce DPH with turnover < 10M CZK and registered > 12 months",
+      "monthly_filings": ["KH"],
+      "quarterly_filings": ["DPH_DAP", "SH_if_applicable"],
+      "day_of_quarter_end_plus_25": 25,
+      "note": "KH is monthly even for quarterly DAP payers"
+    },
+    "employer_with_employees": {
+      "monthly_filings": ["SP_REMITTANCE", "ZP_REMITTANCE", "CSSZ_PREHLED", "DPFO_ZALOH", "NET_WAGES"],
+      "day_20_deadline": ["SP_REMITTANCE", "ZP_REMITTANCE", "CSSZ_PREHLED", "DPFO_ZALOH"]
+    },
+    "neplátce_no_employees": {
+      "monthly_filings": [],
+      "note": "No monthly statutory filings unless special situations (identifikovana_osoba self-assessment)"
+    }
+  },
+  "2026_adjusted_dates": {
+    "note": "Dates where the standard 20th or 25th deadline falls on a weekend or public holiday. Per Act 280/2009 § 33, deadline moves to next business day.",
+    "public_holidays_2026_CZ": [
+      "2026-01-01", "2026-04-03", "2026-04-06", "2026-05-01", "2026-05-08",
+      "2026-07-05", "2026-07-06", "2026-09-28", "2026-10-28", "2026-11-17",
+      "2026-12-24", "2026-12-25", "2026-12-26"
+    ],
+    "adjusted_deadlines_DPH_25th": {
+      "_note": "All months where 25th falls on weekend/holiday — deadline shifts to next business day (Act 280/2009 § 33). Verified by V4.3 2026-05-24.",
+      "2026-01": { "standard_date": "2026-01-25", "adjusted_date": "2026-01-26", "note": "25 Jan is Sunday → Monday 26 Jan 2026" },
+      "2026-02": { "standard_date": "2026-02-25", "adjusted_date": "2026-02-25", "note": "Wednesday — no adjustment" },
+      "2026-03": { "standard_date": "2026-03-25", "adjusted_date": "2026-03-25", "note": "Wednesday — no adjustment" },
+      "2026-04": { "standard_date": "2026-04-25", "adjusted_date": "2026-04-27", "note": "25 Apr is Saturday → Monday 27 Apr 2026" },
+      "2026-05": { "standard_date": "2026-05-25", "adjusted_date": "2026-05-25", "note": "Monday — no adjustment" },
+      "2026-06": { "standard_date": "2026-06-25", "adjusted_date": "2026-06-25", "note": "Thursday — no adjustment" },
+      "2026-07": { "standard_date": "2026-07-25", "adjusted_date": "2026-07-27", "note": "25 Jul is Saturday → Monday 27 Jul 2026" },
+      "2026-08": { "standard_date": "2026-08-25", "adjusted_date": "2026-08-25", "note": "Tuesday — no adjustment" },
+      "2026-09": { "standard_date": "2026-09-25", "adjusted_date": "2026-09-25", "note": "Friday — no adjustment" },
+      "2026-10": { "standard_date": "2026-10-25", "adjusted_date": "2026-10-26", "note": "25 Oct is Sunday → Monday 26 Oct 2026" },
+      "2026-11": { "standard_date": "2026-11-25", "adjusted_date": "2026-11-25", "note": "Wednesday — no adjustment" },
+      "2026-12": { "standard_date": "2026-12-25", "adjusted_date": "2026-12-28", "note": "25 Dec is Christmas (holiday) → Monday 28 Dec 2026" }
+    },
+    "adjusted_deadlines_SP_ZP_20th": {
+      "_note": "All months where 20th falls on weekend/holiday — deadline shifts to next business day. SP/ZP deadline (Act 589/1992 § 17, Act 592/1992 § 5). Verified by V4.3 2026-05-24.",
+      "2026-01": { "standard_date": "2026-01-20", "adjusted_date": "2026-01-20", "note": "Tuesday — no adjustment" },
+      "2026-02": { "standard_date": "2026-02-20", "adjusted_date": "2026-02-20", "note": "Friday — no adjustment" },
+      "2026-03": { "standard_date": "2026-03-20", "adjusted_date": "2026-03-20", "note": "Friday — no adjustment" },
+      "2026-04": { "standard_date": "2026-04-20", "adjusted_date": "2026-04-20", "note": "Monday — no adjustment" },
+      "2026-05": { "standard_date": "2026-05-20", "adjusted_date": "2026-05-20", "note": "Wednesday — no adjustment" },
+      "2026-06": { "standard_date": "2026-06-20", "adjusted_date": "2026-06-22", "note": "20 Jun is Saturday → Monday 22 Jun 2026" },
+      "2026-07": { "standard_date": "2026-07-20", "adjusted_date": "2026-07-20", "note": "Monday — no adjustment" },
+      "2026-08": { "standard_date": "2026-08-20", "adjusted_date": "2026-08-20", "note": "Thursday — no adjustment" },
+      "2026-09": { "standard_date": "2026-09-20", "adjusted_date": "2026-09-21", "note": "20 Sep is Sunday → Monday 21 Sep 2026" },
+      "2026-10": { "standard_date": "2026-10-20", "adjusted_date": "2026-10-20", "note": "Tuesday — no adjustment" },
+      "2026-11": { "standard_date": "2026-11-20", "adjusted_date": "2026-11-20", "note": "Friday — no adjustment" },
+      "2026-12": { "standard_date": "2026-12-20", "adjusted_date": "2026-12-21", "note": "20 Dec is Sunday → Monday 21 Dec 2026" }
+    },
+    "confidence": "high — verified by V4.3 2026-05-24 using Python datetime against Act 245/2000 Sb. public holidays list. Corrections applied: DPH added Jan 26 and Apr 27; SP/ZP section added with all 12 months."
+  },
+  "retention_requirements": {
+    "danove_doklady": "10 years from end of calendar year of transaction (Act 235/2004 § 35a)",
+    "mzdove_listy": "30 years from end of year (Act 589/1992 § 35a)",
+    "accounting_books": "5 years from end of accounting period (Act 563/1991 § 31)",
+    "payroll_summaries": "10 years (Act 589/1992 practice)",
+    "SP_ZP_confirmations": "10 years recommended"
+  }
+}

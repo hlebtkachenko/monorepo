@@ -196,6 +196,13 @@ paths = [
   '''(^|/).*\.test\.tsx?$''',
   '''(^|/).*\.spec\.tsx?$''',
   '''(^|/)openapi/.*\.json$''',
+  # Vendored Czech accounting/legal KB reference (decision trees, chart of
+  # accounts, předkontace). It cites Czech acts in `NNN/YYYY` form (e.g.
+  # "Act 609/2020") which structurally collides with the czech-account-number
+  # rule (`2020` is a listed bank code). Public law reference only — no secrets,
+  # no real customer account numbers. The data is a verbatim vault snapshot
+  # pinned by sha256 in version.json, so a real leak could not hide here unseen.
+  '''(^|/)packages/accounting-kb/''',
 ]
 
 regexes = [

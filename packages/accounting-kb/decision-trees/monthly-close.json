@@ -1,0 +1,208 @@
+{
+  "schema": "monthly-close-decision-tree-v1",
+  "description": "Machine-readable decision tree for Czech monthly close judgment calls",
+  "last_updated": "2026-05-24",
+  "slot": "N4C.3",
+  "nodes": [
+    {
+      "id": "ROOT",
+      "type": "trigger",
+      "label": "Anomaly or issue detected during monthly close",
+      "next": "Q1"
+    },
+    {
+      "id": "Q1",
+      "type": "question",
+      "label": "Does this affect a filed KH or DAP for a past period?",
+      "yes": "A_PRIOR_PERIOD",
+      "no": "Q2"
+    },
+    {
+      "id": "Q2",
+      "type": "question",
+      "label": "Is this a blocking issue that prevents filing by deadline?",
+      "yes": "B_ESCALATION",
+      "no": "Q3"
+    },
+    {
+      "id": "Q3",
+      "type": "question",
+      "label": "Is this a DPH payment or receipt over CZK 100,000?",
+      "yes": "C_LARGE_DPH",
+      "no": "Q4"
+    },
+    {
+      "id": "Q4",
+      "type": "question",
+      "label": "Is this an internal accounting error with no external filing impact?",
+      "yes": "D_INTERNAL_FIX",
+      "no": "NORMAL_CLOSE"
+    },
+    {
+      "id": "NORMAL_CLOSE",
+      "type": "outcome",
+      "label": "Continue normal close — no special action needed",
+      "responsible": "ZUC",
+      "actions": []
+    },
+    {
+      "id": "A_PRIOR_PERIOD",
+      "type": "section",
+      "label": "Prior Period Correction",
+      "sub_nodes": [
+        {
+          "id": "A1_KH_ERROR",
+          "type": "decision",
+          "label": "Error in already-filed KH",
+          "rule": "Any error in A4/B2/A1/B1 regardless of amount requires corrective KH",
+          "action": "File corrective KH (opravné KH) for the affected period",
+          "responsible": "ZUC",
+          "deadline": "Within 5 business days of discovery",
+          "legal_basis": "Act 235/2004 § 101f",
+          "threshold_mandatory": null,
+          "threshold_discretionary": null
+        },
+        {
+          "id": "A2_DAP_ERROR",
+          "type": "decision",
+          "label": "Error in already-filed DAP",
+          "rule": "Material errors (> CZK 1,000 impact on net DPH) require corrective DAP",
+          "action": "File opravné daňové přiznání (§ 43 Act 235/2004)",
+          "responsible": "DAN",
+          "deadline": "Before start of any tax audit",
+          "legal_basis": "Act 235/2004 § 43",
+          "threshold_mandatory": 1000,
+          "threshold_discretionary": "< 1,000 CZK: consider correcting in next period"
+        }
+      ]
+    },
+    {
+      "id": "B_ESCALATION",
+      "type": "section",
+      "label": "Escalation and Hold",
+      "sub_nodes": [
+        {
+          "id": "B1_MISSING_INVOICE",
+          "type": "decision",
+          "label": "Missing invoice at Day 24 (day before DPH deadline)",
+          "rule": "Cannot claim input DPH without valid daňový doklad. Defer DPH claim. Post 389 accrual for cost.",
+          "actions": [
+            "Post 389 for cost (no DPH)",
+            "Defer input DPH claim to period when invoice received",
+            "File DAP without the DPH claim for missing invoice",
+            "Chase supplier urgently"
+          ],
+          "responsible": "ZUC + DAN",
+          "legal_basis": "Act 235/2004 § 73"
+        },
+        {
+          "id": "B2_PAYROLL_LATE",
+          "type": "decision",
+          "label": "Payroll not finalized by Day 18 (2 days before 20th SP/ZP deadline)",
+          "rule": "SP/ZP must be paid by 20th. Process with available data. Estimate missing items.",
+          "actions": [
+            "Escalate to MZD immediately",
+            "Process with best-available data",
+            "Correct next month for variances",
+            "If payment impossible by 20th: document reason; make payment asap; calculate interest"
+          ],
+          "responsible": "MZD + CFO",
+          "deadline": "20th of N+1",
+          "legal_basis": "Act 589/1992 § 17"
+        },
+        {
+          "id": "B3_BANK_BLOCKED",
+          "type": "decision",
+          "label": "Bank account blocked",
+          "rule": "Prioritize SP/ZP (deadline 20th) over DPH (deadline 25th)",
+          "actions": [
+            "Escalate to CFO + legal same day",
+            "Identify alternative payment accounts",
+            "SP priority over DPH (shorter deadline)"
+          ],
+          "responsible": "CFO + legal"
+        }
+      ]
+    },
+    {
+      "id": "C_LARGE_DPH",
+      "type": "section",
+      "label": "Large DPH Items — Senior Review",
+      "sub_nodes": [
+        {
+          "id": "C1_LARGE_NADMERNY",
+          "type": "decision",
+          "label": "Nadměrný odpočet > CZK 500,000",
+          "rule": "Always file. Prepare documentation proactively. FÚ has 30 days to respond or refund.",
+          "actions": [
+            "File DAP as normal",
+            "Prepare all B2 invoices and contracts",
+            "Track 30-day refund window",
+            "If FÚ inquiry: respond within 15 working days"
+          ],
+          "responsible": "DAN",
+          "legal_basis": "Act 235/2004 § 105"
+        },
+        {
+          "id": "C2_DPH_SPIKE",
+          "type": "decision",
+          "label": "DPH payable spikes > 30% vs prior month",
+          "rule": "Investigate before filing if time permits. Always file on time.",
+          "actions": [
+            "Find transaction causing spike",
+            "Verify it is correct",
+            "If error found: file corrective DAP after initial filing",
+            "Never delay filing to investigate"
+          ],
+          "responsible": "ZUC + DAN"
+        }
+      ]
+    },
+    {
+      "id": "D_INTERNAL_FIX",
+      "type": "section",
+      "label": "Internal Fix — No External Filing Impact",
+      "sub_nodes": [
+        {
+          "id": "D1_ACCOUNT_RECODE",
+          "type": "decision",
+          "label": "Wrong cost account (no DPH impact)",
+          "rule": "If period hard-locked: post reclassification in current period. If not locked: correct in original period.",
+          "actions": [
+            "Determine if hard-locked",
+            "If not: correct in original period with approval",
+            "If locked: post reclassification in N+1 with description"
+          ],
+          "responsible": "ZUC"
+        },
+        {
+          "id": "D2_DEPRECIATION_ERROR",
+          "type": "decision",
+          "label": "Depreciation not run or incorrect",
+          "rule": "Always correct in the period it belongs to if possible (unlock if needed). Do not defer depreciation.",
+          "actions": [
+            "Unlock period with authorization",
+            "Run correct depreciation",
+            "Re-lock period",
+            "Document correction"
+          ],
+          "responsible": "ZUC + CFO approval to unlock"
+        }
+      ]
+    }
+  ],
+  "escalation_matrix": [
+    { "trigger": "KH discrepancy", "first_escalation": "ZUC", "second_escalation": "DAN if > 100,000 CZK", "timeline": "Within 5 business days" },
+    { "trigger": "SP/ZP late payment risk", "first_escalation": "MZD → CFO", "second_escalation": null, "timeline": "Immediately Day 18" },
+    { "trigger": "Corrective DAP needed", "first_escalation": "ZUC prepares", "second_escalation": "DAN reviews and files", "timeline": "Within 3 business days of discovery" },
+    { "trigger": "Bank account frozen", "first_escalation": "ZUC → CFO", "second_escalation": "CFO → legal/bank", "timeline": "Same day" },
+    { "trigger": "Nadměrný odpočet > 500,000 CZK", "first_escalation": "ZUC flags", "second_escalation": "DAN leads documentation", "timeline": "Before Day 25 filing" },
+    { "trigger": "Missing invoice > 500,000 CZK", "first_escalation": "ZUC chases supplier", "second_escalation": "DAN advises on DPH deferral", "timeline": "By Day 23" }
+  ],
+  "roles": {
+    "ZUC": "Účetní (bookkeeper)",
+    "MZD": "Mzdová účetní (payroll specialist)",
+    "DAN": "Daňový poradce or hlavní účetní",
+    "CFO": "Chief Financial Officer or vedení"
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "kb_version": "0.1.0",
+  "generated_at": "2026-06-25T09:45:45.384Z",
+  "generator": "packages/accounting-kb/scripts/vendor.mjs",
+  "source_vault": "Czech accounting KB (Obsidian vault accountingAfframe)",
+  "source_snapshot": "wave-7 canonical (2026-05/06)",
+  "regime_scope": [
+    "podnikatelé"
+  ],
+  "note": "Machine-readable KB REFERENCE consumed as a confidence signal — NOT executable write templates. The booking path stays agent-native; předkontace are reference knowledge, like an accountant's předkontace handbook.",
+  "contents": {
+    "coa": "coa.json",
+    "predkontace": [
+      "predkontace/predkontace-purchase.json",
+      "predkontace/predkontace-sales.json"
+    ],
+    "decision_trees": [
+      "decision-trees/depreciation-groups.json",
+      "decision-trees/dph-real-estate.json",
+      "decision-trees/dph-registration.json",
+      "decision-trees/DPPO.json",
+      "decision-trees/FX.json",
+      "decision-trees/insolvence.json",
+      "decision-trees/inventory.json",
+      "decision-trees/likvidace.json",
+      "decision-trees/monthly-close-deadlines-calendar.json",
+      "decision-trees/monthly-close.json",
+      "decision-trees/OP-decision-tree.json",
+      "decision-trees/OSS.json",
+      "decision-trees/pdp-92ba.json",
+      "decision-trees/pdp-list.json",
+      "decision-trees/quarterly-close.json",
+      "decision-trees/rate-classifier.json"
+    ],
+    "q_pattern_index": "q-pattern-index.md"
+  },
+  "files": [
+    {
+      "path": "coa.json",
+      "source": "20-coa/coa.json",
+      "sha256": "69fe490ca368337a0c51ef3d6d323be666aeda83a55529935c1653d717ac7239",
+      "bytes": 42481
+    },
+    {
+      "path": "decision-trees/depreciation-groups.json",
+      "source": "70-ai-platform/decision-trees/depreciation-groups.json",
+      "sha256": "02be7e225d55d8c02ac023709c3a748222d2471029aea0ea019ec4eef1574b8b",
+      "bytes": 4923
+    },
+    {
+      "path": "decision-trees/dph-real-estate.json",
+      "source": "70-ai-platform/decision-trees/dph-real-estate.json",
+      "sha256": "eca39ca9f7b6faa645f04f72ad7edb3919c7a9e8a6712d1b5e7de0d40f8f8272",
+      "bytes": 10617
+    },
+    {
+      "path": "decision-trees/dph-registration.json",
+      "source": "70-ai-platform/decision-trees/dph-registration.json",
+      "sha256": "b0a52a8b7c53bab47832c51a4c7e405f82a2429f1697fe538dfd2d68acd76ad3",
+      "bytes": 14503
+    },
+    {
+      "path": "decision-trees/DPPO.json",
+      "source": "70-ai-platform/decision-trees/DPPO.json",
+      "sha256": "3d92dacd179eeb21e4cc534ec200b26a211c56d831e7d93380a40976f62b2b28",
+      "bytes": 12905
+    },
+    {
+      "path": "decision-trees/FX.json",
+      "source": "70-ai-platform/decision-trees/FX.json",
+      "sha256": "10c1d3ece1b37f5edcd3a8900ee9136f5cd731b33d1506884d4c5e2391f26312",
+      "bytes": 11402
+    },
+    {
+      "path": "decision-trees/insolvence.json",
+      "source": "70-ai-platform/decision-trees/insolvence.json",
+      "sha256": "2a5361bb6cc14a9bb7a14b85f0852795ec9e39586bb5741aa94c42267d8b393b",
+      "bytes": 13488
+    },
+    {
+      "path": "decision-trees/inventory.json",
+      "source": "70-ai-platform/decision-trees/inventory.json",
+      "sha256": "0bd5ffb1349f2a41376b1f439aa1a544ab8b1d1bd82bd9f83c66ae2ed757d017",
+      "bytes": 11656
+    },
+    {
+      "path": "decision-trees/likvidace.json",
+      "source": "70-ai-platform/decision-trees/likvidace.json",
+      "sha256": "d19b2feca5f98e2ae97f1382243d7933d4213a9181b3b010040684fa54703047",
+      "bytes": 8452
+    },
+    {
+      "path": "decision-trees/monthly-close-deadlines-calendar.json",
+      "source": "70-ai-platform/decision-trees/monthly-close-deadlines-calendar.json",
+      "sha256": "2293012d62545c992a9a5cbcad4975a4652d3b3e91f41c8dc75ebccad94acf5c",
+      "bytes": 9847
+    },
+    {
+      "path": "decision-trees/monthly-close.json",
+      "source": "70-ai-platform/decision-trees/monthly-close.json",
+      "sha256": "2afbb52188d428c7a1157c83e1293b05c180de41bf9b8aafe5fbef5d710f1523",
+      "bytes": 7932
+    },
+    {
+      "path": "decision-trees/OP-decision-tree.json",
+      "source": "70-ai-platform/decision-trees/OP-decision-tree.json",
+      "sha256": "d34d53f5904c340e30e2dc4f1b3007e746b96d912881709bc119d9f2ecdb80b6",
+      "bytes": 16221
+    },
+    {
+      "path": "decision-trees/OSS.json",
+      "source": "70-ai-platform/decision-trees/OSS.json",
+      "sha256": "a71eff78fd1fd584cdb8b0704c1748bb9967c564cf0bb85c0ff2d6d75ebff405",
+      "bytes": 10453
+    },
+    {
+      "path": "decision-trees/pdp-92ba.json",
+      "source": "70-ai-platform/decision-trees/pdp-92ba.json",
+      "sha256": "a303e7396cd7ca79b6fb9bc725836550c5f67d668674439fad8cfd3bf922610d",
+      "bytes": 8495
+    },
+    {
+      "path": "decision-trees/pdp-list.json",
+      "source": "70-ai-platform/decision-trees/pdp-list.json",
+      "sha256": "dc93cc0295a716b546d21ba0406ffaff6de447561679cfcb6a577d26348b9776",
+      "bytes": 10123
+    },
+    {
+      "path": "decision-trees/quarterly-close.json",
+      "source": "70-ai-platform/decision-trees/quarterly-close.json",
+      "sha256": "f549787c0ad37d65614902367577b0b19449c760eb0b4ec9ba862fe7d36f842c",
+      "bytes": 6971
+    },
+    {
+      "path": "decision-trees/rate-classifier.json",
+      "source": "70-ai-platform/decision-trees/rate-classifier.json",
+      "sha256": "0f902a2ccccbdfe75eb9e0dadd99a5fd62b0af06bdd031e74e5d8e09a69afa93",
+      "bytes": 16509
+    },
+    {
+      "path": "predkontace/predkontace-purchase.json",
+      "source": "30-predkontace/purchase/predkontace-purchase.json",
+      "sha256": "794d06ca412e43688e575a9ad0f640a99c71e533b2fb5e7bf041391e3eff276c",
+      "bytes": 18811
+    },
+    {
+      "path": "predkontace/predkontace-sales.json",
+      "source": "30-predkontace/sales/predkontace-sales.json",
+      "sha256": "4d9d20e0e58ca9e9abe75fd81a7ac6bf2fc694c940d494bf81f875bf043d99da",
+      "bytes": 12129
+    },
+    {
+      "path": "q-pattern-index.md",
+      "source": "90-meta/INDEX-by-Q-pattern.md",
+      "sha256": "cfaf7499f1ece7cf01246d2344409ab9cd709527b9103cdeeafb0ef420246394",
+      "bytes": 11544
+    }
+  ]
+}

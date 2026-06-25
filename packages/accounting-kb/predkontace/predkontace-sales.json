@@ -1,0 +1,336 @@
+{
+  "schema_version": "1.0",
+  "wave": "wave-01",
+  "agent": "W1.6",
+  "generated": "2026-05-23",
+  "status": "corrected",
+  "corrected_by": "K2C.1-sonnet",
+  "corrected_at": "2026-05-23",
+  "topic": "predkontace-sales",
+  "description": "Machine-readable account-coding templates for all outbound (sales-side) transactions in Czech double-entry bookkeeping. Mirrors W1.5 purchase-side structure.",
+  "scenarios": [
+    {
+      "id": "S1.1",
+      "label": "FV domestic goods — plátce buyer — 21%",
+      "file": "W1.6-01-sales-goods.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "buyer_regime": "plátce or neplátce",
+        "supply_type": "zboží",
+        "vat_rate": 21
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "604", "basis": "net_amount", "description": "Revenue ex-VAT" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "vat_21", "description": "Output VAT 21%" }
+      ],
+      "DAP_row": "1",
+      "KH_section": "A4_or_A5",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S1.2",
+      "label": "FV domestic goods — 12% reduced",
+      "file": "W1.6-01-sales-goods.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "supply_type": "zboží — reduced-rate category",
+        "vat_rate": 12
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "604", "basis": "net_amount", "description": "Revenue ex-VAT" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "vat_12", "description": "Output VAT 12%" }
+      ],
+      "DAP_row": "2",
+      "KH_section": "A4_or_A5",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S1.3",
+      "label": "FV domestic material sale",
+      "file": "W1.6-01-sales-goods.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "supply_type": "materiál"
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "642", "basis": "net_amount", "description": "Revenue — materiál" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "vat_21", "description": "Output VAT 21%" },
+        { "seq": 3, "MD": "542", "D": "112", "basis": "cost_of_material", "description": "Write-off cost of material sold" }
+      ],
+      "DAP_row": "1",
+      "KH_section": "A4_or_A5",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S2.1",
+      "label": "FV services — domestic — 21%",
+      "file": "W1.6-02-sales-services.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "supply_type": "service",
+        "vat_rate": 21
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "602", "basis": "net_amount", "description": "Revenue — service" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "vat_21", "description": "Output VAT 21%" }
+      ],
+      "DAP_row": "1",
+      "KH_section": "A4_or_A5",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S2.2",
+      "label": "FV services — domestic — 12% (accommodation, construction on residential)",
+      "file": "W1.6-02-sales-services.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "supply_type": "service — reduced-rate",
+        "vat_rate": 12
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "602", "basis": "net_amount", "description": "Revenue — service 12%" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "vat_12", "description": "Output VAT 12%" }
+      ],
+      "DAP_row": "2",
+      "KH_section": "A4_or_A5",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S3.1",
+      "label": "Sale of DHM (partially depreciated) — domestic",
+      "file": "W1.6-03-sales-assets.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "asset_type": "DHM",
+        "depreciation_status": "partial"
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "641", "basis": "net_sale_price", "description": "Revenue — DHM" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "vat_21", "description": "Output VAT 21%" },
+        { "seq": 3, "MD": "08x", "D": "02x", "basis": "accumulated_depreciation", "description": "Write-off accumulated depreciation" },
+        { "seq": 4, "MD": "541", "D": "02x", "basis": "book_value_ZC", "description": "Write-off remaining book value (ZC)" }
+      ],
+      "DAP_row": "1",
+      "KH_section": "A4",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S3.2",
+      "label": "Sale of DHM (fully depreciated) — domestic",
+      "file": "W1.6-03-sales-assets.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "asset_type": "DHM",
+        "depreciation_status": "full"
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "641", "basis": "net_sale_price", "description": "Revenue — DHM" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "vat_21", "description": "Output VAT 21%" },
+        { "seq": 3, "MD": "08x", "D": "02x", "basis": "acquisition_cost", "description": "Write-off accumulated depreciation = cost (ZC=0)" }
+      ],
+      "DAP_row": "1",
+      "KH_section": "A4",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S4.1",
+      "label": "EU B2B — intracom supply of goods — zero-rated",
+      "file": "W1.6-04-sales-EU-and-export.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "buyer_regime": "VAT-registered in EU Member State",
+        "supply_type": "goods",
+        "transport": "CZ → EU",
+        "VIES_verified": true
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "604", "basis": "net_amount", "description": "Revenue — zero VAT" }
+      ],
+      "DAP_row": "20",
+      "KH_section": null,
+      "SH": true,
+      "SH_code": "0",
+      "confidence": "medium"
+    },
+    {
+      "id": "S4.2",
+      "label": "EU B2C — OSS distance sale (above EUR 10,000 threshold)",
+      "file": "W1.6-04-sales-EU-and-export.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH + OSS registered",
+        "buyer_type": "non-VAT individual in EU",
+        "annual_threshold_exceeded": true
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "604", "basis": "net_destination_price", "description": "Revenue net of destination VAT" },
+        { "seq": 2, "MD": "311", "D": "345_or_343_analytical", "basis": "destination_vat", "description": "Destination-state VAT collected via OSS" }
+      ],
+      "DAP_row": "OSS_only",
+      "DAP_note": "Not in Czech DAP — reported in OSS quarterly return only",
+      "KH_section": null,
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S4.3",
+      "label": "Export to 3rd country — vývoz — zero-rated",
+      "file": "W1.6-04-sales-EU-and-export.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "supply_type": "goods",
+        "destination": "outside EU",
+        "customs_exit_confirmed": true
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "604", "basis": "net_amount", "description": "Revenue — zero VAT" }
+      ],
+      "DAP_row": "22",
+      "KH_section": null,
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S5.1",
+      "label": "Advance received — daňový doklad k záloze",
+      "file": "W1.6-05-sales-advances.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "event": "advance payment received before DUZP"
+      },
+      "entries": [
+        { "seq": 1, "MD": "221", "D": "324", "basis": "gross_advance", "description": "Receipt of advance gross" },
+        { "seq": 2, "MD": "324", "D": "343", "basis": "vat_in_advance", "description": "VAT extracted from advance" }
+      ],
+      "DAP_row": "1_or_2",
+      "KH_section": "A4_or_A5",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S5.2",
+      "label": "Final invoice — offset advance (§ 37a)",
+      "file": "W1.6-05-sales-advances.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "event": "DUZP — supply completed; advance was received"
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "604_or_602", "basis": "full_net_supply", "description": "Full revenue" },
+        { "seq": 2, "MD": "311", "D": "343", "basis": "incremental_vat", "description": "Incremental VAT (total minus advance VAT already posted)" },
+        { "seq": 3, "MD": "324", "D": "311", "basis": "gross_advance", "description": "Offset advance against receivable" }
+      ],
+      "DAP_row": "1_or_2",
+      "KH_section": "A4_or_A5",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S6.1",
+      "label": "PDP construction — seller side",
+      "file": "W1.6-06-sales-PDP.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "buyer_regime": "plátce DPH",
+        "supply_type": "construction / assembly (SKP 45.x)"
+      },
+      "entries": [
+        { "seq": 1, "MD": "311", "D": "602", "basis": "net_amount", "description": "Revenue — no VAT (PDP)" }
+      ],
+      "DAP_row": "25",
+      "KH_section": "A1",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S7.1",
+      "label": "Dobropis — domestic standard supply (same year)",
+      "file": "W1.6-07-sales-corrections.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "event": "price reduction or goods return"
+      },
+      "entries": [
+        { "seq": 1, "MD": "604_or_602", "D": "311", "basis": "correction_net", "description": "Reverse revenue — negative" },
+        { "seq": 2, "MD": "343", "D": "311", "basis": "correction_vat", "description": "Reverse output VAT — negative" }
+      ],
+      "DAP_row": "1_or_2_negative",
+      "KH_section": "A4_or_A5_negative",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S7.2",
+      "label": "Dobropis — PDP supply",
+      "file": "W1.6-07-sales-corrections.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "original_supply": "PDP"
+      },
+      "entries": [
+        { "seq": 1, "MD": "602", "D": "311", "basis": "correction_net_negative", "description": "Reverse revenue — negative, no VAT" }
+      ],
+      "DAP_row": "25_negative",
+      "KH_section": "A1_negative",
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S8.1",
+      "label": "Postoupení pohledávky (assignment of receivable) — postupitel",
+      "file": "W1.6-08-sales-edge-cases.md",
+      "pre_conditions": {
+        "event": "receivable sold to third party at discount"
+      },
+      "entries": [
+        { "seq": 1, "MD": "221", "D": "311", "basis": "assignment_price", "description": "Proceeds from assignment" },
+        { "seq": 2, "MD": "546", "D": "311", "basis": "discount_loss", "description": "Loss on assignment" }
+      ],
+      "DAP_row": null,
+      "KH_section": null,
+      "SH": false,
+      "confidence": "medium"
+    },
+    {
+      "id": "S8.2",
+      "label": "Bezúplatné dodání — donation of goods (output VAT due)",
+      "file": "W1.6-08-sales-edge-cases.md",
+      "pre_conditions": {
+        "seller_regime": "plátce DPH",
+        "event": "goods donated; input VAT was deducted on acquisition"
+      },
+      "entries": [
+        { "seq": 1, "MD": "543", "D": "132", "basis": "cost_of_goods", "description": "Write-off cost of donated goods" },
+        { "seq": 2, "MD": "543", "D": "343", "basis": "vat_on_market_value", "description": "Output VAT self-assessed on market value" }
+      ],
+      "DAP_row": "1",
+      "KH_section": null,
+      "SH": false,
+      "confidence": "medium"
+    }
+  ],
+  "open_questions": [
+    "Q-20260523-011",
+    "Q-20260523-012",
+    "Q-20260523-013",
+    "Q-20260523-014",
+    "Q-20260523-015",
+    "Q-20260523-016",
+    "Q-20260523-017",
+    "Q-20260523-018",
+    "Q-20260523-019",
+    "Q-20260523-020",
+    "Q-20260523-021",
+    "Q-20260523-022",
+    "Q-20260523-023",
+    "Q-20260523-024",
+    "Q-20260523-025",
+    "Q-20260523-026"
+  ]
+}

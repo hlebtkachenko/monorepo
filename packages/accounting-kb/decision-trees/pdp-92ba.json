@@ -1,0 +1,189 @@
+{
+  "_meta": {
+    "title": "PDP NV 361/2014 — Decision Tree Supplement (N4C.7)",
+    "extends": "70-ai-platform/decision-trees/pdp-list.json v2.0",
+    "wave": "04",
+    "slot": "N4C.7",
+    "last_verified": "2026-05-24",
+    "confidence": "high",
+    "status": "wave-output — pending Opus gate merge",
+    "legal_basis_primary": [
+      "Act 235/2004 Sb. (ZDPH) Příloha č. 6",
+      "NV 361/2014 Sb. § 2",
+      "Act 235/2004 Sb. § 92a",
+      "Act 235/2004 Sb. § 7a odst. 2"
+    ],
+    "open_questions": [
+      "Q-20260524-001: ICs assembled into PCBs — pre-installation condition scope",
+      "Q-20260524-002: Precious metals — Příloha 5 scrap vs. Příloha 6 raw metals boundary; re-smelting reclassification",
+      "Q-20260524-003: Heat and cold (teplo/chlad) — Příloha č. 6 item 4 scope vs. § 7a(2) definition",
+      "Q-20260524-004: Account 349 vs. direct 343 — canonical Czech accounting practice for PDP buyer self-assessment"
+    ],
+    "schema_version": "2.1-draft"
+  },
+  "global_pdp_conditions": {
+    "description": "All domestic PDP requires both supplier AND buyer to be Czech plátce DPH (§ 92a ZDPH)",
+    "legal_basis": "§ 92a Act 235/2004 Sb.",
+    "invoice_notation_required": "Daň odvede zákazník",
+    "invoice_dph_amount": 0,
+    "kh_reporting": {
+      "supplier_section": "A1",
+      "buyer_section": "B1"
+    },
+    "dap_reporting": {
+      "supplier": { "line": "ř. 25", "content": "základ daně only" },
+      "buyer_output": { "line": "ř. 10 (21%) or ř. 11 (12%)", "content": "základ daně + self-assessed DPH" },
+      "buyer_input_full": { "line": "ř. 43", "content": "full input deduction" },
+      "buyer_input_partial": { "line": "ř. 44", "content": "proportional input deduction" }
+    }
+  },
+  "decision_tree": {
+    "root": "NV361-ENTRY",
+    "nodes": {
+      "NV361-ENTRY": {
+        "description": "Entry point: supply between two Czech plátci. Classify against NV 361/2014 categories.",
+        "checks": [
+          {
+            "question": "Is the supply a transfer of greenhouse gas emission allowances (EU ETS)?",
+            "yes": "NV361-EMISNI-POVOLENKY",
+            "no": "NV361-CHECK-ENERGY"
+          }
+        ]
+      },
+      "NV361-CHECK-ENERGY": {
+        "description": "Check gas/electricity to trader",
+        "checks": [
+          {
+            "question": "Is the supply of gas or electricity AND is the buyer a § 7a(2) designated trader (primarily buys for resale, own consumption negligible)?",
+            "yes": "NV361-PLYN-ELEKTRINA",
+            "no": "NV361-CHECK-CERTIFIKATY"
+          }
+        ]
+      },
+      "NV361-CHECK-CERTIFIKATY": {
+        "description": "Check energy certificates",
+        "checks": [
+          {
+            "question": "Is the supply of gas/electricity origin guarantee certificates?",
+            "yes": "NV361-CERTIFIKATY",
+            "no": "NV361-CHECK-TELEKOM"
+          }
+        ]
+      },
+      "NV361-CHECK-TELEKOM": {
+        "description": "Check telecom wholesale",
+        "checks": [
+          {
+            "question": "Is the supply a wholesale telecom/electronic communications service (operator-to-operator)?",
+            "yes": "NV361-TELEKOM",
+            "no": "NV361-CN-LOOKUP"
+          }
+        ]
+      },
+      "NV361-CN-LOOKUP": {
+        "description": "Check if goods CN code is in the NV 361/2014 § 2 odst. 3 list",
+        "checks": [
+          {
+            "question": "Does the supply's CN code match any of: 8517 12 00, 8517 18 00, 8471 30 00, 9504, 8542 31, 1005, 1201, 1205, 1206 00, 1207 50, 1207 91, 1209 10 00, 1212 91, or Chapter 71/Class XV metals (with exclusions)?",
+            "yes": "NV361-ZBOZI-THRESHOLD",
+            "no": "RESULT-NORMAL-DPH"
+          }
+        ]
+      },
+      "NV361-ZBOZI-THRESHOLD": {
+        "description": "Apply the 100,000 CZK threshold",
+        "checks": [
+          {
+            "question": "Is the total základ daně of ALL qualifying selected goods on this single supply > 100,000 CZK?",
+            "yes": "RESULT-PDP-ZBOZI",
+            "no": "RESULT-NORMAL-DPH"
+          }
+        ]
+      },
+      "NV361-EMISNI-POVOLENKY": {
+        "type": "result",
+        "outcome": "PDP",
+        "id": "PDP-NV361-EMISNI-POVOLENKY",
+        "threshold_czk": null,
+        "threshold_applies": false,
+        "legal_basis": "NV 361/2014 § 2 odst. 1 + Příloha č. 6 item 1",
+        "dph_rate_pct": 21,
+        "note": "No threshold. Every transfer between Czech plátci triggers PDP."
+      },
+      "NV361-PLYN-ELEKTRINA": {
+        "type": "result",
+        "outcome": "PDP",
+        "id": "PDP-NV361-PLYN-ELEKTRINA",
+        "threshold_czk": null,
+        "threshold_applies": false,
+        "legal_basis": "Příloha č. 6 item 4 + § 7a odst. 2 ZDPH",
+        "dph_rate_pct": 21,
+        "note": "Buyer must qualify as § 7a(2) trader. Non-traders: normal DPH."
+      },
+      "NV361-CERTIFIKATY": {
+        "type": "result",
+        "outcome": "PDP",
+        "id": "PDP-NV361-CERTIFIKATY",
+        "threshold_czk": null,
+        "threshold_applies": false,
+        "legal_basis": "Příloha č. 6 item 5",
+        "dph_rate_pct": 21,
+        "note": "Gas and electricity origin guarantee certificates. No threshold."
+      },
+      "NV361-TELEKOM": {
+        "type": "result",
+        "outcome": "PDP",
+        "id": "PDP-NV361-TELEKOM",
+        "threshold_czk": null,
+        "threshold_applies": false,
+        "legal_basis": "Příloha č. 6 item 6 + GFŘ guidance 16.6.2017",
+        "dph_rate_pct": 21,
+        "note": "Wholesale telecom services only. Retail telecom to consumers: normal DPH."
+      },
+      "RESULT-PDP-ZBOZI": {
+        "type": "result",
+        "outcome": "PDP",
+        "threshold_czk": 100000,
+        "threshold_applies": true,
+        "legal_basis": "NV 361/2014 § 2 odst. 2–3",
+        "note": "Supplier invoices základ daně only. Buyer self-assesses at stated rate."
+      },
+      "RESULT-NORMAL-DPH": {
+        "type": "result",
+        "outcome": "NORMAL_DPH",
+        "note": "Supplier charges DPH at applicable rate."
+      }
+    }
+  },
+  "cn_code_index": {
+    "8517 12 00": { "category": "mobile-phones", "id": "PDP-NV361-MOBILY", "threshold": 100000 },
+    "8517 18 00": { "category": "mobile-phones", "id": "PDP-NV361-MOBILY", "threshold": 100000 },
+    "8471 30 00": { "category": "tablets-notebooks", "id": "PDP-NV361-TABLETY-NOTEBOOKY", "threshold": 100000 },
+    "9504":       { "category": "game-consoles", "id": "PDP-NV361-TABLETY-NOTEBOOKY", "threshold": 100000 },
+    "8542 31":    { "category": "integrated-circuits", "id": "PDP-NV361-IC", "threshold": 100000, "special_condition": "pre-installation state only" },
+    "1005":       { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1201":       { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1205":       { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1206 00":    { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1207 50":    { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1207 91":    { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1209 10 00": { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1212 91":    { "category": "cereals", "id": "PDP-NV361-OBILOVINY", "threshold": 100000 },
+    "1001":       { "category": "EXCLUDED-wheat", "pdp": false, "note": "Wheat NOT in NV 361/2014 — normal DPH" },
+    "1002":       { "category": "EXCLUDED-rye", "pdp": false, "note": "Rye NOT in NV 361/2014 — normal DPH" },
+    "1003":       { "category": "EXCLUDED-barley", "pdp": false, "note": "Barley NOT in NV 361/2014 — normal DPH" },
+    "1004":       { "category": "EXCLUDED-oats", "pdp": false, "note": "Oats NOT in NV 361/2014 — normal DPH" }
+  },
+  "metals_note": {
+    "category": "raw-semi-processed-metals",
+    "id": "PDP-NV361-KOVY",
+    "threshold": 100000,
+    "cn_scope": "Chapter 71 (precious metals, raw) + Class XV (CN 72-83) raw/semi-processed forms, with exclusions",
+    "exclusions": [
+      "Goods covered by Příloha č. 5 (scrap/waste) — those use § 92c + Příloha č. 5 (no threshold)",
+      "Finished metal articles (tools, fittings, castings) — normal DPH",
+      "Investment gold under § 92 exempt regime — separate § 92b rule"
+    ],
+    "open_question": "Q-20260524-002"
+  }
+}

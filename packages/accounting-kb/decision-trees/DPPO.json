@@ -1,0 +1,324 @@
+{
+  "_meta": {
+    "title": "DPPO Tax Base Derivation Decision Tree",
+    "version": "2026-v1",
+    "agent": "N2D.8-sonnet-wave-2d",
+    "created": "2026-05-23",
+    "statutory_basis": "Act 586/1992 Sb. (ZDP) §§ 17–35",
+    "confidence": "high",
+    "advisor_review_required": false,
+    "notes": "K2C.5 corrections applied 2026-05-24: § 34a rate 150%/100% tiered (CZK 50M threshold) confirmed from zakonyprolidi.cz verze 156; § 35 ZPS 18 000/ZVPS 60 000 CZK/FTE confirmed; rounding chain corrected (§ 20 odst. 11 ZDP not odst. 4; § 146 DŘ rounds UP not down). DAP line numbers require annual form verification."
+  },
+  "tax_rates": {
+    "standard": {
+      "rate_pct": 21,
+      "applies_to": ["s.r.o.", "a.s.", "k.s.", "v.o.s.", "státní podnik", "družstvo"],
+      "statutory_basis": "§ 21 odst. 1 ZDP",
+      "confidence": "high"
+    },
+    "investment_fund": {
+      "rate_pct": 5,
+      "applies_to": ["fond kvalifikovaných investorů", "SICAV"],
+      "statutory_basis": "§ 21 odst. 2 ZDP",
+      "confidence": "medium"
+    },
+    "pension_fund": {
+      "rate_pct": 0,
+      "applies_to": ["penzijní fond"],
+      "statutory_basis": "§ 19 odst. 1 písm. h) ZDP",
+      "confidence": "medium"
+    }
+  },
+  "tax_base_derivation": {
+    "step_1": {
+      "label": "VH před zdaněním",
+      "source": "Accounting P&L",
+      "dap_row": 10,
+      "operation": "starting_point"
+    },
+    "step_2_add_backs": {
+      "label": "Položky zvyšující základ daně",
+      "items": [
+        {
+          "id": "ADD-001",
+          "description": "Náklady na reprezentaci — non-deductible",
+          "account": "513",
+          "statutory_basis": "§ 25 odst. 1 písm. t) ZDP",
+          "operation": "add",
+          "confidence": "medium"
+        },
+        {
+          "id": "ADD-002",
+          "description": "Pokuty a penále (non-contractual, admin penalties)",
+          "account": "545",
+          "statutory_basis": "§ 25 odst. 1 písm. f) ZDP",
+          "operation": "add",
+          "confidence": "medium"
+        },
+        {
+          "id": "ADD-003",
+          "description": "Manko nad normu přirozených úbytků",
+          "account": "549",
+          "statutory_basis": "§ 25 odst. 1 písm. n) ZDP",
+          "operation": "add",
+          "condition": "Manko exceeds entity-defined natural wastage norm",
+          "confidence": "medium"
+        },
+        {
+          "id": "ADD-004",
+          "description": "Účetní odpisy exceeding tax depreciation",
+          "accounts": ["551", "08x"],
+          "statutory_basis": "§ 24 odst. 2 písm. a) ZDP",
+          "operation": "add",
+          "condition": "Accounting depreciation > tax depreciation for the period",
+          "confidence": "medium"
+        },
+        {
+          "id": "ADD-005",
+          "description": "Účetní rezervy (non-deductible accounting provisions)",
+          "account": "459",
+          "statutory_basis": "§ 25 odst. 1 ZDP general clause",
+          "operation": "add",
+          "confidence": "medium"
+        },
+        {
+          "id": "ADD-006",
+          "description": "Thin-cap interest disallowed under § 25 odst. 1 písm. w) — related-party debt 4:1 equity ratio",
+          "account": "562",
+          "statutory_basis": "§ 25 odst. 1 písm. w) ZDP",
+          "operation": "add",
+          "condition": "Related-party debt exceeds 4× equity — interest on excess disallowed",
+          "confidence": "medium"
+        },
+        {
+          "id": "ADD-007",
+          "description": "Gifts (dary) expensed — not deductible as cost; may be deducted via § 20 odst. 8 separately",
+          "account": "543",
+          "statutory_basis": "§ 25 odst. 1 písm. o) ZDP",
+          "operation": "add",
+          "note": "Deduction via § 20 odst. 8 applied later as separate tax-base reduction (max 10%)",
+          "confidence": "medium"
+        }
+      ]
+    },
+    "step_3_deductions": {
+      "label": "Položky snižující základ daně",
+      "items": [
+        {
+          "id": "DED-001",
+          "description": "Tax depreciation exceeding accounting depreciation",
+          "statutory_basis": "§ 24 odst. 2 písm. a) ZDP",
+          "operation": "subtract",
+          "condition": "Tax depreciation > accounting depreciation",
+          "confidence": "medium"
+        },
+        {
+          "id": "DED-002",
+          "description": "Zákonné opravné položky k pohledávkám (§ 8a Act 593/1992)",
+          "account": "559",
+          "statutory_basis": "§ 8a Zákon č. 593/1992 Sb.",
+          "operation": "subtract",
+          "condition": "Receivable overdue > 30 months (50%) or > 36 months (100%) per current § 8a",
+          "confidence": "medium"
+        },
+        {
+          "id": "DED-003",
+          "description": "Zákonné rezervy deductible portion (Act 593/1992)",
+          "account": "451",
+          "statutory_basis": "Zákon č. 593/1992 Sb.",
+          "operation": "subtract",
+          "condition": "Only amounts meeting statutory conditions are deductible",
+          "confidence": "medium"
+        },
+        {
+          "id": "DED-004",
+          "description": "Participation-exempt dividends from subsidiary (§ 19 ZDP)",
+          "account": "665",
+          "statutory_basis": "§ 19 odst. 1 písm. ze) ZDP",
+          "operation": "subtract",
+          "condition": "Subsidiary: EU/EEA, holding ≥ 10%, ≥ 12 months",
+          "confidence": "medium"
+        }
+      ]
+    },
+    "step_4_intermediate_base": {
+      "label": "Základ daně před odčitatelnými položkami",
+      "dap_row": 100
+    },
+    "step_5_par34_deductions": {
+      "label": "§ 34 Odčitatelné položky",
+      "items": [
+        {
+          "id": "PAR34-001",
+          "description": "Daňová ztráta minulých let",
+          "statutory_basis": "§ 34 odst. 1 ZDP",
+          "max_years": 5,
+          "operation": "subtract",
+          "dap_row": 150,
+          "confidence": "medium"
+        },
+        {
+          "id": "PAR34-002",
+          "description": "Odpočet na výzkum a vývoj",
+          "statutory_basis": "§ 34a ZDP",
+          "rate_zvysena_pct": 150,
+          "rate_zvysena_limit_czk": 50000000,
+          "rate_zakladni_pct": 100,
+          "rate_note": "150% for R&D expenses up to CZK 50M per period (§ 34a odst. 1 písm. a + odst. 2); 100% for amounts above CZK 50M (§ 34a odst. 1 písm. b). Super-deduction: R&D expenses remain fully deductible as operating costs AND the additional odpočet is subtracted from základ daně. For odpočtový celek (group entities): CZK 50M limit assessed jointly across all group members (§ 34a odst. 3). Prorated for periods shorter/longer than 12 months (§ 34a odst. 5).",
+          "documentation_required": ["oznámení o záměru odečíst odpočet (§ 34ba)", "projektová dokumentace (§ 34c)", "separate R&D cost records (§ 34b)"],
+          "carryforward_max_periods": 5,
+          "advisor_required": false,
+          "operation": "subtract",
+          "dap_row": 160,
+          "confidence": "high",
+          "last_confirmed": "2026-05-24",
+          "source": "zakonyprolidi.cz § 34a verze 156 (01.04.2026) via F3B.14"
+        },
+        {
+          "id": "PAR34-003",
+          "description": "Odpočet na podporu odborného vzdělávání",
+          "statutory_basis": "§ 34h ZDP",
+          "operation": "subtract",
+          "dap_row": 170,
+          "confidence": "medium"
+        },
+        {
+          "id": "PAR34-004",
+          "description": "Bezúplatná plnění (dary) — § 20 odst. 8",
+          "statutory_basis": "§ 20 odst. 8 ZDP",
+          "max_pct_of_base": 10,
+          "min_amount_czk": 2000,
+          "operation": "subtract",
+          "dap_row": 180,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "step_6_reduced_base": {
+      "label": "Snížený základ daně",
+      "dap_row": 220,
+      "rounding": "Round DOWN to nearest CZK 1,000 per § 20 odst. 11 ZDP (NOT § 20 odst. 4 — that is komanditní společnost base allocation, no rounding)",
+      "rounding_statutory_basis": "§ 20 odst. 11 ZDP",
+      "rounding_direction": "DOWN (dolů)",
+      "rounding_unit_czk": 1000,
+      "dap_row_rounded": 230,
+      "rounding_chain": {
+        "note": "Complete DPPO rounding chain (confirmed F3B.16, 2026-05-24)",
+        "step_1": {"what": "Základ daně after deductions", "provision": "§ 20 odst. 11 ZDP", "unit_czk": 1000, "direction": "DOWN"},
+        "step_2": {"what": "Výsledná daňová povinnost", "provision": "§ 146 odst. 1 DŘ", "unit_czk": 1, "direction": "UP (nahoru)"},
+        "step_3": {"what": "Zálohy na daň", "provision": "§ 146 odst. 2 DŘ", "unit_czk": 100, "direction": "UP (nahoru)"}
+      },
+      "confidence": "high",
+      "last_confirmed": "2026-05-24",
+      "source": "kurzy.cz § 20 ZDP + § 146 DŘ via F3B.16"
+    },
+    "step_7_tax_calculation": {
+      "label": "Výpočet daně",
+      "formula": "Základ daně (rounded) × 21%",
+      "dap_row": 260
+    },
+    "step_8_credits": {
+      "label": "Slevy na dani § 35",
+      "items": [
+        {
+          "id": "CREDIT-001",
+          "description": "Zaměstnávání ZPS osob (zdravotní postižení)",
+          "amount_per_fte_czk": 18000,
+          "statutory_basis": "§ 35 odst. 1 písm. a) ZDP",
+          "calculation_basis": "průměrný roční přepočtený počet zaměstnanců se ZP (per § 35 odst. 2) — rounded to 2 decimal places",
+          "dap_row": 270,
+          "confidence": "high",
+          "last_confirmed": "2026-05-24",
+          "source": "zakonyprolidi.cz § 35 verze 156 (01.04.2026) via F3B.15"
+        },
+        {
+          "id": "CREDIT-002",
+          "description": "Zaměstnávání ZVPS osob (těžší zdravotní postižení)",
+          "amount_per_fte_czk": 60000,
+          "statutory_basis": "§ 35 odst. 1 písm. b) ZDP",
+          "calculation_basis": "průměrný roční přepočtený počet zaměstnanců s těžším ZP (per § 35 odst. 2) — rounded to 2 decimal places",
+          "dap_row": 270,
+          "confidence": "high",
+          "last_confirmed": "2026-05-24",
+          "source": "zakonyprolidi.cz § 35 verze 156 (01.04.2026) via F3B.15"
+        }
+      ]
+    },
+    "step_9_net_tax": {
+      "label": "Daň po slevách",
+      "dap_row": 280
+    },
+    "step_10_foreign_credit": {
+      "label": "Zápočet zahraničního zdanění",
+      "statutory_basis": "§ 38f ZDP",
+      "dap_row": 290,
+      "condition": "Only if entity has foreign-source income with withholding tax paid abroad"
+    },
+    "step_11_settlement": {
+      "label": "Doplatek / Přeplatek",
+      "items": [
+        {
+          "id": "SETTLE-001",
+          "description": "Zálohy zaplacené v průběhu roku",
+          "dap_row": 310,
+          "account_md": "341",
+          "account_d": "221",
+          "note": "Debit to 341 when paying záloha"
+        },
+        {
+          "id": "SETTLE-002",
+          "description": "Daň k úhradě (doplatek)",
+          "dap_row": 340,
+          "account_md": "341",
+          "account_d": "221",
+          "condition": "Ř. 300 > Ř. 310"
+        },
+        {
+          "id": "SETTLE-003",
+          "description": "Přeplatek (refund or carry-forward)",
+          "dap_row": 340,
+          "account_md": "221",
+          "account_d": "341",
+          "condition": "Ř. 300 < Ř. 310"
+        }
+      ]
+    }
+  },
+  "advance_payments": {
+    "no_obligation": {
+      "condition": "Prior-year DPPO ≤ CZK 30,000",
+      "statutory_basis": "§ 38a odst. 1 ZDP"
+    },
+    "semi_annual": {
+      "condition": "Prior-year DPPO CZK 30,001–150,000",
+      "payments": [
+        { "date": "2026-06-15", "pct": 40 },
+        { "date": "2026-12-15", "pct": 40 }
+      ],
+      "statutory_basis": "§ 38a odst. 2 ZDP"
+    },
+    "quarterly": {
+      "condition": "Prior-year DPPO > CZK 150,000",
+      "payments": [
+        { "date": "2026-03-15", "pct": 25 },
+        { "date": "2026-06-15", "pct": 25 },
+        { "date": "2026-09-15", "pct": 25 },
+        { "date": "2026-12-15", "pct": 25 }
+      ],
+      "statutory_basis": "§ 38a odst. 3 ZDP"
+    }
+  },
+  "filing_deadlines": {
+    "standard": "2027-04-01",
+    "with_advisor_or_audit": "2027-07-01",
+    "statutory_basis": "§ 136 Zákon č. 280/2009 Sb."
+  },
+  "predkontace": {
+    "splatna_dan": { "md": "591", "d": "341", "note": "Current year DPPO liability" },
+    "zalova_payment": { "md": "341", "d": "221", "note": "Advance payment" },
+    "doplatek": { "md": "341", "d": "221", "note": "Final top-up payment" },
+    "preplatek_refund": { "md": "221", "d": "341", "note": "Refund received" },
+    "odlozena_dan_expense": { "md": "592", "d": "481", "note": "Deferred tax expense (DTL increase or DTA decrease)" },
+    "odlozena_dan_benefit": { "md": "481", "d": "592", "note": "Deferred tax benefit (DTA increase or DTL decrease)" }
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "_meta": {
+    "title": "PDP Categories — Czech Reverse Charge (R2B.2 REDO)",
+    "redo_of": "W1.4/pdp-list.json",
+    "primary_source": "F2A.1-act-235-rates-annexes.md",
+    "source": "Act 235/2004 Sb. § 92a, § 92b, § 92c, § 92d, § 92e, § 92f; Příloha č. 5; Příloha č. 6",
+    "source_url": "https://www.kurzy.cz/zakony/235-2004-zakon-o-dani-z-pridane-hodnoty-dph/",
+    "last_verified": "2026-05-24",
+    "confidence": "high",
+    "note": "REDO: (1) Construction PDP attribution corrected — § 92e is self-contained, NO Příloha reference. (2) Příloha 5 vs 6 assignment corrected — scrap/waste=Příloha 5; emission allowances/mobiles/telecoms/cereals/metals=Příloha 6. (3) KH section for buyer confirmed as B1.",
+    "errors_corrected": [
+      "H-V14-002: Removed 'Příloha č. 6' attribution from construction section — § 92e cites CZ-CPA 41-43 directly",
+      "H-V14-002: Corrected Příloha 5/6 assignment for non-construction PDP categories",
+      "C3: KH buyer section B1 confirmed consistent throughout"
+    ],
+    "schema_version": "2.0"
+  },
+  "pdp_conditions": {
+    "description": "PDP applies when BOTH supplier and buyer are plátce DPH registered in Czech Republic. PDP does not apply if buyer is neplátce or identifikovaná osoba.",
+    "legal_basis": "§ 92a Act 235/2004 Sb.",
+    "invoice_note_required": "Daň odvede zákazník",
+    "kh_reporting": {
+      "supplier": "A1",
+      "buyer": "B1"
+    }
+  },
+  "pdp_categories": [
+    {
+      "id": "PDP-STAVEBNI",
+      "category": "Stavební a montážní práce (Construction and assembly works)",
+      "legal_basis": "§ 92e Act 235/2004 Sb. — CZ-CPA codes 41-43 as of 2015-01-01",
+      "priloha_reference": null,
+      "note": "§ 92e is entirely self-contained. CZ-CPA codes 41-43 are cited DIRECTLY in § 92e odst. (1). There is NO Příloha reference. The original W1.4 'Příloha č. 6' attribution was incorrect.",
+      "legal_basis_verbatim": "Při poskytnutí stavebních nebo montážních prací, které odpovídají kódům 41 až 43 klasifikace produkce CZ-CPA ve znění platném k 1. lednu 2015, plátci použije plátce režim přenesené daňové povinnosti.",
+      "cz_cpa_codes": [
+        {
+          "code": "41",
+          "label_cs": "Budovy a jejich výstavba",
+          "label_en": "Buildings and their construction",
+          "pdp": true,
+          "subcategories": [
+            { "code": "41.1", "label_cs": "Developerská činnost", "label_en": "Development of building projects", "pdp": true },
+            { "code": "41.2", "label_cs": "Výstavba bytových a nebytových budov", "label_en": "Construction of residential and non-residential buildings", "pdp": true }
+          ]
+        },
+        {
+          "code": "42",
+          "label_cs": "Inženýrské stavby a jejich výstavba",
+          "label_en": "Civil engineering constructions",
+          "pdp": true,
+          "subcategories": [
+            { "code": "42.1", "label_cs": "Silnice, dálnice, mosty a tunely", "label_en": "Roads, motorways, bridges, tunnels", "pdp": true },
+            { "code": "42.2", "label_cs": "Inženýrské sítě", "label_en": "Utility networks — pipelines, electricity, gas", "pdp": true },
+            { "code": "42.9", "label_cs": "Ostatní inženýrské stavby", "label_en": "Other civil engineering constructions", "pdp": true }
+          ]
+        },
+        {
+          "code": "43",
+          "label_cs": "Specializované stavební činnosti",
+          "label_en": "Specialised construction activities",
+          "pdp": true,
+          "subcategories": [
+            { "code": "43.1", "label_cs": "Demolice a příprava staveniště", "label_en": "Demolition and site preparation", "pdp": true },
+            { "code": "43.2", "label_cs": "Elektroinstalace, instalace vody, topení a klimatizace", "label_en": "Electrical, plumbing, heating, HVAC installation", "pdp": true },
+            { "code": "43.3", "label_cs": "Dokončovací stavební práce", "label_en": "Building completion and finishing (plaster, floors, painting, glazing)", "pdp": true },
+            { "code": "43.9", "label_cs": "Ostatní specializované stavební činnosti", "label_en": "Other specialised construction activities (roofing, scaffolding, waterproofing)", "pdp": true }
+          ]
+        }
+      ],
+      "excluded_from_pdp": [
+        { "activity": "Supply of construction materials only (without installation)", "reason": "Product supply without construction service" },
+        { "activity": "Architectural and engineering design services", "reason": "CZ-CPA M71 — intellectual/professional services, not section F" },
+        { "activity": "Construction equipment rental without operator", "reason": "Equipment leasing, not construction activity" },
+        { "activity": "Real estate management services", "reason": "CZ-CPA L68" },
+        { "activity": "Building cleaning (non-construction)", "reason": "CZ-CPA N — support services" }
+      ],
+      "also_covered": {
+        "description": "Workers supplied for construction/assembly work",
+        "legal_basis": "§ 92e odst. 2 Act 235/2004 Sb."
+      }
+    },
+    {
+      "id": "PDP-ODPAD-PRILOHA5",
+      "category": "Scrap and waste goods",
+      "legal_basis": "§ 92c + Příloha č. 5 Act 235/2004 Sb.",
+      "priloha_reference": "Příloha č. 5",
+      "priloha_title": "Seznam zboží, u kterého se při dodání použije režim přenesené daňové povinnosti",
+      "note": "Příloha č. 5 covers industrial waste and scrap organised by CN tariff codes. Emission allowances and mobile phones are NOT here — they are in Příloha č. 6.",
+      "items": [
+        { "description": "Iron and steel scrap", "cn_range": "Ferrous metal waste — CN 72 range" },
+        { "description": "Copper scrap", "cn_range": "CN 74 waste" },
+        { "description": "Aluminium scrap", "cn_range": "CN 76 waste" },
+        { "description": "Lead, zinc, tin, nickel, cobalt, molybdenum, tungsten scrap", "cn_range": "CN 78–81 waste" },
+        { "description": "Precious metal waste and scraps", "cn_range": "CN 71 waste" },
+        { "description": "Textile waste (silk, wool, cotton, chemical fibers)", "cn_range": "CN 50–55 waste" },
+        { "description": "Glass waste", "cn_range": "CN 7001 00 10" },
+        { "description": "Paper and cardboard waste", "cn_range": "CN 47 waste" },
+        { "description": "Rubber and plastic waste", "cn_range": "CN 39–40 waste" },
+        { "description": "Battery and accumulator waste", "cn_range": "CN 8548 waste" }
+      ]
+    },
+    {
+      "id": "PDP-VLADNI-NARIZENI-PRILOHA6",
+      "category": "Government-regulation reverse charge categories",
+      "legal_basis": "§ 92f + Příloha č. 6 Act 235/2004 Sb.",
+      "priloha_reference": "Příloha č. 6",
+      "priloha_title": "Seznam dodání zboží nebo poskytnutí služeb, při nichž se použije režim přenesené daňové povinnosti, stanoví-li tak vláda nařízením",
+      "note": "Příloha č. 6 covers electronics, energy commodities, telecoms, agricultural commodities, precious metals — activated by government regulation. Construction is NOT here.",
+      "items": [
+        { "item": 1, "description_cs": "Převod povolenek na emise skleníkových plynů", "description_en": "Greenhouse gas emission allowances (EU ETS)", "threshold_czk": null },
+        { "item": 2, "description_cs": "Dodání mobilních telefonů", "description_en": "Mobile phones", "threshold_czk": 100000 },
+        { "item": 3, "description_cs": "Dodání integrovaných obvodů — mikroprocesorů, CPU", "description_en": "Integrated circuits — microprocessors, CPUs", "threshold_czk": 100000 },
+        { "item": 4, "description_cs": "Dodání plynu a elektřiny určeným obchodníkům", "description_en": "Gas and electricity supply to designated traders", "threshold_czk": null },
+        { "item": 5, "description_cs": "Dodání certifikátů pro plyn a elektřinu", "description_en": "Gas and electricity certificates", "threshold_czk": null },
+        { "item": 6, "description_cs": "Poskytnutí telekomunikačních služeb", "description_en": "Provision of telecom services (wholesale)", "threshold_czk": null },
+        { "item": 7, "description_cs": "Dodání herních konzolí, tabletů a notebooků", "description_en": "Gaming consoles, tablets, and notebooks", "threshold_czk": 100000 },
+        { "item": 8, "description_cs": "Dodání obilovin a technických plodin", "description_en": "Cereals and industrial crops", "threshold_czk": 100000 },
+        { "item": 9, "description_cs": "Dodání surových nebo poloopracovaných kovů (včetně drahých kovů)", "description_en": "Raw or semi-processed metals including precious metals", "threshold_czk": 100000 },
+        { "item": 10, "description_cs": "Dodání zboží/služeb, pro něž ČR získala povolení zvláštního opatření rozhodnutím Rady EU", "description_en": "Goods/services for which CZ obtained a special measure authorization by EU Council decision", "threshold_czk": null }
+      ]
+    },
+    {
+      "id": "PDP-ZLATO",
+      "category": "Investment gold and gold material",
+      "legal_basis": "§ 92b Act 235/2004 Sb.",
+      "priloha_reference": null,
+      "note": "Investment gold is normally exempt under § 92. PDP applies when a plátce exercises the option to tax investment gold, or when supplying gold material (semi-finished/raw) for industry.",
+      "items": [
+        { "description": "Investiční zlato — when option to tax exercised by supplier plátce", "legal_basis": "§ 92b odst. 1" },
+        { "description": "Zlatý materiál — gold semi-finished products or raw material for industrial use", "legal_basis": "§ 92b odst. 2" }
+      ]
+    },
+    {
+      "id": "PDP-INSOLVENCE",
+      "category": "Real property in insolvency proceedings",
+      "legal_basis": "§ 92d Act 235/2004 Sb.",
+      "priloha_reference": null,
+      "note": "PDP applies when a plátce sells real property within insolvency proceedings to another plátce. Anti-fraud measure for distressed asset sales."
+    }
+  ]
+}

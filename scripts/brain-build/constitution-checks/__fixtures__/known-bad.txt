@@ -1,0 +1,31 @@
+KNOWN-BAD constitution fixture — DELIBERATE violations for the BGTG self-test (plan §11.4).
+Not real code, never imported/compiled (.txt so knip/eslint/tsc ignore it). check.sh --selftest MUST
+surface EVERY line tagged EVADE-* below; each is a realistic evasion form an advisor named. If the
+detector stops firing on any of them, the constitution stopped being enforced for that form.
+
+import { withAdminBypass } from "@workspace/db"               // EVADE-I2-IMPORT
+import { withAdminBypass as wab } from "@workspace/db"        // EVADE-I2-ALIAS
+
+export interface BadToolInput {
+  organization_id: string                                     // EVADE-I3-SNAKE
+  userId?: string                                             // EVADE-I3-OPTIONAL
+  organizationId!: string                                     // EVADE-I3-BANG
+  role: string                                                // EVADE-I3-ROLE
+}
+export function handler({ workspaceId }) { return workspaceId } // EVADE-I3-SHORTHAND
+export type Picked = Pick<Ctx, "organizationId">             // EVADE-I3-LITERAL
+
+export async function badWrites(db, tx) {
+  await wab(db, async () => {})                               // EVADE-I2-CALL
+  await tx.execute(`SET LOCAL ROLE app_admin`)               // EVADE-I2-SETROLE
+  const e1 = `SET ROLE "app_admin"`                          // EVADE-I2-SETROLE-QUOTED
+  const e2 = `SET LOCAL ROLE TO app_admin`                   // EVADE-I2-SETROLE-TO
+  const e3 = `SET role = app_admin`                          // EVADE-I2-SETROLE-EQ
+  const e4 = set_config('role', 'app_admin', true)          // EVADE-I2-SETCONFIG
+  const e5 = set_config ('role', 'app_admin', true)         // EVADE-I2-SETCONFIG-SPACED
+  const e6 = `SET SESSION AUTHORIZATION app_admin`          // EVADE-I2-SESSIONAUTH
+  await db.update(ucetniDoklad).set({ stav: 1 })             // EVADE-I5-DRIZZLE-UPDATE
+  await db.delete(dokladRadek).where(eq(id, x))              // EVADE-I5-DRIZZLE-DELETE
+  await tx.execute(`update ucetni_doklad set stav=1`)        // EVADE-I5-LOWER-UPDATE
+  await tx.execute(`DELETE FROM doklad_radek WHERE id=$1`)   // EVADE-I5-UPPER-DELETE
+}

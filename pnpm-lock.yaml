@@ -602,6 +602,9 @@ importers:
 
   packages/brain:
     devDependencies:
+      '@types/node':
+        specifier: ^25.9.2
+        version: 25.9.3
       '@workspace/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config

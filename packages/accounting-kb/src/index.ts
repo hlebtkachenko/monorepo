@@ -11,6 +11,9 @@ import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+// Authored CZ-law taxonomy (KB gap-closers — §34 deconflation, PDP 343-split).
+export * from "./law"
+
 const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
 
 export interface KbFileEntry {

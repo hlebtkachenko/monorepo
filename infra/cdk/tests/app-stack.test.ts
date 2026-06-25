@@ -64,7 +64,7 @@ describe("AppStack Fargate hardening", () => {
     }>
     const fga = containers.find((c) => c.Name === "openfga")
     expect(fga).toBeDefined()
-    expect(fga?.Image).toContain("openfga/openfga:v1.15.1")
+    expect(fga?.Image).toContain("openfga/openfga:v1.17.1")
     const envByName = Object.fromEntries(
       (fga?.Environment ?? []).map((e) => [e.Name, e.Value]),
     )

@@ -6,6 +6,27 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.6.0] — 2026-06-25
+
+Minor release: the app-shell **Content Panel** + a persistent, structure-driven org layout. One persistent shell now mounts across every `/[orgSlug]` route; the sidebar nav is derived per module from co-located config and guarded against the route tree. (#397)
+
+### Added
+
+- **ui**: `data-grid-view` — a presentational grid bound to a TanStack table (resize / reorder / pin / sort / hide, keyboard nav, scroll-gated pin shadow); `ContentPanel` Inspector (panel / dialog) + a status-bar clearance contract + a five-variant taxonomy (Table / Launchpad / Dashboard / Single / Blank) with stories; `Separator` `inset` prop; a generic data-table column manager + `DetailField` extracted into `packages/ui`. `data-grid-view` added to the admin showcase; app-sidebar block stories.
+- **web**: the persistent `AppShell` mounted in the org layout; a structure-driven sidebar nav (co-located `<module>/nav.ts` + an `_nav` aggregator, active module via the rail); one Overview page per module; a `nav-drift` guard (`scripts/check-nav.ts`) and a `ui-location` lefthook guard for reusable-UI placement.
+
+### Changed
+
+- **web**: sidebar reminders + insight are on-call — the sidebar self-hides them until a real source pushes data. The invoices Content Panel demo moved to a dev-only `/<org>/demo` route.
+
+### Fixed
+
+- **ui**: `useDataTable` controlled-pagination render crash; `InsightProgress`'s progress bar now has an accessible name; the content-header collapsed-tabs trigger composes `Button` instead of a raw element.
+
+### Removed
+
+- **web**: the legacy `SectionTabs` / `SectionStub` scaffolds and the non-module placeholder routes.
+
 ## [v0.5.2] — 2026-06-25
 
 Patch release: bundled dependency bumps. No product-surface change. Supersedes the seven open Dependabot PRs (#384, #387–#392), applied on one branch with a single regenerated + deduped lockfile.

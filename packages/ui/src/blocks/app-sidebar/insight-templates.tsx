@@ -150,7 +150,7 @@ export function InsightProgress({
         </Text>
         <span className="shrink-0 text-muted-foreground">{meta}</span>
       </div>
-      <Progress value={value} />
+      <Progress value={value} aria-label={title} />
       <Button variant="outline" size="sm" className="w-full" onClick={onAction}>
         {actionLabel}
       </Button>

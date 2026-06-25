@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useLocale } from "next-intl"
@@ -23,6 +23,12 @@ import {
   type CapturedContext,
 } from "@workspace/ui/blocks/app-context-menu"
 import { useAppShell } from "@workspace/ui/blocks/app-shell"
+import {
+  HEADER_MENU,
+  HeaderMenuTrigger,
+  MENU_GAP,
+  initialsOf,
+} from "@workspace/ui/blocks/app-header"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,7 +56,6 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { XCircle, XIcon } from "@workspace/ui/lib/icons"
@@ -70,18 +75,6 @@ import {
 import { signOutAction } from "../auth/_lib/account-actions"
 import { reportFeedback } from "./report-feedback"
 
-// Gap between a header dropdown and its trigger — the same 8px the shell
-// uses for its page-edge insets, so menus sit on the same spacing grid.
-const MENU_GAP = 8
-
-// Shared sizing for the header dropdowns: 14px text (--menu-text-size),
-// 16px icons (default), 8px gap, 6×8px item padding (→32px rows), 8px
-// container padding, full-bleed 8px-margin dividers. Width sizes to content
-// above the --menu-min-width floor (no magic px), overriding the primitive's
-// default trigger-width sizing.
-const HEADER_MENU =
-  "w-auto min-w-[var(--menu-min-width)] p-2 [&_[data-slot=dropdown-menu-item]]:gap-2 [&_[data-slot=dropdown-menu-item]]:px-2 [&_[data-slot=dropdown-menu-item]]:py-1.5 [&_[data-slot=dropdown-menu-item]]:text-[length:var(--menu-text-size)] [&_[data-slot=dropdown-menu-sub-trigger]]:gap-2 [&_[data-slot=dropdown-menu-sub-trigger]]:px-2 [&_[data-slot=dropdown-menu-sub-trigger]]:py-1.5 [&_[data-slot=dropdown-menu-sub-trigger]]:text-[length:var(--menu-text-size)] [&_[data-slot=dropdown-menu-separator]]:-mx-2 [&_[data-slot=dropdown-menu-separator]]:my-2"
-
 export interface OrgHeaderActionsProps {
   /** Display name — shown in the profile header + drives fallback initials. */
   userName?: string
@@ -91,40 +84,6 @@ export interface OrgHeaderActionsProps {
   orgSlug?: string
   /** Build version string (from server `getBuildVersion()`), shown in Help. */
   version?: string
-}
-
-/** First initials of the first + last name word, uppercased. */
-function initialsOf(name: string | undefined): string {
-  if (!name) return "?"
-  const parts = name.trim().split(/\s+/)
-  const first = parts[0]?.[0] ?? ""
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : ""
-  return (first + last).toUpperCase() || "?"
-}
-
-/**
- * Wraps a dropdown trigger in a bottom tooltip. IconButton's built-in
- * tooltip can't be used here (it returns a Provider tree, which can't also
- * be a DropdownMenuTrigger asChild target), so the tooltip is composed
- * around the trigger once, here, instead of inline per menu.
- */
-function HeaderMenuTrigger({
-  tooltip,
-  children,
-}: {
-  tooltip: string
-  children: ReactNode
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={4}>
-        {tooltip}
-      </TooltipContent>
-    </Tooltip>
-  )
 }
 
 /**

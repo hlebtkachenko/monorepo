@@ -44,6 +44,7 @@ const SCOPES = [
   "api",
   "auth",
   "bot",
+  "brain",
   "bundle",
   "ci",
   "cli",

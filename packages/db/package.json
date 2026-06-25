@@ -33,7 +33,7 @@
     "postgres": "^3.4.7"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^12.0.1",
+    "@testcontainers/postgresql": "^12.0.2",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/testcontainers": "workspace:*",
@@ -42,6 +42,6 @@
     "eslint": "^10.4.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   }
 }

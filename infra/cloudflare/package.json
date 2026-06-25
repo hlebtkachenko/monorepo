@@ -14,11 +14,11 @@
   },
   "dependencies": {
     "@hono/valibot-validator": "^0.6.1",
-    "hono": "^4.12.23",
+    "hono": "^4.12.25",
     "valibot": "^1.4.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260608.1",
+    "@cloudflare/workers-types": "^4.20260615.1",
     "@workspace/typescript-config": "workspace:*",
     "typescript": "^6.0.3",
     "wrangler": "^4.98.0"

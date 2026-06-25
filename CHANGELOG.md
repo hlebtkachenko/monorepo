@@ -6,6 +6,16 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.5.2] — 2026-06-25
+
+Patch release: bundled dependency bumps. No product-surface change. Supersedes the seven open Dependabot PRs (#384, #387–#392), applied on one branch with a single regenerated + deduped lockfile.
+
+### Infrastructure
+
+- **npm**: `hono` 4.12.23 → 4.12.25 (#384); production-dependencies group (12 updates, #392); dev-dependencies group (8 updates, #391). One regenerated `pnpm-lock.yaml`, `pnpm dedupe` applied.
+- **GitHub Actions**: github-actions group (3 SHA-pinned action updates across all workflows). (#390)
+- **Docker / compose**: `postgres:18-alpine` digest (#387); `ubuntu:26.04` devcontainer digest (#388); `axllent/mailpit` v1.30.1 → v1.30.2 (#389).
+
 ## [v0.5.1] — 2026-06-21
 
 Patch release: dependency, CI, accessibility, observability, and docs cleanup tail. No new product surface.

@@ -210,6 +210,7 @@ import { SignaturePadDemo } from "./_components/signature-pad-demo"
 import { InputTagsDemo } from "./_components/input-tags-demo"
 import { NavigationBottomMobileDemo } from "./_components/navigation-bottom-mobile-demo"
 import { DataGridDemo } from "./_components/data-grid-demo"
+import { DataGridViewDemo } from "./_components/data-grid-view-demo"
 import { DataTableDemo } from "./_components/data-table-demo"
 import { FilterBarDemo } from "./_components/filter-bar-demo"
 import { FloatingPanelDemo } from "./_components/floating-panel-demo"
@@ -1024,6 +1025,20 @@ export default function ShowcasePage() {
               Editable grid with search, sort, and typed cells
             </h3>
             <DataGridDemo />
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== DATAGRIDVIEW ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Data Grid View</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Presentational grid bound to a TanStack table — resize, reorder,
+              pin, sort, hide
+            </h3>
+            <DataGridViewDemo />
           </div>
         </div>
       </section>

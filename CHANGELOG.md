@@ -6,6 +6,16 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.6.3] — 2026-06-25
+
+Patch release: pinned infra image bumps. No app-surface change. **Not deployed** — takes effect at the next CDK deploy / Vault-VPS sidecar restart.
+
+### Infrastructure
+
+- **edoburu/pgbouncer** `v1.25.1-p0` → `v1.25.2-p0` (#378).
+- **openfga/openfga** `v1.15.1` → `v1.17.1` (both task defs, #377). No datastore migration or breaking change on this path (verified against upstream release notes; v1.18 is the next migration boundary).
+- **cloudflare/cloudflared** `2026.6.0` → `2026.6.1` — AWS tunnel sidecar (`app-stack.ts`) plus the Vault-VPS sidecar in `infra/vault/compose.yaml` (tag + digest `sha256:6d91c121…`). The Vault-VPS container restart is a separate manual step on the secrets host (#393).
+
 ## [v0.6.2] — 2026-06-25
 
 Patch release: security-only transitive dependency overrides. Clears all 23 open Dependabot alerts (+ the 3 Trivy code-scanning mirrors). No product-surface change.

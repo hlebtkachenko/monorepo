@@ -31,8 +31,11 @@ touching the sidebar or the content panel, or before wiring a new page.
 | App data wrappers            | `apps/web/app/_components/*`                                                 | Thin client components that feed **data** (mock today) + live `usePathname()` into the blocks. No layout logic. |
 | Page mount                   | `apps/web/app/[orgSlug]/page.tsx`                                            | Wires the wrappers into `AppShell`'s slots.                                                                     |
 
-This split is enforced by the `ui-belongs-in-packages-ui-blocks` convention —
-a lefthook hook blocks reusable UI that lands under `apps/web`.
+This split is the `ui-belongs-in-packages-ui-blocks` convention. It is **not**
+mechanically enforced (no lefthook hook guards it) — hold the line in review:
+reusable composition goes in `packages/ui`; only thin data wrappers belong under
+`apps/web/app/_components`. A reusable block trapped in `apps/web` can't be
+imported by other pages or `apps/admin` — audit for it.
 
 ## The AppShell slots
 

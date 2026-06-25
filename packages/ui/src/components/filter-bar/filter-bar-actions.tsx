@@ -24,8 +24,9 @@ function FilterActionsImpl({
   return (
     <Button
       data-slot="filter-bar-actions"
-      className={cn("h-7 !px-2", !hasFilters && "hidden")}
+      className={cn("!px-2", !hasFilters && "hidden")}
       variant="destructive"
+      size="sm"
       onClick={actions?.removeAllFilters}
     >
       <FilterXIcon />

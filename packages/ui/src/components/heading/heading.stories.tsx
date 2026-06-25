@@ -92,3 +92,8 @@ export const Level3: Story = {
 export const Level4: Story = {
   args: { children: "Heading Level 4", level: 4 },
 }
+
+// Decoupled: a semantic <h2> rendered at the compact "sidebar-xl" size.
+export const LevelSidebarXl: Story = {
+  args: { children: "Company", level: 2, size: "sidebar-xl" },
+}

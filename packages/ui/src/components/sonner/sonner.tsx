@@ -17,6 +17,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // Surfaces with a bottom status bar publish `--app-statusbar-clearance`
+      // to lift toasts clear of it; elsewhere it falls back to Sonner's 24px.
+      offset={{ bottom: "var(--app-statusbar-clearance, 24px)" }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

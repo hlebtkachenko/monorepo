@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react"
 import { afterEach, describe, it, expect } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
@@ -7,6 +7,11 @@ import { AppShell } from "./app-shell"
 import { AppShellBottomNav } from "./app-shell-bottom-nav"
 import { ShellSkeleton } from "./skeletons/shell-skeleton"
 import { ErrorShell } from "./skeletons/error-shell"
+
+// AppShell now renders IconButtons (useIcons), so every render needs the
+// IconProvider the app mounts at its root.
+const render = (ui: Parameters<typeof rtlRender>[0]) =>
+  rtlRender(ui, { wrapper: IconProvider })
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth
 
@@ -59,7 +64,7 @@ describe("AppShell", () => {
     expect(
       container.querySelector("[data-slot='app-shell-assistant']"),
     ).toBeTruthy()
-    fireEvent.click(screen.getByRole("button", { name: /close assistant/i }))
+    fireEvent.click(screen.getByRole("button", { name: /collapse assistant/i }))
     expect(
       container.querySelector("[data-slot='app-shell-assistant']"),
     ).toBeNull()

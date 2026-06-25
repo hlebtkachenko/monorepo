@@ -6,6 +6,7 @@ import {
   ChevronRightIcon,
   FilterIcon,
 } from "@workspace/ui/lib/icons"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
@@ -40,6 +41,12 @@ interface FilterSelectorProps<TData> {
   actions: DataTableFilterActions
   strategy: FilterStrategy
   strings?: FilterBarStrings
+  /** Controlled open state — lets a consumer open the selector imperatively. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Controlled active column — jumps straight to that column's value editor. */
+  property?: string
+  onPropertyChange?: (property: string | undefined) => void
 }
 
 function FilterSelectorImpl<TData>({
@@ -48,10 +55,32 @@ function FilterSelectorImpl<TData>({
   actions,
   strategy,
   strings = FILTER_BAR_DEFAULT_STRINGS,
+  open: openProp,
+  onOpenChange,
+  property: propertyProp,
+  onPropertyChange,
 }: FilterSelectorProps<TData>) {
-  const [open, setOpen] = React.useState(false)
+  const [openState, setOpenState] = React.useState(false)
+  const open = openProp ?? openState
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      setOpenState(next)
+      onOpenChange?.(next)
+    },
+    [onOpenChange],
+  )
   const [value, setValue] = React.useState("")
-  const [property, setProperty] = React.useState<string | undefined>(undefined)
+  const [propertyState, setPropertyState] = React.useState<string | undefined>(
+    undefined,
+  )
+  const property = propertyProp !== undefined ? propertyProp : propertyState
+  const setProperty = React.useCallback(
+    (next: string | undefined) => {
+      setPropertyState(next)
+      onPropertyChange?.(next)
+    },
+    [onPropertyChange],
+  )
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   const column = property ? getColumn(columns, property) : undefined
@@ -75,13 +104,21 @@ function FilterSelectorImpl<TData>({
   const content = React.useMemo(
     () =>
       property && column ? (
-        <FilterValueController
-          filter={filter!}
-          column={column as Column<TData, ColumnDataType>}
-          actions={actions}
-          strategy={strategy}
-          strings={strings}
-        />
+        <div>
+          {/* Clarify which column is being filtered (the value step otherwise
+              shows only a bare search box). */}
+          <div className="flex items-center gap-1.5 border-b px-2.5 py-2 text-sm font-medium">
+            <column.icon className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">{column.displayName}</span>
+          </div>
+          <FilterValueController
+            filter={filter!}
+            column={column as Column<TData, ColumnDataType>}
+            actions={actions}
+            strategy={strategy}
+            strings={strings}
+          />
+        </div>
       ) : (
         <Command
           loop
@@ -134,7 +171,8 @@ function FilterSelectorImpl<TData>({
         <Button
           data-slot="filter-bar-selector"
           variant="outline"
-          className={cn("h-7", hasFilters && "w-fit !px-2")}
+          size="sm"
+          className={cn(hasFilters && "w-fit !px-2")}
         >
           <FilterIcon className="size-4" />
           {!hasFilters && <span>{strings.filter}</span>}
@@ -274,7 +312,7 @@ function QuickSearchFiltersImpl<TData>({
                   onSelect={() => handleOptionSelect(v.value, !checked)}
                   className="group"
                 >
-                  <div className="group flex items-center gap-1.5">
+                  <div className="group flex w-full items-center gap-1.5">
                     <Checkbox
                       checked={checked}
                       className="mr-1 opacity-0 group-data-[selected=true]:opacity-100 data-[state=checked]:opacity-100 dark:border-ring"
@@ -292,19 +330,18 @@ function QuickSearchFiltersImpl<TData>({
                         {column.displayName}
                       </span>
                       <ChevronRightIcon className="size-3.5 text-muted-foreground/75" />
-                      <span>
-                        {v.label}
-                        <sup
-                          className={cn(
-                            !optionsCount && "hidden",
-                            "ml-0.5 tracking-tight text-muted-foreground tabular-nums",
-                            count === 0 && "slashed-zero",
-                          )}
-                        >
-                          {count < 100 ? count : "100+"}
-                        </sup>
-                      </span>
+                      <span>{v.label}</span>
                     </div>
+                    {/* Number of matching rows — a trailing count badge, same
+                        treatment as the sidebar nav counts. */}
+                    {optionsCount && count > 0 ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-auto shrink-0 tabular-nums"
+                      >
+                        {count < 100 ? count : "100+"}
+                      </Badge>
+                    ) : null}
                   </div>
                 </CommandItem>
               )

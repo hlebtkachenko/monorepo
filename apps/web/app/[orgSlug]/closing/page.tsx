@@ -1,19 +1,9 @@
-import { SectionStub } from "../_components/section-stub"
+import { ModulePage } from "../_components/module-page"
 
 export const metadata = { title: "Closing" }
 
-export default async function ClosingOverviewPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}) {
-  const { orgSlug } = await params
+export default function ClosingPage() {
   return (
-    <SectionStub
-      title="Overview"
-      orgSlug={orgSlug}
-      subpath="closing"
-      description="Year-end and period closing. Pick a tab to drill in."
-    />
+    <ModulePage title="Closing" description="Period and year-end closing." />
   )
 }

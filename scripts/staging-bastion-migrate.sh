@@ -58,6 +58,7 @@ cleanup() {
   echo ""
   echo "== Cleanup =="
   if [ -n "$SSM_PID" ]; then
+    pkill -P "$SSM_PID" 2>/dev/null || true
     kill "$SSM_PID" 2>/dev/null || true
     wait "$SSM_PID" 2>/dev/null || true
     echo "ssm port-forward stopped"
@@ -123,11 +124,11 @@ RDS_SG_RULE=$(aws rds describe-db-instances --region "$REGION" \
 echo "  vpc           : $RDS_VPC"
 echo "  rds sg        : $RDS_SG_RULE"
 
-PUBLIC_SUBNET=$(aws ec2 describe-subnets --region "$REGION" \
+PUBLIC_SUBNETS=$(aws ec2 describe-subnets --region "$REGION" \
   --filters "Name=vpc-id,Values=$RDS_VPC" "Name=map-public-ip-on-launch,Values=true" \
-  --query "Subnets[0].SubnetId" --output text)
-[ -n "$PUBLIC_SUBNET" ] && [ "$PUBLIC_SUBNET" != "None" ] || { echo "ERR: no public subnet in vpc $RDS_VPC"; exit 1; }
-echo "  public subnet : $PUBLIC_SUBNET"
+  --query "Subnets[].SubnetId" --output text)
+[ -n "$PUBLIC_SUBNETS" ] && [ "$PUBLIC_SUBNETS" != "None" ] || { echo "ERR: no public subnet in vpc $RDS_VPC"; exit 1; }
+echo "  public subnets: $PUBLIC_SUBNETS"
 
 AMI_ID=$(aws ssm get-parameter --region "$REGION" \
   --name "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64" \
@@ -168,16 +169,33 @@ aws ec2 authorize-security-group-ingress --region "$REGION" \
   --source-group "$BASTION_SG" >/dev/null
 echo "  rds sg now accepts 5432 from bastion sg"
 
-echo "== 5. Launch t4g.nano bastion =="
-INSTANCE_ID=$(aws ec2 run-instances --region "$REGION" \
-  --image-id "$AMI_ID" --instance-type t4g.nano \
-  --subnet-id "$PUBLIC_SUBNET" \
-  --security-group-ids "$BASTION_SG" \
-  --associate-public-ip-address \
-  --iam-instance-profile Name="$ROLE_NAME" \
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$TAG}]" \
-  --metadata-options "HttpTokens=required,HttpEndpoint=enabled" \
-  --query "Instances[0].InstanceId" --output text)
+INSTANCE_TYPE="${BASTION_INSTANCE_TYPE:-t4g.nano}"
+echo "== 5. Launch $INSTANCE_TYPE bastion (trying public subnets until an AZ has capacity) =="
+INSTANCE_ID=""
+for SUBNET in $PUBLIC_SUBNETS; do
+  echo "  trying subnet $SUBNET ..."
+  if INSTANCE_ID=$(aws ec2 run-instances --region "$REGION" \
+    --image-id "$AMI_ID" --instance-type "$INSTANCE_TYPE" \
+    --subnet-id "$SUBNET" \
+    --security-group-ids "$BASTION_SG" \
+    --associate-public-ip-address \
+    --iam-instance-profile Name="$ROLE_NAME" \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$TAG}]" \
+    --metadata-options "HttpTokens=required,HttpEndpoint=enabled" \
+    --query "Instances[0].InstanceId" --output text 2>/tmp/run-instances-err); then
+    [ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ] && break
+  fi
+  if grep -q "InsufficientInstanceCapacity" /tmp/run-instances-err 2>/dev/null; then
+    echo "    no $INSTANCE_TYPE capacity in this AZ, trying next ..."
+    INSTANCE_ID=""
+    continue
+  fi
+  echo "ERR: run-instances failed:"; cat /tmp/run-instances-err; exit 1
+done
+[ -n "$INSTANCE_ID" ] && [ "$INSTANCE_ID" != "None" ] || {
+  echo "ERR: no $INSTANCE_TYPE capacity in any public subnet. Retry, or set BASTION_INSTANCE_TYPE=t4g.micro."
+  exit 1
+}
 echo "  instance      : $INSTANCE_ID"
 
 echo "== 6. Wait for SSM registration (up to 3 min) =="
@@ -194,21 +212,36 @@ for i in $(seq 1 36); do
 done
 [ "$status" = "Online" ] || { echo "ERR: SSM never came online"; exit 1; }
 
-echo "== 7. Open SSM port-forward (background) =="
+LOCAL_PORT="${BASTION_LOCAL_PORT:-5433}"
+echo "== 7. Open SSM port-forward (background) on 127.0.0.1:$LOCAL_PORT =="
 aws ssm start-session --region "$REGION" \
   --target "$INSTANCE_ID" \
   --document-name AWS-StartPortForwardingSessionToRemoteHost \
-  --parameters "host=$RDS_ENDPOINT,portNumber=5432,localPortNumber=5432" \
+  --parameters "host=$RDS_ENDPOINT,portNumber=5432,localPortNumber=$LOCAL_PORT" \
   >/tmp/ssm-tunnel.log 2>&1 &
 SSM_PID=$!
 echo "  ssm pid       : $SSM_PID"
-echo "  waiting 8s for tunnel to stabilize..."
-sleep 8
 
-# Sanity probe: is the tunnel up? nc -z fails on macOS; use timeout + bash /dev/tcp.
-if ! timeout 3 bash -c "cat </dev/tcp/127.0.0.1/5432" >/dev/null 2>&1; then
-  echo "  WARN: 127.0.0.1:5432 not reachable yet; tail of ssm log:"
-  tail -10 /tmp/ssm-tunnel.log
+# Poll until the forwarder is actually listening AND accepting TCP, instead of a
+# fixed sleep that races the tunnel (a too-short wait makes psql hit a half-open
+# port -> "server closed the connection unexpectedly"). `exec <>/dev/tcp` tests
+# the connect without a blocking read; the log line confirms the remote side is
+# wired. Up to ~60s.
+echo "  waiting for tunnel on 127.0.0.1:$LOCAL_PORT (up to 60s)..."
+tunnel_up=""
+for i in $(seq 1 30); do
+  if grep -q "Waiting for connections" /tmp/ssm-tunnel.log 2>/dev/null &&
+    timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/$LOCAL_PORT" 2>/dev/null; then
+    tunnel_up=1
+    echo "  tunnel ready after ~$((i * 2))s"
+    break
+  fi
+  sleep 2
+done
+if [ -z "$tunnel_up" ]; then
+  echo "ERR: SSM tunnel never opened 127.0.0.1:$LOCAL_PORT in 60s. Tail of ssm log:"
+  tail -15 /tmp/ssm-tunnel.log
+  exit 1
 fi
 
 DEFAULT_CMD='pnpm --filter @workspace/db db:migrate'
@@ -216,7 +249,7 @@ CMD="${CMD:-$DEFAULT_CMD}"
 
 echo "== 8. Run command =="
 echo "  cmd: $CMD"
-export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASS}@127.0.0.1:5432/monorepo?sslmode=require"
+export DATABASE_DIRECT_URL="postgres://${DB_USER}:${DB_PASS}@127.0.0.1:${LOCAL_PORT}/monorepo?sslmode=require"
 unset DB_PASS
 
 # eval is intentional: the script is operator-driven and the operator owns

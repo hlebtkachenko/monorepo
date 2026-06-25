@@ -2,5 +2,5 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
 
 /** Closing module sidebar nav. `base` = `/${orgSlug}/closing`. */
 export function closingNav(base: string): SidebarNavEntry[] {
-  return [{ label: "Closing", href: base, icon: "CalendarClock" }]
+  return [{ label: "Overview", href: base, icon: "CalendarClock" }]
 }

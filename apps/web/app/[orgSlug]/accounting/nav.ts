@@ -7,5 +7,5 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * `/${orgSlug}/accounting`.
  */
 export function accountingNav(base: string): SidebarNavEntry[] {
-  return [{ label: "Accounting", href: base, icon: "Calculator" }]
+  return [{ label: "Overview", href: base, icon: "Calculator" }]
 }

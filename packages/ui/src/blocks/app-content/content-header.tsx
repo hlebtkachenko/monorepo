@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { Badge } from "@workspace/ui/components/badge"
+import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -133,13 +134,16 @@ export function ContentHeader({
           {collapsed ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-7 min-w-0 shrink items-center gap-1 rounded-md px-2 text-sm font-medium text-foreground outline-none hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+                {/* Compose our Button (ghost) so hover/focus tokens track the
+                    primitive; keep the bespoke h-7 / shrink tab-selector sizing. */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 min-w-0 shrink gap-1 px-2 font-medium"
                 >
                   <span className="truncate">{activeLabel}</span>
                   <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-44">
                 <DropdownMenuRadioGroup

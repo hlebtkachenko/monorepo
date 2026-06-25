@@ -4,9 +4,17 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@workspace/auth/server"
 import { writeAuditEventGlobal } from "@workspace/db"
+import { getBuildVersion } from "@workspace/ui/brand-assets"
 import { Heading } from "@workspace/ui/components/heading"
 import { Text } from "@workspace/ui/components/text"
 
+import { getActiveImpersonation } from "@/lib/admin-impersonation"
+import { getStaffRole } from "@/lib/staff-role"
+
+import { AdminHeader } from "./_components/admin-header"
+import { AdminHeaderActions } from "./_components/admin-header-actions"
+import { AdminShell } from "./_components/admin-shell"
+import { ADMIN_MODULES, filterAdminModules } from "./_nav/admin-nav"
 import { checkAllowlist } from "./check-allowlist"
 import { SignOutButton } from "./sign-out-button"
 
@@ -76,5 +84,30 @@ export default async function GatedLayout({
     payload: { user_id: session.user.id },
   })
 
-  return <>{children}</>
+  const role = await getStaffRole(session.user.id)
+  const modules = filterAdminModules(ADMIN_MODULES, role)
+  const impersonation = await getActiveImpersonation()
+
+  const header = (
+    <AdminHeader
+      actions={
+        <AdminHeaderActions
+          email={session.user.email}
+          version={getBuildVersion()}
+          webUrl={process.env.WEB_BASE_URL ?? "http://localhost:3010"}
+        />
+      }
+    />
+  )
+
+  return (
+    <AdminShell
+      modules={modules}
+      header={header}
+      userId={session.user.id}
+      impersonation={impersonation}
+    >
+      {children}
+    </AdminShell>
+  )
 }

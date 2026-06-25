@@ -22,6 +22,23 @@ import {
 } from "@workspace/ui/components/input-otp"
 import { Text } from "@workspace/ui/components/text"
 
+/**
+ * Next.js server-action `redirect()` throws an exception with digest
+ * `NEXT_REDIRECT;...`. The framework catches it at the action boundary, but
+ * when the action is awaited inside an async client handler the throw
+ * propagates here. Re-throw so Next can navigate instead of rendering the
+ * digest as a credential error.
+ */
+function isRedirectError(err: unknown): boolean {
+  return (
+    err !== null &&
+    typeof err === "object" &&
+    "digest" in err &&
+    typeof (err as { digest?: unknown }).digest === "string" &&
+    (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  )
+}
+
 export interface LoginMfaFormMessages {
   title: string
   description: (email: string) => string

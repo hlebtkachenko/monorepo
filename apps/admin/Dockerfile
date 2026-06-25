@@ -43,6 +43,17 @@ COPY --from=deps /repo /repo
 COPY --from=pruner /repo/out/full/ ./
 RUN pnpm --filter admin build
 
+# ---------- storybook-builder ----------
+# Independent of `builder`; both stages pull from `deps` + `pruner` in parallel
+# under BuildKit, so image build time = max(next build, storybook build).
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS storybook-builder
+ENV NEXT_TELEMETRY_DISABLED=1
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY --from=deps /repo /repo
+COPY --from=pruner /repo/out/full/ ./
+RUN SB_FULL=1 pnpm --filter @workspace/ui exec storybook build -o /storybook-static
+
 # ---------- runner ----------
 FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS runner
 ARG BUILD_SHA=unknown
@@ -63,6 +74,7 @@ ENV NODE_ENV=production \
     BUILD_SHA=$BUILD_SHA \
     BUILD_TIME=$BUILD_TIME \
     BUILD_VERSION=$BUILD_VERSION \
+    STORYBOOK_STATIC_DIR=/app/.storybook-static \
     # Admin never registers accounts: Better Auth's /sign-up/email rejects
     # when this is set (packages/auth/src/server.ts emailAndPassword.disableSignUp).
     AUTH_DISABLE_SIGNUP=1
@@ -89,6 +101,7 @@ WORKDIR /app
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/admin/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/admin/.next/static ./apps/admin/.next/static
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/admin/public ./apps/admin/public
+COPY --from=storybook-builder --chown=nextjs:nodejs /storybook-static ./.storybook-static
 
 USER nextjs:nodejs
 EXPOSE 3100

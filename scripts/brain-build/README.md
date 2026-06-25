@@ -23,14 +23,14 @@ Surfaced for Hleb in `PROGRESS.md ## Decisions` (D-002).
 
 ## Checks (plan §11) — status
 
-| #   | Check                                                                                | File                   | Status                                                        |
-| --- | ------------------------------------------------------------------------------------ | ---------------------- | ------------------------------------------------------------- |
-| 1   | Symbol/signature existence (`expected-symbols.json` resolved vs real Track-A source) | `symbol-check.ts`      | TODO — needs WP-0.0a vendored contract (BLOCKED on Track-A)   |
-| 2   | Fixture tamper-evidence (golden hash in `fixtures.lock`)                             | `fixtures-check.ts`    | TODO — needs WP-0.8 fixtures                                  |
-| 3   | Threshold tamper-evidence (no downward move in `eval-thresholds.lock`)               | `thresholds-check.ts`  | lock committed; checker TODO                                  |
-| 4   | Constitution as executable checks (AST/grep invariants)                              | `constitution-checks/` | TODO — needs WP-0.2 `.brain/constitution.md` + WP-0.1 package |
-| 5   | PROGRESS↔git reconcile (every Done row names a real SHA; verify re-run)              | `reconcile.ts`         | TODO                                                          |
-| 6   | OFF-PATH tripwires (self-checks + BGTG enforce)                                      | `OFF-PATH.md`          | doc present                                                   |
+| #   | Check                                                                                | File                   | Status                                                                     |
+| --- | ------------------------------------------------------------------------------------ | ---------------------- | -------------------------------------------------------------------------- |
+| 1   | Symbol/signature existence (`expected-symbols.json` resolved vs real Track-A source) | `symbol-check.ts`      | TODO — needs WP-0.0a vendored contract (BLOCKED on Track-A)                |
+| 2   | Fixture tamper-evidence (golden hash in `fixtures.lock`)                             | `fixtures-check.ts`    | TODO — needs WP-0.8 fixtures                                               |
+| 3   | Threshold tamper-evidence (no downward move in `eval-thresholds.lock`)               | `thresholds-check.ts`  | lock committed; checker TODO                                               |
+| 4   | Constitution as executable checks (AST/grep invariants)                              | `constitution-checks/` | **DONE** (WP-0.2) — I2/I3/I5, `--selftest` 19 forms, wired into brain test |
+| 5   | PROGRESS↔git reconcile (every Done row names a real SHA; verify re-run)              | `reconcile.ts`         | TODO                                                                       |
+| 6   | OFF-PATH tripwires (self-checks + BGTG enforce)                                      | `OFF-PATH.md`          | doc present                                                                |
 
 The TODO checks are **foundation-independent in design** but each needs its target to exist first
 (the vendored contract, the package, the constitution, the fixtures). They get built alongside the WP

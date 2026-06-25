@@ -62,7 +62,7 @@ export function orgBottomNav(orgSlug: string): BottomNavItem[] {
 // The org index ("Company") has no module folder, so its trivial tree lives
 // here. Every actual module folder owns a co-located `<module>/nav.ts`.
 function companyNav(base: string): SidebarNavEntry[] {
-  return [{ label: "Overview", href: base, icon: "Goal" }]
+  return [{ label: "Company", href: base, icon: "Goal" }]
 }
 
 /**

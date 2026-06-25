@@ -58,6 +58,13 @@ overrides:
   # 4.x line via an explicit selector (a bare `@4` reads as exact) — the transitive 3.14.2
   # consumer can't take a major bump and the DoS is dev-tooling only.
   "js-yaml@>=4.0.0 <5.0.0": ">=4.2.0"
+  # Pin to 1.60.0 (main's version): the from-scratch lockfile regen floats Playwright to
+  # 1.61.1, whose bundled chromium revision (1228) mismatches the e2e browser cache and
+  # fails the advisory e2e job. Not a security target — keep it stable so this stays a
+  # security-only change.
+  "@playwright/test": "1.60.0"
+  playwright: "1.60.0"
+  playwright-core: "1.60.0"
   # Pin 11.1.1 for vulnerable majors only (buf bounds check in v3/v5/v6 — none of our
   # consumers hit that path). Range selector leaves @cerbos/core's already-safe uuid@14
   # untouched. NOT an open ">=" range on purpose: uuid@12+ drops CommonJS, which would

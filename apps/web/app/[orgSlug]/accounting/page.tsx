@@ -1,19 +1,12 @@
-import { SectionStub } from "../_components/section-stub"
+import { ModulePage } from "../_components/module-page"
 
 export const metadata = { title: "Accounting" }
 
-export default async function AccountingOverviewPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}) {
-  const { orgSlug } = await params
+export default function AccountingPage() {
   return (
-    <SectionStub
-      title="Overview"
-      orgSlug={orgSlug}
-      subpath="accounting"
-      description="General accounting: ledger, journal, posting, chart of accounts. Pick a tab to drill in."
+    <ModulePage
+      title="Accounting"
+      description="General ledger, journal, posting, and chart of accounts."
     />
   )
 }

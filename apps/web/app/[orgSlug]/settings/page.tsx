@@ -1,18 +1,12 @@
-import { SectionStub } from "../_components/section-stub"
+import { ModulePage } from "../_components/module-page"
 
-export const metadata = { title: "Organization settings" }
+export const metadata = { title: "Settings" }
 
-export default async function OrgSettingsPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}) {
-  const { orgSlug } = await params
+export default function SettingsPage() {
   return (
-    <SectionStub
+    <ModulePage
       title="Settings"
-      orgSlug={orgSlug}
-      description="Organization-level settings (members, regime, fiscal year, integrations). Stub for now."
+      description="Organization settings, members, regime, and fiscal year."
     />
   )
 }

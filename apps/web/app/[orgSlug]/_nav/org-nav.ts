@@ -60,16 +60,7 @@ export function orgBottomNav(orgSlug: string): BottomNavItem[] {
 // so they live here rather than as one-line co-located files. Modules with real
 // sub-pages get a co-located `<module>/nav.ts`.
 function companyNav(base: string): SidebarNavEntry[] {
-  return [
-    { label: "Overview", href: base, icon: "Goal" },
-    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox" },
-    {
-      label: "Transactions",
-      href: `${base}/transactions`,
-      icon: "ArrowUpDown",
-    },
-    { label: "Taxes", href: `${base}/taxes`, icon: "ReceiptEuro" },
-  ]
+  return [{ label: "Overview", href: base, icon: "Goal" }]
 }
 
 const overviewOnly =

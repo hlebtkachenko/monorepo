@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Banknote, Building2, Calendar, FileText } from "lucide-react"
 
-import { ContentPanel } from "@workspace/ui/blocks/app-content"
+import { ContentPanel, DetailField } from "@workspace/ui/blocks/app-content"
 import {
   ActionBar,
   ActionBarGroup,
@@ -193,21 +193,6 @@ function applySearch(rows: InvoiceRow[], query: string): InvoiceRow[] {
       String(row.vat),
       dateSearchText(row.date),
     ].some((value) => normalizeSearch(value).includes(q)),
-  )
-}
-
-function DetailField({
-  label,
-  value,
-}: {
-  label: string
-  value: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm">{value}</dd>
-    </div>
   )
 }
 

@@ -6,6 +6,87 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.5.1] — 2026-06-21
+
+Patch release: dependency, CI, accessibility, observability, and docs cleanup tail. No new product surface.
+
+### Changed
+
+- **observability**: deduped the client-error gate into `@workspace/notify` so app + worker error capture share one path. (#368)
+- **web**: code-quality leftovers from the D wave (DEV-78). (#371)
+
+### Fixed
+
+- **ui**: mobile a11y — 40px sheet-close target + shell tokens for the bottom nav. (#370)
+- **admin**: resolve only the brand name in the root layout. (#385)
+- **ci**: install deps before `wrangler-action` in `deploy-sleeping` (#364); force `joi >=18.2.1` (CVE-2026-48038) (#365); gate `sbom-diff` on version upgrades, not just added components (#367); allow the `bot` scope in PR titles (#345); post-audit corrections — wrangler deploy pin, PII redaction, override-aligned deps (#380).
+
+### Infrastructure
+
+- Dependency bumps: production deps (25 then 15) (#366, #375), dev deps (35) (#376), GitHub Actions group (#352), `aws-actions/amazon-ecr-login` (#374), postgres image (#359, #360, #372, #373), infra-compose images (#358).
+
+### Documentation
+
+- Generalize the break-glass escrow location across the repo (#349); normalize runbook filenames (drop `-RUNBOOK`, `AWS-DEPLOY`→`AWS-SETUP`, `COST-INCIDENT`) (#347).
+
+## [v0.5.0] — 2026-06-11
+
+Minor release: pre-v1 hardening — mobile UI, brand surface, performance, i18n — plus infra cost/alarm fixes.
+
+### Added
+
+- **Pre-v1 hardening (feature wave)** — UI mobile support, brand surface, performance, and i18n. (#361)
+
+### Fixed
+
+- **Pre-v1 hardening (fix wave)** — security, docs, observability, API platform, CI, tests, and DX. (#356)
+
+### Infrastructure
+
+- Cut Vault→SSM sync KMS usage to zero in steady state. (#354)
+- Wire facade-generated CloudWatch alarms to the `BillingTopic`. (#355)
+
+## [v0.4.1] — 2026-06-07
+
+Patch release: web layout re-land and supporting docs/UX fixes.
+
+### Changed
+
+- **ui**: switch the AppShell content area to flex and drop `react-resizable-panels`; re-land the web layout changes after the unreviewed direct-to-main push was reverted. (#350, #351)
+- **web**: rename the `/personnel` org route to `/hr` and move section titles to design tokens.
+
+### Fixed
+
+- App errors now open deduped Linear issues; dropped the Next.js control-flow signals from error capture. (#342)
+
+### Documentation
+
+- Repo-wide drift sweep (root docs, ADRs, runbooks, inventory) + register `app-context-menu` and the verify script (#341); root-doc security + freshness pass (#348).
+
+### Added
+
+- Theme-adaptive `favicon.svg` at the repo root for the Conductor sidebar icon. (#343)
+
+## [v0.4.0] — 2026-06-07
+
+Minor release: the agent human-in-the-loop (HITL) round-trip and the Telegram command/control surface.
+
+### Added
+
+- **Agent HITL round-trip** — complete free-text replies, timeout policy, and agent wiring (#337); hybrid asks (options + type-your-own) with crisp agent recipes (#338); answer-as-trigger so the reply WAKES the consumer with no agent polling (#340).
+- **Telegram bot control plane** (PR-2) — continues the dev alert + control hub from v0.3.0. (#332)
+- **Telegram command surface** — command menu + interactive button pickers (#336).
+- **Security findings fan-in** (DEV-59). (#333)
+
+### Changed
+
+- Point the bot `/status` at `api/health` and set `ENVIRONMENT=production`. (#334)
+- **ci**: gate `cdk-synth` + icon-parity heavy work on change-detection. (#335)
+
+### Fixed
+
+- Keep the HITL question visible + strip options when ✍️ Other is chosen. (#339)
+
 ## [v0.3.0] — 2026-06-06
 
 Minor release: the Afframe Telegram dev alert + control hub (epic DEV-48).

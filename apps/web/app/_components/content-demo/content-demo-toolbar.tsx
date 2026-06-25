@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import type { Table } from "@tanstack/react-table"
 
 import { ContentToolbar } from "@workspace/ui/blocks/app-content"
@@ -8,15 +7,14 @@ import type { InspectorMode } from "@workspace/ui/blocks/app-content"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
 import {
+  DataTableColumnManager,
   DataTableFacetedFilter,
   DataTableMultiSort,
-  getColumnLabel,
 } from "@workspace/ui/components/data-table"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -29,14 +27,7 @@ import {
   type FiltersState,
 } from "@workspace/ui/components/filter-bar"
 import { Input } from "@workspace/ui/components/input"
-import {
-  Columns3,
-  Eye,
-  EyeOff,
-  GripVertical,
-  Search,
-  SquareMousePointer,
-} from "@workspace/ui/lib/icons"
+import { Search, SquareMousePointer } from "@workspace/ui/lib/icons"
 import {
   Tooltip,
   TooltipContent,
@@ -47,160 +38,11 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@workspace/ui/components/toggle-group"
-import { cn } from "@workspace/ui/lib/utils"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { INVOICE_STATUS_OPTIONS, type InvoiceRow } from "./data"
 
 const ADD_TYPES = ["Tax document", "Advance", "Credit note", "Settlement"]
-
-/** Insert `sourceId` before/after `targetId` within the non-pinned center group. */
-function reorderColumn(
-  table: Table<InvoiceRow>,
-  sourceId: string,
-  targetId: string,
-  edge: "top" | "bottom",
-) {
-  if (sourceId === targetId) return
-  const order = table.getState().columnOrder.length
-    ? table.getState().columnOrder
-    : table.getAllLeafColumns().map((c) => c.id)
-  const center = order.filter((id) => !table.getColumn(id)?.getIsPinned())
-  const from = center.indexOf(sourceId)
-  if (from < 0) return
-  const next = [...center]
-  const [moved] = next.splice(from, 1)
-  if (moved == null) return
-  const to = next.indexOf(targetId)
-  if (to < 0) return
-  next.splice(edge === "top" ? to : to + 1, 0, moved)
-  const left = order.filter(
-    (id) => table.getColumn(id)?.getIsPinned() === "left",
-  )
-  const right = order.filter(
-    (id) => table.getColumn(id)?.getIsPinned() === "right",
-  )
-  table.setColumnOrder([...left, ...next, ...right])
-}
-
-/**
- * The column manager — a titled, drag-reorderable list (grip handle + a dark
- * separator at the drop position) where each row's eye toggles visibility.
- * Shared by the toolbar "Columns" button and the grid's "+ Add column".
- */
-export function ColumnManagerMenuContent({
-  table,
-}: {
-  table: Table<InvoiceRow>
-}) {
-  const [dragId, setDragId] = React.useState<string | null>(null)
-  const [dropTarget, setDropTarget] = React.useState<{
-    id: string
-    edge: "top" | "bottom"
-  } | null>(null)
-  const columns = table.getAllColumns().filter((column) => column.getCanHide())
-
-  return (
-    <>
-      <DropdownMenuLabel>Columns</DropdownMenuLabel>
-      {columns.map((column) => {
-        const visible = column.getIsVisible()
-        const ToggleIcon = visible ? Eye : EyeOff
-        const label = getColumnLabel(column)
-        const over = dropTarget?.id === column.id
-        return (
-          <div key={column.id} className="relative">
-            {over && dropTarget.edge === "top" ? (
-              <span className="pointer-events-none absolute inset-x-1 top-0 z-10 h-0.5 -translate-y-1/2 rounded-full bg-foreground" />
-            ) : null}
-            <div
-              draggable
-              onDragStart={(event) => {
-                // setData + effectAllowed are required for the drag to actually
-                // start (Firefox) and for the native "held" drag image to show.
-                event.dataTransfer.effectAllowed = "move"
-                event.dataTransfer.setData("text/plain", column.id)
-                setDragId(column.id)
-              }}
-              onDragEnd={() => {
-                setDragId(null)
-                setDropTarget(null)
-              }}
-              onDragOver={(event) => {
-                if (!dragId || dragId === column.id) return
-                event.preventDefault()
-                event.stopPropagation()
-                event.dataTransfer.dropEffect = "move"
-                const rect = event.currentTarget.getBoundingClientRect()
-                const edge =
-                  event.clientY < rect.top + rect.height / 2 ? "top" : "bottom"
-                setDropTarget({ id: column.id, edge })
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                if (dragId) {
-                  reorderColumn(
-                    table,
-                    dragId,
-                    column.id,
-                    dropTarget?.edge ?? "top",
-                  )
-                }
-                setDragId(null)
-                setDropTarget(null)
-              }}
-              className={cn(
-                "flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
-                // The dragged row "lifts": it dims in place while its full-opacity
-                // native ghost follows the cursor.
-                dragId === column.id && "opacity-40",
-              )}
-            >
-              <GripVertical className="size-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
-              <span
-                className={cn(
-                  "flex-1 truncate",
-                  !visible && "text-muted-foreground",
-                )}
-              >
-                {label}
-              </span>
-              <button
-                type="button"
-                aria-label={visible ? `Hide ${label}` : `Show ${label}`}
-                onClick={() => column.toggleVisibility(!visible)}
-                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ToggleIcon className="size-4" />
-              </button>
-            </div>
-            {over && dropTarget.edge === "bottom" ? (
-              <span className="pointer-events-none absolute inset-x-1 bottom-0 z-10 h-0.5 translate-y-1/2 rounded-full bg-foreground" />
-            ) : null}
-          </div>
-        )
-      })}
-    </>
-  )
-}
-
-/** The toolbar "Columns" button — opens the shared column manager. */
-function ColumnsButton({ table }: { table: Table<InvoiceRow> }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Columns3 />
-          Columns
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
-        <ColumnManagerMenuContent table={table} />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 export interface ContentDemoToolbarProps {
   table: Table<InvoiceRow>
@@ -306,7 +148,7 @@ export function ContentDemoToolbar({
       }
       right={
         <>
-          <ColumnsButton table={table} />
+          <DataTableColumnManager table={table} />
           <DataTableMultiSort table={table} />
           <ButtonGroup>
             <Button size="sm">

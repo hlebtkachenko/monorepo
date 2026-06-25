@@ -12,7 +12,10 @@ import {
   ActionBarSeparator,
 } from "@workspace/ui/components/action-bar"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
-import { useDataTable } from "@workspace/ui/components/data-table"
+import {
+  ColumnManagerMenuContent,
+  useDataTable,
+} from "@workspace/ui/components/data-table"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,10 +38,7 @@ import { useIcons } from "@workspace/ui/icon-packs"
 
 import { invoiceColumns } from "./columns"
 import { ContentDemoStatusBar } from "./content-demo-statusbar"
-import {
-  ColumnManagerMenuContent,
-  ContentDemoToolbar,
-} from "./content-demo-toolbar"
+import { ContentDemoToolbar } from "./content-demo-toolbar"
 import { useOrgContent } from "./context"
 import {
   INVOICE_ROWS,

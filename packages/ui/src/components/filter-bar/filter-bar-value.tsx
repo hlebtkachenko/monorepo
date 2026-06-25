@@ -4,6 +4,7 @@ import * as React from "react"
 import { Ellipsis } from "@workspace/ui/lib/icons"
 import { format, isEqual } from "date-fns"
 import type { DateRange } from "react-day-picker"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Calendar } from "@workspace/ui/components/calendar"
 import { Checkbox } from "@workspace/ui/components/checkbox"
@@ -30,7 +31,11 @@ import {
   TabsTrigger,
 } from "@workspace/ui/components/tabs"
 import { cn } from "@workspace/ui/lib/utils"
-import { formatNumber, parseNumber } from "@workspace/ui/lib/format-number"
+import {
+  formatNumber,
+  maskNumberInput,
+  parseNumber,
+} from "@workspace/ui/lib/format-number"
 import { numberFilterOperators } from "./filter-bar-core"
 import { createNumberRange, take } from "./filter-bar-helpers"
 import { DebouncedInput } from "./filter-bar-debounced-input"
@@ -410,19 +415,15 @@ const OptionItem = React.memo(function OptionItem({
           ) : (
             <Icon className="size-4 text-primary" />
           ))}
-        <span>
-          {label}
-          <sup
-            className={cn(
-              count == null && "hidden",
-              "ml-0.5 tracking-tight text-muted-foreground tabular-nums",
-              count === 0 && "slashed-zero",
-            )}
-          >
-            {typeof count === "number" ? (count < 100 ? count : "100+") : ""}
-          </sup>
-        </span>
+        <span>{label}</span>
       </div>
+      {/* Number of matching rows — a trailing count badge, same treatment as
+          the sidebar nav counts. */}
+      {typeof count === "number" && count > 0 ? (
+        <Badge variant="secondary" className="shrink-0 tabular-nums">
+          {count < 100 ? count : "100+"}
+        </Badge>
+      ) : null}
     </CommandItem>
   )
 })
@@ -668,33 +669,60 @@ function FormattedNumberInput({
   value,
   onCommit,
 }: FormattedNumberInputProps) {
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const caretRef = React.useRef<number | null>(null)
   const [draft, setDraft] = React.useState<string>(() => formatNumber(value))
 
   React.useEffect(() => {
     setDraft(formatNumber(value))
   }, [value])
 
+  // Restore the caret after a masked re-format shifts the text (e.g. a thousand
+  // separator or the ",00" suffix was inserted to the left of the caret).
+  React.useLayoutEffect(() => {
+    if (caretRef.current === null || !inputRef.current) return
+    const pos = caretRef.current
+    inputRef.current.setSelectionRange(pos, pos)
+    caretRef.current = null
+  }, [draft])
+
+  // Live formatting: group thousands and keep a ",00" suffix as the user types,
+  // preserving the caret. The numeric value is only committed on blur / Enter —
+  // committing per keystroke re-rounded the draft and looked like a +0.01 step.
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const next = event.target.value
-    setDraft(next)
-    const parsed = parseNumber(next)
-    if (parsed !== null) onCommit(parsed)
+    const el = event.target
+    const masked = maskNumberInput(
+      el.value,
+      el.selectionStart ?? el.value.length,
+    )
+    caretRef.current = masked.caret
+    setDraft(masked.text)
   }
 
-  const handleBlur = () => {
+  const commit = () => {
     const parsed = parseNumber(draft)
     if (parsed === null) setDraft(formatNumber(value))
-    else setDraft(formatNumber(parsed))
+    else {
+      setDraft(formatNumber(parsed))
+      onCommit(parsed)
+    }
   }
 
   return (
     <Input
       id={id}
+      ref={inputRef}
       inputMode="decimal"
       value={draft}
       onChange={handleChange}
-      onBlur={handleBlur}
-      className="min-w-[10rem]"
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault()
+          commit()
+        }
+      }}
+      className="min-w-0 flex-1"
     />
   )
 }
@@ -769,7 +797,7 @@ export function FilterValueNumberController<TData>({
 
   return (
     <Command>
-      <CommandList className="w-[300px] px-2 py-2">
+      <CommandList className="w-44 px-2 py-2">
         <CommandGroup>
           <div className="flex w-full flex-col">
             <Tabs
@@ -811,16 +839,20 @@ export function FilterValueNumberController<TData>({
                     aria-orientation="horizontal"
                   />
                 )}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium">{strings.min}</span>
+                    <span className="w-8 shrink-0 text-xs font-medium">
+                      {strings.min}
+                    </span>
                     <FormattedNumberInput
                       value={values[0] ?? 0}
                       onCommit={changeMinNumber}
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium">{strings.max}</span>
+                    <span className="w-8 shrink-0 text-xs font-medium">
+                      {strings.max}
+                    </span>
                     <FormattedNumberInput
                       value={values[1] ?? 0}
                       onCommit={changeMaxNumber}

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
-import { formatMoney, formatNumber, parseNumber } from "./format-number"
+import {
+  formatMoney,
+  formatNumber,
+  maskNumberInput,
+  parseNumber,
+} from "./format-number"
 
 const NBSP = " "
 
@@ -130,5 +135,57 @@ describe("parseNumber", () => {
       expect(parsed).not.toBeNull()
       expect(Math.abs((parsed ?? 0) - n)).toBeLessThan(1e-9)
     }
+  })
+})
+
+describe("maskNumberInput", () => {
+  it("keeps an empty field empty so the placeholder shows", () => {
+    expect(maskNumberInput("", 0)).toEqual({ text: "", caret: 0 })
+  })
+
+  it("appends a ,00 suffix and keeps the caret after a single digit", () => {
+    expect(maskNumberInput("1", 1)).toEqual({ text: "1,00", caret: 1 })
+  })
+
+  it("groups thousands as you type, caret after the last integer digit", () => {
+    const result = maskNumberInput("1234", 4)
+    expect(result.text).toBe(`1${NBSP}234,00`)
+    expect(result.caret).toBe(5)
+  })
+
+  it("regroups when a digit pushes a new thousand separator", () => {
+    const result = maskNumberInput("9999999", 7)
+    expect(result.text).toBe(`9${NBSP}999${NBSP}999,00`)
+    // 7 digits + 2 separators
+    expect(result.caret).toBe(9)
+  })
+
+  it("keeps the committed ,00 while typing the next integer digit", () => {
+    // field was "1,00", caret after the 1, user types another digit
+    const result = maskNumberInput("12,00", 2)
+    expect(result.text).toBe("12,00")
+    expect(result.caret).toBe(2)
+  })
+
+  it("lets the user type decimals after a comma", () => {
+    const result = maskNumberInput("1,5", 3)
+    expect(result.text).toBe("1,5")
+    expect(result.caret).toBe(3)
+  })
+
+  it("caps decimals at two digits", () => {
+    expect(maskNumberInput("1,567", 5).text).toBe("1,56")
+  })
+
+  it("preserves a leading minus", () => {
+    const result = maskNumberInput("-1234", 5)
+    expect(result.text).toBe(`-1${NBSP}234,00`)
+    expect(result.caret).toBe(6)
+  })
+
+  it("produces a draft that round-trips through parseNumber", () => {
+    const { text } = maskNumberInput("40000", 5)
+    expect(text).toBe(`40${NBSP}000,00`)
+    expect(parseNumber(text)).toBe(40000)
   })
 })

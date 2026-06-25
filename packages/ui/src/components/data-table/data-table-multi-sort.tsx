@@ -1,7 +1,7 @@
 "use client"
 
 import type { Table } from "@tanstack/react-table"
-import { ArrowDown, ArrowUp, ArrowUpDown, Trash2 } from "@workspace/ui/lib/icons"
+import { ArrowUpDown, GripVertical, Trash2 } from "@workspace/ui/lib/icons"
 import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"
@@ -19,20 +19,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 
 import { getColumnLabel } from "./data-table-utils"
 
 interface DataTableMultiSortProps<TData> {
   table: Table<TData>
   className?: string
+  /** Optional tooltip on the trigger button. */
+  tooltip?: string
 }
 
 export function DataTableMultiSort<TData>({
   table,
   className,
+  tooltip,
 }: DataTableMultiSortProps<TData>) {
   const sorting = table.getState().sorting
   const setSorting = table.setSorting
+
+  const [dragIndex, setDragIndex] = React.useState<number | null>(null)
+  const [dropTarget, setDropTarget] = React.useState<{
+    index: number
+    edge: "top" | "bottom"
+  } | null>(null)
 
   const sortableColumns = React.useMemo(
     () => table.getAllColumns().filter((column) => column.getCanSort()),
@@ -48,43 +63,67 @@ export function DataTableMultiSort<TData>({
 
   const reset = React.useCallback(() => setSorting([]), [setSorting])
 
-  const move = React.useCallback(
-    (index: number, direction: -1 | 1) => {
-      const target = index + direction
-      if (target < 0 || target >= sorting.length) return
-      const next = sorting.slice()
-      const [item] = next.splice(index, 1)
-      if (!item) return
-      next.splice(target, 0, item)
-      setSorting(next)
+  // Drag a rule's grip handle to reorder the sort priority — `edge` is which
+  // side of the target row the cursor is on (the drop separator).
+  const reorderEdge = React.useCallback(
+    (from: number, index: number, edge: "top" | "bottom") => {
+      setSorting((prev) => {
+        let to = edge === "bottom" ? index + 1 : index
+        if (from < to) to -= 1
+        if (from < 0 || from >= prev.length || to < 0 || to >= prev.length) {
+          return prev
+        }
+        if (from === to) return prev
+        const next = prev.slice()
+        const [item] = next.splice(from, 1)
+        if (!item) return prev
+        next.splice(to, 0, item)
+        return next
+      })
     },
-    [setSorting, sorting],
+    [setSorting],
+  )
+
+  const triggerButton = (
+    <Button
+      data-slot="data-table-multi-sort-trigger"
+      variant="outline"
+      size="sm"
+      className={cn(className)}
+    >
+      <ArrowUpDown />
+      Sort
+      {sorting.length > 0 && (
+        <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+          {sorting.length}
+        </Badge>
+      )}
+    </Button>
   )
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          data-slot="data-table-multi-sort-trigger"
-          variant="outline"
-          size="sm"
-          className={cn(className)}
-        >
-          <ArrowUpDown />
-          Sort
-          {sorting.length > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-              {sorting.length}
-            </Badge>
-          )}
-        </Button>
-      </PopoverTrigger>
+      {tooltip ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{tooltip}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+      )}
       <PopoverContent
         data-slot="data-table-multi-sort"
         align="end"
         className="w-[380px] p-3"
       >
-        <div className="mb-2 text-sm font-semibold">Sort by</div>
+        {/* Group-label token style — matches the Columns dropdown heading. */}
+        <div className="mb-1 px-1.5 py-1 text-xs font-medium text-muted-foreground">
+          Sort by
+        </div>
         {sorting.length === 0 ? (
           <div className="rounded-md border border-dashed py-4 text-center text-xs text-muted-foreground">
             No sorts applied. Add one to begin.
@@ -98,77 +137,117 @@ export function DataTableMultiSort<TData>({
               const available = sortableColumns.filter(
                 (column) => !usedElsewhere.has(column.id),
               )
+              const over = dropTarget?.index === index
               return (
-                <div key={rule.id} className="flex items-center gap-1.5">
-                  <Select
-                    value={rule.id}
-                    onValueChange={(nextId) =>
-                      setSorting(
-                        sorting.map((sort) =>
-                          sort.id === rule.id ? { ...sort, id: nextId } : sort,
-                        ),
-                      )
-                    }
+                <div key={rule.id} className="relative">
+                  {over && dropTarget.edge === "top" ? (
+                    <span className="pointer-events-none absolute inset-x-0 -top-1 z-10 h-0.5 rounded-full bg-foreground" />
+                  ) : null}
+                  <div
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      dragIndex === index && "opacity-50",
+                    )}
+                    onDragOver={(event) => {
+                      if (dragIndex === null || dragIndex === index) return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      event.dataTransfer.dropEffect = "move"
+                      const rect = event.currentTarget.getBoundingClientRect()
+                      const edge =
+                        event.clientY < rect.top + rect.height / 2
+                          ? "top"
+                          : "bottom"
+                      setDropTarget({ index, edge })
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      if (dragIndex !== null) {
+                        reorderEdge(dragIndex, index, dropTarget?.edge ?? "top")
+                      }
+                      setDragIndex(null)
+                      setDropTarget(null)
+                    }}
                   >
-                    <SelectTrigger className="h-8 flex-1">
-                      <SelectValue placeholder="Column" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {available.map((column) => (
-                        <SelectItem key={column.id} value={column.id}>
-                          {getColumnLabel(column)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={rule.desc ? "desc" : "asc"}
-                    onValueChange={(value) =>
-                      setSorting(
-                        sorting.map((sort) =>
-                          sort.id === rule.id
-                            ? { ...sort, desc: value === "desc" }
-                            : sort,
-                        ),
-                      )
-                    }
-                  >
-                    <SelectTrigger className="h-8 w-[88px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="asc">Asc</SelectItem>
-                      <SelectItem value="desc">Desc</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Move sort up"
-                    onClick={() => move(index, -1)}
-                    disabled={index === 0}
-                  >
-                    <ArrowUp />
-                  </Button>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Move sort down"
-                    onClick={() => move(index, 1)}
-                    disabled={index === sorting.length - 1}
-                  >
-                    <ArrowDown />
-                  </Button>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Remove sort"
-                    onClick={() =>
-                      setSorting(sorting.filter((sort) => sort.id !== rule.id))
-                    }
-                  >
-                    <Trash2 />
-                  </Button>
+                    <button
+                      type="button"
+                      aria-label="Reorder sort"
+                      draggable
+                      onDragStart={(event) => {
+                        // setData + effectAllowed are required for the drag to
+                        // actually start and show the native "held" image.
+                        event.dataTransfer.effectAllowed = "move"
+                        event.dataTransfer.setData("text/plain", rule.id)
+                        setDragIndex(index)
+                      }}
+                      onDragEnd={() => {
+                        setDragIndex(null)
+                        setDropTarget(null)
+                      }}
+                      className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground active:cursor-grabbing"
+                    >
+                      <GripVertical className="size-4" />
+                    </button>
+                    <Select
+                      value={rule.id}
+                      onValueChange={(nextId) =>
+                        setSorting(
+                          sorting.map((sort) =>
+                            sort.id === rule.id
+                              ? { ...sort, id: nextId }
+                              : sort,
+                          ),
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-8 flex-1">
+                        <SelectValue placeholder="Column" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {available.map((column) => (
+                          <SelectItem key={column.id} value={column.id}>
+                            {getColumnLabel(column)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={rule.desc ? "desc" : "asc"}
+                      onValueChange={(value) =>
+                        setSorting(
+                          sorting.map((sort) =>
+                            sort.id === rule.id
+                              ? { ...sort, desc: value === "desc" }
+                              : sort,
+                          ),
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-8 w-[88px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="asc">Asc</SelectItem>
+                        <SelectItem value="desc">Desc</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label="Remove sort"
+                      onClick={() =>
+                        setSorting(
+                          sorting.filter((sort) => sort.id !== rule.id),
+                        )
+                      }
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                  {over && dropTarget.edge === "bottom" ? (
+                    <span className="pointer-events-none absolute inset-x-0 -bottom-1 z-10 h-0.5 rounded-full bg-foreground" />
+                  ) : null}
                 </div>
               )
             })}

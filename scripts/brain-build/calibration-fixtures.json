@@ -1,0 +1,137 @@
+{
+  "_comment": "Locked reference inputs/outputs pinning the D6 confidence formula (WP-0.7). Hand-computed from D6 §'Final aggregation formula' + the Step-1 cap table + V2-DESIGN §5.6 tiers — NOT re-derived. packages/brain/src/confidence MUST reproduce these exactly. Advisor-gated; a change here without a matching gate is tamper (BGTG). Formula: C_raw = blocked ? 0 : min(C_caps, C_kb + C_verify + 0.15*extractionQuality + C_recon).",
+  "scoreFixtures": [
+    {
+      "name": "clean structured invoice, no infra signal (cap=1.0, composite>1 so clamps to 1.0)",
+      "inputs": {
+        "firedSignals": [],
+        "kbRule": "high_active",
+        "verify": {
+          "vatBaseMatchesNet": true,
+          "rcChecklistPassesOrNA": true,
+          "decree500Confirmed": true,
+          "periodConsistent": true,
+          "bankVsKsSsMatch": true
+        },
+        "extractionQuality": 1.0,
+        "reconciliation": "full"
+      },
+      "expected": { "cRaw": 1.0, "blocked": false, "cCaps": 1.0 }
+    },
+    {
+      "name": "novel_ico cap dominates (cap 0.75 < composite 0.9275)",
+      "inputs": {
+        "firedSignals": ["novel_ico"],
+        "kbRule": "medium",
+        "verify": { "vatBaseMatchesNet": true, "decree500Confirmed": true },
+        "extractionQuality": 0.85,
+        "reconciliation": "none"
+      },
+      "expected": { "cRaw": 0.75, "blocked": false, "cCaps": 0.75 }
+    },
+    {
+      "name": "Tier-1 balance_mismatch block forces 0.0 regardless of the rest",
+      "inputs": {
+        "firedSignals": ["balance_mismatch"],
+        "kbRule": "high_active",
+        "verify": { "vatBaseMatchesNet": true },
+        "extractionQuality": 1.0,
+        "reconciliation": "full"
+      },
+      "expected": { "cRaw": 0.0, "blocked": true, "cCaps": 0.0 }
+    },
+    {
+      "name": "reverse_charge_candidate cap 0.70 dominates",
+      "inputs": {
+        "firedSignals": ["reverse_charge_candidate"],
+        "kbRule": "high_active",
+        "verify": { "vatBaseMatchesNet": true, "periodConsistent": true },
+        "extractionQuality": 1.0,
+        "reconciliation": "partial"
+      },
+      "expected": { "cRaw": 0.7, "blocked": false, "cCaps": 0.7 }
+    },
+    {
+      "name": "two caps, lowest (pdf_low_confidence 0.65) selected, composite 0.6175 is lower so composite wins",
+      "inputs": {
+        "firedSignals": ["amount_near_threshold", "pdf_low_confidence"],
+        "kbRule": "low_mixed",
+        "verify": {},
+        "extractionQuality": 0.65,
+        "reconciliation": "none"
+      },
+      "expected": { "cRaw": 0.6175, "blocked": false, "cCaps": 0.65 }
+    },
+    {
+      "name": "Tier-4 no signal, no KB rule -> composite 0.61 < cap 1.0",
+      "inputs": {
+        "firedSignals": [],
+        "kbRule": "none",
+        "verify": { "vatBaseMatchesNet": true },
+        "extractionQuality": 0.8,
+        "reconciliation": "full"
+      },
+      "expected": { "cRaw": 0.61, "blocked": false, "cCaps": 1.0 }
+    }
+  ],
+  "calibration": {
+    "coldStart": {
+      "note": "N<10 runs: map is identity, green threshold held at 0.97 (D6 cold-start margin).",
+      "greenThreshold": 0.97,
+      "applyIdentity": [
+        [0.96, 0.96],
+        [0.5, 0.5],
+        [1.0, 1.0]
+      ],
+      "green": [
+        [0.96, false],
+        [0.97, true],
+        [0.98, true]
+      ]
+    },
+    "belowMinRuns": {
+      "runCount": 5,
+      "pairs": [
+        [0.9, true],
+        [0.95, true]
+      ],
+      "expectFitted": false
+    },
+    "fittedPAV": {
+      "note": "runCount=10, scores 0.8(T) 0.9(F) 0.95(T). PAV pools 0.8/0.9 -> mean 0.5; 0.95 -> 1.0.",
+      "runCount": 10,
+      "pairs": [
+        [0.8, true],
+        [0.9, false],
+        [0.95, true]
+      ],
+      "expectFitted": true,
+      "blocks": [
+        { "x": 0.8, "y": 0.5 },
+        { "x": 0.95, "y": 1.0 }
+      ],
+      "greenThreshold": 0.95,
+      "apply": [
+        [0.79, 0.5],
+        [0.85, 0.5],
+        [0.95, 1.0],
+        [0.96, 1.0]
+      ],
+      "green": [
+        [0.85, false],
+        [0.96, true]
+      ]
+    }
+  },
+  "brier": [
+    {
+      "pairs": [
+        [0.9, true],
+        [0.2, false],
+        [1.0, true]
+      ],
+      "expected": 0.0166667
+    },
+    { "pairs": [], "expected": 0.0 }
+  ]
+}

@@ -7,6 +7,7 @@ import { ContentHeader, type ContentTab } from "./content-header"
 import { ContentToolbar } from "./content-toolbar"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentPanel } from "./content-panel"
+import { DetailField } from "./detail-field"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
@@ -160,5 +161,19 @@ describe("ContentPanel inspector", () => {
     ).toBeNull()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(screen.queryByText("detail body")).not.toBeInTheDocument()
+  })
+})
+
+describe("DetailField", () => {
+  it("renders the label and value as a dt/dd pair", () => {
+    const { container } = wrap(
+      <dl>
+        <DetailField label="Partner" value="ČEZ, a.s." />
+      </dl>,
+    )
+    const dt = container.querySelector("dt")
+    const dd = container.querySelector("dd")
+    expect(dt).toHaveTextContent("Partner")
+    expect(dd).toHaveTextContent("ČEZ, a.s.")
   })
 })

@@ -9,6 +9,7 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 import { ContentPanel } from "./content-panel"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentToolbar } from "./content-toolbar"
+import { DetailField } from "./detail-field"
 
 /**
  * `ContentPanel` is the single frame for every content-panel body. It owns the
@@ -136,19 +137,13 @@ const tableStatusBar = (
 )
 
 const InvoiceDetail = () => (
-  <dl className="flex flex-col gap-3 text-sm">
-    <div>
-      <dt className="text-xs text-muted-foreground">Partner</dt>
-      <dd>ČEZ, a.s.</dd>
-    </div>
-    <div>
-      <dt className="text-xs text-muted-foreground">Amount</dt>
-      <dd className="tabular-nums">12 480 Kč</dd>
-    </div>
-    <div>
-      <dt className="text-xs text-muted-foreground">Status</dt>
-      <dd>To match</dd>
-    </div>
+  <dl className="flex flex-col gap-3">
+    <DetailField label="Partner" value="ČEZ, a.s." />
+    <DetailField
+      label="Amount"
+      value={<span className="tabular-nums">12 480 Kč</span>}
+    />
+    <DetailField label="Status" value="To match" />
   </dl>
 )
 

@@ -6,6 +6,27 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.6.2] — 2026-06-25
+
+Patch release: security-only transitive dependency overrides. Clears all 23 open Dependabot alerts (+ the 3 Trivy code-scanning mirrors). No product-surface change.
+
+### Security
+
+- **`pnpm.overrides`** forces patched floors for transitive advisories: `undici` ≥7.28.0 (bounded to 7.x so jsdom's deep import keeps working; DB#69–75), `ws` ≥8.21.0 (DB#54), `multer` ≥2.2.0 (DB#67,68), `form-data` ≥4.0.6 (DB#58), `protobufjs` ≥7.6.3 (DB#59), `@opentelemetry/core` ≥2.8.0 (DB#61), `vite` ≥8.0.16 (DB#56,57), `js-yaml` ≥4.2.0 scoped to the 4.x line (DB#55), `tmp` ≥0.2.7 (DB#53, supersedes the earlier ≥0.2.6), `esbuild` ≥0.28.1 (DB#51), `hono` floor raised to ≥4.12.25 (DB#62–66, already shipped direct in v0.5.2).
+- Lockfile regenerated from scratch; `pnpm typecheck` (23/23) + `pnpm test` (17/17) green.
+
+## [v0.6.1] — 2026-06-25
+
+Minor release: app-shell global header context switchers + the page-adding runbook refresh.
+
+### Added
+
+- **ui**: `app-header` block — `OrgSwitcher` (current-org identity + dropdown) and an accounting-period switcher for the app-shell global header. Stacked follow-up to the App Shell (#397). (#400)
+
+### Documentation
+
+- Refresh the app-shell page-adding runbook with page / module / tab recipes. (#402)
+
 ## [v0.6.0] — 2026-06-25
 
 Minor release: the app-shell **Content Panel** + a persistent, structure-driven org layout. One persistent shell now mounts across every `/[orgSlug]` route; the sidebar nav is derived per module from co-located config and guarded against the route tree. (#397)

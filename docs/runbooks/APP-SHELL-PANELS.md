@@ -147,7 +147,37 @@ The content panel is a vertical stack. The shell draws row 1 (the 45px header);
 - **`ContentStatusBar`** — optional **24px** band, `border-t`, `left` (info) /
   `right` (helpers). Renders nothing when empty.
 - **`ContentPanel`** — the stack: `toolbar` / `filters` / `children` (the only
-  scrolling region) / `statusBar` / `actionBar`. Chrome rows stay pinned.
+  scrolling region) / `statusBar` / `actionBar`. Chrome rows stay pinned. It also
+  owns the **Inspector** (the detail of the selected body item) — a resizable
+  docked side panel (`inspectorMode="panel"`) or a centred modal
+  (`inspectorMode="dialog"`).
+
+### Content Panel variants
+
+`ContentPanel` is **one frame, no `variant` prop**. Every chrome slot is optional,
+so a "variant" is just which slots a page fills — not a different component. Five
+named archetypes cover every page; pick one when scaffolding. Live examples:
+`packages/ui/src/blocks/app-content/content-panel.stories.tsx` (one story each).
+
+| Variant       | Slots filled                                                | Use for                                                          |
+| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today. |
+| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.       |
+| **Launchpad** | body only (stub)                                            | Folder / overview pages — a grid of cards to subpages. _Empty._  |
+| **Dashboard** | body only (stub)                                            | Analytics — metric tiles, charts, period controls. _Empty._      |
+| **Single**    | body only (stub)                                            | One record on show (a document, a profile). _Empty._             |
+
+**Scaffolding a Table page** (the common case): mount `ContentPanel` with a
+`ContentToolbar` in `toolbar`, the body in `children` (`bodyClassName="p-0"` so a
+table fills edge-to-edge), and a status bar in `statusBar`. Add `inspector*` for a
+detail view and `actionBar` for bulk selection. Copy the `Table` story's wiring.
+
+**Promotion rule:** Launchpad / Dashboard / Single are documented placeholders, not
+shipped components — growing into `children` is correct for now. Promote one to a
+real `<ContentPanel>`-composing component **only** when a real page proves it needs
+shared body machinery the frame shouldn't own (e.g. a launchpad card-grid with its
+own selection model). Don't pre-build the empty ones; don't add a `variant` prop
+(it would only duplicate `bodyClassName` and bake in undesigned layouts).
 
 ### Reuse — do NOT reinvent these
 

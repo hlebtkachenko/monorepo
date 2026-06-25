@@ -112,3 +112,53 @@ describe("ContentPanel", () => {
     expect(container.querySelector('[data-slot="content-body"]')).not.toBeNull()
   })
 })
+
+describe("ContentPanel inspector", () => {
+  it("renders the inspector as a side panel when open in panel mode", () => {
+    const { container } = wrap(
+      <ContentPanel
+        inspector={<div>detail body</div>}
+        inspectorOpen
+        inspectorMode="panel"
+        inspectorTitle="FP-2026-0001"
+      >
+        <div>body</div>
+      </ContentPanel>,
+    )
+    expect(
+      container.querySelector('[data-slot="content-inspector"]'),
+    ).not.toBeNull()
+    expect(screen.getByText("detail body")).toBeInTheDocument()
+    expect(screen.getByText("FP-2026-0001")).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("renders the inspector as a dialog when open in dialog mode", () => {
+    wrap(
+      <ContentPanel
+        inspector={<div>detail body</div>}
+        inspectorOpen
+        inspectorMode="dialog"
+        inspectorTitle="FP-2026-0001"
+      >
+        <div>body</div>
+      </ContentPanel>,
+    )
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    expect(screen.getByText("detail body")).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="content-inspector"]')).toBeNull()
+  })
+
+  it("renders no inspector when closed", () => {
+    const { container } = wrap(
+      <ContentPanel inspector={<div>detail body</div>} inspectorOpen={false}>
+        <div>body</div>
+      </ContentPanel>,
+    )
+    expect(
+      container.querySelector('[data-slot="content-inspector"]'),
+    ).toBeNull()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(screen.queryByText("detail body")).not.toBeInTheDocument()
+  })
+})

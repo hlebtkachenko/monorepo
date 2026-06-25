@@ -6,9 +6,11 @@ import { Logo } from "@workspace/ui/brand-assets"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Sheet, SheetContent, SheetTitle } from "@workspace/ui/components/sheet"
 import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
+import {
+  useResizeHandle,
+  type ResizeHandlers,
+} from "@workspace/ui/lib/use-resize-handle"
 import { cn } from "@workspace/ui/lib/utils"
-
-import { useResizeHandle, type ResizeHandlers } from "./use-resize-handle"
 
 interface AppShellProps {
   header?: React.ReactNode
@@ -467,7 +469,10 @@ export function AppShell({
                   />
                 )}
               </PanelHeader>
-              <div className="relative min-h-0 flex-1 overflow-auto">
+              {/* The panel body fills the main column and does NOT scroll as a
+                  whole — surfaces (e.g. ContentPanel) keep their chrome fixed
+                  and scroll their own inner regions (table rows, inspector). */}
+              <div className="relative min-h-0 flex-1 overflow-hidden">
                 {children}
               </div>
             </main>

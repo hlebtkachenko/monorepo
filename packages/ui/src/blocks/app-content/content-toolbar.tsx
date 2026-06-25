@@ -3,21 +3,26 @@ import * as React from "react"
 import { cn } from "@workspace/ui/lib/utils"
 
 export interface ContentToolbarProps {
-  /** Left cluster — context / view controls (count, view switch, …). */
+  /**
+   * Left cluster — the content-transforming controls that can grow: status,
+   * search, and the filter bar. Wraps onto extra rows when it overflows, which
+   * grows the toolbar's height (the right cluster stays pinned top-right).
+   */
   left?: React.ReactNode
-  /** Right cluster — page actions (filter toggle, primary action, …). */
+  /** Right cluster — fixed page actions (view, sort, add). Never wraps. */
   right?: React.ReactNode
   className?: string
 }
 
 /**
- * The content panel's toolbar row — a fixed 36px band under the header, same
- * chrome as the header (full width, side padding, hairline bottom border).
+ * The content panel's toolbar — controls that transform the body (filter,
+ * search, sort, view, add). One row tall by default (36px, same chrome as the
+ * header: full width, side padding, hairline bottom border) but it GROWS: the
+ * left cluster wraps onto extra rows when the filters don't fit, and the
+ * toolbar gets taller to hold them. The right cluster stays pinned top-right.
  *
- * Strong, stable layout on purpose: two slots (`left` / `right`) that pages
- * fill with their own controls. Keep it to page-level actions that apply
- * broadly (filter toggle, view switch, primary "add"). Row/selection actions
- * do NOT belong here — those live in the floating ActionBar.
+ * Put only body-transforming controls here. Row/selection actions belong in the
+ * floating ActionBar; element detail belongs in the Inspector.
  */
 export function ContentToolbar({
   left,
@@ -28,12 +33,14 @@ export function ContentToolbar({
     <div
       data-slot="content-toolbar"
       className={cn(
-        "flex h-9 shrink-0 items-center gap-2 border-b border-border-subtle px-2",
+        "flex min-h-9 shrink-0 items-start gap-2 border-b border-border-subtle px-2 py-1",
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-1">{left}</div>
-      <div className="ml-auto flex shrink-0 items-center gap-1">{right}</div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+        {left}
+      </div>
+      <div className="flex shrink-0 items-center gap-1 py-px">{right}</div>
     </div>
   )
 }

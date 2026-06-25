@@ -44,6 +44,7 @@
   --color-canvas: var(--canvas);
   --color-border-subtle: var(--border-subtle);
   --color-shell-surface: var(--shell-surface);
+  --color-inspector-surface: var(--inspector-surface);
   /* Icon-box color tokens → Tailwind utilities (text-icon, bg-icon-hover-bg, …).
      Shared by the rail, the header, and the IconButton primitive. */
   --color-icon: var(--icon);
@@ -106,6 +107,9 @@
   --border-subtle: #eaebeb;
   /* App-shell tokens — change in one place, propagates to AppShell. */
   --shell-surface: #ffffff;
+  /* Inspector panel surface — warm off-white in the inline (sidebar) mode;
+     the dialog mode keeps the normal white popover surface. */
+  --inspector-surface: #fbf9f7;
   --shell-rail-width: 70px;
   --shell-header-height: 40px;
   --shell-bottom-inset: 8px;
@@ -205,6 +209,8 @@
   --canvas: #1a1a1a;
   --border-subtle: #3a3d40;
   --shell-surface: #222426;
+  /* Inspector surface — dark, faintly warm to mirror the light off-white. */
+  --inspector-surface: #26231f;
   /* Rail tokens — dark. Dimension tokens are theme-independent (see :root). */
   --icon: #808689;
   --icon-active: #e8eaeb;

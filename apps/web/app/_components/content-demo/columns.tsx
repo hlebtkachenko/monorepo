@@ -1,38 +1,108 @@
 "use client"
 
 import * as React from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef, Row, Table } from "@tanstack/react-table"
 
 import { Badge } from "@workspace/ui/components/badge"
+import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
-import { DataTableColumnHeader } from "@workspace/ui/components/data-table"
+import { useIcons } from "@workspace/ui/icon-packs"
 
+import { useOrgContent } from "./context"
 import {
-  FAKTURY_STAV_OPTIONS,
-  formatCzk,
+  INVOICE_STATUS_OPTIONS,
   formatDate,
-  type FakturaRow,
-  type FakturaStav,
+  formatMoney,
+  type InvoiceRow,
+  type InvoiceStatus,
 } from "./data"
 
-const STAV_BADGE: Record<
-  FakturaStav,
+const STATUS_BADGE: Record<
+  InvoiceStatus,
   React.ComponentProps<typeof Badge>["variant"]
 > = {
-  Nová: "outline",
-  "Ke schválení": "secondary",
-  Schváleno: "default",
-  Zaúčtováno: "ghost",
+  New: "outline",
+  "To approve": "secondary",
+  Approved: "default",
+  Posted: "ghost",
 }
 
-/** TanStack column defs for the Faktury přijaté demo table. Static — no app
- *  state — so they live in their own module (standard TanStack pattern). */
-export const fakturyColumns: ColumnDef<FakturaRow>[] = [
+// Anchor for shift-range selection (the last row checkbox clicked without
+// shift). Module-level because the column defs are static and there is one
+// demo table; stored as a row id so it survives sort / filter / pagination.
+const selectAnchorId: { current: string | null } = { current: null }
+
+/** Row select checkbox with shift-click range selection across the visible page. */
+function SelectCell({
+  row,
+  table,
+}: {
+  row: Row<InvoiceRow>
+  table: Table<InvoiceRow>
+}) {
+  const checked = row.getIsSelected()
+  return (
+    <Checkbox
+      aria-label={`Select ${row.original.document}`}
+      checked={checked}
+      onClick={(event) => {
+        if (event.shiftKey && selectAnchorId.current !== null) {
+          event.preventDefault()
+          const rows = table.getRowModel().rows
+          const a = rows.findIndex((r) => r.id === selectAnchorId.current)
+          const b = rows.findIndex((r) => r.id === row.id)
+          if (a >= 0 && b >= 0) {
+            const [lo, hi] = a < b ? [a, b] : [b, a]
+            const next = { ...table.getState().rowSelection }
+            for (let i = lo; i <= hi; i++) {
+              const r = rows[i]
+              if (r) next[r.id] = true
+            }
+            table.setRowSelection(next)
+          }
+        } else {
+          row.toggleSelected(!checked)
+          selectAnchorId.current = row.id
+        }
+      }}
+    />
+  )
+}
+
+/** Row affordance that opens the Inspector for this invoice. A real component
+ *  (not an inline cell fn) so it can use the context hook. */
+function InspectCell({ row }: { row: InvoiceRow }) {
+  const { openInspector } = useOrgContent()
+  const icons = useIcons()
+  const Icon = icons.PanelRight
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      aria-label={`Details for ${row.document}`}
+      onClick={() => openInspector(row)}
+    >
+      <Icon />
+    </Button>
+  )
+}
+
+/** TanStack column defs for the invoices demo table. Static — no app state —
+ *  so they live in their own module (standard TanStack pattern). */
+export const invoiceColumns: ColumnDef<InvoiceRow>[] = [
   {
     id: "select",
+    // Square, fixed cell (matches the 32px body row height) with the checkbox
+    // centered.
+    size: 32,
+    minSize: 32,
+    maxSize: 32,
+    meta: { align: "center" },
     header: ({ table }) => (
       <Checkbox
-        aria-label="Vybrat vše"
+        aria-label="Select all"
+        // Primary-colored so it stands out against the tinted header row.
+        className="border-primary"
         checked={
           table.getIsAllPageRowsSelected() ||
           (table.getIsSomePageRowsSelected() ? "indeterminate" : false)
@@ -40,49 +110,41 @@ export const fakturyColumns: ColumnDef<FakturaRow>[] = [
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
       />
     ),
-    cell: ({ row }) => (
-      <Checkbox
-        aria-label={`Vybrat ${row.original.doklad}`}
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-      />
-    ),
+    cell: ({ row, table }) => <SelectCell row={row} table={table} />,
     enableSorting: false,
     enableHiding: false,
+    enableResizing: false,
   },
   {
-    accessorKey: "doklad",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Doklad" />
-    ),
+    accessorKey: "document",
+    header: "Document",
+    size: 200,
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.doklad}</span>
+      <span className="font-medium">{row.original.document}</span>
     ),
-    meta: { label: "Doklad" },
+    meta: { label: "Document" },
     enableSorting: true,
   },
   {
     accessorKey: "partner",
     header: "Partner",
-    meta: {
-      label: "Partner",
-      variant: "text",
-      placeholder: "Hledat partnera…",
-    },
+    size: 190,
+    meta: { label: "Partner", variant: "text", placeholder: "Search partner…" },
     enableColumnFilter: true,
   },
   {
-    accessorKey: "stav",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Stav" />
-    ),
+    accessorKey: "status",
+    header: "Status",
+    size: 150,
     cell: ({ row }) => (
-      <Badge variant={STAV_BADGE[row.original.stav]}>{row.original.stav}</Badge>
+      <Badge variant={STATUS_BADGE[row.original.status]}>
+        {row.original.status}
+      </Badge>
     ),
     meta: {
-      label: "Stav",
+      label: "Status",
       variant: "multiSelect",
-      options: FAKTURY_STAV_OPTIONS,
+      options: INVOICE_STATUS_OPTIONS,
     },
     enableColumnFilter: true,
     filterFn: (row, columnId, value) => {
@@ -92,35 +154,45 @@ export const fakturyColumns: ColumnDef<FakturaRow>[] = [
     enableSorting: true,
   },
   {
-    accessorKey: "castka",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Částka" />
-    ),
+    accessorKey: "amount",
+    header: "Amount",
+    size: 130,
     cell: ({ row }) => (
       <div className="text-right font-medium tabular-nums">
-        {formatCzk(row.original.castka)}
+        {formatMoney(row.original.amount)}
       </div>
     ),
-    meta: { label: "Částka" },
+    meta: { label: "Amount" },
     enableSorting: true,
   },
   {
-    accessorKey: "dph",
-    header: "DPH",
+    accessorKey: "vat",
+    header: "VAT",
+    size: 110,
     cell: ({ row }) => (
       <div className="text-right text-muted-foreground tabular-nums">
-        {formatCzk(row.original.dph)}
+        {formatMoney(row.original.vat)}
       </div>
     ),
-    meta: { label: "DPH" },
+    meta: { label: "VAT" },
   },
   {
-    accessorKey: "datum",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Datum" />
-    ),
-    cell: ({ row }) => formatDate(row.original.datum),
-    meta: { label: "Datum" },
+    accessorKey: "date",
+    header: "Date",
+    size: 130,
+    cell: ({ row }) => formatDate(row.original.date),
+    meta: { label: "Date" },
     enableSorting: true,
+  },
+  {
+    id: "inspect",
+    size: 44,
+    minSize: 44,
+    maxSize: 44,
+    meta: { align: "center" },
+    cell: ({ row }) => <InspectCell row={row.original} />,
+    enableSorting: false,
+    enableHiding: false,
+    enableResizing: false,
   },
 ]

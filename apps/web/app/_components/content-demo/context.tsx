@@ -2,6 +2,10 @@
 
 import * as React from "react"
 
+import type { InspectorMode } from "@workspace/ui/blocks/app-content"
+
+import type { InvoiceRow } from "./data"
+
 /**
  * Shared UI state for the TEMP Content Panel demo. Exists only to link the two
  * app-shell slots that the demo spans: the header (`contentHeader` slot — tabs,
@@ -12,14 +16,17 @@ import * as React from "react"
 interface OrgContentState {
   activeTab: string
   setActiveTab: (value: string) => void
-  filtersOpen: boolean
-  toggleFilters: () => void
-  showToolbarActions: boolean
-  setShowToolbarActions: (value: boolean) => void
   favorite: boolean
   toggleFavorite: () => void
   hiddenTabs: ReadonlySet<string>
   toggleTabHidden: (value: string) => void
+  // Inspector — the element-detail view (panel or dialog mode).
+  inspected: InvoiceRow | null
+  inspectorOpen: boolean
+  inspectorMode: InspectorMode
+  setInspectorMode: (mode: InspectorMode) => void
+  openInspector: (row: InvoiceRow) => void
+  closeInspector: () => void
 }
 
 const OrgContentContext = React.createContext<OrgContentState | null>(null)
@@ -37,18 +44,22 @@ export function OrgContentProvider({
 }: {
   children: React.ReactNode
 }) {
-  const [activeTab, setActiveTab] = React.useState("vse")
-  const [filtersOpen, setFiltersOpen] = React.useState(false)
-  const [showToolbarActions, setShowToolbarActions] = React.useState(true)
+  const [activeTab, setActiveTab] = React.useState("all")
   const [favorite, setFavorite] = React.useState(false)
   const [hiddenTabs, setHiddenTabs] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   )
+  const [inspected, setInspected] = React.useState<InvoiceRow | null>(null)
+  const [inspectorOpen, setInspectorOpen] = React.useState(false)
+  const [inspectorMode, setInspectorMode] =
+    React.useState<InspectorMode>("panel")
 
-  const toggleFilters = React.useCallback(
-    () => setFiltersOpen((open) => !open),
-    [],
-  )
+  const openInspector = React.useCallback((row: InvoiceRow) => {
+    setInspected(row)
+    setInspectorOpen(true)
+  }, [])
+  const closeInspector = React.useCallback(() => setInspectorOpen(false), [])
+
   const toggleFavorite = React.useCallback(() => setFavorite((fav) => !fav), [])
   const toggleTabHidden = React.useCallback((value: string) => {
     setHiddenTabs((prev) => {
@@ -57,32 +68,36 @@ export function OrgContentProvider({
       else next.add(value)
       return next
     })
-    // If the tab being hidden is the active one, fall back to "Všechny".
-    setActiveTab((current) => (current === value ? "vse" : current))
+    // If the tab being hidden is the active one, fall back to "All".
+    setActiveTab((current) => (current === value ? "all" : current))
   }, [])
 
   const value = React.useMemo<OrgContentState>(
     () => ({
       activeTab,
       setActiveTab,
-      filtersOpen,
-      toggleFilters,
-      showToolbarActions,
-      setShowToolbarActions,
       favorite,
       toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
+      inspected,
+      inspectorOpen,
+      inspectorMode,
+      setInspectorMode,
+      openInspector,
+      closeInspector,
     }),
     [
       activeTab,
-      filtersOpen,
-      toggleFilters,
-      showToolbarActions,
       favorite,
       toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
+      inspected,
+      inspectorOpen,
+      inspectorMode,
+      openInspector,
+      closeInspector,
     ],
   )
 

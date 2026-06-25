@@ -7,9 +7,6 @@ import {
   type ContentTab,
 } from "@workspace/ui/blocks/app-content"
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -18,19 +15,21 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
+import { useIcons } from "@workspace/ui/icon-packs"
+import { cn } from "@workspace/ui/lib/utils"
 
 import { useOrgContent } from "./context"
-import { FAKTURY_TABS } from "./data"
+import { INVOICE_TABS } from "./data"
 
 /**
- * TEMP — the Content Panel header for the Faktury přijaté demo. Mounts into the
+ * TEMP — the Content Panel header for the invoices demo. Mounts into the
  * app-shell `contentHeader` slot. Tabs + page actions are controlled by the
  * shared demo context so the body reacts to them.
  */
 export function ContentDemoHeader() {
+  const icons = useIcons()
   const {
     activeTab,
     setActiveTab,
@@ -38,38 +37,50 @@ export function ContentDemoHeader() {
     toggleTabHidden,
     favorite,
     toggleFavorite,
-    showToolbarActions,
-    setShowToolbarActions,
   } = useOrgContent()
+
+  const EyeIcon = icons.Eye
+  const EyeOffIcon = icons.EyeOff
 
   // Section scope + sort — demo-only local state (no functional effect yet);
   // refined when we build out the real content panel parts.
   const [scope, setScope] = React.useState("all")
   const [sort, setSort] = React.useState("alpha")
 
-  const tabs: ContentTab[] = FAKTURY_TABS.filter(
+  const tabs: ContentTab[] = INVOICE_TABS.filter(
     (tab) => !hiddenTabs.has(tab.value),
   ).map((tab) => ({ value: tab.value, label: tab.label }))
 
-  // Manage-tabs menu (Slack-style section options): a submenu to choose which
-  // tabs are shown (functional, no drag-reorder), then a "show in this section"
-  // scope group and a "sort this section" group. The scope/sort labels mirror
-  // the reference and are placeholders until the real parts are wired.
+  // Manage-tabs menu (Slack-style section options): a submenu to show/hide each
+  // tab (eye / eye-off; "All" is always visible so it's disabled), then a
+  // "show in this section" scope group and a "sort this section" group. The
+  // scope/sort labels mirror the reference and are placeholders for now.
   const manageTabs = (
     <>
       <DropdownMenuSub>
         <DropdownMenuSubTrigger>Choose tabs</DropdownMenuSubTrigger>
-        <DropdownMenuSubContent>
-          {FAKTURY_TABS.map((tab) => (
-            <DropdownMenuCheckboxItem
-              key={tab.value}
-              checked={!hiddenTabs.has(tab.value)}
-              onCheckedChange={() => toggleTabHidden(tab.value)}
-              onSelect={(event) => event.preventDefault()}
-            >
-              {tab.label}
-            </DropdownMenuCheckboxItem>
-          ))}
+        <DropdownMenuSubContent className="min-w-44">
+          {INVOICE_TABS.map((tab) => {
+            const hidden = hiddenTabs.has(tab.value)
+            const alwaysOn = tab.value === "all"
+            const Icon = hidden ? EyeOffIcon : EyeIcon
+            return (
+              <DropdownMenuItem
+                key={tab.value}
+                disabled={alwaysOn}
+                onSelect={(event) => {
+                  event.preventDefault()
+                  if (!alwaysOn) toggleTabHidden(tab.value)
+                }}
+                className="justify-between gap-6"
+              >
+                <span className={cn(hidden && "text-muted-foreground")}>
+                  {tab.label}
+                </span>
+                <Icon className="text-muted-foreground" />
+              </DropdownMenuItem>
+            )
+          })}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
       <DropdownMenuSeparator />
@@ -100,36 +111,24 @@ export function ContentDemoHeader() {
     <>
       <IconButton
         icon="Star"
-        active={favorite}
-        aria-label={favorite ? "Odebrat z oblíbených" : "Přidat do oblíbených"}
-        tooltip="Oblíbené"
+        aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+        tooltip="Favorite"
         tooltipSide="bottom"
         onClick={toggleFavorite}
+        className={cn(favorite && "text-primary [&_svg]:fill-current")}
       />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          {/* No tooltip — this IconButton is a Radix menu trigger. */}
-          <IconButton icon="Ellipsis" aria-label="Spravovat stránku" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem>Kopírovat odkaz</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuCheckboxItem
-            checked={showToolbarActions}
-            onCheckedChange={setShowToolbarActions}
-            onSelect={(event) => event.preventDefault()}
-          >
-            Zobrazit akce v liště
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuItem>Nastavení stránky</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <IconButton
+        icon="Settings2"
+        aria-label="Settings"
+        tooltip="Settings"
+        tooltipSide="bottom"
+      />
     </>
   )
 
   return (
     <ContentHeader
-      title="Faktury přijaté"
+      title="Incoming invoices"
       tabs={tabs}
       value={activeTab}
       onValueChange={setActiveTab}

@@ -1,197 +1,205 @@
 /**
- * TEMP preview data for the Content Panel build. Mock "Faktury přijaté" rows so
- * the header tabs / toolbar / status bar / action bar can be wired against a
- * real table. NOT the domain model — `castka` / `dph` are plain display numbers
- * here, NOT the `Money<Currency>` type the real ledger uses.
+ * TEMP preview data for the Content Panel build. Mock incoming-invoice rows so
+ * the header tabs / toolbar / status bar / action bar / inspector can be wired
+ * against a real table. NOT the domain model — `amount` / `vat` are plain
+ * display numbers here, NOT the `Money<Currency>` type the real ledger uses.
  */
 
-export type FakturaKind = "zalohova" | "danovy-doklad" | "dobropis" | "zapocet"
+export type InvoiceKind =
+  | "advance"
+  | "tax-document"
+  | "credit-note"
+  | "settlement"
 
-export type FakturaStav = "Nová" | "Ke schválení" | "Schváleno" | "Zaúčtováno"
+export type InvoiceStatus = "New" | "To approve" | "Approved" | "Posted"
 
-export interface FakturaRow {
+export interface InvoiceRow {
   id: string
-  doklad: string
+  document: string
   partner: string
   /** Mock display amount in CZK (not the domain Money type). */
-  castka: number
+  amount: number
   /** Mock display VAT amount in CZK. */
-  dph: number
+  vat: number
   /** ISO date — sorted/formatted in the cell. */
-  datum: string
-  stav: FakturaStav
-  kind: FakturaKind
+  date: string
+  status: InvoiceStatus
+  kind: InvoiceKind
   /** Mock "needs matching to a bank line" flag, for the status-bar summary. */
-  keSparovani: boolean
+  needsMatch: boolean
 }
 
-/** Tab → kind. The "vse" tab shows every row. */
-export const FAKTURY_TABS: {
+/** Tab → kind. The "all" tab shows every row and is always visible. */
+export const INVOICE_TABS: {
   value: string
   label: string
-  kind?: FakturaKind
+  kind?: InvoiceKind
 }[] = [
-  { value: "vse", label: "Všechny" },
-  { value: "zalohove", label: "Zálohové", kind: "zalohova" },
-  { value: "danove", label: "Daňové doklady", kind: "danovy-doklad" },
-  { value: "dobropisy", label: "Dobropisy", kind: "dobropis" },
-  { value: "zapocty", label: "Zápočty", kind: "zapocet" },
+  { value: "all", label: "All" },
+  { value: "advances", label: "Advances", kind: "advance" },
+  { value: "tax", label: "Tax documents", kind: "tax-document" },
+  { value: "credit-notes", label: "Credit notes", kind: "credit-note" },
+  { value: "settlements", label: "Settlements", kind: "settlement" },
 ]
 
-export const FAKTURY_STAV_OPTIONS: { value: FakturaStav; label: string }[] = [
-  { value: "Nová", label: "Nová" },
-  { value: "Ke schválení", label: "Ke schválení" },
-  { value: "Schváleno", label: "Schváleno" },
-  { value: "Zaúčtováno", label: "Zaúčtováno" },
-]
+export const INVOICE_STATUS_OPTIONS: { value: InvoiceStatus; label: string }[] =
+  [
+    { value: "New", label: "New" },
+    { value: "To approve", label: "To approve" },
+    { value: "Approved", label: "Approved" },
+    { value: "Posted", label: "Posted" },
+  ]
 
-export const FAKTURY_ROWS: FakturaRow[] = [
+export const INVOICE_ROWS: InvoiceRow[] = [
   {
     id: "1",
-    doklad: "FP-2026-0001",
+    document: "FP-2026-0001",
     partner: "Alza.cz a.s.",
-    castka: 12400,
-    dph: 2152,
-    datum: "2026-06-01",
-    stav: "Zaúčtováno",
-    kind: "danovy-doklad",
-    keSparovani: false,
+    amount: 12400,
+    vat: 2152,
+    date: "2026-06-01",
+    status: "Posted",
+    kind: "tax-document",
+    needsMatch: false,
   },
   {
     id: "2",
-    doklad: "FP-2026-0002",
+    document: "FP-2026-0002",
     partner: "ČEZ Prodej s.r.o.",
-    castka: 8650,
-    dph: 1502,
-    datum: "2026-06-03",
-    stav: "Schváleno",
-    kind: "danovy-doklad",
-    keSparovani: true,
+    amount: 8650,
+    vat: 1502,
+    date: "2026-06-03",
+    status: "Approved",
+    kind: "tax-document",
+    needsMatch: true,
   },
   {
     id: "3",
-    doklad: "ZAL-2026-0007",
+    document: "ZAL-2026-0007",
     partner: "O2 Czech Republic",
-    castka: 3000,
-    dph: 0,
-    datum: "2026-06-04",
-    stav: "Ke schválení",
-    kind: "zalohova",
-    keSparovani: true,
+    amount: 3000,
+    vat: 0,
+    date: "2026-06-04",
+    status: "To approve",
+    kind: "advance",
+    needsMatch: true,
   },
   {
     id: "4",
-    doklad: "FP-2026-0003",
+    document: "FP-2026-0003",
     partner: "Google Cloud EMEA",
-    castka: 21980,
-    dph: 0,
-    datum: "2026-06-05",
-    stav: "Nová",
-    kind: "danovy-doklad",
-    keSparovani: true,
+    amount: 21980,
+    vat: 0,
+    date: "2026-06-05",
+    status: "New",
+    kind: "tax-document",
+    needsMatch: true,
   },
   {
     id: "5",
-    doklad: "DOB-2026-0002",
+    document: "DOB-2026-0002",
     partner: "Alza.cz a.s.",
-    castka: -1240,
-    dph: -215,
-    datum: "2026-06-06",
-    stav: "Schváleno",
-    kind: "dobropis",
-    keSparovani: false,
+    amount: -1240,
+    vat: -215,
+    date: "2026-06-06",
+    status: "Approved",
+    kind: "credit-note",
+    needsMatch: false,
   },
   {
     id: "6",
-    doklad: "FP-2026-0004",
+    document: "FP-2026-0004",
     partner: "Seznam.cz a.s.",
-    castka: 5400,
-    dph: 937,
-    datum: "2026-06-08",
-    stav: "Zaúčtováno",
-    kind: "danovy-doklad",
-    keSparovani: false,
+    amount: 5400,
+    vat: 937,
+    date: "2026-06-08",
+    status: "Posted",
+    kind: "tax-document",
+    needsMatch: false,
   },
   {
     id: "7",
-    doklad: "ZAP-2026-0001",
+    document: "ZAP-2026-0001",
     partner: "Henderson Profese s.r.o.",
-    castka: 9900,
-    dph: 0,
-    datum: "2026-06-09",
-    stav: "Ke schválení",
-    kind: "zapocet",
-    keSparovani: false,
+    amount: 9900,
+    vat: 0,
+    date: "2026-06-09",
+    status: "To approve",
+    kind: "settlement",
+    needsMatch: false,
   },
   {
     id: "8",
-    doklad: "ZAL-2026-0008",
+    document: "ZAL-2026-0008",
     partner: "Rohlik.cz",
-    castka: 1500,
-    dph: 0,
-    datum: "2026-06-10",
-    stav: "Nová",
-    kind: "zalohova",
-    keSparovani: true,
+    amount: 1500,
+    vat: 0,
+    date: "2026-06-10",
+    status: "New",
+    kind: "advance",
+    needsMatch: true,
   },
   {
     id: "9",
-    doklad: "FP-2026-0005",
+    document: "FP-2026-0005",
     partner: "Microsoft Ireland",
-    castka: 33150,
-    dph: 0,
-    datum: "2026-06-11",
-    stav: "Schváleno",
-    kind: "danovy-doklad",
-    keSparovani: false,
+    amount: 33150,
+    vat: 0,
+    date: "2026-06-11",
+    status: "Approved",
+    kind: "tax-document",
+    needsMatch: false,
   },
   {
     id: "10",
-    doklad: "DOB-2026-0003",
+    document: "DOB-2026-0003",
     partner: "Seznam.cz a.s.",
-    castka: -540,
-    dph: -94,
-    datum: "2026-06-12",
-    stav: "Nová",
-    kind: "dobropis",
-    keSparovani: true,
+    amount: -540,
+    vat: -94,
+    date: "2026-06-12",
+    status: "New",
+    kind: "credit-note",
+    needsMatch: true,
   },
   {
     id: "11",
-    doklad: "FP-2026-0006",
+    document: "FP-2026-0006",
     partner: "Kofola ČeskoSlovensko",
-    castka: 7250,
-    dph: 1259,
-    datum: "2026-06-13",
-    stav: "Zaúčtováno",
-    kind: "danovy-doklad",
-    keSparovani: false,
+    amount: 7250,
+    vat: 1259,
+    date: "2026-06-13",
+    status: "Posted",
+    kind: "tax-document",
+    needsMatch: false,
   },
   {
     id: "12",
-    doklad: "ZAP-2026-0002",
+    document: "ZAP-2026-0002",
     partner: "Notino s.r.o.",
-    castka: 4300,
-    dph: 0,
-    datum: "2026-06-15",
-    stav: "Ke schválení",
-    kind: "zapocet",
-    keSparovani: false,
+    amount: 4300,
+    vat: 0,
+    date: "2026-06-15",
+    status: "To approve",
+    kind: "settlement",
+    needsMatch: false,
   },
 ]
 
-const czk = new Intl.NumberFormat("cs-CZ", {
+const money = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "CZK",
   maximumFractionDigits: 0,
 })
 
-export function formatCzk(amount: number): string {
-  return czk.format(amount)
+export function formatMoney(amount: number): string {
+  return money.format(amount)
 }
 
 export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium" }).format(
-    new Date(iso),
-  )
+  // Parse as a local date — `new Date(iso)` reads a date-only ISO string as UTC
+  // midnight, which renders the previous day in timezones west of UTC.
+  const [year, month, day] = iso.split("-").map(Number)
+  const date =
+    year && month && day ? new Date(year, month - 1, day) : new Date(iso)
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(date)
 }

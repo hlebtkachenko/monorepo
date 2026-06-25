@@ -9,7 +9,8 @@
  *
  * Routes:
  *   - org dashboard (`/<orgSlug>`, AppShell chrome)
- *   - the 12 org sections (SectionStub pages — h2 + canonical path marker)
+ *   - the 9 org module sections (module pages — the persistent shell + the
+ *     sidebar's h2 module title)
  *   - the workspace chooser + 4 workspace/* pages (h1 landmarks)
  */
 
@@ -29,18 +30,15 @@ const seed: Seed = JSON.parse(
 /** Org slug seeded by `seedWorkspaceWithOwner` (hardcoded in the fixture). */
 const SEEDED_ORG_SLUG = "e2e-org"
 
-/** The 12 org sections under `app/[orgSlug]/` — one route directory each. */
+/** The 9 org module sections under `app/[orgSlug]/` — one route directory each. */
 const ORG_SECTIONS = [
   "accounting",
-  "transactions",
   "documents",
   "reports",
   "hr",
   "finance",
-  "taxes",
   "closing",
   "assets",
-  "inbox",
   "directory",
   "settings",
 ] as const
@@ -75,10 +73,10 @@ function collectPageErrors(page: Page): string[] {
 }
 
 test.describe("Product route smoke", () => {
-  test("org dashboard + all 12 sections render for the seeded owner", async ({
+  test("org dashboard + all 9 sections render for the seeded owner", async ({
     page,
   }) => {
-    // 13 sequential navigations in one logged-in pass; dev-server first
+    // 10 sequential navigations in one logged-in pass; dev-server first
     // compiles can be slow, so widen the per-test budget.
     test.setTimeout(120_000)
     const pageErrors = collectPageErrors(page)
@@ -95,11 +93,10 @@ test.describe("Product route smoke", () => {
       await test.step(`/${SEEDED_ORG_SLUG}/${section}`, async () => {
         const res = await page.goto(`/${SEEDED_ORG_SLUG}/${section}`)
         expect(res?.status()).toBe(200)
-        // SectionStub's canonical path marker doubles as a "right page,
-        // no error boundary" landmark (error.tsx renders none of this).
-        await expect(
-          page.getByText(`/${SEEDED_ORG_SLUG}/${section}`, { exact: true }),
-        ).toBeVisible()
+        // The persistent app shell wraps every section; error.tsx renders none
+        // of it, so the shell + an h2 (the sidebar's module title) means the
+        // right page rendered, not an error boundary.
+        await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
         await expect(
           page.getByRole("heading", { level: 2 }).first(),
         ).toBeVisible()

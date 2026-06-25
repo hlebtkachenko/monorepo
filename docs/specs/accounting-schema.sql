@@ -108,6 +108,16 @@ CREATE TABLE vat_regime (
   name text NOT NULL
 );
 
+-- currency — ISO 4217 currencies offered in accounting settings. The org's own
+-- accounting currency (měna účetnictví, §4/12) is pinned per účetní období on
+-- accounting_period.accounting_currency; a document's transaction currency rides
+-- on the capture layer (partial_record.currency_code).
+CREATE TABLE currency (
+  code        char(3)  PRIMARY KEY,             -- ISO 4217: CZK, EUR, USD, …
+  name        text     NOT NULL,
+  minor_units smallint NOT NULL DEFAULT 2       -- fractional digits
+);
+
 -- business_activity — předmět podnikání = CZ-NACE 2025 (5-level hierarchy).
 -- Seeded from the ČSÚ systematická část (~1763 rows): A -> 01 -> 01.1 -> 01.11 -> 01.11.0.
 CREATE TABLE business_activity (
@@ -160,6 +170,7 @@ CREATE TABLE accounting_period (
   status               period_status NOT NULL DEFAULT 'OPEN',
   regime_code          text          NOT NULL REFERENCES regime (code),
   accounting_size_code text          REFERENCES accounting_size (code),  -- null until assessed
+  accounting_currency  char(3)       NOT NULL REFERENCES currency (code),  -- měna účetnictví (§4/12), 1/org/period
   created_at           timestamptz   NOT NULL DEFAULT now(),
   updated_at           timestamptz   NOT NULL DEFAULT now(),
   CONSTRAINT accounting_period_dates_chk CHECK (period_start <= period_end),
@@ -206,6 +217,136 @@ CREATE TABLE counterparty (
   -- reference a counterparty (accounting_document / accounting_event), closing the
   -- cross-workspace FK-bypass hole via (counterparty_id, workspace_id).
   CONSTRAINT counterparty_id_workspace_unique UNIQUE (id, workspace_id)
+);
+
+-- =============================================================================
+-- CAPTURE CORE (§33 + §6/1 + §11) — fact -> voucher -> line -> dílčí (money)
+-- =============================================================================
+-- Money lives at partial_record (the dílčí). Posting (a later layer) reads it and
+-- EXPANDS one row into N MD/D lines. Composite (fk, organization_id) FKs enforce
+-- tenant consistency across the FK chain (FK checks bypass RLS); the counterparty
+-- is workspace-shared, so events reference it via (counterparty_id, workspace_id).
+
+CREATE TYPE number_series_entity AS ENUM ('EVENT', 'DOCUMENT');
+CREATE TYPE summary_record_type  AS ENUM ('RECEIVED_INVOICE', 'ISSUED_INVOICE', 'BANK_STATEMENT', 'INTERNAL', 'CASH_DOCUMENT', 'BATCH');
+CREATE TYPE vat_mode             AS ENUM ('STANDARD', 'REVERSE_CHARGE', 'EXEMPT', 'OUTSIDE_VAT', 'IMPORT');
+CREATE TYPE fx_rate_kind         AS ENUM ('DAILY', 'REAL', 'FIXED');
+CREATE TYPE signature_role       AS ENUM ('FOR_EVENT', 'FOR_POSTING');
+
+-- number_series — company-defined číselné řady per entity_type. Gapless counter.
+CREATE TABLE number_series (
+  id              uuid                 PRIMARY KEY DEFAULT uuidv7(),
+  organization_id uuid                 NOT NULL REFERENCES organization (id),
+  entity_type     number_series_entity NOT NULL,           -- EVENT | DOCUMENT (extensible)
+  code            text                 NOT NULL,           -- company's série label
+  pattern         text                 NOT NULL,           -- company-defined format, e.g. 'FP{YYYY}{NNNN}'
+  next_number     bigint               NOT NULL DEFAULT 1, -- gapless: SELECT...FOR UPDATE, never a SEQUENCE
+  created_at      timestamptz          NOT NULL DEFAULT now(),
+  updated_at      timestamptz          NOT NULL DEFAULT now(),
+  CONSTRAINT number_series_id_org_unique          UNIQUE (id, organization_id),
+  CONSTRAINT number_series_org_entity_code_unique UNIQUE (organization_id, entity_type, code)
+);
+
+-- accounting_event — the economic fact / účetní případ (§6/1). Both parties.
+-- party_id = us (self / employee / sub-org), counterparty_id = them. workspace_id
+-- is the composite-FK key to the workspace-shared counterparty (FK bypasses RLS).
+CREATE TABLE accounting_event (
+  id               uuid        PRIMARY KEY DEFAULT uuidv7(),
+  organization_id  uuid        NOT NULL,
+  workspace_id     uuid        NOT NULL,
+  number_series_id uuid        NOT NULL,                  -- Označení series (entity_type = EVENT)
+  sequence_number  bigint      NOT NULL,                  -- gapless Označení
+  party_id         uuid,                                  -- OUR side (counterparty)
+  counterparty_id  uuid,                                  -- THEIR side (counterparty)
+  description      text        NOT NULL,                  -- obsah úč. případu (§11/1b)
+  content          text,                                  -- optional longer detail
+  occurred_at      timestamptz NOT NULL,                  -- okamžik uskutečnění (§11/1e)
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT accounting_event_org_fk          FOREIGN KEY (organization_id, workspace_id) REFERENCES organization (id, workspace_id),
+  CONSTRAINT accounting_event_party_fk        FOREIGN KEY (party_id, workspace_id)        REFERENCES counterparty (id, workspace_id),
+  CONSTRAINT accounting_event_counterparty_fk FOREIGN KEY (counterparty_id, workspace_id) REFERENCES counterparty (id, workspace_id),
+  CONSTRAINT accounting_event_series_fk       FOREIGN KEY (number_series_id, organization_id) REFERENCES number_series (id, organization_id),
+  CONSTRAINT accounting_event_id_org_unique   UNIQUE (id, organization_id),
+  CONSTRAINT accounting_event_oznaceni_unique UNIQUE (number_series_id, sequence_number)
+);
+
+-- signature — podpisový záznam (§33a + §11/1f). Append-only (triggers at migration).
+CREATE TABLE signature (
+  id              uuid           PRIMARY KEY DEFAULT uuidv7(),
+  organization_id uuid           NOT NULL REFERENCES organization (id),
+  role            signature_role NOT NULL,                  -- FOR_EVENT (za případ) | FOR_POSTING (za zaúčtování)
+  signer_id       uuid           NOT NULL REFERENCES app_user (id),
+  signed_at       timestamptz    NOT NULL,                  -- okamžik podpisového záznamu (§33a)
+  event_id        uuid,                                     -- set when role = FOR_EVENT
+  created_at      timestamptz    NOT NULL DEFAULT now(),
+  CONSTRAINT signature_event_fk      FOREIGN KEY (event_id, organization_id) REFERENCES accounting_event (id, organization_id),
+  CONSTRAINT signature_id_org_unique UNIQUE (id, organization_id)
+);
+
+-- summary_record — souhrnný úč. záznam = voucher/doklad header (§11). Numbered.
+CREATE TABLE summary_record (
+  id               uuid                PRIMARY KEY DEFAULT uuidv7(),
+  organization_id  uuid                NOT NULL,
+  workspace_id     uuid                NOT NULL,
+  period_id        uuid                NOT NULL,            -- the účetní období this voucher books into
+  number_series_id uuid                NOT NULL,            -- číselná řada (entity_type = DOCUMENT)
+  sequence_number  bigint              NOT NULL,            -- gapless Označení
+  type             summary_record_type NOT NULL,
+  issued_at        timestamptz         NOT NULL,            -- okamžik vyhotovení (§11/1d)
+  rounding_amount  numeric(19,4)       NOT NULL DEFAULT 0,  -- §37 doc-total rounding -> 548/648 at posting
+  created_at       timestamptz         NOT NULL DEFAULT now(),
+  updated_at       timestamptz         NOT NULL DEFAULT now(),
+  CONSTRAINT summary_record_org_fk              FOREIGN KEY (organization_id, workspace_id)     REFERENCES organization (id, workspace_id),
+  CONSTRAINT summary_record_period_fk           FOREIGN KEY (period_id, organization_id)        REFERENCES accounting_period (id, organization_id),
+  CONSTRAINT summary_record_series_fk           FOREIGN KEY (number_series_id, organization_id) REFERENCES number_series (id, organization_id),
+  CONSTRAINT summary_record_cislena_rada_unique UNIQUE (number_series_id, sequence_number),
+  CONSTRAINT summary_record_id_org_unique       UNIQUE (id, organization_id)
+);
+
+-- individual_record — jednotlivý úč. záznam; one line, links event<->voucher.
+CREATE TABLE individual_record (
+  id                  uuid        PRIMARY KEY DEFAULT uuidv7(),
+  organization_id     uuid        NOT NULL REFERENCES organization (id),
+  summary_record_id   uuid        NOT NULL,                -- which voucher
+  accounting_event_id uuid        NOT NULL,                -- which fact
+  description         text,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT individual_record_doc_fk        FOREIGN KEY (summary_record_id, organization_id)   REFERENCES summary_record (id, organization_id),
+  CONSTRAINT individual_record_event_fk      FOREIGN KEY (accounting_event_id, organization_id) REFERENCES accounting_event (id, organization_id),
+  CONSTRAINT individual_record_id_org_unique UNIQUE (id, organization_id)
+);
+
+-- partial_record — dílčí úč. záznam = THE money level (taxable supplies only).
+-- §11/1c captured once; posting EXPANDS one row into N MD/D lines. Rounding lives
+-- on summary_record.rounding_amount. ξ (koeficient) injected at posting time.
+CREATE TABLE partial_record (
+  id                   uuid          PRIMARY KEY DEFAULT uuidv7(),
+  organization_id      uuid          NOT NULL REFERENCES organization (id),
+  individual_record_id uuid          NOT NULL,
+  quantity             numeric(19,4),                       -- Množství
+  measure_unit         text,                                -- m.j.
+  unit_price           numeric(19,4),                       -- cena za m.j.
+  base_amount          numeric(19,4) NOT NULL,              -- základ daně (Suma celkem)
+  vat_rate             numeric(5,2),                        -- 0/12/21…; null for OUTSIDE_VAT
+  vat_mode             vat_mode      NOT NULL,              -- DRIVES posting
+  vat_deductible       boolean       NOT NULL DEFAULT true, -- false -> VAT folds into cost
+  advance_settlement   boolean       NOT NULL DEFAULT false,-- daňový doklad k záloze (§37a)
+  vat_amount           numeric(19,4) NOT NULL DEFAULT 0,    -- daň; 0 on reverse-charge/exempt docs
+  currency_code        char(3)       NOT NULL REFERENCES currency (code),
+  fx_rate_kind         fx_rate_kind,                        -- DAILY | REAL | FIXED (priority REAL>FIXED>DAILY)
+  fx_rate              numeric(18,6),                       -- to accounting currency; null when same
+  vat_fx_rate          numeric(18,6),                       -- §4/5 ČNB rate for the VAT base when <> fx_rate
+  base_in_accounting_currency numeric(19,4) NOT NULL,       -- frozen (target = period.accounting_currency)
+  vat_in_accounting_currency  numeric(19,4) NOT NULL DEFAULT 0,  -- frozen
+  created_at           timestamptz   NOT NULL DEFAULT now(),
+  updated_at           timestamptz   NOT NULL DEFAULT now(),
+  CONSTRAINT partial_record_line_fk       FOREIGN KEY (individual_record_id, organization_id) REFERENCES individual_record (id, organization_id),
+  CONSTRAINT partial_record_id_org_unique UNIQUE (id, organization_id),
+  CONSTRAINT partial_record_vat_zero_chk  CHECK (vat_mode NOT IN ('EXEMPT', 'OUTSIDE_VAT') OR vat_amount = 0),
+  CONSTRAINT partial_record_qty_price_chk CHECK (quantity IS NULL OR unit_price IS NULL OR base_amount = round(quantity * unit_price, 4)),
+  CONSTRAINT partial_record_vat_tol_chk   CHECK (vat_mode <> 'STANDARD' OR vat_rate IS NULL OR abs(vat_amount - round(base_amount * vat_rate / 100, 0)) <= 1)
 );
 
 -- =============================================================================

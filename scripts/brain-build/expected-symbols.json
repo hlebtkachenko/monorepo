@@ -1,0 +1,6 @@
+{
+  "_comment": "BGTG check #1 anchor (plan §11.1). Every external symbol the Brain imports + its source-of-truth ref (git show <ref>:<path>) + a fingerprint. POPULATED BY WP-0.0a (vendor Track-A surface) — BLOCKED until the accounting domain choice (D-001) is resolved and reachable. A hallucinated @workspace/accounting API must fail HERE, not at WP-1.6.",
+  "version": 0,
+  "track_a_source_ref": "UNRESOLVED — pending D-001 (origin/hlebtkachenko/accounting-records-system #386 vs accounting-v2-ground #395)",
+  "symbols": []
+}

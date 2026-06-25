@@ -1,0 +1,5 @@
+{
+  "_comment": "BGTG check #2 anchor (plan §11.2). sha256 of each golden fixture. A changed hash without a matching [fixture-change] PROGRESS entry (carrying a >=2-advisor sign-off id) -> HALT. POPULATED BY WP-0.8 (Fixture-0 REM frozen + Fixture-1 SRO-2025-PLATCE-CZK-01).",
+  "version": 0,
+  "fixtures": {}
+}

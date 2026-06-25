@@ -101,6 +101,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 
 Agent-specific runbooks live in `docs/runbooks/`:
 
+- `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs
 - `SHOWCASE.md`: instructions for adding component demos to the showcase page
 - `COMPONENT-MIGRATION.md`: workflow for adding non-shadcn components from external registries
 

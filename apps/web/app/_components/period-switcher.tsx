@@ -12,7 +12,8 @@ import { PeriodSwitcher } from "@workspace/ui/blocks/app-header"
  * There is NO accounting-period backend yet: the schema has only
  * `organization.fiscal_year_start_month` (a single smallint), no per-period
  * records or closed/locked state. Wire real data here when the
- * `accounting_period` table exists (tracked in GitHub issue #394):
+ * `accounting_period` table exists (tracked in GitHub issue #406; backend in
+ * PR #386 `ucetni_obdobi` → od/do/stav, superseded by the v2 line PR #395):
  *
  *  • periods  → one row per period for the org: id, start/end month + year
  *    (derived from `fiscal_year_start_month` + the period year), and a

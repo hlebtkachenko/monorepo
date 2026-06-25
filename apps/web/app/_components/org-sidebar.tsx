@@ -15,7 +15,13 @@ import {
  * insight are mock for now — enough to exercise the dismissal mechanism and
  * the layout until the real data sources are wired.
  */
-export function OrgSidebar({ orgSlug }: { orgSlug: string }) {
+export function OrgSidebar({
+  orgSlug,
+  nav,
+}: {
+  orgSlug: string
+  nav: SidebarNavEntry[]
+}) {
   const pathname = usePathname()
   const base = `/${orgSlug}`
 
@@ -35,42 +41,6 @@ export function OrgSidebar({ orgSlug }: { orgSlug: string }) {
       description:
         "You're nearing the turnover limit for mandatory VAT registration.",
       href: "https://example.com/dph",
-    },
-  ]
-
-  // Module nav: pages (icon) — flat, expandable-with-subpages, and grouped.
-  const nav: SidebarNavEntry[] = [
-    { label: "Overview", href: base, icon: "Goal" },
-    { label: "Tasks", href: `${base}/tasks`, icon: "CalendarClock", badge: 3 },
-    {
-      // A Page that expands to Subpages (both clickable). Badge sits after
-      // the label, before the expand chevron.
-      label: "Automations",
-      href: `${base}/automations`,
-      icon: "Workflow",
-      badge: 2,
-      subpages: [
-        { label: "Sequences", href: `${base}/automations/sequences` },
-        { label: "Workflows", href: `${base}/automations/workflows` },
-      ],
-    },
-    {
-      // A Group: a label heading over a set of Pages.
-      label: "Filings",
-      pages: [
-        { label: "VAT returns", href: `${base}/vat`, icon: "ReceiptEuro" },
-        {
-          label: "Control statement",
-          href: `${base}/control`,
-          icon: "FileText",
-        },
-      ],
-    },
-    {
-      label: "Documents",
-      href: `${base}/documents`,
-      icon: "FolderBookmark",
-      badge: "New",
     },
   ]
 

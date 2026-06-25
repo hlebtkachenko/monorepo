@@ -1,0 +1,24 @@
+{
+  "name": "@workspace/brain",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Afframe Brain (Track B) — autonomous CZ-accounting ingestion + booking orchestrator. Orchestration, canonical IR, calibrated confidence, librarian. Consumed source-first.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^10.4.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

@@ -4,10 +4,12 @@ How the application shell is structured and how to build **page content** inside
 it without reinventing primitives or breaking the layout. Read this before
 touching the sidebar or the content panel, or before wiring a new page.
 
-> Status: the sidebar and content panels are **built but fed by mock data**.
-> Real-data wiring is tracked in GitHub issue
-> [#394](https://github.com/hlebtkachenko/monorepo/issues/394) and summarized
-> below in [Pending real-data work](#pending-real-data-work).
+> Status: the persistent shell + structure-driven nav are **live** (mounted in
+> `[orgSlug]/layout.tsx`); each module ships an **`Overview` placeholder body**
+> (`ModulePage`) awaiting its real `ContentPanel`. To add or wire a page, jump to
+> [Adding a page](#adding-a-page-subpage-module-or-tabs). Remaining real-data
+> wiring is tracked in GitHub issue
+> [#394](https://github.com/hlebtkachenko/monorepo/issues/394).
 
 ---
 
@@ -24,12 +26,14 @@ touching the sidebar or the content panel, or before wiring a new page.
 
 ## Where everything lives
 
-| Layer                        | Location                                                                     | Rule                                                                                                            |
-| ---------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Shell + panels (reusable UI) | `packages/ui/src/blocks/app-shell`, `app-rail`, `app-sidebar`, `app-content` | All reusable composition goes here. **Never** put shell/panel UI in `apps/web`.                                 |
-| Leaf components              | `packages/ui/src/components/*`                                               | shadcn-derived primitives (Button, Tabs, DataTable, ActionBar, …).                                              |
-| App data wrappers            | `apps/web/app/_components/*`                                                 | Thin client components that feed **data** (mock today) + live `usePathname()` into the blocks. No layout logic. |
-| Page mount                   | `apps/web/app/[orgSlug]/page.tsx`                                            | Wires the wrappers into `AppShell`'s slots.                                                                     |
+| Layer                        | Location                                                                     | Rule                                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Shell + panels (reusable UI) | `packages/ui/src/blocks/app-shell`, `app-rail`, `app-sidebar`, `app-content` | All reusable composition goes here. **Never** put shell/panel UI in `apps/web`.                                      |
+| Leaf components              | `packages/ui/src/components/*`                                               | shadcn-derived primitives (Button, Tabs, DataTable, ActionBar, …).                                                   |
+| App data wrappers            | `apps/web/app/_components/*`                                                 | Thin client components that feed **data** (mock today) + live `usePathname()` into the blocks. No layout logic.      |
+| Shell mount                  | `apps/web/app/[orgSlug]/layout.tsx`                                          | Mounts the persistent `OrgShell` **once** (rail + sidebar + chrome). Page bodies swap underneath it.                 |
+| Page body                    | `apps/web/app/[orgSlug]/<module>/page.tsx`                                   | Fills the content-panel **body only**. The shell owns every chrome slot; a page never wires `AppShell` itself.       |
+| Nav (structure-driven)       | `apps/web/app/[orgSlug]/_nav/org-nav.ts` + `<module>/nav.ts`                 | Rail + bottom-nav + `MODULE_NAV` (here); each module's sidebar tree (co-located). Drift-guarded by `pnpm check:nav`. |
 
 This split is the `ui-belongs-in-packages-ui-blocks` convention. The pre-commit
 `ui-location` lefthook hook (`scripts/governance/check-ui-location.mjs`)
@@ -40,6 +44,20 @@ The `_components` data layer itself can't be hard-blocked — it legitimately
 holds thin data wrappers — so its "is this a trapped reusable block?" case stays
 review-enforced. Reusable composition goes in `packages/ui`; only thin data
 wrappers belong under `apps/web/app/_components`.
+
+### How a page connects to the shell
+
+`layout.tsx` mounts `OrgShell` once; your `page.tsx` renders **only the body**.
+The sidebar, rail, and header title are derived from the URL, so you write no
+chrome wiring:
+
+- **active module** = the rail entry whose href prefixes the path;
+- **sidebar tree** = `MODULE_NAV[moduleKey]` → the co-located `<module>/nav.ts`;
+- **content-panel title** = the active nav leaf's label (longest-prefix match).
+
+So adding a page is mostly: drop a `page.tsx`, add one nav leaf, run
+`pnpm check:nav`. Override the header (custom tabs/actions) only when needed, via
+`OrgPageHeader` ([recipe C](#c-custom-content-header-tabs)).
 
 ## The AppShell slots
 
@@ -61,8 +79,12 @@ layout. Pass nodes; it positions them. Geometry is token-driven
 
 The 45px header bar (`PanelHeader`) is shell chrome shared by every panel:
 `h-[45px]`, `border-b border-border-subtle`, `px-2 py-1.5`, a 32px content row
-inside. The sidebar/assistant toggles live in it. Your `contentHeader` /
-`sidebarHeader` content sits between those toggles.
+inside. The sidebar/assistant toggles live in it.
+
+> These props are passed by **`OrgShell`** (the shell mounted in `layout.tsx`),
+> not by a page. A page fills only `children` (the body); to put content in
+> `contentHeader` it **portals** a node there via `OrgPageHeader` (see
+> [recipe C](#c-custom-content-header-tabs)).
 
 ---
 
@@ -232,38 +254,111 @@ asChild` — a tooltip'd `IconButton` returns a `TooltipProvider` tree, not a
 
 ### Linking the header to the body
 
-`contentHeader` and `children` are separate slots, so shared state (active tab,
-filter visibility, page actions) needs a small client **context provider**
-wrapping `AppShell`. The Faktury demo does this in
-`apps/web/app/_components/content-demo/context.tsx` — copy that shape for real
-pages, but lift only what actually crosses the two slots.
+The shell owns the `contentHeader` slot, so a page can't pass into it directly —
+it **portals**. Render `<OrgPageHeader>` (from
+`apps/web/app/_components/org-page-header.tsx`) in your page body; its node lands
+in the shell's header while staying in your page's React tree (so it keeps your
+state/context). When the header and body share state (active tab, filter
+visibility), wrap **your page subtree** — not `AppShell` — in a small context
+provider; the Faktury demo does this in
+`apps/web/app/_components/content-demo/context.tsx`. Full steps:
+[recipe C](#c-custom-content-header-tabs).
 
 ---
 
-## Adding a new page — the short path
+## Adding a page (subpage, module, or tabs)
 
-1. Pick the data surface. A list/table page? Reuse `DataTable` + `useDataTable`.
-2. Build the body as a `ContentPanel` (toolbar + optional filters + body +
-   optional status + action bar). Mount the table in the body.
-3. Build the header as a `ContentHeader` (title + tabs). If tabs drive the body,
-   wrap the shell in a context provider so both slots share the active value.
-4. Feed it from a thin wrapper in `apps/web/app/_components/<page>` and mount it
-   in the route via `contentHeader` + `children`.
-5. Verify: `pnpm --filter @workspace/ui --filter web typecheck`, `pnpm lint`,
-   the block tests, then eyeball at `/<org>`.
+Three recipes. All end with `pnpm check:nav` — it fs-walks the route tree and
+fails if a nav href has no route folder or a route folder is missing from nav. It
+runs as a **pre-push lefthook hook (`nav-drift`), not a required CI check** — a
+`--no-verify` push (or a contributor without lefthook installed) can land drift,
+so run it yourself. Mind its scope: it guards **rail + sidebar (`MODULE_NAV`)
+leaves** only — not footer links, and not the `MODULE_NAV` _key wiring_ (see
+recipe B's warning).
+
+### A. Add a subpage to an existing module
+
+Example: a "Journals" page under Accounting (`/<org>/accounting/journals`).
+
+1. Create a **route folder** with a `page.tsx` — a folder, never a bare file
+   (`check-nav` only counts a directory containing `page.tsx` as a route):
+   `apps/web/app/[orgSlug]/accounting/journals/page.tsx`. Copy
+   `accounting/page.tsx`; render a `ModulePage` placeholder or a real
+   `ContentPanel` body. (`ModulePage`'s `title` is placeholder body copy — the
+   real content-panel title comes from the nav label, not this prop.)
+2. Add the leaf to `accounting/nav.ts`. `base` is `/${orgSlug}/accounting`, so the
+   href is **`` `${base}/journals` ``** — the full absolute path, not `"journals"`.
+   Either a top-level **Page** (`{ label, href, icon }` — `icon` required, an
+   `IconName`) or a **Subpage** nested under a Page (`subpages: [{ label, href }]`
+   — no icon, max 2):
+   ```ts
+   export function accountingNav(base: string): SidebarNavEntry[] {
+     return [
+       { label: "Overview", href: base, icon: "Calculator" },
+       { label: "Journals", href: `${base}/journals`, icon: "BookOpen" },
+     ]
+   }
+   ```
+3. `pnpm check:nav` → green = wired. The sidebar row and the content-panel title
+   appear automatically.
+
+### B. Add a whole new module
+
+Example: a "Payroll" module (`/<org>/payroll`). The `MODULE_NAV` **key**, the
+route **folder name**, and the rail **href segment** must be the **same string**
+(`payroll`) — `moduleKeyFromHref` derives the key from the rail href's first
+segment and `MODULE_NAV[key]` resolves the sidebar tree.
+
+1. `apps/web/app/[orgSlug]/payroll/page.tsx` (copy a module page) +
+   `payroll/nav.ts` exporting `payrollNav(base): SidebarNavEntry[]`.
+2. In `_nav/org-nav.ts`, **four edits — do all four**:
+   - **import** `payrollNav` from `../payroll/nav`;
+   - **register** it: add `payroll: payrollNav,` to the `MODULE_NAV` object;
+   - **rail** entry in `orgRailNav`: ``{ label, icon, href: `/${orgSlug}/payroll` }``;
+   - optional **`orgBottomNav`** entry (mobile bar; cosmetic, skip-able).
+3. Pick the `icon` from the **`ICON_NAMES`** union in
+   `packages/ui/src/icon-packs/types.ts` — TS rejects anything else. There's no
+   "Payroll"/"Wallet" icon; closest fits: `Banknote`, `PiggyBank`, `CreditCard`,
+   `ReceiptEuro`, `IdCard`.
+4. `pnpm check:nav`, then **load the page and look at the sidebar.** ⚠️ If you add
+   the rail entry but forget the `MODULE_NAV` registration, `check:nav` still
+   passes (the rail href resolves to the folder) yet the shell silently falls back
+   to the Company `Overview` tree (`MODULE_NAV[key] ?? MODULE_NAV[""]`). The guard
+   does **not** verify key wiring — a visual check is the only catch.
+
+> The org index ("Company") has no folder; its trivial tree is the inline
+> `companyNav` in `org-nav.ts`, not a `company/nav.ts`.
+
+### C. Custom content header (tabs)
+
+Default: **skip this** — the nav-derived title is your header. When a page needs
+its own tabs or actions in the content-panel header, render `<OrgPageHeader>` in
+the page body; it portals into the shell's header slot (and stays in your page's
+tree, so it keeps your state). If tabs drive the body, wrap **your page subtree**
+— not `AppShell` — in a small context provider. Copy the live example:
+`apps/web/app/[orgSlug]/demo/page.tsx` + `apps/web/app/_components/content-demo/`.
+
+### Verify
+
+`pnpm check:nav`, then `pnpm --filter web typecheck`, `pnpm lint`, the block
+tests, and eyeball at `/<org>/<module>` (confirm the sidebar tree + title match —
+see recipe B's silent-fallback warning).
 
 ---
 
 ## Pending real-data work
 
-Everything below is **mock**, tracked in GitHub issue
+Tracked in GitHub issue
 [#394](https://github.com/hlebtkachenko/monorepo/issues/394):
 
-- **Sidebar**: reminders source + persistence backend, module nav per active
-  module, insight feed, footer per page, swap nav `<a>` → Next `<Link>`.
-- **Content panel**: the Faktury demo (`apps/web/app/_components/content-demo`)
-  is a TEMP preview — replace with real, route-driven content + a real data
-  source; remove the demo provider once pages own their state. Tab reorder in
-  the manage-tabs menu is not built (show/hide + add only).
+- **Module bodies**: each module renders a `ModulePage` placeholder — replace
+  with a real `ContentPanel` + a route-driven data source as each is built.
+- **Sidebar**: reminders + insight are "on-call" (self-hide until a server source
+  feeds them) — wire the real sources; swap nav `<a>` → Next `<Link>` when the
+  blocks move to real navigation.
+- **Content panel**: the `/demo` route
+  (`apps/web/app/_components/content-demo`) is a saved, dev-only preview of the
+  Table archetype — a reference to copy, not a shipped page. Tab reorder in the
+  manage-tabs menu is not built (show/hide + add only).
 
 When you wire a real source, delete the corresponding mock and update this list.

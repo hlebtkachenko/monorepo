@@ -21,10 +21,12 @@
     ".npmrc"
   ],
   "globalEnv": [
+    "BETTER_AUTH_COOKIE_DOMAIN",
+    "BETTER_AUTH_SECRET",
     "CI",
     "NODE_ENV",
-    "TESTCONTAINERS_REUSE_ENABLE",
-    "BETTER_AUTH_COOKIE_DOMAIN"
+    "STORYBOOK_STATIC_DIR",
+    "TESTCONTAINERS_REUSE_ENABLE"
   ],
   "remoteCache": {
     "signature": true

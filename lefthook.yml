@@ -64,6 +64,14 @@ pre-commit:
       glob: "packages/db/migrations/*.sql"
       run: pnpm --filter @workspace/db db:schema-snapshot
       stage_fixed: true
+    admin-routes:
+      # Auto-regenerates apps/admin/app/(gated)/_components/route-registry.generated.ts
+      # whenever a gated admin page is added, moved, or removed. The cmdk
+      # palette + sidebar both source from this file, so a stale registry
+      # makes new pages invisible to the command palette.
+      glob: "apps/admin/app/(gated)/**/page.tsx"
+      run: pnpm --filter admin generate:routes
+      stage_fixed: true
 
 pre-push:
   # Budget: total pre-push must stay under ~10s on a typical push so the

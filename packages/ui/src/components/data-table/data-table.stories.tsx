@@ -13,6 +13,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 
 import { DataTable } from "./data-table"
 import { DataTableColumnHeader } from "./data-table-column-header"
+import { DataTableColumnManager } from "./data-table-column-manager"
 import { DataTablePagination } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { useDataTable } from "./use-data-table"
@@ -310,6 +311,21 @@ function ActionBarExample() {
   )
 }
 
+function ColumnManagerExample() {
+  const { table } = useDataTable<Person>({
+    data: seed,
+    columns: baseColumns,
+  })
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex justify-end">
+        <DataTableColumnManager table={table} />
+      </div>
+      <DataTable table={table} />
+    </div>
+  )
+}
+
 const meta: Meta<typeof DataTable> = {
   title: "Components/DataTable",
   component: DataTable,
@@ -341,4 +357,9 @@ export const WithRowSelection: Story = {
 
 export const WithActionBar: Story = {
   render: () => <ActionBarExample />,
+}
+
+/** Drag rows to reorder columns; the eye toggles each column's visibility. */
+export const WithColumnManager: Story = {
+  render: () => <ColumnManagerExample />,
 }

@@ -82,6 +82,14 @@ pre-push:
       # behaviour skips when push has no file changes).
       glob: "*"
       run: node scripts/check-pr-title.mjs "$(git log -1 --format='%s')"
+    nav-drift:
+      # Org sidebar nav ↔ route tree drift guard (the lean alternative to a
+      # route-manifest codegen). Fails if a nav href has no route folder or a
+      # route folder is missing from nav. Runs where the source is present, so
+      # output:"standalone" stripping app/ in prod is irrelevant. Sub-second.
+      glob:
+        - "apps/web/app/**"
+      run: pnpm exec tsx scripts/check-nav.ts
     actionlint:
       # Mirrors `.github/workflows/workflow-lint.yml` actionlint job.
       # Runs when workflow YAML changed. Composite actions under

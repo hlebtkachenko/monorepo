@@ -242,10 +242,29 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   )
 
   const table = useReactTable<TData>({
+    // Pagination is controlled here, so TanStack's data-change page reset would
+    // fire `onPaginationChange` (a setState) during render. Default it off;
+    // consumers can re-enable via `tableProps`.
+    autoResetPageIndex: false,
     ...tableProps,
     columns,
     data,
     ...(pageCount !== undefined ? { pageCount } : {}),
+    // Pagination / sorting / filters / visibility / selection are controlled
+    // above, so only the uncontrolled features need an initial seed forwarded.
+    // Spread only the keys that are set — passing `undefined` would clobber
+    // TanStack's defaults (e.g. an undefined columnSizing breaks getSize()).
+    initialState: {
+      ...(initialState?.columnPinning
+        ? { columnPinning: initialState.columnPinning }
+        : {}),
+      ...(initialState?.columnOrder
+        ? { columnOrder: initialState.columnOrder }
+        : {}),
+      ...(initialState?.columnSizing
+        ? { columnSizing: initialState.columnSizing }
+        : {}),
+    },
     state: {
       pagination,
       sorting,
@@ -267,6 +286,19 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     getFacetedUniqueValues: getFacetedUniqueValues(),
     getFacetedMinMaxValues: getFacetedMinMaxValues(),
   })
+
+  // With the data-change auto-reset off, clamp the page when filtering shrinks
+  // the row count below the current page, so the user is never stranded on an
+  // empty page. Runs in an effect (post-render) — never a render-phase setState.
+  const currentPageCount = table.getPageCount()
+  React.useEffect(() => {
+    if (pagination.pageIndex > 0 && pagination.pageIndex >= currentPageCount) {
+      onPaginationChange((prev) => ({
+        ...prev,
+        pageIndex: Math.max(0, currentPageCount - 1),
+      }))
+    }
+  }, [currentPageCount, pagination.pageIndex, onPaginationChange])
 
   return { table }
 }

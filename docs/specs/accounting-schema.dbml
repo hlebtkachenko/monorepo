@@ -97,6 +97,13 @@ Table vat_regime {
   Note: 'NON_PAYER / PAYER / IDENTIFIED_PERSON + how each works.'
 }
 
+Table currency {
+  code        "char(3)" [pk]
+  name        text      [not null]
+  minor_units smallint  [not null, default: 2]
+  Note: 'ISO 4217 currencies offered in accounting settings. Org accounting currency pinned per period on accounting_period.accounting_currency; document currency on partial_record.currency_code (capture layer).'
+}
+
 Table business_activity {
   code        text     [pk]
   level       smallint [not null]
@@ -138,6 +145,7 @@ Table accounting_period {
   status               period_status [not null, default: 'OPEN']
   regime_code          text          [not null]
   accounting_size_code text
+  accounting_currency  "char(3)"     [not null]   // měna účetnictví (§4/12), 1/org/period
   created_at           timestamptz   [not null, default: `now()`]
   updated_at           timestamptz   [not null, default: `now()`]
   indexes {
@@ -190,6 +198,7 @@ TableGroup law_reference {
   legal_form_allowed_regime
   accounting_size
   vat_regime
+  currency
   business_activity
 }
 TableGroup organization_core {
@@ -219,9 +228,183 @@ Ref: organization_business_activity.business_activity_code  > business_activity.
 Ref: accounting_period.organization_id      > organization.id
 Ref: accounting_period.regime_code          > regime.code
 Ref: accounting_period.accounting_size_code > accounting_size.code
+Ref: accounting_period.accounting_currency  > currency.code
 
 Ref: vat_status.organization_id  > organization.id
 Ref: vat_status.vat_regime_code  > vat_regime.code
 
 Ref: counterparty.workspace_id            > workspace.id
 Ref: counterparty.self_of_organization_id > organization.id
+
+// =============================================================================
+// CAPTURE CORE (§33 + §6/1 + §11) — fact -> voucher -> line -> dílčí (money)
+// =============================================================================
+
+enum number_series_entity {
+  EVENT
+  DOCUMENT
+}
+enum summary_record_type {
+  RECEIVED_INVOICE
+  ISSUED_INVOICE
+  BANK_STATEMENT
+  INTERNAL
+  CASH_DOCUMENT
+  BATCH
+}
+enum vat_mode {
+  STANDARD
+  REVERSE_CHARGE
+  EXEMPT
+  OUTSIDE_VAT
+  IMPORT
+}
+enum fx_rate_kind {
+  DAILY
+  REAL
+  FIXED
+}
+enum signature_role {
+  FOR_EVENT
+  FOR_POSTING
+}
+
+Table number_series {
+  id              uuid                 [pk, default: `uuidv7()`]
+  organization_id uuid                 [not null]
+  entity_type     number_series_entity [not null]
+  code            text                 [not null]
+  pattern         text                 [not null]
+  next_number     bigint               [not null, default: 1]
+  created_at      timestamptz          [not null, default: `now()`]
+  updated_at      timestamptz          [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (organization_id, entity_type, code) [unique]
+  }
+  Note: 'Company-defined číselné řady per entity_type. Gapless counter (row-lock, never a SEQUENCE).'
+}
+
+Table accounting_event {
+  id               uuid        [pk, default: `uuidv7()`]
+  organization_id  uuid        [not null]
+  workspace_id     uuid        [not null]
+  number_series_id uuid        [not null]
+  sequence_number  bigint      [not null]
+  party_id         uuid
+  counterparty_id  uuid
+  description      text        [not null]
+  content          text
+  occurred_at      timestamptz [not null]
+  created_at       timestamptz [not null, default: `now()`]
+  updated_at       timestamptz [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (number_series_id, sequence_number) [unique]
+  }
+  Note: 'The fact (§6/1). party_id = us, counterparty_id = them (both workspace-shared counterparty). Označení = number_series_id + sequence_number. workspace_id = composite-FK key (FK bypasses RLS). Money on partial_record.'
+}
+
+Table signature {
+  id              uuid           [pk, default: `uuidv7()`]
+  organization_id uuid           [not null]
+  role            signature_role [not null]
+  signer_id       uuid           [not null]
+  signed_at       timestamptz    [not null]
+  event_id        uuid
+  created_at      timestamptz    [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (event_id, organization_id)
+  }
+  Note: 'Podpisový záznam (§33a + §11/1f). Append-only (triggers at migration). FOR_EVENT -> event_id; FOR_POSTING -> posting_id at the posting layer.'
+}
+
+Table summary_record {
+  id               uuid                [pk, default: `uuidv7()`]
+  organization_id  uuid                [not null]
+  workspace_id     uuid                [not null]
+  period_id        uuid                [not null]
+  number_series_id uuid                [not null]
+  sequence_number  bigint              [not null]
+  type             summary_record_type [not null]
+  issued_at        timestamptz         [not null]
+  rounding_amount  "numeric(19,4)"     [not null, default: 0]
+  created_at       timestamptz         [not null, default: `now()`]
+  updated_at       timestamptz         [not null, default: `now()`]
+  indexes {
+    (number_series_id, sequence_number) [unique, name: 'cislena_rada gapless (R3/§11/1a)']
+    (id, organization_id) [unique]
+  }
+  Note: 'Voucher/doklad header (§11). No line money (= Σ partial_records). rounding_amount = §37 doc rounding -> 548/648. counterparty lives on the event.'
+}
+
+Table individual_record {
+  id                  uuid        [pk, default: `uuidv7()`]
+  organization_id     uuid        [not null]
+  summary_record_id   uuid        [not null]
+  accounting_event_id uuid        [not null]
+  description         text
+  created_at          timestamptz [not null, default: `now()`]
+  updated_at          timestamptz [not null, default: `now()`]
+  indexes { (id, organization_id) [unique] }
+  Note: 'Jednotlivý úč. záznam — links one event to a voucher (§11/1c line). No stored money; line total = Σ its partial_records.'
+}
+
+Table partial_record {
+  id                   uuid            [pk, default: `uuidv7()`]
+  organization_id      uuid            [not null]
+  individual_record_id uuid            [not null]
+  quantity             "numeric(19,4)"
+  measure_unit         text
+  unit_price           "numeric(19,4)"
+  base_amount          "numeric(19,4)" [not null]
+  vat_rate             "numeric(5,2)"
+  vat_mode             vat_mode        [not null]
+  vat_deductible       boolean         [not null, default: true]
+  advance_settlement   boolean         [not null, default: false]
+  vat_amount           "numeric(19,4)" [not null, default: 0]
+  currency_code        "char(3)"       [not null]
+  fx_rate_kind         fx_rate_kind
+  fx_rate              "numeric(18,6)"
+  vat_fx_rate          "numeric(18,6)"
+  base_in_accounting_currency "numeric(19,4)" [not null]
+  vat_in_accounting_currency  "numeric(19,4)" [not null, default: 0]
+  created_at           timestamptz     [not null, default: `now()`]
+  updated_at           timestamptz     [not null, default: `now()`]
+  indexes { (id, organization_id) [unique] }
+  Note: 'Dílčí úč. záznam = THE money level (taxable supplies only; rounding on summary_record). §11/1c + VAT + currency/FX captured once; posting EXPANDS one row into N MD/D lines. vat_mode drives posting; ξ injected at posting time. CHECKs in the SQL.'
+}
+
+TableGroup capture_core {
+  number_series
+  accounting_event
+  signature
+  summary_record
+  individual_record
+  partial_record
+}
+
+// capture core relationships
+Ref: number_series.organization_id > organization.id
+
+Ref: accounting_event.(organization_id, workspace_id)     > organization.(id, workspace_id)
+Ref: accounting_event.(party_id, workspace_id)            > counterparty.(id, workspace_id)
+Ref: accounting_event.(counterparty_id, workspace_id)     > counterparty.(id, workspace_id)
+Ref: accounting_event.(number_series_id, organization_id) > number_series.(id, organization_id)
+
+Ref: signature.organization_id              > organization.id
+Ref: signature.signer_id                    > app_user.id
+Ref: signature.(event_id, organization_id)  > accounting_event.(id, organization_id)
+
+Ref: summary_record.(organization_id, workspace_id)     > organization.(id, workspace_id)
+Ref: summary_record.(period_id, organization_id)        > accounting_period.(id, organization_id)
+Ref: summary_record.(number_series_id, organization_id) > number_series.(id, organization_id)
+
+Ref: individual_record.organization_id                        > organization.id
+Ref: individual_record.(summary_record_id, organization_id)   > summary_record.(id, organization_id)
+Ref: individual_record.(accounting_event_id, organization_id) > accounting_event.(id, organization_id)
+
+Ref: partial_record.organization_id                        > organization.id
+Ref: partial_record.(individual_record_id, organization_id) > individual_record.(id, organization_id)
+Ref: partial_record.currency_code                          > currency.code

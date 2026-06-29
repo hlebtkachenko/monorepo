@@ -6,9 +6,13 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.8.1] — 2026-06-29
+
+Patch release: cold-start deploy reliability — resilient RDS resume + the per-env `Audit` stack drop. No app-surface change.
+
 ### Fixed
 
-- **deploy**: cold-start deploys now resume RDS reliably and parallel staging+prod deploys no longer collide. The brittle single `aws rds wait` (hard-capped ~30 min, which a deeply-cold DB exceeded) is replaced by a resilient poll loop (`infra/scripts/rds-resume.sh`, shared by `_deploy-aws.yml` + `power.yml`) that tolerates transitional states, re-issues start, re-asserts the cost-stop tag removal each iteration, and disables the `RdsRestartWatcher` EventBridge rule for the resume window (re-enabled on every exit via a trap) so it cannot re-stop the DB mid-resume. The account-global `Audit` CloudTrail stack is no longer deployed by the per-env workflow (it ships once, manually, like `SecretsBootstrap`) — including it made parallel deploys collide on the shared CFN stack.
+- **deploy**: cold-start deploys now resume RDS reliably and parallel staging+prod deploys no longer collide. The brittle single `aws rds wait` (hard-capped ~30 min, which a deeply-cold DB exceeded) is replaced by a resilient poll loop (`infra/scripts/rds-resume.sh`, shared by `_deploy-aws.yml` + `power.yml`) that tolerates transitional states, re-issues start, re-asserts the cost-stop tag removal each iteration, and disables the `RdsRestartWatcher` EventBridge rule for the resume window (re-enabled on every exit via a trap) so it cannot re-stop the DB mid-resume. The account-global `Audit` CloudTrail stack is no longer deployed by the per-env workflow (it ships once, manually, like `SecretsBootstrap`) — including it made parallel deploys collide on the shared CFN stack. (#422, #423)
 
 ## [v0.8.0] — 2026-06-29
 

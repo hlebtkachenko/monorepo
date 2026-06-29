@@ -350,6 +350,229 @@ CREATE TABLE partial_record (
 );
 
 -- =============================================================================
+-- CHART OF ACCOUNTS (§14 účtový rozvrh, §16 §16 reconcile, Decree 500/2002)
+-- =============================================================================
+-- DOUBLE_ENTRY regime only (the regime redirect: single-entry / tax-records use the
+-- cash-book branch, no chart). Fork1=A (account_group binding + directive_account
+-- catalogue), Fork2=B (per-period chart header + copy-forward), D3 (nature +
+-- normal_balance stored, not derived), D4 (§16 tree integrity in DDL; Σ-reconcile =
+-- service+test in the posting layer), D5 (regime gate via generated regime_code +
+-- composite FK to the period regime spine — unbypassable, no separate CHECK).
+
+CREATE TYPE account_nature AS ENUM ('ASSET','LIABILITY','EQUITY','EXPENSE','REVENUE','CLOSING','OFF_BALANCE');
+CREATE TYPE debit_credit   AS ENUM ('DEBIT','CREDIT');  -- shared: account.normal_balance + posting line side
+
+-- account_group — BINDING level for podnikatelé (§14/1 + Decree 500/2002 Příloha 4).
+-- ~80 immutable seeded rows. class is a column (no standalone account_class table).
+CREATE TABLE account_group (
+  code                    char(2)  PRIMARY KEY,                  -- '01','31','70','71'
+  class                   smallint NOT NULL,                     -- left digit
+  name_cs                 text     NOT NULL,
+  name_en                 text,
+  nature                  account_nature,                        -- hint; NULL where group mixes (cl. 3,4,7)
+  is_internal             boolean  NOT NULL DEFAULT false,       -- classes 8–9, entity-free
+  is_valuation_adjustment boolean  NOT NULL DEFAULT false,       -- oprávky/opravné položky groups -> rozvaha KOREKCE col (§4/4)
+  CONSTRAINT account_group_class_chk CHECK (class BETWEEN 0 AND 9)
+);
+
+-- directive_account — NON-BINDING recommendation catalogue (3-digit synthetic),
+-- seeded from coa.json. Tenants may invent synthetics within a group (legal), so the
+-- link from account is nullable. Carries the závěrka statement-line mapping.
+-- Seed-time fixes (migration): 710 belongs to group 71 (coa.json files it under 70);
+-- resolve normal_balance "mixed"/"technical"/None -> enum + NULL.
+CREATE TABLE directive_account (
+  code                  char(3) PRIMARY KEY,                     -- '311','518','701'
+  group_code            char(2) NOT NULL REFERENCES account_group (code),
+  name_cs               text    NOT NULL,
+  name_en               text,
+  nature                account_nature NOT NULL,
+  normal_balance        debit_credit,                            -- NULL where genuinely mixed/technical
+  balance_sheet_line    text,                                    -- Příloha 1, e.g. 'B.II.4'
+  income_statement_line text,                                    -- Příloha 2
+  deprecated            boolean NOT NULL DEFAULT false
+);
+
+-- chart_of_accounts — one účtový rozvrh per účetní období (§14/3). Fork2=B: a service
+-- copies accounts forward at period open. D5 regime gate: regime_code is a generated
+-- constant, so the composite FK to the period's 3-col unique proves this org's
+-- DOUBLE_ENTRY period — unbypassable, no separate CHECK. No status column (open/closed
+-- tracks the period; the closed-period freeze is a migration trigger per V2-DEFERRED).
+CREATE TABLE chart_of_accounts (
+  id              uuid        PRIMARY KEY DEFAULT uuidv7(),
+  organization_id uuid        NOT NULL,
+  period_id       uuid        NOT NULL,
+  regime_code     text        NOT NULL GENERATED ALWAYS AS ('DOUBLE_ENTRY') STORED,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chart_period_regime_fk FOREIGN KEY (period_id, organization_id, regime_code)
+    REFERENCES accounting_period (id, organization_id, regime_code),
+  CONSTRAINT chart_one_per_period UNIQUE (period_id),
+  CONSTRAINT chart_id_org_unique  UNIQUE (id, organization_id)
+);
+
+-- account — a tenant účet in one chart. The 4 structural levels are GENERATED from
+-- `number` (zero drift): class / group_code / synthetic_code / is_synthetic. nature
+-- fuses Money's Druh+Typ; the only user-chosen stored flag is tracks_open_items
+-- (saldokonto, §16 párování). 2-digit number allowed (§13a simplified scope).
+-- Derived in views (NOT stored): Druh (nature filter), Aktivní/Pasivní (normal_balance),
+-- Vnitropodnikový (class IN 8,9), Oprávkový (account_group.is_valuation_adjustment).
+-- §16 Σ(analytical)=synthetic reconcile = service+test in the posting layer, NOT DDL.
+CREATE TABLE account (
+  id                uuid           PRIMARY KEY DEFAULT uuidv7(),
+  organization_id   uuid           NOT NULL,
+  chart_id          uuid           NOT NULL,
+  parent_id         uuid,                                        -- analytical -> synthetic (§16, ČÚS 001 §2.2.1); same chart
+  number            text           NOT NULL,                     -- '31','311','311.001'
+  name              text           NOT NULL,
+  nature            account_nature NOT NULL,
+  normal_balance    debit_credit,                                -- NULL where sign-flips (431,481,FX)
+  tracks_open_items boolean        NOT NULL DEFAULT false,       -- saldokonto — the ONE stored flag (user-chosen)
+  -- structural levels: GENERATED from `number` only (a gen col may not read another gen col)
+  class          smallint GENERATED ALWAYS AS (left(number,1)::int) STORED,
+  group_code     char(2)  GENERATED ALWAYS AS (CASE WHEN left(number,1) IN ('8','9') THEN NULL ELSE left(replace(number,'.',''),2)::char(2) END) STORED,
+  synthetic_code text     GENERATED ALWAYS AS (left(replace(number,'.',''),3)) STORED,
+  is_synthetic   boolean  GENERATED ALWAYS AS (parent_id IS NULL) STORED,
+  specializes_directive_code char(3),                            -- nullable soft link to the 3-digit catalogue
+  created_at      timestamptz   NOT NULL DEFAULT now(),
+  updated_at      timestamptz   NOT NULL DEFAULT now(),
+  CONSTRAINT account_id_org_unique        UNIQUE (id, organization_id),   -- posting line -> account target
+  CONSTRAINT account_id_chart_unique      UNIQUE (id, chart_id),          -- parent-same-chart target
+  CONSTRAINT account_chart_number_unique  UNIQUE (chart_id, number),
+  CONSTRAINT account_chart_fk     FOREIGN KEY (chart_id, organization_id) REFERENCES chart_of_accounts (id, organization_id),
+  CONSTRAINT account_parent_fk    FOREIGN KEY (parent_id, chart_id)       REFERENCES account (id, chart_id),
+  CONSTRAINT account_group_fk     FOREIGN KEY (group_code)                REFERENCES account_group (code),
+  CONSTRAINT account_directive_fk FOREIGN KEY (specializes_directive_code) REFERENCES directive_account (code),
+  CONSTRAINT account_not_self_parent_chk CHECK (parent_id <> id),
+  CONSTRAINT account_number_shape_chk    CHECK (number ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$')
+);
+
+-- =============================================================================
+-- POSTING (ZAÚČTOVÁNÍ §6/2) — shared header + 2 regime-specific line shapes
+-- =============================================================================
+-- Faithful v2 English rename of v1 ucetni_zapis / zapis_radek / penezni_denik_radek
+-- (TECH-SPEC §5.2–5.4, §6, §7, §9) + the documented v2 decisions only. The header is
+-- shared across all 3 regimes (carries regime_code); PODVOJNÉ branches to the
+-- double-entry line, JEDNODUCHÉ / DAŇOVÁ EVIDENCE share the cash line. Books
+-- (deník / hlavní kniha / peněžní deník) are VIEWS over these, never tables. MVP: no FX.
+
+CREATE TYPE posting_kind    AS ENUM ('SIMPLE','COMPOUND');        -- druh (§5.2)
+CREATE TYPE correction_type AS ENUM ('REVERSAL','SUPPLEMENTARY'); -- oprava_typ (§5.2; R8/§35/ČÚS 001)
+CREATE TYPE cash_location   AS ENUM ('CASH','BANK');             -- misto (§5.4)
+CREATE TYPE cash_direction  AS ENUM ('INFLOW','OUTFLOW');        -- smer (§5.4)
+CREATE TYPE category_type   AS ENUM ('INCOME','EXPENSE');        -- kategorie typ (§5.7/§9)
+
+-- category (= kategorie) — peněžní-deník income/expense category (§5.7, §9).
+CREATE TABLE category (
+  id              uuid          PRIMARY KEY DEFAULT uuidv7(),
+  organization_id uuid          NOT NULL REFERENCES organization (id),
+  type            category_type NOT NULL,
+  name            text          NOT NULL,
+  created_at      timestamptz   NOT NULL DEFAULT now(),
+  updated_at      timestamptz   NOT NULL DEFAULT now(),
+  CONSTRAINT category_id_org_unique UNIQUE (id, organization_id)
+);
+
+-- posting (= ucetni_zapis) — the shared posting header (§12), made on the basis of a
+-- doklad (§6/2). §5.2. For DAŇOVÁ EVIDENCE a TECHNICAL CONTAINER (§7b ZDP): the table
+-- is reused as-is, columns stay NOT NULL. Append-only (R8; no updated_at).
+CREATE TABLE posting (
+  id                   uuid            PRIMARY KEY DEFAULT uuidv7(),
+  organization_id      uuid            NOT NULL,
+  period_id            uuid            NOT NULL,                  -- obdobi_id (§5.2); regime spine. A correction may post into a different OPEN period (R8/R12)
+  regime_code          text            NOT NULL,                 -- pinned == accounting_period.regime_code via composite FK; lines need it for their FK
+  summary_record_id    uuid            NOT NULL,                 -- doklad_id (§5.2, R2) — posting on the basis of a doklad (§6/2)
+  accounting_event_id  uuid            NOT NULL,                 -- pripad_id (§5.2, R2) — which case is booked; one doklad may cover many cases (§11/1)
+  depreciation_plan_id uuid,                                     -- odpisovy_plan_id (§5.2/§6) — set if generated by depreciation (UC-4)
+  inventory_count_id   uuid,                                     -- inventura_id (§5.2/§6) — set if generated by inventory manko/přebytek (UC-4)
+  posting_date         date            NOT NULL,                 -- datum (§5.2) — deník order + period membership; CHECK ∈ period (trigger)
+  posting_kind         posting_kind    NOT NULL,                 -- druh (§5.2): SIMPLE | COMPOUND
+  responsible_user_id  uuid            NOT NULL REFERENCES app_user (id),  -- odpovedna_osoba (§5.2, R10); MVP e-signature simplification
+  posted_at            timestamptz     NOT NULL,                 -- okamzik_zauctovani (§5.2)
+  corrects_posting_id  uuid,                                     -- opravuje_zapis_id (R8/§35) — self-FK; correction posts into an OPEN period
+  correction_type      correction_type,                          -- set iff corrects_posting_id set
+  created_at           timestamptz     NOT NULL DEFAULT now(),
+  CONSTRAINT posting_id_org_unique        UNIQUE (id, organization_id),
+  CONSTRAINT posting_id_org_regime_unique UNIQUE (id, organization_id, regime_code),  -- line-FK target (R7 spine)
+  CONSTRAINT posting_period_regime_fk FOREIGN KEY (period_id, organization_id, regime_code)
+    REFERENCES accounting_period (id, organization_id, regime_code),                  -- REGIME SPINE
+  CONSTRAINT posting_summary_fk FOREIGN KEY (summary_record_id, organization_id)
+    REFERENCES summary_record (id, organization_id),                                  -- R2
+  CONSTRAINT posting_event_fk FOREIGN KEY (accounting_event_id, organization_id)
+    REFERENCES accounting_event (id, organization_id),                               -- R2
+  CONSTRAINT posting_correction_fk FOREIGN KEY (corrects_posting_id, organization_id, regime_code)
+    REFERENCES posting (id, organization_id, regime_code),
+  CONSTRAINT posting_correction_pair_chk CHECK ((corrects_posting_id IS NULL) = (correction_type IS NULL))
+  -- DEFERRED FKs (added when the supporting chunk is designed — next step):
+  --   (depreciation_plan_id, organization_id) -> depreciation_plan (id, organization_id)
+  --   (inventory_count_id,   organization_id) -> inventory_count   (id, organization_id)
+  -- TRIGGERS (migration): append-only block; closed-period + posting_date ∈ [period_start, period_end] (R12, V2-DEFERRED).
+);
+
+-- posting_double_entry_line (= zapis_radek) — one Má dáti / Dal side (§13/2). §5.3.
+-- The posted form of a partial_record (dílčí). PODVOJNÉ only (R7).
+CREATE TABLE posting_double_entry_line (
+  id                uuid          PRIMARY KEY DEFAULT uuidv7(),
+  organization_id   uuid          NOT NULL,
+  posting_id        uuid          NOT NULL,                      -- zapis_id (§5.3)
+  regime_code       text          NOT NULL,                     -- CHECK = 'DOUBLE_ENTRY' (R7); composite FK carries tenancy+regime
+  account_id        uuid          NOT NULL,                      -- ucet_id (§5.3, R1) — valid account from the org chart
+  partial_record_id uuid,                                        -- dilci_id (§5.3) "Zaúčtování" §6/2; nullable for generated postings (701, depreciation, storno)
+  side              debit_credit  NOT NULL,                      -- strana (§5.3): MD | Dal
+  amount            numeric(19,4) NOT NULL,                      -- castka (§5.3, R13); may be negative (storno)
+  created_at        timestamptz   NOT NULL DEFAULT now(),
+  CONSTRAINT posting_de_line_regime_chk CHECK (regime_code = 'DOUBLE_ENTRY'),
+  CONSTRAINT posting_de_line_posting_fk FOREIGN KEY (posting_id, organization_id, regime_code)
+    REFERENCES posting (id, organization_id, regime_code),
+  CONSTRAINT posting_de_line_account_fk FOREIGN KEY (account_id, organization_id)
+    REFERENCES account (id, organization_id),                                        -- R1
+  CONSTRAINT posting_de_line_partial_fk FOREIGN KEY (partial_record_id, organization_id)
+    REFERENCES partial_record (id, organization_id)                                  -- §6/2; NOT unique (1 dílčí -> many lines)
+  -- TRIGGERS (migration): append-only; closed-period+date via parent; R4 balance =
+  --   CONSTRAINT TRIGGER DEFERRABLE INITIALLY DEFERRED, per posting:
+  --   count(*) >= 2 AND SUM(amount) FILTER(side=DEBIT) = SUM(amount) FILTER(side=CREDIT)
+  --   [>= 2 closes the v1 empty-entry hole]. Never fires for cash postings.
+);
+
+-- posting_cash_line (= penezni_denik_radek) — one classified peněžní-deník row
+-- (§13b / §7b). §5.4 + §9. The posted form of a partial_record in cash-book format.
+-- JEDNODUCHÉ / DAŇOVÁ EVIDENCE only (R7). A single cash movement may need several rows (§9).
+CREATE TABLE posting_cash_line (
+  id                uuid           PRIMARY KEY DEFAULT uuidv7(),
+  organization_id   uuid           NOT NULL,
+  posting_id        uuid           NOT NULL,                     -- zapis_id (§5.4)
+  regime_code       text           NOT NULL,                     -- CHECK IN ('SINGLE_ENTRY','TAX_RECORDS') (R7)
+  partial_record_id uuid,                                        -- dilci_id (§5.4) "Zaúčtování" §6/2; nullable
+  category_id       uuid,                                        -- kategorie_id (§5.4, §9); nullable (generated postings)
+  location          cash_location  NOT NULL,                     -- misto (§5.4): CASH | BANK
+  direction         cash_direction NOT NULL,                     -- smer (§5.4): INFLOW | OUTFLOW
+  is_tax_relevant   boolean        NOT NULL,                     -- danovy (§5.4, §9)
+  is_clearing       boolean        NOT NULL DEFAULT false,       -- prubezny (§5.4, §9): průběžná položka
+  tax_base          numeric(19,4),                               -- zaklad_dane (§5.4, §9); nullable
+  amount            numeric(19,4)  NOT NULL,                      -- castka (§5.4, R13)
+  created_at        timestamptz    NOT NULL DEFAULT now(),
+  CONSTRAINT posting_cash_line_regime_chk CHECK (regime_code IN ('SINGLE_ENTRY','TAX_RECORDS')),
+  CONSTRAINT posting_cash_line_posting_fk FOREIGN KEY (posting_id, organization_id, regime_code)
+    REFERENCES posting (id, organization_id, regime_code),
+  CONSTRAINT posting_cash_line_partial_fk FOREIGN KEY (partial_record_id, organization_id)
+    REFERENCES partial_record (id, organization_id),
+  CONSTRAINT posting_cash_line_category_fk FOREIGN KEY (category_id, organization_id)
+    REFERENCES category (id, organization_id)                                        -- §5.4
+  -- TRIGGERS (migration): append-only; closed-period+date via parent.
+);
+
+-- signature.posting_id amendment — the FOR_POSTING role link (= v1 podpis.zapis_id,
+-- §5.6 / §33a/4). Added here because it FKs the posting table defined above. The CHECK
+-- enforces exactly-one-of (event_id, posting_id), keyed on role.
+ALTER TABLE signature
+  ADD COLUMN posting_id uuid,
+  ADD CONSTRAINT signature_posting_fk FOREIGN KEY (posting_id, organization_id)
+    REFERENCES posting (id, organization_id),
+  ADD CONSTRAINT signature_role_target_chk CHECK (
+    (role = 'FOR_EVENT'   AND event_id IS NOT NULL AND posting_id IS NULL) OR
+    (role = 'FOR_POSTING' AND posting_id IS NOT NULL AND event_id IS NULL)
+  );
+
+-- =============================================================================
 -- READ SURFACE — org -> its self-counterparty (access pattern, NOT new state)
 -- =============================================================================
 -- The org<->self-counterparty link is the single UNIQUE FK

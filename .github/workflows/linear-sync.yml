@@ -23,6 +23,11 @@ concurrency:
 jobs:
   sync:
     name: Post / update Linear comment
+    # Dependabot (and fork) PRs run without secret access, so the Vault fetch
+    # below can't authenticate (CF-Access service token is empty) and the job
+    # errors. Skip them — these PRs have no AFF-NNN branch to sync anyway — so
+    # the advisory check doesn't surface a red ✗ that muddies auto-merge.
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     continue-on-error: true # ADVISORY
     permissions:

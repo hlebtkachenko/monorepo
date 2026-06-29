@@ -6,6 +6,28 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.7.0] — 2026-06-29
+
+Minor release: org/period context switchers wired to real data, public sign-up closed on web, operator DB-access tooling, plus a dependency + CI tail.
+
+### Added
+
+- **web**: org switcher wired to real organization data; the accounting-period switcher now tracks live state. (#406, #408)
+
+### Fixed
+
+- **auth**: closed the public sign-up/email endpoint on web — accounts are admin-provisioned only, no self-service signup. (#405)
+- **deps**: pinned `rolldown` to `1.0.0-rc.18` to fix the Storybook bundle crash. (#417)
+
+### Operations
+
+- **db**: fast ECS-exec `db-query.sh` read helper; hardened the EC2 bastion migrate path. (#407)
+- **ci**: skip the linear-sync job on Dependabot PRs (no secret access). (#415)
+
+### Infrastructure
+
+- Dependency bumps: github-actions group (#414), `axllent/mailpit` (#412), `postgres` (#410, #411), dev-dependencies group (#413).
+
 ## [v0.6.3] — 2026-06-25
 
 Patch release: pinned infra image bumps. No app-surface change. **Not deployed** — takes effect at the next CDK deploy / Vault-VPS sidecar restart.

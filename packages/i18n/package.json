@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@formatjs/icu-messageformat-parser": "^3.5.11",
-    "@types/node": "^25.9.2",
+    "@types/node": "^26.0.0",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^10.4.1",

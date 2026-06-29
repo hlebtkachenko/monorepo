@@ -243,6 +243,8 @@ Ref: counterparty.self_of_organization_id > organization.id
 enum number_series_entity {
   EVENT
   DOCUMENT
+  ASSET
+  INVENTORY_COUNT
 }
 enum summary_record_type {
   RECEIVED_INVOICE
@@ -291,6 +293,7 @@ Table accounting_event {
   workspace_id     uuid        [not null]
   number_series_id uuid        [not null]
   sequence_number  bigint      [not null]
+  designation      text        [not null, note: 'FROZEN Označení string (gov/audit id)']
   party_id         uuid
   counterparty_id  uuid
   description      text        [not null]
@@ -329,6 +332,7 @@ Table summary_record {
   period_id        uuid                [not null]
   number_series_id uuid                [not null]
   sequence_number  bigint              [not null]
+  designation      text                [not null, note: 'FROZEN Označení string (gov/audit id)']
   type             summary_record_type [not null]
   issued_at        timestamptz         [not null]
   rounding_amount  "numeric(19,4)"     [not null, default: 0]
@@ -559,8 +563,8 @@ Table posting {
   regime_code          text            [not null]                  // == accounting_period.regime_code via composite FK
   summary_record_id    uuid            [not null]                  // doklad_id (§5.2, R2) — posting on basis of a doklad (§6/2)
   accounting_event_id  uuid            [not null]                  // pripad_id (§5.2, R2)
-  depreciation_plan_id uuid                                        // odpisovy_plan_id (§5.2/§6) — FK deferred (supporting chunk)
-  inventory_count_id   uuid                                        // inventura_id (§5.2/§6) — FK deferred (supporting chunk)
+  depreciation_plan_id uuid                                        // odpisovy_plan_id (§5.2/§6) — FK active (supporting layer)
+  inventory_count_id   uuid                                        // inventura_id (§5.2/§6) — FK active (supporting layer)
   posting_date         date            [not null]                  // datum (§5.2); CHECK ∈ period (trigger)
   posting_kind         posting_kind    [not null]                  // druh (§5.2)
   responsible_user_id  uuid            [not null]                  // odpovedna_osoba (§5.2, R10) -> app_user
@@ -641,3 +645,199 @@ Ref: posting_cash_line.(partial_record_id, organization_id) > partial_record.(id
 Ref: posting_cash_line.(category_id, organization_id)       > category.(id, organization_id)
 
 Ref: signature.(posting_id, organization_id) > posting.(id, organization_id)   // FOR_POSTING link
+
+// =============================================================================
+// SUPPORTING (asset · depreciation · inventory) — §5.6 / §5.7
+// =============================================================================
+// Full fixed-asset register (ČÚS 013, ZoÚ §25–31, Vyhláška 500/2002, ZDP §26–33).
+// Dual-track depreciation: účetní (depreciation_plan -> MD 551 / D 08x) + daňové
+// (tax_depreciation, NOT posted). oprávky/ZC DERIVED from the 08x ledger (D3). COA
+// links by NUMBER (D8, advisor-confirmed); directive_code = renumber-survival anchor.
+
+enum asset_category {
+  INTANGIBLE                 // DNM 01x
+  TANGIBLE_DEPRECIABLE       // DHM 02x
+  TANGIBLE_NON_DEPRECIABLE   // DHM 03x (pozemky, umělecká díla)
+}
+enum depreciation_method {     // účetní (ČÚS 013); MVP STRAIGHT_LINE
+  STRAIGHT_LINE
+  PERFORMANCE
+  DECLINING
+}
+enum tax_depreciation_method { // daňové §31/§32/§30a; irrevocable
+  STRAIGHT_LINE
+  ACCELERATED
+  EXTRAORDINARY
+}
+enum asset_disposal_method {
+  SALE
+  LIQUIDATION
+  THEFT
+  NATURAL_DISASTER
+  DONATION
+  CONTRIBUTION
+}
+enum depreciation_plan_status {
+  ACTIVE
+  SUPERSEDED
+  FULLY_DEPRECIATED
+  DISPOSED
+}
+enum inventory_difference {
+  MATCH
+  SHORTAGE
+  SURPLUS
+}
+
+Table depreciation_group {     // odpisová skupina 1–6 (ZDP §30 Příloha 1 + §31/§32). Law ref, seeded, global.
+  code                    smallint [pk, note: '1–6; CHECK 1..6']
+  period_years            smallint [not null, note: '3/5/10/20/30/50']
+  linear_rate_first       "numeric(6,3)" [note: 'sazba 1. rok (§31)']
+  linear_rate_subsequent  "numeric(6,3)"
+  linear_rate_improvement "numeric(6,3)"
+  accel_coeff_first       smallint [note: 'koeficient 1. rok (§32)']
+  accel_coeff_subsequent  smallint
+  accel_coeff_improvement smallint
+  name                    text
+  Note: 'Seeded from ZDP. Global (no organization_id), like regime/legal_form. Drives the tax-odpis computation.'
+}
+
+Table asset {                  // majetek §5.7 register card. DFM excluded (D1). oprávky/ZC derived (D3). COA by number (D8).
+  id                  uuid           [pk, default: `uuidv7()`]
+  organization_id     uuid           [not null]
+  number_series_id    uuid           [not null]
+  sequence_number     bigint         [not null]
+  designation         text           [not null, note: 'FROZEN inventární číslo']
+  name                text           [not null]
+  category            asset_category [not null]
+  account_number      text           [not null, note: 'D8: balance-sheet majetkový účet number (02x/01x/03x); CHECK shape; resolved per-period at posting']
+  directive_code      "char(3)"      [note: 'D8 anchor: renumber survival + závěrka classifier (NOT the posting key); FK -> directive_account']
+  acquisition_date    date           [note: 'datum pořízení']
+  commissioning_date  date           [not null, note: 'datum zařazení — depreciation START']
+  disposal_date       date
+  disposal_method     asset_disposal_method
+  acquisition_cost    "numeric(19,4)" [not null, note: 'pořizovací cena účetní (§47)']
+  improvement_total   "numeric(19,4)" [not null, default: 0, note: 'technické zhodnocení účetní (§33)']
+  location            text
+  responsible_user_id uuid           [note: 'FK -> app_user(id)']
+  created_at          timestamptz    [not null, default: `now()`]
+  updated_at          timestamptz    [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'asset_id_org_unique']
+    (number_series_id, sequence_number) [unique, name: 'asset_oznaceni_unique']
+  }
+  Note: 'Composite FKs (SQL): (number_series_id, organization_id) -> number_series(id, organization_id); organization_id -> organization; responsible_user_id -> app_user; directive_code -> directive_account(code). account_number is a NUMBER not an FK (D8). DERIVED (D3): oprávky = 08x ledger SUM; účetní ZC = acquisition_cost + improvement_total − oprávky. Per-asset analytical evidence = THIS card, not a per-asset COA account.'
+}
+
+Table depreciation_plan {      // ÚČETNÍ; drives MD 551 / D 08x monthly. Revision history (D4). Closes posting.depreciation_plan_id.
+  id                 uuid                     [pk, default: `uuidv7()`]
+  organization_id    uuid                     [not null]
+  asset_id           uuid                     [not null]
+  supersedes_plan_id uuid                     [note: 'D4: prior plan this revises (self-FK); history kept']
+  method             depreciation_method      [not null, note: 'účetní; MVP STRAIGHT_LINE']
+  start_date         date                     [not null]
+  useful_life_months smallint
+  residual_value     "numeric(19,4)"          [not null, default: 0, note: 'zbytková hodnota (§56/3)']
+  monthly_amount     "numeric(19,4)"          [not null]
+  expense_account_number     text             [not null, note: 'D8: účet 551 number; CHECK shape']
+  accumulated_account_number text             [not null, note: 'D8: účet 08x/07x number; CHECK shape']
+  status             depreciation_plan_status [not null, default: 'ACTIVE']
+  created_at         timestamptz              [not null, default: `now()`]
+  updated_at         timestamptz              [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'depreciation_plan_id_org_unique']  // posting.depreciation_plan_id target
+    asset_id
+  }
+  Note: 'Composite FKs (SQL): (asset_id, organization_id) -> asset; (supersedes_plan_id, organization_id) -> depreciation_plan; organization_id -> organization. UC-4: one posting/asset/month MD 551 / D 08x. účetní accumulated DERIVED from 08x ledger (D3). Account pairing (02x↔08x) + resolver fail-loud + copy-forward pre-flight = service/migration (V2-DEFERRED).'
+}
+
+Table tax_depreciation {       // DAŇOVÉ per asset (1:1); NOT posted. DPPO + odložená daň (ČÚS 003). [D2]
+  id                      uuid                    [pk, default: `uuidv7()`]
+  organization_id         uuid                    [not null]
+  asset_id                uuid                    [not null]
+  depreciation_group_code smallint               [not null, note: 'FK -> depreciation_group(code)']
+  method                  tax_depreciation_method [not null, note: 'irrevocable (§30/2)']
+  tax_base                "numeric(19,4)"         [not null, note: 'vstupní cena daňová (§29)']
+  tax_improvement_total   "numeric(19,4)"         [not null, default: 0]
+  accumulated_amount      "numeric(19,4)"         [not null, default: 0, note: 'claimed cumulative — STORED (annual, can be suspended)']
+  start_year              smallint                [not null, note: 'rok zahájení (§26/5)']
+  is_suspended            boolean                 [not null, default: false, note: 'přerušení (§26/8)']
+  created_at              timestamptz             [not null, default: `now()`]
+  updated_at              timestamptz             [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'tax_depreciation_id_org_unique']
+    (asset_id, organization_id) [unique, name: 'tax_depreciation_asset_unique']   // 1:1
+    depreciation_group_code
+  }
+  Note: 'Composite FKs (SQL): (asset_id, organization_id) -> asset; organization_id -> organization; depreciation_group_code -> depreciation_group(code). daňová ZC = tax_base + tax_improvement_total − accumulated_amount. odložená daň computed at the output layer.'
+}
+
+Table inventory_count {        // inventurní soupis (ZoÚ §29–30). Below books; differences -> postings. Označení (D6).
+  id               uuid        [pk, default: `uuidv7()`]
+  organization_id  uuid        [not null]
+  number_series_id uuid        [not null]
+  sequence_number  bigint      [not null]
+  designation      text        [not null, note: 'FROZEN soupis č.']
+  count_date       date        [not null, note: 'datum inventury (§30/2)']
+  description      text
+  created_at       timestamptz [not null, default: `now()`]
+  updated_at       timestamptz [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'inventory_count_id_org_unique']  // posting.inventory_count_id target
+    (number_series_id, sequence_number) [unique, name: 'inventory_count_oznaceni_unique']
+  }
+  Note: 'Composite FKs (SQL): (number_series_id, organization_id) -> number_series; organization_id -> organization.'
+}
+
+Table inventory_count_line {   // položka soupisu (D7): book vs actual.
+  id                 uuid                 [pk, default: `uuidv7()`]
+  organization_id    uuid                 [not null]
+  inventory_count_id uuid                 [not null]
+  asset_id           uuid                 [note: 'counted asset; NULL for stock/cash (zásoby deferred)']
+  description        text                 [not null]
+  book_value         "numeric(19,4)"      [not null]
+  actual_value       "numeric(19,4)"      [not null]
+  difference_kind    inventory_difference [not null, note: 'sign(actual − book); CHECK enforces consistency']
+  created_at         timestamptz          [not null, default: `now()`]
+  updated_at         timestamptz          [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'inventory_count_line_id_org_unique']
+    inventory_count_id
+    asset_id
+  }
+  Note: 'Composite FKs (SQL): (inventory_count_id, organization_id) -> inventory_count; (asset_id, organization_id) -> asset; organization_id -> organization. CHECK difference_kind = sign(actual_value − book_value). SHORTAGE -> manko (549/569); SURPLUS -> přebytek (648/...).'
+}
+
+TableGroup supporting_layer {
+  depreciation_group
+  asset
+  depreciation_plan
+  tax_depreciation
+  inventory_count
+  inventory_count_line
+}
+
+// supporting relationships
+Ref: asset.(number_series_id, organization_id) > number_series.(id, organization_id)
+Ref: asset.organization_id                     > organization.id
+Ref: asset.responsible_user_id                 > app_user.id
+Ref: asset.directive_code                      > directive_account.code
+
+Ref: depreciation_plan.(asset_id, organization_id)           > asset.(id, organization_id)
+Ref: depreciation_plan.(supersedes_plan_id, organization_id) > depreciation_plan.(id, organization_id)
+Ref: depreciation_plan.organization_id                       > organization.id
+
+Ref: tax_depreciation.(asset_id, organization_id) > asset.(id, organization_id)
+Ref: tax_depreciation.depreciation_group_code     > depreciation_group.code
+Ref: tax_depreciation.organization_id             > organization.id
+
+Ref: inventory_count.(number_series_id, organization_id) > number_series.(id, organization_id)
+Ref: inventory_count.organization_id                     > organization.id
+
+Ref: inventory_count_line.(inventory_count_id, organization_id) > inventory_count.(id, organization_id)
+Ref: inventory_count_line.(asset_id, organization_id)          > asset.(id, organization_id)
+Ref: inventory_count_line.organization_id                      > organization.id
+
+// posting deferred FKs — now ACTIVE
+Ref: posting.(depreciation_plan_id, organization_id) > depreciation_plan.(id, organization_id)
+Ref: posting.(inventory_count_id, organization_id)   > inventory_count.(id, organization_id)

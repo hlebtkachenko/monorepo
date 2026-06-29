@@ -227,7 +227,7 @@ CREATE TABLE counterparty (
 -- tenant consistency across the FK chain (FK checks bypass RLS); the counterparty
 -- is workspace-shared, so events reference it via (counterparty_id, workspace_id).
 
-CREATE TYPE number_series_entity AS ENUM ('EVENT', 'DOCUMENT');
+CREATE TYPE number_series_entity AS ENUM ('EVENT', 'DOCUMENT', 'ASSET', 'INVENTORY_COUNT');
 CREATE TYPE summary_record_type  AS ENUM ('RECEIVED_INVOICE', 'ISSUED_INVOICE', 'BANK_STATEMENT', 'INTERNAL', 'CASH_DOCUMENT', 'BATCH');
 CREATE TYPE vat_mode             AS ENUM ('STANDARD', 'REVERSE_CHARGE', 'EXEMPT', 'OUTSIDE_VAT', 'IMPORT');
 CREATE TYPE fx_rate_kind         AS ENUM ('DAILY', 'REAL', 'FIXED');
@@ -255,7 +255,8 @@ CREATE TABLE accounting_event (
   organization_id  uuid        NOT NULL,
   workspace_id     uuid        NOT NULL,
   number_series_id uuid        NOT NULL,                  -- Označení series (entity_type = EVENT)
-  sequence_number  bigint      NOT NULL,                  -- gapless Označení
+  sequence_number  bigint      NOT NULL,                  -- gapless position in the série
+  designation      text        NOT NULL,                  -- FROZEN Označení string (gov/audit id; immune to later pattern edits)
   party_id         uuid,                                  -- OUR side (counterparty)
   counterparty_id  uuid,                                  -- THEIR side (counterparty)
   description      text        NOT NULL,                  -- obsah úč. případu (§11/1b)
@@ -291,7 +292,8 @@ CREATE TABLE summary_record (
   workspace_id     uuid                NOT NULL,
   period_id        uuid                NOT NULL,            -- the účetní období this voucher books into
   number_series_id uuid                NOT NULL,            -- číselná řada (entity_type = DOCUMENT)
-  sequence_number  bigint              NOT NULL,            -- gapless Označení
+  sequence_number  bigint              NOT NULL,            -- gapless position in the série
+  designation      text                NOT NULL,            -- FROZEN Označení string (gov/audit id; immune to later pattern edits)
   type             summary_record_type NOT NULL,
   issued_at        timestamptz         NOT NULL,            -- okamžik vyhotovení (§11/1d)
   rounding_amount  numeric(19,4)       NOT NULL DEFAULT 0,  -- §37 doc-total rounding -> 548/648 at posting
@@ -502,9 +504,8 @@ CREATE TABLE posting (
   CONSTRAINT posting_correction_fk FOREIGN KEY (corrects_posting_id, organization_id, regime_code)
     REFERENCES posting (id, organization_id, regime_code),
   CONSTRAINT posting_correction_pair_chk CHECK ((corrects_posting_id IS NULL) = (correction_type IS NULL))
-  -- DEFERRED FKs (added when the supporting chunk is designed — next step):
-  --   (depreciation_plan_id, organization_id) -> depreciation_plan (id, organization_id)
-  --   (inventory_count_id,   organization_id) -> inventory_count   (id, organization_id)
+  -- depreciation_plan_id / inventory_count_id FKs are ACTIVATED via ALTER after the
+  -- supporting tables are created (see "Activate deferred posting FKs" below).
   -- TRIGGERS (migration): append-only block; closed-period + posting_date ∈ [period_start, period_end] (R12, V2-DEFERRED).
 );
 
@@ -571,6 +572,159 @@ ALTER TABLE signature
     (role = 'FOR_EVENT'   AND event_id IS NOT NULL AND posting_id IS NULL) OR
     (role = 'FOR_POSTING' AND posting_id IS NOT NULL AND event_id IS NULL)
   );
+
+-- =============================================================================
+-- SUPPORTING (asset · depreciation · inventory) — §5.6 / §5.7
+-- =============================================================================
+-- Full fixed-asset register (KB + law grounded: ČÚS 013, ZoÚ §25–31, Vyhláška
+-- 500/2002 §47/§55–56, ZDP §26–33). Dual-track depreciation: účetní (posts MD 551 /
+-- D 08x via depreciation_plan) + daňové (tax_depreciation, NOT posted; DPPO + odložená
+-- daň). oprávky/ZC NOT stored — DERIVED from the 08x ledger (D3). COA links by NUMBER
+-- (D8, advisor-confirmed): assets/plans are perennial, account rows are per-period; the
+-- posting generator resolves number -> the period's account_id (same as 701 carry).
+-- directive_code = the renumbering-survival anchor (NOT the posting key).
+
+CREATE TYPE asset_category          AS ENUM ('INTANGIBLE', 'TANGIBLE_DEPRECIABLE', 'TANGIBLE_NON_DEPRECIABLE');
+CREATE TYPE depreciation_method     AS ENUM ('STRAIGHT_LINE', 'PERFORMANCE', 'DECLINING');     -- účetní
+CREATE TYPE tax_depreciation_method AS ENUM ('STRAIGHT_LINE', 'ACCELERATED', 'EXTRAORDINARY'); -- daňové §31/§32/§30a
+CREATE TYPE asset_disposal_method   AS ENUM ('SALE', 'LIQUIDATION', 'THEFT', 'NATURAL_DISASTER', 'DONATION', 'CONTRIBUTION');
+CREATE TYPE depreciation_plan_status AS ENUM ('ACTIVE', 'SUPERSEDED', 'FULLY_DEPRECIATED', 'DISPOSED');
+CREATE TYPE inventory_difference    AS ENUM ('MATCH', 'SHORTAGE', 'SURPLUS');
+
+-- depreciation_group — odpisová skupina 1–6 (ZDP §30 Příloha 1 + §31/§32). Law
+-- reference, seeded, global (no tenant scope), like regime / legal_form.
+CREATE TABLE depreciation_group (
+  code                    smallint PRIMARY KEY,         -- 1..6
+  period_years            smallint NOT NULL,            -- 3/5/10/20/30/50
+  linear_rate_first       numeric(6,3),                 -- sazba 1. rok (§31)
+  linear_rate_subsequent  numeric(6,3),                 -- sazba další roky
+  linear_rate_improvement numeric(6,3),                 -- sazba pro zvýšenou vstupní cenu
+  accel_coeff_first       smallint,                     -- koeficient 1. rok (§32)
+  accel_coeff_subsequent  smallint,                     -- koeficient další roky
+  accel_coeff_improvement smallint,                     -- koeficient pro zvýšenou ZC
+  name                    text,
+  CONSTRAINT depreciation_group_code_chk CHECK (code BETWEEN 1 AND 6)
+);
+
+-- asset — fixed-asset register card (majetek §5.7, ČÚS 013). DFM excluded (D1).
+-- oprávky/ZC derived not stored (D3). account_number by NUMBER (D8) + directive anchor.
+CREATE TABLE asset (
+  id                  uuid           PRIMARY KEY DEFAULT uuidv7(),
+  organization_id     uuid           NOT NULL REFERENCES organization (id),
+  number_series_id    uuid           NOT NULL,                  -- Označení series (entity_type = ASSET)
+  sequence_number     bigint         NOT NULL,
+  designation         text           NOT NULL,                  -- FROZEN inventární číslo
+  name                text           NOT NULL,
+  category            asset_category NOT NULL,
+  account_number      text           NOT NULL,                  -- D8: balance-sheet majetkový účet number (02x/01x/03x)
+  directive_code      char(3),                                  -- D8 anchor: renumber survival + závěrka classifier (NOT the posting key)
+  acquisition_date    date,                                     -- datum pořízení
+  commissioning_date  date           NOT NULL,                  -- datum zařazení do užívání — depreciation START
+  disposal_date       date,                                     -- datum vyřazení
+  disposal_method     asset_disposal_method,
+  acquisition_cost    numeric(19,4)  NOT NULL,                  -- pořizovací cena účetní (§47)
+  improvement_total   numeric(19,4)  NOT NULL DEFAULT 0,        -- technické zhodnocení účetní (§33)
+  location            text,                                     -- umístění
+  responsible_user_id uuid           REFERENCES app_user (id),
+  created_at          timestamptz    NOT NULL DEFAULT now(),
+  updated_at          timestamptz    NOT NULL DEFAULT now(),
+  CONSTRAINT asset_id_org_unique      UNIQUE (id, organization_id),
+  CONSTRAINT asset_oznaceni_unique    UNIQUE (number_series_id, sequence_number),
+  CONSTRAINT asset_series_fk          FOREIGN KEY (number_series_id, organization_id) REFERENCES number_series (id, organization_id),
+  CONSTRAINT asset_directive_fk       FOREIGN KEY (directive_code) REFERENCES directive_account (code),
+  CONSTRAINT asset_account_number_chk CHECK (account_number ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$')
+);
+
+-- depreciation_plan — ÚČETNÍ odpisový plán; drives MD 551 / D 08x monthly (ČÚS 013,
+-- Vyhláška §56). Revision history (D4). Closes posting.depreciation_plan_id.
+CREATE TABLE depreciation_plan (
+  id                 uuid                     PRIMARY KEY DEFAULT uuidv7(),
+  organization_id    uuid                     NOT NULL REFERENCES organization (id),
+  asset_id           uuid                     NOT NULL,
+  supersedes_plan_id uuid,                                       -- D4: prior plan this revises (self-FK); history kept
+  method             depreciation_method      NOT NULL,          -- účetní; MVP STRAIGHT_LINE
+  start_date         date                     NOT NULL,          -- = commissioning_date (or revision date)
+  useful_life_months smallint,                                   -- doba odpisování (STRAIGHT_LINE)
+  residual_value     numeric(19,4)            NOT NULL DEFAULT 0, -- zbytková hodnota (§56/3)
+  monthly_amount     numeric(19,4)            NOT NULL,          -- měsíční účetní odpis
+  expense_account_number     text             NOT NULL,          -- D8: účet 551 number
+  accumulated_account_number text             NOT NULL,          -- D8: účet 08x/07x number
+  status             depreciation_plan_status NOT NULL DEFAULT 'ACTIVE',
+  created_at         timestamptz              NOT NULL DEFAULT now(),
+  updated_at         timestamptz              NOT NULL DEFAULT now(),
+  CONSTRAINT depreciation_plan_id_org_unique  UNIQUE (id, organization_id),
+  CONSTRAINT depreciation_plan_asset_fk       FOREIGN KEY (asset_id, organization_id)           REFERENCES asset (id, organization_id),
+  CONSTRAINT depreciation_plan_supersedes_fk  FOREIGN KEY (supersedes_plan_id, organization_id) REFERENCES depreciation_plan (id, organization_id),
+  CONSTRAINT depreciation_plan_expense_chk     CHECK (expense_account_number     ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$'),
+  CONSTRAINT depreciation_plan_accumulated_chk CHECK (accumulated_account_number ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$')
+  -- account-pairing (02x↔08x / 01x↔07x) + resolver fail-loud + copy-forward pre-flight = service/migration (V2-DEFERRED).
+);
+
+-- tax_depreciation — DAŇOVÉ odpisy per asset (1:1); NOT posted. Feeds DPPO + odložená
+-- daň (ČÚS 003). accumulated_amount STORED (annual, can be suspended — not derivable).
+CREATE TABLE tax_depreciation (
+  id                      uuid                    PRIMARY KEY DEFAULT uuidv7(),
+  organization_id         uuid                    NOT NULL REFERENCES organization (id),
+  asset_id                uuid                    NOT NULL,
+  depreciation_group_code smallint               NOT NULL REFERENCES depreciation_group (code),
+  method                  tax_depreciation_method NOT NULL,        -- irrevocable (§30/2)
+  tax_base                numeric(19,4)           NOT NULL,        -- vstupní cena daňová (§29)
+  tax_improvement_total   numeric(19,4)           NOT NULL DEFAULT 0, -- TZ daňové (§33)
+  accumulated_amount      numeric(19,4)           NOT NULL DEFAULT 0, -- claimed cumulative — STORED
+  start_year              smallint                NOT NULL,        -- rok zahájení (§26/5)
+  is_suspended            boolean                 NOT NULL DEFAULT false, -- přerušení (§26/8)
+  created_at              timestamptz             NOT NULL DEFAULT now(),
+  updated_at              timestamptz             NOT NULL DEFAULT now(),
+  CONSTRAINT tax_depreciation_id_org_unique UNIQUE (id, organization_id),
+  CONSTRAINT tax_depreciation_asset_unique  UNIQUE (asset_id, organization_id),   -- 1:1
+  CONSTRAINT tax_depreciation_asset_fk      FOREIGN KEY (asset_id, organization_id) REFERENCES asset (id, organization_id)
+);
+
+-- inventory_count — inventurní soupis (ZoÚ §29–30). Below books; differences generate
+-- postings. Append-only at migration. Označení (D6).
+CREATE TABLE inventory_count (
+  id               uuid        PRIMARY KEY DEFAULT uuidv7(),
+  organization_id  uuid        NOT NULL REFERENCES organization (id),
+  number_series_id uuid        NOT NULL,                  -- Označení series (entity_type = INVENTORY_COUNT)
+  sequence_number  bigint      NOT NULL,
+  designation      text        NOT NULL,                  -- FROZEN soupis č.
+  count_date       date        NOT NULL,                  -- datum inventury (§30/2)
+  description      text,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT inventory_count_id_org_unique   UNIQUE (id, organization_id),
+  CONSTRAINT inventory_count_oznaceni_unique UNIQUE (number_series_id, sequence_number),
+  CONSTRAINT inventory_count_series_fk       FOREIGN KEY (number_series_id, organization_id) REFERENCES number_series (id, organization_id)
+);
+
+-- inventory_count_line — položka soupisu (D7): one counted item, book vs actual.
+CREATE TABLE inventory_count_line (
+  id                 uuid                 PRIMARY KEY DEFAULT uuidv7(),
+  organization_id    uuid                 NOT NULL REFERENCES organization (id),
+  inventory_count_id uuid                 NOT NULL,
+  asset_id           uuid,                                -- counted asset; NULL for stock/cash (zásoby deferred)
+  description        text                 NOT NULL,
+  book_value         numeric(19,4)        NOT NULL,       -- účetní stav
+  actual_value       numeric(19,4)        NOT NULL,       -- skutečný stav
+  difference_kind    inventory_difference NOT NULL,       -- sign(actual − book)
+  created_at         timestamptz          NOT NULL DEFAULT now(),
+  updated_at         timestamptz          NOT NULL DEFAULT now(),
+  CONSTRAINT inventory_count_line_id_org_unique UNIQUE (id, organization_id),
+  CONSTRAINT inventory_count_line_count_fk FOREIGN KEY (inventory_count_id, organization_id) REFERENCES inventory_count (id, organization_id),
+  CONSTRAINT inventory_count_line_asset_fk FOREIGN KEY (asset_id, organization_id)           REFERENCES asset (id, organization_id),
+  CONSTRAINT inventory_count_line_diff_chk CHECK (
+    (difference_kind = 'MATCH'    AND actual_value = book_value) OR
+    (difference_kind = 'SHORTAGE' AND actual_value < book_value) OR
+    (difference_kind = 'SURPLUS'  AND actual_value > book_value)
+  )
+);
+
+-- Activate the deferred posting FKs (the supporting tables now exist).
+ALTER TABLE posting
+  ADD CONSTRAINT posting_depreciation_plan_fk FOREIGN KEY (depreciation_plan_id, organization_id)
+    REFERENCES depreciation_plan (id, organization_id),
+  ADD CONSTRAINT posting_inventory_count_fk FOREIGN KEY (inventory_count_id, organization_id)
+    REFERENCES inventory_count (id, organization_id);
 
 -- =============================================================================
 -- READ SURFACE — org -> its self-counterparty (access pattern, NOT new state)

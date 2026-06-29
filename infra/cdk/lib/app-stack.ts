@@ -833,6 +833,12 @@ export class AppStack extends Stack {
         // verification. Admin sends from the same parent address.
         EMAIL_FROM: props.mailFromAddress,
         EMAIL_TRANSPORT: "resend",
+        // Web host for the signup/invite links minted on the admin /invites
+        // page (the canonical, post-#405 only, prod account-creation path).
+        // props.domain is the WEB domain (app.afframe.com), NOT adminDomain —
+        // the links land users on the web app, not admin. Without this the
+        // action falls back to http://localhost:3010 and every link is broken.
+        WEB_BASE_URL: `https://${props.domain}`,
         // Telegram dev-bot ingest — same wiring as web/api (OBS-03: admin was
         // the only app container without it, so its error surfaces could not
         // report even after the reporter code shipped). notifierFromEnv()

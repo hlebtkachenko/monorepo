@@ -7,6 +7,7 @@ import { getLocale, getMessages, getTranslations } from "next-intl/server"
 import "@workspace/ui/globals.css"
 import { ThemeProvider } from "@workspace/ui/components/theme-provider"
 import { Toaster } from "@workspace/ui/components/sonner"
+import { IconProvider } from "@workspace/ui/icon-packs"
 import { BRAND_ICONS, BRAND_THEME_COLOR } from "@workspace/ui/lib/brand"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -101,7 +102,9 @@ export default async function RootLayout({
     >
       <body>
         <NextIntlClientProvider messages={messages}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <IconProvider>{children}</IconProvider>
+          </ThemeProvider>
           <Toaster />
         </NextIntlClientProvider>
       </body>

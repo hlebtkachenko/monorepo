@@ -31,6 +31,7 @@ dist
 
 # Storybook
 storybook-static
+apps/admin/.storybook-static/
 
 # Agent cleanup artifacts (never deleted per project rules, kept locally)
 _junk/

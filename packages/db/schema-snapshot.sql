@@ -600,6 +600,21 @@ $$;
 SET default_table_access_method = heap;
 
 --
+-- Name: admin_staff_role; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_staff_role (
+    user_id uuid NOT NULL,
+    role text NOT NULL,
+    granted_by uuid,
+    granted_at timestamp with time zone DEFAULT now() NOT NULL,
+    notes text,
+    CONSTRAINT admin_staff_role_role_check CHECK ((role = ANY (ARRAY['owner'::text, 'admin'::text, 'developer'::text, 'designer'::text, 'support'::text, 'security'::text, 'guest'::text])))
+);
+
+ALTER TABLE ONLY public.admin_staff_role FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: admin_workspace_allowlist; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1031,6 +1046,13 @@ CREATE TABLE public.workspace_membership (
 ALTER TABLE ONLY public.workspace_membership FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: admin_staff_role admin_staff_role_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_staff_role
+    ADD CONSTRAINT admin_staff_role_pkey PRIMARY KEY (user_id);
+
+--
 -- Name: admin_workspace_allowlist admin_workspace_allowlist_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1225,6 +1247,12 @@ ALTER TABLE ONLY public.workspace_membership
 
 ALTER TABLE ONLY public.workspace
     ADD CONSTRAINT workspace_pkey PRIMARY KEY (id);
+
+--
+-- Name: admin_staff_role_role_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX admin_staff_role_role_idx ON public.admin_staff_role USING btree (role);
 
 --
 -- Name: api_key_key_hash_idx; Type: INDEX; Schema: public; Owner: -
@@ -1629,6 +1657,20 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
 
 --
+-- Name: admin_staff_role admin_staff_role_granted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_staff_role
+    ADD CONSTRAINT admin_staff_role_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES public.app_user(id) ON DELETE SET NULL;
+
+--
+-- Name: admin_staff_role admin_staff_role_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_staff_role
+    ADD CONSTRAINT admin_staff_role_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
+
+--
 -- Name: admin_workspace_allowlist admin_workspace_allowlist_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1871,6 +1913,12 @@ ALTER TABLE ONLY public.workspace_membership
 --
 
 CREATE POLICY admin_allowlist_read ON public.admin_workspace_allowlist FOR SELECT TO app_user USING (true);
+
+--
+-- Name: admin_staff_role; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_staff_role ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: admin_workspace_allowlist; Type: ROW SECURITY; Schema: public; Owner: -

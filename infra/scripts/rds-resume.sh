@@ -25,11 +25,13 @@
 #   AWS_REGION            required
 #   RDS_MAX_WAIT_SECONDS  optional — overall deadline (default 2400 = 40 min)
 #
-# NOTE (follow-up, needs IAM): the strictly-correct fix for the watcher race is
-# to `aws events disable-rule monorepo-${ENV_NAME}-rds-restart-watch` for the
-# resume window and re-enable it after. That needs events:Disable/EnableRule on
-# the deploy role (bootstrap-managed, not in this repo). Until that grant is
-# confirmed, the re-assert-every-iteration loop below is the perm-free defense.
+# Watcher race, defense in depth: this DISABLES the RdsRestartWatcher's
+# EventBridge rule for the resume window (the strictly-correct fix — removes the
+# adversary instead of out-running it) and re-enables it on EVERY exit path via
+# a trap, so a failed resume can never leave the rule disabled (which would stop
+# the env being cost-paused). events:Disable/EnableRule on the deploy roles was
+# verified 2026-06-29. The per-iteration tag re-removal below remains as a
+# perm-free fallback for when disable-rule itself can't run.
 set -euo pipefail
 
 : "${ENV_NAME:?ENV_NAME required}"
@@ -52,6 +54,23 @@ fi
 ACCT="$(aws sts get-caller-identity --query Account --output text)"
 echo "::add-mask::$ACCT"
 DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
+
+# Take the RdsRestartWatcher out of the race for the resume window. The trap
+# re-enables on ANY exit (success, deadline, restop-abort, or an unexpected
+# error under set -e), so the rule is never left disabled. Both disable and the
+# trap's enable are best-effort: if disable can't run we fall back to the
+# tag-removal loop; if enable fails we warn loudly so it can be fixed by hand.
+WATCH_RULE="monorepo-${ENV_NAME}-rds-restart-watch"
+reenable_watcher() {
+  aws events enable-rule --region "$AWS_REGION" --name "$WATCH_RULE" >/dev/null 2>&1 \
+    && echo "Re-enabled EventBridge rule ${WATCH_RULE}." \
+    || echo "::warning::FAILED to re-enable ${WATCH_RULE} — it may be left DISABLED (env will not cost-pause). Re-enable manually: aws events enable-rule --name ${WATCH_RULE}"
+}
+trap reenable_watcher EXIT
+echo "Disabling EventBridge rule ${WATCH_RULE} for the resume window…"
+aws events disable-rule --region "$AWS_REGION" --name "$WATCH_RULE" >/dev/null 2>&1 \
+  && echo "Disabled ${WATCH_RULE}." \
+  || echo "::warning::could not disable ${WATCH_RULE} (perm/missing) — relying on the per-iteration tag-removal fallback."
 
 untag() {
   # Re-assert removal every iteration: the RdsRestartWatcher Lambda re-stops the

@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.8.0] — 2026-06-29
+
+Minor release: the staff admin back-office (`apps/admin`) on the shared AppShell layout.
+
+### Added
+
+- **admin**: staff back-office on the AppShell chrome — rail + collapsible sidebar + header, five operator modules (Now, Customers, Ops, Platform, Staff), detail-page header tabs. Capability-gated security spine: `admin_staff_role` (7 roles), `SECTION_ACCESS` map, workspace-allowlist gate, and step-up re-auth whose 2FA requirement is server-derived from the operator's enrollment (not the request). Real-data surfaces for orgs / users / workspaces / staff / audit / impersonation / kill switches / maintenance / critical systems / domains / TLS / email deliverability / command palette. `/invites` is the production account-creation path (signup + invite token minting, capability + step-up gated, `WEB_BASE_URL`-targeted links). Plus a reusable `DataTable`, a live GitHub-Releases changelog, and an operator profile. (#409)
+
 ## [v0.7.0] — 2026-06-29
 
 Minor release: org/period context switchers wired to real data, public sign-up closed on web, operator DB-access tooling, plus a dependency + CI tail.

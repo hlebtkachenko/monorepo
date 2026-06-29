@@ -898,7 +898,11 @@ jobs:
       (needs.deploy-prep.result == 'success' || needs.deploy-prep.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 75, not 45: a deeply-cold (multi-day-parked) RDS can take tens of minutes
+    # to resume (the auto-resume step waits up to 40 min), on top of the CDK
+    # deploy + migrations + ECS rollout. This is a safety ceiling, not the
+    # expected duration — a warm deploy still finishes in ~20 min.
+    timeout-minutes: 75
     # Production deploys pause here for human approval. Configured on the
     # `production` GitHub Environment via deployment-protection-rules
     # (required-reviewers). Staging has no protection rule so deploys
@@ -1017,36 +1021,14 @@ jobs:
       # assumes).
       - name: Ensure RDS is available (auto-resume)
         if: env.STACK_SCOPE != 'infra-only'
-        run: |
-          set -euo pipefail
-          SID="$(aws rds describe-db-instances \
-                  --query "DBInstances[?starts_with(DBInstanceIdentifier,'data-${ENV_NAME}')].DBInstanceIdentifier | [0]" \
-                  --output text)"
-          if [ -z "$SID" ] || [ "$SID" = "None" ]; then
-            echo "::error::No RDS instance found for env=${ENV_NAME} (looked for data-${ENV_NAME}*)."
-            exit 1
-          fi
-          ACCT="$(aws sts get-caller-identity --query Account --output text)"
-          echo "::add-mask::$ACCT"
-          DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
-          # Drop the keep-stopped tag first, else the RdsRestartWatcher Lambda
-          # re-stops the instance out from under the deploy.
-          aws rds remove-tags-from-resource --resource-name "$DB_ARN" \
-            --tag-keys cost-stop-requested || true
-          STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
-                     --query 'DBInstances[0].DBInstanceStatus' --output text)"
-          echo "RDS ${SID} status=${STATUS}"
-          if [ "$STATUS" != "available" ]; then
-            # Only call start from a fully-stopped state; a mid-resume
-            # 'starting'/'configuring-*' status just needs the wait below.
-            if [ "$STATUS" = "stopped" ]; then
-              echo "Starting RDS (cold deploy)…"
-              aws rds start-db-instance --db-instance-identifier "$SID" >/dev/null || true
-            fi
-            echo "Waiting for RDS to become available…"
-            aws rds wait db-instance-available --db-instance-identifier "$SID"
-            echo "RDS ${SID} is now available."
-          fi
+        # Resilient cold-resume (shared single source with power.yml). Polls
+        # with a generous deadline, tolerates every transitional RDS state,
+        # re-issues start if the DB falls back to `stopped`, and re-asserts the
+        # cost-stop tag removal each iteration so the RdsRestartWatcher cannot
+        # re-stop the DB mid-resume. Replaces the old single `aws rds wait`
+        # (hard-capped ~30 min, which a deeply-cold DB exceeded — v0.7.0,
+        # 2026-06-29). See infra/scripts/rds-resume.sh.
+        run: RDS_MAX_WAIT_SECONDS=2400 bash "${GITHUB_WORKSPACE}/infra/scripts/rds-resume.sh"
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -1298,12 +1280,18 @@ jobs:
           # plumbing needed any more.
         run: |
           # "Audit" is the account-global CloudTrail stack (one per account,
-          # not per-env — AFF cost review 2026-05-31 trap 4). Including it in
-          # `all` means it deploys in the SAME run that drops the per-env trail
-          # from Security-${ENV}, so there is no audit gap. Re-deploying it
-          # under both envs is a harmless no-op (same stack, same resources).
+          # not per-env — AFF cost review 2026-05-31 trap 4). It is deliberately
+          # NOT deployed here: per audit-stack.ts + bin/app.ts it ships ONCE,
+          # manually (`cdk deploy Audit`), like SecretsBootstrap, because the
+          # per-env workflows must not be able to re-deploy/destroy a shared
+          # account-global stack. Including it made parallel staging+prod deploys
+          # collide on the single Audit CFN stack ("Audit ... is in
+          # UPDATE_IN_PROGRESS state and can not be updated"; v0.7.0,
+          # 2026-06-29). The one-time "deploy Audit before the per-env Security
+          # stacks drop their own trails" migration is already done, so there is
+          # no audit-gap risk in steady state.
           case "$STACK_SCOPE" in
-            all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}" "Audit") ;;
+            all)        STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}" "App-${ENV_NAME}" "Security-${ENV_NAME}" "Observability-${ENV_NAME}" "Backup-${ENV_NAME}") ;;
             infra-only) STACKS=("Network-${ENV_NAME}" "Data-${ENV_NAME}") ;;
             app-only)   STACKS=("App-${ENV_NAME}") ;;
             *) echo "::error::Unknown stack scope: $STACK_SCOPE"; exit 1 ;;

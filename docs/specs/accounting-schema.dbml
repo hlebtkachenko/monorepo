@@ -108,7 +108,11 @@ Table currency {
   code        "char(3)" [pk]
   name        text      [not null]
   minor_units smallint  [not null, default: 2]
-  Note: 'ISO 4217 currencies offered in accounting settings. Org accounting currency pinned per period on accounting_period.accounting_currency; document currency on partial_record.currency_code (capture layer).'
+  is_functional_currency boolean [not null, default: false]  // §24a: eligible as měna účetnictví (CZK/EUR/USD/GBP)
+  indexes {
+    (code, is_functional_currency) [unique, name: 'currency_code_functional_unique']
+  }
+  Note: 'ISO 4217 currencies offered in accounting settings. Org accounting currency pinned per period on accounting_period.accounting_currency (must be is_functional_currency, §24a); document/transaction currency on partial_record.currency_code / open_item.currency_code (any currency).'
 }
 
 Table business_activity {
@@ -152,14 +156,16 @@ Table accounting_period {
   status               period_status [not null, default: 'OPEN']
   regime_code          text          [not null]
   accounting_size_code text
-  accounting_currency  "char(3)"     [not null]   // měna účetnictví (§4/12), 1/org/period
+  accounting_currency  "char(3)"     [not null]   // měna účetnictví (§4/12), 1/org/period — must be §24a functional
+  accounting_currency_is_functional boolean [not null, note: 'GENERATED true; composite-FK gate to currency(code, is_functional_currency)']
+  fx_rate_policy       fx_rate_kind                // §24 směrnice: DAILY | FIXED elected rate method; NULL = default DAILY
   created_at           timestamptz   [not null, default: `now()`]
   updated_at           timestamptz   [not null, default: `now()`]
   indexes {
     (id, organization_id) [unique]
     (id, organization_id, regime_code) [unique]
   }
-  Note: 'One účetní období. regime fixed per period (immutable until closed); size assessed at period_end (§1b).'
+  Note: 'One účetní období. regime fixed per period (immutable until closed); size assessed at period_end (§1b). §24a: accounting_currency gated to a functional currency via (accounting_currency, accounting_currency_is_functional) -> currency(code, is_functional_currency).'
 }
 
 Table vat_status {

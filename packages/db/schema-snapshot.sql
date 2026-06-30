@@ -1469,6 +1469,8 @@ CREATE TABLE public.accounting_period (
     accounting_currency character(3) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    accounting_currency_is_functional boolean GENERATED ALWAYS AS (true) STORED NOT NULL,
+    fx_rate_policy public.fx_rate_kind,
     CONSTRAINT accounting_period_dates_chk CHECK ((period_start <= period_end))
 );
 
@@ -1735,7 +1737,8 @@ ALTER TABLE ONLY public.counterparty FORCE ROW LEVEL SECURITY;
 CREATE TABLE public.currency (
     code character(3) NOT NULL,
     name text NOT NULL,
-    minor_units smallint DEFAULT 2 NOT NULL
+    minor_units smallint DEFAULT 2 NOT NULL,
+    is_functional_currency boolean DEFAULT false NOT NULL
 );
 
 --
@@ -2750,6 +2753,13 @@ ALTER TABLE ONLY public.counterparty
 
 ALTER TABLE ONLY public.counterparty
     ADD CONSTRAINT counterparty_self_of_organization_id_key UNIQUE (self_of_organization_id);
+
+--
+-- Name: currency currency_code_functional_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.currency
+    ADD CONSTRAINT currency_code_functional_unique UNIQUE (code, is_functional_currency);
 
 --
 -- Name: currency currency_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4138,6 +4148,13 @@ ALTER TABLE ONLY public.accounting_period
 
 ALTER TABLE ONLY public.accounting_period
     ADD CONSTRAINT accounting_period_accounting_size_code_fkey FOREIGN KEY (accounting_size_code) REFERENCES public.accounting_size(code);
+
+--
+-- Name: accounting_period accounting_period_functional_currency_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.accounting_period
+    ADD CONSTRAINT accounting_period_functional_currency_fk FOREIGN KEY (accounting_currency, accounting_currency_is_functional) REFERENCES public.currency(code, is_functional_currency);
 
 --
 -- Name: accounting_period accounting_period_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

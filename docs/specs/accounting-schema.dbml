@@ -389,7 +389,7 @@ Table partial_record {
   created_at           timestamptz     [not null, default: `now()`]
   updated_at           timestamptz     [not null, default: `now()`]
   indexes { (id, organization_id) [unique] }
-  Note: 'Dílčí úč. záznam = THE money level (taxable supplies only; rounding on summary_record). §11/1c + VAT + currency/FX captured once; posting EXPANDS one row into N MD/D lines. vat_mode drives posting; ξ injected at posting time. CHECKs in the SQL.'
+  Note: 'Dílčí úč. záznam = THE money level (taxable supplies only; rounding on summary_record). §11/1c + VAT + currency/FX captured once; posting EXPANDS one row into N MD/D lines. vat_mode drives posting; ξ injected at posting time. CHECKs in the SQL. FX coherence (0035, option C): row-local CHECKs (fx_rate iff fx_rate_kind; vat_fx_rate needs fx_rate; fx_rate>0) + the cross-table identity guard in app_partial_period_guard() (currency=accounting_currency => no FX & frozen=source; foreign => fx_rate required).'
 }
 
 TableGroup capture_core {
@@ -923,6 +923,8 @@ Table open_item_settlement {
   settling_posting_id uuid            [not null]                      // the payment posting (bank/cash, §13b)
   amount              "numeric(19,4)" [not null]                      // applied amount; negative = rozpárování
   settlement_date     date            [not null]                      // datum úhrady
+  settlement_fx_rate            "numeric(18,6)"                       // FX (0035, option C): ČNB rate at settlement_date; NULL = accounting-currency settlement
+  amount_in_accounting_currency "numeric(19,4)"                       // FX: frozen settled value in měna účetnictví; engine-populated (EPIC 2)
   created_at          timestamptz     [not null, default: `now()`]
   indexes {
     (id, organization_id) [unique, name: 'open_item_settlement_id_org_unique']

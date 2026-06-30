@@ -361,7 +361,13 @@ CREATE TABLE partial_record (
   CONSTRAINT partial_record_vat_zero_chk  CHECK (vat_mode NOT IN ('EXEMPT', 'OUTSIDE_VAT', 'REVERSE_CHARGE') OR vat_amount = 0),
   CONSTRAINT partial_record_qty_price_chk CHECK (quantity IS NULL OR unit_price IS NULL OR base_amount = round(quantity * unit_price, 4)),
   -- M4: compare at haléř precision (round to 2 dp, tolerance 0.50) — the old round-to-0 false-rejected haléř-rounded large invoices (§37)
-  CONSTRAINT partial_record_vat_tol_chk   CHECK (vat_mode <> 'STANDARD' OR vat_rate IS NULL OR abs(vat_amount - round(base_amount * vat_rate / 100, 2)) <= 0.50)
+  CONSTRAINT partial_record_vat_tol_chk   CHECK (vat_mode <> 'STANDARD' OR vat_rate IS NULL OR abs(vat_amount - round(base_amount * vat_rate / 100, 2)) <= 0.50),
+  -- FX coherence (option C): guard the dormant capture-layer FX columns so they can't silently
+  -- desync the accounting-currency totals the read model trusts. The cross-table "currency =
+  -- accounting_currency => no FX, frozen = source" identity is in app_partial_period_guard().
+  CONSTRAINT partial_record_fx_pair_chk          CHECK ((fx_rate IS NULL) = (fx_rate_kind IS NULL)),
+  CONSTRAINT partial_record_vat_fx_requires_fx_chk CHECK (vat_fx_rate IS NULL OR fx_rate IS NOT NULL),
+  CONSTRAINT partial_record_fx_positive_chk      CHECK (fx_rate IS NULL OR fx_rate > 0)
 );
 
 -- =============================================================================
@@ -825,6 +831,8 @@ CREATE TABLE open_item_settlement (
   settling_posting_id uuid          NOT NULL,                      -- the payment posting (bank/cash, §13b)
   amount              numeric(19,4) NOT NULL,                      -- applied amount; negative = rozpárování
   settlement_date     date          NOT NULL,                      -- datum úhrady
+  settlement_fx_rate            numeric(18,6),                     -- FX (option C): ČNB/internal rate at settlement_date; NULL = accounting-currency settlement; populated by the EPIC-2 engine for the kurzový rozdíl (ČÚS 006)
+  amount_in_accounting_currency numeric(19,4),                     -- FX: frozen settled value in měna účetnictví; NULL until the engine populates it
   created_at          timestamptz   NOT NULL DEFAULT now(),
   CONSTRAINT open_item_settlement_id_org_unique UNIQUE (id, organization_id),
   CONSTRAINT open_item_settlement_item_fk    FOREIGN KEY (open_item_id, organization_id)        REFERENCES open_item (id, organization_id),
@@ -1357,12 +1365,34 @@ CREATE TRIGGER individual_record_period_guard BEFORE INSERT ON individual_record
 -- capture: partial_record — period via individual_record -> summary_record (M6 deepest)
 CREATE OR REPLACE FUNCTION app_partial_period_guard()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE v_period uuid;
+DECLARE v_period uuid; v_acc_currency char(3);
 BEGIN
-  SELECT s.period_id INTO v_period
-    FROM individual_record i JOIN summary_record s ON s.id = i.summary_record_id
+  SELECT s.period_id, p.accounting_currency INTO v_period, v_acc_currency
+    FROM individual_record i
+    JOIN summary_record    s ON s.id = i.summary_record_id
+    JOIN accounting_period p ON p.id = s.period_id
    WHERE i.id = NEW.individual_record_id;
   PERFORM app_assert_period_writable(v_period, 'partial_record', NULL);
+
+  -- FX coherence (option C): the dormant FX columns must never silently desync the
+  -- accounting-currency totals the read model assumes are already in měna účetnictví.
+  IF NEW.currency_code = v_acc_currency THEN
+    IF NEW.fx_rate IS NOT NULL OR NEW.fx_rate_kind IS NOT NULL OR NEW.vat_fx_rate IS NOT NULL THEN
+      RAISE EXCEPTION 'partial_record %: currency_code = accounting_currency (%) but an FX rate is set', NEW.id, v_acc_currency
+        USING ERRCODE = 'check_violation';
+    END IF;
+    IF NEW.base_in_accounting_currency <> NEW.base_amount
+       OR NEW.vat_in_accounting_currency <> NEW.vat_amount THEN
+      RAISE EXCEPTION 'partial_record %: in the single-currency case accounting-currency amounts must equal the source amounts', NEW.id
+        USING ERRCODE = 'check_violation';
+    END IF;
+  ELSE
+    IF NEW.fx_rate IS NULL THEN
+      RAISE EXCEPTION 'partial_record %: foreign currency % requires an fx_rate (ČNB §24 / §4-12)', NEW.id, NEW.currency_code
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
   RETURN NEW;
 END;
 $$;

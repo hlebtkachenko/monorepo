@@ -1216,3 +1216,65 @@ describe("seed validation", () => {
     expect(rows).toHaveLength(0)
   })
 })
+
+// ===========================================================================
+// FX coherence (migration 0035 — option C: dormant columns + guards)
+// The BEFORE-INSERT guard fires regardless of role, so we exercise it via admin.
+// INDIV_A lives in PERIOD_A whose accounting_currency = CZK.
+// ===========================================================================
+describe("FX coherence", () => {
+  const ins = (
+    id: string,
+    ccy: string,
+    baseAcc: number,
+    kind: string | null,
+    rate: number | null,
+  ) =>
+    admin.unsafe(
+      `INSERT INTO partial_record (id, organization_id, individual_record_id, base_amount, vat_mode, vat_amount, currency_code, base_in_accounting_currency, vat_in_accounting_currency, fx_rate_kind, fx_rate)
+       VALUES ('${id}'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'OUTSIDE_VAT', 0, '${ccy}', ${baseAcc}, 0, ${kind ? `'${kind}'` : "NULL"}, ${rate ?? "NULL"})`,
+    )
+
+  beforeAll(async () => {
+    await setPeriodStatus(PERIOD_A, "OPEN") // saldokonto tests may have closed it
+  })
+
+  it("(FX1) CZK partial_record with an FX rate set is rejected (currency = accounting_currency => no FX)", async () => {
+    await expect(
+      ins("00000000-0000-0000-0000-0000000f0001", "CZK", 1000, "DAILY", 25),
+    ).rejects.toThrow(/accounting_currency.*FX rate is set|FX rate is set/i)
+  })
+
+  it("(FX2) CZK partial_record whose frozen accounting amount != source amount is rejected", async () => {
+    await expect(
+      ins("00000000-0000-0000-0000-0000000f0002", "CZK", 999, null, null),
+    ).rejects.toThrow(/must equal the source amounts/i)
+  })
+
+  it("(FX3) a foreign-currency (EUR) partial_record with no fx_rate is rejected", async () => {
+    await expect(
+      ins("00000000-0000-0000-0000-0000000f0003", "EUR", 25000, null, null),
+    ).rejects.toThrow(/requires an fx_rate/i)
+  })
+
+  it("(FX4) a coherent foreign-currency (EUR) partial_record with an fx_rate commits", async () => {
+    await ins("00000000-0000-0000-0000-0000000f0004", "EUR", 25000, "DAILY", 25)
+    const [row] = await admin.unsafe<Array<{ currency_code: string }>>(
+      `SELECT currency_code FROM partial_record WHERE id = '00000000-0000-0000-0000-0000000f0004'::uuid`,
+    )
+    expect(row?.currency_code).toBe("EUR")
+  })
+
+  it("(FX5) fx_rate set without fx_rate_kind is rejected by the row-local CHECK", async () => {
+    await expect(
+      ins("00000000-0000-0000-0000-0000000f0005", "EUR", 25000, null, 25),
+    ).rejects.toThrow(/partial_record_fx_pair_chk|fx_pair/i)
+  })
+
+  it("(FX6) open_item_settlement carries the dormant FX columns (nullable)", async () => {
+    const [col] = await admin.unsafe<Array<{ is_nullable: string }>>(
+      `SELECT is_nullable FROM information_schema.columns WHERE table_name='open_item_settlement' AND column_name='settlement_fx_rate'`,
+    )
+    expect(col?.is_nullable).toBe("YES")
+  })
+})

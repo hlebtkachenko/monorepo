@@ -32,6 +32,15 @@ export const open_item_settlement = pgTable(
     settling_posting_id: uuid("settling_posting_id").notNull(), // the payment posting (bank/cash, §13b)
     amount: numeric("amount", { precision: 19, scale: 4 }).notNull(), // applied amount; negative = rozpárování
     settlement_date: date("settlement_date").notNull(), // datum úhrady
+    // FX (option C, migration 0035): dormant until the EPIC-2 engine populates them.
+    settlement_fx_rate: numeric("settlement_fx_rate", {
+      precision: 18,
+      scale: 6,
+    }), // ČNB/internal rate at settlement_date; NULL = accounting-currency settlement
+    amount_in_accounting_currency: numeric("amount_in_accounting_currency", {
+      precision: 19,
+      scale: 4,
+    }), // frozen settled value in měna účetnictví
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

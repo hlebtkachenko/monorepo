@@ -9,10 +9,30 @@
  * rides on the capture layer (partial_record.currency_code).
  * Triggers / RLS / CHECK / EXCLUDE constraints live in the migration, not this DSL.
  */
-import { char, pgTable, smallint, text } from "drizzle-orm/pg-core"
+import {
+  boolean,
+  char,
+  pgTable,
+  smallint,
+  text,
+  unique,
+} from "drizzle-orm/pg-core"
 
-export const currency = pgTable("currency", {
-  code: char("code", { length: 3 }).primaryKey(), // ISO 4217: CZK, EUR, USD, …
-  name: text("name").notNull(),
-  minor_units: smallint("minor_units").notNull().default(2), // fractional digits
-})
+export const currency = pgTable(
+  "currency",
+  {
+    code: char("code", { length: 3 }).primaryKey(), // ISO 4217: CZK, EUR, USD, …
+    name: text("name").notNull(),
+    minor_units: smallint("minor_units").notNull().default(2), // fractional digits
+    // §24a: eligible as měna účetnictví (CZK/EUR/USD/GBP); seeded in 0036.
+    is_functional_currency: boolean("is_functional_currency")
+      .notNull()
+      .default(false),
+  },
+  (t) => [
+    unique("currency_code_functional_unique").on(
+      t.code,
+      t.is_functional_currency,
+    ),
+  ],
+)

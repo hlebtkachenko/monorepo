@@ -46,6 +46,7 @@ CREATE TYPE person_type       AS ENUM ('NATURAL', 'LEGAL');     -- FO / PO
 CREATE TYPE period_status     AS ENUM ('OPEN', 'CLOSED');
 CREATE TYPE vat_filing_period AS ENUM ('MONTHLY', 'QUARTERLY');
 CREATE TYPE book_kind         AS ENUM ('LEDGER', 'MONETARY_JOURNAL');
+CREATE TYPE fx_rate_kind       AS ENUM ('DAILY', 'REAL', 'FIXED');  -- moved up: accounting_period.fx_rate_policy (below) uses it (capture's partial_record.fx_rate_kind too). In the migrations all enums live in 0024.
 
 -- =============================================================================
 -- PLATFORM TABLES (pre-existing; faithful stubs of the real columns)
@@ -117,7 +118,9 @@ CREATE TABLE vat_regime (
 CREATE TABLE currency (
   code        char(3)  PRIMARY KEY,             -- ISO 4217: CZK, EUR, USD, …
   name        text     NOT NULL,
-  minor_units smallint NOT NULL DEFAULT 2       -- fractional digits
+  minor_units smallint NOT NULL DEFAULT 2,      -- fractional digits
+  is_functional_currency boolean NOT NULL DEFAULT false,  -- §24a: eligible as měna účetnictví (CZK/EUR/USD/GBP); seeded
+  CONSTRAINT currency_code_functional_unique UNIQUE (code, is_functional_currency)  -- composite-FK target for accounting_period
 );
 
 -- business_activity — předmět podnikání = CZ-NACE 2025 (5-level hierarchy).
@@ -175,10 +178,17 @@ CREATE TABLE accounting_period (
   accounting_currency  char(3)       NOT NULL REFERENCES currency (code),  -- měna účetnictví (§4/12), 1/org/period
   created_at           timestamptz   NOT NULL DEFAULT now(),
   updated_at           timestamptz   NOT NULL DEFAULT now(),
+  -- §24a (added by migration 0036, ALTER-appended): accounting_currency must be a FUNCTIONAL currency
+  -- (CZK/EUR/USD/GBP, not e.g. PLN). Gated by the generated-constant + composite-FK idiom (the regime-
+  -- spine pattern) — unbypassable, no trigger. fx_rate_policy = the §24 elected rate method.
+  accounting_currency_is_functional boolean NOT NULL GENERATED ALWAYS AS (true) STORED,
+  fx_rate_policy       fx_rate_kind,  -- §24 směrnice: DAILY (denní) | FIXED (pevný); NULL = default DAILY
   CONSTRAINT accounting_period_dates_chk CHECK (period_start <= period_end),
   CONSTRAINT accounting_period_id_org_unique UNIQUE (id, organization_id),
   -- FK target for the future regime spine (posting layer pins entry.regime = period's):
-  CONSTRAINT accounting_period_id_org_regime_unique UNIQUE (id, organization_id, regime_code)
+  CONSTRAINT accounting_period_id_org_regime_unique UNIQUE (id, organization_id, regime_code),
+  CONSTRAINT accounting_period_functional_currency_fk
+    FOREIGN KEY (accounting_currency, accounting_currency_is_functional) REFERENCES currency (code, is_functional_currency)
 );
 
 -- vat_status — time-versioned VAT status link, independent of účetní období.
@@ -236,8 +246,7 @@ CREATE TABLE counterparty (
 CREATE TYPE number_series_entity AS ENUM ('EVENT', 'DOCUMENT', 'ASSET', 'INVENTORY_COUNT');
 CREATE TYPE summary_record_type  AS ENUM ('RECEIVED_INVOICE', 'ISSUED_INVOICE', 'BANK_STATEMENT', 'INTERNAL', 'CASH_DOCUMENT', 'BATCH');
 CREATE TYPE vat_mode             AS ENUM ('STANDARD', 'REVERSE_CHARGE', 'EXEMPT', 'OUTSIDE_VAT', 'IMPORT');
-CREATE TYPE fx_rate_kind         AS ENUM ('DAILY', 'REAL', 'FIXED');
-CREATE TYPE signature_role       AS ENUM ('FOR_EVENT', 'FOR_POSTING');
+CREATE TYPE signature_role       AS ENUM ('FOR_EVENT', 'FOR_POSTING');  -- fx_rate_kind moved to the ground enums (accounting_period uses it)
 
 -- number_series — company-defined číselné řady per entity_type. Gapless counter.
 CREATE TABLE number_series (
@@ -831,9 +840,11 @@ CREATE TABLE open_item_settlement (
   settling_posting_id uuid          NOT NULL,                      -- the payment posting (bank/cash, §13b)
   amount              numeric(19,4) NOT NULL,                      -- applied amount; negative = rozpárování
   settlement_date     date          NOT NULL,                      -- datum úhrady
-  settlement_fx_rate            numeric(18,6),                     -- FX (option C): ČNB/internal rate at settlement_date; NULL = accounting-currency settlement; populated by the EPIC-2 engine for the kurzový rozdíl (ČÚS 006)
-  amount_in_accounting_currency numeric(19,4),                     -- FX: frozen settled value in měna účetnictví; NULL until the engine populates it
   created_at          timestamptz   NOT NULL DEFAULT now(),
+  -- FX (option C, added by migration 0035, ALTER-appended): ČNB rate + frozen accounting-currency value
+  -- at settlement, so the EPIC-2 engine realizes the kurzový rozdíl (ČÚS 006) without back-filling history.
+  settlement_fx_rate            numeric(18,6),                     -- NULL = accounting-currency settlement
+  amount_in_accounting_currency numeric(19,4),                     -- frozen settled value in měna účetnictví
   CONSTRAINT open_item_settlement_id_org_unique UNIQUE (id, organization_id),
   CONSTRAINT open_item_settlement_item_fk    FOREIGN KEY (open_item_id, organization_id)        REFERENCES open_item (id, organization_id),
   CONSTRAINT open_item_settlement_posting_fk FOREIGN KEY (settling_posting_id, organization_id) REFERENCES posting (id, organization_id),
@@ -1377,6 +1388,7 @@ BEGIN
   -- FX coherence (option C): the dormant FX columns must never silently desync the
   -- accounting-currency totals the read model assumes are already in měna účetnictví.
   IF NEW.currency_code = v_acc_currency THEN
+    -- single-currency case: no FX may be recorded, and the frozen amounts equal the source
     IF NEW.fx_rate IS NOT NULL OR NEW.fx_rate_kind IS NOT NULL OR NEW.vat_fx_rate IS NOT NULL THEN
       RAISE EXCEPTION 'partial_record %: currency_code = accounting_currency (%) but an FX rate is set', NEW.id, v_acc_currency
         USING ERRCODE = 'check_violation';
@@ -1387,6 +1399,7 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
   ELSE
+    -- foreign-currency case: an accounting rate is mandatory (ČNB §24 / §4-12)
     IF NEW.fx_rate IS NULL THEN
       RAISE EXCEPTION 'partial_record %: foreign currency % requires an fx_rate (ČNB §24 / §4-12)', NEW.id, NEW.currency_code
         USING ERRCODE = 'check_violation';

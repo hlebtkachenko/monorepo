@@ -13,6 +13,8 @@
 import {
   char,
   date,
+  boolean,
+  foreignKey,
   pgTable,
   text,
   timestamp,
@@ -20,7 +22,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { periodStatus } from "./_enums"
+import { fxRateKind, periodStatus } from "./_enums"
 import { accounting_size } from "./accounting_size"
 import { currency } from "./currency"
 import { organization } from "./organization"
@@ -47,6 +49,12 @@ export const accounting_period = pgTable(
     accounting_currency: char("accounting_currency", { length: 3 })
       .notNull()
       .references(() => currency.code), // měna účetnictví (§4/12), 1/org/period
+    // §24a: accounting_currency must be a functional currency. Gated by the generated-constant
+    // + composite-FK idiom (regime-spine pattern); read-only projection.
+    accounting_currency_is_functional: boolean(
+      "accounting_currency_is_functional",
+    ).generatedAlwaysAs(sql`true`),
+    fx_rate_policy: fxRateKind("fx_rate_policy"), // §24 směrnice: DAILY | FIXED; NULL = default DAILY
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -61,5 +69,12 @@ export const accounting_period = pgTable(
       t.organization_id,
       t.regime_code,
     ),
+    // §24a functional-currency gate (migration 0036): only currencies flagged
+    // is_functional_currency may be a měna účetnictví.
+    foreignKey({
+      name: "accounting_period_functional_currency_fk",
+      columns: [t.accounting_currency, t.accounting_currency_is_functional],
+      foreignColumns: [currency.code, currency.is_functional_currency],
+    }),
   ],
 )

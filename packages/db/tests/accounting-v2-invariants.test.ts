@@ -1277,4 +1277,33 @@ describe("FX coherence", () => {
     )
     expect(col?.is_nullable).toBe("YES")
   })
+
+  // §24a functional-currency gate (migration 0036)
+  const period = (id: string, ccy: string, policy: string | null) =>
+    admin.unsafe(
+      `INSERT INTO accounting_period (id, organization_id, period_start, period_end, regime_code, accounting_currency, fx_rate_policy)
+       VALUES ('${id}'::uuid, '${ORG_A}', '2030-01-01', '2030-12-31', 'DOUBLE_ENTRY', '${ccy}', ${policy ? `'${policy}'` : "NULL"})`,
+    )
+
+  it("(FC1) accounting_currency = PLN (non-functional) is rejected by the §24a gate", async () => {
+    await expect(
+      period("00000000-0000-0000-0000-0000000fc001", "PLN", null),
+    ).rejects.toThrow(/functional_currency_fk|functional/i)
+  })
+
+  it("(FC2) accounting_currency = EUR with a FIXED rate policy is accepted", async () => {
+    await period("00000000-0000-0000-0000-0000000fc002", "EUR", "FIXED")
+    const [row] = await admin.unsafe<Array<{ fx_rate_policy: string }>>(
+      `SELECT fx_rate_policy FROM accounting_period WHERE id = '00000000-0000-0000-0000-0000000fc002'::uuid`,
+    )
+    expect(row?.fx_rate_policy).toBe("FIXED")
+  })
+
+  it("(FC3) PLN is still allowed as a transaction/document currency (partial_record)", async () => {
+    await ins("00000000-0000-0000-0000-0000000fc003", "PLN", 6000, "DAILY", 6)
+    const [row] = await admin.unsafe<Array<{ currency_code: string }>>(
+      `SELECT currency_code FROM partial_record WHERE id = '00000000-0000-0000-0000-0000000fc003'::uuid`,
+    )
+    expect(row?.currency_code).toBe("PLN")
+  })
 })

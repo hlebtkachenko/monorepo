@@ -1,13 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart } from "recharts"
 
 import { Card } from "@workspace/ui/components/card"
 import {
   ChartBar,
-  ChartContainer,
   ChartLine,
+  ChartSparkLine,
   type ChartConfig,
 } from "@workspace/ui/components/chart"
 import {
@@ -63,34 +62,6 @@ function CardMenu() {
   )
 }
 
-/** A tiny axis-less area chart under a KPI value. */
-function Sparkline({ series, color }: { series: number[]; color: string }) {
-  const gradientId = React.useId()
-  const data = series.map((v, i) => ({ i, v }))
-  const config: ChartConfig = { v: { label: "", color } }
-  return (
-    <ChartContainer config={config} className="h-12 w-full">
-      <AreaChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-v)" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="var(--color-v)" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <Area
-          dataKey="v"
-          type="monotone"
-          stroke="var(--color-v)"
-          strokeWidth={1.75}
-          fill={`url(#${gradientId})`}
-          dot={false}
-          isAnimationActive={false}
-        />
-      </AreaChart>
-    </ChartContainer>
-  )
-}
-
 export interface MetricTileProps {
   /** The metric name (e.g. "Revenue"). */
   label: string
@@ -131,7 +102,13 @@ export function MetricTile({ label, value, delta, series }: MetricTileProps) {
         <span className="text-muted-foreground">{label}</span>
       </div>
       {series && series.length > 1 ? (
-        <Sparkline series={series} color={DELTA[direction].color} />
+        <ChartSparkLine
+          className="h-12 w-full"
+          data={series.map((v, i) => ({ i, v }))}
+          index="i"
+          categories={["v"]}
+          colors={[DELTA[direction].color]}
+        />
       ) : null}
     </Card>
   )
@@ -215,13 +192,13 @@ export function DashboardGrid({
       data-slot="dashboard-grid"
       className={cn("@container flex flex-col gap-4", className)}
     >
-      <div className="grid grid-cols-1 gap-3 @md:grid-cols-2 @4xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
         {metrics.map((m) => (
           <MetricTile key={m.label} {...m} />
         ))}
       </div>
       {children ? (
-        <div className="grid grid-cols-1 gap-3 @4xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">
           {children}
         </div>
       ) : null}

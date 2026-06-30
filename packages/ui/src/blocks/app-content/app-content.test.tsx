@@ -320,8 +320,10 @@ describe("DashboardGrid", () => {
         ]}
       />,
     )
-    // The sparkline renders inside a ChartContainer (recharts).
-    expect(container.querySelector('[data-slot="chart"]')).toBeInTheDocument()
+    // The sparkline renders via ChartSparkLine.
+    expect(
+      container.querySelector('[data-slot="chart-spark-line"]'),
+    ).toBeInTheDocument()
   })
 
   it("renders a chart card with a title", () => {

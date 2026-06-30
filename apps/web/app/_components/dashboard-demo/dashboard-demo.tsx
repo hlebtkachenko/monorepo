@@ -29,7 +29,10 @@ import {
 import { applyFilterBar } from "../_shared/apply-filter-bar"
 import { OrgPageHeader } from "../org-page-header"
 import {
+  ACCOUNT_OPTIONS,
   aggregate,
+  CATEGORY_OPTIONS,
+  COST_CENTER_OPTIONS,
   DASHBOARD_TABS,
   TRANSACTIONS,
   type DashboardView,
@@ -48,6 +51,7 @@ const FB_CONFIG = [
     .accessor((t) => t.account)
     .displayName("Account")
     .icon(Building2)
+    .options(ACCOUNT_OPTIONS)
     .build(),
   dtf
     .option()
@@ -55,6 +59,7 @@ const FB_CONFIG = [
     .accessor((t) => t.category)
     .displayName("Category")
     .icon(Tag)
+    .options(CATEGORY_OPTIONS)
     .build(),
   dtf
     .option()
@@ -62,6 +67,7 @@ const FB_CONFIG = [
     .accessor((t) => t.costCenter)
     .displayName("Cost centre")
     .icon(Layers)
+    .options(COST_CENTER_OPTIONS)
     .build(),
   dtf
     .number()

@@ -398,6 +398,10 @@ CREATE TABLE account_group (
   balance_sheet_line_when_credit text,                           -- sign-split: group 34/48 with a CREDIT net balance -> liability row
   income_statement_line          text,                           -- Příloha 2 default line for cost/revenue groups (5x/6x)
   CONSTRAINT account_group_class_chk CHECK (class BETWEEN 0 AND 9)
+  -- Review fix (MAJOR / decision 3): the "every on-statement account resolves to a line" guarantee is enforced
+  -- not as a per-row CHECK (would fire on minimal test fixtures) but by app_assert_account_groups_mapped() below,
+  -- which the migration seed step + a seed test MUST call after loading account_group — it raises if any
+  -- on-statement group (not internal 8–9, not OFF_BALANCE/CLOSING) is left without a statement line.
 );
 
 -- directive_account — NON-BINDING recommendation catalogue (3-digit synthetic),
@@ -770,6 +774,71 @@ ALTER TABLE posting
     REFERENCES inventory_count (id, organization_id);
 
 -- =============================================================================
+-- SALDOKONTO (open items) — párování pohledávek a závazků (§16, ČÚS 001)
+-- =============================================================================
+-- Decision 1 (Hleb 2026-06-30): track each unpaid receivable/payable and its
+-- settlement matching. PERENNIAL (not period-scoped): an invoice issued in one
+-- period is paid in another, so open_item references the saldokonto account BY
+-- NUMBER (D8, like asset/depreciation), resolved per-period by the books layer,
+-- NOT the per-period account_id. Counterparty denormalized (composite FK, the
+-- accounting_event pattern) so "all unpaid items for X" is one indexed read. Only
+-- accounts flagged account.tracks_open_items participate; population is a posting-
+-- time service step. Enforcement (RLS / append-only / maintenance) is wired in the
+-- enforcement layer below (see "SALDOKONTO enforcement").
+CREATE TYPE open_item_direction AS ENUM ('RECEIVABLE', 'PAYABLE');  -- pohledávka / závazek
+
+-- open_item — one open obligation. settled_amount maintained by the settlement
+-- trigger; remaining_amount / is_settled GENERATED. Mutable (settled_amount moves).
+CREATE TABLE open_item (
+  id                 uuid                PRIMARY KEY DEFAULT uuidv7(),
+  organization_id    uuid                NOT NULL,
+  workspace_id       uuid                NOT NULL,
+  counterparty_id    uuid                NOT NULL,                 -- protistrana (workspace-shared)
+  origin_posting_id  uuid                NOT NULL,                 -- the invoice posting that opened the obligation
+  account_number     text                NOT NULL,                 -- saldokonto účet (311/321/…) BY NUMBER (D8, perennial)
+  direction          open_item_direction NOT NULL,                 -- RECEIVABLE | PAYABLE (pohledávka / závazek)
+  variable_symbol    text,                                         -- VS / párovací symbol
+  original_amount    numeric(19,4)       NOT NULL,                 -- full obligation (účetní měna)
+  currency_code      char(3)             NOT NULL REFERENCES currency (code),
+  issue_date         date                NOT NULL,                 -- datum vystavení
+  due_date           date,                                         -- splatnost
+  settled_amount     numeric(19,4)       NOT NULL DEFAULT 0,       -- maintained by the settlement trigger (may exceed original = přeplatek)
+  remaining_amount   numeric(19,4)       GENERATED ALWAYS AS (original_amount - settled_amount) STORED,
+  is_settled         boolean             GENERATED ALWAYS AS (settled_amount >= original_amount) STORED,
+  created_at         timestamptz         NOT NULL DEFAULT now(),
+  updated_at         timestamptz         NOT NULL DEFAULT now(),
+  CONSTRAINT open_item_id_org_unique     UNIQUE (id, organization_id),
+  CONSTRAINT open_item_org_fk            FOREIGN KEY (organization_id, workspace_id) REFERENCES organization (id, workspace_id),
+  CONSTRAINT open_item_counterparty_fk   FOREIGN KEY (counterparty_id, workspace_id) REFERENCES counterparty (id, workspace_id),
+  CONSTRAINT open_item_posting_fk        FOREIGN KEY (origin_posting_id, organization_id) REFERENCES posting (id, organization_id),
+  CONSTRAINT open_item_amount_chk        CHECK (original_amount > 0 AND settled_amount >= 0),
+  CONSTRAINT open_item_account_shape_chk CHECK (account_number ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$')
+);
+
+-- open_item_settlement — one payment->obligation match (párování). M:N: a payment
+-- clears many items, an item takes many partial payments. Append-only (a match is
+-- corrected by a NEW match, never edited); negative amount = rozpárování / correction.
+CREATE TABLE open_item_settlement (
+  id                  uuid          PRIMARY KEY DEFAULT uuidv7(),
+  organization_id     uuid          NOT NULL,
+  open_item_id        uuid          NOT NULL,                      -- the obligation being settled
+  settling_posting_id uuid          NOT NULL,                      -- the payment posting (bank/cash, §13b)
+  amount              numeric(19,4) NOT NULL,                      -- applied amount; negative = rozpárování
+  settlement_date     date          NOT NULL,                      -- datum úhrady
+  created_at          timestamptz   NOT NULL DEFAULT now(),
+  CONSTRAINT open_item_settlement_id_org_unique UNIQUE (id, organization_id),
+  CONSTRAINT open_item_settlement_item_fk    FOREIGN KEY (open_item_id, organization_id)        REFERENCES open_item (id, organization_id),
+  CONSTRAINT open_item_settlement_posting_fk FOREIGN KEY (settling_posting_id, organization_id) REFERENCES posting (id, organization_id),
+  CONSTRAINT open_item_settlement_amount_chk CHECK (amount <> 0)
+);
+CREATE INDEX open_item_counterparty_idx       ON open_item (counterparty_id);
+CREATE INDEX open_item_account_idx            ON open_item (organization_id, account_number);
+CREATE INDEX open_item_unsettled_idx          ON open_item (organization_id, due_date) WHERE is_settled = false;
+CREATE INDEX open_item_origin_posting_idx     ON open_item (origin_posting_id);
+CREATE INDEX open_item_settlement_item_idx    ON open_item_settlement (open_item_id);
+CREATE INDEX open_item_settlement_posting_idx ON open_item_settlement (settling_posting_id);
+
+-- =============================================================================
 -- READ-MODEL (books/reports materialization) — maintained turnover tables
 -- =============================================================================
 -- Books are NOT views (read-heavy SaaS = recompute-on-read compute bomb): maintained by
@@ -951,7 +1020,8 @@ DECLARE
     'individual_record', 'partial_record', 'chart_of_accounts', 'account',
     'category', 'posting', 'posting_double_entry_line', 'posting_monetary_line',
     'asset', 'depreciation_plan', 'tax_depreciation', 'inventory_count',
-    'inventory_count_line', 'period_output'
+    'inventory_count_line', 'period_output',
+    'open_item', 'open_item_settlement'
   ];
 BEGIN
   FOREACH tbl IN ARRAY org_scoped LOOP
@@ -1038,7 +1108,7 @@ DECLARE
   ];
   append_only text[] := ARRAY[
     'posting', 'posting_double_entry_line', 'posting_monetary_line',
-    'signature', 'period_output'
+    'signature', 'period_output', 'open_item_settlement'
   ];
   read_model text[] := ARRAY['account_period_balance', 'monetary_period_summary'];
   reference text[] := ARRAY[
@@ -1096,7 +1166,7 @@ DECLARE
   tbl text;
   append_only text[] := ARRAY[
     'posting', 'posting_double_entry_line', 'posting_monetary_line',
-    'signature', 'period_output'
+    'signature', 'period_output', 'open_item_settlement'
   ];
 BEGIN
   FOREACH tbl IN ARRAY append_only LOOP
@@ -1104,6 +1174,60 @@ BEGIN
     EXECUTE format('CREATE TRIGGER %I_block_delete    BEFORE DELETE    ON %I FOR EACH ROW       EXECUTE FUNCTION app_block_mutation_accounting()', tbl, tbl);
     EXECUTE format('CREATE TRIGGER %I_block_truncate  BEFORE TRUNCATE  ON %I FOR EACH STATEMENT EXECUTE FUNCTION app_block_truncate_accounting()', tbl, tbl);
   END LOOP;
+END
+$$;
+
+-- SALDOKONTO enforcement (maintenance · tamper-lock · period guard).
+-- Review fix (MAJOR): settled_amount is moved ONLY by this maintenance trigger, never by the
+-- app. The trigger is SECURITY DEFINER (owner app_owner) and app_user gets SELECT+INSERT only on
+-- open_item (UPDATE/DELETE revoked below), so settled_amount cannot diverge from
+-- Σ(open_item_settlement.amount) out of band — drift is structural, not policed. The owner write
+-- resolves under FORCE RLS because the session GUC (app.organization_id) is still set and the
+-- row's org matches (composite FK). settled_amount may exceed original_amount (přeplatek) ->
+-- remaining_amount goes negative (allowed). Append-only above covers open_item_settlement (a match
+-- is reversed by a new negative-amount match, never edited).
+CREATE OR REPLACE FUNCTION app_maintain_open_item_settled()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_catalog AS $$
+BEGIN
+  UPDATE open_item
+     SET settled_amount = settled_amount + NEW.amount,
+         updated_at = now()
+   WHERE id = NEW.open_item_id;
+  RETURN NULL;
+END;
+$$;
+ALTER FUNCTION app_maintain_open_item_settled() OWNER TO app_owner;
+CREATE TRIGGER open_item_settlement_maintain
+  AFTER INSERT ON open_item_settlement
+  FOR EACH ROW EXECUTE FUNCTION app_maintain_open_item_settled();
+
+-- Review fix (BLOCKER): a settlement must not post into a CLOSED period (every sibling write-path
+-- is period-guarded; this one was not). Period resolved from the settling payment posting;
+-- settlement_date (datum úhrady) must fall within it. Append-only prevents editing a settlement
+-- after its period closes.
+CREATE OR REPLACE FUNCTION app_open_item_settlement_period_guard()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE v_period uuid;
+BEGIN
+  SELECT period_id INTO v_period FROM posting WHERE id = NEW.settling_posting_id;
+  PERFORM app_assert_period_writable(v_period, 'open_item_settlement', NEW.settlement_date);
+  RETURN NEW;
+END;
+$$;
+ALTER FUNCTION app_open_item_settlement_period_guard() OWNER TO app_owner;
+CREATE TRIGGER open_item_settlement_period_guard BEFORE INSERT ON open_item_settlement
+  FOR EACH ROW EXECUTE FUNCTION app_open_item_settlement_period_guard();
+
+-- Review fix (MAJOR): lock settled_amount — app_user may create/read open_items but never
+-- UPDATE/DELETE (the SECURITY DEFINER trigger above is the sole writer of settled_amount).
+-- open_item is NOT in the bulk grant arrays; this is its only grant.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+    GRANT SELECT, INSERT ON open_item TO app_user;
+    REVOKE UPDATE, DELETE ON open_item FROM app_user;
+  END IF;
 END
 $$;
 
@@ -1516,6 +1640,25 @@ LANGUAGE sql STABLE AS $$
        <> COALESCE(SUM(l.amount) FILTER (WHERE l.side = 'CREDIT'), 0);
 $$;
 ALTER FUNCTION app_find_unbalanced_postings(uuid) OWNER TO app_owner;
+
+-- Seed-validation (review fix, MAJOR / decision 3): the migration's account_group seed step + a
+-- seed test MUST call this after loading the directive chart and assert it returns NO rows. It
+-- lists every on-statement group (not internal 8–9, not OFF_BALANCE/CLOSING) left without a
+-- rozvaha/VZZ line — empty = the cascade's group fallback is total, so no tenant synthetic can
+-- fall off the závěrka via a null group. (Enforced here, not as a per-row CHECK, so minimal test
+-- fixtures that seed a bare account_group are unaffected.)
+CREATE OR REPLACE FUNCTION app_unmapped_account_groups()
+RETURNS TABLE (code char(2), class smallint, name_cs text)
+LANGUAGE sql STABLE AS $$
+  SELECT g.code, g.class, g.name_cs
+    FROM account_group g
+   WHERE NOT g.is_internal
+     AND (g.nature IS NULL OR g.nature NOT IN ('OFF_BALANCE', 'CLOSING'))
+     AND g.balance_sheet_line    IS NULL
+     AND g.income_statement_line IS NULL
+     AND NOT (g.balance_sheet_line_when_debit IS NOT NULL AND g.balance_sheet_line_when_credit IS NOT NULL);
+$$;
+ALTER FUNCTION app_unmapped_account_groups() OWNER TO app_owner;
 
 -- =============================================================================
 -- 10. Cash-posting minimum-line invariant + clearing-item line CHECK

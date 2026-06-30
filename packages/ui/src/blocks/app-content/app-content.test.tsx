@@ -265,21 +265,22 @@ describe("LaunchpadGrid", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders a featured page as a wide hero card with its metric", () => {
+  it("renders a card with subpages as a foldable card (unfolded shows them)", () => {
     wrap(
       <LaunchpadGrid
         sections={[
           {
             id: "s",
-            kind: "single",
+            kind: "group",
+            label: "Accounting",
             pages: [
               {
-                id: "inv",
-                title: "Invoices",
-                description: "All documents.",
-                href: "/inv",
-                featured: true,
-                metric: "128 documents",
+                id: "journals",
+                title: "Journals",
+                description: "Posted entries.",
+                href: "/journals",
+                defaultUnfolded: true,
+                subpages: [{ id: "gl", title: "General ledger", href: "/gl" }],
               },
             ],
           },
@@ -287,8 +288,8 @@ describe("LaunchpadGrid", () => {
         view="all"
       />,
     )
-    expect(screen.getByText("128 documents")).toBeInTheDocument()
-    expect(screen.getByText("All documents.")).toBeInTheDocument()
+    expect(screen.getByText("Journals")).toBeInTheDocument()
+    expect(screen.getByText("General ledger")).toBeInTheDocument()
   })
 })
 

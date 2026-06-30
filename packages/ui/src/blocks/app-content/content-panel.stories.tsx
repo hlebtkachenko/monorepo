@@ -227,16 +227,15 @@ export const Blank: Story = {
 }
 
 // ── Variant: Launchpad (prototype) ───────────────────────────────────────────
-// A folder / overview hub that lays out a page's navigation structure (pinned,
-// single, grouped + subpages, footer) as cards. Followed pages hoist to a top
-// "Followed" strip with a filled star; the header view tabs (All / Followed /
+// A folder / overview hub that lays out a page's navigation structure (single,
+// grouped + subpages, footer) as cards in a strict 4-column grid. Followed pages
+// hoist to a "Followed" group first; the header view tabs (All / Followed /
 // Unread) filter the body. Data-driven via `sections` + `view`.
 
 const LAUNCHPAD_SECTIONS: LaunchpadSection[] = [
   {
-    id: "pinned",
-    kind: "pinned",
-    label: "Pinned",
+    id: "quick",
+    kind: "single",
     pages: [
       {
         id: "invoices",

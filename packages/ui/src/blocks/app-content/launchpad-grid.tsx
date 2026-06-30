@@ -11,19 +11,6 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from "@workspace/ui/components/item"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@workspace/ui/components/popover"
 import { useIcons, type IconName } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -43,6 +30,12 @@ export interface LaunchpadSubpage {
  * One launchpad card. Mirrors a sidebar `Page`: a destination with an icon,
  * optional nested `subpages`, an `unread` count, and a `followed` flag (the
  * star). The page using the block owns this data and the follow toggle.
+ *
+ * Card size is derived, not free-form:
+ *   - `compact: true` → a Small dense cell (footer / utility pages).
+ *   - has `subpages`  → a foldable card: Standard while folded, Large
+ *     (`col-span-2`, subpages rendered inline) once unfolded.
+ *   - otherwise       → a Standard icon-centered card.
  */
 export interface LaunchpadPage {
   id: string
@@ -53,25 +46,21 @@ export interface LaunchpadPage {
   unread?: number
   followed?: boolean
   subpages?: LaunchpadSubpage[]
-  /**
-   * Promote this page to a wide HERO card (spans 2 columns, shows the
-   * description + `metric`). Lets a group mix one prominent entry with the
-   * smaller default cards instead of every card looking identical.
-   */
-  featured?: boolean
-  /** A key stat shown on the hero card (e.g. "128 documents", "3 accounts"). */
-  metric?: React.ReactNode
+  /** Render as the Small dense cell (footer / utility). Cannot unfold. */
+  compact?: boolean
+  /** Start a subpage card unfolded (Large) rather than the default folded. */
+  defaultUnfolded?: boolean
 }
 
 /**
- * The five navigation shapes a launchpad can lay out, matching the sidebar's
- * own structure possibilities:
- *   - `pinned` — featured / quick-access pages, always first.
+ * The navigation shapes a launchpad lays out, matching the sidebar's structure:
  *   - `single` — ungrouped top-level pages.
  *   - `group`  — pages under a labelled heading (each may carry subpages).
- *   - `footer` — utility links, compact, no star.
+ *   - `footer` — utility links, dense Small cells.
+ *
+ * There is no `pinned` kind — the Followed group is always first instead.
  */
-export type LaunchpadSectionKind = "pinned" | "single" | "group" | "footer"
+export type LaunchpadSectionKind = "single" | "group" | "footer"
 
 export interface LaunchpadSection {
   id: string
@@ -95,18 +84,6 @@ export interface LaunchpadGridProps {
   linkComponent?: React.ElementType
   className?: string
 }
-
-/**
- * Uniform card grid — a fixed column COUNT keyed off the content-panel width via
- * container queries (the `@container` wrapper in `Section`). Every section reads
- * the same panel width, so every card is the same width regardless of how many
- * pages a section holds — a sparse section just leaves trailing empty cells
- * instead of stretching its cards into odd big blocks. Columns step 1 → 2 → 3 → 4
- * as the panel widens, and because it's a CONTAINER query it reflows when the
- * frame is resized, not only the viewport.
- */
-const CARD_GRID =
-  "grid grid-cols-2 gap-3 @md:grid-cols-3 @3xl:grid-cols-4 @5xl:grid-cols-5"
 
 /** Whether a page (or any of its subpages) has something unread. */
 function isUnread(page: LaunchpadPage): boolean {
@@ -167,67 +144,22 @@ function FollowStar({
   )
 }
 
-/** Subpage flyout — the ONLY "open deeper" affordance, shown only when there
- * are subpages (no decorative chevron on leaf cards). */
-function SubpagesPopover({
-  page,
-  Link,
-  className,
-}: {
-  page: LaunchpadPage
-  Link: React.ElementType
-  className?: string
-}) {
-  const icons = useIcons()
-  const ChevronRight = icons.ChevronRight
-  const subpages = page.subpages ?? []
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <IconButton
-          icon="ChevronsRight"
-          aria-label={`Open ${page.title}`}
-          className={cn("text-muted-foreground", className)}
-        />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-56 p-1">
-        {page.href ? (
-          <Link
-            href={page.href}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-accent"
-          >
-            <span className="flex-1 truncate">Open {page.title}</span>
-          </Link>
-        ) : null}
-        {subpages.map((sub) => (
-          <Link
-            key={sub.id}
-            href={sub.href ?? "#"}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <ChevronRight className="size-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{sub.title}</span>
-            <UnreadBadge count={sub.unread} />
-          </Link>
-        ))}
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-/** The default icon-centered card. */
-function DefaultCard({
+/** The Standard icon-centered card (1 column). Its `description` is clamped to
+ * two lines; the full text shows on hover via a native `title`. `foldButton`
+ * is the optional top-right control rendered by a foldable card when folded. */
+function StandardCard({
   page,
   Link,
   onToggleFollow,
+  foldButton,
 }: {
   page: LaunchpadPage
   Link: React.ElementType
   onToggleFollow?: (pageId: string) => void
+  foldButton?: React.ReactNode
 }) {
   const icons = useIcons()
   const Icon = page.icon ? icons[page.icon] : null
-  const hasSubs = (page.subpages?.length ?? 0) > 0
   const unread = page.unread ?? 0
 
   return (
@@ -248,13 +180,7 @@ function DefaultCard({
         onToggleFollow={onToggleFollow}
         className="absolute top-1.5 left-1.5 z-10"
       />
-      {hasSubs ? (
-        <SubpagesPopover
-          page={page}
-          Link={Link}
-          className="absolute top-1.5 right-1.5 z-10"
-        />
-      ) : null}
+      {foldButton}
 
       {Icon ? (
         <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
@@ -269,7 +195,10 @@ function DefaultCard({
         {unread > 0 ? <UnreadBadge count={unread} /> : null}
       </div>
       {page.description ? (
-        <p className="line-clamp-2 text-xs text-muted-foreground">
+        <p
+          title={page.description}
+          className="line-clamp-2 text-xs text-muted-foreground"
+        >
           {page.description}
         </p>
       ) : null}
@@ -277,9 +206,136 @@ function DefaultCard({
   )
 }
 
-/** The wide HERO card (featured page) — spans 2 columns, icon + title +
- * description + a key metric. Gives a group visual hierarchy. */
-function FeatureCard({
+/** The Large horizontal card (spans 2 columns) — a subpage card UNFOLDED.
+ * Left half = info (icon + title + description), right half = the subpages list
+ * rendered inline and visible. Star top-left, fold chevron top-right. */
+function LargeCard({
+  page,
+  Link,
+  onToggleFollow,
+  onFold,
+}: {
+  page: LaunchpadPage
+  Link: React.ElementType
+  onToggleFollow?: (pageId: string) => void
+  onFold: () => void
+}) {
+  const icons = useIcons()
+  const Icon = page.icon ? icons[page.icon] : null
+  const ChevronRight = icons.ChevronRight
+  const unread = page.unread ?? 0
+  const subpages = page.subpages ?? []
+
+  return (
+    <Card
+      data-slot="launchpad-card"
+      className="group/card relative min-h-36 flex-row gap-4 p-4 transition-colors hover:ring-foreground/20 @md:col-span-2"
+    >
+      <FollowStar
+        page={page}
+        onToggleFollow={onToggleFollow}
+        className="absolute top-1.5 left-1.5 z-10"
+      />
+      <IconButton
+        icon="ChevronUp"
+        aria-label={`Collapse ${page.title}`}
+        tooltip="Collapse"
+        tooltipSide="bottom"
+        onClick={onFold}
+        className="absolute top-1.5 right-1.5 z-10 text-muted-foreground"
+      />
+
+      {/* Left half — info. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2 pt-6">
+        {Icon ? (
+          <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
+            <Icon className="size-6" />
+          </span>
+        ) : null}
+        <div className="flex items-center gap-1.5">
+          {page.href ? (
+            <Link
+              href={page.href}
+              className="font-heading text-sm leading-snug font-medium hover:underline"
+            >
+              {page.title}
+            </Link>
+          ) : (
+            <span className="font-heading text-sm leading-snug font-medium">
+              {page.title}
+            </span>
+          )}
+          {unread > 0 ? <UnreadBadge count={unread} /> : null}
+        </div>
+        {page.description ? (
+          <p className="text-xs text-muted-foreground">{page.description}</p>
+        ) : null}
+      </div>
+
+      {/* Right half — subpages, inline and visible. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 border-l border-border-subtle pt-6 pl-4">
+        {subpages.map((sub) => (
+          <Link
+            key={sub.id}
+            href={sub.href ?? "#"}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ChevronRight className="size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{sub.title}</span>
+            <UnreadBadge count={sub.unread} />
+          </Link>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+/** A foldable subpage card. Folded → Standard (with a fold chevron to expand);
+ * unfolded → Large with inline subpages. Default folded. */
+function FoldableCard({
+  page,
+  Link,
+  onToggleFollow,
+}: {
+  page: LaunchpadPage
+  Link: React.ElementType
+  onToggleFollow?: (pageId: string) => void
+}) {
+  const [unfolded, setUnfolded] = React.useState(page.defaultUnfolded ?? false)
+
+  if (unfolded) {
+    return (
+      <LargeCard
+        page={page}
+        Link={Link}
+        onToggleFollow={onToggleFollow}
+        onFold={() => setUnfolded(false)}
+      />
+    )
+  }
+
+  return (
+    <StandardCard
+      page={page}
+      Link={Link}
+      onToggleFollow={onToggleFollow}
+      foldButton={
+        <IconButton
+          icon="ChevronDown"
+          aria-label={`Expand ${page.title}`}
+          tooltip="Expand"
+          tooltipSide="bottom"
+          onClick={() => setUnfolded(true)}
+          className="absolute top-1.5 right-1.5 z-10 text-muted-foreground"
+        />
+      }
+    />
+  )
+}
+
+/** The Small dense cell (footer / utility) — ~3x shorter than a Standard card,
+ * one column wide, tiles inside the same 4-col grid. Has a working star. */
+function SmallCard({
   page,
   Link,
   onToggleFollow,
@@ -290,13 +346,11 @@ function FeatureCard({
 }) {
   const icons = useIcons()
   const Icon = page.icon ? icons[page.icon] : null
-  const hasSubs = (page.subpages?.length ?? 0) > 0
-  const unread = page.unread ?? 0
 
   return (
     <Card
       data-slot="launchpad-card"
-      className="group/card relative min-h-36 flex-row items-center gap-4 p-4 transition-colors hover:ring-foreground/20 @md:col-span-2"
+      className="group/card relative flex-row items-center gap-2.5 p-2.5 transition-colors hover:ring-foreground/20"
     >
       {page.href ? (
         <Link
@@ -307,38 +361,24 @@ function FeatureCard({
       ) : null}
 
       {Icon ? (
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
-          <Icon className="size-7" />
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="size-4" />
         </span>
       ) : null}
-
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="font-heading text-base leading-snug font-medium">
-            {page.title}
-          </span>
-          {unread > 0 ? <UnreadBadge count={unread} /> : null}
-        </div>
-        {page.description ? (
-          <p className="line-clamp-2 text-sm text-muted-foreground">
-            {page.description}
-          </p>
-        ) : null}
-        {page.metric ? (
-          <p className="font-heading text-sm font-medium">{page.metric}</p>
-        ) : null}
-      </div>
-
-      <div className="relative z-10 flex shrink-0 items-start gap-1">
-        {hasSubs ? <SubpagesPopover page={page} Link={Link} /> : null}
-        <FollowStar page={page} onToggleFollow={onToggleFollow} />
-      </div>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">
+        {page.title}
+      </span>
+      <FollowStar
+        page={page}
+        onToggleFollow={onToggleFollow}
+        className="relative z-10 shrink-0"
+      />
     </Card>
   )
 }
 
-/** A compact, star-able utility row (footer pages) — the dense variant. */
-function CompactRow({
+/** Pick and render a page's card by its derived size. */
+function LaunchpadCard({
   page,
   Link,
   onToggleFollow,
@@ -347,105 +387,43 @@ function CompactRow({
   Link: React.ElementType
   onToggleFollow?: (pageId: string) => void
 }) {
-  const icons = useIcons()
-  const Icon = page.icon ? icons[page.icon] : null
+  if (page.compact) {
+    return <SmallCard page={page} Link={Link} onToggleFollow={onToggleFollow} />
+  }
+  if ((page.subpages?.length ?? 0) > 0) {
+    return (
+      <FoldableCard page={page} Link={Link} onToggleFollow={onToggleFollow} />
+    )
+  }
   return (
-    <Item
-      data-slot="launchpad-card"
-      variant="outline"
-      size="sm"
-      className="group/card"
-    >
-      {Icon ? (
-        <ItemMedia variant="icon">
-          <Icon className="text-muted-foreground" />
-        </ItemMedia>
-      ) : null}
-      <ItemContent>
-        <ItemTitle>
-          {page.href ? (
-            <Link href={page.href} className="hover:underline">
-              {page.title}
-            </Link>
-          ) : (
-            page.title
-          )}
-        </ItemTitle>
-        {page.description ? (
-          <ItemDescription>{page.description}</ItemDescription>
-        ) : null}
-      </ItemContent>
-      <ItemActions>
-        <FollowStar page={page} onToggleFollow={onToggleFollow} />
-      </ItemActions>
-    </Item>
+    <StandardCard page={page} Link={Link} onToggleFollow={onToggleFollow} />
   )
 }
 
-function Section({
-  label,
-  kind,
-  pages,
-  Link,
-  onToggleFollow,
-}: {
-  label?: React.ReactNode
-  kind: LaunchpadSectionKind
-  pages: LaunchpadPage[]
-  Link: React.ElementType
-  onToggleFollow?: (pageId: string) => void
-}) {
-  if (pages.length === 0) return null
+/** A full-width group label that sits inside the grid as its own row, so cards
+ * keep tiling cleanly in the same 4-column grid. Body font, muted, no caps. */
+function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <section className="@container space-y-3">
-      {label ? (
-        <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          {label}
-        </h3>
-      ) : null}
-      {kind === "footer" ? (
-        <div className="grid grid-cols-1 gap-2 @md:grid-cols-2 @3xl:grid-cols-3">
-          {pages.map((page) => (
-            <CompactRow
-              key={page.id}
-              page={page}
-              Link={Link}
-              onToggleFollow={onToggleFollow}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className={CARD_GRID}>
-          {pages.map((page) =>
-            page.featured ? (
-              <FeatureCard
-                key={page.id}
-                page={page}
-                Link={Link}
-                onToggleFollow={onToggleFollow}
-              />
-            ) : (
-              <DefaultCard
-                key={page.id}
-                page={page}
-                Link={Link}
-                onToggleFollow={onToggleFollow}
-              />
-            ),
-          )}
-        </div>
-      )}
-    </section>
+    <h3 className="col-span-full text-sm font-medium text-muted-foreground">
+      {children}
+    </h3>
   )
+}
+
+interface RenderSection {
+  id: string
+  label?: React.ReactNode
+  pages: LaunchpadPage[]
 }
 
 /**
  * Launchpad archetype — a folder / overview hub that lays out a page's
- * navigation structure as cards. Mirrors the sidebar's shapes (pinned, single,
- * grouped + subpages, footer), hoists followed pages to the top with a filled
- * star, and filters by the header view tabs. Presentational and data-driven:
- * feed `sections` + `view` and handle `onToggleFollow`. Drop into a
- * `ContentPanel`'s `children`.
+ * navigation structure as cards in a STRICT 4-column grid. Followed pages are
+ * hoisted to a synthetic "Followed" group first; the structural sections
+ * (single / group) follow, then footer. Group labels are full-width rows inside
+ * the same grid, so every card tiles cleanly with no per-section gaps.
+ * Presentational and data-driven: feed `sections` + `view`, handle
+ * `onToggleFollow`. Drop into a `ContentPanel`'s `children`.
  */
 export function LaunchpadGrid({
   sections,
@@ -461,21 +439,23 @@ export function LaunchpadGrid({
   if (view === "followed") {
     const followed = allPages.filter((p) => p.followed)
     return (
-      <div data-slot="launchpad" className={cn("space-y-6", className)}>
+      <Grid className={className}>
         {followed.length > 0 ? (
-          <Section
-            kind="single"
-            pages={followed}
-            Link={Link}
-            onToggleFollow={onToggleFollow}
-          />
+          followed.map((page) => (
+            <LaunchpadCard
+              key={page.id}
+              page={page}
+              Link={Link}
+              onToggleFollow={onToggleFollow}
+            />
+          ))
         ) : (
-          <LaunchpadEmpty
+          <FullWidthEmpty
             title="No followed pages yet"
             description="Star a page to pin it here for quick access."
           />
         )}
-      </div>
+      </Grid>
     )
   }
 
@@ -483,86 +463,107 @@ export function LaunchpadGrid({
   if (view === "unread") {
     const unread = allPages.filter(isUnread)
     return (
-      <div data-slot="launchpad" className={cn("space-y-6", className)}>
+      <Grid className={className}>
         {unread.length > 0 ? (
-          <Section
-            kind="single"
-            pages={unread}
-            Link={Link}
-            onToggleFollow={onToggleFollow}
-          />
+          unread.map((page) => (
+            <LaunchpadCard
+              key={page.id}
+              page={page}
+              Link={Link}
+              onToggleFollow={onToggleFollow}
+            />
+          ))
         ) : (
-          <LaunchpadEmpty
+          <FullWidthEmpty
             title="Nothing unread"
             description="New activity on your pages shows up here."
           />
         )}
-      </div>
+      </Grid>
     )
   }
 
-  // All view — Pinned, then a hoisted Followed strip (pulled from single/group
-  // sections), then the structural sections in order, footer last.
+  // All view — a synthetic "Followed" group first (hoisted from the structural
+  // sections), then the structural sections in order, then footer last.
+  const isStructural = (s: LaunchpadSection) => s.kind !== "footer"
   const followedLoose = sections
-    .filter((s) => s.kind === "single" || s.kind === "group")
+    .filter(isStructural)
     .flatMap((s) => s.pages)
     .filter((p) => p.followed)
   const followedIds = new Set(followedLoose.map((p) => p.id))
 
+  const renderSections: RenderSection[] = []
+
+  if (followedLoose.length > 0) {
+    renderSections.push({
+      id: "__followed__",
+      label: "Followed",
+      pages: followedLoose,
+    })
+  }
+
+  for (const section of sections.filter(isStructural)) {
+    const pages = section.pages.filter((p) => !followedIds.has(p.id))
+    if (pages.length === 0) continue
+    renderSections.push({ id: section.id, label: section.label, pages })
+  }
+
+  for (const section of sections.filter((s) => s.kind === "footer")) {
+    // Footer pages are dense Small cells regardless of their own flag.
+    const pages = section.pages.map((p) => ({ ...p, compact: true }))
+    if (pages.length === 0) continue
+    renderSections.push({ id: section.id, label: section.label, pages })
+  }
+
   return (
-    <div data-slot="launchpad" className={cn("space-y-6", className)}>
-      {sections
-        .filter((s) => s.kind === "pinned")
-        .map((s) => (
-          <Section
-            key={s.id}
-            kind="pinned"
-            label={s.label ?? "Pinned"}
-            pages={s.pages}
-            Link={Link}
-            onToggleFollow={onToggleFollow}
-          />
-        ))}
+    <Grid className={className}>
+      {renderSections.map((section) => (
+        <React.Fragment key={section.id}>
+          {section.label ? <GroupLabel>{section.label}</GroupLabel> : null}
+          {section.pages.map((page) => (
+            <LaunchpadCard
+              key={page.id}
+              page={page}
+              Link={Link}
+              onToggleFollow={onToggleFollow}
+            />
+          ))}
+        </React.Fragment>
+      ))}
+    </Grid>
+  )
+}
 
-      {followedLoose.length > 0 ? (
-        <Section
-          kind="single"
-          label="Followed"
-          pages={followedLoose}
-          Link={Link}
-          onToggleFollow={onToggleFollow}
-        />
-      ) : null}
-
-      {sections
-        .filter((s) => s.kind === "single" || s.kind === "group")
-        .map((s) => (
-          <Section
-            key={s.id}
-            kind={s.kind}
-            label={s.label}
-            pages={s.pages.filter((p) => !followedIds.has(p.id))}
-            Link={Link}
-            onToggleFollow={onToggleFollow}
-          />
-        ))}
-
-      {sections
-        .filter((s) => s.kind === "footer")
-        .map((s) => (
-          <Section
-            key={s.id}
-            kind="footer"
-            label={s.label}
-            pages={s.pages}
-            Link={Link}
-          />
-        ))}
+/**
+ * The single, strict grid. `@container` reads the content-panel width, so the
+ * column count reflows on PANEL resize, not just viewport. Default is exactly
+ * 4 columns; it only drops to 2 on a very narrow panel. Large (subpage)
+ * cards take `@md:col-span-2`; group labels span the full row — so everything
+ * tiles into the same 4-column lattice with no stray gaps.
+ */
+function Grid({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  // `@container` on the wrapper; the column count is read from THIS wrapper's
+  // width (a container element can't size its own utilities off itself). 4
+  // columns is the default; only a very narrow panel drops to 2.
+  return (
+    <div className={cn("@container", className)}>
+      <div
+        data-slot="launchpad"
+        className="grid grid-cols-2 gap-3 @md:grid-cols-4"
+      >
+        {children}
+      </div>
     </div>
   )
 }
 
-function LaunchpadEmpty({
+function FullWidthEmpty({
   title,
   description,
 }: {
@@ -570,11 +571,13 @@ function LaunchpadEmpty({
   description: string
 }) {
   return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <div className="col-span-full">
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>{title}</EmptyTitle>
+          <EmptyDescription>{description}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    </div>
   )
 }

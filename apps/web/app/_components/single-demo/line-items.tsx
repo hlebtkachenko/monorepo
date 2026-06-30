@@ -96,5 +96,8 @@ export function LineItemsGrid({ rows }: { rows: LineRow[] }) {
     initialState: { pagination: { pageIndex: 0, pageSize: 50 } },
   })
 
-  return <DataGridView table={table} className="max-h-[360px]" />
+  // Fill the bounded line-items region (the parent gives it a real height) and
+  // scroll inside — so the grid reads as a proper, usable table, not a column
+  // of rows that pushes the page.
+  return <DataGridView table={table} className="min-h-0 flex-1" />
 }

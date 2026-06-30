@@ -19,7 +19,8 @@ export interface RecordWorkspaceProps {
    * Optional full-width line-items region (a grid + its toolbar), rendered
    * edge-to-edge below the form band. Omit for record types with no lines —
    * that is how the same workspace serves a document, a counterparty, or a
-   * settings record.
+   * settings record. The region is given a real, bounded height so the grid
+   * scrolls inside it instead of pushing the whole page.
    */
   lineItems?: React.ReactNode
   /** Optional sticky footer (Save / Close), pinned to the bottom of the body. */
@@ -38,11 +39,12 @@ const MAX_W: Record<NonNullable<RecordWorkspaceProps["maxWidth"]>, string> = {
 
 /**
  * Record workspace (Single archetype) — one record on show as a sectioned,
- * editable surface. A scrolling band holds the active section's form (centered,
- * with an optional recap rail), an optional full-width line-items grid, and an
- * optional sticky footer. Generic + document-first: the section tabs live in the
- * `ContentHeader`; the `lineItems` / `aside` / `footer` slots are shown only when
- * a record needs them. Mount in a `ContentPanel` with
+ * editable surface. The body is a vertical stack: a SCROLLING form band
+ * (centered, with an optional recap rail), then an optional full-width
+ * line-items region that owns a bounded height so its grid scrolls inside
+ * itself, then an optional sticky footer. Generic + document-first: the section
+ * tabs live in the `ContentHeader`; the `lineItems` / `aside` / `footer` slots
+ * are shown only when a record needs them. Mount in a `ContentPanel` with
  * `bodyClassName="flex min-h-0 flex-col p-0"` so it owns its own scroll + footer.
  */
 export function RecordWorkspace({
@@ -58,7 +60,16 @@ export function RecordWorkspace({
       data-slot="record-workspace"
       className={cn("flex min-h-0 flex-1 flex-col", className)}
     >
-      <div className="min-h-0 flex-1 overflow-auto">
+      {/* Form band — scrolls on its own and stays the dominant region. When
+          line-items are present the grid below keeps a guaranteed readable
+          band (a min height) while the form takes the rest; without lines the
+          form takes the whole body. */}
+      <div
+        className={cn(
+          "min-h-0 overflow-auto",
+          lineItems != null ? "flex-[3]" : "flex-1",
+        )}
+      >
         <div
           className={cn(
             "mx-auto flex w-full flex-col gap-6 p-4",
@@ -68,7 +79,10 @@ export function RecordWorkspace({
           <div
             className={cn(
               "grid gap-6",
-              aside != null && "lg:grid-cols-[minmax(0,1fr)_20rem]",
+              // Side-by-side only when there's genuinely room — with the
+              // inspector docked the body is narrower, so the recap rail stacks
+              // under the form below `xl` instead of crushing the field grid.
+              aside != null && "xl:grid-cols-[minmax(0,1fr)_18rem]",
             )}
           >
             <div className="min-w-0">{children}</div>
@@ -79,16 +93,16 @@ export function RecordWorkspace({
             ) : null}
           </div>
         </div>
-
-        {lineItems != null ? (
-          <div
-            data-slot="record-workspace-lines"
-            className="border-t border-border-subtle"
-          >
-            {lineItems}
-          </div>
-        ) : null}
       </div>
+
+      {lineItems != null ? (
+        <div
+          data-slot="record-workspace-lines"
+          className="flex min-h-[14rem] flex-[2] flex-col border-t border-border-subtle"
+        >
+          {lineItems}
+        </div>
+      ) : null}
 
       {footer != null ? (
         <div

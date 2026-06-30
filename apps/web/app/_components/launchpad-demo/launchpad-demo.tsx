@@ -11,8 +11,19 @@ import {
   type LaunchpadView,
 } from "@workspace/ui/blocks/app-content"
 
+import {
+  ManageTabsMenu,
+  PageHeaderActions,
+  useTabVisibility,
+} from "../_shared/content-header-extras"
 import { OrgPageHeader } from "../org-page-header"
 import { BASE_SECTIONS } from "./data"
+
+const TAB_DEFS = [
+  { value: "all", label: "All" },
+  { value: "followed", label: "Followed" },
+  { value: "unread", label: "Unread" },
+] as const
 
 /**
  * Launchpad archetype demo (#425). Holds the two pieces of page state the
@@ -55,11 +66,17 @@ export function LaunchpadDemo() {
   )
 
   const counts = getLaunchpadCounts(sections)
-  const tabs: ContentTab[] = [
-    { value: "all", label: "All", badge: counts.all },
-    { value: "followed", label: "Followed", badge: counts.followed },
-    { value: "unread", label: "Unread", badge: counts.unread },
-  ]
+  const { hidden, toggle, visible } = useTabVisibility([...TAB_DEFS])
+  const badges: Record<string, number> = {
+    all: counts.all,
+    followed: counts.followed,
+    unread: counts.unread,
+  }
+  const tabs: ContentTab[] = visible.map((tab) => ({
+    value: tab.value,
+    label: tab.label,
+    badge: badges[tab.value],
+  }))
 
   return (
     <>
@@ -69,6 +86,14 @@ export function LaunchpadDemo() {
           tabs={tabs}
           value={view}
           onValueChange={(value) => setView(value as LaunchpadView)}
+          manageTabs={
+            <ManageTabsMenu
+              tabs={[...TAB_DEFS]}
+              hidden={hidden}
+              onToggle={toggle}
+            />
+          }
+          actions={<PageHeaderActions />}
         />
       </OrgPageHeader>
       <ContentPanel>

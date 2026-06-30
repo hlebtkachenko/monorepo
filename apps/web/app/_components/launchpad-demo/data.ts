@@ -2,15 +2,15 @@ import type { LaunchpadSection } from "@workspace/ui/blocks/app-content"
 
 /**
  * Mock launchpad structure for the #425 demo. Exercises every section kind the
- * `LaunchpadGrid` lays out — pinned, single, grouped (with subpages), footer —
- * plus a spread of `unread` counts and a couple of pre-`followed` pages. A real
- * page swaps this for its own nav-derived data; the block is otherwise unchanged.
+ * `LaunchpadGrid` lays out — single, grouped (with foldable subpage cards),
+ * footer — plus a spread of `unread` counts and a couple of pre-`followed`
+ * pages. A real page swaps this for its own nav-derived data; the block is
+ * otherwise unchanged.
  */
 export const BASE_SECTIONS: LaunchpadSection[] = [
   {
-    id: "pinned",
-    kind: "pinned",
-    label: "Pinned",
+    id: "single",
+    kind: "single",
     pages: [
       {
         id: "invoices",
@@ -19,8 +19,6 @@ export const BASE_SECTIONS: LaunchpadSection[] = [
         icon: "FileText",
         href: "#",
         unread: 4,
-        featured: true,
-        metric: "128 documents · 4 to match",
       },
       {
         id: "bank",
@@ -44,12 +42,6 @@ export const BASE_SECTIONS: LaunchpadSection[] = [
         href: "#",
         unread: 2,
       },
-    ],
-  },
-  {
-    id: "single",
-    kind: "single",
-    pages: [
       {
         id: "counterparties",
         title: "Counterparties",
@@ -93,6 +85,8 @@ export const BASE_SECTIONS: LaunchpadSection[] = [
         description: "Posted entries by book.",
         icon: "BookOpen",
         href: "#",
+        // Start unfolded so the demo shows the Large card with inline subpages.
+        defaultUnfolded: true,
         subpages: [
           { id: "gl", title: "General ledger", href: "#", unread: 2 },
           { id: "vat", title: "VAT ledger", href: "#" },

@@ -130,6 +130,17 @@ export interface DashboardChartCardProps {
   className?: string
 }
 
+/**
+ * Recharts clips the first/last category tick + the edge bars when the plot
+ * runs flush to the SVG bounds: the ChartContainer's ResponsiveContainer fills
+ * the wrapper edge-to-edge, so the leftmost Y-axis labels and the rightmost bar
+ * sit on (and get cut by) the card edge. We pad the wrapper horizontally so the
+ * SVG keeps an inset gutter on each side — every axis tick + edge bar then lands
+ * inside the card. The `overflow-visible` lets any sub-pixel tick text that
+ * still reaches the gutter render instead of being clipped by the wrapper box.
+ */
+const CHART_WRAPPER = "h-56 w-full min-w-0 overflow-visible px-2"
+
 /** A titled card framing one chart (or a placeholder until wired). */
 export function DashboardChartCard({
   title,
@@ -150,8 +161,10 @@ export function DashboardChartCard({
         <span className="font-heading text-sm font-medium">{title}</span>
         <CardMenu />
       </div>
-      <div className="h-56 w-full min-w-0">
+      <div className={CHART_WRAPPER}>
         {hasChart ? (
+          // Tooltips are intentionally left ON (no `hideTooltip`) so the big
+          // chart shows an interactive hover readout. Sparklines stay quiet.
           chartType === "line" ? (
             <ChartLine data={data} chartConfig={chartConfig} xDataKey={xKey} />
           ) : (
@@ -167,24 +180,107 @@ export function DashboardChartCard({
   )
 }
 
+/** One column of the metrics-as-rows matrix (the "Line"/table dashboard view). */
+interface DashboardMatrixData {
+  /** Time-bucket column headers (e.g. ["Jan", "Feb", …] or ["Q1", "Q2"]). */
+  columns: string[]
+  /** One row per metric — pre-formatted cells + a row total. */
+  rows: {
+    label: string
+    cells: React.ReactNode[]
+    total: React.ReactNode
+  }[]
+}
+
+/**
+ * The matrix / financial-statement view of the dashboard: metrics down the
+ * rows, time buckets across the columns. The first column (metric name) sticks
+ * on horizontal scroll; numeric cells right-align. Tokens only.
+ */
+function DashboardMatrixTable({ matrix }: { matrix: DashboardMatrixData }) {
+  return (
+    <Card data-slot="dashboard-matrix" className="overflow-hidden p-0">
+      <div className="w-full overflow-x-auto">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="sticky left-0 z-10 bg-card px-4 py-2.5 text-left font-medium text-muted-foreground">
+                Metric
+              </th>
+              {matrix.columns.map((col) => (
+                <th
+                  key={col}
+                  className="px-4 py-2.5 text-right font-medium text-muted-foreground"
+                >
+                  {col}
+                </th>
+              ))}
+              <th className="px-4 py-2.5 text-right font-medium text-foreground">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {matrix.rows.map((row) => (
+              <tr
+                key={row.label}
+                className="border-b border-border-subtle last:border-b-0"
+              >
+                <td className="sticky left-0 z-10 bg-card px-4 py-2.5 text-left font-medium text-foreground">
+                  {row.label}
+                </td>
+                {row.cells.map((cell, i) => (
+                  <td
+                    key={i}
+                    className="px-4 py-2.5 text-right text-foreground tabular-nums"
+                  >
+                    {cell}
+                  </td>
+                ))}
+                <td className="px-4 py-2.5 text-right font-semibold text-foreground tabular-nums">
+                  {row.total}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  )
+}
+
 export interface DashboardGridProps {
   /** The KPI tiles. */
   metrics: MetricTileProps[]
   /** Chart cards below the tiles. Render `DashboardChartCard`s here. */
   children?: React.ReactNode
+  /**
+   * Body mode. `"chart"` (default) shows the tiles + chart cards. `"table"`
+   * swaps the chart grid for a metrics-as-rows matrix (`matrix` required).
+   */
+  mode?: "chart" | "table"
+  /** The matrix shown when `mode === "table"`. */
+  matrix?: DashboardMatrixData
+  /** Show the KPI tiles row. Default `true` — toggled by the Widgets menu. */
+  showTiles?: boolean
   className?: string
 }
 
 /**
  * Dashboard archetype — an analytics body: a responsive row of KPI tiles (each
- * with a sparkline), then a grid of chart cards. Container-query responsive, so
+ * with a sparkline), then either a grid of chart cards (`mode="chart"`) or a
+ * metrics-as-rows matrix table (`mode="table"`). Container-query responsive, so
  * it reflows on content-panel resize, not just viewport. Presentational; feed
- * `metrics` and pass `DashboardChartCard`s as `children`. Period / scope controls
- * belong in the `ContentToolbar` above it, not here. Drop into a `ContentPanel`.
+ * `metrics`, pass `DashboardChartCard`s as `children`, and a `matrix` for the
+ * table mode. Period / scope controls belong in the `ContentToolbar` above it,
+ * not here. Drop into a `ContentPanel`.
  */
 export function DashboardGrid({
   metrics,
   children,
+  mode = "chart",
+  matrix,
+  showTiles = true,
   className,
 }: DashboardGridProps) {
   return (
@@ -192,12 +288,16 @@ export function DashboardGrid({
       data-slot="dashboard-grid"
       className={cn("@container flex flex-col gap-4", className)}
     >
-      <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
-        {metrics.map((m) => (
-          <MetricTile key={m.label} {...m} />
-        ))}
-      </div>
-      {children ? (
+      {showTiles ? (
+        <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
+          {metrics.map((m) => (
+            <MetricTile key={m.label} {...m} />
+          ))}
+        </div>
+      ) : null}
+      {mode === "table" && matrix ? (
+        <DashboardMatrixTable matrix={matrix} />
+      ) : children ? (
         <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">
           {children}
         </div>

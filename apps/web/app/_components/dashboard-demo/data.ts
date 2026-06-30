@@ -13,6 +13,32 @@ import type {
 export type DashboardView = "overview" | "revenue" | "expenses"
 export type Granularity = "month" | "quarter"
 
+/**
+ * A predefined analytics timeframe. Each maps to the granularity that
+ * `aggregate(...)` buckets by, so picking one re-buckets every tile + chart.
+ * The mock ledger spans Jan–Jun 2026, so the "window" of every option resolves
+ * to that span here; in a real page each would carry its own date filter.
+ */
+export type Timeframe =
+  | "this-month"
+  | "this-quarter"
+  | "this-year"
+  | "last-6-months"
+
+export const TIMEFRAME_OPTIONS: {
+  value: Timeframe
+  label: string
+  granularity: Granularity
+}[] = [
+  { value: "this-month", label: "This month", granularity: "month" },
+  { value: "this-quarter", label: "This quarter", granularity: "quarter" },
+  { value: "this-year", label: "This year", granularity: "quarter" },
+  { value: "last-6-months", label: "Last 6 months", granularity: "month" },
+]
+
+export const granularityOf = (timeframe: Timeframe): Granularity =>
+  TIMEFRAME_OPTIONS.find((t) => t.value === timeframe)?.granularity ?? "month"
+
 export interface Transaction {
   id: string
   date: string // ISO yyyy-mm-dd
@@ -286,6 +312,22 @@ export interface DashboardChart extends Pick<
 }
 
 /**
+ * The "Line"/table view of the same aggregation: a financial-statement matrix
+ * with metrics as ROWS and time buckets as COLUMNS. `numeric` rows render
+ * right-aligned CZK; `count` rows render plain integers.
+ */
+export interface DashboardMatrix {
+  columns: string[]
+  rows: {
+    label: string
+    /** Pre-formatted cell per column (CZK or integer count). */
+    cells: string[]
+    /** Pre-formatted row total. */
+    total: string
+  }[]
+}
+
+/**
  * Aggregate a (filtered) ledger into KPI tiles + chart series, scoped by the
  * active view tab and bucketed by the granularity. This is the seam the toolbar
  * drives: change the filters/granularity → different `rows`/`g` → different
@@ -295,7 +337,11 @@ export function aggregate(
   rows: Transaction[],
   view: DashboardView,
   g: Granularity,
-): { metrics: MetricTileProps[]; charts: DashboardChart[] } {
+): {
+  metrics: MetricTileProps[]
+  charts: DashboardChart[]
+  matrix: DashboardMatrix
+} {
   const buckets = bucketsFor(g)
   const sumBy = (pred: (t: Transaction) => boolean) =>
     buckets.map((b) =>
@@ -423,5 +469,38 @@ export function aggregate(
             },
           ]
 
-  return { metrics, charts }
+  // The matrix (Line view) mirrors the metric scope: same rows the tiles show,
+  // but expanded per bucket. Numeric rows are CZK; the count row is integers.
+  const numericRow = (label: string, series: number[]) => ({
+    label,
+    cells: buckets.map((_, i) => fmtCZK(series[i] ?? 0)),
+    total: fmtCZK(sum(series)),
+  })
+  const countRow = (label: string, series: number[]) => ({
+    label,
+    cells: buckets.map((_, i) => String(series[i] ?? 0)),
+    total: String(rows.length),
+  })
+
+  const allRows = {
+    revenue: numericRow("Revenue", revenueSeries),
+    expenses: numericRow("Expenses", expenseSeries),
+    result: numericRow("Result", resultSeries),
+    transactions: countRow("Transactions", countSeries),
+  }
+  const matrixRows =
+    view === "revenue"
+      ? [allRows.revenue, allRows.transactions]
+      : view === "expenses"
+        ? [allRows.expenses, allRows.transactions]
+        : [
+            allRows.revenue,
+            allRows.expenses,
+            allRows.result,
+            allRows.transactions,
+          ]
+
+  const matrix: DashboardMatrix = { columns: buckets, rows: matrixRows }
+
+  return { metrics, charts, matrix }
 }

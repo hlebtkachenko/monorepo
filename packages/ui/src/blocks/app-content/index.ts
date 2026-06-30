@@ -20,17 +20,11 @@ export type {
   LaunchpadPage,
   LaunchpadSubpage,
 } from "./launchpad-grid"
-export { DashboardGrid, MetricTile, DashboardChartCard } from "./dashboard-grid"
+export { DashboardGrid, DashboardChartCard } from "./dashboard-grid"
 export type {
   DashboardGridProps,
   MetricTileProps,
   DashboardChartCardProps,
 } from "./dashboard-grid"
-export { RecordDetail } from "./record-detail"
-export type {
-  RecordDetailProps,
-  RecordGroup,
-  RecordField,
-} from "./record-detail"
 export { RecordWorkspace } from "./record-workspace"
 export type { RecordWorkspaceProps } from "./record-workspace"

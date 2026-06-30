@@ -10,7 +10,6 @@ import { ContentPanel } from "./content-panel"
 import { DashboardChartCard, DashboardGrid } from "./dashboard-grid"
 import { DetailField } from "./detail-field"
 import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
-import { RecordDetail } from "./record-detail"
 import { RecordWorkspace, type RecordWorkspaceProps } from "./record-workspace"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
@@ -334,30 +333,6 @@ describe("DashboardGrid", () => {
       </DashboardGrid>,
     )
     expect(screen.getByText("Revenue vs. expenses")).toBeInTheDocument()
-  })
-})
-
-describe("RecordDetail", () => {
-  it("renders the title, grouped fields, and aside", () => {
-    wrap(
-      <RecordDetail
-        title="ČEZ, a.s."
-        subtitle="FV-2026-0001"
-        groups={[
-          {
-            title: "Document",
-            fields: [{ label: "Number", value: "FV-2026-0001" }],
-          },
-        ]}
-        aside={<span>side meta</span>}
-      />,
-    )
-    expect(
-      screen.getByRole("heading", { name: "ČEZ, a.s." }),
-    ).toBeInTheDocument()
-    expect(screen.getByText("Document")).toBeInTheDocument()
-    expect(screen.getByText("Number")).toBeInTheDocument()
-    expect(screen.getByText("side meta")).toBeInTheDocument()
   })
 })
 

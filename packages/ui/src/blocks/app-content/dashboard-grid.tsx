@@ -74,7 +74,7 @@ export interface MetricTileProps {
 }
 
 /** One KPI tile — value, a delta + label line, and an optional sparkline. */
-export function MetricTile({ label, value, delta, series }: MetricTileProps) {
+function MetricTile({ label, value, delta, series }: MetricTileProps) {
   const icons = useIcons()
   const direction = delta?.direction ?? "flat"
   const DeltaIcon = delta ? icons[DELTA[direction].icon] : null

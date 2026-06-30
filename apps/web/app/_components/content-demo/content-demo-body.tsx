@@ -23,18 +23,13 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import {
   createColumnConfigHelper,
-  dateFilterFn,
-  multiOptionFilterFn,
-  numberFilterFn,
-  optionFilterFn,
-  textFilterFn,
   useFilterBar,
-  type ColumnDataType,
-  type FilterModel,
   type FiltersState,
 } from "@workspace/ui/components/filter-bar"
 import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
+
+import { applyFilterBar } from "../_shared/apply-filter-bar"
 
 import { invoiceColumns } from "./columns"
 import { ContentDemoStatusBar } from "./content-demo-statusbar"
@@ -101,52 +96,6 @@ const FB_CONFIG = [
     .icon(Calendar)
     .build(),
 ]
-
-/** The minimal column shape `applyFilters` needs (id + type + accessor). */
-type FilterColumnLike = {
-  id: string
-  type: ColumnDataType
-  accessor: (row: InvoiceRow) => unknown
-}
-
-/** Client-side application of the FilterBar's filter state to the rows. */
-function applyFilters(
-  rows: InvoiceRow[],
-  filters: FiltersState,
-  config: FilterColumnLike[],
-): InvoiceRow[] {
-  if (filters.length === 0) return rows
-  return rows.filter((row) =>
-    filters.every((filter) => {
-      const column = config.find((c) => c.id === filter.columnId)
-      if (!column) return true
-      const value = column.accessor(row)
-      switch (filter.type) {
-        case "number":
-          return numberFilterFn(
-            value as number,
-            filter as FilterModel<"number">,
-          )
-        case "date":
-          return dateFilterFn(value as Date, filter as FilterModel<"date">)
-        case "text":
-          return textFilterFn(value as string, filter as FilterModel<"text">)
-        case "option":
-          return optionFilterFn(
-            value as string,
-            filter as FilterModel<"option">,
-          )
-        case "multiOption":
-          return multiOptionFilterFn(
-            value as string[],
-            filter as FilterModel<"multiOption">,
-          )
-        default:
-          return true
-      }
-    }),
-  )
-}
 
 // Universal search normalization: drop diacritics, lowercase, and strip spaces
 // + `.` / `,` / `-` so "ČEZ", "cez", "C E Z", "12,400" / "12 400", and the
@@ -267,7 +216,8 @@ export function ContentDemoBody() {
   })
 
   const data = React.useMemo(
-    () => applySearch(applyFilters(tabFiltered, fbFilters, FB_CONFIG), search),
+    () =>
+      applySearch(applyFilterBar(tabFiltered, fbFilters, FB_CONFIG), search),
     [tabFiltered, fbFilters, search],
   )
 

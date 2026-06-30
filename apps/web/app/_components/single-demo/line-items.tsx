@@ -6,6 +6,8 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { useDataTable } from "@workspace/ui/components/data-table"
 
+import { formatNum } from "./data"
+
 /** One invoice line (položka). */
 export interface LineRow {
   id: string
@@ -20,7 +22,6 @@ export interface LineRow {
   total: number
 }
 
-const num = (n: number) => n.toLocaleString("cs-CZ")
 const right = (value: React.ReactNode, strong = false) => (
   <div
     className={
@@ -50,7 +51,7 @@ const lineColumns: ColumnDef<LineRow>[] = [
     accessorKey: "qty",
     header: "Qty",
     size: 72,
-    cell: ({ row }) => right(num(row.original.qty)),
+    cell: ({ row }) => right(formatNum(row.original.qty)),
     meta: { label: "Qty" },
   },
   { accessorKey: "unit", header: "Unit", size: 64, meta: { label: "Unit" } },
@@ -58,14 +59,14 @@ const lineColumns: ColumnDef<LineRow>[] = [
     accessorKey: "unitPrice",
     header: "Unit price",
     size: 110,
-    cell: ({ row }) => right(num(row.original.unitPrice)),
+    cell: ({ row }) => right(formatNum(row.original.unitPrice)),
     meta: { label: "Unit price" },
   },
   {
     accessorKey: "base",
     header: "Base",
     size: 110,
-    cell: ({ row }) => right(num(row.original.base)),
+    cell: ({ row }) => right(formatNum(row.original.base)),
     meta: { label: "Base" },
   },
   {
@@ -79,7 +80,7 @@ const lineColumns: ColumnDef<LineRow>[] = [
     accessorKey: "total",
     header: "Total",
     size: 120,
-    cell: ({ row }) => right(num(row.original.total), true),
+    cell: ({ row }) => right(formatNum(row.original.total), true),
     meta: { label: "Total" },
   },
 ]

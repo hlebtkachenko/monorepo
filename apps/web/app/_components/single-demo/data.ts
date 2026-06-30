@@ -23,6 +23,23 @@ export const SINGLE_TABS: { value: SingleView; label: string }[] = [
   { value: "attachments", label: "Attachments" },
 ]
 
+/** cs-CZ number with plain-space thousands separators (no narrow no-break). */
+export const formatNum = (n: number) =>
+  n.toLocaleString("cs-CZ").replace(/[\u00a0\u202f]/g, " ")
+
+export interface LedgerTotals {
+  base: number
+  vat: number
+  total: number
+}
+
+/** Sum a set of lines into base / VAT / total — the recap + preview share this. */
+export const ledgerTotals = (lines: LineRow[]): LedgerTotals => ({
+  base: lines.reduce((s, l) => s + l.base, 0),
+  vat: lines.reduce((s, l) => s + (l.total - l.base), 0),
+  total: lines.reduce((s, l) => s + l.total, 0),
+})
+
 export const LINE_ITEMS: LineRow[] = [
   {
     id: "l1",

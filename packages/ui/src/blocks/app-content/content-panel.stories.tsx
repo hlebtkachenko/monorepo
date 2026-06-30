@@ -16,7 +16,7 @@ import {
 } from "./dashboard-grid"
 import { DetailField } from "./detail-field"
 import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
-import { RecordDetail, type RecordGroup } from "./record-detail"
+import { RecordWorkspace } from "./record-workspace"
 
 /**
  * `ContentPanel` is the single frame for every content-panel body. It owns the
@@ -34,9 +34,9 @@ import { RecordDetail, type RecordGroup } from "./record-detail"
  *   - **Launchpad**  — a folder / overview page (cards → subpages). Prototype
  *                      block: `LaunchpadGrid`.
  *   - **Dashboard**  — analytics widgets + charts. Prototype block:
- *                      `DashboardGrid` (+ `MetricTile`, `DashboardChartCard`).
+ *                      `DashboardGrid` (+ `DashboardChartCard`).
  *   - **Single**     — one record on show (a document, a profile). Prototype
- *                      block: `RecordDetail`.
+ *                      block: `RecordWorkspace`.
  *
  * Copy the `Table` story's wiring to scaffold a real list page; the other three
  * archetypes are rough prototype blocks (#425) — presentational, mock-data
@@ -406,61 +406,41 @@ export const Dashboard: Story = {
 }
 
 // ── Variant: Single (prototype) ──────────────────────────────────────────────
-// One record on show: grouped label/value fields with a side meta column. The
-// prototype `RecordDetail` block fills the body.
-
-const RECORD_GROUPS: RecordGroup[] = [
-  {
-    title: "Document",
-    fields: [
-      { label: "Number", value: "FV-2026-0001" },
-      { label: "Type", value: "Received invoice" },
-      { label: "Issued", value: "12.06.2026" },
-      { label: "Due", value: "26.06.2026" },
-    ],
-  },
-  {
-    title: "Amounts",
-    fields: [
-      { label: "Base", value: <span className="tabular-nums">10 314 Kč</span> },
-      {
-        label: "VAT 21%",
-        value: <span className="tabular-nums">2 166 Kč</span>,
-      },
-      {
-        label: "Total",
-        value: <span className="tabular-nums">12 480 Kč</span>,
-      },
-      { label: "Currency", value: "CZK" },
-    ],
-  },
-]
+// One record on show as a workspace: a form section, an optional recap rail, and
+// a sticky footer. The `RecordWorkspace` block lays out the body; on a real page
+// the section tabs live in the content header and an optional line-items grid +
+// document preview fill the remaining slots.
 
 export const Single: Story = {
   render: () => (
-    <ContentPanel>
-      <RecordDetail
-        title="ČEZ, a.s."
-        subtitle="FV-2026-0001 · Received invoice"
-        status={
-          <Badge variant="secondary" className="h-5">
-            To match
-          </Badge>
-        }
-        actions={
-          <Button variant="outline" size="sm">
-            Edit
-          </Button>
-        }
-        groups={RECORD_GROUPS}
+    <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
+      <RecordWorkspace
         aside={
           <dl className="flex flex-col gap-3">
-            <DetailField label="Created" value="12.06.2026 09:14" />
-            <DetailField label="Source" value="E-mail import" />
-            <DetailField label="Attachments" value="2 files" />
+            <DetailField label="Supplier" value="ČEZ, a.s." />
+            <DetailField
+              label="Total"
+              value={<span className="tabular-nums">12 480 Kč</span>}
+            />
+            <DetailField label="Status" value="To match" />
           </dl>
         }
-      />
+        footer={
+          <>
+            <Button variant="ghost" size="sm">
+              Close
+            </Button>
+            <Button size="sm">Save</Button>
+          </>
+        }
+      >
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <DetailField label="Number" value="FV-2026-0001" />
+          <DetailField label="Type" value="Received invoice" />
+          <DetailField label="Issued" value="12.06.2026" />
+          <DetailField label="Due" value="26.06.2026" />
+        </dl>
+      </RecordWorkspace>
     </ContentPanel>
   ),
 }

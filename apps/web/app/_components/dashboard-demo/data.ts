@@ -240,13 +240,20 @@ const fmtCZK = (n: number) =>
     .toLocaleString("cs-CZ")
     .replace(/[\u00a0\u202f]/g, " ")} Kč`
 
+const monthIndex = (iso: string) => Number(iso.slice(5, 7)) - 1
+
 const bucketOf = (iso: string, g: Granularity): string => {
-  const m = Number(iso.slice(5, 7)) - 1
+  const m = monthIndex(iso)
   return g === "quarter" ? `Q${Math.floor(m / 3) + 1}` : (MONTHS[m] ?? "—")
 }
 
-const bucketsFor = (g: Granularity): string[] =>
-  g === "quarter" ? ["Q1", "Q2"] : MONTHS
+// Buckets are DERIVED from the full ledger (not hardcoded), so the axis stays
+// correct + stable for any date span; a filter just zeroes the empty buckets.
+const bucketsFor = (g: Granularity): string[] => {
+  const present = new Set(TRANSACTIONS.map((t) => bucketOf(t.date, g)))
+  const order = g === "quarter" ? ["Q1", "Q2", "Q3", "Q4"] : MONTHS
+  return order.filter((b) => present.has(b))
+}
 
 const deltaOf = (
   series: number[],
@@ -254,7 +261,16 @@ const deltaOf = (
   if (series.length < 2) return { label: "0%", direction: "flat" }
   const prev = series[series.length - 2]
   const last = series[series.length - 1]
-  if (!prev || last === undefined) return { label: "0%", direction: "flat" }
+  if (prev === undefined || last === undefined) {
+    return { label: "0%", direction: "flat" }
+  }
+  // A zero previous bucket isn't "no data" — a jump from 0 is real growth.
+  if (prev === 0) {
+    return last > 0
+      ? { label: "New", direction: "up" }
+      : { label: "0%", direction: "flat" }
+  }
+  // Note: for sign-changing series (Result) the magnitude is indicative only.
   const pct = ((last - prev) / Math.abs(prev)) * 100
   return {
     label: `${Math.abs(pct).toFixed(1)}%`,
@@ -303,39 +319,37 @@ export function aggregate(
 
   const sum = (s: number[]) => s.reduce((a, b) => a + b, 0)
 
-  const allMetrics: MetricTileProps[] = [
-    {
-      label: "Revenue",
-      value: fmtCZK(sum(revenueSeries)),
-      delta: deltaOf(revenueSeries),
-      series: revenueSeries,
-    },
-    {
-      label: "Expenses",
-      value: fmtCZK(sum(expenseSeries)),
-      delta: deltaOf(expenseSeries),
-      series: expenseSeries,
-    },
-    {
-      label: "Result",
-      value: fmtCZK(sum(resultSeries)),
-      delta: deltaOf(resultSeries),
-      series: resultSeries,
-    },
-    {
-      label: "Transactions",
-      value: String(rows.length),
-      delta: deltaOf(countSeries),
-      series: countSeries,
-    },
-  ]
+  const revenueTile: MetricTileProps = {
+    label: "Revenue",
+    value: fmtCZK(sum(revenueSeries)),
+    delta: deltaOf(revenueSeries),
+    series: revenueSeries,
+  }
+  const expensesTile: MetricTileProps = {
+    label: "Expenses",
+    value: fmtCZK(sum(expenseSeries)),
+    delta: deltaOf(expenseSeries),
+    series: expenseSeries,
+  }
+  const resultTile: MetricTileProps = {
+    label: "Result",
+    value: fmtCZK(sum(resultSeries)),
+    delta: deltaOf(resultSeries),
+    series: resultSeries,
+  }
+  const countTile: MetricTileProps = {
+    label: "Transactions",
+    value: String(rows.length),
+    delta: deltaOf(countSeries),
+    series: countSeries,
+  }
 
   const metrics =
     view === "revenue"
-      ? [allMetrics[0]!, allMetrics[3]!]
+      ? [revenueTile, countTile]
       : view === "expenses"
-        ? [allMetrics[1]!, allMetrics[3]!]
-        : allMetrics
+        ? [expensesTile, countTile]
+        : [revenueTile, expensesTile, resultTile, countTile]
 
   const byBucket = buckets.map((b, i) => ({
     bucket: b,
@@ -344,27 +358,70 @@ export function aggregate(
     result: cumResult[i] ?? 0,
   }))
 
-  const charts: DashboardChart[] = [
-    {
-      id: "rev-exp",
-      title: "Revenue vs. expenses",
-      chartType: "bar",
-      xKey: "bucket",
-      chartConfig: {
-        revenue: { label: "Revenue", color: "var(--chart-2)" },
-        expenses: { label: "Expenses", color: "var(--chart-1)" },
-      },
-      data: byBucket,
-    },
-    {
-      id: "result",
-      title: "Running result",
-      chartType: "line",
-      xKey: "bucket",
-      chartConfig: { result: { label: "Result", color: "var(--chart-3)" } },
-      data: byBucket,
-    },
-  ]
+  const REVENUE = { revenue: { label: "Revenue", color: "var(--chart-2)" } }
+  const EXPENSES = { expenses: { label: "Expenses", color: "var(--chart-1)" } }
+
+  // Charts are scoped to the active view so the header tabs change the body, not
+  // just the tiles.
+  const charts: DashboardChart[] =
+    view === "revenue"
+      ? [
+          {
+            id: "rev-trend",
+            title: "Revenue trend",
+            chartType: "line",
+            xKey: "bucket",
+            chartConfig: REVENUE,
+            data: byBucket,
+          },
+          {
+            id: "rev-bar",
+            title: "Revenue by period",
+            chartType: "bar",
+            xKey: "bucket",
+            chartConfig: REVENUE,
+            data: byBucket,
+          },
+        ]
+      : view === "expenses"
+        ? [
+            {
+              id: "exp-trend",
+              title: "Expenses trend",
+              chartType: "line",
+              xKey: "bucket",
+              chartConfig: EXPENSES,
+              data: byBucket,
+            },
+            {
+              id: "exp-bar",
+              title: "Expenses by period",
+              chartType: "bar",
+              xKey: "bucket",
+              chartConfig: EXPENSES,
+              data: byBucket,
+            },
+          ]
+        : [
+            {
+              id: "rev-exp",
+              title: "Revenue vs. expenses",
+              chartType: "bar",
+              xKey: "bucket",
+              chartConfig: { ...REVENUE, ...EXPENSES },
+              data: byBucket,
+            },
+            {
+              id: "result",
+              title: "Running result",
+              chartType: "line",
+              xKey: "bucket",
+              chartConfig: {
+                result: { label: "Result", color: "var(--chart-3)" },
+              },
+              data: byBucket,
+            },
+          ]
 
   return { metrics, charts }
 }

@@ -235,7 +235,7 @@ function DefaultCard({
       data-slot="launchpad-card"
       className="group/card relative min-h-36 items-center justify-center gap-2 p-4 text-center transition-colors hover:ring-foreground/20"
     >
-      {page.href && !hasSubs ? (
+      {page.href ? (
         <Link
           href={page.href}
           aria-label={page.title}
@@ -298,7 +298,7 @@ function FeatureCard({
       data-slot="launchpad-card"
       className="group/card relative min-h-36 flex-row items-center gap-4 p-4 transition-colors hover:ring-foreground/20 @md:col-span-2"
     >
-      {page.href && !hasSubs ? (
+      {page.href ? (
         <Link
           href={page.href}
           aria-label={page.title}

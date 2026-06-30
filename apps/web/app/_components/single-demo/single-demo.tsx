@@ -30,11 +30,17 @@ import { useIcons } from "@workspace/ui/icon-packs"
 import { OrgPageHeader } from "../org-page-header"
 import { DocumentPreview } from "./document-preview"
 import { LineItemsGrid } from "./line-items"
-import { ATTACHMENTS, LINE_ITEMS, SINGLE_TABS, type SingleView } from "./data"
+import {
+  ATTACHMENTS,
+  formatNum,
+  ledgerTotals,
+  LINE_ITEMS,
+  SINGLE_TABS,
+  type SingleView,
+} from "./data"
 
 const RECORD_NUMBER = "FV-2026-0001"
 const SUPPLIER = "ČEZ, a.s."
-const num = (n: number) => n.toLocaleString("cs-CZ")
 
 function FormField({
   id,
@@ -248,9 +254,7 @@ function AttachmentsSection() {
 
 /** VAT / totals recap rail — reconciles with the line-items grid. */
 function RecapAside() {
-  const base = LINE_ITEMS.reduce((s, l) => s + l.base, 0)
-  const vat = LINE_ITEMS.reduce((s, l) => s + (l.total - l.base), 0)
-  const total = LINE_ITEMS.reduce((s, l) => s + l.total, 0)
+  const { base, vat, total } = ledgerTotals(LINE_ITEMS)
   return (
     <Card className="gap-4 p-4">
       <div className="space-y-0.5">
@@ -262,15 +266,15 @@ function RecapAside() {
       <dl className="space-y-2 text-sm">
         <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">Base</dt>
-          <dd className="tabular-nums">{num(base)} Kč</dd>
+          <dd className="tabular-nums">{formatNum(base)} Kč</dd>
         </div>
         <div className="flex justify-between gap-2">
           <dt className="text-muted-foreground">VAT</dt>
-          <dd className="tabular-nums">{num(vat)} Kč</dd>
+          <dd className="tabular-nums">{formatNum(vat)} Kč</dd>
         </div>
         <div className="flex justify-between gap-2 border-t border-border pt-2 font-medium">
           <dt>Total</dt>
-          <dd className="tabular-nums">{num(total)} Kč</dd>
+          <dd className="tabular-nums">{formatNum(total)} Kč</dd>
         </div>
       </dl>
     </Card>

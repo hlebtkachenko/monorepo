@@ -15,14 +15,9 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   ActiveFilters,
   createColumnConfigHelper,
-  dateFilterFn,
   FilterActions,
   FilterSelector,
-  numberFilterFn,
-  optionFilterFn,
-  multiOptionFilterFn,
   useFilterBar,
-  type FilterModel,
   type FiltersState,
 } from "@workspace/ui/components/filter-bar"
 import { toast } from "@workspace/ui/components/sonner"
@@ -31,6 +26,7 @@ import {
   ToggleGroupItem,
 } from "@workspace/ui/components/toggle-group"
 
+import { applyFilterBar } from "../_shared/apply-filter-bar"
 import { OrgPageHeader } from "../org-page-header"
 import {
   aggregate,
@@ -85,49 +81,6 @@ const FB_CONFIG = [
     .build(),
 ]
 
-type FilterColumnLike = {
-  id: string
-  type: string
-  accessor: (t: Transaction) => unknown
-}
-
-/** Client-side application of the FilterBar state to the ledger. */
-function applyFilters(
-  rows: Transaction[],
-  filters: FiltersState,
-  config: FilterColumnLike[],
-): Transaction[] {
-  if (filters.length === 0) return rows
-  return rows.filter((row) =>
-    filters.every((filter) => {
-      const column = config.find((c) => c.id === filter.columnId)
-      if (!column) return true
-      const value = column.accessor(row)
-      switch (filter.type) {
-        case "number":
-          return numberFilterFn(
-            value as number,
-            filter as FilterModel<"number">,
-          )
-        case "date":
-          return dateFilterFn(value as Date, filter as FilterModel<"date">)
-        case "option":
-          return optionFilterFn(
-            value as string,
-            filter as FilterModel<"option">,
-          )
-        case "multiOption":
-          return multiOptionFilterFn(
-            value as string[],
-            filter as FilterModel<"multiOption">,
-          )
-        default:
-          return true
-      }
-    }),
-  )
-}
-
 /**
  * Dashboard archetype demo (#425). A real analytics workbench: the content
  * header carries scoped view tabs; the toolbar carries a working FilterBar
@@ -158,7 +111,7 @@ export function DashboardDemo() {
   })
 
   const filtered = React.useMemo(
-    () => applyFilters(ledger, filters, FB_CONFIG),
+    () => applyFilterBar(ledger, filters, FB_CONFIG),
     [ledger, filters],
   )
   const { metrics, charts } = React.useMemo(

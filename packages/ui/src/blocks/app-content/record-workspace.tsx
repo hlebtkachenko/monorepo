@@ -72,7 +72,11 @@ export function RecordWorkspace({
             )}
           >
             <div className="min-w-0">{children}</div>
-            {aside != null ? <aside className="min-w-0">{aside}</aside> : null}
+            {aside != null ? (
+              <aside aria-label="Record summary" className="min-w-0">
+                {aside}
+              </aside>
+            ) : null}
           </div>
         </div>
 

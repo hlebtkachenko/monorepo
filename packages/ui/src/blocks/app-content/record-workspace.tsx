@@ -72,17 +72,18 @@ export function RecordWorkspace({
       >
         <div
           className={cn(
-            "mx-auto flex w-full flex-col gap-6 p-4",
+            "@container mx-auto flex w-full flex-col gap-6 p-4",
             MAX_W[maxWidth],
           )}
         >
           <div
             className={cn(
               "grid gap-6",
-              // Side-by-side only when there's genuinely room — with the
-              // inspector docked the body is narrower, so the recap rail stacks
-              // under the form below `xl` instead of crushing the field grid.
-              aside != null && "xl:grid-cols-[minmax(0,1fr)_18rem]",
+              // Side-by-side only when there's genuinely room. A CONTAINER query
+              // (not viewport) so that with the inspector docked — which narrows
+              // the panel — the recap rail stacks under the form instead of
+              // crushing the field grid.
+              aside != null && "@3xl:grid-cols-[minmax(0,1fr)_18rem]",
             )}
           >
             <div className="min-w-0">{children}</div>

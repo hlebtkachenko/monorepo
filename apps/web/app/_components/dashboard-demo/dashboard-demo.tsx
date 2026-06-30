@@ -31,7 +31,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import {
@@ -174,7 +173,6 @@ export function DashboardDemo() {
   const [hiddenWidgets, setHiddenWidgets] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   )
-  const [ledger, setLedger] = React.useState<Transaction[]>(TRANSACTIONS)
 
   const granularity = granularityOf(timeframe)
 
@@ -182,7 +180,9 @@ export function DashboardDemo() {
     hidden: hiddenTabs,
     toggle: toggleTab,
     visible: visibleTabs,
-  } = useTabVisibility(DASHBOARD_TABS as ManageTab[])
+    activeValue,
+  } = useTabVisibility(DASHBOARD_TABS as ManageTab[], view)
+  const activeView = (activeValue ?? "overview") as DashboardView
 
   const {
     columns: filterColumns,
@@ -190,25 +190,20 @@ export function DashboardDemo() {
     strategy: filterStrategy,
   } = useFilterBar({
     strategy: "client" as const,
-    data: ledger,
+    data: TRANSACTIONS,
     columnsConfig: FB_CONFIG,
     filters,
     onFiltersChange: setFilters,
   })
 
   const filtered = React.useMemo(
-    () => applyFilterBar(ledger, filters, FB_CONFIG),
-    [ledger, filters],
+    () => applyFilterBar(TRANSACTIONS, filters, FB_CONFIG),
+    [filters],
   )
   const { metrics, charts, matrix } = React.useMemo(
-    () => aggregate(filtered, view, granularity),
-    [filtered, view, granularity],
+    () => aggregate(filtered, activeView, granularity),
+    [filtered, activeView, granularity],
   )
-
-  const reload = React.useCallback(() => {
-    setLedger(TRANSACTIONS.map((t) => ({ ...t })))
-    toast.success("Dashboard refreshed")
-  }, [])
 
   const toggleWidget = React.useCallback((id: string) => {
     setHiddenWidgets((prev) => {
@@ -366,7 +361,7 @@ export function DashboardDemo() {
         <ContentHeader
           title="Dashboard"
           tabs={tabs}
-          value={view}
+          value={activeView}
           onValueChange={(value) => setView(value as DashboardView)}
           manageTabs={
             <ManageTabsMenu

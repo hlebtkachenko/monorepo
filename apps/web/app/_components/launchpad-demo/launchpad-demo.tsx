@@ -66,7 +66,11 @@ export function LaunchpadDemo() {
   )
 
   const counts = getLaunchpadCounts(sections)
-  const { hidden, toggle, visible } = useTabVisibility([...TAB_DEFS])
+  const { hidden, toggle, visible, activeValue } = useTabVisibility(
+    [...TAB_DEFS],
+    view,
+  )
+  const activeView = (activeValue ?? "all") as LaunchpadView
   const badges: Record<string, number> = {
     all: counts.all,
     followed: counts.followed,
@@ -84,7 +88,7 @@ export function LaunchpadDemo() {
         <ContentHeader
           title="Overview"
           tabs={tabs}
-          value={view}
+          value={activeView}
           onValueChange={(value) => setView(value as LaunchpadView)}
           manageTabs={
             <ManageTabsMenu
@@ -99,7 +103,7 @@ export function LaunchpadDemo() {
       <ContentPanel>
         <LaunchpadGrid
           sections={sections}
-          view={view}
+          view={activeView}
           onToggleFollow={toggleFollow}
         />
       </ContentPanel>

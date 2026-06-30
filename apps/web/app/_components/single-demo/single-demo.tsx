@@ -41,6 +41,7 @@ import {
   ATTACHMENTS,
   formatNum,
   ledgerTotals,
+  type LedgerTotals,
   LINE_ITEMS,
   SINGLE_TABS,
   type SingleView,
@@ -85,15 +86,13 @@ function FormField({
   id,
   label,
   children,
-  className,
 }: {
   id: string
   label: string
   children: React.ReactNode
-  className?: string
 }) {
   return (
-    <Field className={className}>
+    <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       {children}
     </Field>
@@ -323,8 +322,7 @@ function AttachmentsSection() {
 }
 
 /** VAT / totals recap rail — reconciles with the line-items grid. */
-function RecapAside() {
-  const { base, vat, total } = ledgerTotals(LINE_ITEMS)
+function RecapAside({ base, vat, total }: LedgerTotals) {
   return (
     <Card className="gap-4 p-4">
       <div className="space-y-0.5">
@@ -406,15 +404,14 @@ export function SingleDemo() {
   const [view, setView] = React.useState<SingleView>("header")
 
   // Header extras — the same cluster the Table demo carries: manage-tabs (⋯),
-  // favorite + config, and tab show/hide.
-  const { hidden, toggle, visible } = useTabVisibility(SINGLE_TABS)
-
-  // If the active tab gets hidden, fall back to the first still-visible one.
-  React.useEffect(() => {
-    if (!visible.some((t) => t.value === view) && visible[0]) {
-      setView(visible[0].value as SingleView)
-    }
-  }, [visible, view])
+  // favorite + config, and tab show/hide. `activeView` is the visible-clamped
+  // active tab (hiding the active tab falls back to the first visible one,
+  // derived in render — no effect, no header/body mismatch).
+  const { hidden, toggle, visible, activeValue } = useTabVisibility(
+    SINGLE_TABS,
+    view,
+  )
+  const activeView = (activeValue ?? "header") as SingleView
 
   const tabs: ContentTab[] = visible.map((t) => ({
     value: t.value,
@@ -422,25 +419,25 @@ export function SingleDemo() {
   }))
 
   const sectionContent =
-    view === "header" ? (
+    activeView === "header" ? (
       <HeaderSection />
-    ) : view === "accounting" ? (
+    ) : activeView === "accounting" ? (
       <AccountingSection />
-    ) : view === "other" ? (
+    ) : activeView === "other" ? (
       <OtherSection />
-    ) : view === "payment" ? (
+    ) : activeView === "payment" ? (
       <PaymentSection />
     ) : (
       <AttachmentsSection />
     )
 
-  const showLines = view === "header"
-  const showAside = view === "header" || view === "payment"
+  const showLines = activeView === "header"
+  const showAside = activeView === "header" || activeView === "payment"
 
   const sectionLabel =
-    SINGLE_TABS.find((t) => t.value === view)?.label ?? "Section"
+    SINGLE_TABS.find((t) => t.value === activeView)?.label ?? "Section"
 
-  const { base, vat, total } = ledgerTotals(LINE_ITEMS)
+  const totals = React.useMemo(() => ledgerTotals(LINE_ITEMS), [])
 
   const toolbar = (
     <ContentToolbar
@@ -483,19 +480,19 @@ export function SingleDemo() {
           <span>
             <span className="text-muted-foreground">Base</span>{" "}
             <span className="font-medium text-foreground">
-              {formatNum(base)} Kč
+              {formatNum(totals.base)} Kč
             </span>
           </span>
           <span>
             <span className="text-muted-foreground">VAT</span>{" "}
             <span className="font-medium text-foreground">
-              {formatNum(vat)} Kč
+              {formatNum(totals.vat)} Kč
             </span>
           </span>
           <span>
             <span className="text-muted-foreground">Total</span>{" "}
             <span className="font-semibold text-foreground">
-              {formatNum(total)} Kč
+              {formatNum(totals.total)} Kč
             </span>
           </span>
         </div>
@@ -523,7 +520,7 @@ export function SingleDemo() {
           }
           title={RECORD_NUMBER}
           tabs={tabs}
-          value={view}
+          value={activeView}
           onValueChange={(value) => setView(value as SingleView)}
           manageTabs={
             <ManageTabsMenu
@@ -568,7 +565,7 @@ export function SingleDemo() {
         inspectorTitle="Document preview"
       >
         <RecordWorkspace
-          aside={showAside ? <RecapAside /> : undefined}
+          aside={showAside ? <RecapAside {...totals} /> : undefined}
           lineItems={showLines ? <LineItems /> : undefined}
           footer={
             <>

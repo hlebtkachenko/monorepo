@@ -61,8 +61,13 @@ export function PageHeaderActions() {
   )
 }
 
-/** Controlled tab show/hide state for the manage-tabs (⋯) menu. */
-export function useTabVisibility(tabs: ManageTab[]) {
+/**
+ * Controlled tab show/hide state for the manage-tabs (⋯) menu. Pass the current
+ * active tab value to get back an `activeValue` clamped to the visible set — so
+ * hiding the active tab cleanly falls back to the first visible one, derived in
+ * render (no effect, no one-frame mismatch between the header and the body).
+ */
+export function useTabVisibility(tabs: ManageTab[], active?: string) {
   const [hidden, setHidden] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -75,7 +80,11 @@ export function useTabVisibility(tabs: ManageTab[]) {
     })
   }, [])
   const visible = tabs.filter((t) => !hidden.has(t.value))
-  return { hidden, toggle, visible }
+  const activeValue =
+    active != null && visible.some((t) => t.value === active)
+      ? active
+      : visible[0]?.value
+  return { hidden, toggle, visible, activeValue }
 }
 
 /**

@@ -59,10 +59,35 @@ export function orgBottomNav(orgSlug: string): BottomNavItem[] {
   ]
 }
 
-// The org index ("Company") has no module folder, so its trivial tree lives
-// here. Every actual module folder owns a co-located `<module>/nav.ts`.
+// The org index ("Company") has no module folder, so its tree lives here; the
+// routes (inbox/tasks/profile/members/services/onboarding) are folders directly
+// under `[orgSlug]/`. Every actual module folder owns a co-located
+// `<module>/nav.ts`. `base` = `/${orgSlug}`.
 function companyNav(base: string): SidebarNavEntry[] {
-  return [{ label: "Overview", href: base, icon: "Goal" }]
+  return [
+    { label: "Overview", href: base, icon: "Goal" },
+    // Inbox links to the workspace-tier queue; the local stub route redirects.
+    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox" },
+    { label: "Tasks", href: `${base}/tasks`, icon: "ListTodo" },
+    {
+      label: "Profile",
+      pages: [
+        { label: "Company card", href: `${base}/profile`, icon: "Building2" },
+        { label: "Members", href: `${base}/members`, icon: "Users" },
+      ],
+    },
+    {
+      label: "Engagement",
+      pages: [
+        { label: "Services", href: `${base}/services`, icon: "Blocks" },
+        {
+          label: "Onboarding",
+          href: `${base}/onboarding`,
+          icon: "GraduationCap",
+        },
+      ],
+    },
+  ]
 }
 
 /**

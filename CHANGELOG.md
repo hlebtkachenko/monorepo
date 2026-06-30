@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- **infra**: redesigned the cold-pause "app is asleep" edge page (`infra/cloudflare-sleeping`) onto the in-app auth split-shell — light/dark via `prefers-color-scheme`, adaptive brand logo, a corporate watercolor aside, a header return-link + single "Try again" action, and a contact-support line. Stays self-contained static HTML (zero network deps; watercolor inlined as a base64 webp). (#426)
+
 ## [v0.8.1] — 2026-06-29
 
 Patch release: cold-start deploy reliability — resilient RDS resume + the per-env `Audit` stack drop. No app-surface change.

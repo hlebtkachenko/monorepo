@@ -11,6 +11,7 @@ import { DashboardChartCard, DashboardGrid } from "./dashboard-grid"
 import { DetailField } from "./detail-field"
 import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
 import { RecordDetail } from "./record-detail"
+import { RecordWorkspace, type RecordWorkspaceProps } from "./record-workspace"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
@@ -357,5 +358,39 @@ describe("RecordDetail", () => {
     expect(screen.getByText("Document")).toBeInTheDocument()
     expect(screen.getByText("Number")).toBeInTheDocument()
     expect(screen.getByText("side meta")).toBeInTheDocument()
+  })
+})
+
+describe("RecordWorkspace", () => {
+  it("renders the active section, plus optional aside / line-items / footer", () => {
+    const props: RecordWorkspaceProps = {
+      children: <div>section body</div>,
+      aside: <div>recap</div>,
+      lineItems: <div>line items</div>,
+      footer: <button type="button">Save</button>,
+    }
+    const { container } = wrap(<RecordWorkspace {...props} />)
+    expect(screen.getByText("section body")).toBeInTheDocument()
+    expect(screen.getByText("recap")).toBeInTheDocument()
+    expect(screen.getByText("line items")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-slot="record-workspace-lines"]'),
+    ).toBeInTheDocument()
+  })
+
+  it("omits the optional slots when not provided", () => {
+    const { container } = wrap(
+      <RecordWorkspace>
+        <div>just a body</div>
+      </RecordWorkspace>,
+    )
+    expect(screen.getByText("just a body")).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-slot="record-workspace-lines"]'),
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-slot="record-workspace-footer"]'),
+    ).toBeNull()
   })
 })

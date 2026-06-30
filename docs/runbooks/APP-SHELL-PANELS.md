@@ -211,25 +211,28 @@ so a "variant" is just which slots a page fills — not a different component. F
 named archetypes cover every page; pick one when scaffolding. Live examples:
 `packages/ui/src/blocks/app-content/content-panel.stories.tsx` (one story each).
 
-| Variant       | Slots filled                                                | Use for                                                          |
-| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today. |
-| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.       |
-| **Launchpad** | body only (stub)                                            | Folder / overview pages — a grid of cards to subpages. _Empty._  |
-| **Dashboard** | body only (stub)                                            | Analytics — metric tiles, charts, period controls. _Empty._      |
-| **Single**    | body only (stub)                                            | One record on show (a document, a profile). _Empty._             |
+| Variant       | Slots filled                                                | Use for                                                                                                                |
+| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today.                                                       |
+| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.                                                             |
+| **Launchpad** | body only (`LaunchpadGrid`)                                 | Folder / overview pages — a grid of cards to subpages. _Prototype (#425)._                                             |
+| **Dashboard** | body only (`DashboardGrid`)                                 | Analytics — KPI tiles, chart cards, period control. _Prototype (#425)._                                                |
+| **Single**    | body only (`RecordWorkspace` / `RecordDetail`)              | One record on show — a document workspace (sections + line items + preview) or a read-only detail. _Prototype (#425)._ |
 
 **Scaffolding a Table page** (the common case): mount `ContentPanel` with a
 `ContentToolbar` in `toolbar`, the body in `children` (`bodyClassName="p-0"` so a
 table fills edge-to-edge), and a status bar in `statusBar`. Add `inspector*` for a
 detail view and `actionBar` for bulk selection. Copy the `Table` story's wiring.
 
-**Promotion rule:** Launchpad / Dashboard / Single are documented placeholders, not
-shipped components — growing into `children` is correct for now. Promote one to a
-real `<ContentPanel>`-composing component **only** when a real page proves it needs
-shared body machinery the frame shouldn't own (e.g. a launchpad card-grid with its
-own selection model). Don't pre-build the empty ones; don't add a `variant` prop
-(it would only duplicate `bodyClassName` and bake in undesigned layouts).
+**Prototype blocks (#425):** Launchpad / Dashboard / Single now ship as **rough,
+presentational prototype blocks** in `packages/ui/src/blocks/app-content`
+(`LaunchpadGrid`, `DashboardGrid` + `MetricTile` + `DashboardChartCard`,
+`RecordDetail`). They take data via props and drop straight into a `ContentPanel`'s
+`children`; mock-data examples are the matching stories in `content-panel.stories.tsx`.
+They are scaffolding, not final design — refine a block (or fold it into a
+`<ContentPanel>`-composing component) when a real page proves it needs shared body
+machinery the frame shouldn't own. `ContentPanel` itself stays one frame with **no
+`variant` prop** — a "variant" is still just which slots a page fills.
 
 ### Reuse — do NOT reinvent these
 

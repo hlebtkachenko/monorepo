@@ -1231,6 +1231,31 @@ BEGIN
 END
 $$;
 
+-- Review fix v2 (MAJOR, found by the behavioral suite): the REVOKE above is NOT sufficient —
+-- app_user INHERITS app_admin's table DML (0002 GRANTs app_admin TO app_user for the elevation
+-- path), so has_table_privilege('app_user','open_item','UPDATE') stays true and a same-org
+-- app_user could UPDATE settled_amount directly, bypassing the settlement ledger. Unlike the
+-- append-only tables (whose BEFORE trigger is the authoritative block), open_item is mutable, so
+-- it needs its OWN authoritative block. This BEFORE trigger rejects any direct UPDATE/DELETE by
+-- the runtime role; the SECURITY DEFINER maintenance trigger passes because under it current_user
+-- is app_owner (the function owner), the same privileged-role test the reopen gate uses.
+CREATE OR REPLACE FUNCTION app_block_open_item_direct_write()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF current_user NOT IN ('app_owner', 'app_admin') THEN
+    RAISE EXCEPTION
+      'open_item is maintained by the settlement ledger: % blocked. settled_amount moves only via open_item_settlement (the SECURITY DEFINER maintenance trigger).', TG_OP
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+ALTER FUNCTION app_block_open_item_direct_write() OWNER TO app_owner;
+CREATE TRIGGER open_item_block_direct_update BEFORE UPDATE ON open_item
+  FOR EACH ROW EXECUTE FUNCTION app_block_open_item_direct_write();
+CREATE TRIGGER open_item_block_direct_delete BEFORE DELETE ON open_item
+  FOR EACH ROW EXECUTE FUNCTION app_block_open_item_direct_write();
+
 -- =============================================================================
 -- 6. Closed-period + date∈period guard (R12 §17 + datum membership)
 -- =============================================================================

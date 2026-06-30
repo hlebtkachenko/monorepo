@@ -82,13 +82,13 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           href: `${base}/vat-ledger`,
           icon: "FileSpreadsheet",
           subpages: [
-            { label: "Input", href: `${base}/vat-ledger/input` },
-            { label: "Output", href: `${base}/vat-ledger/output` },
+            { label: "Input VAT", href: `${base}/vat-ledger/input` },
+            { label: "Output VAT", href: `${base}/vat-ledger/output` },
             {
-              label: "Reverse-charge / PDP",
+              label: "Reverse charge",
               href: `${base}/vat-ledger/reverse-charge`,
             },
-            { label: "Členění", href: `${base}/vat-ledger/breakdown` },
+            { label: "Breakdown", href: `${base}/vat-ledger/breakdown` },
           ],
         },
       ],

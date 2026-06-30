@@ -22,8 +22,8 @@ export function hrNav(base: string): SidebarNavEntry[] {
           href: `${base}/agreements`,
           icon: "FileText",
           subpages: [
-            { label: "DPP", href: `${base}/agreements/dpp` },
-            { label: "DPC", href: `${base}/agreements/dpc` },
+            { label: "Task agreement", href: `${base}/agreements/dpp` },
+            { label: "Activity agreement", href: `${base}/agreements/dpc` },
           ],
         },
       ],
@@ -48,7 +48,7 @@ export function hrNav(base: string): SidebarNavEntry[] {
           icon: "CalendarIcon",
         },
         {
-          label: "eNeschopenky / eDávky",
+          label: "Sickness e-filing",
           href: `${base}/e-davky`,
           icon: "Activity",
         },
@@ -58,18 +58,24 @@ export function hrNav(base: string): SidebarNavEntry[] {
           icon: "FileSpreadsheet",
           subpages: [
             {
-              label: "Vyúčtování ZČ",
+              label: "Income-tax reconciliation",
               href: `${base}/payroll-reports/income-tax`,
             },
             {
-              label: "Vyúčtování srážková",
+              label: "Withholding-tax reconciliation",
               href: `${base}/payroll-reports/withholding`,
             },
-            { label: "Zdravotní", href: `${base}/payroll-reports/health` },
-            { label: "Sociální", href: `${base}/payroll-reports/social` },
-            { label: "Daňové", href: `${base}/payroll-reports/tax` },
             {
-              label: "Náhrady nemoc",
+              label: "Health insurance",
+              href: `${base}/payroll-reports/health`,
+            },
+            {
+              label: "Social insurance",
+              href: `${base}/payroll-reports/social`,
+            },
+            { label: "Tax statements", href: `${base}/payroll-reports/tax` },
+            {
+              label: "Sick-pay",
               href: `${base}/payroll-reports/sick-pay`,
             },
           ],
@@ -79,7 +85,7 @@ export function hrNav(base: string): SidebarNavEntry[] {
           href: `${base}/payroll-sheets`,
           icon: "ClipboardIcon",
         },
-        { label: "ELDP", href: `${base}/eldp`, icon: "IdCard" },
+        { label: "Pension record", href: `${base}/eldp`, icon: "IdCard" },
       ],
     },
     {

@@ -22,9 +22,9 @@ export function closingNav(base: string): SidebarNavEntry[] {
           href: `${base}/vat`,
           icon: "ReceiptEuro",
           subpages: [
-            { label: "DAP", href: `${base}/vat/dap` },
-            { label: "KH", href: `${base}/vat/kh` },
-            { label: "SH", href: `${base}/vat/sh` },
+            { label: "VAT return", href: `${base}/vat/dap` },
+            { label: "Control statement", href: `${base}/vat/kh` },
+            { label: "EC Sales List", href: `${base}/vat/sh` },
             { label: "OSS", href: `${base}/vat/oss` },
             { label: "IOSS", href: `${base}/vat/ioss` },
           ],
@@ -35,10 +35,10 @@ export function closingNav(base: string): SidebarNavEntry[] {
           href: `${base}/payroll`,
           icon: "Users",
           subpages: [
-            { label: "JMHZ", href: `${base}/payroll/jmhz` },
-            { label: "Social (SP)", href: `${base}/payroll/social` },
-            { label: "Health (ZP)", href: `${base}/payroll/health` },
-            { label: "Withholding", href: `${base}/payroll/withholding` },
+            { label: "Monthly employer report", href: `${base}/payroll/jmhz` },
+            { label: "Social insurance", href: `${base}/payroll/social` },
+            { label: "Health insurance", href: `${base}/payroll/health` },
+            { label: "Withholding tax", href: `${base}/payroll/withholding` },
           ],
         },
         {
@@ -46,8 +46,8 @@ export function closingNav(base: string): SidebarNavEntry[] {
           href: `${base}/income-tax`,
           icon: "Calculator",
           subpages: [
-            { label: "DPPO", href: `${base}/income-tax/dppo` },
-            { label: "DPFO", href: `${base}/income-tax/dpfo` },
+            { label: "Corporation tax", href: `${base}/income-tax/dppo` },
+            { label: "Personal income tax", href: `${base}/income-tax/dpfo` },
             { label: "Advances", href: `${base}/income-tax/advances` },
           ],
         },

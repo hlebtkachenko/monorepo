@@ -72,7 +72,7 @@ export function documentsNav(base: string): SidebarNavEntry[] {
           subpages: [
             { label: "Internal", href: `${base}/internal-documents/internal` },
             {
-              label: "Customs & JSD",
+              label: "Customs declaration",
               href: `${base}/internal-documents/customs`,
             },
           ],

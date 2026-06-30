@@ -1,7 +1,7 @@
 import { ModulePage } from "../../../_components/module-page"
 
-export const metadata = { title: "CZ-NACE" }
+export const metadata = { title: "NACE codes" }
 
 export default function Page() {
-  return <ModulePage title="CZ-NACE" />
+  return <ModulePage title="NACE codes" />
 }

@@ -1,7 +1,7 @@
 import { ModulePage } from "../../../_components/module-page"
 
-export const metadata = { title: "Social (SP)" }
+export const metadata = { title: "Social insurance" }
 
 export default function Page() {
-  return <ModulePage title="Social (SP)" />
+  return <ModulePage title="Social insurance" />
 }

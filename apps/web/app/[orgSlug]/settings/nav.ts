@@ -12,7 +12,7 @@ export function settingsNav(base: string): SidebarNavEntry[] {
   return [
     { label: "Overview", href: base, icon: "Settings" },
     {
-      label: "Organization",
+      label: "Organisation",
       pages: [
         { label: "Identity", href: `${base}/identity`, icon: "IdCard" },
         {
@@ -47,7 +47,7 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           icon: "Globe",
           subpages: [
             { label: "Method", href: `${base}/fx-rates/method` },
-            { label: "ČNB feed", href: `${base}/fx-rates/feed` },
+            { label: "Central bank feed", href: `${base}/fx-rates/feed` },
           ],
         },
         {
@@ -55,7 +55,7 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           href: `${base}/dimensions`,
           icon: "Shapes",
           subpages: [
-            { label: "Cost centers", href: `${base}/dimensions/cost-centers` },
+            { label: "Cost centres", href: `${base}/dimensions/cost-centers` },
             { label: "Jobs", href: `${base}/dimensions/jobs` },
             { label: "Activities", href: `${base}/dimensions/activities` },
           ],
@@ -91,7 +91,7 @@ export function settingsNav(base: string): SidebarNavEntry[] {
               label: "Depreciation groups",
               href: `${base}/law-tables/depreciation-groups`,
             },
-            { label: "CZ-NACE", href: `${base}/law-tables/cz-nace` },
+            { label: "NACE codes", href: `${base}/law-tables/cz-nace` },
             {
               label: "Account groups",
               href: `${base}/law-tables/account-groups`,
@@ -103,7 +103,10 @@ export function settingsNav(base: string): SidebarNavEntry[] {
             { label: "Legal forms", href: `${base}/law-tables/legal-forms` },
             { label: "Regimes", href: `${base}/law-tables/regimes` },
             { label: "Size categories", href: `${base}/law-tables/sizes` },
-            { label: "Countries & PSČ", href: `${base}/law-tables/countries` },
+            {
+              label: "Countries & postcodes",
+              href: `${base}/law-tables/countries`,
+            },
           ],
         },
       ],

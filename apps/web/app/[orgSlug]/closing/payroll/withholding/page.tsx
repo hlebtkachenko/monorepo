@@ -1,7 +1,7 @@
 import { ModulePage } from "../../../_components/module-page"
 
-export const metadata = { title: "Withholding" }
+export const metadata = { title: "Withholding tax" }
 
 export default function Page() {
-  return <ModulePage title="Withholding" />
+  return <ModulePage title="Withholding tax" />
 }

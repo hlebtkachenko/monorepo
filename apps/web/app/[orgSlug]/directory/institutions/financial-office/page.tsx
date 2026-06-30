@@ -1,7 +1,7 @@
 import { ModulePage } from "../../../_components/module-page"
 
-export const metadata = { title: "Finanční úřad" }
+export const metadata = { title: "Tax office" }
 
 export default function Page() {
-  return <ModulePage title="Finanční úřad" />
+  return <ModulePage title="Tax office" />
 }

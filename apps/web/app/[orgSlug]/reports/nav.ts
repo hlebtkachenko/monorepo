@@ -64,18 +64,18 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           ],
         },
         {
-          label: "Controlling",
+          label: "Management reporting",
           href: `${base}/controlling`,
           icon: "Shapes",
           subpages: [
             {
-              label: "By cost center",
+              label: "By cost centre",
               href: `${base}/controlling/cost-centers`,
             },
             { label: "By job", href: `${base}/controlling/jobs` },
             { label: "By activity", href: `${base}/controlling/activities` },
             {
-              label: "Job evaluation",
+              label: "Job profitability",
               href: `${base}/controlling/job-evaluation`,
             },
           ],
@@ -85,7 +85,11 @@ export function reportsNav(base: string): SidebarNavEntry[] {
     {
       label: "Balances",
       pages: [
-        { label: "Saldo per partner", href: `${base}/saldo`, icon: "BookUser" },
+        {
+          label: "Open items by partner",
+          href: `${base}/saldo`,
+          icon: "BookUser",
+        },
         {
           label: "Account balances",
           href: `${base}/account-balances`,
@@ -97,7 +101,7 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           icon: "ArrowUpDown",
         },
         {
-          label: "Account inventory",
+          label: "Account verification",
           href: `${base}/account-inventory`,
           icon: "ClipboardIcon",
         },

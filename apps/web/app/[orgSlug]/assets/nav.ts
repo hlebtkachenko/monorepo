@@ -22,11 +22,11 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           icon: "Building2",
           subpages: [
             {
-              label: "Intangible (DNM)",
+              label: "Intangible assets",
               href: `${base}/fixed-assets/intangible`,
             },
-            { label: "Tangible (DHM)", href: `${base}/fixed-assets/tangible` },
-            { label: "Land & art", href: `${base}/fixed-assets/land-art` },
+            { label: "Tangible assets", href: `${base}/fixed-assets/tangible` },
+            { label: "Land & artwork", href: `${base}/fixed-assets/land-art` },
           ],
         },
         { label: "Small assets", href: `${base}/small-assets`, icon: "Box" },
@@ -35,7 +35,7 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           href: `${base}/acquisitions`,
           icon: "PlusCircle",
           subpages: [
-            { label: "WIP / pořízení", href: `${base}/acquisitions/wip` },
+            { label: "Under construction", href: `${base}/acquisitions/wip` },
             { label: "Advances", href: `${base}/acquisitions/advances` },
             { label: "Disposals", href: `${base}/acquisitions/disposals` },
           ],

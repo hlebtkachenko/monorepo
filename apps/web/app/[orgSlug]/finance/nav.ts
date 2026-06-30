@@ -43,7 +43,7 @@ export function financeNav(base: string): SidebarNavEntry[] {
           href: `${base}/receivables`,
           icon: "ArrowDown",
           subpages: [
-            { label: "Aging", href: `${base}/receivables/aging` },
+            { label: "Ageing", href: `${base}/receivables/aging` },
             { label: "Debtors", href: `${base}/receivables/debtors` },
           ],
         },
@@ -63,7 +63,7 @@ export function financeNav(base: string): SidebarNavEntry[] {
       pages: [
         { label: "Dunning", href: `${base}/dunning`, icon: "Mail" },
         {
-          label: "Penalization",
+          label: "Penalisation",
           href: `${base}/penalization`,
           icon: "AlertTriangle",
         },

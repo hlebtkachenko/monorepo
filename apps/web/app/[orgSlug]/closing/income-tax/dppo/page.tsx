@@ -1,7 +1,7 @@
 import { ModulePage } from "../../../_components/module-page"
 
-export const metadata = { title: "DPPO" }
+export const metadata = { title: "Corporation tax" }
 
 export default function Page() {
-  return <ModulePage title="DPPO" />
+  return <ModulePage title="Corporation tax" />
 }

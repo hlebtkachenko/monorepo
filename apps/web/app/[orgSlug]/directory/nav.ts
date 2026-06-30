@@ -39,11 +39,11 @@ export function directoryNav(base: string): SidebarNavEntry[] {
           icon: "Globe",
           subpages: [
             {
-              label: "Finanční úřad",
+              label: "Tax office",
               href: `${base}/institutions/financial-office`,
             },
             {
-              label: "ČSSZ / OSSZ",
+              label: "Social security",
               href: `${base}/institutions/social-security`,
             },
             {
@@ -51,7 +51,10 @@ export function directoryNav(base: string): SidebarNavEntry[] {
               href: `${base}/institutions/health-insurers`,
             },
             { label: "Customs", href: `${base}/institutions/customs` },
-            { label: "Justice", href: `${base}/institutions/justice` },
+            {
+              label: "Commercial register",
+              href: `${base}/institutions/justice`,
+            },
             { label: "Data box", href: `${base}/institutions/data-box` },
           ],
         },

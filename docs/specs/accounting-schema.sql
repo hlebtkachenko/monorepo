@@ -43,7 +43,7 @@ BEGIN;
 CREATE TYPE person_type       AS ENUM ('NATURAL', 'LEGAL');     -- FO / PO
 CREATE TYPE period_status     AS ENUM ('OPEN', 'CLOSED');
 CREATE TYPE vat_filing_period AS ENUM ('MONTHLY', 'QUARTERLY');
-CREATE TYPE book_kind         AS ENUM ('LEDGER', 'CASH_JOURNAL');
+CREATE TYPE book_kind         AS ENUM ('LEDGER', 'MONETARY_JOURNAL');
 
 -- =============================================================================
 -- PLATFORM TABLES (pre-existing; faithful stubs of the real columns)
@@ -389,9 +389,12 @@ CREATE TABLE directive_account (
   name_en               text,
   nature                account_nature NOT NULL,
   normal_balance        debit_credit,                            -- NULL where genuinely mixed/technical
-  balance_sheet_line    text,                                    -- Příloha 1, e.g. 'B.II.4'
+  balance_sheet_line    text,                                    -- Příloha 1, e.g. 'B.II.4' (default / single-side accounts)
+  balance_sheet_line_when_debit  text,                           -- sign-split: 481/341-345 with a DEBIT balance -> asset row
+  balance_sheet_line_when_credit text,                           -- sign-split: 481/341-345 with a CREDIT balance -> liability row
   income_statement_line text,                                    -- Příloha 2
   deprecated            boolean NOT NULL DEFAULT false
+  -- rozvaha builder: if the *_when_debit/_when_credit pair is set, pick the row by sign(closing_balance); else use balance_sheet_line.
 );
 
 -- chart_of_accounts — one účtový rozvrh per účetní období (§14/3). Fork2=B: a service
@@ -459,8 +462,8 @@ CREATE TABLE account (
 
 CREATE TYPE posting_kind    AS ENUM ('SIMPLE','COMPOUND');        -- druh (§5.2)
 CREATE TYPE correction_type AS ENUM ('REVERSAL','SUPPLEMENTARY'); -- oprava_typ (§5.2; R8/§35/ČÚS 001)
-CREATE TYPE cash_location   AS ENUM ('CASH','BANK');             -- misto (§5.4)
-CREATE TYPE cash_direction  AS ENUM ('INFLOW','OUTFLOW');        -- smer (§5.4)
+CREATE TYPE monetary_location   AS ENUM ('CASH','BANK');             -- misto (§5.4)
+CREATE TYPE monetary_direction  AS ENUM ('INFLOW','OUTFLOW');        -- smer (§5.4)
 CREATE TYPE category_type   AS ENUM ('INCOME','EXPENSE');        -- kategorie typ (§5.7/§9)
 
 -- category (= kategorie) — peněžní-deník income/expense category (§5.7, §9).
@@ -534,29 +537,29 @@ CREATE TABLE posting_double_entry_line (
   --   [>= 2 closes the v1 empty-entry hole]. Never fires for cash postings.
 );
 
--- posting_cash_line (= penezni_denik_radek) — one classified peněžní-deník row
+-- posting_monetary_line (= penezni_denik_radek) — one classified peněžní-deník row
 -- (§13b / §7b). §5.4 + §9. The posted form of a partial_record in cash-book format.
 -- JEDNODUCHÉ / DAŇOVÁ EVIDENCE only (R7). A single cash movement may need several rows (§9).
-CREATE TABLE posting_cash_line (
+CREATE TABLE posting_monetary_line (
   id                uuid           PRIMARY KEY DEFAULT uuidv7(),
   organization_id   uuid           NOT NULL,
   posting_id        uuid           NOT NULL,                     -- zapis_id (§5.4)
   regime_code       text           NOT NULL,                     -- CHECK IN ('SINGLE_ENTRY','TAX_RECORDS') (R7)
   partial_record_id uuid,                                        -- dilci_id (§5.4) "Zaúčtování" §6/2; nullable
   category_id       uuid,                                        -- kategorie_id (§5.4, §9); nullable (generated postings)
-  location          cash_location  NOT NULL,                     -- misto (§5.4): CASH | BANK
-  direction         cash_direction NOT NULL,                     -- smer (§5.4): INFLOW | OUTFLOW
+  location          monetary_location  NOT NULL,                     -- misto (§5.4): CASH | BANK
+  direction         monetary_direction NOT NULL,                     -- smer (§5.4): INFLOW | OUTFLOW
   is_tax_relevant   boolean        NOT NULL,                     -- danovy (§5.4, §9)
   is_clearing       boolean        NOT NULL DEFAULT false,       -- prubezny (§5.4, §9): průběžná položka
   tax_base          numeric(19,4),                               -- zaklad_dane (§5.4, §9); nullable
   amount            numeric(19,4)  NOT NULL,                      -- castka (§5.4, R13)
   created_at        timestamptz    NOT NULL DEFAULT now(),
-  CONSTRAINT posting_cash_line_regime_chk CHECK (regime_code IN ('SINGLE_ENTRY','TAX_RECORDS')),
-  CONSTRAINT posting_cash_line_posting_fk FOREIGN KEY (posting_id, organization_id, regime_code)
+  CONSTRAINT posting_monetary_line_regime_chk CHECK (regime_code IN ('SINGLE_ENTRY','TAX_RECORDS')),
+  CONSTRAINT posting_monetary_line_posting_fk FOREIGN KEY (posting_id, organization_id, regime_code)
     REFERENCES posting (id, organization_id, regime_code),
-  CONSTRAINT posting_cash_line_partial_fk FOREIGN KEY (partial_record_id, organization_id)
+  CONSTRAINT posting_monetary_line_partial_fk FOREIGN KEY (partial_record_id, organization_id)
     REFERENCES partial_record (id, organization_id),
-  CONSTRAINT posting_cash_line_category_fk FOREIGN KEY (category_id, organization_id)
+  CONSTRAINT posting_monetary_line_category_fk FOREIGN KEY (category_id, organization_id)
     REFERENCES category (id, organization_id)                                        -- §5.4
   -- TRIGGERS (migration): append-only; closed-period+date via parent.
 );
@@ -725,6 +728,80 @@ ALTER TABLE posting
     REFERENCES depreciation_plan (id, organization_id),
   ADD CONSTRAINT posting_inventory_count_fk FOREIGN KEY (inventory_count_id, organization_id)
     REFERENCES inventory_count (id, organization_id);
+
+-- =============================================================================
+-- READ-MODEL (books/reports materialization) — maintained turnover tables
+-- =============================================================================
+-- Books are NOT views (read-heavy SaaS = recompute-on-read compute bomb): maintained by
+-- AFTER INSERT triggers on the posting lines, SAME transaction. Research-settled
+-- (wf_7e287416-1ac + wf_84900453-894) + advisor-verified. Cumulative MD/Dal columns
+-- (TigerBeetle shape); matviews + pg_ivm rejected. Triggers land in the migration (NOTE).
+
+-- account_period_balance — double-entry obraty per (org, period, account).
+-- Feeds obratová předvaha / hlavní kniha (summary) / rozvaha / výkaz zisku a ztráty.
+CREATE TABLE account_period_balance (
+  organization_id uuid          NOT NULL,
+  period_id       uuid          NOT NULL,
+  account_id      uuid          NOT NULL,                  -- the PERIOD chart account; cross-period joins use account.number/synthetic_code
+  opening_balance numeric(19,4) NOT NULL DEFAULT 0,        -- počáteční stav (carried from prior closing; 0 for P&L 5xx/6xx)
+  turnover_debit  numeric(19,4) NOT NULL DEFAULT 0,        -- obrat MD (signed-accumulating; storno may decrease, ČÚS 001)
+  turnover_credit numeric(19,4) NOT NULL DEFAULT 0,        -- obrat Dal
+  closing_balance numeric(19,4) GENERATED ALWAYS AS (opening_balance + turnover_debit - turnover_credit) STORED,  -- konečný stav
+  updated_at      timestamptz   NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id, period_id, account_id),
+  CONSTRAINT account_period_balance_period_fk  FOREIGN KEY (period_id, organization_id)  REFERENCES accounting_period (id, organization_id),
+  CONSTRAINT account_period_balance_account_fk FOREIGN KEY (account_id, organization_id) REFERENCES account (id, organization_id)
+);
+CREATE INDEX account_period_balance_updated_idx ON account_period_balance (organization_id, period_id, updated_at);  -- cache token = max(updated_at), no hot counter
+-- TRIGGER (migration): AFTER INSERT on posting_double_entry_line, SECURITY DEFINER owner app_owner, sets org+period from
+--   the parent posting: INSERT … ON CONFLICT (org,period_id,account_id) DO UPDATE SET turnover_x = turnover_x + EXCLUDED.
+--   GRANT SELECT,INSERT,UPDATE (NOT append-only; no R8 mutation block). 701 opening postings are tagged is_opening and
+--   EXCLUDED from turnover (they set opening_balance) but still appear in the deník. Drift job: Σ(all lines)=closing_balance.
+--   §16 reconcile: Σ analytical closing_balance GROUP BY synthetic_code = synthetic closing_balance.
+
+-- monetary_period_summary — cash-regime (peněžní deník) totals.
+-- Feeds peněžní deník totals / přehled o příjmech a výdajích (§13b/3) / DPFO (§7b).
+CREATE TABLE monetary_period_summary (
+  id              uuid               PRIMARY KEY DEFAULT uuidv7(),  -- surrogate: a nullable category_id can't sit in a PRIMARY KEY
+  organization_id uuid               NOT NULL,
+  period_id       uuid               NOT NULL,
+  category_id     uuid,                                            -- nullable (uncategorized); folds via NULLS NOT DISTINCT
+  direction       monetary_direction NOT NULL,                     -- INFLOW / OUTFLOW (příjem/výdaj)
+  is_tax_relevant boolean            NOT NULL,                     -- daňový vs nedaňový (§9)
+  is_clearing     boolean            NOT NULL,                     -- průběžná položka; tax/přehled views WHERE is_clearing=false
+  location        monetary_location  NOT NULL,                     -- CASH (hotovost) / BANK (banka) — money position
+  total_amount    numeric(19,4)      NOT NULL DEFAULT 0,
+  total_tax_base  numeric(19,4)      NOT NULL DEFAULT 0,           -- Σ zaklad_dane (the §7b daňový základ)
+  updated_at      timestamptz        NOT NULL DEFAULT now(),
+  CONSTRAINT monetary_period_summary_period_fk   FOREIGN KEY (period_id, organization_id)   REFERENCES accounting_period (id, organization_id),
+  CONSTRAINT monetary_period_summary_category_fk FOREIGN KEY (category_id, organization_id) REFERENCES category (id, organization_id),
+  CONSTRAINT monetary_period_summary_grain_unique UNIQUE NULLS NOT DISTINCT
+    (organization_id, period_id, category_id, direction, is_tax_relevant, is_clearing, location)  -- ON CONFLICT target; folds uncategorized
+);
+-- TRIGGER (migration): AFTER INSERT on posting_monetary_line, same SECURITY DEFINER upsert pattern.
+
+-- =============================================================================
+-- OUTPUT (period_output = vystup §5.5) — R9-derived marker, append-only
+-- =============================================================================
+-- The period deliverable marker. R9-DERIVED (no stored numbers — figures recomputed from
+-- the read-model: rozvaha/VZZ from account_period_balance closing via the directive_account
+-- statement-line mapping; přehledy/DPFO from monetary_period_summary). R6-gated, append-only.
+CREATE TYPE period_output_type AS ENUM ('FINANCIAL_STATEMENTS', 'OVERVIEWS', 'PERSONAL_INCOME_TAX');
+
+CREATE TABLE period_output (
+  id              uuid               PRIMARY KEY DEFAULT uuidv7(),
+  organization_id uuid               NOT NULL REFERENCES organization (id),
+  period_id       uuid               NOT NULL,                  -- obdobi_id (§5.5)
+  type            period_output_type NOT NULL,                  -- FINANCIAL_STATEMENTS (PU) / OVERVIEWS (JU §13b/3) / PERSONAL_INCOME_TAX (DE §7b)
+  generated_at    timestamptz        NOT NULL DEFAULT now(),    -- okamžik sestavení — append-only finalization marker
+  generated_by    uuid               NOT NULL REFERENCES app_user (id),  -- R10 attributable
+  CONSTRAINT period_output_id_org_unique UNIQUE (id, organization_id),
+  CONSTRAINT period_output_period_fk     FOREIGN KEY (period_id, organization_id) REFERENCES accounting_period (id, organization_id)
+  -- R6-gated (service: every účetní případ of the period posted before output, §8/3). R9-DERIVED (no number column).
+  -- Append-only (no updated_at; migration trigger blocks UPDATE/DELETE — a closing marker can't be deleted to reopen, V2-DEFERRED).
+  -- NOT unique (period_id, type): append-only re-issues (opravná / mimořádná / mezitímní závěrka). R11 trace via the read-model.
+);
+CREATE INDEX period_output_period_idx ON period_output (period_id, organization_id);
 
 -- =============================================================================
 -- READ SURFACE — org -> its self-counterparty (access pattern, NOT new state)

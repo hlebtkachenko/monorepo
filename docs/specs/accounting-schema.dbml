@@ -13,6 +13,13 @@
 // Identity lives on the org's own counterparty (self_of_organization_id).
 // counterparty is workspace-shared across all orgs in the office. workspace /
 // organization / app_user are platform tables (faithful stubs).
+//
+// ENFORCEMENT: DBML models only tables/columns/FKs/indexes. The full guard-rail
+// layer — FORCE RLS + policies (isolation), append-only triggers (R8), closed-
+// period + date∈období guard (R12), R4 balance (with OFF_BALANCE exemption),
+// read-model maintenance triggers, §16 no-direct-post-to-parent, R6 output
+// completeness, the reconcile function — lives in accounting-schema.sql only and
+// is PG18-validated (see .context/accounting/enforcement-*.sql, 22/22 behavioral).
 // =============================================================================
 
 Project accounting_v2_ground {
@@ -163,7 +170,7 @@ Table vat_status {
   valid_to        date
   filing_period   vat_filing_period
   created_at      timestamptz       [not null, default: `now()`]
-  Note: 'Time-versioned VAT status, independent of účetní období. valid_to null = current.'
+  Note: 'Time-versioned VAT status, independent of účetní období. valid_to null = current. M8 (SQL only): EXCLUDE USING gist (organization_id =, daterange(valid_from, COALESCE(valid_to,infinity)) &&) — no two VAT-status ranges per org may overlap (closes the two-open-rows race; needs btree_gist).'
 }
 
 // --- Counterparty (workspace-shared) -----------------------------------------
@@ -291,6 +298,7 @@ Table accounting_event {
   id               uuid        [pk, default: `uuidv7()`]
   organization_id  uuid        [not null]
   workspace_id     uuid        [not null]
+  period_id        uuid        [not null]                  // M2 (decision 2): the case's účetní období (occurred_at ∈ period); R6 denominator; period guard
   number_series_id uuid        [not null]
   sequence_number  bigint      [not null]
   designation      text        [not null, note: 'FROZEN Označení string (gov/audit id)']
@@ -299,6 +307,7 @@ Table accounting_event {
   description      text        [not null]
   content          text
   occurred_at      timestamptz [not null]
+  responsible_user_id uuid     [not null]                  // osoba odp. za případ (§11/1f, R10) -> app_user; za-zaúčtování is on posting
   created_at       timestamptz [not null, default: `now()`]
   updated_at       timestamptz [not null, default: `now()`]
   indexes {
@@ -341,6 +350,7 @@ Table summary_record {
   indexes {
     (number_series_id, sequence_number) [unique, name: 'cislena_rada gapless (R3/§11/1a)']
     (id, organization_id) [unique]
+    (organization_id, period_id, type, designation) [unique, name: 'summary_record_oznaceni_unique']  // M7 §11/1a: Označení unique per (org, period, type)
   }
   Note: 'Voucher/doklad header (§11). No line money (= Σ partial_records). rounding_amount = §37 doc rounding -> 548/648. counterparty lives on the event.'
 }
@@ -395,9 +405,11 @@ TableGroup capture_core {
 Ref: number_series.organization_id > organization.id
 
 Ref: accounting_event.(organization_id, workspace_id)     > organization.(id, workspace_id)
+Ref: accounting_event.(period_id, organization_id)        > accounting_period.(id, organization_id)   // M2: the case's period
 Ref: accounting_event.(party_id, workspace_id)            > counterparty.(id, workspace_id)
 Ref: accounting_event.(counterparty_id, workspace_id)     > counterparty.(id, workspace_id)
 Ref: accounting_event.(number_series_id, organization_id) > number_series.(id, organization_id)
+Ref: accounting_event.responsible_user_id                 > app_user.id
 
 Ref: signature.organization_id              > organization.id
 Ref: signature.signer_id                    > app_user.id
@@ -472,6 +484,7 @@ Table chart_of_accounts {
   indexes {
     period_id [unique, name: 'chart_one_per_period']
     (id, organization_id) [unique, name: 'chart_id_org_unique']
+    (id, period_id) [unique, name: 'chart_id_period_unique']   // B1: account.(chart_id, period_id) -> here, pins account to its chart's period
   }
   Note: 'One účtový rozvrh per účetní období (§14/3). D5 regime gate: composite FK (period_id, organization_id, regime_code) -> accounting_period(id, organization_id, regime_code) with regime_code generated DOUBLE_ENTRY -> chart only on a double-entry period, unbypassable. No status column.'
 }
@@ -480,6 +493,7 @@ Table account {
   id                uuid           [pk, default: `uuidv7()`]
   organization_id   uuid           [not null]
   chart_id          uuid           [not null]
+  period_id         uuid           [not null]                     // B1: = the chart's period; FK below pins them equal (closes cross-period posting hole)
   parent_id         uuid                                          // analytical -> synthetic (§16); same chart
   number            text           [not null]                     // '31','311','311.001'; CHECK shape
   name              text           [not null]
@@ -496,6 +510,7 @@ Table account {
   indexes {
     (id, organization_id) [unique, name: 'account_id_org_unique']     // posting line -> account target
     (id, chart_id) [unique, name: 'account_id_chart_unique']          // parent-same-chart target
+    (id, period_id) [unique, name: 'account_id_period_unique']        // B1: line/balance -> account-in-period target
     (chart_id, number) [unique, name: 'account_chart_number_unique']
     parent_id
     group_code
@@ -514,6 +529,7 @@ TableGroup chart_of_accounts_layer {
 Ref: directive_account.group_code > account_group.code
 Ref: chart_of_accounts.(period_id, organization_id) > accounting_period.(id, organization_id)  // + regime_code gate (3-col FK in SQL)
 Ref: account.(chart_id, organization_id) > chart_of_accounts.(id, organization_id)
+Ref: account.(chart_id, period_id)       > chart_of_accounts.(id, period_id)   // B1: account.period == chart.period
 Ref: account.(parent_id, chart_id)       > account.(id, chart_id)
 Ref: account.group_code                  > account_group.code
 Ref: account.specializes_directive_code  > directive_account.code
@@ -573,22 +589,25 @@ Table posting {
   posted_at            timestamptz     [not null]                  // okamzik_zauctovani (§5.2)
   corrects_posting_id  uuid                                        // opravuje_zapis_id (R8/§35) — self-FK
   correction_type      correction_type                             // set iff corrects_posting_id set
+  is_opening           boolean         [not null, default: false]  // B2: 701 počáteční-stav opening posting; read-model trigger EXCLUDES from turnover (sets opening_balance), still in deník
   created_at           timestamptz     [not null, default: `now()`]
   indexes {
     (id, organization_id) [unique, name: 'posting_id_org_unique']
+    (id, period_id) [unique, name: 'posting_id_period_unique']                          // B1: line.(posting_id, period_id) -> here, pins line.period == posting.period
     (id, organization_id, regime_code) [unique, name: 'posting_id_org_regime_unique']  // line-FK target (R7 spine)
     period_id
     summary_record_id
     accounting_event_id
     corrects_posting_id
   }
-  Note: 'Shared posting header (§12) made on the basis of a doklad (§6/2). For DAŇOVÁ EVIDENCE a technical container (§7b). Append-only (no updated_at; R8). Composite FKs in SQL: (period_id,org,regime_code)->accounting_period [REGIME SPINE]; (summary_record_id,org); (accounting_event_id,org); self (corrects_posting_id,org,regime_code); depreciation_plan/inventory_count FKs deferred to the supporting chunk. CHECK (corrects_posting_id IS NULL)=(correction_type IS NULL). TRIGGERS: append-only; closed-period+date∈period.'
+  Note: 'Shared posting header (§12) made on the basis of a doklad (§6/2). For DAŇOVÁ EVIDENCE a technical container (§7b). Append-only (no updated_at; R8). Composite FKs in SQL: (period_id,org,regime_code)->accounting_period [REGIME SPINE]; (summary_record_id,org); (accounting_event_id,org); self (corrects_posting_id,org,regime_code); depreciation_plan/inventory_count FKs ACTIVE (supporting layer). CHECK (corrects_posting_id IS NULL)=(correction_type IS NULL). TRIGGERS: append-only; closed-period+date∈period.'
 }
 
 Table posting_double_entry_line {
   id                uuid            [pk, default: `uuidv7()`]
   organization_id   uuid            [not null]
   posting_id        uuid            [not null]                     // zapis_id (§5.3)
+  period_id         uuid            [not null]                     // B1: = posting's period; pins the account to the posting's period chart
   regime_code       text            [not null]                     // CHECK = 'DOUBLE_ENTRY' (R7)
   account_id        uuid            [not null]                     // ucet_id (§5.3, R1)
   partial_record_id uuid                                           // dilci_id (§5.3); nullable for generated postings
@@ -622,7 +641,7 @@ Table posting_monetary_line {
     partial_record_id
     category_id
   }
-  Note: 'One classified peněžní-deník row (§13b/§7b, §9). JEDNODUCHÉ / DAŇOVÁ EVIDENCE only. Append-only (R8). CHECK regime_code IN (SINGLE_ENTRY,TAX_RECORDS) (R7). One cash movement may need several rows (§9). Composite FKs in SQL: (posting_id,org,regime_code)->posting; (partial_record_id,org); (category_id,org)->category.'
+  Note: 'One classified peněžní-deník row (§13b/§7b, §9). JEDNODUCHÉ / DAŇOVÁ EVIDENCE only. Append-only (R8). CHECK regime_code IN (SINGLE_ENTRY,TAX_RECORDS) (R7). CHECK (is_clearing=false OR COALESCE(tax_base,0)=0): a průběžná položka carries no tax base. One cash movement may need several rows (§9). A cash posting must carry >=1 such line (deferred constraint). Composite FKs in SQL: (posting_id,org,regime_code)->posting; (partial_record_id,org); (category_id,org)->category.'
 }
 
 TableGroup posting_layer {
@@ -639,7 +658,9 @@ Ref: posting.responsible_user_id                    > app_user.id
 Ref: posting.(corrects_posting_id, organization_id) > posting.(id, organization_id)             // self-correction (+ regime in SQL)
 
 Ref: posting_double_entry_line.(posting_id, organization_id)        > posting.(id, organization_id)
+Ref: posting_double_entry_line.(posting_id, period_id)              > posting.(id, period_id)          // B1: line.period == posting.period
 Ref: posting_double_entry_line.(account_id, organization_id)        > account.(id, organization_id)
+Ref: posting_double_entry_line.(account_id, period_id)              > account.(id, period_id)          // B1: account is in THIS period's chart (closes cross-period hole)
 Ref: posting_double_entry_line.(partial_record_id, organization_id) > partial_record.(id, organization_id)
 
 Ref: posting_monetary_line.(posting_id, organization_id)        > posting.(id, organization_id)
@@ -882,7 +903,7 @@ Table monetary_period_summary {  // cash-regime (peněžní deník) totals
   indexes {
     (organization_id, period_id, category_id, direction, is_tax_relevant, is_clearing, location) [unique, name: 'monetary_period_summary_grain_unique']  // UNIQUE NULLS NOT DISTINCT
   }
-  Note: 'Maintained by AFTER INSERT trigger on posting_monetary_line. UNIQUE is NULLS NOT DISTINCT (PG15+) so uncategorized lines fold. Composite FKs (SQL): (period_id, organization_id) -> accounting_period; (category_id, organization_id) -> category.'
+  Note: 'Maintained by AFTER INSERT trigger on posting_monetary_line. UNIQUE is NULLS NOT DISTINCT (PG15+) so uncategorized lines fold. Composite FKs (SQL): (period_id, organization_id) -> accounting_period; (category_id, organization_id) -> category. CHECK (is_clearing=false OR total_tax_base=0): průběžná položka (bank<->till transfer) is neither příjem nor výdaj -> carries no tax base (§7b/§9).'
 }
 
 // =============================================================================
@@ -917,6 +938,7 @@ TableGroup read_model_and_output {
 // read-model + output relationships
 Ref: account_period_balance.(period_id, organization_id)  > accounting_period.(id, organization_id)
 Ref: account_period_balance.(account_id, organization_id) > account.(id, organization_id)
+Ref: account_period_balance.(account_id, period_id)       > account.(id, period_id)   // B1: the balance's account belongs to THIS period's chart
 Ref: monetary_period_summary.(period_id, organization_id)   > accounting_period.(id, organization_id)
 Ref: monetary_period_summary.(category_id, organization_id) > category.(id, organization_id)
 Ref: period_output.(period_id, organization_id) > accounting_period.(id, organization_id)

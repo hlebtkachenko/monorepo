@@ -4,9 +4,9 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * Settings module sidebar nav. Derived from `docs/specs/SITEMAP.md` (Settings —
  * org-general config only). `base` = `/${orgSlug}/settings`.
  *
- * Module-specific config lives in its module (chart/posting → Accounting, etc).
- * Codebooks (Document types/Constant symbols/Payment methods/Units/Tags) and the
- * seeded read-only Law tables are each one page with tabs, not many leaves.
+ * Depth-3: the codebooks, the seeded read-only law tables, dimensions and FX
+ * are parent Pages whose individual tables are Subpages (real routes).
+ * Module-specific config still lives in its module (chart/posting → Accounting).
  */
 export function settingsNav(base: string): SidebarNavEntry[] {
   return [
@@ -41,10 +41,71 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           href: `${base}/number-series`,
           icon: "HashIcon",
         },
-        { label: "FX rates", href: `${base}/fx-rates`, icon: "Globe" },
-        { label: "Dimensions", href: `${base}/dimensions`, icon: "Shapes" },
-        { label: "Codebooks", href: `${base}/codebooks`, icon: "BookOpen" },
-        { label: "Law tables", href: `${base}/law-tables`, icon: "Shield" },
+        {
+          label: "FX rates",
+          href: `${base}/fx-rates`,
+          icon: "Globe",
+          subpages: [
+            { label: "Method", href: `${base}/fx-rates/method` },
+            { label: "ČNB feed", href: `${base}/fx-rates/feed` },
+          ],
+        },
+        {
+          label: "Dimensions",
+          href: `${base}/dimensions`,
+          icon: "Shapes",
+          subpages: [
+            { label: "Cost centers", href: `${base}/dimensions/cost-centers` },
+            { label: "Jobs", href: `${base}/dimensions/jobs` },
+            { label: "Activities", href: `${base}/dimensions/activities` },
+          ],
+        },
+        {
+          label: "Codebooks",
+          href: `${base}/codebooks`,
+          icon: "BookOpen",
+          subpages: [
+            {
+              label: "Document types",
+              href: `${base}/codebooks/document-types`,
+            },
+            {
+              label: "Constant symbols",
+              href: `${base}/codebooks/constant-symbols`,
+            },
+            {
+              label: "Payment methods",
+              href: `${base}/codebooks/payment-methods`,
+            },
+            { label: "Units", href: `${base}/codebooks/units` },
+            { label: "Tags", href: `${base}/codebooks/tags` },
+          ],
+        },
+        {
+          label: "Law tables",
+          href: `${base}/law-tables`,
+          icon: "Shield",
+          subpages: [
+            { label: "VAT rates", href: `${base}/law-tables/vat-rates` },
+            {
+              label: "Depreciation groups",
+              href: `${base}/law-tables/depreciation-groups`,
+            },
+            { label: "CZ-NACE", href: `${base}/law-tables/cz-nace` },
+            {
+              label: "Account groups",
+              href: `${base}/law-tables/account-groups`,
+            },
+            {
+              label: "Directive chart",
+              href: `${base}/law-tables/directive-chart`,
+            },
+            { label: "Legal forms", href: `${base}/law-tables/legal-forms` },
+            { label: "Regimes", href: `${base}/law-tables/regimes` },
+            { label: "Size categories", href: `${base}/law-tables/sizes` },
+            { label: "Countries & PSČ", href: `${base}/law-tables/countries` },
+          ],
+        },
       ],
     },
     {

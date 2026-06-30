@@ -4,8 +4,8 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * Finance module sidebar nav. Derived from `docs/specs/SITEMAP.md`
  * (Finance — cash-flow, "real money"). `base` = `/${orgSlug}/finance`.
  *
- * Debtors/Creditors are by-partner lenses (tabs) on Receivables/Payables, not
- * nav leaves; Bank/Loans movement·statement·reconciliation are body tabs too.
+ * Depth-3: Bank/Loans movement·statement·reconciliation lenses, AR/AP aging vs
+ * by-partner, settlement subtypes and the calculators are Subpages (real routes).
  */
 export function financeNav(base: string): SidebarNavEntry[] {
   return [
@@ -13,9 +13,26 @@ export function financeNav(base: string): SidebarNavEntry[] {
     {
       label: "Treasury",
       pages: [
-        { label: "Bank", href: `${base}/bank`, icon: "Building2" },
+        {
+          label: "Bank",
+          href: `${base}/bank`,
+          icon: "Building2",
+          subpages: [
+            { label: "Movements", href: `${base}/bank/movements` },
+            { label: "Statements", href: `${base}/bank/statements` },
+            { label: "Reconciliation", href: `${base}/bank/reconciliation` },
+          ],
+        },
         { label: "Cash", href: `${base}/cash`, icon: "Banknote" },
-        { label: "Loans", href: `${base}/loans`, icon: "PiggyBank" },
+        {
+          label: "Loans",
+          href: `${base}/loans`,
+          icon: "PiggyBank",
+          subpages: [
+            { label: "Movements", href: `${base}/loans/movements` },
+            { label: "Statements", href: `${base}/loans/statements` },
+          ],
+        },
       ],
     },
     {
@@ -25,8 +42,20 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Receivables",
           href: `${base}/receivables`,
           icon: "ArrowDown",
+          subpages: [
+            { label: "Aging", href: `${base}/receivables/aging` },
+            { label: "Debtors", href: `${base}/receivables/debtors` },
+          ],
         },
-        { label: "Payables", href: `${base}/payables`, icon: "ArrowUp" },
+        {
+          label: "Payables",
+          href: `${base}/payables`,
+          icon: "ArrowUp",
+          subpages: [
+            { label: "Due", href: `${base}/payables/due` },
+            { label: "Creditors", href: `${base}/payables/creditors` },
+          ],
+        },
       ],
     },
     {
@@ -52,6 +81,10 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Settlements",
           href: `${base}/settlements`,
           icon: "ArrowUpDown",
+          subpages: [
+            { label: "Bilateral", href: `${base}/settlements/bilateral` },
+            { label: "Multilateral", href: `${base}/settlements/multilateral` },
+          ],
         },
         {
           label: "Bulk reconciliation",
@@ -62,6 +95,14 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Calculators",
           href: `${base}/calculators`,
           icon: "Calculator",
+          subpages: [
+            { label: "FX", href: `${base}/calculators/fx` },
+            { label: "Penalty", href: `${base}/calculators/penalty` },
+            {
+              label: "Cash denomination",
+              href: `${base}/calculators/cash-denomination`,
+            },
+          ],
         },
       ],
     },

@@ -22,15 +22,17 @@ export interface SidebarNavSubpage {
 }
 
 /**
- * A clickable nav link — always has an icon. May nest up to two Subpages,
- * which makes it an expandable parent (the page itself stays navigable).
+ * A clickable nav link — always has an icon. May nest Subpages, which makes it
+ * an expandable parent (the page itself stays navigable). The tree stops at the
+ * Subpage level (Group › Page › Subpage = 3 levels); a Page may own any number
+ * of Subpages.
  */
 export interface SidebarNavPage {
   label: string
   href: string
   icon: IconName
   badge?: string | number
-  subpages?: [SidebarNavSubpage] | [SidebarNavSubpage, SidebarNavSubpage]
+  subpages?: SidebarNavSubpage[]
 }
 
 /** A non-clickable label that groups Pages under a heading. */

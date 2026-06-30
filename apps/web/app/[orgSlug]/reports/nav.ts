@@ -4,9 +4,10 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * Reports module sidebar nav. Derived from `docs/specs/SITEMAP.md` (Reports —
  * analytical & statement outputs, agent-generated). `base` = `/${orgSlug}/reports`.
  *
- * These are the report/snapshot surfaces: the live books live in Accounting, the
- * working saldo in Finance, the frozen závěrka snapshots in Closing. The monthly
- * P&L / soupis N&V / job-evaluation lenses are body tabs, not nav leaves.
+ * Depth-3: report variants (statutory vs monthly P&L, profitability cuts,
+ * controlling dimensions, the statutory-print books) are Subpages — real routes.
+ * These are the snapshot/report surfaces; live books = Accounting, working saldo
+ * = Finance, frozen závěrka = Closing.
  */
 export function reportsNav(base: string): SidebarNavEntry[] {
   return [
@@ -23,6 +24,10 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Income statement",
           href: `${base}/income-statement`,
           icon: "BarChart3",
+          subpages: [
+            { label: "Statutory", href: `${base}/income-statement/statutory` },
+            { label: "Monthly P&L", href: `${base}/income-statement/monthly` },
+          ],
         },
         { label: "Notes", href: `${base}/notes`, icon: "FileText" },
         { label: "Cash flow", href: `${base}/cash-flow`, icon: "Activity" },
@@ -50,11 +55,30 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Profitability",
           href: `${base}/profitability`,
           icon: "PiggyBank",
+          subpages: [
+            { label: "Summary", href: `${base}/profitability/summary` },
+            {
+              label: "Cost & revenue listing",
+              href: `${base}/profitability/cost-revenue`,
+            },
+          ],
         },
         {
           label: "Controlling",
           href: `${base}/controlling`,
           icon: "Shapes",
+          subpages: [
+            {
+              label: "By cost center",
+              href: `${base}/controlling/cost-centers`,
+            },
+            { label: "By job", href: `${base}/controlling/jobs` },
+            { label: "By activity", href: `${base}/controlling/activities` },
+            {
+              label: "Job evaluation",
+              href: `${base}/controlling/job-evaluation`,
+            },
+          ],
         },
       ],
     },
@@ -97,6 +121,13 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Statutory prints",
           href: `${base}/statutory-prints`,
           icon: "FileText",
+          subpages: [
+            { label: "Journal", href: `${base}/statutory-prints/journal` },
+            {
+              label: "General ledger",
+              href: `${base}/statutory-prints/ledger`,
+            },
+          ],
         },
         {
           label: "XML statement export",

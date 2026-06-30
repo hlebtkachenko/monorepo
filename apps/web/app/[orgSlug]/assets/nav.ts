@@ -4,8 +4,9 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * Assets module sidebar nav. Derived from `docs/specs/SITEMAP.md` (Assets —
  * fixed assets & inventory, regime-aware). `base` = `/${orgSlug}/assets`.
  *
- * Asset-card tabs (Movements, Účetní/Daňové odpisy, Assigned, …) and the
- * Acquisitions WIP/advances/disposals lenses are body tabs, not nav leaves.
+ * Depth-3: Fixed-assets by class, the acquisition lifecycle lenses, and leasing
+ * are Subpages. Asset-card tabs (Movements, Účetní/Daňové odpisy, …) stay
+ * per-record detail tabs in the body.
  */
 export function assetsNav(base: string): SidebarNavEntry[] {
   return [
@@ -19,14 +20,35 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           label: "Fixed assets",
           href: `${base}/fixed-assets`,
           icon: "Building2",
+          subpages: [
+            {
+              label: "Intangible (DNM)",
+              href: `${base}/fixed-assets/intangible`,
+            },
+            { label: "Tangible (DHM)", href: `${base}/fixed-assets/tangible` },
+            { label: "Land & art", href: `${base}/fixed-assets/land-art` },
+          ],
         },
         { label: "Small assets", href: `${base}/small-assets`, icon: "Box" },
         {
           label: "Acquisitions & disposals",
           href: `${base}/acquisitions`,
           icon: "PlusCircle",
+          subpages: [
+            { label: "WIP / pořízení", href: `${base}/acquisitions/wip` },
+            { label: "Advances", href: `${base}/acquisitions/advances` },
+            { label: "Disposals", href: `${base}/acquisitions/disposals` },
+          ],
         },
-        { label: "Leasing", href: `${base}/leasing`, icon: "CreditCard" },
+        {
+          label: "Leasing",
+          href: `${base}/leasing`,
+          icon: "CreditCard",
+          subpages: [
+            { label: "Contracts", href: `${base}/leasing/contracts` },
+            { label: "Instalments", href: `${base}/leasing/instalments` },
+          ],
+        },
       ],
     },
     {

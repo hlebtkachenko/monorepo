@@ -36,7 +36,7 @@ enum vat_filing_period {
 }
 enum book_kind {
   LEDGER
-  CASH_JOURNAL
+  MONETARY_JOURNAL
 }
 
 // --- Platform tables (faithful stubs) ----------------------------------------
@@ -454,8 +454,10 @@ Table directive_account {
   name_en               text
   nature                account_nature [not null]
   normal_balance        debit_credit                              // NULL where genuinely mixed/technical
-  balance_sheet_line    text                                      // Příloha 1, e.g. B.II.4
-  income_statement_line text                                      // Příloha 2
+  balance_sheet_line    text                                      // Příloha 1, e.g. B.II.4 (default / single-side)
+  balance_sheet_line_when_debit  text                             // sign-split: 481/341-345 DEBIT -> asset row
+  balance_sheet_line_when_credit text                             // sign-split: 481/341-345 CREDIT -> liability row
+  income_statement_line text                                      // Příloha 2; rozvaha picks _when_debit/_when_credit by sign(closing_balance), else balance_sheet_line
   deprecated            boolean   [not null, default: false]
   Note: 'NON-BINDING 3-digit catalogue, seeded from coa.json. account.specializes_directive_code is a nullable soft link (tenants may invent synthetics). Seed-time: 710 -> group 71; resolve normal_balance mixed/technical/None -> enum+NULL.'
 }
@@ -532,11 +534,11 @@ enum correction_type {  // oprava_typ (§5.2; R8/§35/ČÚS 001)
   REVERSAL
   SUPPLEMENTARY
 }
-enum cash_location {    // misto (§5.4)
+enum monetary_location {    // misto (§5.4)
   CASH
   BANK
 }
-enum cash_direction {   // smer (§5.4)
+enum monetary_direction {   // smer (§5.4)
   INFLOW
   OUTFLOW
 }
@@ -553,7 +555,7 @@ Table category {
   created_at      timestamptz   [not null, default: `now()`]
   updated_at      timestamptz   [not null, default: `now()`]
   indexes { (id, organization_id) [unique, name: 'category_id_org_unique'] }
-  Note: 'kategorie — peněžní-deník income/expense category (§5.7, §9). Referenced by posting_cash_line.'
+  Note: 'kategorie — peněžní-deník income/expense category (§5.7, §9). Referenced by posting_monetary_line.'
 }
 
 Table posting {
@@ -601,15 +603,15 @@ Table posting_double_entry_line {
   Note: 'One MD/Dal side (§13/2). PODVOJNÉ only. Append-only (R8). CHECK regime_code=DOUBLE_ENTRY (R7). Composite FKs in SQL: (posting_id,org,regime_code)->posting; (account_id,org)->account [R1]; (partial_record_id,org)->partial_record [§6/2, NOT unique: 1 dílčí -> N lines]. R4 balance trigger (DEFERRABLE): count>=2 AND ΣDEBIT=ΣCREDIT per posting.'
 }
 
-Table posting_cash_line {
+Table posting_monetary_line {
   id                uuid            [pk, default: `uuidv7()`]
   organization_id   uuid            [not null]
   posting_id        uuid            [not null]                     // zapis_id (§5.4)
   regime_code       text            [not null]                     // CHECK IN ('SINGLE_ENTRY','TAX_RECORDS') (R7)
   partial_record_id uuid                                           // dilci_id (§5.4); nullable
   category_id       uuid                                           // kategorie_id (§5.4, §9); nullable (generated postings)
-  location          cash_location   [not null]                     // misto (§5.4)
-  direction         cash_direction  [not null]                     // smer (§5.4)
+  location          monetary_location   [not null]                     // misto (§5.4)
+  direction         monetary_direction  [not null]                     // smer (§5.4)
   is_tax_relevant   boolean         [not null]                     // danovy (§5.4, §9)
   is_clearing       boolean         [not null, default: false]     // prubezny (§5.4, §9)
   tax_base          "numeric(19,4)"                                // zaklad_dane (§5.4, §9); nullable
@@ -627,7 +629,7 @@ TableGroup posting_layer {
   category
   posting
   posting_double_entry_line
-  posting_cash_line
+  posting_monetary_line
 }
 
 Ref: posting.(period_id, organization_id)           > accounting_period.(id, organization_id)  // + regime_code spine (3-col FK in SQL)
@@ -640,9 +642,9 @@ Ref: posting_double_entry_line.(posting_id, organization_id)        > posting.(i
 Ref: posting_double_entry_line.(account_id, organization_id)        > account.(id, organization_id)
 Ref: posting_double_entry_line.(partial_record_id, organization_id) > partial_record.(id, organization_id)
 
-Ref: posting_cash_line.(posting_id, organization_id)        > posting.(id, organization_id)
-Ref: posting_cash_line.(partial_record_id, organization_id) > partial_record.(id, organization_id)
-Ref: posting_cash_line.(category_id, organization_id)       > category.(id, organization_id)
+Ref: posting_monetary_line.(posting_id, organization_id)        > posting.(id, organization_id)
+Ref: posting_monetary_line.(partial_record_id, organization_id) > partial_record.(id, organization_id)
+Ref: posting_monetary_line.(category_id, organization_id)       > category.(id, organization_id)
 
 Ref: signature.(posting_id, organization_id) > posting.(id, organization_id)   // FOR_POSTING link
 
@@ -841,3 +843,81 @@ Ref: inventory_count_line.organization_id                      > organization.id
 // posting deferred FKs — now ACTIVE
 Ref: posting.(depreciation_plan_id, organization_id) > depreciation_plan.(id, organization_id)
 Ref: posting.(inventory_count_id, organization_id)   > inventory_count.(id, organization_id)
+
+// =============================================================================
+// READ-MODEL (books/reports materialization) — maintained turnover tables
+// =============================================================================
+// Books are NOT views (read-heavy SaaS): maintained by AFTER INSERT triggers on the
+// posting lines, SAME transaction. Research-settled + advisor-verified. Cumulative
+// MD/Dal columns; matviews + pg_ivm rejected. Triggers = migration (NOTE).
+
+Table account_period_balance {   // double-entry obraty per (org, period, account)
+  organization_id uuid            [not null]
+  period_id       uuid            [not null]
+  account_id      uuid            [not null, note: 'PERIOD chart account; cross-period joins use account.number/synthetic_code, NOT this UUID']
+  opening_balance "numeric(19,4)" [not null, default: 0, note: 'počáteční stav (carried; 0 for P&L)']
+  turnover_debit  "numeric(19,4)" [not null, default: 0, note: 'obrat MD (signed-accumulating; storno may decrease)']
+  turnover_credit "numeric(19,4)" [not null, default: 0, note: 'obrat Dal']
+  closing_balance "numeric(19,4)" [note: 'konečný stav. GENERATED ALWAYS AS (opening_balance + turnover_debit - turnover_credit) STORED']
+  updated_at      timestamptz     [not null, default: `now()`]
+  indexes {
+    (organization_id, period_id, account_id) [pk]
+    (organization_id, period_id, updated_at) [name: 'account_period_balance_updated_idx']   // cache token = max(updated_at)
+  }
+  Note: 'Maintained by AFTER INSERT trigger on posting_double_entry_line (SECURITY DEFINER, org+period from parent posting): ON CONFLICT DO UPDATE SET turnover_x += EXCLUDED. GRANT SELECT,INSERT,UPDATE (NOT append-only). Composite FKs (SQL): (period_id, organization_id) -> accounting_period; (account_id, organization_id) -> account. 701 opening tagged is_opening -> excluded from turnover (sets opening_balance), still in deník. Drift: Σ(all lines)=closing_balance. §16: Σ analytical closing GROUP BY synthetic_code = synthetic.'
+}
+
+Table monetary_period_summary {  // cash-regime (peněžní deník) totals
+  id              uuid               [pk, default: `uuidv7()`, note: 'surrogate — nullable category_id cannot be in a PK']
+  organization_id uuid               [not null]
+  period_id       uuid               [not null]
+  category_id     uuid               [note: 'nullable (uncategorized); folds via NULLS NOT DISTINCT']
+  direction       monetary_direction [not null]
+  is_tax_relevant boolean            [not null]
+  is_clearing     boolean            [not null, note: 'průběžná položka; tax/přehled views WHERE is_clearing=false']
+  location        monetary_location  [not null, note: 'CASH (hotovost) / BANK (banka)']
+  total_amount    "numeric(19,4)"    [not null, default: 0]
+  total_tax_base  "numeric(19,4)"    [not null, default: 0, note: 'Σ zaklad_dane (§7b daňový základ)']
+  updated_at      timestamptz        [not null, default: `now()`]
+  indexes {
+    (organization_id, period_id, category_id, direction, is_tax_relevant, is_clearing, location) [unique, name: 'monetary_period_summary_grain_unique']  // UNIQUE NULLS NOT DISTINCT
+  }
+  Note: 'Maintained by AFTER INSERT trigger on posting_monetary_line. UNIQUE is NULLS NOT DISTINCT (PG15+) so uncategorized lines fold. Composite FKs (SQL): (period_id, organization_id) -> accounting_period; (category_id, organization_id) -> category.'
+}
+
+// =============================================================================
+// OUTPUT (period_output = vystup §5.5) — R9-derived marker, append-only
+// =============================================================================
+enum period_output_type {
+  FINANCIAL_STATEMENTS   // ZAVERKA — rozvaha + VZZ + příloha (§18); DOUBLE_ENTRY
+  OVERVIEWS              // PREHLEDY — §13b/3; SINGLE_ENTRY
+  PERSONAL_INCOME_TAX    // DPFO — §7b ZDP; TAX_RECORDS
+}
+
+Table period_output {
+  id              uuid               [pk, default: `uuidv7()`]
+  organization_id uuid               [not null]
+  period_id       uuid               [not null]
+  type            period_output_type [not null, note: 'regime-dependent']
+  generated_at    timestamptz        [not null, default: `now()`, note: 'append-only finalization marker']
+  generated_by    uuid               [not null, note: 'R10 attributable -> app_user(id)']
+  indexes {
+    (id, organization_id) [unique, name: 'period_output_id_org_unique']
+    (period_id, organization_id) [name: 'period_output_period_idx']
+  }
+  Note: 'vystup §5.5. Composite FK (period_id, organization_id) -> accounting_period; generated_by -> app_user. R6-gated (service). R9-DERIVED (no number column). Append-only (no updated_at; trigger blocks UPDATE/DELETE, V2-DEFERRED). NOT unique (period_id,type): append-only re-issues (opravná/mimořádná/mezitímní závěrka). R11 trace via the read-model.'
+}
+
+TableGroup read_model_and_output {
+  account_period_balance
+  monetary_period_summary
+  period_output
+}
+
+// read-model + output relationships
+Ref: account_period_balance.(period_id, organization_id)  > accounting_period.(id, organization_id)
+Ref: account_period_balance.(account_id, organization_id) > account.(id, organization_id)
+Ref: monetary_period_summary.(period_id, organization_id)   > accounting_period.(id, organization_id)
+Ref: monetary_period_summary.(category_id, organization_id) > category.(id, organization_id)
+Ref: period_output.(period_id, organization_id) > accounting_period.(id, organization_id)
+Ref: period_output.generated_by                 > app_user.id

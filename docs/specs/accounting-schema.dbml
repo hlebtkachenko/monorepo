@@ -454,9 +454,17 @@ Table account_group {
   name_cs                 text      [not null]
   name_en                 text
   nature                  account_nature                          // hint; NULL where group mixes (cl. 3,4,7)
-  is_internal             boolean   [not null, default: false]    // classes 8–9, entity-free
+  is_internal             boolean   [not null, default: false]    // classes 8-9, entity-free
   is_valuation_adjustment boolean   [not null, default: false]    // oprávky/opravné položky -> rozvaha KOREKCE (§4/4)
-  Note: 'BINDING level for podnikatelé (§14/1 + Decree 500/2002 Příloha 4). ~80 seeded immutable rows. account.group_code (generated) FKs this.'
+  // Statement-line mapping FALLBACK (decision 3, §14 ZoU + Vyhlaska 500/2002 Priloha 4).
+  // The smerná úctová osnova binds at the 2-digit skupina, so the GROUP is the legally-guaranteed
+  // rozvaha/VZZ anchor for tenant accounts with no directive link. Seeded on ~80 immutable rows.
+  // NULL for classes 8-9 (is_internal, off-statement); mixed groups (34, 48) use the sign-split pair.
+  balance_sheet_line             text   // Priloha 1 default line for the whole skupina
+  balance_sheet_line_when_debit  text   // sign-split: group 34/48 with a DEBIT net balance -> asset row
+  balance_sheet_line_when_credit text   // sign-split: group 34/48 with a CREDIT net balance -> liability row
+  income_statement_line          text   // Priloha 2 default line for cost/revenue groups (5x/6x)
+  Note: 'BINDING level for podnikatelé (§14/1 + Decree 500/2002 Priloha 4). ~80 seeded immutable rows. account.group_code (generated) FKs this. statement-line columns are the group-level FALLBACK for tenant accounts with no directive link (decision 3); exact mapping is on directive_account.'
 }
 
 Table directive_account {
@@ -864,6 +872,79 @@ Ref: inventory_count_line.organization_id                      > organization.id
 // posting deferred FKs — now ACTIVE
 Ref: posting.(depreciation_plan_id, organization_id) > depreciation_plan.(id, organization_id)
 Ref: posting.(inventory_count_id, organization_id)   > inventory_count.(id, organization_id)
+
+// =============================================================================
+// SALDOKONTO (open items) — parování pohledávek a závazku (§16, CÚS 001)
+// =============================================================================
+// Decision 1 (Hleb 2026-06-30): track each unpaid receivable/payable and its
+// settlement matching. PERENNIAL (not period-scoped): an invoice issued in one
+// period is paid in another; open_item references the saldokonto account BY NUMBER
+// (D8, like asset/depreciation), resolved per-period by the books layer.
+// Counterparty denormalized (composite FK) so "all unpaid items for X" is one
+// indexed read. Only accounts with tracks_open_items=true participate.
+
+enum open_item_direction {
+  RECEIVABLE    // pohledávka
+  PAYABLE       // závazek
+}
+
+Table open_item {
+  id                 uuid                [pk, default: `uuidv7()`]
+  organization_id    uuid                [not null]
+  workspace_id       uuid                [not null]
+  counterparty_id    uuid                [not null]                  // protistrana (workspace-shared)
+  origin_posting_id  uuid                [not null]                  // the invoice posting that opened the obligation
+  account_number     text                [not null, note: 'saldokonto ucet (311/321/...) BY NUMBER (D8, perennial); CHECK shape']
+  direction          open_item_direction [not null]                  // RECEIVABLE | PAYABLE (pohledávka / závazek)
+  variable_symbol    text                                            // VS / párovací symbol
+  original_amount    "numeric(19,4)"     [not null]                  // full obligation (úcetní mena)
+  currency_code      "char(3)"           [not null]                  // FK -> currency.code
+  issue_date         date                [not null]                  // datum vystavení
+  due_date           date                                            // splatnost
+  settled_amount     "numeric(19,4)"     [not null, default: 0]      // maintained by the settlement trigger (may exceed original = preplatek)
+  remaining_amount   "numeric(19,4)"     [note: 'GENERATED ALWAYS AS (original_amount - settled_amount) STORED']
+  is_settled         boolean             [note: 'GENERATED ALWAYS AS (settled_amount >= original_amount) STORED']
+  created_at         timestamptz         [not null, default: `now()`]
+  updated_at         timestamptz         [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'open_item_id_org_unique']
+    counterparty_id       [name: 'open_item_counterparty_idx']
+    (organization_id, account_number) [name: 'open_item_account_idx']
+    (organization_id, due_date) [name: 'open_item_unsettled_idx', note: 'partial: WHERE is_settled = false (SQL only)']
+    origin_posting_id     [name: 'open_item_origin_posting_idx']
+  }
+  Note: 'One open obligation (pohledávka or závazek). settled_amount maintained by the open_item_settlement AFTER INSERT trigger; remaining_amount and is_settled are GENERATED (SQL only, not expressible in DBML). CHECKs (SQL only): original_amount > 0 AND settled_amount >= 0; account_number shape. Composite FKs: (organization_id, workspace_id) -> organization; (counterparty_id, workspace_id) -> counterparty; (origin_posting_id, organization_id) -> posting. FORCE RLS + organization_isolation policy. app_user has full DML (UPDATE for settled_amount).'
+}
+
+Table open_item_settlement {
+  id                  uuid            [pk, default: `uuidv7()`]
+  organization_id     uuid            [not null]
+  open_item_id        uuid            [not null]                      // the obligation being settled
+  settling_posting_id uuid            [not null]                      // the payment posting (bank/cash, §13b)
+  amount              "numeric(19,4)" [not null]                      // applied amount; negative = rozpárování
+  settlement_date     date            [not null]                      // datum úhrady
+  created_at          timestamptz     [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'open_item_settlement_id_org_unique']
+    open_item_id          [name: 'open_item_settlement_item_idx']
+    settling_posting_id   [name: 'open_item_settlement_posting_idx']
+  }
+  Note: 'One payment-to-obligation match (párování). M:N: a payment clears many items; an item takes many partial payments. Append-only (a match is corrected by a new negative-amount match, never edited). CHECK (SQL only): amount <> 0. Composite FKs: (open_item_id, organization_id) -> open_item; (settling_posting_id, organization_id) -> posting. FORCE RLS + organization_isolation + append-only trigger.'
+}
+
+TableGroup saldokonto_layer {
+  open_item
+  open_item_settlement
+}
+
+// saldokonto relationships
+Ref: open_item.(organization_id, workspace_id) > organization.(id, workspace_id)
+Ref: open_item.(counterparty_id, workspace_id) > counterparty.(id, workspace_id)
+Ref: open_item.(origin_posting_id, organization_id) > posting.(id, organization_id)
+Ref: open_item.currency_code > currency.code
+
+Ref: open_item_settlement.(open_item_id, organization_id)        > open_item.(id, organization_id)
+Ref: open_item_settlement.(settling_posting_id, organization_id) > posting.(id, organization_id)
 
 // =============================================================================
 // READ-MODEL (books/reports materialization) — maintained turnover tables

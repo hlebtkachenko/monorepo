@@ -40,11 +40,15 @@ export const TIER2_CAP_VALUES = {
   amount_near_threshold: 0.85,
   // Prior-book re-derivation hard classes (2026-07-01). When re-deriving a booking (fresh OR from a prior
   // book) touches one of these judgment-heavy classes AND an objective infra check does NOT resolve it (e.g.
-  // amount ≥ the DHM 40 000 Kč threshold, or a missing DUZP), the classifier fires the matching signal — so
-  // green (≥0.95) is UNREACHABLE and the item routes to the human. This is what makes "same confidence metric
-  // for the prior book" safe: the classes where a prior accountant's errors concentrate cannot auto-green.
-  // A prior-book DISAGREEMENT (Brain re-derivation != the prior GL row) reuses `multi_source_conflict` (0.75).
-  // Exact values pending a confirming advisor gate (WP-0.7 pattern); all are conservatively sub-green.
+  // amount ≥ the DHM 40 000 Kč threshold, or a missing DUZP), the classifier fires the matching signal, so
+  // the RAW score (C_raw) is capped sub-green. AT COLD-START (identity calibration) that means green is
+  // unreachable and the item routes to the human — what makes "same confidence metric for the prior book"
+  // safe before any calibration is fitted. NOTE: a FITTED calibration can still lift a capped C_raw above
+  // green if outcome history shows those items empirically correct (calibration is meant to override the
+  // pre-cap on real evidence). Making the cap a hard post-calibration CEILING for these classes is the
+  // deferred WP-CONF-CEIL (its own advisor gate) — until then the cap is a cold-start floor, not an
+  // unconditional block. A prior-book DISAGREEMENT (Brain re-derivation != the prior GL row) reuses
+  // `multi_source_conflict` (0.75). Exact values pending the WP-CONF-CEIL gate; all are conservatively sub-green.
   asset_vs_expense: 0.6, // 042/022 (capitalize) vs 501/518 (expense) — the classic prior error
   accrual_period_boundary: 0.65, // časové rozlišení 381/382/383/384 — event spans the period boundary
   reserve_or_impairment: 0.7, // rezervy / opravné položky — judgment + policy bound

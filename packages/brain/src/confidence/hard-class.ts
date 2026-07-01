@@ -3,9 +3,11 @@
 // signals.ts declares the Tier-2 CAP VALUES for the five judgment-heavy classes where a prior accountant's
 // errors concentrate. This module is the FIRING predicate: a hard class fires its cap ONLY when an
 // objective infra check does NOT resolve it. That is what makes "score the prior book with the same
-// confidence metric" safe — for an UNRESOLVED hard class the cap is sub-green, so green (≥0.95) is
-// structurally unreachable and the item routes to the human; a class an objective check RESOLVES (amount
-// below the DHM threshold, a present tax-point) is scored normally.
+// confidence metric" safe — for an UNRESOLVED hard class the RAW score is capped sub-green, so AT COLD-START
+// green is unreachable and the item routes to the human; a class an objective check RESOLVES (amount below
+// the DHM threshold, a present tax-point) is scored normally. (Post-fit, a fitted calibration may lift a
+// capped C_raw above green on real outcome evidence; a hard post-calibration ceiling for these classes is
+// the deferred WP-CONF-CEIL — see the signals.ts note.)
 
 import type { Tier2CapKind } from "./signals"
 

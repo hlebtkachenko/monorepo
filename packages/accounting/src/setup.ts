@@ -126,12 +126,21 @@ export async function createAccount(
 export async function createCounterparty(
   db: RowExecutor,
   ctx: OrgCtx,
-  input: { selfOfOrganizationId?: string | null } = {},
+  input: {
+    selfOfOrganizationId?: string | null
+    /** obchodní jméno / jméno osoby (KH + SH display). */
+    name?: string | null
+    /** DIČ incl. country prefix, e.g. "CZ12345678" (§101d KH / §102 SH). */
+    taxId?: string | null
+    /** ISO 3166-1 alpha-2 member state ("CZ" domestic, "DE" EU, …). */
+    countryCode?: string | null
+  } = {},
 ): Promise<string> {
   const r = await one<{ id: string }>(
     db,
-    sql`INSERT INTO counterparty (workspace_id, self_of_organization_id)
-        VALUES (${ctx.workspaceId}::uuid, ${input.selfOfOrganizationId ?? null})
+    sql`INSERT INTO counterparty (workspace_id, self_of_organization_id, name, tax_id, country_code)
+        VALUES (${ctx.workspaceId}::uuid, ${input.selfOfOrganizationId ?? null},
+                ${input.name ?? null}, ${input.taxId ?? null}, ${input.countryCode ?? null})
         RETURNING id`,
   )
   return r.id

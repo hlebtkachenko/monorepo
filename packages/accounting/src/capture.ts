@@ -177,12 +177,12 @@ async function insertPartial(
     db,
     sql`INSERT INTO partial_record
           (organization_id, individual_record_id, quantity, measure_unit, unit_price,
-           base_amount, vat_rate, vat_mode, vat_deductible, advance_settlement, vat_amount,
+           base_amount, vat_rate, vat_mode, vat_jurisdiction, vat_deductible, advance_settlement, vat_amount,
            currency_code, fx_rate_kind, fx_rate, vat_fx_rate,
            base_in_accounting_currency, vat_in_accounting_currency)
         VALUES
           (${ctx.organizationId}::uuid, ${individualRecordId}::uuid, ${p.quantity ?? null}, ${p.measureUnit ?? null}, ${p.unitPrice ?? null},
-           ${p.baseAmount}, ${p.vatRate ?? null}, ${p.vatMode}, ${p.vatDeductible ?? true}, ${p.advanceSettlement ?? false}, ${vatAmount},
+           ${p.baseAmount}, ${p.vatRate ?? null}, ${p.vatMode}, ${p.vatJurisdiction ?? null}, ${p.vatDeductible ?? true}, ${p.advanceSettlement ?? false}, ${vatAmount},
            ${p.currencyCode}, ${p.fxRateKind ?? null}, ${p.fxRate ?? null}, ${p.vatFxRate ?? null},
            ${baseInAcc}, ${vatInAcc})
         RETURNING id`,

@@ -107,6 +107,44 @@ export {
 // Corrections (R8)
 export { reverse, type ReverseInput } from "./corrections"
 
+// Decision layer (the source-of-truth "brain": raw facts → posting decision)
+export {
+  classifyEvent,
+  classifyCashMovement,
+  DEFAULT_ASSET_THRESHOLD,
+  type EconomicEvent,
+  type PostingDecision,
+  type SupplyKind,
+  type VatJurisdiction,
+  type CashMovement,
+  type CashDecision,
+} from "./classify"
+
+// Časové rozlišení (accruals / deferrals — 381/383/384/385, §3/1 matching)
+export {
+  postAccrual,
+  prorataByDays,
+  type AccrualInput,
+  type AccrualKind,
+} from "./accruals"
+
+// Fixed-asset lifecycle (pořízení 042 → zařazení 022 → vyřazení 541/641)
+export { acquireAsset, commissionAsset, disposeAsset } from "./asset-lifecycle"
+
+// Zálohy s daní (§37a — daňový doklad k záloze + vyúčtování s odpočtem zálohy)
+export { postAdvanceReceived, settleAdvanceOnFinalInvoice } from "./advances"
+
+// Daňové odpisy (tax depreciation §30-§32) + účetní-vs-daňové adjustment for DPPO
+export {
+  straightLineTaxDepreciation,
+  acceleratedTaxDepreciation,
+  taxDepreciationSchedule,
+  bookVsTaxAdjustment,
+  GROUP_LIFE_YEARS,
+  type DepreciationGroup,
+  type TaxDepreciationMethod,
+} from "./depreciation"
+
 // Supporting postings (UC-4)
 export {
   generateDepreciation,
@@ -114,6 +152,15 @@ export {
   type DepreciationInput,
   type InventoryDifferenceInput,
 } from "./supporting"
+
+// Auto-driven depreciation (UC-4) — plan+asset → monthly odpisy; §23/3 book-vs-tax → DPPO
+export {
+  runDepreciationForPeriod,
+  bookVsTaxForAsset,
+  type RunDepreciationInput,
+  type RunDepreciationResult,
+  type BookVsTaxResult,
+} from "./depreciation-run"
 
 // Invariants (R5 / R6 / R11 + drift)
 export {
@@ -137,6 +184,13 @@ export {
   buildZaverka,
   buildPrehledy,
   buildDpfo,
+  buildDppo,
+  buildDph,
+  buildKontrolniHlaseni,
+  buildSouhrnneHlaseni,
+  computeIncomeTaxAdvances,
+  NON_DEDUCTIBLE_CATALOGUE,
+  KH_ROW_THRESHOLD,
   UnpostedPeriodError,
   type GeneratedOutput,
   type OutputFigures,
@@ -145,4 +199,19 @@ export {
   type StatementLineRow,
   type Prehledy,
   type Dpfo,
+  type Dppo,
+  type DppoInput,
+  type Dph,
+  type DphRows,
+  type KontrolniHlaseniTotals,
+  type KontrolniHlaseni,
+  type KhRow,
+  type KhAggregate,
+  type SouhrnneHlaseni,
+  type ShRow,
+  buildStatementLayout,
+  type StatementLayout,
+  type LayoutLine,
+  type StatementRozsah,
+  type StatementUnit,
 } from "./output/index"

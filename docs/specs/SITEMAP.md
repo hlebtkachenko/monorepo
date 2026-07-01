@@ -112,10 +112,16 @@ icons, and the label↔folder mapping are fixed in `_nav/org-nav.ts`.
 Sidebar = **Pinned** (top, ungrouped) then **Groups** (logical heading → Pages →
 Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 
+> **Build-status tag.** Every nav entry that is still a `ModulePage` placeholder
+> carries a `badge: "TBA"` in its `nav.ts` — a small "TBA" pill in the sidebar.
+> When a page's real body ships, **remove that entry's badge**. Agents can list
+> everything outstanding with `grep -r 'badge: "TBA"' apps/web/app/[orgSlug]`
+> straight off the nav index — no need to open each page. All pages are TBA today.
+
 #### Company (`/`) — LOCKED
 
 - **Pinned:** Overview · Inbox (org-filtered link → `/workspace/inbox`) · Tasks
-- **Profile** — Company card · Members
+- **Profile** — Company card · People
 - **Engagement** — Services (add-ons we provide to _this_ company, not workspace) · Onboarding
 
 > **Overview = the org digest** (content, not new pages): an **obligations mini-cockpit**
@@ -126,22 +132,22 @@ Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 
 #### Accounting (`/accounting`) — the books (regime-aware) — REVIEWED
 
-- **Pinned:** Overview (books vitals: period posting status · open-item & analytical↔synthetic reconciliation) · **Review** (work queue: unposted + low-confidence agent postings + this-org exceptions; cross-client queue lives in `/workspace/inbox`)
-- **Books** _(regime-aware)_ — the statutory **účetní knihy** (563/1991 §13)
-  - _double-entry:_ Journal (deník) · General ledger (hlavní kniha) · **Off-balance ledger** (the statutory 4th book _kniha podrozvahová_ §13 — guarantees / leased-custody / off-balance items — its own page) · Analytical ledger (knihy analytické evidence) · Trial balance (obratová předvaha)
-  - _cash regime:_ Cash journal (peněžní deník)
+- **Pinned:** Overview (books vitals: period posting status · open-item & analytical↔synthetic reconciliation) · **Posting approvals** (the AI→human approval path — the Assistant's automatically-prepared postings wait here for a human to review + approve; unposted + low-confidence + this-org exceptions; cross-client queue lives in `/workspace/inbox`)
+- **Books** _(regime-aware; ordered by regime — TODO(regime))_ — the statutory **účetní knihy** (563/1991 §13)
+  - _cash regime (jednoduché / daňová evidence):_ **Cash journal** (peněžní deník) is the primary book — shown **first**; the double-entry books below are hidden.
+  - _double-entry:_ Journal (deník) · General ledger (hlavní kniha) · **Off-balance ledger** (the statutory 4th book _kniha podrozvahová_ §13 — guarantees / leased-custody / off-balance items — its own page) · Analytical ledger (knihy analytické evidence) · Trial balance (obratová předvaha) — Cash journal hidden.
 - **Structure** _(regime-aware)_
   - _double-entry:_ Chart of accounts (účtový rozvrh) · Posting rules (předkontace — agent posting config, no statutory book)
   - _cash regime:_ Categories (income/expense — replaces the chart)
   - **Posting checks** (Kontroly) — rule-based posting-validation register (balanced MD/Dal · valid account/regime · DUZP-in-period · saldo-tie); **distinct from the Review work queue** (Review = agent-output triage; Checks = deterministic rule results). Feeds the shared Checks band.
   - **Opening balances** (počáteční stavy / period init — _inicializace období_) — entry of opening account/saldo/VAT balances when a period or migration starts _(period-init flow / wizard, not config)_
 - **VAT** _(gated on vat_status — plátce / IO only)_
-  - **VAT ledger** — 343 evidence; subpages: **Input VAT** (odpočet) · **Output VAT** (daň na výstupu) · **Reverse charge** (přenesená daňová povinnost §92a–92h — supplier A1 / buyer B1) · **Breakdown** (by rate / section — maps to control-statement sections A1–A5 / B1–B3, §101c–101j)
+  - **VAT ledger** — 343 evidence; subpages: **Input VAT** (odpočet) · **Output VAT** (daň na výstupu) · **Reverse charge** (přenesená daňová povinnost §92a–92h — supplier A1 / buyer B1) · **Breakdown** (by rate / section — maps to control-statement sections A1–A5 / B1–B3, §101c–101j) · **Supporting documents** (podklady DPH — the source-document evidence backing the VAT return)
 - _Number series → Settings (org-general, spans all entity types). DPH filings → Closing._
 
 #### Records (`/documents`) — all documents, "what's on paper" — REVIEWED
 
-- **Pinned:** Overview (recently captured · to-review · capture exceptions) · **Capture inbox** (document capture-intake — uploads / e-mail / data-box / ISDOC land here; agent OCRs + proposes a voucher; "to classify" queue. _Distinct dataset from `/workspace/inbox` (the cross-org `user_task` queue) and Company's Inbox link — this is documents to classify, not tasks._)
+- **Pinned:** Overview (recently captured · to-review · capture exceptions) · **Inbox** (document capture-intake — uploads / e-mail / data-box / ISDOC land here; agent OCRs + proposes a voucher; "to classify" queue. _This is documents to classify — a different dataset from `/workspace/inbox` (the cross-org `user_task` queue) and Company's Inbox link._)
 - **Invoices & vouchers**
   - **Invoices** — subpages: Received (faktury přijaté) · Issued (faktury vydané). _Named subtypes (tabs/filters inside the list): ordinary faktura (neplátce / IO, no DPH) · daňový doklad (plátce ≥ 10,001) · zjednodušený daňový doklad (≤ 10,000) · souhrnný daňový doklad (§26)._
   - **Advances** — zálohové faktury / proformas + **daňový doklad k přijaté záloze** (advance tax document, §26/§20; drives the advance→invoice→settlement lineage) — subpages: Received · Issued
@@ -155,8 +161,8 @@ Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 
 #### Finance (`/finance`) — cash-flow, "real money" — REVIEWED
 
-- **Pinned:** Overview (cash position + cash-flow forecast · what needs action)
-- **Treasury** — Bank (subpages: Movements · Statements · Reconciliation) · Cash (pokladna) · Loans (subpages: Movements · **Statements** (úvěrové výpisy — the statement feed; the loan-agreement paperwork lives in Records › Loan documents))
+- **Pinned:** Overview (cash position + cash-flow forecast · what needs action) · **Accounts** (register of all money accounts — bank accounts + cash points — with balances)
+- **Treasury** — Bank (subpages: Movements · Statements · Reconciliation) · **Cash in hand** (pokladna / hotovost) · Loans (subpages: Movements · **Statements** (úvěrové výpisy — the statement feed; the loan-agreement paperwork lives in Records › Loan documents))
 - **Receivables & payables** _(balances from real payments; also the mandatory cash-regime AR/AP registers)_ _[derived — saldokonto views over postings + counterparty; output/views layer V2-DEFERRED]_ — Receivables (subpages: Ageing · **Debtors** (dlužníci — by-partner)) · Payables (subpages: Due · **Creditors** (věřitelé — by-partner))
 - **Collections** _(payment control — kontrola úhrad)_ — **Dunning** (upomínky — agent-prepared reminder letters by ageing stage) · **Penalisation** (penále — the **booked** late-interest run: Prepared → Commit; distinct from the throwaway Calculators penalty estimate, which posts nothing)
 - **Payments** — Payment orders (příkazy k úhradě; reliability check warns before paying an unreliable plátce) · Settlements (zápočty — clearing/netting, no cash movement; subpages: Bilateral (vzájemný) · Multilateral (vícestranný)) · **Bulk reconciliation** (hromadné párování — auto-match cockpit: bank movements ↔ open AR/AP, agent-proposed, human-confirmed) · **Calculators** _(stateless helpers, not posting surfaces)_ (subpages: FX (kurzová) · Penalty (penále) · Cash denomination (výčetka platidel))
@@ -170,10 +176,10 @@ Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 
 Mined from Money _Režie_ (Mzdy + Jízdy) + Abra _Personalistika_.
 
-- **Pinned:** Overview (payroll status · filings due) · **Review** (payroll-run approval · exceptions)
+- **Pinned:** Overview (payroll status · filings due) · **Payroll approvals** (the AI→human approval path — agent-prepared payroll runs wait for human review + approval; + exceptions)
 - **People** _(gated: has_employees)_ — Employees (zaměstnanci; _per-record card tabs, not nav:_ employment relationships · taxpayer declaration [per tax-year] · allowances & reliefs · **Deductions** (exekuce / insolvency / savings) · **Personnel docs**) · Agreements (subpages: **Task agreement** (DPP) · **Activity agreement** (DPC))
 - **Payroll** _(gated: has_employees)_ — Payroll runs (+ payslips) · Payroll posting (→ payment orders) · Attendance (absences) · **Sickness e-filing** (electronic sick-notes & benefit claims → ČSSZ) · Payroll reports (subpages: **Income-tax reconciliation** (annual employer statement of dependent-activity tax, §38j) · **Withholding-tax reconciliation** · Health insurance · Social insurance [incl. **DPP report**] · Tax statements · Sick-pay) · **Payroll sheets** (mzdové listy — per-employee annual statutory register, §38j; 30-year retention, Act 582/1991 §35a) · **Pension record** (evidenční list důchodového pojištění → ČSSZ)
-- **Vehicles** (Jízdy) — Vehicles (vozidla) · Trip log (kniha jízd) · Drivers (řidiči) _[mock]_
+- _Vehicles / fleet (vozidla · kniha jízd · řidiči) → **Assets › Fleet** (vehicles are assets)._
 
 > **2026 reforms kept (do NOT drop despite stale KB):** **JMHZ** (Jednotné měsíční
 > hlášení zaměstnavatele — unified monthly employer report) + single collection point
@@ -190,9 +196,10 @@ Mined from Money _Režie_ (Mzdy + Jízdy) + Abra _Personalistika_.
 
 Mined from Money _Majetek_ (+ karta majetku) + Abra _Majetek_ + Evala.
 
-- **Pinned:** Overview (depreciation due · inventory due · exceptions) · **Review** (to-commission · disposals · exceptions)
+- **Pinned:** Overview (depreciation due · inventory due · exceptions) · **Asset approvals** (the AI→human approval path — agent-prepared commissioning / disposal events wait for human review + approval; + exceptions)
 - **Register** _(regime-aware)_ — Fixed assets (subpages: Intangible assets (01x) · Tangible assets (02x) · Land & artwork (03x, non-depreciable)) · Small assets (low-value) · Acquisitions & disposals (lifecycle; subpages: **Under construction** (04x — not yet commissioned) · **Advances** (asset prepayments 05x) · Disposals) · **Leasing** _[mock — no lease entity]_ (subpages: Contracts · Instalments — types finance / operating / sale-and-leaseback; the 3 posting flows: instalment posting · leased-asset posting · technical-improvement on leased asset 029)
 - **Operations** — **Depreciation run** _(regime-aware: double-entry posts účetní odpisy; cash → daňové-only evidence)_ (zaúčtování majetku — agent posts účetní odpisy MD 551 / D 08x for the period; human confirms) · **Inventory count** (inventarizace — `inventory_count` + lines; manko 549 / přebytek 648)
+- **Fleet** _[mock — no vehicle entity]_ (moved from HR — vehicles are assets) — Vehicles (vozidla) · Trip log (kniha jízd) · Drivers (řidiči)
 - Asset card = header + _detail tabs (not nav):_ **Movements** (pohyby) · **Účetní odpisy** · **Daňové odpisy** · **Assigned** (přiřazené) · Location (umístění) · Notes. Card events: **Technical improvement** (technické zhodnocení → 029, raises cost basis). Fields: acquisition/disposal method · odpisová skupina (1–6) · depreciation method (účetní; daňové method is **irrevocable** once chosen, §30/2 — the §31/§32 method cannot change for the whole depreciation period) · primary accounts (majetku / oprávky / odpisů) · středisko / zakázka. _(regime-aware: cash → evidence majetku, daňové-only)_
 
 > Cross-module: inventarizace _flow_ + deferred-tax _(audit-required entities, §59 Decree
@@ -213,6 +220,7 @@ file — AI-denied). No competitor unifies this.
   přehledy not závěrka for jednoduché; OSVČ-contributions lane for OSVČ). Each row =
   status · deadline · amount; deep-links into that period's flow. Filter/lens by kind.
 - **Pinned: Calendar** — daňový kalendář, the dedicated **time-view** destination of the same obligation set (a recognized accountant artifact; the board is the action/status framing, the calendar is the deadline-radar framing — kept as its own pinned page, not a board toggle)
+- **Monthly close** _(the routine per-month cycle)_ — **Unclosed** (open periods not yet closed) · **Closed** (closed periods). Under each, the individual months are **dynamic subpages** (a `[period]` route rendered per `accounting_period` at runtime — not static nav leaves).
 - **Obligations** _(always-on pages — each obligation KIND has a stable navigable home; the dynamic per-period instances render inside it, opened from the cockpit)_
   - **VAT** _(vat_status-gated)_ — subpages: VAT return (DAP) · Control statement (kontrolní hlášení) · EC Sales List (souhrnné hlášení) · OSS · IOSS
   - **Payroll** _(has_employees-gated)_ — subpages: Monthly employer report (JMHZ) · Social insurance · Health insurance · Withholding tax
@@ -254,7 +262,7 @@ layer (`period_output`) is V2-DEFERRED.**
 Outputs/analytics — NOT live books (Accounting) nor filings (Closing).
 
 - **Pinned: Overview** — reports hub + **agent insight** (anomalies / variance callouts on the numbers)
-- **Statements** (účetní závěrka) — Balance sheet (rozvaha) · Income statement (výsledovka; subpages: Statutory (VZZ) · **Monthly P&L** — výkaz hospodaření za měsíc) · Notes (příloha) · Cash flow · Equity changes. _DPPO tax-base / deferred-tax reconciliation (Ř.40) is part of the income-tax close (Closing). Components adapt by size (mikro/malá abbreviated; CF + equity only střední/velká); published set (size+audit) distinct from internal full set. [CF/equity blocked on deferred output + FX]_
+- **Statements** — _double-entry (účetní závěrka):_ Balance sheet (rozvaha) · Income statement (výsledovka; subpages: Statutory (VZZ) · **Monthly P&L** — výkaz hospodaření za měsíc) · Notes (příloha) · Cash flow · Equity changes. _cash regime (TODO(regime)):_ **Assets & liabilities list** (přehled o majetku a závazcích) · **Income & expenditure list** (přehled o příjmech a výdajích). _DPPO Ř.40 reconciliation is part of the income-tax close (Closing). Components adapt by size (mikro/malá abbreviated; CF + equity only střední/velká); published set (size+audit) distinct from internal full set. [CF/equity blocked on deferred output + FX]_
 - **Analysis** _(snapshot/print versions; the live trial balance + analytical ledger live in Accounting › Books)_ — Account analysis · Trial balance (obratová předvaha) · Profitability (subpages: Summary (revenue · cost · profit) · **Cost & revenue listing**) · Management reporting (subpages: By cost centre · By job · By activity · **Job profitability**)
 - **Balances** _(account-state report family — the printable/snapshot versions; Finance keeps the live working open-item ledger)_ — **Open items by partner** (saldo — open-item balance by counterparty) · **Account balances** (stav účtů) · **Account movements** (pohyby na účtech) · **Account verification** (inventarizace účtů) · **Receivables/payables at date** (stav záv. / pohl. ke dni)
 - **Print exports** — Document journal (dokladový deník) · FX rate list (kurzovní lístek) _[mock — FX deferred in MVP posting]_ · Statutory prints (ad-hoc operator snapshot; subpages: Journal (deník) · General ledger (hlavní kniha) — live books in Accounting; the statutory závěrka snapshot frozen at filing lives in Closing › Archive) · **XML statement export** (Rozvaha + VZZ v XML — for filing/handoff) · **Audit confirmation letters** (ověřovací dopisy — balance-confirmation requests to partners)

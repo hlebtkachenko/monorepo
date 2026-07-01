@@ -60,30 +60,46 @@ export function orgBottomNav(orgSlug: string): BottomNavItem[] {
 }
 
 // The org index ("Company") has no module folder, so its tree lives here; the
-// routes (inbox/tasks/profile/members/services/onboarding) are folders directly
+// routes (inbox/tasks/profile/people/services/onboarding) are folders directly
 // under `[orgSlug]/`. Every actual module folder owns a co-located
-// `<module>/nav.ts`. `base` = `/${orgSlug}`.
+// `<module>/nav.ts`. `base` = `/${orgSlug}`. `badge: "TBA"` = not-yet-built.
 function companyNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "Goal" },
+    { label: "Overview", href: base, icon: "Goal", badge: "TBA" },
     // Inbox links to the workspace-tier queue; the local stub route redirects.
-    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox" },
-    { label: "Tasks", href: `${base}/tasks`, icon: "ListTodo" },
+    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox", badge: "TBA" },
+    { label: "Tasks", href: `${base}/tasks`, icon: "ListTodo", badge: "TBA" },
     {
       label: "Profile",
       pages: [
-        { label: "Company card", href: `${base}/profile`, icon: "Building2" },
-        { label: "Members", href: `${base}/members`, icon: "Users" },
+        {
+          label: "Company card",
+          href: `${base}/profile`,
+          icon: "Building2",
+          badge: "TBA",
+        },
+        {
+          label: "People",
+          href: `${base}/people`,
+          icon: "Users",
+          badge: "TBA",
+        },
       ],
     },
     {
       label: "Engagement",
       pages: [
-        { label: "Services", href: `${base}/services`, icon: "Blocks" },
+        {
+          label: "Services",
+          href: `${base}/services`,
+          icon: "Blocks",
+          badge: "TBA",
+        },
         {
           label: "Onboarding",
           href: `${base}/onboarding`,
           icon: "GraduationCap",
+          badge: "TBA",
         },
       ],
     },

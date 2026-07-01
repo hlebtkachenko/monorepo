@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.10.2] — 2026-07-01
+
+Patch release: the app-structure discovery surface — the org navigation tree, pages, and layout archetypes, reachable by AI agents **outside the GUI** via the public API / SDK / MCP / CLI. Read-only metadata; no runtime behavior change to the app.
+
+### Added
+
+- **api**: read-only app-structure discovery surface for agents — `GET /v1/structure` (the ten rail modules → pages → subpages, each with route, icon, build-status, and layout archetype) and `GET /v1/structure/archetypes` (the five content-panel archetypes). Public (no API key — the IA is tenant-agnostic), auto-shipped as MCP tools (`getStructure`, `listArchetypes`) and CLI commands (`afframe structure`, `afframe archetypes`). Generated from the typed `nav.ts` trees at build time (`scripts/gen-structure.ts` → committed snapshot), drift-locked via a lefthook `structure-drift` hook; the GUI is untouched. Operability (agents acting on pages) is deferred until the accounting domain lands — see [`docs/api/AGENT-STRUCTURE.md`](docs/api/AGENT-STRUCTURE.md) + issue #439. (#438)
+
 ## [v0.10.1] — 2026-07-01
 
 Patch release: Intrastat placeholder pages on the app skeleton, plus admin security-scan hygiene. Mock-surface + hygiene only, no runtime behavior change.

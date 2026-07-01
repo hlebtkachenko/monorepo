@@ -15,6 +15,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger"
 import type {
+  DphResponse,
   JournalResponse,
   LedgerResponse,
   OpenItemsResponse,
@@ -23,6 +24,7 @@ import type {
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
 import { withOrganization } from "@workspace/db"
 import {
+  buildDph,
   generalLedger,
   journal,
   saldoPerPartner,
@@ -31,6 +33,7 @@ import {
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
 import {
+  DphResponseDto,
   JournalResponseDto,
   LedgerResponseDto,
   OpenItemsResponseDto,
@@ -189,6 +192,32 @@ export class AccountingController {
         direction: r.direction,
         openTotal: r.open_total,
       })),
+    }
+  }
+
+  @Get("periods/:periodId/outputs/vat-return")
+  @ApiOperation({
+    summary: "Get VAT return (DPH přiznání)",
+    description:
+      "DPH přiznání line values + kontrolní hlášení section totals for the " +
+      "period, computed from the posted facts.",
+  })
+  @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiOkResponse({ type: DphResponseDto })
+  async getVatReturn(
+    @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<DphResponse> {
+    const dph = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      (db) => buildDph(db, periodId),
+    )
+    return {
+      organizationId: principal.organizationId,
+      periodId,
+      rows: dph.rows,
+      kh: dph.kh,
     }
   }
 }

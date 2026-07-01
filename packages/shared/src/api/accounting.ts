@@ -180,76 +180,52 @@ export const OpenItemsQuerySchema = z.object({
 /** One open item (unsettled receivable/payable). */
 export const OpenItemRowSchema = z
   .object({
-    id: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Open-item id.",
-        example: "aa11bb22-cc33-4d44-9e55-ff6677889900",
-      }),
-    counterpartyId: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Counterparty (partner) id.",
-        example: "cc33dd44-ee55-4f66-9077-112233445566",
-      }),
-    accountNumber: z
-      .string()
-      .openapi({
-        description: "Receivable/payable account number.",
-        example: "311000",
-      }),
-    direction: z
-      .enum(["RECEIVABLE", "PAYABLE"])
-      .openapi({
-        description: "Receivable or payable.",
-        example: "RECEIVABLE",
-      }),
-    variableSymbol: z
-      .string()
-      .nullable()
-      .openapi({
-        description: "Variabilní symbol, or null.",
-        example: "20250042",
-      }),
-    originalAmount: z
-      .string()
-      .openapi({
-        description: "Original amount (decimal string).",
-        example: "121000.00",
-      }),
-    settledAmount: z
-      .string()
-      .openapi({
-        description: "Settled amount so far (decimal string).",
-        example: "0.00",
-      }),
-    remainingAmount: z
-      .string()
-      .openapi({
-        description: "Remaining unsettled amount (decimal string).",
-        example: "121000.00",
-      }),
+    id: z.string().uuid().openapi({
+      description: "Open-item id.",
+      example: "aa11bb22-cc33-4d44-9e55-ff6677889900",
+    }),
+    counterpartyId: z.string().uuid().openapi({
+      description: "Counterparty (partner) id.",
+      example: "cc33dd44-ee55-4f66-9077-112233445566",
+    }),
+    accountNumber: z.string().openapi({
+      description: "Receivable/payable account number.",
+      example: "311000",
+    }),
+    direction: z.enum(["RECEIVABLE", "PAYABLE"]).openapi({
+      description: "Receivable or payable.",
+      example: "RECEIVABLE",
+    }),
+    variableSymbol: z.string().nullable().openapi({
+      description: "Variabilní symbol, or null.",
+      example: "20250042",
+    }),
+    originalAmount: z.string().openapi({
+      description: "Original amount (decimal string).",
+      example: "121000.00",
+    }),
+    settledAmount: z.string().openapi({
+      description: "Settled amount so far (decimal string).",
+      example: "0.00",
+    }),
+    remainingAmount: z.string().openapi({
+      description: "Remaining unsettled amount (decimal string).",
+      example: "121000.00",
+    }),
     isSettled: z
       .boolean()
       .openapi({ description: "True once fully settled.", example: false }),
     currencyCode: z
       .string()
       .openapi({ description: "ISO 4217 currency code.", example: "CZK" }),
-    issueDate: z
-      .string()
-      .openapi({
-        description: "Issue date (YYYY-MM-DD).",
-        example: "2025-03-14",
-      }),
-    dueDate: z
-      .string()
-      .nullable()
-      .openapi({
-        description: "Due date (YYYY-MM-DD), or null.",
-        example: "2025-04-13",
-      }),
+    issueDate: z.string().openapi({
+      description: "Issue date (YYYY-MM-DD).",
+      example: "2025-03-14",
+    }),
+    dueDate: z.string().nullable().openapi({
+      description: "Due date (YYYY-MM-DD), or null.",
+      example: "2025-04-13",
+    }),
   })
   .openapi({ description: "An unsettled receivable or payable (open item)." })
 export type OpenItemRow = z.infer<typeof OpenItemRowSchema>
@@ -270,32 +246,23 @@ export type OpenItemsResponse = z.infer<typeof OpenItemsResponseSchema>
 /** Per-partner saldo aggregate row. */
 export const SaldoPerPartnerRowSchema = z
   .object({
-    counterpartyId: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Counterparty (partner) id.",
-        example: "cc33dd44-ee55-4f66-9077-112233445566",
-      }),
-    accountNumber: z
-      .string()
-      .openapi({
-        description: "Receivable/payable account number.",
-        example: "311000",
-      }),
-    direction: z
-      .enum(["RECEIVABLE", "PAYABLE"])
-      .openapi({
-        description: "Receivable or payable.",
-        example: "RECEIVABLE",
-      }),
-    openTotal: z
-      .string()
-      .openapi({
-        description:
-          "Total open (unsettled) amount for the partner (decimal string).",
-        example: "121000.00",
-      }),
+    counterpartyId: z.string().uuid().openapi({
+      description: "Counterparty (partner) id.",
+      example: "cc33dd44-ee55-4f66-9077-112233445566",
+    }),
+    accountNumber: z.string().openapi({
+      description: "Receivable/payable account number.",
+      example: "311000",
+    }),
+    direction: z.enum(["RECEIVABLE", "PAYABLE"]).openapi({
+      description: "Receivable or payable.",
+      example: "RECEIVABLE",
+    }),
+    openTotal: z.string().openapi({
+      description:
+        "Total open (unsettled) amount for the partner (decimal string).",
+      example: "121000.00",
+    }),
   })
   .openapi({ description: "Per-partner open balance." })
 export type SaldoPerPartnerRow = z.infer<typeof SaldoPerPartnerRowSchema>
@@ -312,3 +279,81 @@ export const SaldokontoResponseSchema = z
     description: "Saldokonto — per-partner open receivable/payable balances.",
   })
 export type SaldokontoResponse = z.infer<typeof SaldokontoResponseSchema>
+
+/**
+ * DPH přiznání line values (§ references in each field). Every value is a
+ * decimal string in CZK. Line numbers follow the official tax-return form.
+ */
+const dec = (description: string) =>
+  z.string().openapi({ description, example: "0.00" })
+
+export const DphRowsSchema = z
+  .object({
+    r1_base: dec("ř.1 základ — dodání zboží/služeb 21 % (§13/§14)."),
+    r1_dan: dec("ř.1 daň — 21 %."),
+    r2_base: dec("ř.2 základ — dodání 12 % (§13/§14, §47)."),
+    r2_dan: dec("ř.2 daň — 12 %."),
+    r3_base: dec("ř.3 základ — pořízení zboží z EU, samovyměření 21 % (§16)."),
+    r3_dan: dec("ř.3 daň."),
+    r4_base: dec("ř.4 základ — pořízení zboží z EU, samovyměření 12 %."),
+    r4_dan: dec("ř.4 daň."),
+    r10_base: dec("ř.10 základ — PDP odběratel 21 % (§92e)."),
+    r10_dan: dec("ř.10 daň."),
+    r11_base: dec("ř.11 základ — PDP odběratel 12 %."),
+    r11_dan: dec("ř.11 daň."),
+    r25_base: dec("ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel."),
+    r40_base: dec("ř.40 základ — odpočet na vstupu 21 % (§72-73)."),
+    r40_dan: dec("ř.40 daň."),
+    r41_base: dec("ř.41 základ — odpočet na vstupu 12 %."),
+    r41_dan: dec("ř.41 daň."),
+    r43_base: dec("ř.43 základ — odpočet u samovyměření 21 % (§73/4)."),
+    r43_dan: dec("ř.43 daň."),
+    r44_base: dec("ř.44 základ — odpočet u samovyměření 12 %."),
+    r44_dan: dec("ř.44 daň."),
+    r50_base: dec("ř.50 — osvobozená plnění (§51 a násl.)."),
+    dan_na_vystupu: dec("Daň na výstupu celkem."),
+    odpocet: dec("Odpočet celkem."),
+    vlastni_dan: dec("Vlastní daň (+) / nadměrný odpočet (−)."),
+  })
+  .openapi({ description: "DPH přiznání line values." })
+export type DphRows = z.infer<typeof DphRowsSchema>
+
+export const KontrolniHlaseniTotalsSchema = z
+  .object({
+    a1_base: dec("A.1 základ — PDP dodavatel (ISSUED, REVERSE_CHARGE)."),
+    a1_dan: dec("A.1 daň."),
+    a4_base: dec(
+      "A.4/A.5 základ — tuzemská výstupní plnění (ISSUED, STANDARD).",
+    ),
+    a4_dan: dec("A.4/A.5 daň."),
+    b1_base: dec(
+      "B.1 základ — PDP odběratel samovyměření (RECEIVED, REVERSE_CHARGE).",
+    ),
+    b1_dan: dec("B.1 daň."),
+    b2_base: dec(
+      "B.2/B.3 základ — tuzemská vstupní plnění (RECEIVED, STANDARD).",
+    ),
+    b2_dan: dec("B.2/B.3 daň."),
+  })
+  .openapi({ description: "Kontrolní hlášení section totals." })
+export type KontrolniHlaseniTotals = z.infer<
+  typeof KontrolniHlaseniTotalsSchema
+>
+
+/** `GET /v1/accounting/periods/{periodId}/outputs/vat-return` response. */
+export const DphResponseSchema = z
+  .object({
+    organizationId: OrganizationIdSchema,
+    periodId: z.string().uuid().openapi({
+      description: "The period this return covers.",
+      example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
+    }),
+    rows: DphRowsSchema,
+    kh: KontrolniHlaseniTotalsSchema,
+  })
+  .openapi({
+    description:
+      "DPH přiznání (VAT return) for the period — line values plus kontrolní " +
+      "hlášení section totals, computed from the posted facts.",
+  })
+export type DphResponse = z.infer<typeof DphResponseSchema>

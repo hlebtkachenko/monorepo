@@ -1,5 +1,6 @@
 import { createZodDto } from "nestjs-zod"
 import {
+  DphResponseSchema,
   GetOrganizationResponseSchema,
   JournalResponseSchema,
   LedgerResponseSchema,
@@ -24,3 +25,4 @@ export class OpenItemsResponseDto extends createZodDto(
 export class SaldokontoResponseDto extends createZodDto(
   SaldokontoResponseSchema,
 ) {}
+export class DphResponseDto extends createZodDto(DphResponseSchema) {}

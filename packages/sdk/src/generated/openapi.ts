@@ -204,6 +204,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/periods/{periodId}/outputs/vat-return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get VAT return (DPH přiznání)
+         * @description Computes the DPH přiznání line values and kontrolní hlášení section totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).
+         */
+        get: operations["getAccountingVatReturn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1283,6 +1303,362 @@ export interface components {
              */
             openTotal: string;
         };
+        /** @description DPH přiznání (VAT return) for the period — line values plus kontrolní hlášení section totals, computed from the posted facts. */
+        DphResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description The period this return covers.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /** @description DPH přiznání line values. */
+            rows: {
+                /**
+                 * @description ř.1 základ — dodání zboží/služeb 21 % (§13/§14).
+                 * @example 0.00
+                 */
+                r1_base: string;
+                /**
+                 * @description ř.1 daň — 21 %.
+                 * @example 0.00
+                 */
+                r1_dan: string;
+                /**
+                 * @description ř.2 základ — dodání 12 % (§13/§14, §47).
+                 * @example 0.00
+                 */
+                r2_base: string;
+                /**
+                 * @description ř.2 daň — 12 %.
+                 * @example 0.00
+                 */
+                r2_dan: string;
+                /**
+                 * @description ř.3 základ — pořízení zboží z EU, samovyměření 21 % (§16).
+                 * @example 0.00
+                 */
+                r3_base: string;
+                /**
+                 * @description ř.3 daň.
+                 * @example 0.00
+                 */
+                r3_dan: string;
+                /**
+                 * @description ř.4 základ — pořízení zboží z EU, samovyměření 12 %.
+                 * @example 0.00
+                 */
+                r4_base: string;
+                /**
+                 * @description ř.4 daň.
+                 * @example 0.00
+                 */
+                r4_dan: string;
+                /**
+                 * @description ř.10 základ — PDP odběratel 21 % (§92e).
+                 * @example 0.00
+                 */
+                r10_base: string;
+                /**
+                 * @description ř.10 daň.
+                 * @example 0.00
+                 */
+                r10_dan: string;
+                /**
+                 * @description ř.11 základ — PDP odběratel 12 %.
+                 * @example 0.00
+                 */
+                r11_base: string;
+                /**
+                 * @description ř.11 daň.
+                 * @example 0.00
+                 */
+                r11_dan: string;
+                /**
+                 * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
+                 * @example 0.00
+                 */
+                r25_base: string;
+                /**
+                 * @description ř.40 základ — odpočet na vstupu 21 % (§72-73).
+                 * @example 0.00
+                 */
+                r40_base: string;
+                /**
+                 * @description ř.40 daň.
+                 * @example 0.00
+                 */
+                r40_dan: string;
+                /**
+                 * @description ř.41 základ — odpočet na vstupu 12 %.
+                 * @example 0.00
+                 */
+                r41_base: string;
+                /**
+                 * @description ř.41 daň.
+                 * @example 0.00
+                 */
+                r41_dan: string;
+                /**
+                 * @description ř.43 základ — odpočet u samovyměření 21 % (§73/4).
+                 * @example 0.00
+                 */
+                r43_base: string;
+                /**
+                 * @description ř.43 daň.
+                 * @example 0.00
+                 */
+                r43_dan: string;
+                /**
+                 * @description ř.44 základ — odpočet u samovyměření 12 %.
+                 * @example 0.00
+                 */
+                r44_base: string;
+                /**
+                 * @description ř.44 daň.
+                 * @example 0.00
+                 */
+                r44_dan: string;
+                /**
+                 * @description ř.50 — osvobozená plnění (§51 a násl.).
+                 * @example 0.00
+                 */
+                r50_base: string;
+                /**
+                 * @description Daň na výstupu celkem.
+                 * @example 0.00
+                 */
+                dan_na_vystupu: string;
+                /**
+                 * @description Odpočet celkem.
+                 * @example 0.00
+                 */
+                odpocet: string;
+                /**
+                 * @description Vlastní daň (+) / nadměrný odpočet (−).
+                 * @example 0.00
+                 */
+                vlastni_dan: string;
+            };
+            /** @description Kontrolní hlášení section totals. */
+            kh: {
+                /**
+                 * @description A.1 základ — PDP dodavatel (ISSUED, REVERSE_CHARGE).
+                 * @example 0.00
+                 */
+                a1_base: string;
+                /**
+                 * @description A.1 daň.
+                 * @example 0.00
+                 */
+                a1_dan: string;
+                /**
+                 * @description A.4/A.5 základ — tuzemská výstupní plnění (ISSUED, STANDARD).
+                 * @example 0.00
+                 */
+                a4_base: string;
+                /**
+                 * @description A.4/A.5 daň.
+                 * @example 0.00
+                 */
+                a4_dan: string;
+                /**
+                 * @description B.1 základ — PDP odběratel samovyměření (RECEIVED, REVERSE_CHARGE).
+                 * @example 0.00
+                 */
+                b1_base: string;
+                /**
+                 * @description B.1 daň.
+                 * @example 0.00
+                 */
+                b1_dan: string;
+                /**
+                 * @description B.2/B.3 základ — tuzemská vstupní plnění (RECEIVED, STANDARD).
+                 * @example 0.00
+                 */
+                b2_base: string;
+                /**
+                 * @description B.2/B.3 daň.
+                 * @example 0.00
+                 */
+                b2_dan: string;
+            };
+        };
+        /** @description DPH přiznání line values. */
+        DphRows: {
+            /**
+             * @description ř.1 základ — dodání zboží/služeb 21 % (§13/§14).
+             * @example 0.00
+             */
+            r1_base: string;
+            /**
+             * @description ř.1 daň — 21 %.
+             * @example 0.00
+             */
+            r1_dan: string;
+            /**
+             * @description ř.2 základ — dodání 12 % (§13/§14, §47).
+             * @example 0.00
+             */
+            r2_base: string;
+            /**
+             * @description ř.2 daň — 12 %.
+             * @example 0.00
+             */
+            r2_dan: string;
+            /**
+             * @description ř.3 základ — pořízení zboží z EU, samovyměření 21 % (§16).
+             * @example 0.00
+             */
+            r3_base: string;
+            /**
+             * @description ř.3 daň.
+             * @example 0.00
+             */
+            r3_dan: string;
+            /**
+             * @description ř.4 základ — pořízení zboží z EU, samovyměření 12 %.
+             * @example 0.00
+             */
+            r4_base: string;
+            /**
+             * @description ř.4 daň.
+             * @example 0.00
+             */
+            r4_dan: string;
+            /**
+             * @description ř.10 základ — PDP odběratel 21 % (§92e).
+             * @example 0.00
+             */
+            r10_base: string;
+            /**
+             * @description ř.10 daň.
+             * @example 0.00
+             */
+            r10_dan: string;
+            /**
+             * @description ř.11 základ — PDP odběratel 12 %.
+             * @example 0.00
+             */
+            r11_base: string;
+            /**
+             * @description ř.11 daň.
+             * @example 0.00
+             */
+            r11_dan: string;
+            /**
+             * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
+             * @example 0.00
+             */
+            r25_base: string;
+            /**
+             * @description ř.40 základ — odpočet na vstupu 21 % (§72-73).
+             * @example 0.00
+             */
+            r40_base: string;
+            /**
+             * @description ř.40 daň.
+             * @example 0.00
+             */
+            r40_dan: string;
+            /**
+             * @description ř.41 základ — odpočet na vstupu 12 %.
+             * @example 0.00
+             */
+            r41_base: string;
+            /**
+             * @description ř.41 daň.
+             * @example 0.00
+             */
+            r41_dan: string;
+            /**
+             * @description ř.43 základ — odpočet u samovyměření 21 % (§73/4).
+             * @example 0.00
+             */
+            r43_base: string;
+            /**
+             * @description ř.43 daň.
+             * @example 0.00
+             */
+            r43_dan: string;
+            /**
+             * @description ř.44 základ — odpočet u samovyměření 12 %.
+             * @example 0.00
+             */
+            r44_base: string;
+            /**
+             * @description ř.44 daň.
+             * @example 0.00
+             */
+            r44_dan: string;
+            /**
+             * @description ř.50 — osvobozená plnění (§51 a násl.).
+             * @example 0.00
+             */
+            r50_base: string;
+            /**
+             * @description Daň na výstupu celkem.
+             * @example 0.00
+             */
+            dan_na_vystupu: string;
+            /**
+             * @description Odpočet celkem.
+             * @example 0.00
+             */
+            odpocet: string;
+            /**
+             * @description Vlastní daň (+) / nadměrný odpočet (−).
+             * @example 0.00
+             */
+            vlastni_dan: string;
+        };
+        /** @description Kontrolní hlášení section totals. */
+        KontrolniHlaseniTotals: {
+            /**
+             * @description A.1 základ — PDP dodavatel (ISSUED, REVERSE_CHARGE).
+             * @example 0.00
+             */
+            a1_base: string;
+            /**
+             * @description A.1 daň.
+             * @example 0.00
+             */
+            a1_dan: string;
+            /**
+             * @description A.4/A.5 základ — tuzemská výstupní plnění (ISSUED, STANDARD).
+             * @example 0.00
+             */
+            a4_base: string;
+            /**
+             * @description A.4/A.5 daň.
+             * @example 0.00
+             */
+            a4_dan: string;
+            /**
+             * @description B.1 základ — PDP odběratel samovyměření (RECEIVED, REVERSE_CHARGE).
+             * @example 0.00
+             */
+            b1_base: string;
+            /**
+             * @description B.1 daň.
+             * @example 0.00
+             */
+            b1_dan: string;
+            /**
+             * @description B.2/B.3 základ — tuzemská vstupní plnění (RECEIVED, STANDARD).
+             * @example 0.00
+             */
+            b2_base: string;
+            /**
+             * @description B.2/B.3 daň.
+             * @example 0.00
+             */
+            b2_dan: string;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -1679,6 +2055,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SaldokontoResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingVatReturn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's VAT return + KH totals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DphResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

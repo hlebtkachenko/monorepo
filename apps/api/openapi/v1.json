@@ -2129,6 +2129,457 @@
           "openTotal"
         ],
         "description": "Per-partner open balance."
+      },
+      "DphResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The period this return covers.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rows": {
+            "type": "object",
+            "properties": {
+              "r1_base": {
+                "type": "string",
+                "description": "ř.1 základ — dodání zboží/služeb 21 % (§13/§14).",
+                "example": "0.00"
+              },
+              "r1_dan": {
+                "type": "string",
+                "description": "ř.1 daň — 21 %.",
+                "example": "0.00"
+              },
+              "r2_base": {
+                "type": "string",
+                "description": "ř.2 základ — dodání 12 % (§13/§14, §47).",
+                "example": "0.00"
+              },
+              "r2_dan": {
+                "type": "string",
+                "description": "ř.2 daň — 12 %.",
+                "example": "0.00"
+              },
+              "r3_base": {
+                "type": "string",
+                "description": "ř.3 základ — pořízení zboží z EU, samovyměření 21 % (§16).",
+                "example": "0.00"
+              },
+              "r3_dan": {
+                "type": "string",
+                "description": "ř.3 daň.",
+                "example": "0.00"
+              },
+              "r4_base": {
+                "type": "string",
+                "description": "ř.4 základ — pořízení zboží z EU, samovyměření 12 %.",
+                "example": "0.00"
+              },
+              "r4_dan": {
+                "type": "string",
+                "description": "ř.4 daň.",
+                "example": "0.00"
+              },
+              "r10_base": {
+                "type": "string",
+                "description": "ř.10 základ — PDP odběratel 21 % (§92e).",
+                "example": "0.00"
+              },
+              "r10_dan": {
+                "type": "string",
+                "description": "ř.10 daň.",
+                "example": "0.00"
+              },
+              "r11_base": {
+                "type": "string",
+                "description": "ř.11 základ — PDP odběratel 12 %.",
+                "example": "0.00"
+              },
+              "r11_dan": {
+                "type": "string",
+                "description": "ř.11 daň.",
+                "example": "0.00"
+              },
+              "r25_base": {
+                "type": "string",
+                "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
+                "example": "0.00"
+              },
+              "r40_base": {
+                "type": "string",
+                "description": "ř.40 základ — odpočet na vstupu 21 % (§72-73).",
+                "example": "0.00"
+              },
+              "r40_dan": {
+                "type": "string",
+                "description": "ř.40 daň.",
+                "example": "0.00"
+              },
+              "r41_base": {
+                "type": "string",
+                "description": "ř.41 základ — odpočet na vstupu 12 %.",
+                "example": "0.00"
+              },
+              "r41_dan": {
+                "type": "string",
+                "description": "ř.41 daň.",
+                "example": "0.00"
+              },
+              "r43_base": {
+                "type": "string",
+                "description": "ř.43 základ — odpočet u samovyměření 21 % (§73/4).",
+                "example": "0.00"
+              },
+              "r43_dan": {
+                "type": "string",
+                "description": "ř.43 daň.",
+                "example": "0.00"
+              },
+              "r44_base": {
+                "type": "string",
+                "description": "ř.44 základ — odpočet u samovyměření 12 %.",
+                "example": "0.00"
+              },
+              "r44_dan": {
+                "type": "string",
+                "description": "ř.44 daň.",
+                "example": "0.00"
+              },
+              "r50_base": {
+                "type": "string",
+                "description": "ř.50 — osvobozená plnění (§51 a násl.).",
+                "example": "0.00"
+              },
+              "dan_na_vystupu": {
+                "type": "string",
+                "description": "Daň na výstupu celkem.",
+                "example": "0.00"
+              },
+              "odpocet": {
+                "type": "string",
+                "description": "Odpočet celkem.",
+                "example": "0.00"
+              },
+              "vlastni_dan": {
+                "type": "string",
+                "description": "Vlastní daň (+) / nadměrný odpočet (−).",
+                "example": "0.00"
+              }
+            },
+            "required": [
+              "r1_base",
+              "r1_dan",
+              "r2_base",
+              "r2_dan",
+              "r3_base",
+              "r3_dan",
+              "r4_base",
+              "r4_dan",
+              "r10_base",
+              "r10_dan",
+              "r11_base",
+              "r11_dan",
+              "r25_base",
+              "r40_base",
+              "r40_dan",
+              "r41_base",
+              "r41_dan",
+              "r43_base",
+              "r43_dan",
+              "r44_base",
+              "r44_dan",
+              "r50_base",
+              "dan_na_vystupu",
+              "odpocet",
+              "vlastni_dan"
+            ],
+            "description": "DPH přiznání line values."
+          },
+          "kh": {
+            "type": "object",
+            "properties": {
+              "a1_base": {
+                "type": "string",
+                "description": "A.1 základ — PDP dodavatel (ISSUED, REVERSE_CHARGE).",
+                "example": "0.00"
+              },
+              "a1_dan": {
+                "type": "string",
+                "description": "A.1 daň.",
+                "example": "0.00"
+              },
+              "a4_base": {
+                "type": "string",
+                "description": "A.4/A.5 základ — tuzemská výstupní plnění (ISSUED, STANDARD).",
+                "example": "0.00"
+              },
+              "a4_dan": {
+                "type": "string",
+                "description": "A.4/A.5 daň.",
+                "example": "0.00"
+              },
+              "b1_base": {
+                "type": "string",
+                "description": "B.1 základ — PDP odběratel samovyměření (RECEIVED, REVERSE_CHARGE).",
+                "example": "0.00"
+              },
+              "b1_dan": {
+                "type": "string",
+                "description": "B.1 daň.",
+                "example": "0.00"
+              },
+              "b2_base": {
+                "type": "string",
+                "description": "B.2/B.3 základ — tuzemská vstupní plnění (RECEIVED, STANDARD).",
+                "example": "0.00"
+              },
+              "b2_dan": {
+                "type": "string",
+                "description": "B.2/B.3 daň.",
+                "example": "0.00"
+              }
+            },
+            "required": [
+              "a1_base",
+              "a1_dan",
+              "a4_base",
+              "a4_dan",
+              "b1_base",
+              "b1_dan",
+              "b2_base",
+              "b2_dan"
+            ],
+            "description": "Kontrolní hlášení section totals."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rows",
+          "kh"
+        ],
+        "description": "DPH přiznání (VAT return) for the period — line values plus kontrolní hlášení section totals, computed from the posted facts."
+      },
+      "DphRows": {
+        "type": "object",
+        "properties": {
+          "r1_base": {
+            "type": "string",
+            "description": "ř.1 základ — dodání zboží/služeb 21 % (§13/§14).",
+            "example": "0.00"
+          },
+          "r1_dan": {
+            "type": "string",
+            "description": "ř.1 daň — 21 %.",
+            "example": "0.00"
+          },
+          "r2_base": {
+            "type": "string",
+            "description": "ř.2 základ — dodání 12 % (§13/§14, §47).",
+            "example": "0.00"
+          },
+          "r2_dan": {
+            "type": "string",
+            "description": "ř.2 daň — 12 %.",
+            "example": "0.00"
+          },
+          "r3_base": {
+            "type": "string",
+            "description": "ř.3 základ — pořízení zboží z EU, samovyměření 21 % (§16).",
+            "example": "0.00"
+          },
+          "r3_dan": {
+            "type": "string",
+            "description": "ř.3 daň.",
+            "example": "0.00"
+          },
+          "r4_base": {
+            "type": "string",
+            "description": "ř.4 základ — pořízení zboží z EU, samovyměření 12 %.",
+            "example": "0.00"
+          },
+          "r4_dan": {
+            "type": "string",
+            "description": "ř.4 daň.",
+            "example": "0.00"
+          },
+          "r10_base": {
+            "type": "string",
+            "description": "ř.10 základ — PDP odběratel 21 % (§92e).",
+            "example": "0.00"
+          },
+          "r10_dan": {
+            "type": "string",
+            "description": "ř.10 daň.",
+            "example": "0.00"
+          },
+          "r11_base": {
+            "type": "string",
+            "description": "ř.11 základ — PDP odběratel 12 %.",
+            "example": "0.00"
+          },
+          "r11_dan": {
+            "type": "string",
+            "description": "ř.11 daň.",
+            "example": "0.00"
+          },
+          "r25_base": {
+            "type": "string",
+            "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
+            "example": "0.00"
+          },
+          "r40_base": {
+            "type": "string",
+            "description": "ř.40 základ — odpočet na vstupu 21 % (§72-73).",
+            "example": "0.00"
+          },
+          "r40_dan": {
+            "type": "string",
+            "description": "ř.40 daň.",
+            "example": "0.00"
+          },
+          "r41_base": {
+            "type": "string",
+            "description": "ř.41 základ — odpočet na vstupu 12 %.",
+            "example": "0.00"
+          },
+          "r41_dan": {
+            "type": "string",
+            "description": "ř.41 daň.",
+            "example": "0.00"
+          },
+          "r43_base": {
+            "type": "string",
+            "description": "ř.43 základ — odpočet u samovyměření 21 % (§73/4).",
+            "example": "0.00"
+          },
+          "r43_dan": {
+            "type": "string",
+            "description": "ř.43 daň.",
+            "example": "0.00"
+          },
+          "r44_base": {
+            "type": "string",
+            "description": "ř.44 základ — odpočet u samovyměření 12 %.",
+            "example": "0.00"
+          },
+          "r44_dan": {
+            "type": "string",
+            "description": "ř.44 daň.",
+            "example": "0.00"
+          },
+          "r50_base": {
+            "type": "string",
+            "description": "ř.50 — osvobozená plnění (§51 a násl.).",
+            "example": "0.00"
+          },
+          "dan_na_vystupu": {
+            "type": "string",
+            "description": "Daň na výstupu celkem.",
+            "example": "0.00"
+          },
+          "odpocet": {
+            "type": "string",
+            "description": "Odpočet celkem.",
+            "example": "0.00"
+          },
+          "vlastni_dan": {
+            "type": "string",
+            "description": "Vlastní daň (+) / nadměrný odpočet (−).",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "r1_base",
+          "r1_dan",
+          "r2_base",
+          "r2_dan",
+          "r3_base",
+          "r3_dan",
+          "r4_base",
+          "r4_dan",
+          "r10_base",
+          "r10_dan",
+          "r11_base",
+          "r11_dan",
+          "r25_base",
+          "r40_base",
+          "r40_dan",
+          "r41_base",
+          "r41_dan",
+          "r43_base",
+          "r43_dan",
+          "r44_base",
+          "r44_dan",
+          "r50_base",
+          "dan_na_vystupu",
+          "odpocet",
+          "vlastni_dan"
+        ],
+        "description": "DPH přiznání line values."
+      },
+      "KontrolniHlaseniTotals": {
+        "type": "object",
+        "properties": {
+          "a1_base": {
+            "type": "string",
+            "description": "A.1 základ — PDP dodavatel (ISSUED, REVERSE_CHARGE).",
+            "example": "0.00"
+          },
+          "a1_dan": {
+            "type": "string",
+            "description": "A.1 daň.",
+            "example": "0.00"
+          },
+          "a4_base": {
+            "type": "string",
+            "description": "A.4/A.5 základ — tuzemská výstupní plnění (ISSUED, STANDARD).",
+            "example": "0.00"
+          },
+          "a4_dan": {
+            "type": "string",
+            "description": "A.4/A.5 daň.",
+            "example": "0.00"
+          },
+          "b1_base": {
+            "type": "string",
+            "description": "B.1 základ — PDP odběratel samovyměření (RECEIVED, REVERSE_CHARGE).",
+            "example": "0.00"
+          },
+          "b1_dan": {
+            "type": "string",
+            "description": "B.1 daň.",
+            "example": "0.00"
+          },
+          "b2_base": {
+            "type": "string",
+            "description": "B.2/B.3 základ — tuzemská vstupní plnění (RECEIVED, STANDARD).",
+            "example": "0.00"
+          },
+          "b2_dan": {
+            "type": "string",
+            "description": "B.2/B.3 daň.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "a1_base",
+          "a1_dan",
+          "a4_base",
+          "a4_dan",
+          "b1_base",
+          "b1_dan",
+          "b2_base",
+          "b2_dan"
+        ],
+        "description": "Kontrolní hlášení section totals."
       }
     },
     "parameters": {}
@@ -2605,6 +3056,65 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SaldokontoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/vat-return": {
+      "get": {
+        "operationId": "getAccountingVatReturn",
+        "summary": "Get VAT return (DPH přiznání)",
+        "description": "Computes the DPH přiznání line values and kontrolní hlášení section totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's VAT return + KH totals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DphResponse"
                 }
               }
             }

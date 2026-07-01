@@ -33,8 +33,11 @@ import {
   NavSubpageSchema,
 } from "./structure"
 import {
+  DphResponseSchema,
+  DphRowsSchema,
   JournalResponseSchema,
   JournalRowSchema,
+  KontrolniHlaseniTotalsSchema,
   LedgerAccountRowSchema,
   LedgerResponseSchema,
   OpenItemRowSchema,
@@ -127,6 +130,9 @@ const SaldokontoResponse = registry.register(
   SaldokontoResponseSchema,
 )
 registry.register("SaldoPerPartnerRow", SaldoPerPartnerRowSchema)
+const DphResponse = registry.register("DphResponse", DphResponseSchema)
+registry.register("DphRows", DphRowsSchema)
+registry.register("KontrolniHlaseniTotals", KontrolniHlaseniTotalsSchema)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -469,6 +475,27 @@ registry.registerPath({
     "200": {
       description: "Per-partner open balances.",
       content: { "application/json": { schema: SaldokontoResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/vat-return",
+  operationId: "getAccountingVatReturn",
+  summary: "Get VAT return (DPH přiznání)",
+  description:
+    "Computes the DPH přiznání line values and kontrolní hlášení section " +
+    "totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). " +
+    "Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's VAT return + KH totals.",
+      content: { "application/json": { schema: DphResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

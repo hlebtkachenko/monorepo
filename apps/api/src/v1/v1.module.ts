@@ -13,6 +13,7 @@ import { OrganizationController } from "./organization/organization.controller"
 import { PingController } from "./ping/ping.controller"
 import { RequestIdMiddleware } from "./request-id.middleware"
 import { StatusController } from "./status/status.controller"
+import { StructureController } from "./structure/structure.controller"
 
 /**
  * Public API surface — `api.afframe.com/v1/*`.
@@ -42,6 +43,7 @@ import { StatusController } from "./status/status.controller"
     OrganizationController,
     StatusController,
     FeedbackController,
+    StructureController,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ApiKeyThrottlerGuard },
@@ -58,6 +60,7 @@ export class V1Module implements NestModule {
         OrganizationController,
         StatusController,
         FeedbackController,
+        StructureController,
       )
   }
 }

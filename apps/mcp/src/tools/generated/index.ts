@@ -5,12 +5,16 @@ import { registerPing } from "./ping"
 import { registerGetOrganization } from "./getOrganization"
 import { registerGetStatus } from "./getStatus"
 import { registerCreateFeedback } from "./createFeedback"
+import { registerGetStructure } from "./getStructure"
+import { registerListArchetypes } from "./listArchetypes"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
   registerGetOrganization(server, client)
   registerGetStatus(server, client)
   registerCreateFeedback(server, client)
+  registerGetStructure(server, client)
+  registerListArchetypes(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -18,4 +22,6 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "getOrganization",
   "getStatus",
   "createFeedback",
+  "getStructure",
+  "listArchetypes",
 ] as const

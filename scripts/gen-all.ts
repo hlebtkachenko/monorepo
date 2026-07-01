@@ -34,6 +34,10 @@ type Stage = {
 
 const STAGES: Stage[] = [
   {
+    label: "App-structure snapshot",
+    args: ["gen:structure"],
+  },
+  {
     label: "OpenAPI spec",
     args: ["--filter", "api", "emit:openapi"],
   },

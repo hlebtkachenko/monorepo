@@ -107,6 +107,17 @@ pre-push:
         - "apps/web/app/[orgSlug]/_nav/org-nav.ts"
         - "docs/specs/SITEMAP.md"
       run: pnpm exec tsx scripts/check-sitemap.ts
+    structure-drift:
+      # App-structure snapshot drift guard — companion to nav-drift. The public
+      # /v1/structure API serves a build-time snapshot of the nav trees
+      # (apps/api/.../structure.data.ts); this fails if a nav.ts edit or an
+      # annotation change wasn't regenerated (`pnpm gen:structure`).
+      glob:
+        - "apps/web/app/[orgSlug]/**/nav.ts"
+        - "apps/web/app/[orgSlug]/_nav/org-nav.ts"
+        - "packages/shared/src/api/structure.ts"
+        - "apps/api/src/v1/structure/structure.data.ts"
+      run: pnpm exec tsx scripts/gen-structure.ts --check
     actionlint:
       # Mirrors `.github/workflows/workflow-lint.yml` actionlint job.
       # Runs when workflow YAML changed. Composite actions under

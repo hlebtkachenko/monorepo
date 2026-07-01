@@ -16,7 +16,9 @@
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
     "check:nav": "tsx scripts/check-nav.ts",
     "check:sitemap": "tsx scripts/check-sitemap.ts",
+    "check:structure": "tsx scripts/gen-structure.ts --check",
     "check:pr-title": "node scripts/check-pr-title.mjs",
+    "gen:structure": "tsx scripts/gen-structure.ts",
     "gen:all": "tsx scripts/gen-all.ts",
     "prepare": "lefthook install --force || true"
   },

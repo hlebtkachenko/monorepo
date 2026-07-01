@@ -33,11 +33,19 @@ import {
   NavSubpageSchema,
 } from "./structure"
 import {
+  ControlStatementResponseSchema,
   DphResponseSchema,
   DphRowsSchema,
+  DppoResponseSchema,
+  EcSalesListResponseSchema,
+  EcSalesRowSchema,
+  FinancialStatementsResponseSchema,
   JournalResponseSchema,
   JournalRowSchema,
+  KhAggregateSchema,
+  KhRowSchema,
   KontrolniHlaseniTotalsSchema,
+  LayoutLineSchema,
   LedgerAccountRowSchema,
   LedgerResponseSchema,
   OpenItemRowSchema,
@@ -46,6 +54,9 @@ import {
   PeriodIdParamSchema,
   SaldoPerPartnerRowSchema,
   SaldokontoResponseSchema,
+  StatementLayoutQuerySchema,
+  StatementLayoutResponseSchema,
+  StatementLineRowSchema,
 } from "./accounting"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
@@ -133,6 +144,28 @@ registry.register("SaldoPerPartnerRow", SaldoPerPartnerRowSchema)
 const DphResponse = registry.register("DphResponse", DphResponseSchema)
 registry.register("DphRows", DphRowsSchema)
 registry.register("KontrolniHlaseniTotals", KontrolniHlaseniTotalsSchema)
+const DppoResponse = registry.register("DppoResponse", DppoResponseSchema)
+const EcSalesListResponse = registry.register(
+  "EcSalesListResponse",
+  EcSalesListResponseSchema,
+)
+registry.register("EcSalesRow", EcSalesRowSchema)
+const ControlStatementResponse = registry.register(
+  "ControlStatementResponse",
+  ControlStatementResponseSchema,
+)
+registry.register("KhRow", KhRowSchema)
+registry.register("KhAggregate", KhAggregateSchema)
+const FinancialStatementsResponse = registry.register(
+  "FinancialStatementsResponse",
+  FinancialStatementsResponseSchema,
+)
+registry.register("StatementLineRow", StatementLineRowSchema)
+const StatementLayoutResponse = registry.register(
+  "StatementLayoutResponse",
+  StatementLayoutResponseSchema,
+)
+registry.register("LayoutLine", LayoutLineSchema)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -496,6 +529,111 @@ registry.registerPath({
     "200": {
       description: "The period's VAT return + KH totals.",
       content: { "application/json": { schema: DphResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/corporate-income-tax",
+  operationId: "getAccountingCorporateIncomeTax",
+  summary: "Get corporate income tax (DPPO)",
+  description:
+    "Computes the DPPO base and tax (§23/1 base, §25 non-deductibles, §34 " +
+    "loss carry-forward, rate, zálohy §38a) for the period. Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's corporate income tax computation.",
+      content: { "application/json": { schema: DppoResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/ec-sales-list",
+  operationId: "getAccountingEcSalesList",
+  summary: "Get EC sales list (souhrnné hlášení)",
+  description:
+    "EU supplies recap (§102) for the period — per partner + kód plnění. " +
+    "Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's EU supplies recap.",
+      content: { "application/json": { schema: EcSalesListResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/control-statement",
+  operationId: "getAccountingControlStatement",
+  summary: "Get control statement (kontrolní hlášení)",
+  description:
+    "Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 " +
+    "and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's control statement.",
+      content: { "application/json": { schema: ControlStatementResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/financial-statements",
+  operationId: "getAccountingFinancialStatements",
+  summary: "Get financial statements (účetní závěrka)",
+  description:
+    "Účetní závěrka totals (aktiva/pasiva/náklady/výnosy/výsledek) plus " +
+    "per-account closing balances mapped to statement lines. Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's financial statements.",
+      content: {
+        "application/json": { schema: FinancialStatementsResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/statement-layout",
+  operationId: "getAccountingStatementLayout",
+  summary: "Get formatted statement layout (rozvaha / VZZ)",
+  description:
+    "Formatted rozvaha + výkaz zisku a ztráty per Decree 500/2002 přílohy " +
+    "(plný / zkrácený rozsah; celé Kč / v tisících). Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    params: PeriodIdParamSchema,
+    query: StatementLayoutQuerySchema,
+  },
+  responses: {
+    "200": {
+      description: "The period's formatted statement layout.",
+      content: { "application/json": { schema: StatementLayoutResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

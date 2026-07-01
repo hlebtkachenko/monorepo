@@ -12,6 +12,11 @@ import { registerGetAccountingLedger } from "./getAccountingLedger"
 import { registerGetAccountingOpenItems } from "./getAccountingOpenItems"
 import { registerGetAccountingSaldokonto } from "./getAccountingSaldokonto"
 import { registerGetAccountingVatReturn } from "./getAccountingVatReturn"
+import { registerGetAccountingCorporateIncomeTax } from "./getAccountingCorporateIncomeTax"
+import { registerGetAccountingEcSalesList } from "./getAccountingEcSalesList"
+import { registerGetAccountingControlStatement } from "./getAccountingControlStatement"
+import { registerGetAccountingFinancialStatements } from "./getAccountingFinancialStatements"
+import { registerGetAccountingStatementLayout } from "./getAccountingStatementLayout"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -25,6 +30,11 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerGetAccountingOpenItems(server, client)
   registerGetAccountingSaldokonto(server, client)
   registerGetAccountingVatReturn(server, client)
+  registerGetAccountingCorporateIncomeTax(server, client)
+  registerGetAccountingEcSalesList(server, client)
+  registerGetAccountingControlStatement(server, client)
+  registerGetAccountingFinancialStatements(server, client)
+  registerGetAccountingStatementLayout(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -39,4 +49,9 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "getAccountingOpenItems",
   "getAccountingSaldokonto",
   "getAccountingVatReturn",
+  "getAccountingCorporateIncomeTax",
+  "getAccountingEcSalesList",
+  "getAccountingControlStatement",
+  "getAccountingFinancialStatements",
+  "getAccountingStatementLayout",
 ] as const

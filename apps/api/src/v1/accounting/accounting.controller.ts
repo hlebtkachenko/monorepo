@@ -15,16 +15,26 @@ import {
   ApiTags,
 } from "@nestjs/swagger"
 import type {
+  ControlStatementResponse,
   DphResponse,
+  DppoResponse,
+  EcSalesListResponse,
+  FinancialStatementsResponse,
   JournalResponse,
   LedgerResponse,
   OpenItemsResponse,
   SaldokontoResponse,
+  StatementLayoutResponse,
 } from "@workspace/shared/api"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
 import { withOrganization } from "@workspace/db"
 import {
   buildDph,
+  buildDppo,
+  buildKontrolniHlaseni,
+  buildSouhrnneHlaseni,
+  buildStatementLayout,
+  buildZaverka,
   generalLedger,
   journal,
   saldoPerPartner,
@@ -33,11 +43,16 @@ import {
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
 import {
+  ControlStatementResponseDto,
   DphResponseDto,
+  DppoResponseDto,
+  EcSalesListResponseDto,
+  FinancialStatementsResponseDto,
   JournalResponseDto,
   LedgerResponseDto,
   OpenItemsResponseDto,
   SaldokontoResponseDto,
+  StatementLayoutResponseDto,
 } from "../dto"
 
 /**
@@ -218,6 +233,180 @@ export class AccountingController {
       periodId,
       rows: dph.rows,
       kh: dph.kh,
+    }
+  }
+
+  @Get("periods/:periodId/outputs/corporate-income-tax")
+  @ApiOperation({ summary: "Get corporate income tax (DPPO)" })
+  @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiOkResponse({ type: DppoResponseDto })
+  async getCorporateIncomeTax(
+    @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<DppoResponse> {
+    const d = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      (db) => buildDppo(db, periodId),
+    )
+    return {
+      organizationId: principal.organizationId,
+      periodId,
+      ucetniVysledek: d.ucetni_vysledek,
+      nedanoveNaklady: d.nedanove_naklady,
+      osvobozeneVynosy: d.osvobozene_vynosy,
+      zakladDane: d.zaklad_dane,
+      odpocetZtraty: d.odpocet_ztraty,
+      zakladZaokrouhleny: d.zaklad_zaokrouhleny,
+      sazba: d.sazba,
+      dan: d.dan,
+      slevy: d.slevy,
+      danPoSlevach: d.dan_po_slevach,
+      zalohy: d.zalohy,
+      doplatek: d.doplatek,
+    }
+  }
+
+  @Get("periods/:periodId/outputs/ec-sales-list")
+  @ApiOperation({ summary: "Get EC sales list (souhrnné hlášení)" })
+  @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiOkResponse({ type: EcSalesListResponseDto })
+  async getEcSalesList(
+    @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<EcSalesListResponse> {
+    const s = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      (db) => buildSouhrnneHlaseni(db, periodId),
+    )
+    return {
+      organizationId: principal.organizationId,
+      periodId,
+      rows: s.rows.map((r) => ({
+        countryCode: r.country_code,
+        taxId: r.tax_id,
+        kodPlneni: r.kod_plneni,
+        count: r.count,
+        value: r.value,
+      })),
+    }
+  }
+
+  @Get("periods/:periodId/outputs/control-statement")
+  @ApiOperation({ summary: "Get control statement (kontrolní hlášení)" })
+  @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiOkResponse({ type: ControlStatementResponseDto })
+  async getControlStatement(
+    @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<ControlStatementResponse> {
+    const k = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      (db) => buildKontrolniHlaseni(db, periodId),
+    )
+    const row = (r: {
+      tax_id: string | null
+      doklad: string
+      dppd: string
+      base21: string
+      dan21: string
+      base12: string
+      dan12: string
+    }) => ({
+      taxId: r.tax_id,
+      doklad: r.doklad,
+      dppd: r.dppd,
+      base21: r.base21,
+      dan21: r.dan21,
+      base12: r.base12,
+      dan12: r.dan12,
+    })
+    const agg = (a: { base: string; dan: string; count: number }) => ({
+      base: a.base,
+      dan: a.dan,
+      count: a.count,
+    })
+    return {
+      organizationId: principal.organizationId,
+      periodId,
+      a1: k.a1.map(row),
+      a2: k.a2.map(row),
+      a4: k.a4.map(row),
+      a5: agg(k.a5),
+      b1: k.b1.map(row),
+      b2: k.b2.map(row),
+      b3: agg(k.b3),
+    }
+  }
+
+  @Get("periods/:periodId/outputs/financial-statements")
+  @ApiOperation({ summary: "Get financial statements (účetní závěrka)" })
+  @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiOkResponse({ type: FinancialStatementsResponseDto })
+  async getFinancialStatements(
+    @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<FinancialStatementsResponse> {
+    const z = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      (db) => buildZaverka(db, periodId),
+    )
+    return {
+      organizationId: principal.organizationId,
+      periodId,
+      aktiva: z.aktiva,
+      pasiva: z.pasiva,
+      naklady: z.naklady,
+      vynosy: z.vynosy,
+      vysledek: z.vysledek,
+      lines: z.lines.map((l) => ({
+        accountNumber: l.account_number,
+        nature: l.nature,
+        closingBalance: l.closing_balance,
+        balanceSheetLine: l.balance_sheet_line,
+        incomeStatementLine: l.income_statement_line,
+      })),
+    }
+  }
+
+  @Get("periods/:periodId/outputs/statement-layout")
+  @ApiOperation({ summary: "Get formatted statement layout (rozvaha / VZZ)" })
+  @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiQuery({ name: "rozsah", required: false, enum: ["FULL", "ABBREVIATED"] })
+  @ApiQuery({ name: "unit", required: false, enum: ["CZK", "THOUSANDS"] })
+  @ApiOkResponse({ type: StatementLayoutResponseDto })
+  async getStatementLayout(
+    @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+    @Query("rozsah") rozsah?: "FULL" | "ABBREVIATED",
+    @Query("unit") unit?: "CZK" | "THOUSANDS",
+  ): Promise<StatementLayoutResponse> {
+    const s = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      (db) => buildStatementLayout(db, periodId, { rozsah, unit }),
+    )
+    const line = (l: { code: string; depth: number; amount: string }) => ({
+      code: l.code,
+      depth: l.depth,
+      amount: l.amount,
+    })
+    return {
+      organizationId: principal.organizationId,
+      periodId,
+      rozsah: s.rozsah,
+      unit: s.unit,
+      aktiva: s.aktiva.map(line),
+      aktivaTotal: s.aktiva_total,
+      pasiva: s.pasiva.map(line),
+      pasivaTotal: s.pasiva_total,
+      vzz: s.vzz.map(line),
+      naklady: s.naklady,
+      vynosy: s.vynosy,
+      vysledek: s.vysledek,
     }
   }
 }

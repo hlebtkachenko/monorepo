@@ -1,12 +1,17 @@
 import { createZodDto } from "nestjs-zod"
 import {
+  ControlStatementResponseSchema,
   DphResponseSchema,
+  DppoResponseSchema,
+  EcSalesListResponseSchema,
+  FinancialStatementsResponseSchema,
   GetOrganizationResponseSchema,
   JournalResponseSchema,
   LedgerResponseSchema,
   OpenItemsResponseSchema,
   PingResponseSchema,
   SaldokontoResponseSchema,
+  StatementLayoutResponseSchema,
 } from "@workspace/shared/api"
 
 /**
@@ -26,3 +31,16 @@ export class SaldokontoResponseDto extends createZodDto(
   SaldokontoResponseSchema,
 ) {}
 export class DphResponseDto extends createZodDto(DphResponseSchema) {}
+export class DppoResponseDto extends createZodDto(DppoResponseSchema) {}
+export class EcSalesListResponseDto extends createZodDto(
+  EcSalesListResponseSchema,
+) {}
+export class ControlStatementResponseDto extends createZodDto(
+  ControlStatementResponseSchema,
+) {}
+export class FinancialStatementsResponseDto extends createZodDto(
+  FinancialStatementsResponseSchema,
+) {}
+export class StatementLayoutResponseDto extends createZodDto(
+  StatementLayoutResponseSchema,
+) {}

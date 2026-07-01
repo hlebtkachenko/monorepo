@@ -2580,6 +2580,991 @@
           "b2_dan"
         ],
         "description": "Kontrolní hlášení section totals."
+      },
+      "DppoResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "ucetniVysledek": {
+            "type": "string",
+            "description": "Účetní výsledek hospodaření.",
+            "example": "0.00"
+          },
+          "nedanoveNaklady": {
+            "type": "string",
+            "description": "Daňově neuznatelné náklady (§25).",
+            "example": "0.00"
+          },
+          "osvobozeneVynosy": {
+            "type": "string",
+            "description": "Osvobozené/nezdaňované výnosy.",
+            "example": "0.00"
+          },
+          "zakladDane": {
+            "type": "string",
+            "description": "Základ daně §23/1 (před §34).",
+            "example": "0.00"
+          },
+          "odpocetZtraty": {
+            "type": "string",
+            "description": "Odpočet daňové ztráty minulých let §34.",
+            "example": "0.00"
+          },
+          "zakladZaokrouhleny": {
+            "type": "string",
+            "description": "Zaokrouhlený základ daně.",
+            "example": "0.00"
+          },
+          "sazba": {
+            "type": "string",
+            "description": "Sazba daně.",
+            "example": "0.00"
+          },
+          "dan": {
+            "type": "string",
+            "description": "Daň.",
+            "example": "0.00"
+          },
+          "slevy": {
+            "type": "string",
+            "description": "Slevy na dani.",
+            "example": "0.00"
+          },
+          "danPoSlevach": {
+            "type": "string",
+            "description": "Daň po slevách.",
+            "example": "0.00"
+          },
+          "zalohy": {
+            "type": "string",
+            "description": "Zaplacené zálohy §38a.",
+            "example": "0.00"
+          },
+          "doplatek": {
+            "type": "string",
+            "description": "Doplatek (+) / přeplatek (−).",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "ucetniVysledek",
+          "nedanoveNaklady",
+          "osvobozeneVynosy",
+          "zakladDane",
+          "odpocetZtraty",
+          "zakladZaokrouhleny",
+          "sazba",
+          "dan",
+          "slevy",
+          "danPoSlevach",
+          "zalohy",
+          "doplatek"
+        ],
+        "description": "DPPO — corporate income tax computation for the period."
+      },
+      "EcSalesListResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "countryCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Acquirer member state (ISO 3166-1 alpha-2).",
+                  "example": "DE"
+                },
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Acquirer VAT id (DIČ) incl. country prefix.",
+                  "example": "DE123456789"
+                },
+                "kodPlneni": {
+                  "type": "string",
+                  "description": "Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).",
+                  "example": "0"
+                },
+                "count": {
+                  "type": "integer",
+                  "description": "Počet plnění (distinct dokladů).",
+                  "example": 3
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Celková hodnota plnění (CZK, bez daně).",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "countryCode",
+                "taxId",
+                "kodPlneni",
+                "count",
+                "value"
+              ],
+              "description": "One souhrnné hlášení row (per partner + kód plnění)."
+            },
+            "description": "EU supply recap rows (§102)."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rows"
+        ],
+        "description": "Souhrnné hlášení — EU supplies recap for the period."
+      },
+      "EcSalesRow": {
+        "type": "object",
+        "properties": {
+          "countryCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Acquirer member state (ISO 3166-1 alpha-2).",
+            "example": "DE"
+          },
+          "taxId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Acquirer VAT id (DIČ) incl. country prefix.",
+            "example": "DE123456789"
+          },
+          "kodPlneni": {
+            "type": "string",
+            "description": "Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).",
+            "example": "0"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Počet plnění (distinct dokladů).",
+            "example": 3
+          },
+          "value": {
+            "type": "string",
+            "description": "Celková hodnota plnění (CZK, bez daně).",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "countryCode",
+          "taxId",
+          "kodPlneni",
+          "count",
+          "value"
+        ],
+        "description": "One souhrnné hlášení row (per partner + kód plnění)."
+      },
+      "ControlStatementResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "a1": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "A.1 — PDP dodavatel."
+          },
+          "a2": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "A.2 — EU acquisitions self-assessed."
+          },
+          "a4": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "A.4 — taxable supplies over threshold."
+          },
+          "a5": {
+            "type": "object",
+            "properties": {
+              "base": {
+                "type": "string",
+                "description": "Základ celkem.",
+                "example": "0.00"
+              },
+              "dan": {
+                "type": "string",
+                "description": "Daň celkem.",
+                "example": "0.00"
+              },
+              "count": {
+                "type": "integer",
+                "description": "Počet dokladů folded into the aggregate.",
+                "example": 12
+              }
+            },
+            "required": [
+              "base",
+              "dan",
+              "count"
+            ],
+            "description": "A.5 — taxable supplies under threshold (aggregate)."
+          },
+          "b1": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "B.1 — PDP odběratel self-assessed."
+          },
+          "b2": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "B.2 — received supplies over threshold."
+          },
+          "b3": {
+            "type": "object",
+            "properties": {
+              "base": {
+                "type": "string",
+                "description": "Základ celkem.",
+                "example": "0.00"
+              },
+              "dan": {
+                "type": "string",
+                "description": "Daň celkem.",
+                "example": "0.00"
+              },
+              "count": {
+                "type": "integer",
+                "description": "Počet dokladů folded into the aggregate.",
+                "example": 12
+              }
+            },
+            "required": [
+              "base",
+              "dan",
+              "count"
+            ],
+            "description": "B.3 — received supplies under threshold (aggregate)."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "a1",
+          "a2",
+          "a4",
+          "a5",
+          "b1",
+          "b2",
+          "b3"
+        ],
+        "description": "Kontrolní hlášení — per-counterparty control statement (§101c-i)."
+      },
+      "KhRow": {
+        "type": "object",
+        "properties": {
+          "taxId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "DIČ of the other party.",
+            "example": "CZ12345678"
+          },
+          "doklad": {
+            "type": "string",
+            "description": "Evidenční číslo daňového dokladu.",
+            "example": "FV2025/0042"
+          },
+          "dppd": {
+            "type": "string",
+            "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+            "example": "2025-03-14"
+          },
+          "base21": {
+            "type": "string",
+            "description": "Základ, 21 % bucket.",
+            "example": "0.00"
+          },
+          "dan21": {
+            "type": "string",
+            "description": "Daň, 21 % bucket.",
+            "example": "0.00"
+          },
+          "base12": {
+            "type": "string",
+            "description": "Základ, 12 % bucket.",
+            "example": "0.00"
+          },
+          "dan12": {
+            "type": "string",
+            "description": "Daň, 12 % bucket.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "taxId",
+          "doklad",
+          "dppd",
+          "base21",
+          "dan21",
+          "base12",
+          "dan12"
+        ],
+        "description": "One kontrolní hlášení detail row (per doklad)."
+      },
+      "KhAggregate": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "type": "string",
+            "description": "Základ celkem.",
+            "example": "0.00"
+          },
+          "dan": {
+            "type": "string",
+            "description": "Daň celkem.",
+            "example": "0.00"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Počet dokladů folded into the aggregate.",
+            "example": 12
+          }
+        },
+        "required": [
+          "base",
+          "dan",
+          "count"
+        ],
+        "description": "Aggregated KH section (A.5 / B.3 — below the reporting threshold)."
+      },
+      "FinancialStatementsResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "aktiva": {
+            "type": "string",
+            "description": "Aktiva celkem.",
+            "example": "0.00"
+          },
+          "pasiva": {
+            "type": "string",
+            "description": "Pasiva celkem.",
+            "example": "0.00"
+          },
+          "naklady": {
+            "type": "string",
+            "description": "Náklady celkem.",
+            "example": "0.00"
+          },
+          "vynosy": {
+            "type": "string",
+            "description": "Výnosy celkem.",
+            "example": "0.00"
+          },
+          "vysledek": {
+            "type": "string",
+            "description": "Výsledek hospodaření.",
+            "example": "0.00"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Account number.",
+                  "example": "311000"
+                },
+                "nature": {
+                  "type": "string",
+                  "description": "Account nature.",
+                  "example": "ASSET"
+                },
+                "closingBalance": {
+                  "type": "string",
+                  "description": "Konečný stav.",
+                  "example": "0.00"
+                },
+                "balanceSheetLine": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Rozvaha line code, or null.",
+                  "example": "C.II.1"
+                },
+                "incomeStatementLine": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "VZZ line code, or null.",
+                  "example": "A.1"
+                }
+              },
+              "required": [
+                "accountNumber",
+                "nature",
+                "closingBalance",
+                "balanceSheetLine",
+                "incomeStatementLine"
+              ],
+              "description": "One závěrka account line mapped to statement lines."
+            },
+            "description": "Per-account closing balances mapped to statement lines."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "aktiva",
+          "pasiva",
+          "naklady",
+          "vynosy",
+          "vysledek",
+          "lines"
+        ],
+        "description": "Účetní závěrka — rozvaha + VZZ totals plus per-account lines."
+      },
+      "StatementLineRow": {
+        "type": "object",
+        "properties": {
+          "accountNumber": {
+            "type": "string",
+            "description": "Account number.",
+            "example": "311000"
+          },
+          "nature": {
+            "type": "string",
+            "description": "Account nature.",
+            "example": "ASSET"
+          },
+          "closingBalance": {
+            "type": "string",
+            "description": "Konečný stav.",
+            "example": "0.00"
+          },
+          "balanceSheetLine": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rozvaha line code, or null.",
+            "example": "C.II.1"
+          },
+          "incomeStatementLine": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "VZZ line code, or null.",
+            "example": "A.1"
+          }
+        },
+        "required": [
+          "accountNumber",
+          "nature",
+          "closingBalance",
+          "balanceSheetLine",
+          "incomeStatementLine"
+        ],
+        "description": "One závěrka account line mapped to statement lines."
+      },
+      "StatementLayoutResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rozsah": {
+            "type": "string",
+            "enum": [
+              "FULL",
+              "ABBREVIATED"
+            ],
+            "description": "Rozsah used.",
+            "example": "FULL"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "CZK",
+              "THOUSANDS"
+            ],
+            "description": "Presentation unit used.",
+            "example": "CZK"
+          },
+          "aktiva": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+                  "example": "B.II.1"
+                },
+                "depth": {
+                  "type": "integer",
+                  "description": "Nesting depth (1 = letter, 2 = roman, …).",
+                  "example": 3
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Rolled-up amount in the presentation unit.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "code",
+                "depth",
+                "amount"
+              ],
+              "description": "One formatted statement layout line."
+            },
+            "description": "Rozvaha — aktiva lines."
+          },
+          "aktivaTotal": {
+            "type": "string",
+            "description": "Aktiva celkem.",
+            "example": "0.00"
+          },
+          "pasiva": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+                  "example": "B.II.1"
+                },
+                "depth": {
+                  "type": "integer",
+                  "description": "Nesting depth (1 = letter, 2 = roman, …).",
+                  "example": 3
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Rolled-up amount in the presentation unit.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "code",
+                "depth",
+                "amount"
+              ],
+              "description": "One formatted statement layout line."
+            },
+            "description": "Rozvaha — pasiva lines."
+          },
+          "pasivaTotal": {
+            "type": "string",
+            "description": "Pasiva celkem.",
+            "example": "0.00"
+          },
+          "vzz": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+                  "example": "B.II.1"
+                },
+                "depth": {
+                  "type": "integer",
+                  "description": "Nesting depth (1 = letter, 2 = roman, …).",
+                  "example": 3
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Rolled-up amount in the presentation unit.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "code",
+                "depth",
+                "amount"
+              ],
+              "description": "One formatted statement layout line."
+            },
+            "description": "Výkaz zisku a ztráty lines."
+          },
+          "naklady": {
+            "type": "string",
+            "description": "Náklady celkem.",
+            "example": "0.00"
+          },
+          "vynosy": {
+            "type": "string",
+            "description": "Výnosy celkem.",
+            "example": "0.00"
+          },
+          "vysledek": {
+            "type": "string",
+            "description": "Výsledek hospodaření.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rozsah",
+          "unit",
+          "aktiva",
+          "aktivaTotal",
+          "pasiva",
+          "pasivaTotal",
+          "vzz",
+          "naklady",
+          "vynosy",
+          "vysledek"
+        ],
+        "description": "Formatted rozvaha + VZZ per Decree 500/2002 přílohy."
+      },
+      "LayoutLine": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+            "example": "B.II.1"
+          },
+          "depth": {
+            "type": "integer",
+            "description": "Nesting depth (1 = letter, 2 = roman, …).",
+            "example": 3
+          },
+          "amount": {
+            "type": "string",
+            "description": "Rolled-up amount in the presentation unit.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "code",
+          "depth",
+          "amount"
+        ],
+        "description": "One formatted statement layout line."
       }
     },
     "parameters": {}
@@ -3115,6 +4100,331 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DphResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/corporate-income-tax": {
+      "get": {
+        "operationId": "getAccountingCorporateIncomeTax",
+        "summary": "Get corporate income tax (DPPO)",
+        "description": "Computes the DPPO base and tax (§23/1 base, §25 non-deductibles, §34 loss carry-forward, rate, zálohy §38a) for the period. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's corporate income tax computation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DppoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/ec-sales-list": {
+      "get": {
+        "operationId": "getAccountingEcSalesList",
+        "summary": "Get EC sales list (souhrnné hlášení)",
+        "description": "EU supplies recap (§102) for the period — per partner + kód plnění. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's EU supplies recap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EcSalesListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/control-statement": {
+      "get": {
+        "operationId": "getAccountingControlStatement",
+        "summary": "Get control statement (kontrolní hlášení)",
+        "description": "Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's control statement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlStatementResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/financial-statements": {
+      "get": {
+        "operationId": "getAccountingFinancialStatements",
+        "summary": "Get financial statements (účetní závěrka)",
+        "description": "Účetní závěrka totals (aktiva/pasiva/náklady/výnosy/výsledek) plus per-account closing balances mapped to statement lines. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's financial statements.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialStatementsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/statement-layout": {
+      "get": {
+        "operationId": "getAccountingStatementLayout",
+        "summary": "Get formatted statement layout (rozvaha / VZZ)",
+        "description": "Formatted rozvaha + výkaz zisku a ztráty per Decree 500/2002 přílohy (plný / zkrácený rozsah; celé Kč / v tisících). Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FULL",
+                "ABBREVIATED"
+              ],
+              "description": "Plný / zkrácený rozsah.",
+              "example": "FULL"
+            },
+            "required": false,
+            "description": "Plný / zkrácený rozsah.",
+            "name": "rozsah",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CZK",
+                "THOUSANDS"
+              ],
+              "description": "Presentation unit (celé Kč / v tisících).",
+              "example": "CZK"
+            },
+            "required": false,
+            "description": "Presentation unit (celé Kč / v tisících).",
+            "name": "unit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's formatted statement layout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementLayoutResponse"
                 }
               }
             }

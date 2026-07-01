@@ -224,6 +224,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/periods/{periodId}/outputs/corporate-income-tax": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get corporate income tax (DPPO)
+         * @description Computes the DPPO base and tax (§23/1 base, §25 non-deductibles, §34 loss carry-forward, rate, zálohy §38a) for the period. Organization-scoped.
+         */
+        get: operations["getAccountingCorporateIncomeTax"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/periods/{periodId}/outputs/ec-sales-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get EC sales list (souhrnné hlášení)
+         * @description EU supplies recap (§102) for the period — per partner + kód plnění. Organization-scoped.
+         */
+        get: operations["getAccountingEcSalesList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/periods/{periodId}/outputs/control-statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get control statement (kontrolní hlášení)
+         * @description Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.
+         */
+        get: operations["getAccountingControlStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/periods/{periodId}/outputs/financial-statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get financial statements (účetní závěrka)
+         * @description Účetní závěrka totals (aktiva/pasiva/náklady/výnosy/výsledek) plus per-account closing balances mapped to statement lines. Organization-scoped.
+         */
+        get: operations["getAccountingFinancialStatements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/periods/{periodId}/outputs/statement-layout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get formatted statement layout (rozvaha / VZZ)
+         * @description Formatted rozvaha + výkaz zisku a ztráty per Decree 500/2002 přílohy (plný / zkrácený rozsah; celé Kč / v tisících). Organization-scoped.
+         */
+        get: operations["getAccountingStatementLayout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1659,6 +1759,664 @@ export interface components {
              */
             b2_dan: string;
         };
+        /** @description DPPO — corporate income tax computation for the period. */
+        DppoResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description Period covered.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /**
+             * @description Účetní výsledek hospodaření.
+             * @example 0.00
+             */
+            ucetniVysledek: string;
+            /**
+             * @description Daňově neuznatelné náklady (§25).
+             * @example 0.00
+             */
+            nedanoveNaklady: string;
+            /**
+             * @description Osvobozené/nezdaňované výnosy.
+             * @example 0.00
+             */
+            osvobozeneVynosy: string;
+            /**
+             * @description Základ daně §23/1 (před §34).
+             * @example 0.00
+             */
+            zakladDane: string;
+            /**
+             * @description Odpočet daňové ztráty minulých let §34.
+             * @example 0.00
+             */
+            odpocetZtraty: string;
+            /**
+             * @description Zaokrouhlený základ daně.
+             * @example 0.00
+             */
+            zakladZaokrouhleny: string;
+            /**
+             * @description Sazba daně.
+             * @example 0.00
+             */
+            sazba: string;
+            /**
+             * @description Daň.
+             * @example 0.00
+             */
+            dan: string;
+            /**
+             * @description Slevy na dani.
+             * @example 0.00
+             */
+            slevy: string;
+            /**
+             * @description Daň po slevách.
+             * @example 0.00
+             */
+            danPoSlevach: string;
+            /**
+             * @description Zaplacené zálohy §38a.
+             * @example 0.00
+             */
+            zalohy: string;
+            /**
+             * @description Doplatek (+) / přeplatek (−).
+             * @example 0.00
+             */
+            doplatek: string;
+        };
+        /** @description Souhrnné hlášení — EU supplies recap for the period. */
+        EcSalesListResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description Period covered.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /** @description EU supply recap rows (§102). */
+            rows: {
+                /**
+                 * @description Acquirer member state (ISO 3166-1 alpha-2).
+                 * @example DE
+                 */
+                countryCode: string | null;
+                /**
+                 * @description Acquirer VAT id (DIČ) incl. country prefix.
+                 * @example DE123456789
+                 */
+                taxId: string | null;
+                /**
+                 * @description Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).
+                 * @example 0
+                 */
+                kodPlneni: string;
+                /**
+                 * @description Počet plnění (distinct dokladů).
+                 * @example 3
+                 */
+                count: number;
+                /**
+                 * @description Celková hodnota plnění (CZK, bez daně).
+                 * @example 0.00
+                 */
+                value: string;
+            }[];
+        };
+        /** @description One souhrnné hlášení row (per partner + kód plnění). */
+        EcSalesRow: {
+            /**
+             * @description Acquirer member state (ISO 3166-1 alpha-2).
+             * @example DE
+             */
+            countryCode: string | null;
+            /**
+             * @description Acquirer VAT id (DIČ) incl. country prefix.
+             * @example DE123456789
+             */
+            taxId: string | null;
+            /**
+             * @description Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).
+             * @example 0
+             */
+            kodPlneni: string;
+            /**
+             * @description Počet plnění (distinct dokladů).
+             * @example 3
+             */
+            count: number;
+            /**
+             * @description Celková hodnota plnění (CZK, bez daně).
+             * @example 0.00
+             */
+            value: string;
+        };
+        /** @description Kontrolní hlášení — per-counterparty control statement (§101c-i). */
+        ControlStatementResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description Period covered.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /** @description A.1 — PDP dodavatel. */
+            a1: {
+                /**
+                 * @description DIČ of the other party.
+                 * @example CZ12345678
+                 */
+                taxId: string | null;
+                /**
+                 * @description Evidenční číslo daňového dokladu.
+                 * @example FV2025/0042
+                 */
+                doklad: string;
+                /**
+                 * @description DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).
+                 * @example 2025-03-14
+                 */
+                dppd: string;
+                /**
+                 * @description Základ, 21 % bucket.
+                 * @example 0.00
+                 */
+                base21: string;
+                /**
+                 * @description Daň, 21 % bucket.
+                 * @example 0.00
+                 */
+                dan21: string;
+                /**
+                 * @description Základ, 12 % bucket.
+                 * @example 0.00
+                 */
+                base12: string;
+                /**
+                 * @description Daň, 12 % bucket.
+                 * @example 0.00
+                 */
+                dan12: string;
+            }[];
+            /** @description A.2 — EU acquisitions self-assessed. */
+            a2: {
+                /**
+                 * @description DIČ of the other party.
+                 * @example CZ12345678
+                 */
+                taxId: string | null;
+                /**
+                 * @description Evidenční číslo daňového dokladu.
+                 * @example FV2025/0042
+                 */
+                doklad: string;
+                /**
+                 * @description DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).
+                 * @example 2025-03-14
+                 */
+                dppd: string;
+                /**
+                 * @description Základ, 21 % bucket.
+                 * @example 0.00
+                 */
+                base21: string;
+                /**
+                 * @description Daň, 21 % bucket.
+                 * @example 0.00
+                 */
+                dan21: string;
+                /**
+                 * @description Základ, 12 % bucket.
+                 * @example 0.00
+                 */
+                base12: string;
+                /**
+                 * @description Daň, 12 % bucket.
+                 * @example 0.00
+                 */
+                dan12: string;
+            }[];
+            /** @description A.4 — taxable supplies over threshold. */
+            a4: {
+                /**
+                 * @description DIČ of the other party.
+                 * @example CZ12345678
+                 */
+                taxId: string | null;
+                /**
+                 * @description Evidenční číslo daňového dokladu.
+                 * @example FV2025/0042
+                 */
+                doklad: string;
+                /**
+                 * @description DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).
+                 * @example 2025-03-14
+                 */
+                dppd: string;
+                /**
+                 * @description Základ, 21 % bucket.
+                 * @example 0.00
+                 */
+                base21: string;
+                /**
+                 * @description Daň, 21 % bucket.
+                 * @example 0.00
+                 */
+                dan21: string;
+                /**
+                 * @description Základ, 12 % bucket.
+                 * @example 0.00
+                 */
+                base12: string;
+                /**
+                 * @description Daň, 12 % bucket.
+                 * @example 0.00
+                 */
+                dan12: string;
+            }[];
+            /** @description A.5 — taxable supplies under threshold (aggregate). */
+            a5: {
+                /**
+                 * @description Základ celkem.
+                 * @example 0.00
+                 */
+                base: string;
+                /**
+                 * @description Daň celkem.
+                 * @example 0.00
+                 */
+                dan: string;
+                /**
+                 * @description Počet dokladů folded into the aggregate.
+                 * @example 12
+                 */
+                count: number;
+            };
+            /** @description B.1 — PDP odběratel self-assessed. */
+            b1: {
+                /**
+                 * @description DIČ of the other party.
+                 * @example CZ12345678
+                 */
+                taxId: string | null;
+                /**
+                 * @description Evidenční číslo daňového dokladu.
+                 * @example FV2025/0042
+                 */
+                doklad: string;
+                /**
+                 * @description DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).
+                 * @example 2025-03-14
+                 */
+                dppd: string;
+                /**
+                 * @description Základ, 21 % bucket.
+                 * @example 0.00
+                 */
+                base21: string;
+                /**
+                 * @description Daň, 21 % bucket.
+                 * @example 0.00
+                 */
+                dan21: string;
+                /**
+                 * @description Základ, 12 % bucket.
+                 * @example 0.00
+                 */
+                base12: string;
+                /**
+                 * @description Daň, 12 % bucket.
+                 * @example 0.00
+                 */
+                dan12: string;
+            }[];
+            /** @description B.2 — received supplies over threshold. */
+            b2: {
+                /**
+                 * @description DIČ of the other party.
+                 * @example CZ12345678
+                 */
+                taxId: string | null;
+                /**
+                 * @description Evidenční číslo daňového dokladu.
+                 * @example FV2025/0042
+                 */
+                doklad: string;
+                /**
+                 * @description DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).
+                 * @example 2025-03-14
+                 */
+                dppd: string;
+                /**
+                 * @description Základ, 21 % bucket.
+                 * @example 0.00
+                 */
+                base21: string;
+                /**
+                 * @description Daň, 21 % bucket.
+                 * @example 0.00
+                 */
+                dan21: string;
+                /**
+                 * @description Základ, 12 % bucket.
+                 * @example 0.00
+                 */
+                base12: string;
+                /**
+                 * @description Daň, 12 % bucket.
+                 * @example 0.00
+                 */
+                dan12: string;
+            }[];
+            /** @description B.3 — received supplies under threshold (aggregate). */
+            b3: {
+                /**
+                 * @description Základ celkem.
+                 * @example 0.00
+                 */
+                base: string;
+                /**
+                 * @description Daň celkem.
+                 * @example 0.00
+                 */
+                dan: string;
+                /**
+                 * @description Počet dokladů folded into the aggregate.
+                 * @example 12
+                 */
+                count: number;
+            };
+        };
+        /** @description One kontrolní hlášení detail row (per doklad). */
+        KhRow: {
+            /**
+             * @description DIČ of the other party.
+             * @example CZ12345678
+             */
+            taxId: string | null;
+            /**
+             * @description Evidenční číslo daňového dokladu.
+             * @example FV2025/0042
+             */
+            doklad: string;
+            /**
+             * @description DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).
+             * @example 2025-03-14
+             */
+            dppd: string;
+            /**
+             * @description Základ, 21 % bucket.
+             * @example 0.00
+             */
+            base21: string;
+            /**
+             * @description Daň, 21 % bucket.
+             * @example 0.00
+             */
+            dan21: string;
+            /**
+             * @description Základ, 12 % bucket.
+             * @example 0.00
+             */
+            base12: string;
+            /**
+             * @description Daň, 12 % bucket.
+             * @example 0.00
+             */
+            dan12: string;
+        };
+        /** @description Aggregated KH section (A.5 / B.3 — below the reporting threshold). */
+        KhAggregate: {
+            /**
+             * @description Základ celkem.
+             * @example 0.00
+             */
+            base: string;
+            /**
+             * @description Daň celkem.
+             * @example 0.00
+             */
+            dan: string;
+            /**
+             * @description Počet dokladů folded into the aggregate.
+             * @example 12
+             */
+            count: number;
+        };
+        /** @description Účetní závěrka — rozvaha + VZZ totals plus per-account lines. */
+        FinancialStatementsResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description Period covered.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /**
+             * @description Aktiva celkem.
+             * @example 0.00
+             */
+            aktiva: string;
+            /**
+             * @description Pasiva celkem.
+             * @example 0.00
+             */
+            pasiva: string;
+            /**
+             * @description Náklady celkem.
+             * @example 0.00
+             */
+            naklady: string;
+            /**
+             * @description Výnosy celkem.
+             * @example 0.00
+             */
+            vynosy: string;
+            /**
+             * @description Výsledek hospodaření.
+             * @example 0.00
+             */
+            vysledek: string;
+            /** @description Per-account closing balances mapped to statement lines. */
+            lines: {
+                /**
+                 * @description Account number.
+                 * @example 311000
+                 */
+                accountNumber: string;
+                /**
+                 * @description Account nature.
+                 * @example ASSET
+                 */
+                nature: string;
+                /**
+                 * @description Konečný stav.
+                 * @example 0.00
+                 */
+                closingBalance: string;
+                /**
+                 * @description Rozvaha line code, or null.
+                 * @example C.II.1
+                 */
+                balanceSheetLine: string | null;
+                /**
+                 * @description VZZ line code, or null.
+                 * @example A.1
+                 */
+                incomeStatementLine: string | null;
+            }[];
+        };
+        /** @description One závěrka account line mapped to statement lines. */
+        StatementLineRow: {
+            /**
+             * @description Account number.
+             * @example 311000
+             */
+            accountNumber: string;
+            /**
+             * @description Account nature.
+             * @example ASSET
+             */
+            nature: string;
+            /**
+             * @description Konečný stav.
+             * @example 0.00
+             */
+            closingBalance: string;
+            /**
+             * @description Rozvaha line code, or null.
+             * @example C.II.1
+             */
+            balanceSheetLine: string | null;
+            /**
+             * @description VZZ line code, or null.
+             * @example A.1
+             */
+            incomeStatementLine: string | null;
+        };
+        /** @description Formatted rozvaha + VZZ per Decree 500/2002 přílohy. */
+        StatementLayoutResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description Period covered.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /**
+             * @description Rozsah used.
+             * @example FULL
+             * @enum {string}
+             */
+            rozsah: "FULL" | "ABBREVIATED";
+            /**
+             * @description Presentation unit used.
+             * @example CZK
+             * @enum {string}
+             */
+            unit: "CZK" | "THOUSANDS";
+            /** @description Rozvaha — aktiva lines. */
+            aktiva: {
+                /**
+                 * @description Příloha line code (e.g. B, B.II, B.II.1).
+                 * @example B.II.1
+                 */
+                code: string;
+                /**
+                 * @description Nesting depth (1 = letter, 2 = roman, …).
+                 * @example 3
+                 */
+                depth: number;
+                /**
+                 * @description Rolled-up amount in the presentation unit.
+                 * @example 0.00
+                 */
+                amount: string;
+            }[];
+            /**
+             * @description Aktiva celkem.
+             * @example 0.00
+             */
+            aktivaTotal: string;
+            /** @description Rozvaha — pasiva lines. */
+            pasiva: {
+                /**
+                 * @description Příloha line code (e.g. B, B.II, B.II.1).
+                 * @example B.II.1
+                 */
+                code: string;
+                /**
+                 * @description Nesting depth (1 = letter, 2 = roman, …).
+                 * @example 3
+                 */
+                depth: number;
+                /**
+                 * @description Rolled-up amount in the presentation unit.
+                 * @example 0.00
+                 */
+                amount: string;
+            }[];
+            /**
+             * @description Pasiva celkem.
+             * @example 0.00
+             */
+            pasivaTotal: string;
+            /** @description Výkaz zisku a ztráty lines. */
+            vzz: {
+                /**
+                 * @description Příloha line code (e.g. B, B.II, B.II.1).
+                 * @example B.II.1
+                 */
+                code: string;
+                /**
+                 * @description Nesting depth (1 = letter, 2 = roman, …).
+                 * @example 3
+                 */
+                depth: number;
+                /**
+                 * @description Rolled-up amount in the presentation unit.
+                 * @example 0.00
+                 */
+                amount: string;
+            }[];
+            /**
+             * @description Náklady celkem.
+             * @example 0.00
+             */
+            naklady: string;
+            /**
+             * @description Výnosy celkem.
+             * @example 0.00
+             */
+            vynosy: string;
+            /**
+             * @description Výsledek hospodaření.
+             * @example 0.00
+             */
+            vysledek: string;
+        };
+        /** @description One formatted statement layout line. */
+        LayoutLine: {
+            /**
+             * @description Příloha line code (e.g. B, B.II, B.II.1).
+             * @example B.II.1
+             */
+            code: string;
+            /**
+             * @description Nesting depth (1 = letter, 2 = roman, …).
+             * @example 3
+             */
+            depth: number;
+            /**
+             * @description Rolled-up amount in the presentation unit.
+             * @example 0.00
+             */
+            amount: string;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -2084,6 +2842,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DphResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingCorporateIncomeTax: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's corporate income tax computation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DppoResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingEcSalesList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's EU supplies recap. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EcSalesListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingControlStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's control statement. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ControlStatementResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingFinancialStatements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's financial statements. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialStatementsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingStatementLayout: {
+        parameters: {
+            query?: {
+                /** @description Plný / zkrácený rozsah. */
+                rozsah?: "FULL" | "ABBREVIATED";
+                /** @description Presentation unit (celé Kč / v tisících). */
+                unit?: "CZK" | "THOUSANDS";
+            };
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's formatted statement layout. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementLayoutResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

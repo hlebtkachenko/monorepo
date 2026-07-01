@@ -49,4 +49,25 @@ describe("accounting-kb integrity", () => {
   it("every vendored file matches its pinned sha256 (no silent edits)", () => {
     expect(verifyKbIntegrity()).toEqual([])
   })
+
+  it("every contents path is pinned in files[] (no content escapes integrity)", () => {
+    const { contents, files } = loadKbVersion()
+    const pinned = new Set(files.map((f) => f.path))
+
+    const contentsPaths: string[] = []
+    const collect = (value: unknown) => {
+      if (typeof value === "string") {
+        contentsPaths.push(value)
+      } else if (Array.isArray(value)) {
+        value.forEach(collect)
+      } else if (value && typeof value === "object") {
+        Object.values(value).forEach(collect)
+      }
+    }
+    collect(contents)
+
+    expect(contentsPaths.length).toBeGreaterThan(0)
+    const unpinned = contentsPaths.filter((p) => !pinned.has(p))
+    expect(unpinned).toEqual([])
+  })
 })

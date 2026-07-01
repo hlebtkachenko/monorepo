@@ -5,27 +5,50 @@
 // where it came from, a content hash for dedupe/idempotency, and an extraction confidence so the
 // learning loop can reason about trust. Brain-owned + accounting-free — no Track-A import.
 
-/** The source format an IR record was parsed from. */
+/**
+ * The source format an IR record was parsed from. `pohoda_xml` = Pohoda's documented dataPack export
+ * (parseable); `pohoda_db` = the native Zálohа backup (.mdb/proprietary ZIP) — provenance ONLY, the
+ * intake layer DETECTS it and requires a dataPack XML re-export rather than parsing the brittle binary
+ * (a confident-mis-parse factory). `xlsx` = Excel (bank exports, ad-hoc ledgers, prior-book dumps).
+ */
 export type IrSource =
   | "money_s3"
-  | "pohoda"
+  | "pohoda_xml"
+  | "pohoda_db"
   | "gpc"
   | "camt053"
   | "fio"
   | "pdf"
   | "csv"
   | "isdoc"
+  | "xlsx"
 
 export const IR_SOURCES = [
   "money_s3",
-  "pohoda",
+  "pohoda_xml",
+  "pohoda_db",
   "gpc",
   "camt053",
   "fio",
   "pdf",
   "csv",
   "isdoc",
+  "xlsx",
 ] as const satisfies readonly IrSource[]
+
+/**
+ * Trust class of a record as INPUT to booking (WP-IR, 2026-07-01 — the untrusted prior-book model).
+ *  - "primary": an underlying fact (invoice, bank line, receipt) — the Brain books FROM these.
+ *  - "untrusted_prior": a previous accountant's already-booked result. A HINT only: the Brain re-derives
+ *    from primary facts, flags any disagreement to the human, and NEVER inherits the prior classification
+ *    or books from it. A prior-book disagreement fires `multi_source_conflict` (caps below green → HITL).
+ */
+export type SourceTrust = "primary" | "untrusted_prior"
+
+export const SOURCE_TRUSTS = [
+  "primary",
+  "untrusted_prior",
+] as const satisfies readonly SourceTrust[]
 
 /** Discriminant for the top-level IR record union (records that carry a provenance envelope). */
 export type IrRecordType =
@@ -59,8 +82,18 @@ export interface ProvenanceEnvelope {
   source: IrSource
   /** File path + record locator (XML xpath, GPC line no, CSV row, PDF page). */
   source_locator: string
-  /** Content hash of the raw record, for dedupe + idempotency. */
+  /** Hash of the RAW record bytes, for exact-duplicate idempotency (same bytes re-ingested). */
   source_hash: string
+  /**
+   * Semantic dedup key — a stable hash over the ECONOMIC IDENTITY of the event (e.g. supplier tax id +
+   * document number + tax-point + total + currency), so the SAME event parsed from different formats (a
+   * PDF invoice + its Money export) collapses to ONE. Distinct from `source_hash` (raw bytes). Absent when
+   * the record lacks the identity inputs — e.g. a bare `GLEntry` has no document number, which is exactly
+   * why a prior-book journal row does NOT silently collide with its source document (dedup FM2).
+   */
+  content_hash?: string
+  /** Trust class as INPUT to booking; absent ⇒ "primary". See `SourceTrust`. */
+  source_trust?: SourceTrust
   /** ISO-8601 timestamp. */
   ingested_at: string
   /** Per-record extraction confidence, 0..1 (1 for structured, <1 for PDF/CSV). */
@@ -83,4 +116,11 @@ export function isIrRecordType(value: unknown): value is IrRecordType {
     typeof value === "string" &&
     (IR_RECORD_TYPES as readonly string[]).includes(value)
   )
+}
+
+/** True iff the record is an untrusted prior booking (a hint, never a booking source). */
+export function isUntrustedPrior(envelope: {
+  source_trust?: SourceTrust
+}): boolean {
+  return envelope.source_trust === "untrusted_prior"
 }

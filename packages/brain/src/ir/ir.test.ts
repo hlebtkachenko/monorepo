@@ -5,6 +5,7 @@ import {
   IR_SOURCES,
   isIrRecordType,
   isIrSource,
+  isUntrustedPrior,
   type ProvenanceEnvelope,
 } from "./provenance"
 import {
@@ -77,7 +78,7 @@ const cash: CashDocument = {
 }
 
 const gl: GLEntry = {
-  ...envelope("gl-1", "pohoda"),
+  ...envelope("gl-1", "pohoda_xml"),
   record_type: "gl_entry",
   date: "2025-03-01",
   debit_account: "504",
@@ -97,10 +98,13 @@ const attach: Attachment = {
 }
 
 describe("IR source + record-type predicates", () => {
-  it("IR_SOURCES covers the 8 formats and isIrSource guards them", () => {
-    expect(IR_SOURCES).toHaveLength(8)
+  it("IR_SOURCES covers the 10 formats and isIrSource guards them", () => {
+    expect(IR_SOURCES).toHaveLength(10)
     expect(isIrSource("fio")).toBe(true)
-    expect(isIrSource("xlsx")).toBe(false)
+    expect(isIrSource("xlsx")).toBe(true)
+    expect(isIrSource("pohoda_xml")).toBe(true)
+    expect(isIrSource("pohoda_db")).toBe(true)
+    expect(isIrSource("pohoda")).toBe(false) // retired — was ambiguous XML-vs-native-backup
     expect(isIrSource(42)).toBe(false)
   })
 
@@ -108,6 +112,29 @@ describe("IR source + record-type predicates", () => {
     expect(IR_RECORD_TYPES).toHaveLength(5)
     expect(isIrRecordType("invoice")).toBe(true)
     expect(isIrRecordType("ledger")).toBe(false)
+  })
+})
+
+describe("source_trust — the untrusted prior-book axis", () => {
+  it("defaults to primary when absent", () => {
+    // a plain parsed fact carries no source_trust → treated as primary (the Brain books from it)
+    expect(isUntrustedPrior(invoice)).toBe(false)
+    expect(isUntrustedPrior({})).toBe(false)
+  })
+
+  it("flags a prior-book GLEntry as untrusted when tagged", () => {
+    const priorBooking: GLEntry = {
+      ...envelope("gl-prior", "pohoda_xml"),
+      source_trust: "untrusted_prior",
+      content_hash: undefined, // a bare GL row has no doc-number identity → won't collide with its source
+      record_type: "gl_entry",
+      date: "2025-05-01",
+      debit_account: "501", // the previous accountant expensed it...
+      credit_account: "321",
+      amount_minor: 60_000_00n, // ...a 60k asset — the classic prior error to flag, not inherit
+      description: "Notebook",
+    }
+    expect(isUntrustedPrior(priorBooking)).toBe(true)
   })
 })
 

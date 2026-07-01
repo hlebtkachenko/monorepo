@@ -144,6 +144,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/periods/{periodId}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get general ledger / trial balance (hlavní kniha)
+         * @description Returns per-account opening balance | debit/credit turnover | closing balance for the period, straight from the read-model — the hlavní kniha and obratová předvaha. Organization-scoped (FORCE RLS).
+         */
+        get: operations["getAccountingLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/open-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List open items (saldokonto)
+         * @description Returns unsettled receivables/payables (open items), optionally filtered by due date and direction. Organization-scoped (FORCE RLS).
+         */
+        get: operations["getAccountingOpenItems"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/saldokonto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get per-partner saldo
+         * @description Returns per-partner open receivable/payable balances (saldokonto). Organization-scoped (FORCE RLS).
+         */
+        get: operations["getAccountingSaldokonto"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -911,6 +971,318 @@ export interface components {
              */
             amount: string;
         };
+        /** @description Hlavní kniha / obratová předvaha — per-account opening | turnover | closing straight from the read-model. */
+        LedgerResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description The period these balances belong to.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /** @description Per-account balances, ordered by account number. */
+            accounts: {
+                /**
+                 * Format: uuid
+                 * @description Account id.
+                 * @example bb22cc33-dd44-4e55-9f66-001122334455
+                 */
+                accountId: string;
+                /**
+                 * @description Account number (účtový rozvrh).
+                 * @example 311000
+                 */
+                accountNumber: string;
+                /**
+                 * @description Account name.
+                 * @example Odběratelé — tuzemsko
+                 */
+                accountName: string;
+                /**
+                 * @description Account nature (ASSET / LIABILITY / EQUITY / EXPENSE / REVENUE / CLOSING).
+                 * @example ASSET
+                 */
+                nature: string;
+                /**
+                 * @description Normal balance side, or null for accounts without one.
+                 * @example DEBIT
+                 * @enum {string|null}
+                 */
+                normalBalance: "DEBIT" | "CREDIT" | null;
+                /**
+                 * @description Počáteční stav as a decimal string.
+                 * @example 0.00
+                 */
+                openingBalance: string;
+                /**
+                 * @description Obrat MD (debit turnover) as a decimal string.
+                 * @example 121000.00
+                 */
+                turnoverDebit: string;
+                /**
+                 * @description Obrat Dal (credit turnover) as a decimal string.
+                 * @example 121000.00
+                 */
+                turnoverCredit: string;
+                /**
+                 * @description Konečný stav as a decimal string.
+                 * @example 0.00
+                 */
+                closingBalance: string;
+            }[];
+        };
+        /** @description Per-account balance row from the read-model — počáteční stav, obraty MD/Dal, konečný stav. */
+        LedgerAccountRow: {
+            /**
+             * Format: uuid
+             * @description Account id.
+             * @example bb22cc33-dd44-4e55-9f66-001122334455
+             */
+            accountId: string;
+            /**
+             * @description Account number (účtový rozvrh).
+             * @example 311000
+             */
+            accountNumber: string;
+            /**
+             * @description Account name.
+             * @example Odběratelé — tuzemsko
+             */
+            accountName: string;
+            /**
+             * @description Account nature (ASSET / LIABILITY / EQUITY / EXPENSE / REVENUE / CLOSING).
+             * @example ASSET
+             */
+            nature: string;
+            /**
+             * @description Normal balance side, or null for accounts without one.
+             * @example DEBIT
+             * @enum {string|null}
+             */
+            normalBalance: "DEBIT" | "CREDIT" | null;
+            /**
+             * @description Počáteční stav as a decimal string.
+             * @example 0.00
+             */
+            openingBalance: string;
+            /**
+             * @description Obrat MD (debit turnover) as a decimal string.
+             * @example 121000.00
+             */
+            turnoverDebit: string;
+            /**
+             * @description Obrat Dal (credit turnover) as a decimal string.
+             * @example 121000.00
+             */
+            turnoverCredit: string;
+            /**
+             * @description Konečný stav as a decimal string.
+             * @example 0.00
+             */
+            closingBalance: string;
+        };
+        /** @description Open items (saldokonto) — unsettled receivables/payables. */
+        OpenItemsResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /** @description Open items matching the filters. */
+            items: {
+                /**
+                 * Format: uuid
+                 * @description Open-item id.
+                 * @example aa11bb22-cc33-4d44-9e55-ff6677889900
+                 */
+                id: string;
+                /**
+                 * Format: uuid
+                 * @description Counterparty (partner) id.
+                 * @example cc33dd44-ee55-4f66-9077-112233445566
+                 */
+                counterpartyId: string;
+                /**
+                 * @description Receivable/payable account number.
+                 * @example 311000
+                 */
+                accountNumber: string;
+                /**
+                 * @description Receivable or payable.
+                 * @example RECEIVABLE
+                 * @enum {string}
+                 */
+                direction: "RECEIVABLE" | "PAYABLE";
+                /**
+                 * @description Variabilní symbol, or null.
+                 * @example 20250042
+                 */
+                variableSymbol: string | null;
+                /**
+                 * @description Original amount (decimal string).
+                 * @example 121000.00
+                 */
+                originalAmount: string;
+                /**
+                 * @description Settled amount so far (decimal string).
+                 * @example 0.00
+                 */
+                settledAmount: string;
+                /**
+                 * @description Remaining unsettled amount (decimal string).
+                 * @example 121000.00
+                 */
+                remainingAmount: string;
+                /**
+                 * @description True once fully settled.
+                 * @example false
+                 */
+                isSettled: boolean;
+                /**
+                 * @description ISO 4217 currency code.
+                 * @example CZK
+                 */
+                currencyCode: string;
+                /**
+                 * @description Issue date (YYYY-MM-DD).
+                 * @example 2025-03-14
+                 */
+                issueDate: string;
+                /**
+                 * @description Due date (YYYY-MM-DD), or null.
+                 * @example 2025-04-13
+                 */
+                dueDate: string | null;
+            }[];
+        };
+        /** @description An unsettled receivable or payable (open item). */
+        OpenItemRow: {
+            /**
+             * Format: uuid
+             * @description Open-item id.
+             * @example aa11bb22-cc33-4d44-9e55-ff6677889900
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Counterparty (partner) id.
+             * @example cc33dd44-ee55-4f66-9077-112233445566
+             */
+            counterpartyId: string;
+            /**
+             * @description Receivable/payable account number.
+             * @example 311000
+             */
+            accountNumber: string;
+            /**
+             * @description Receivable or payable.
+             * @example RECEIVABLE
+             * @enum {string}
+             */
+            direction: "RECEIVABLE" | "PAYABLE";
+            /**
+             * @description Variabilní symbol, or null.
+             * @example 20250042
+             */
+            variableSymbol: string | null;
+            /**
+             * @description Original amount (decimal string).
+             * @example 121000.00
+             */
+            originalAmount: string;
+            /**
+             * @description Settled amount so far (decimal string).
+             * @example 0.00
+             */
+            settledAmount: string;
+            /**
+             * @description Remaining unsettled amount (decimal string).
+             * @example 121000.00
+             */
+            remainingAmount: string;
+            /**
+             * @description True once fully settled.
+             * @example false
+             */
+            isSettled: boolean;
+            /**
+             * @description ISO 4217 currency code.
+             * @example CZK
+             */
+            currencyCode: string;
+            /**
+             * @description Issue date (YYYY-MM-DD).
+             * @example 2025-03-14
+             */
+            issueDate: string;
+            /**
+             * @description Due date (YYYY-MM-DD), or null.
+             * @example 2025-04-13
+             */
+            dueDate: string | null;
+        };
+        /** @description Saldokonto — per-partner open receivable/payable balances. */
+        SaldokontoResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /** @description Per-partner open balances. */
+            partners: {
+                /**
+                 * Format: uuid
+                 * @description Counterparty (partner) id.
+                 * @example cc33dd44-ee55-4f66-9077-112233445566
+                 */
+                counterpartyId: string;
+                /**
+                 * @description Receivable/payable account number.
+                 * @example 311000
+                 */
+                accountNumber: string;
+                /**
+                 * @description Receivable or payable.
+                 * @example RECEIVABLE
+                 * @enum {string}
+                 */
+                direction: "RECEIVABLE" | "PAYABLE";
+                /**
+                 * @description Total open (unsettled) amount for the partner (decimal string).
+                 * @example 121000.00
+                 */
+                openTotal: string;
+            }[];
+        };
+        /** @description Per-partner open balance. */
+        SaldoPerPartnerRow: {
+            /**
+             * Format: uuid
+             * @description Counterparty (partner) id.
+             * @example cc33dd44-ee55-4f66-9077-112233445566
+             */
+            counterpartyId: string;
+            /**
+             * @description Receivable/payable account number.
+             * @example 311000
+             */
+            accountNumber: string;
+            /**
+             * @description Receivable or payable.
+             * @example RECEIVABLE
+             * @enum {string}
+             */
+            direction: "RECEIVABLE" | "PAYABLE";
+            /**
+             * @description Total open (unsettled) amount for the partner (decimal string).
+             * @example 121000.00
+             */
+            openTotal: string;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -1221,6 +1593,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JournalResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingLedger: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-account balances for the period. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingOpenItems: {
+        parameters: {
+            query?: {
+                /** @description Only items due strictly before this ISO date (YYYY-MM-DD). */
+                dueBefore?: string;
+                /** @description Restrict to receivables or payables. */
+                direction?: "RECEIVABLE" | "PAYABLE";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open items matching the filters. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenItemsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingSaldokonto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-partner open balances. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaldokontoResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

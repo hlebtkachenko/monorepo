@@ -97,3 +97,218 @@ export const JournalResponseSchema = z
       "including 701 opening postings, in book order.",
   })
 export type JournalResponse = z.infer<typeof JournalResponseSchema>
+
+/** One hlavní kniha / obratová předvaha account row — opening | turnover | closing. */
+export const LedgerAccountRowSchema = z
+  .object({
+    accountId: z.string().uuid().openapi({
+      description: "Account id.",
+      example: "bb22cc33-dd44-4e55-9f66-001122334455",
+    }),
+    accountNumber: z.string().openapi({
+      description: "Account number (účtový rozvrh).",
+      example: "311000",
+    }),
+    accountName: z.string().openapi({
+      description: "Account name.",
+      example: "Odběratelé — tuzemsko",
+    }),
+    nature: z.string().openapi({
+      description:
+        "Account nature (ASSET / LIABILITY / EQUITY / EXPENSE / REVENUE / CLOSING).",
+      example: "ASSET",
+    }),
+    normalBalance: z.enum(["DEBIT", "CREDIT"]).nullable().openapi({
+      description: "Normal balance side, or null for accounts without one.",
+      example: "DEBIT",
+    }),
+    openingBalance: z.string().openapi({
+      description: "Počáteční stav as a decimal string.",
+      example: "0.00",
+    }),
+    turnoverDebit: z.string().openapi({
+      description: "Obrat MD (debit turnover) as a decimal string.",
+      example: "121000.00",
+    }),
+    turnoverCredit: z.string().openapi({
+      description: "Obrat Dal (credit turnover) as a decimal string.",
+      example: "121000.00",
+    }),
+    closingBalance: z.string().openapi({
+      description: "Konečný stav as a decimal string.",
+      example: "0.00",
+    }),
+  })
+  .openapi({
+    description:
+      "Per-account balance row from the read-model — počáteční stav, obraty " +
+      "MD/Dal, konečný stav.",
+  })
+export type LedgerAccountRow = z.infer<typeof LedgerAccountRowSchema>
+
+/** `GET /v1/accounting/periods/{periodId}/ledger` response (hlavní kniha / obratová předvaha). */
+export const LedgerResponseSchema = z
+  .object({
+    organizationId: OrganizationIdSchema,
+    periodId: z.string().uuid().openapi({
+      description: "The period these balances belong to.",
+      example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
+    }),
+    accounts: z.array(LedgerAccountRowSchema).openapi({
+      description: "Per-account balances, ordered by account number.",
+    }),
+  })
+  .openapi({
+    description:
+      "Hlavní kniha / obratová předvaha — per-account opening | turnover | " +
+      "closing straight from the read-model.",
+  })
+export type LedgerResponse = z.infer<typeof LedgerResponseSchema>
+
+/** Optional query filters for the open-items (saldokonto) list. */
+export const OpenItemsQuerySchema = z.object({
+  dueBefore: z.string().optional().openapi({
+    description: "Only items due strictly before this ISO date (YYYY-MM-DD).",
+    example: "2025-12-31",
+  }),
+  direction: z.enum(["RECEIVABLE", "PAYABLE"]).optional().openapi({
+    description: "Restrict to receivables or payables.",
+    example: "RECEIVABLE",
+  }),
+})
+
+/** One open item (unsettled receivable/payable). */
+export const OpenItemRowSchema = z
+  .object({
+    id: z
+      .string()
+      .uuid()
+      .openapi({
+        description: "Open-item id.",
+        example: "aa11bb22-cc33-4d44-9e55-ff6677889900",
+      }),
+    counterpartyId: z
+      .string()
+      .uuid()
+      .openapi({
+        description: "Counterparty (partner) id.",
+        example: "cc33dd44-ee55-4f66-9077-112233445566",
+      }),
+    accountNumber: z
+      .string()
+      .openapi({
+        description: "Receivable/payable account number.",
+        example: "311000",
+      }),
+    direction: z
+      .enum(["RECEIVABLE", "PAYABLE"])
+      .openapi({
+        description: "Receivable or payable.",
+        example: "RECEIVABLE",
+      }),
+    variableSymbol: z
+      .string()
+      .nullable()
+      .openapi({
+        description: "Variabilní symbol, or null.",
+        example: "20250042",
+      }),
+    originalAmount: z
+      .string()
+      .openapi({
+        description: "Original amount (decimal string).",
+        example: "121000.00",
+      }),
+    settledAmount: z
+      .string()
+      .openapi({
+        description: "Settled amount so far (decimal string).",
+        example: "0.00",
+      }),
+    remainingAmount: z
+      .string()
+      .openapi({
+        description: "Remaining unsettled amount (decimal string).",
+        example: "121000.00",
+      }),
+    isSettled: z
+      .boolean()
+      .openapi({ description: "True once fully settled.", example: false }),
+    currencyCode: z
+      .string()
+      .openapi({ description: "ISO 4217 currency code.", example: "CZK" }),
+    issueDate: z
+      .string()
+      .openapi({
+        description: "Issue date (YYYY-MM-DD).",
+        example: "2025-03-14",
+      }),
+    dueDate: z
+      .string()
+      .nullable()
+      .openapi({
+        description: "Due date (YYYY-MM-DD), or null.",
+        example: "2025-04-13",
+      }),
+  })
+  .openapi({ description: "An unsettled receivable or payable (open item)." })
+export type OpenItemRow = z.infer<typeof OpenItemRowSchema>
+
+/** `GET /v1/accounting/open-items` response. */
+export const OpenItemsResponseSchema = z
+  .object({
+    organizationId: OrganizationIdSchema,
+    items: z
+      .array(OpenItemRowSchema)
+      .openapi({ description: "Open items matching the filters." }),
+  })
+  .openapi({
+    description: "Open items (saldokonto) — unsettled receivables/payables.",
+  })
+export type OpenItemsResponse = z.infer<typeof OpenItemsResponseSchema>
+
+/** Per-partner saldo aggregate row. */
+export const SaldoPerPartnerRowSchema = z
+  .object({
+    counterpartyId: z
+      .string()
+      .uuid()
+      .openapi({
+        description: "Counterparty (partner) id.",
+        example: "cc33dd44-ee55-4f66-9077-112233445566",
+      }),
+    accountNumber: z
+      .string()
+      .openapi({
+        description: "Receivable/payable account number.",
+        example: "311000",
+      }),
+    direction: z
+      .enum(["RECEIVABLE", "PAYABLE"])
+      .openapi({
+        description: "Receivable or payable.",
+        example: "RECEIVABLE",
+      }),
+    openTotal: z
+      .string()
+      .openapi({
+        description:
+          "Total open (unsettled) amount for the partner (decimal string).",
+        example: "121000.00",
+      }),
+  })
+  .openapi({ description: "Per-partner open balance." })
+export type SaldoPerPartnerRow = z.infer<typeof SaldoPerPartnerRowSchema>
+
+/** `GET /v1/accounting/saldokonto` response. */
+export const SaldokontoResponseSchema = z
+  .object({
+    organizationId: OrganizationIdSchema,
+    partners: z
+      .array(SaldoPerPartnerRowSchema)
+      .openapi({ description: "Per-partner open balances." }),
+  })
+  .openapi({
+    description: "Saldokonto — per-partner open receivable/payable balances.",
+  })
+export type SaldokontoResponse = z.infer<typeof SaldokontoResponseSchema>

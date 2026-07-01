@@ -1665,6 +1665,470 @@
           "amount"
         ],
         "description": "One deník line — a single side of a double-entry posting."
+      },
+      "LedgerResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The period these balances belong to.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Account id.",
+                  "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Account number (účtový rozvrh).",
+                  "example": "311000"
+                },
+                "accountName": {
+                  "type": "string",
+                  "description": "Account name.",
+                  "example": "Odběratelé — tuzemsko"
+                },
+                "nature": {
+                  "type": "string",
+                  "description": "Account nature (ASSET / LIABILITY / EQUITY / EXPENSE / REVENUE / CLOSING).",
+                  "example": "ASSET"
+                },
+                "normalBalance": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "DEBIT",
+                    "CREDIT",
+                    null
+                  ],
+                  "description": "Normal balance side, or null for accounts without one.",
+                  "example": "DEBIT"
+                },
+                "openingBalance": {
+                  "type": "string",
+                  "description": "Počáteční stav as a decimal string.",
+                  "example": "0.00"
+                },
+                "turnoverDebit": {
+                  "type": "string",
+                  "description": "Obrat MD (debit turnover) as a decimal string.",
+                  "example": "121000.00"
+                },
+                "turnoverCredit": {
+                  "type": "string",
+                  "description": "Obrat Dal (credit turnover) as a decimal string.",
+                  "example": "121000.00"
+                },
+                "closingBalance": {
+                  "type": "string",
+                  "description": "Konečný stav as a decimal string.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "accountId",
+                "accountNumber",
+                "accountName",
+                "nature",
+                "normalBalance",
+                "openingBalance",
+                "turnoverDebit",
+                "turnoverCredit",
+                "closingBalance"
+              ],
+              "description": "Per-account balance row from the read-model — počáteční stav, obraty MD/Dal, konečný stav."
+            },
+            "description": "Per-account balances, ordered by account number."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "accounts"
+        ],
+        "description": "Hlavní kniha / obratová předvaha — per-account opening | turnover | closing straight from the read-model."
+      },
+      "LedgerAccountRow": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Account id.",
+            "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Account number (účtový rozvrh).",
+            "example": "311000"
+          },
+          "accountName": {
+            "type": "string",
+            "description": "Account name.",
+            "example": "Odběratelé — tuzemsko"
+          },
+          "nature": {
+            "type": "string",
+            "description": "Account nature (ASSET / LIABILITY / EQUITY / EXPENSE / REVENUE / CLOSING).",
+            "example": "ASSET"
+          },
+          "normalBalance": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "DEBIT",
+              "CREDIT",
+              null
+            ],
+            "description": "Normal balance side, or null for accounts without one.",
+            "example": "DEBIT"
+          },
+          "openingBalance": {
+            "type": "string",
+            "description": "Počáteční stav as a decimal string.",
+            "example": "0.00"
+          },
+          "turnoverDebit": {
+            "type": "string",
+            "description": "Obrat MD (debit turnover) as a decimal string.",
+            "example": "121000.00"
+          },
+          "turnoverCredit": {
+            "type": "string",
+            "description": "Obrat Dal (credit turnover) as a decimal string.",
+            "example": "121000.00"
+          },
+          "closingBalance": {
+            "type": "string",
+            "description": "Konečný stav as a decimal string.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountNumber",
+          "accountName",
+          "nature",
+          "normalBalance",
+          "openingBalance",
+          "turnoverDebit",
+          "turnoverCredit",
+          "closingBalance"
+        ],
+        "description": "Per-account balance row from the read-model — počáteční stav, obraty MD/Dal, konečný stav."
+      },
+      "OpenItemsResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Open-item id.",
+                  "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+                },
+                "counterpartyId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Counterparty (partner) id.",
+                  "example": "cc33dd44-ee55-4f66-9077-112233445566"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Receivable/payable account number.",
+                  "example": "311000"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "RECEIVABLE",
+                    "PAYABLE"
+                  ],
+                  "description": "Receivable or payable.",
+                  "example": "RECEIVABLE"
+                },
+                "variableSymbol": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Variabilní symbol, or null.",
+                  "example": "20250042"
+                },
+                "originalAmount": {
+                  "type": "string",
+                  "description": "Original amount (decimal string).",
+                  "example": "121000.00"
+                },
+                "settledAmount": {
+                  "type": "string",
+                  "description": "Settled amount so far (decimal string).",
+                  "example": "0.00"
+                },
+                "remainingAmount": {
+                  "type": "string",
+                  "description": "Remaining unsettled amount (decimal string).",
+                  "example": "121000.00"
+                },
+                "isSettled": {
+                  "type": "boolean",
+                  "description": "True once fully settled.",
+                  "example": false
+                },
+                "currencyCode": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code.",
+                  "example": "CZK"
+                },
+                "issueDate": {
+                  "type": "string",
+                  "description": "Issue date (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "dueDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Due date (YYYY-MM-DD), or null.",
+                  "example": "2025-04-13"
+                }
+              },
+              "required": [
+                "id",
+                "counterpartyId",
+                "accountNumber",
+                "direction",
+                "variableSymbol",
+                "originalAmount",
+                "settledAmount",
+                "remainingAmount",
+                "isSettled",
+                "currencyCode",
+                "issueDate",
+                "dueDate"
+              ],
+              "description": "An unsettled receivable or payable (open item)."
+            },
+            "description": "Open items matching the filters."
+          }
+        },
+        "required": [
+          "organizationId",
+          "items"
+        ],
+        "description": "Open items (saldokonto) — unsettled receivables/payables."
+      },
+      "OpenItemRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Open-item id.",
+            "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Counterparty (partner) id.",
+            "example": "cc33dd44-ee55-4f66-9077-112233445566"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Receivable/payable account number.",
+            "example": "311000"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "RECEIVABLE",
+              "PAYABLE"
+            ],
+            "description": "Receivable or payable.",
+            "example": "RECEIVABLE"
+          },
+          "variableSymbol": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Variabilní symbol, or null.",
+            "example": "20250042"
+          },
+          "originalAmount": {
+            "type": "string",
+            "description": "Original amount (decimal string).",
+            "example": "121000.00"
+          },
+          "settledAmount": {
+            "type": "string",
+            "description": "Settled amount so far (decimal string).",
+            "example": "0.00"
+          },
+          "remainingAmount": {
+            "type": "string",
+            "description": "Remaining unsettled amount (decimal string).",
+            "example": "121000.00"
+          },
+          "isSettled": {
+            "type": "boolean",
+            "description": "True once fully settled.",
+            "example": false
+          },
+          "currencyCode": {
+            "type": "string",
+            "description": "ISO 4217 currency code.",
+            "example": "CZK"
+          },
+          "issueDate": {
+            "type": "string",
+            "description": "Issue date (YYYY-MM-DD).",
+            "example": "2025-03-14"
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Due date (YYYY-MM-DD), or null.",
+            "example": "2025-04-13"
+          }
+        },
+        "required": [
+          "id",
+          "counterpartyId",
+          "accountNumber",
+          "direction",
+          "variableSymbol",
+          "originalAmount",
+          "settledAmount",
+          "remainingAmount",
+          "isSettled",
+          "currencyCode",
+          "issueDate",
+          "dueDate"
+        ],
+        "description": "An unsettled receivable or payable (open item)."
+      },
+      "SaldokontoResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "partners": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "counterpartyId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Counterparty (partner) id.",
+                  "example": "cc33dd44-ee55-4f66-9077-112233445566"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Receivable/payable account number.",
+                  "example": "311000"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "RECEIVABLE",
+                    "PAYABLE"
+                  ],
+                  "description": "Receivable or payable.",
+                  "example": "RECEIVABLE"
+                },
+                "openTotal": {
+                  "type": "string",
+                  "description": "Total open (unsettled) amount for the partner (decimal string).",
+                  "example": "121000.00"
+                }
+              },
+              "required": [
+                "counterpartyId",
+                "accountNumber",
+                "direction",
+                "openTotal"
+              ],
+              "description": "Per-partner open balance."
+            },
+            "description": "Per-partner open balances."
+          }
+        },
+        "required": [
+          "organizationId",
+          "partners"
+        ],
+        "description": "Saldokonto — per-partner open receivable/payable balances."
+      },
+      "SaldoPerPartnerRow": {
+        "type": "object",
+        "properties": {
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Counterparty (partner) id.",
+            "example": "cc33dd44-ee55-4f66-9077-112233445566"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Receivable/payable account number.",
+            "example": "311000"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "RECEIVABLE",
+              "PAYABLE"
+            ],
+            "description": "Receivable or payable.",
+            "example": "RECEIVABLE"
+          },
+          "openTotal": {
+            "type": "string",
+            "description": "Total open (unsettled) amount for the partner (decimal string).",
+            "example": "121000.00"
+          }
+        },
+        "required": [
+          "counterpartyId",
+          "accountNumber",
+          "direction",
+          "openTotal"
+        ],
+        "description": "Per-partner open balance."
       }
     },
     "parameters": {}
@@ -1964,6 +2428,183 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JournalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/ledger": {
+      "get": {
+        "operationId": "getAccountingLedger",
+        "summary": "Get general ledger / trial balance (hlavní kniha)",
+        "description": "Returns per-account opening balance | debit/credit turnover | closing balance for the period, straight from the read-model — the hlavní kniha and obratová předvaha. Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-account balances for the period.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/open-items": {
+      "get": {
+        "operationId": "getAccountingOpenItems",
+        "summary": "List open items (saldokonto)",
+        "description": "Returns unsettled receivables/payables (open items), optionally filtered by due date and direction. Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Only items due strictly before this ISO date (YYYY-MM-DD).",
+              "example": "2025-12-31"
+            },
+            "required": false,
+            "description": "Only items due strictly before this ISO date (YYYY-MM-DD).",
+            "name": "dueBefore",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RECEIVABLE",
+                "PAYABLE"
+              ],
+              "description": "Restrict to receivables or payables.",
+              "example": "RECEIVABLE"
+            },
+            "required": false,
+            "description": "Restrict to receivables or payables.",
+            "name": "direction",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Open items matching the filters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenItemsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/saldokonto": {
+      "get": {
+        "operationId": "getAccountingSaldokonto",
+        "summary": "Get per-partner saldo",
+        "description": "Returns per-partner open receivable/payable balances (saldokonto). Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-partner open balances.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaldokontoResponse"
                 }
               }
             }

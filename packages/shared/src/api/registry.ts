@@ -35,7 +35,14 @@ import {
 import {
   JournalResponseSchema,
   JournalRowSchema,
+  LedgerAccountRowSchema,
+  LedgerResponseSchema,
+  OpenItemRowSchema,
+  OpenItemsQuerySchema,
+  OpenItemsResponseSchema,
   PeriodIdParamSchema,
+  SaldoPerPartnerRowSchema,
+  SaldokontoResponseSchema,
 } from "./accounting"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
@@ -108,6 +115,18 @@ const JournalResponse = registry.register(
   JournalResponseSchema,
 )
 registry.register("JournalRow", JournalRowSchema)
+const LedgerResponse = registry.register("LedgerResponse", LedgerResponseSchema)
+registry.register("LedgerAccountRow", LedgerAccountRowSchema)
+const OpenItemsResponse = registry.register(
+  "OpenItemsResponse",
+  OpenItemsResponseSchema,
+)
+registry.register("OpenItemRow", OpenItemRowSchema)
+const SaldokontoResponse = registry.register(
+  "SaldokontoResponse",
+  SaldokontoResponseSchema,
+)
+registry.register("SaldoPerPartnerRow", SaldoPerPartnerRowSchema)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -390,6 +409,66 @@ registry.registerPath({
     "200": {
       description: "The period's journal lines in book order.",
       content: { "application/json": { schema: JournalResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/ledger",
+  operationId: "getAccountingLedger",
+  summary: "Get general ledger / trial balance (hlavní kniha)",
+  description:
+    "Returns per-account opening balance | debit/credit turnover | closing " +
+    "balance for the period, straight from the read-model — the hlavní kniha " +
+    "and obratová předvaha. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "Per-account balances for the period.",
+      content: { "application/json": { schema: LedgerResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/open-items",
+  operationId: "getAccountingOpenItems",
+  summary: "List open items (saldokonto)",
+  description:
+    "Returns unsettled receivables/payables (open items), optionally filtered " +
+    "by due date and direction. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: OpenItemsQuerySchema },
+  responses: {
+    "200": {
+      description: "Open items matching the filters.",
+      content: { "application/json": { schema: OpenItemsResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/saldokonto",
+  operationId: "getAccountingSaldokonto",
+  summary: "Get per-partner saldo",
+  description:
+    "Returns per-partner open receivable/payable balances (saldokonto). " +
+    "Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  responses: {
+    "200": {
+      description: "Per-partner open balances.",
+      content: { "application/json": { schema: SaldokontoResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

@@ -85,3 +85,85 @@ export function parseNumber(input: string): number | null {
   const value = Number(normalized)
   return Number.isFinite(value) ? value : null
 }
+
+// The thousand separator Intl emits for the default locale (so the live mask
+// groups exactly like `formatNumber` does on commit).
+const GROUP_SEPARATOR =
+  formatNumber(1000, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).replace(/[0-9]/g, "") || "\u00A0"
+
+/** Group a run of integer digits with the locale thousand separator. */
+function groupIntegerDigits(digits: string): string {
+  const stripped = digits.replace(/^0+(?=\d)/, "")
+  return stripped.replace(/\B(?=(\d{3})+(?!\d))/g, GROUP_SEPARATOR)
+}
+
+/** Caret offset that lands just after the `n`-th digit of a grouped string. */
+function caretAfterDigits(grouped: string, n: number): number {
+  if (n <= 0) return 0
+  let count = 0
+  for (let i = 0; i < grouped.length; i++) {
+    if (grouped[i]! >= "0" && grouped[i]! <= "9") {
+      count++
+      if (count === n) return i + 1
+    }
+  }
+  return grouped.length
+}
+
+/**
+ * Live input mask for a Czech-formatted decimal field. Given the raw input and
+ * the caret position, returns the reformatted text and the caret to restore:
+ *
+ * - integer digits group with thousand separators as you type;
+ * - a `,00` decimal suffix is appended while only integer digits are present
+ *   (typing `1` shows `1,00` with the caret kept right after the `1`);
+ * - typing a comma/dot switches into the decimals (max 2 digits);
+ * - an empty field stays empty so the placeholder can show.
+ */
+export function maskNumberInput(
+  raw: string,
+  caret: number,
+): { text: string; caret: number } {
+  const negative = /^\s*-/.test(raw)
+  const sepIndex = raw.search(/[.,]/)
+  const hasSeparator = sepIndex >= 0
+  const intSource = hasSeparator ? raw.slice(0, sepIndex) : raw
+  const decSource = hasSeparator ? raw.slice(sepIndex + 1) : ""
+  const intDigits = intSource.replace(/\D/g, "")
+  const decDigits = decSource.replace(/\D/g, "").slice(0, 2)
+
+  // Nothing typed yet \u2192 keep it empty (the placeholder shows).
+  if (intDigits === "" && decDigits === "" && !hasSeparator) {
+    return { text: "", caret: 0 }
+  }
+
+  const sign = negative ? "-" : ""
+  const grouped = intDigits === "" ? "0" : groupIntegerDigits(intDigits)
+  const caretInDecimal = hasSeparator && caret > sepIndex
+
+  if (caretInDecimal) {
+    const decBeforeCaret = decSource
+      .slice(0, caret - sepIndex - 1)
+      .replace(/\D/g, "").length
+    return {
+      text: `${sign}${grouped},${decDigits}`,
+      caret:
+        sign.length +
+        grouped.length +
+        1 +
+        Math.min(decBeforeCaret, decDigits.length),
+    }
+  }
+
+  // Integer editing \u2014 show a 2-digit decimal suffix (committed decimals or 00)
+  // and keep the caret among the integer digits.
+  const decSuffix = (decDigits || "00").padEnd(2, "0")
+  const digitsBeforeCaret = raw.slice(0, caret).replace(/\D/g, "").length
+  return {
+    text: `${sign}${grouped},${decSuffix}`,
+    caret: sign.length + caretAfterDigits(grouped, digitsBeforeCaret),
+  }
+}

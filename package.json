@@ -14,6 +14,8 @@
     "knip": "knip",
     "check:brand-placeholders": "node scripts/check-brand-placeholders.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
+    "check:nav": "tsx scripts/check-nav.ts",
+    "check:sitemap": "tsx scripts/check-sitemap.ts",
     "check:pr-title": "node scripts/check-pr-title.mjs",
     "gen:all": "tsx scripts/gen-all.ts",
     "prepare": "lefthook install --force || true"
@@ -27,11 +29,11 @@
     "eslint": "^10.4.1",
     "knip": "^6.16.1",
     "lefthook": "^2.1.9",
-    "prettier": "^3.8.3",
+    "prettier": "^3.8.4",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "shadcn": "^4.10.0",
     "tsx": "^4.22.4",
-    "turbo": "^2.9.14",
+    "turbo": "^2.9.18",
     "typescript": "^6.0.3"
   },
   "packageManager": "pnpm@11.0.9",

@@ -30,6 +30,9 @@ interface DataTableFacetedFilterProps<TData, TValue> {
   title?: string
   options: DataTableFilterOption[]
   multiple?: boolean
+  /** Controlled open state — lets a consumer open the filter imperatively. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export function DataTableFacetedFilter<TData, TValue>({
@@ -37,8 +40,20 @@ export function DataTableFacetedFilter<TData, TValue>({
   title,
   options,
   multiple,
+  open: openProp,
+  onOpenChange,
 }: DataTableFacetedFilterProps<TData, TValue>) {
-  const [open, setOpen] = React.useState(false)
+  const [openState, setOpenState] = React.useState(false)
+  const open = openProp ?? openState
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      // Only track state internally when uncontrolled; otherwise the prop is
+      // the single source of truth and we just notify the consumer.
+      if (openProp === undefined) setOpenState(next)
+      onOpenChange?.(next)
+    },
+    [onOpenChange, openProp],
+  )
   const columnFilterValue = column?.getFilterValue()
   const selectedValues = React.useMemo(
     () => new Set(Array.isArray(columnFilterValue) ? columnFilterValue : []),
@@ -62,7 +77,7 @@ export function DataTableFacetedFilter<TData, TValue>({
         setOpen(false)
       }
     },
-    [column, multiple, selectedValues],
+    [column, multiple, selectedValues, setOpen],
   )
 
   const onReset = React.useCallback(
@@ -98,10 +113,7 @@ export function DataTableFacetedFilter<TData, TValue>({
           {title}
           {selectedValues.size > 0 && (
             <>
-              <Separator
-                orientation="vertical"
-                className="mx-0.5 data-vertical:h-4"
-              />
+              <Separator orientation="vertical" inset className="mx-0.5 !h-4" />
               <Badge
                 variant="secondary"
                 className="rounded-sm px-1 font-normal lg:hidden"

@@ -1,5 +1,9 @@
+import * as React from "react"
 import type { Preview } from "@storybook/react"
 import { withThemeByClassName } from "@storybook/addon-themes"
+
+import { IconProvider } from "@workspace/ui/icon-packs"
+
 import "../src/styles/globals.css"
 
 const preview: Preview = {
@@ -109,6 +113,11 @@ const preview: Preview = {
     },
   },
   decorators: [
+    // Any block that renders an IconButton (e.g. AppShell's panel toggles)
+    // calls useIcons(), which throws without an IconProvider — mirror the
+    // app's root layout by wrapping every story in one.
+    (Story) =>
+      React.createElement(IconProvider, null, React.createElement(Story)),
     withThemeByClassName({
       themes: {
         light: "",

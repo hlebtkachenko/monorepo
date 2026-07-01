@@ -1,4 +1,5 @@
 {
+  "blocks-app-content-contentpanel--dashboard": ["color-contrast"],
   "blocks-authforms--login-email-with-error": ["color-contrast"],
   "brandassets-logo--explicit-tone-matrix": ["color-contrast"],
   "components-alert--destructive": ["color-contrast"],

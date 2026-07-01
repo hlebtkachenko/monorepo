@@ -2,10 +2,31 @@ import type { ReactNode } from "react"
 import { redirect } from "next/navigation"
 import { eq, and } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
-import { organization, organization_membership } from "@workspace/db/schema"
+import {
+  app_user,
+  organization,
+  organization_membership,
+} from "@workspace/db/schema"
+import { getBuildVersion } from "@workspace/ui/brand-assets"
+import { AppHeader } from "@workspace/ui/blocks/app-header"
 
 import { AppContextMenuClient } from "../_components/app-context-menu-client"
+import { OrgHeaderActions } from "../_components/org-header-actions"
+import { OrgSwitcherClient } from "../_components/org-switcher"
+import { PeriodSwitcherClient } from "../_components/period-switcher"
+import { OrgShell } from "../_components/org-shell"
+import { presignAvatarRead } from "../_lib/avatar-storage"
+import { getHeaderOrgData } from "./_lib/header-org"
 import { getRequestSession } from "./_lib/request-session"
+
+// DB role enum → human-readable label rendered verbatim in the org switcher.
+const ROLE_LABELS: Record<ResolvedMembership["role"], string> = {
+  owner: "Owner",
+  admin: "Admin",
+  member: "Member",
+  agent: "Agent",
+  guest: "Guest",
+}
 
 // Mirrors the DB CHECK constraint on organization.slug:
 //   slug ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
@@ -81,14 +102,89 @@ export default async function OrgLayout({
     redirect("/workspace?error=no-access")
   }
 
+  // Chrome data for the persistent shell header — fetched server-side (needs
+  // the session + a private-bucket avatar presign) and passed into the client
+  // shell as a node. The header user + org-switcher data are independent reads,
+  // so they run concurrently.
+  const [{ userName, userImage }, orgData] = await Promise.all([
+    getHeaderUser(session.user.id, session.user.email),
+    getHeaderOrgData({
+      organizationId: membership.organizationId,
+      userId: session.user.id,
+    }),
+  ])
+  const header = (
+    <AppHeader
+      leftContent={
+        <>
+          <OrgSwitcherClient
+            orgSlug={orgSlug}
+            currentOrg={{
+              id: membership.organizationId,
+              name: membership.legalName,
+              role: ROLE_LABELS[membership.role],
+              memberCount: orgData.memberCount,
+            }}
+            recentOrgs={orgData.otherOrgs.map((o) => ({
+              id: o.id,
+              name: o.name,
+              href: `/${o.slug}`,
+            }))}
+          />
+          <PeriodSwitcherClient />
+        </>
+      }
+      actions={
+        <OrgHeaderActions
+          userName={userName}
+          userImage={userImage}
+          orgSlug={orgSlug}
+          version={getBuildVersion()}
+        />
+      }
+    />
+  )
+
   return (
     <AppContextMenuClient
       orgSlug={orgSlug}
       user={{ id: session.user.id, email: session.user.email }}
     >
-      {children}
+      <OrgShell orgSlug={orgSlug} header={header}>
+        {children}
+      </OrgShell>
     </AppContextMenuClient>
   )
+}
+
+/**
+ * Resolve the signed-in user's display name + avatar for the header. The
+ * uploaded avatar (`avatar_url`) is a private-bucket S3 key resolved to a
+ * presigned GET URL; falls back to the Better Auth `image`. Initials are derived
+ * client-side when both are absent.
+ */
+async function getHeaderUser(
+  userId: string,
+  email: string,
+): Promise<{ userName?: string; userImage?: string }> {
+  const row = await withAdminBypass(async (db) => {
+    const [r] = await db
+      .select({
+        name: app_user.name,
+        display_name: app_user.display_name,
+        image: app_user.image,
+        avatar_url: app_user.avatar_url,
+      })
+      .from(app_user)
+      .where(eq(app_user.id, userId))
+      .limit(1)
+    return r ?? null
+  })
+  const presigned = await presignAvatarRead(row?.avatar_url ?? null)
+  return {
+    userName: row?.display_name || row?.name || email,
+    userImage: presigned ?? row?.image ?? undefined,
+  }
 }
 
 interface ResolvedMembership {

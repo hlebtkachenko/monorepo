@@ -10,6 +10,13 @@ export interface AppHeaderProps {
   /** Placeholder for the centered search input. */
   searchPlaceholder?: string
   /**
+   * Left-zone cluster — context switchers (org, accounting period) that sit
+   * at the header's left edge (above the sidebar). Desktop-only chrome: the
+   * cluster is hidden below `md` (where the header band is too narrow), same
+   * as the right-zone secondary actions.
+   */
+  leftContent?: ReactNode
+  /**
    * Right-zone action cluster, composed per surface (org, admin, …) from
    * the shared primitives (IconButton, DropdownMenu, …). The block owns
    * only the layout + the screen-centered search; surfaces own their
@@ -37,6 +44,7 @@ export interface AppHeaderProps {
  */
 export function AppHeader({
   searchPlaceholder = "Search…",
+  leftContent,
   actions,
   className,
 }: AppHeaderProps) {
@@ -49,6 +57,18 @@ export function AppHeader({
         className,
       )}
     >
+      {leftContent && (
+        // Flush to the header's left edge (the rail edge). In-flow on desktop
+        // — search + actions are absolute, so this cluster owns the true left.
+        // Desktop-only (mobile header is minimal).
+        <div
+          data-slot="app-header-left"
+          className="flex shrink-0 items-center gap-1 max-md:hidden"
+        >
+          {leftContent}
+        </div>
+      )}
+
       <div className="relative min-w-0 flex-1 md:absolute md:top-1/2 md:left-[calc(50vw-var(--shell-rail-width))] md:w-[clamp(var(--header-search-min),calc(100vw-var(--header-search-gutter)),var(--header-search-max))] md:flex-none md:-translate-x-1/2 md:-translate-y-1/2">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-icon" />
         <Input

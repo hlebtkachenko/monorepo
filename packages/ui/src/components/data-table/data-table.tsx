@@ -107,6 +107,10 @@ export function DataTable<TData>({
 }
 
 export { DataTableColumnHeader } from "./data-table-column-header"
+export {
+  ColumnManagerMenuContent,
+  DataTableColumnManager,
+} from "./data-table-column-manager"
 export { DataTableDateFilter } from "./data-table-date-filter"
 export { DataTableFacetedFilter } from "./data-table-faceted-filter"
 export { DataTableMultiSort } from "./data-table-multi-sort"

@@ -101,6 +101,8 @@ READ the source file first. Never guess exports. The export list is at the botto
 
 Agent-specific runbooks live in `docs/runbooks/`:
 
+- `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the four-archetype catalog (Table / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the dev-only `/demo-*` routes as living examples
+- `DB-ACCESS.md`: operator DB access — `scripts/db-query.sh` (fast ~2s reads via ECS Exec) vs the EC2 bastion (`staging-bastion-migrate.sh`) for raw write SQL
 - `SHOWCASE.md`: instructions for adding component demos to the showcase page
 - `COMPONENT-MIGRATION.md`: workflow for adding non-shadcn components from external registries
 

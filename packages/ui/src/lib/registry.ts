@@ -441,6 +441,15 @@ export const registry: Record<string, ComponentMeta> = {
     ],
     packages: ["@tanstack/react-table", "@tanstack/react-virtual"],
   },
+  "data-grid-view": {
+    source: "src/components/data-grid-view",
+    sourceType: "custom",
+    description:
+      "Full-width presentational grid bound to an external TanStack table (e.g. useDataTable): drag-resize columns, drag/menu reorder, in-header sort, hide, a fixed select column, and arrow-key cell navigation. Every interaction writes to the shared table, so a toolbar bound to the same instance stays in sync. Unlike data-grid (the editable spreadsheet) it owns no state and renders whatever the table is filtered/paginated to.",
+    categories: ["data"],
+    dependencies: ["dropdown-menu"],
+    packages: ["@tanstack/react-table"],
+  },
   "data-table": {
     source: "diceui",
     sourceType: "import",

@@ -24,6 +24,8 @@ export interface DataTableColumnMeta {
   range?: [number, number]
   unit?: string
   icon?: React.FC<React.SVGProps<SVGSVGElement>>
+  /** Cell content alignment — `center` squares up icon/checkbox columns. */
+  align?: "start" | "center" | "end"
 }
 
 declare module "@tanstack/react-table" {

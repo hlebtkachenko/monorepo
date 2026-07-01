@@ -16,14 +16,14 @@
   },
   "dependencies": {
     "@workspace/notify": "workspace:*",
-    "grammy": "^1.43.0",
-    "hono": "^4.12.23"
+    "grammy": "^1.44.0",
+    "hono": "^4.12.25"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260608.1",
+    "@cloudflare/workers-types": "^4.20260615.1",
     "@workspace/typescript-config": "workspace:*",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8",
+    "vitest": "^4.1.9",
     "wrangler": "^4.98.0"
   }
 }

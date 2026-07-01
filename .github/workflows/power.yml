@@ -78,7 +78,10 @@ jobs:
       matrix:
         environment: ${{ fromJSON(needs.setup.outputs.envs) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 55, not 20: `resume` of a multi-day-parked RDS can wait up to 40 min for
+    # the cold start (infra/scripts/rds-resume.sh) before the ECS scale-up +
+    # services-stable wait. Safety ceiling; a warm resume still finishes fast.
+    timeout-minutes: 55
     # Per-env GitHub environment: scopes the deploy-role secret, applies the
     # production protection rules, and makes the OIDC subject env-scoped so the
     # exact-match deploy-role trust policy accepts it.
@@ -101,7 +104,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -127,7 +130,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+      - uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -153,16 +156,13 @@ jobs:
 
           case "$ACTION" in
             resume)
-              # Drop the keep-stopped tag first, else RdsRestartWatcher re-stops it.
-              aws rds remove-tags-from-resource --resource-name "$DB_ARN" \
-                --tag-keys cost-stop-requested || true
-              STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
-                         --query 'DBInstances[0].DBInstanceStatus' --output text)"
-              if [ "$STATUS" != "available" ]; then
-                echo "RDS is '${STATUS}' — starting (this is the slow part on a cold resume)…"
-                aws rds start-db-instance --db-instance-identifier "$SID" >/dev/null || true
-                aws rds wait db-instance-available --db-instance-identifier "$SID"
-              fi
+              # Resilient cold-resume — single source shared with
+              # _deploy-aws.yml. Re-asserts the cost-stop tag removal every
+              # iteration (defeats the RdsRestartWatcher race), tolerates all
+              # transitional states, and survives a multi-day-parked DB that the
+              # old single `aws rds wait` (~30 min cap) could not. See
+              # infra/scripts/rds-resume.sh.
+              RDS_MAX_WAIT_SECONDS=2400 bash "${GITHUB_WORKSPACE}/infra/scripts/rds-resume.sh"
               aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
                 --desired-count 1 >/dev/null
               echo "Scaled to 1, waiting for the service to stabilize…"

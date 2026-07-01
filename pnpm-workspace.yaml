@@ -8,14 +8,16 @@ packages:
 overrides:
   # Force >=5.3.1: 4 CVEs in transitive 5.0.5 (path traversal, CRLF injection, 2x DoS)
   basic-ftp: ">=5.3.1"
-  # Force >=0.25.0: GHSA dev-server SSRF. Transitive 0.18.20 via drizzle-kit -> @esbuild-kit/core-utils
-  esbuild: ">=0.25.0"
+  # Force >=0.28.1: GHSA dev-server SSRF (0.18.20 via drizzle-kit -> @esbuild-kit/core-utils)
+  # plus CVE arbitrary file read via the dev server (>=0.27.3 <0.28.1, DB#51).
+  esbuild: ">=0.28.1"
   # Force >=8.5.10: XSS via unescaped </style> in CSS stringify. Transitive 8.4.31 via next@16
   postcss: ">=8.5.10"
   # Pin v9.x: eslint v10 breaks eslint-plugin-react@7.37.5 'react/display-name'
   eslint: "^9.39.2"
-  # Force >=0.2.6: GHSA path-traversal fix. Transitive via exceljs + testcontainers (dev/test only).
-  tmp: ">=0.2.6"
+  # Force >=0.2.7: type-confusion bypass of _assertPath allows path traversal (DB#53,
+  # supersedes the earlier >=0.2.6 path-traversal fix). Transitive via exceljs + testcontainers.
+  tmp: ">=0.2.7"
   # Force >=6.15.2: qs.stringify DoS fix. Transitive via express (body-parser) + supertest (superagent).
   qs: ">=6.15.2"
   # Force >=18.2.1: CVE-2026-48038 RangeError DoS via recursive link() schemas.
@@ -27,8 +29,52 @@ overrides:
   better-auth: "1.6.11"
   # Force >=4.12.21: 4 GHSAs in transitive 4.12.18 via @modelcontextprotocol/sdk
   # (Set-Cookie injection, IPv6 deny bypass, JWT scheme accept-any, mount-prefix
-  # routing). SDK's own range is ^4.11.4, so dedupes onto our direct 4.12.23.
-  hono: ">=4.12.21"
+  # routing). SDK's own range is ^4.11.4, so dedupes onto our direct 4.12.25.
+  # >=4.12.25 also clears CORS-credentials reflection, serve-static path traversal,
+  # Lambda Set-Cookie/body-limit issues (DB#62-66).
+  hono: ">=4.12.25"
+  # --- Security overrides batch (v0.6.1): all transitive, all with a patched floor. ---
+  # undici: 7.24.8/7.26.0 vulnerable (TLS validation bypass, SOCKS5 cross-origin routing,
+  # WebSocket DoS, cache disclosure, Set-Cookie issues, DB#69-75). Bound to the 7.x line:
+  # jsdom@29 deep-imports `undici/lib/handler/wrap-handler.js`, which exists only in undici
+  # 7.x — an unbounded floor would replace jsdom's `^7` spec, float it onto undici@8, and
+  # break the jsdom dispatcher. undici@8.5.0 consumers are already out of the CVE range.
+  "undici@>=7.0.0 <8.0.0": ">=7.28.0 <8.0.0"
+  # ws: memory-exhaustion DoS from tiny fragments (DB#54). Transitive 8.20.1.
+  ws: ">=8.21.0"
+  # multer: DoS via deeply nested field names + incomplete abort cleanup (DB#67,68).
+  # Already on 2.x via @nestjs/platform-express; in-major bump.
+  multer: ">=2.2.0"
+  # form-data: CRLF injection via unescaped multipart field names (DB#58). Transitive 4.0.5.
+  form-data: ">=4.0.6"
+  # protobufjs: schema-derived names can shadow runtime properties (DB#59). Transitive 7.6.1.
+  protobufjs: ">=7.6.3"
+  # @opentelemetry/core: unbounded memory in W3C Baggage propagation (DB#61). Transitive 2.7.1.
+  "@opentelemetry/core": ">=2.8.0"
+  # vite: server.fs.deny bypass + launch-editor NTLM disclosure on Windows (DB#56,57).
+  # Floor only; the unaffected vite@10 tree already satisfies it (8.0.11 -> 8.0.16).
+  vite: ">=8.0.16"
+  # rolldown: the `vite: ">=8.0.16"` floor above floated vite 8.0.11 -> 8.1.0
+  # (not the expected 8.0.16), and vite 8.1.0 bundles rolldown 1.1.2, which
+  # mis-splits the Storybook production bundle — 4 stories (autocomplete,
+  # combobox, creatable-combobox, pdf-viewer) crash at runtime with
+  # `createSelectorCreator is not defined` (a lazy reselect init it fails to hoist
+  # into its chunk). rc.18 is the last version that built clean (storybook green
+  # at #400); it landed via deps-only PRs where the storybook job is path-skipped,
+  # so it was never validated -> reddened `ci` -> `storybook` for every UI PR.
+  # Retest `pnpm --filter @workspace/ui test-storybook` before raising.
+  rolldown: "1.0.0-rc.18"
+  # js-yaml: quadratic-complexity DoS in merge-key handling (DB#55). Range-scoped to the
+  # 4.x line via an explicit selector (a bare `@4` reads as exact) — the transitive 3.14.2
+  # consumer can't take a major bump and the DoS is dev-tooling only.
+  "js-yaml@>=4.0.0 <5.0.0": ">=4.2.0"
+  # Pin to 1.60.0 (main's version): the from-scratch lockfile regen floats Playwright to
+  # 1.61.1, whose bundled chromium revision (1228) mismatches the e2e browser cache and
+  # fails the advisory e2e job. Not a security target — keep it stable so this stays a
+  # security-only change.
+  "@playwright/test": "1.60.0"
+  playwright: "1.60.0"
+  playwright-core: "1.60.0"
   # Pin 11.1.1 for vulnerable majors only (buf bounds check in v3/v5/v6 — none of our
   # consumers hit that path). Range selector leaves @cerbos/core's already-safe uuid@14
   # untouched. NOT an open ">=" range on purpose: uuid@12+ drops CommonJS, which would

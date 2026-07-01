@@ -6,6 +6,212 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.10.0] — 2026-07-01
+
+Minor release: the org application surface skeleton — the full navigable sidebar built from the enriched SITEMAP, plus the four reusable content-panel archetypes.
+
+### Added
+
+- **web**: the full org application nav skeleton — all 10 module sidebars + 101 mock leaf `page.tsx` placeholders, generated from the enriched `docs/specs/SITEMAP.md` (two independent latest-Opus advisor passes + a confirmation pass over the Czech-accounting IA). Regime is a superset for now, marked with `TODO(regime)` swap points. Mock-backed skeleton only — no data wiring yet. (#429)
+- **ui**: four content-panel archetypes so a new org page can be scaffolded by picking one and feeding it data — **Launchpad** (folder/overview card grid), **Dashboard** (KPI tiles + sparklines + chart cards + a metrics matrix on the real Table grid), and **Single** (the ABRA three-panel `RecordWorkspace` via a new additive `formLayout="panels"`), on top of the pre-existing Table gold standard. Adds a shared content-header `⋯` menu and dev-only demo routes (`/demo-table`, `/demo-launchpad`, `/demo-dashboard`, `/demo-single`) that 404 in production. (#432)
+
+### Fixed
+
+- **ci**: unpinned `wranglerVersion` in the `deploy-sleeping` workflow. (#428)
+
+### Documentation
+
+- **readme**: added the release tag-format section + a link to `docs/conventions/RELEASES.md`. (#430)
+
+## [v0.9.0] — 2026-06-30
+
+Minor release: the cold-pause "app is asleep" edge page, redesigned onto the in-app auth shell.
+
+### Changed
+
+- **infra**: redesigned the cold-pause "app is asleep" edge page (`infra/cloudflare-sleeping`) onto the in-app auth split-shell — light/dark via `prefers-color-scheme`, adaptive brand logo, a corporate watercolor aside, a header return-link + single "Try again" action, and a contact-support line. Stays self-contained static HTML (zero network deps; watercolor inlined as a base64 webp). (#426)
+
+## [v0.8.1] — 2026-06-29
+
+Patch release: cold-start deploy reliability — resilient RDS resume + the per-env `Audit` stack drop. No app-surface change.
+
+### Fixed
+
+- **deploy**: cold-start deploys now resume RDS reliably and parallel staging+prod deploys no longer collide. The brittle single `aws rds wait` (hard-capped ~30 min, which a deeply-cold DB exceeded) is replaced by a resilient poll loop (`infra/scripts/rds-resume.sh`, shared by `_deploy-aws.yml` + `power.yml`) that tolerates transitional states, re-issues start, re-asserts the cost-stop tag removal each iteration, and disables the `RdsRestartWatcher` EventBridge rule for the resume window (re-enabled on every exit via a trap) so it cannot re-stop the DB mid-resume. The account-global `Audit` CloudTrail stack is no longer deployed by the per-env workflow (it ships once, manually, like `SecretsBootstrap`) — including it made parallel deploys collide on the shared CFN stack. (#422, #423)
+
+## [v0.8.0] — 2026-06-29
+
+Minor release: the staff admin back-office (`apps/admin`) on the shared AppShell layout.
+
+### Added
+
+- **admin**: staff back-office on the AppShell chrome — rail + collapsible sidebar + header, five operator modules (Now, Customers, Ops, Platform, Staff), detail-page header tabs. Capability-gated security spine: `admin_staff_role` (7 roles), `SECTION_ACCESS` map, workspace-allowlist gate, and step-up re-auth whose 2FA requirement is server-derived from the operator's enrollment (not the request). Real-data surfaces for orgs / users / workspaces / staff / audit / impersonation / kill switches / maintenance / critical systems / domains / TLS / email deliverability / command palette. `/invites` is the production account-creation path (signup + invite token minting, capability + step-up gated, `WEB_BASE_URL`-targeted links). Plus a reusable `DataTable`, a live GitHub-Releases changelog, and an operator profile. (#409)
+
+## [v0.7.0] — 2026-06-29
+
+Minor release: org/period context switchers wired to real data, public sign-up closed on web, operator DB-access tooling, plus a dependency + CI tail.
+
+### Added
+
+- **web**: org switcher wired to real organization data; the accounting-period switcher now tracks live state. (#406, #408)
+
+### Fixed
+
+- **auth**: closed the public sign-up/email endpoint on web — accounts are admin-provisioned only, no self-service signup. (#405)
+- **deps**: pinned `rolldown` to `1.0.0-rc.18` to fix the Storybook bundle crash. (#417)
+
+### Operations
+
+- **db**: fast ECS-exec `db-query.sh` read helper; hardened the EC2 bastion migrate path. (#407)
+- **ci**: skip the linear-sync job on Dependabot PRs (no secret access). (#415)
+
+### Infrastructure
+
+- Dependency bumps: github-actions group (#414), `axllent/mailpit` (#412), `postgres` (#410, #411), dev-dependencies group (#413).
+
+## [v0.6.3] — 2026-06-25
+
+Patch release: pinned infra image bumps. No app-surface change. **Not deployed** — takes effect at the next CDK deploy / Vault-VPS sidecar restart.
+
+### Infrastructure
+
+- **edoburu/pgbouncer** `v1.25.1-p0` → `v1.25.2-p0` (#378).
+- **openfga/openfga** `v1.15.1` → `v1.17.1` (both task defs, #377). No datastore migration or breaking change on this path (verified against upstream release notes; v1.18 is the next migration boundary).
+- **cloudflare/cloudflared** `2026.6.0` → `2026.6.1` — AWS tunnel sidecar (`app-stack.ts`) plus the Vault-VPS sidecar in `infra/vault/compose.yaml` (tag + digest `sha256:6d91c121…`). The Vault-VPS container restart is a separate manual step on the secrets host (#393).
+
+## [v0.6.2] — 2026-06-25
+
+Patch release: security-only transitive dependency overrides. Clears all 23 open Dependabot alerts (+ the 3 Trivy code-scanning mirrors). No product-surface change.
+
+### Security
+
+- **`pnpm.overrides`** forces patched floors for transitive advisories: `undici` ≥7.28.0 (bounded to 7.x so jsdom's deep import keeps working; DB#69–75), `ws` ≥8.21.0 (DB#54), `multer` ≥2.2.0 (DB#67,68), `form-data` ≥4.0.6 (DB#58), `protobufjs` ≥7.6.3 (DB#59), `@opentelemetry/core` ≥2.8.0 (DB#61), `vite` ≥8.0.16 (DB#56,57), `js-yaml` ≥4.2.0 scoped to the 4.x line (DB#55), `tmp` ≥0.2.7 (DB#53, supersedes the earlier ≥0.2.6), `esbuild` ≥0.28.1 (DB#51), `hono` floor raised to ≥4.12.25 (DB#62–66, already shipped direct in v0.5.2).
+- Lockfile regenerated from scratch; `pnpm typecheck` (23/23) + `pnpm test` (17/17) green.
+
+## [v0.6.1] — 2026-06-25
+
+Minor release: app-shell global header context switchers + the page-adding runbook refresh.
+
+### Added
+
+- **ui**: `app-header` block — `OrgSwitcher` (current-org identity + dropdown) and an accounting-period switcher for the app-shell global header. Stacked follow-up to the App Shell (#397). (#400)
+
+### Documentation
+
+- Refresh the app-shell page-adding runbook with page / module / tab recipes. (#402)
+
+## [v0.6.0] — 2026-06-25
+
+Minor release: the app-shell **Content Panel** + a persistent, structure-driven org layout. One persistent shell now mounts across every `/[orgSlug]` route; the sidebar nav is derived per module from co-located config and guarded against the route tree. (#397)
+
+### Added
+
+- **ui**: `data-grid-view` — a presentational grid bound to a TanStack table (resize / reorder / pin / sort / hide, keyboard nav, scroll-gated pin shadow); `ContentPanel` Inspector (panel / dialog) + a status-bar clearance contract + a five-variant taxonomy (Table / Launchpad / Dashboard / Single / Blank) with stories; `Separator` `inset` prop; a generic data-table column manager + `DetailField` extracted into `packages/ui`. `data-grid-view` added to the admin showcase; app-sidebar block stories.
+- **web**: the persistent `AppShell` mounted in the org layout; a structure-driven sidebar nav (co-located `<module>/nav.ts` + an `_nav` aggregator, active module via the rail); one Overview page per module; a `nav-drift` guard (`scripts/check-nav.ts`) and a `ui-location` lefthook guard for reusable-UI placement.
+
+### Changed
+
+- **web**: sidebar reminders + insight are on-call — the sidebar self-hides them until a real source pushes data. The invoices Content Panel demo moved to a dev-only `/<org>/demo` route.
+
+### Fixed
+
+- **ui**: `useDataTable` controlled-pagination render crash; `InsightProgress`'s progress bar now has an accessible name; the content-header collapsed-tabs trigger composes `Button` instead of a raw element.
+
+### Removed
+
+- **web**: the legacy `SectionTabs` / `SectionStub` scaffolds and the non-module placeholder routes.
+
+## [v0.5.2] — 2026-06-25
+
+Patch release: bundled dependency bumps. No product-surface change. Supersedes the seven open Dependabot PRs (#384, #387–#392), applied on one branch with a single regenerated + deduped lockfile.
+
+### Infrastructure
+
+- **npm**: `hono` 4.12.23 → 4.12.25 (#384); production-dependencies group (12 updates, #392); dev-dependencies group (8 updates, #391). One regenerated `pnpm-lock.yaml`, `pnpm dedupe` applied.
+- **GitHub Actions**: github-actions group (3 SHA-pinned action updates across all workflows). (#390)
+- **Docker / compose**: `postgres:18-alpine` digest (#387); `ubuntu:26.04` devcontainer digest (#388); `axllent/mailpit` v1.30.1 → v1.30.2 (#389).
+
+## [v0.5.1] — 2026-06-21
+
+Patch release: dependency, CI, accessibility, observability, and docs cleanup tail. No new product surface.
+
+### Changed
+
+- **observability**: deduped the client-error gate into `@workspace/notify` so app + worker error capture share one path. (#368)
+- **web**: code-quality leftovers from the D wave (DEV-78). (#371)
+
+### Fixed
+
+- **ui**: mobile a11y — 40px sheet-close target + shell tokens for the bottom nav. (#370)
+- **admin**: resolve only the brand name in the root layout. (#385)
+- **ci**: install deps before `wrangler-action` in `deploy-sleeping` (#364); force `joi >=18.2.1` (CVE-2026-48038) (#365); gate `sbom-diff` on version upgrades, not just added components (#367); allow the `bot` scope in PR titles (#345); post-audit corrections — wrangler deploy pin, PII redaction, override-aligned deps (#380).
+
+### Infrastructure
+
+- Dependency bumps: production deps (25 then 15) (#366, #375), dev deps (35) (#376), GitHub Actions group (#352), `aws-actions/amazon-ecr-login` (#374), postgres image (#359, #360, #372, #373), infra-compose images (#358).
+
+### Documentation
+
+- Generalize the break-glass escrow location across the repo (#349); normalize runbook filenames (drop `-RUNBOOK`, `AWS-DEPLOY`→`AWS-SETUP`, `COST-INCIDENT`) (#347).
+
+## [v0.5.0] — 2026-06-11
+
+Minor release: pre-v1 hardening — mobile UI, brand surface, performance, i18n — plus infra cost/alarm fixes.
+
+### Added
+
+- **Pre-v1 hardening (feature wave)** — UI mobile support, brand surface, performance, and i18n. (#361)
+
+### Fixed
+
+- **Pre-v1 hardening (fix wave)** — security, docs, observability, API platform, CI, tests, and DX. (#356)
+
+### Infrastructure
+
+- Cut Vault→SSM sync KMS usage to zero in steady state. (#354)
+- Wire facade-generated CloudWatch alarms to the `BillingTopic`. (#355)
+
+## [v0.4.1] — 2026-06-07
+
+Patch release: web layout re-land and supporting docs/UX fixes.
+
+### Changed
+
+- **ui**: switch the AppShell content area to flex and drop `react-resizable-panels`; re-land the web layout changes after the unreviewed direct-to-main push was reverted. (#350, #351)
+- **web**: rename the `/personnel` org route to `/hr` and move section titles to design tokens.
+
+### Fixed
+
+- App errors now open deduped Linear issues; dropped the Next.js control-flow signals from error capture. (#342)
+
+### Documentation
+
+- Repo-wide drift sweep (root docs, ADRs, runbooks, inventory) + register `app-context-menu` and the verify script (#341); root-doc security + freshness pass (#348).
+
+### Added
+
+- Theme-adaptive `favicon.svg` at the repo root for the Conductor sidebar icon. (#343)
+
+## [v0.4.0] — 2026-06-07
+
+Minor release: the agent human-in-the-loop (HITL) round-trip and the Telegram command/control surface.
+
+### Added
+
+- **Agent HITL round-trip** — complete free-text replies, timeout policy, and agent wiring (#337); hybrid asks (options + type-your-own) with crisp agent recipes (#338); answer-as-trigger so the reply WAKES the consumer with no agent polling (#340).
+- **Telegram bot control plane** (PR-2) — continues the dev alert + control hub from v0.3.0. (#332)
+- **Telegram command surface** — command menu + interactive button pickers (#336).
+- **Security findings fan-in** (DEV-59). (#333)
+
+### Changed
+
+- Point the bot `/status` at `api/health` and set `ENVIRONMENT=production`. (#334)
+- **ci**: gate `cdk-synth` + icon-parity heavy work on change-detection. (#335)
+
+### Fixed
+
+- Keep the HITL question visible + strip options when ✍️ Other is chosen. (#339)
+
 ## [v0.3.0] — 2026-06-06
 
 Minor release: the Afframe Telegram dev alert + control hub (epic DEV-48).

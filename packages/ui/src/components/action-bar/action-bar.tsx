@@ -112,7 +112,9 @@ interface ActionBarProps extends DivProps {
   align?: "start" | "center" | "end"
   alignOffset?: number
   side?: "top" | "bottom"
-  sideOffset?: number
+  /** Distance from the chosen `side`. A number is px; a string passes through
+   *  verbatim (e.g. a `calc()` / CSS var for clearing a status bar). */
+  sideOffset?: number | string
   portalContainer?: Element | DocumentFragment | null
   dir?: Direction
   orientation?: Orientation
@@ -214,7 +216,8 @@ function ActionBar(props: ActionBarProps) {
             className,
           )}
           style={{
-            [side]: `${sideOffset}px`,
+            [side]:
+              typeof sideOffset === "number" ? `${sideOffset}px` : sideOffset,
             ...(align === "center" && {
               left: "50%",
               translate: "-50% 0",

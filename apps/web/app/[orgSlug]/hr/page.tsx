@@ -1,19 +1,12 @@
-import { SectionStub } from "../_components/section-stub"
+import { ModulePage } from "../_components/module-page"
 
 export const metadata = { title: "HR" }
 
-export default async function HROverviewPage({
-  params,
-}: {
-  params: Promise<{ orgSlug: string }>
-}) {
-  const { orgSlug } = await params
+export default function HRPage() {
   return (
-    <SectionStub
-      title="Overview"
-      orgSlug={orgSlug}
-      subpath="hr"
-      description="People and payments: employees, payroll, travels, expenses."
+    <ModulePage
+      title="HR"
+      description="Employees, payroll, travels, and expenses."
     />
   )
 }

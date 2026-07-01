@@ -833,6 +833,12 @@ export class AppStack extends Stack {
         // verification. Admin sends from the same parent address.
         EMAIL_FROM: props.mailFromAddress,
         EMAIL_TRANSPORT: "resend",
+        // Web host for the signup/invite links minted on the admin /invites
+        // page (the canonical, post-#405 only, prod account-creation path).
+        // props.domain is the WEB domain (app.afframe.com), NOT adminDomain —
+        // the links land users on the web app, not admin. Without this the
+        // action falls back to http://localhost:3010 and every link is broken.
+        WEB_BASE_URL: `https://${props.domain}`,
         // Telegram dev-bot ingest — same wiring as web/api (OBS-03: admin was
         // the only app container without it, so its error surfaces could not
         // report even after the reporter code shipped). notifierFromEnv()
@@ -944,7 +950,7 @@ export class AppStack extends Stack {
     // post-deploy `GRANT app_admin TO app_owner` revert.
     const pgbouncerContainer = taskDef.addContainer("pgbouncer", {
       containerName: "pgbouncer",
-      image: ContainerImage.fromRegistry("edoburu/pgbouncer:v1.25.1-p0"),
+      image: ContainerImage.fromRegistry("edoburu/pgbouncer:v1.25.2-p0"),
       // Runs as the image's default user (postgres). Privilege-drop happens
       // inside the container before pgbouncer starts; no Linux capabilities
       // are required because no caller starts as root in our task.
@@ -1108,7 +1114,7 @@ export class AppStack extends Stack {
     // an operator workstation against a port-forwarded RDS BEFORE the
     // first cdk deploy App-{env}; see docs/runbooks/AWS-SETUP.md.
     //
-    // openfga/openfga:v1.15.1 is a Chainguard distroless image — no
+    // openfga/openfga:v1.17.1 is a Chainguard distroless image — no
     // /bin/sh, no busybox. We pass URI + username/password as separate
     // env vars (OpenFGA's native config keys) instead of composing a URL
     // with a shell wrapper. The image's entrypoint is the `/openfga`
@@ -1121,7 +1127,7 @@ export class AppStack extends Stack {
     // mount (PR #77 pattern).
     const openfgaContainer = taskDef.addContainer("openfga", {
       containerName: "openfga",
-      image: ContainerImage.fromRegistry("openfga/openfga:v1.15.1"),
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.17.1"),
       essential: true,
       logging: LogDriver.awsLogs({
         streamPrefix: "openfga",
@@ -1183,7 +1189,7 @@ export class AppStack extends Stack {
 
     const tunnelContainer = taskDef.addContainer("cloudflared", {
       containerName: "cloudflared",
-      image: ContainerImage.fromRegistry("cloudflare/cloudflared:2026.6.0"),
+      image: ContainerImage.fromRegistry("cloudflare/cloudflared:2026.6.1"),
       // Non-essential: a flapping tunnel connector must not cycle the whole
       // task. ECS still restarts it; its exit will not kill web/api/db.
       essential: false,
@@ -1289,7 +1295,7 @@ export class AppStack extends Stack {
 
     const openfgaMigrateContainer = taskDef.addContainer("openfga-migrate", {
       containerName: "openfga-migrate",
-      image: ContainerImage.fromRegistry("openfga/openfga:v1.15.1"),
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.17.1"),
       essential: false,
       // Goose migration applier; first-deploy can take a few minutes
       // against a cold RDS. Match db-migrate's timeout.

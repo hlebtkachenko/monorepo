@@ -13,6 +13,13 @@ pre-commit:
       glob: "*.{ts,tsx,js,jsx,mjs}"
       run: pnpm exec eslint --flag v10_config_lookup_from_file --fix {staged_files}
       stage_fixed: true
+    ui-location:
+      # Enforce ui-belongs-in-packages-ui-blocks (CLAUDE.md): hard-blocks
+      # reusable UI under apps/web/components/ (reserved, debug/ only); warns
+      # when a data-layer _components file ships reusable interaction that
+      # likely belongs in packages/ui. Sub-second, staged apps/web files only.
+      glob: "apps/web/**/*.{ts,tsx}"
+      run: node scripts/governance/check-ui-location.mjs {staged_files}
     no-drizzle-kit-generate:
       glob: "*.{json,jsonc,yml,yaml,sh,ts,mjs,cjs}"
       run: |
@@ -57,6 +64,14 @@ pre-commit:
       glob: "packages/db/migrations/*.sql"
       run: pnpm --filter @workspace/db db:schema-snapshot
       stage_fixed: true
+    admin-routes:
+      # Auto-regenerates apps/admin/app/(gated)/_components/route-registry.generated.ts
+      # whenever a gated admin page is added, moved, or removed. The cmdk
+      # palette + sidebar both source from this file, so a stale registry
+      # makes new pages invisible to the command palette.
+      glob: "apps/admin/app/(gated)/**/page.tsx"
+      run: pnpm --filter admin generate:routes
+      stage_fixed: true
 
 pre-push:
   # Budget: total pre-push must stay under ~10s on a typical push so the
@@ -75,6 +90,23 @@ pre-push:
       # behaviour skips when push has no file changes).
       glob: "*"
       run: node scripts/check-pr-title.mjs "$(git log -1 --format='%s')"
+    nav-drift:
+      # Org sidebar nav ↔ route tree drift guard (the lean alternative to a
+      # route-manifest codegen). Fails if a nav href has no route folder or a
+      # route folder is missing from nav. Runs where the source is present, so
+      # output:"standalone" stripping app/ in prod is irrelevant. Sub-second.
+      glob:
+        - "apps/web/app/**"
+      run: pnpm exec tsx scripts/check-nav.ts
+    sitemap-drift:
+      # Sitemap-doc drift guard — companion to nav-drift. Fails if an org nav
+      # label is missing from docs/specs/SITEMAP.md, so the doc (the hand-
+      # maintained mirror) can't silently fall behind the code.
+      glob:
+        - "apps/web/app/[orgSlug]/**/nav.ts"
+        - "apps/web/app/[orgSlug]/_nav/org-nav.ts"
+        - "docs/specs/SITEMAP.md"
+      run: pnpm exec tsx scripts/check-sitemap.ts
     actionlint:
       # Mirrors `.github/workflows/workflow-lint.yml` actionlint job.
       # Runs when workflow YAML changed. Composite actions under

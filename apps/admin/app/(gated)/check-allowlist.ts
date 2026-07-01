@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { and, eq } from "drizzle-orm"
 
 import { withAdminBypass } from "@workspace/db"
@@ -39,35 +40,45 @@ async function loadAllowlist(): Promise<Set<string>> {
   return new Set(ids)
 }
 
+/** Allowlisted workspace IDs from the same source login gates on (DB table, env fallback). */
+export async function getAllowlistWorkspaceIds(): Promise<string[]> {
+  return Array.from(await loadAllowlist())
+}
+
 /**
  * Check whether the user is an active member of an allowlisted workspace.
  * Returns both the boolean result and the matched workspace_id (for audit
  * writes). Runs under `withAdminBypass` because `workspace_membership` is
  * FORCE-RLS and the GUCs are not bound here.
+ *
+ * Wrapped in `React.cache` so the root layout + every nested SectionGate
+ * share one allowlist + membership read per request.
  */
-export async function checkAllowlist(userId: string): Promise<AllowlistResult> {
-  const allowlist = await loadAllowlist()
-  if (allowlist.size === 0) {
-    return { allowed: false, workspaceId: null }
-  }
+export const checkAllowlist = cache(
+  async (userId: string): Promise<AllowlistResult> => {
+    const allowlist = await loadAllowlist()
+    if (allowlist.size === 0) {
+      return { allowed: false, workspaceId: null }
+    }
 
-  const rows = await withAdminBypass((db) =>
-    db
-      .select({ workspaceId: workspace_membership.workspace_id })
-      .from(workspace_membership)
-      .where(
-        and(
-          eq(workspace_membership.user_id, userId),
-          eq(workspace_membership.active, true),
+    const rows = await withAdminBypass((db) =>
+      db
+        .select({ workspaceId: workspace_membership.workspace_id })
+        .from(workspace_membership)
+        .where(
+          and(
+            eq(workspace_membership.user_id, userId),
+            eq(workspace_membership.active, true),
+          ),
         ),
-      ),
-  )
+    )
 
-  const matchedId =
-    rows.find((r) => allowlist.has(r.workspaceId))?.workspaceId ?? null
+    const matchedId =
+      rows.find((r) => allowlist.has(r.workspaceId))?.workspaceId ?? null
 
-  return { allowed: matchedId !== null, workspaceId: matchedId }
-}
+    return { allowed: matchedId !== null, workspaceId: matchedId }
+  },
+)
 
 /**
  * True when the user is an active member of at least one allowlisted

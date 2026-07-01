@@ -1,6 +1,6 @@
 # `afframe` CLI — Design
 
-> **[Wip — implemented in-repo, not published.]** `apps/cli` ships a working CLI with `login` / `logout` / `whoami` / `ping` and a raw `api <path>` passthrough (profiles in `~/.config/afframe/config.toml`). It is `private: true` — no npm/Homebrew distribution yet. Per-resource commands and `listen`/`trigger` remain design intent ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
+> **[Wip — implemented in-repo, not published.]** `apps/cli` ships a working CLI with `login` / `logout` / `whoami` / `ping`, a raw `api <path>` passthrough, and the public `structure` / `archetypes` commands (app-structure discovery — no key required; profiles in `~/.config/afframe/config.toml`). It is `private: true` — no npm/Homebrew distribution yet. Per-resource (domain) commands and `listen`/`trigger` remain design intent ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
 
 Design + usage reference for the official command-line wrapper of `api.afframe.com/v1`. Targets accountant-developers on macOS first, Linux + Windows second.
 

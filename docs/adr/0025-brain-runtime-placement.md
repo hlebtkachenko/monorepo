@@ -1,11 +1,32 @@
 # 25. Afframe Brain runtime — a dedicated worker lane, not the request path
 
-- Status: Proposed
+- Status: Proposed (amended 2026-07-01 — see Amendment)
 - Date: 2026-06-25
 - Deciders: Hleb Tkachenko
 
 > Records a decision from the approved Afframe Brain plan (v1.1). The Brain (`packages/brain`,
 > Track B) is the autonomous Czech-accounting ingestion + booking agent.
+
+## Amendment 2026-07-01 — Brain v1 is an external client, not a worker runtime
+
+The original decision below (a net-new worker runtime holding a long-running **in-process** transaction) is
+**superseded for v1** by the reframe (`.context/afframe-brain/REFRAME-v1.2.md`, R-1/R-2). Brain v1 is an
+**unprivileged Claude Code CLIENT** of the system: Hleb personally launches Claude Code sessions that book by
+calling the accounting domain's **MCP/HTTP API**. The Brain holds **no DB connection** and no in-process
+`withOrganization` transaction, so the original rationale (a direct non-pgbouncer connection for a long
+in-process transaction; a worker owning the loop/heartbeat/budget) **does not apply to v1**:
+
+- **Write path + `withOrganization` + the confidence gate run SERVER-side**, inside the accounting API endpoint,
+  resolving org from the API-key principal. A client structurally cannot forge a green booking.
+- **The marshrutizátor (admission + queue + per-(org,period) write-lock) lives at the API front door**, not a
+  worker lane — see [ADR-0028](0028-brain-marshrutizator-isolation.md).
+- The agent loop, tool-calling, sub-agent (Opus advisor) escalation, model routing, and session resume are
+  provided by **Claude Code itself** — no `runBrain` loop or bespoke container to build (WP-1.1/1.4b/1.5 shrink).
+  A thin pg-boss supervisor lane that _launches + budgets_ CC sessions is an OPTIONAL robustness path (a
+  v2/unattended concern), not v1-critical — v1 = Hleb driving sessions personally.
+
+Brain-as-a-privileged-part-of-the-system (in-process, in-app chat for real customers) returns in **v2**. The
+original decision below is retained for history and describes that v2/worker shape.
 
 ## Context and Problem Statement
 

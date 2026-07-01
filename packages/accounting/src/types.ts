@@ -1,0 +1,220 @@
+/**
+ * Domain DTOs for the v2 accounting records system (English schema).
+ *
+ * Enum unions are derived from the Drizzle pgEnums (single source of truth, in
+ * sync with the SQL). `regime` is a reference TABLE keyed by a text code (not a
+ * pgEnum), so Regime is a literal union here.
+ *
+ * Money is represented as `Decimal` (a decimal string, e.g. "121.00") — never a
+ * JS number. All money arithmetic happens in SQL; the TS layer only transports
+ * decimal strings to/from numeric(19,4) columns. See src/sql.ts for the
+ * rationale.
+ */
+
+import type {
+  periodStatus,
+  summaryRecordType,
+  vatMode,
+  fxRateKind,
+  debitCredit,
+  postingKind,
+  correctionType,
+  monetaryLocation,
+  monetaryDirection,
+  categoryType,
+  accountNature,
+  signatureRole,
+  openItemDirection,
+  periodOutputType,
+  assetCategory,
+  depreciationMethod,
+} from "@workspace/db/schema"
+
+// --- enum unions -----------------------------------------------------------
+
+/** The three bookkeeping regimes (regime.code reference table, §13/§13b/§7b). */
+export type Regime = "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS"
+export type PeriodStatus = (typeof periodStatus.enumValues)[number]
+export type SummaryRecordType = (typeof summaryRecordType.enumValues)[number]
+export type VatMode = (typeof vatMode.enumValues)[number]
+export type FxRateKind = (typeof fxRateKind.enumValues)[number]
+export type DebitCredit = (typeof debitCredit.enumValues)[number]
+export type PostingKind = (typeof postingKind.enumValues)[number]
+export type CorrectionType = (typeof correctionType.enumValues)[number]
+export type MonetaryLocation = (typeof monetaryLocation.enumValues)[number]
+export type MonetaryDirection = (typeof monetaryDirection.enumValues)[number]
+export type CategoryType = (typeof categoryType.enumValues)[number]
+export type AccountNature = (typeof accountNature.enumValues)[number]
+export type SignatureRole = (typeof signatureRole.enumValues)[number]
+export type OpenItemDirection = (typeof openItemDirection.enumValues)[number]
+export type PeriodOutputType = (typeof periodOutputType.enumValues)[number]
+export type AssetCategory = (typeof assetCategory.enumValues)[number]
+export type DepreciationMethod = (typeof depreciationMethod.enumValues)[number]
+
+/** Exact decimal amount as a string (e.g. "121.00"). Never a JS number (R13). */
+export type Decimal = string
+
+/**
+ * Organization + workspace scope passed to every domain operation.
+ *
+ * `organizationId` is the RLS anchor (app.organization_id GUC); `workspaceId`
+ * is the app.workspace_id GUC — both are set by withOrganization, and the
+ * workspace id is required for the workspace-shared counterparty / event /
+ * open_item composite FKs.
+ */
+export interface OrgCtx {
+  organizationId: string
+  workspaceId: string
+}
+
+// --- capture (UC-1 steps 1-3, all regimes) ---------------------------------
+
+/** An účetní případ (the economic fact, §6/1). number_series allocates the Označení. */
+export interface EventInput {
+  /** The účetní období this case belongs to (occurred_at ∈ period). */
+  periodId: string
+  /** number_series with entity_type = EVENT. */
+  seriesId: string
+  /** OUR side (a counterparty row); null for an internal event. */
+  partyId?: string | null
+  /** THEIR side (a counterparty row). */
+  counterpartyId?: string | null
+  description: string
+  content?: string | null
+  /** okamžik uskutečnění (§11/1e) — ISO date/timestamp; must fall in the period. */
+  occurredAt: string
+  /** osoba odpovědná za případ (§11/1f, R10) — app_user id. */
+  responsibleUserId: string
+}
+
+/** A dílčí účetní záznam — the money level (§11/1c). Posting EXPANDS it into MD/D lines. */
+export interface PartialRecordInput {
+  quantity?: Decimal | null
+  measureUnit?: string | null
+  unitPrice?: Decimal | null
+  /** základ daně / Suma celkem. */
+  baseAmount: Decimal
+  /** 0/12/21…; null for OUTSIDE_VAT. */
+  vatRate?: Decimal | null
+  /** DRIVES posting (STANDARD / REVERSE_CHARGE / EXEMPT / OUTSIDE_VAT / IMPORT). */
+  vatMode: VatMode
+  /** false → VAT folds into cost. Defaults true. */
+  vatDeductible?: boolean
+  /** daňový doklad k záloze (§37a). Defaults false. */
+  advanceSettlement?: boolean
+  /** daň; 0 on reverse-charge/exempt docs. Defaults "0". */
+  vatAmount?: Decimal
+  /** transaction currency (ISO 4217). */
+  currencyCode: string
+  /** DAILY | REAL | FIXED — required iff currency <> accounting currency. */
+  fxRateKind?: FxRateKind | null
+  /** to accounting currency; required iff currency <> accounting currency. */
+  fxRate?: Decimal | null
+  /** §4/5 ČNB rate for the VAT base when it differs from fxRate. */
+  vatFxRate?: Decimal | null
+  /**
+   * Frozen base in měna účetnictví. Omit to let the FX helper derive it (= base
+   * for the single-currency case, base × fxRate for the foreign-currency case).
+   */
+  baseInAccountingCurrency?: Decimal
+  /** Frozen VAT in měna účetnictví. Omit to let the FX helper derive it. */
+  vatInAccountingCurrency?: Decimal
+}
+
+/** One jednotlivý účetní záznam (line) — links a case to the voucher; carries the money. */
+export interface IndividualRecordInput {
+  /** The accounting_event (case) this line documents. */
+  eventId: string
+  description?: string | null
+  partials: PartialRecordInput[]
+}
+
+/** A souhrnný účetní záznam = voucher/doklad header (§11). number_series allocates Označení. */
+export interface DocumentInput {
+  /** The účetní období this voucher books into. */
+  periodId: string
+  /** number_series with entity_type = DOCUMENT. */
+  seriesId: string
+  type: SummaryRecordType
+  /** okamžik vyhotovení (§11/1d). */
+  issuedAt: string
+  /** §37 doc-total rounding → 548/648 at posting. Defaults "0". */
+  roundingAmount?: Decimal
+  lines: IndividualRecordInput[]
+}
+
+export interface CapturedLine {
+  individualRecordId: string
+  partialRecordIds: string[]
+}
+
+export interface CapturedDocument {
+  summaryRecordId: string
+  designation: string
+  sequenceNumber: number
+  lines: CapturedLine[]
+}
+
+export interface CapturedEvent {
+  eventId: string
+  designation: string
+  sequenceNumber: number
+}
+
+// --- posting (UC-1 step 4 — Zaúčtování §6/2) -------------------------------
+
+export interface PostingBase {
+  periodId: string
+  /** doklad_id (R2) — the voucher this posting books from. */
+  summaryRecordId: string
+  /** pripad_id (R2) — the case being booked. */
+  accountingEventId: string
+  /** datum (§5.2) — deník order + period membership. */
+  postingDate: string
+  /** odpovědná osoba (R10) — app_user id. */
+  responsibleUserId: string
+  /** druh; defaults to SIMPLE for a 2-line posting, COMPOUND otherwise. */
+  postingKind?: PostingKind
+  /** Correction linkage (R8/§35) — both set together or both omitted. */
+  correctsPostingId?: string | null
+  correctionType?: CorrectionType | null
+  /** Set when generated by a depreciation plan (UC-4). */
+  depreciationPlanId?: string | null
+  /** Set when generated from an inventory difference (UC-4). */
+  inventoryCountId?: string | null
+  /** 701 opening posting (B2) — excluded from turnover, sets opening_balance. */
+  isOpening?: boolean
+}
+
+export interface DoubleEntryLineInput {
+  accountId: string
+  side: DebitCredit
+  amount: Decimal
+  /** Source dílčí (§6/2) — omitted for generated postings (701, depreciation, storno). */
+  partialRecordId?: string | null
+}
+
+export interface DoubleEntryInput extends PostingBase {
+  lines: DoubleEntryLineInput[]
+}
+
+export interface MonetaryLineInput {
+  location: MonetaryLocation
+  direction: MonetaryDirection
+  isTaxRelevant: boolean
+  isClearing?: boolean
+  categoryId?: string | null
+  taxBase?: Decimal | null
+  amount: Decimal
+  partialRecordId?: string | null
+}
+
+export interface MonetaryInput extends PostingBase {
+  regime: Extract<Regime, "SINGLE_ENTRY" | "TAX_RECORDS">
+  lines: MonetaryLineInput[]
+}
+
+export interface PostedPosting {
+  postingId: string
+  lineIds: string[]
+}

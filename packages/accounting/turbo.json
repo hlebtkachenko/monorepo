@@ -1,0 +1,9 @@
+{
+  "extends": ["//"],
+  "tags": ["data"],
+  "tasks": {
+    "test": {
+      "cache": false
+    }
+  }
+}

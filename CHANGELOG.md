@@ -6,6 +6,23 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.10.0] — 2026-07-01
+
+Minor release: the org application surface skeleton — the full navigable sidebar built from the enriched SITEMAP, plus the four reusable content-panel archetypes.
+
+### Added
+
+- **web**: the full org application nav skeleton — all 10 module sidebars + 101 mock leaf `page.tsx` placeholders, generated from the enriched `docs/specs/SITEMAP.md` (two independent latest-Opus advisor passes + a confirmation pass over the Czech-accounting IA). Regime is a superset for now, marked with `TODO(regime)` swap points. Mock-backed skeleton only — no data wiring yet. (#429)
+- **ui**: four content-panel archetypes so a new org page can be scaffolded by picking one and feeding it data — **Launchpad** (folder/overview card grid), **Dashboard** (KPI tiles + sparklines + chart cards + a metrics matrix on the real Table grid), and **Single** (the ABRA three-panel `RecordWorkspace` via a new additive `formLayout="panels"`), on top of the pre-existing Table gold standard. Adds a shared content-header `⋯` menu and dev-only demo routes (`/demo-table`, `/demo-launchpad`, `/demo-dashboard`, `/demo-single`) that 404 in production. (#432)
+
+### Fixed
+
+- **ci**: unpinned `wranglerVersion` in the `deploy-sleeping` workflow. (#428)
+
+### Documentation
+
+- **readme**: added the release tag-format section + a link to `docs/conventions/RELEASES.md`. (#430)
+
 ## [v0.9.0] — 2026-06-30
 
 Minor release: the cold-pause "app is asleep" edge page, redesigned onto the in-app auth shell.

@@ -1,5 +1,6 @@
 export * from "./types"
 export * from "./confidence"
 export * from "./ir"
+export * from "./reconcile"
 export * from "./eval"
 export * from "./agent"

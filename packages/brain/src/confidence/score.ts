@@ -31,7 +31,7 @@ export interface VerifyChecks {
   bankVsKsSsMatch?: boolean // +0.03
 }
 
-const VERIFY_BONUS: Record<keyof VerifyChecks, number> = {
+export const VERIFY_BONUS: Record<keyof VerifyChecks, number> = {
   vatBaseMatchesNet: 0.05,
   rcChecklistPassesOrNA: 0.04,
   decree500Confirmed: 0.03,

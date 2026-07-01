@@ -17,6 +17,7 @@ import {
   isGreen,
   type ScoreInputs,
   TIER2_CAP_VALUES,
+  VERIFY_BONUS,
 } from "./index"
 
 // Pins the engine to the LOCKED D6 reference fixtures. A drift in the formula fails here; a tamper of
@@ -151,4 +152,25 @@ describe("prior-book re-derivation hard-class caps (adversarial FM1)", () => {
       expect(cRaw).toBeLessThan(COLD_START_GREEN_THRESHOLD) // 0.97 — cold-start green unreachable
     })
   }
+})
+
+describe("VERIFY_BONUS allowlist (control 2 — no prior-book agreement bonus)", () => {
+  // The load-bearing form of the no-`priorBookAgrees` control: the additive verification bonuses are a
+  // CLOSED allowlist of the five verifier checks. A prior-book AGREEMENT must never earn a positive bonus
+  // (the adversarial-overruled confident-wrong vector) — a disagreement instead fires `multi_source_conflict`
+  // (a cap, not a bonus). This pins that in the layer that owns the table, refactor-proof against any rename.
+  it("keys are exactly the five verifier checks and none rewards prior-book agreement", () => {
+    expect(Object.keys(VERIFY_BONUS).sort()).toEqual(
+      [
+        "bankVsKsSsMatch",
+        "decree500Confirmed",
+        "periodConsistent",
+        "rcChecklistPassesOrNA",
+        "vatBaseMatchesNet",
+      ].sort(),
+    )
+    for (const key of Object.keys(VERIFY_BONUS)) {
+      expect(key).not.toMatch(/prior|agree/i)
+    }
+  })
 })

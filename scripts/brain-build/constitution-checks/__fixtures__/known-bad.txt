@@ -29,3 +29,7 @@ export async function badWrites(db, tx) {
   await tx.execute(`update ucetni_doklad set stav=1`)        // EVADE-I5-LOWER-UPDATE
   await tx.execute(`DELETE FROM doklad_radek WHERE id=$1`)   // EVADE-I5-UPPER-DELETE
 }
+
+export const BOOKABLE_IR_RECORD_TYPES = [                     // EVADE-C2-BOOKABLE-GL
+  "invoice", "gl_entry",
+] as const

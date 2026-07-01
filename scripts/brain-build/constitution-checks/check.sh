@@ -12,7 +12,9 @@
 # SCOPE: I2 over all of packages/brain/src. I3 + I5 over src/tools/ — tool/function INPUT types and DB
 # writes live there by convention (constitution: inputs under src/tools/; org/user ids on STORED domain
 # ROW types like BrainRun are not inputs and are intentionally out of scope, else they false-positive).
-# I1/I4/I6/I7/I8/I10 gain checks as their target code lands.
+# I1/I4/I6/I7/I8/I10 gain checks as their target code lands. Control-2 (untrusted-prior-book) over
+# reconcile/bookable.ts: GLEntry never a booking source (the no-prior-agreement-bonus half is a TS
+# allowlist test on VERIFY_BONUS in confidence.test.ts, not a grep).
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
@@ -45,6 +47,24 @@ scan() {
   return $v
 }
 
+# Control-2 (untrusted-prior-book design, 2026-07-01) — the bookable-source whitelist backstop: the
+# `BOOKABLE_IR_RECORD_TYPES` declaration in reconcile/bookable.ts lists PRIMARY facts only — a `gl_entry`
+# (a prior journal row) / `attachment` (a blob) is NEVER a booking source. Backstop only: the primary
+# enforcement is the `BookableRecord` type (DERIVED via Extract, so drift is inexpressible) + bookable.test.ts.
+# The sibling "no prior-book agreement bonus" control is a TS allowlist test on VERIFY_BONUS (confidence.test.ts),
+# NOT a grep — a name grep is spelling-locked and would false-positive on the legit `bankVsKsSsMatch` verifier.
+# c2 <bookable-file> -> prints match, returns 1 if the whitelist grew a non-primary member, else 0.
+c2() {
+  local v=0 arr
+  # Isolate exactly the `export const BOOKABLE_IR_RECORD_TYPES = [ ... ] as const` declaration (anchored so
+  # the later `BookableRecordType` / `new Set(...)` mentions don't re-trigger the range).
+  arr=$(sed -n '/export const BOOKABLE_IR_RECORD_TYPES = \[/,/\] as const/p' "$1" 2>/dev/null || true)
+  if printf '%s' "$arr" | grep -qE '"(gl_entry|attachment)"'; then
+    printf '%s\n' "$arr"; echo "  ^ CONTROL-2: gl_entry/attachment in the bookable-source whitelist (GLEntry is never a booking source)"; v=$((v + 1))
+  fi
+  return $v
+}
+
 if [ "${1:-}" = "--selftest" ]; then
   # Every realistic evasion form an advisor named must be surfaced. EVADE-I2-CALL (an aliased call site
   # `wab(...)`) is intentionally NOT required: it cannot exist without its aliased IMPORT, which IS caught.
@@ -52,21 +72,26 @@ if [ "${1:-}" = "--selftest" ]; then
 EVADE-I2-SETROLE-TO EVADE-I2-SETROLE-EQ EVADE-I2-SETCONFIG EVADE-I2-SETCONFIG-SPACED \
 EVADE-I2-SESSIONAUTH EVADE-I3-SNAKE EVADE-I3-OPTIONAL EVADE-I3-BANG EVADE-I3-ROLE \
 EVADE-I3-SHORTHAND EVADE-I3-LITERAL EVADE-I5-DRIZZLE-UPDATE EVADE-I5-DRIZZLE-DELETE \
-EVADE-I5-LOWER-UPDATE EVADE-I5-UPPER-DELETE"
+EVADE-I5-LOWER-UPDATE EVADE-I5-UPPER-DELETE EVADE-C2-BOOKABLE-GL"
   out=$(scan "$FIXTURE" "$FIXTURE" "$FIXTURE"); bad=$?
+  c2out=$(c2 "$FIXTURE"); c2bad=$?
+  out="$out
+$c2out"
   missing=""
   for m in $REQUIRED; do printf '%s' "$out" | grep -q "$m" || missing="$missing $m"; done
   scan "$BRAIN_SRC" "$BRAIN_SRC/tools" "$BRAIN_SRC/tools" >/dev/null; clean=$?
-  if [ -z "$missing" ] && [ "$bad" -ge 3 ] && [ "$clean" -eq 0 ]; then
-    echo "SELFTEST PASS: every EVADE-* form surfaced; all 3 invariants fired on the fixture; real tree clean."
+  c2 "$BRAIN_SRC/reconcile/bookable.ts" >/dev/null; c2clean=$?
+  if [ -z "$missing" ] && [ "$bad" -ge 3 ] && [ "$c2bad" -ge 1 ] && [ "$clean" -eq 0 ] && [ "$c2clean" -eq 0 ]; then
+    echo "SELFTEST PASS: every EVADE-* form surfaced; all 3 invariants + the control-2 check fired on the fixture; real tree clean."
     exit 0
   fi
-  echo "SELFTEST FAIL: missing markers =>$missing ; fixture invariants fired=$bad (want >=3); real-tree=$clean (want 0)."
+  echo "SELFTEST FAIL: missing markers =>$missing ; fixture invariants fired=$bad (want >=3); control-2 fired=$c2bad (want >=1); real-tree=$clean (want 0); control-2 real-tree=$c2clean (want 0)."
   exit 1
 fi
 
-echo "== constitution-check: I2(packages/brain/src) I3+I5(src/tools) =="
+echo "== constitution-check: I2(packages/brain/src) I3+I5(src/tools) + control-2 =="
 scan "$BRAIN_SRC" "$BRAIN_SRC/tools" "$BRAIN_SRC/tools"; v=$?
+c2 "$BRAIN_SRC/reconcile/bookable.ts"; v=$((v + $?))
 if [ "$v" -eq 0 ]; then echo "clean."; exit 0; fi
-echo "FAIL: $v constitution invariant(s) violated."
+echo "FAIL: $v constitution/control invariant(s) violated."
 exit 1

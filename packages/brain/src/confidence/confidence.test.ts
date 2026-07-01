@@ -8,12 +8,15 @@ import {
   applyCalibration,
   brierScore,
   type CalibrationPair,
+  COLD_START_GREEN_THRESHOLD,
   coldStartModel,
   computeCRaw,
   fitCalibration,
+  GREEN_THRESHOLD,
   greenThreshold,
   isGreen,
   type ScoreInputs,
+  TIER2_CAP_VALUES,
 } from "./index"
 
 // Pins the engine to the LOCKED D6 reference fixtures. A drift in the formula fails here; a tamper of
@@ -110,6 +113,42 @@ describe("Brier score", () => {
   for (const b of fx.brier) {
     it(`pairs=${b.pairs.length} -> ${b.expected}`, () => {
       expect(brierScore(toPairs(b.pairs))).toBeCloseTo(b.expected, 6)
+    })
+  }
+})
+
+describe("prior-book re-derivation hard-class caps (adversarial FM1)", () => {
+  // The dangerous case: the KB rule confidently reproduces the prior accountant's classification on the
+  // exact judgment class where the error lives (asset booked as expense). Everything else is maxed. The
+  // hard-class cap must still force the item below green so it CANNOT auto-book — it routes to the human.
+  const maxedButHardClass = (signal: string): ScoreInputs => ({
+    firedSignals: [signal],
+    kbRule: "high_active",
+    verify: {
+      vatBaseMatchesNet: true,
+      rcChecklistPassesOrNA: true,
+      decree500Confirmed: true,
+      periodConsistent: true,
+      bankVsKsSsMatch: true,
+    },
+    extractionQuality: 1.0,
+    reconciliation: "full",
+  })
+
+  const hardClasses = [
+    "asset_vs_expense",
+    "accrual_period_boundary",
+    "reserve_or_impairment",
+    "dph_tax_point_timing",
+    "prior_without_source",
+  ] as const
+
+  for (const kind of hardClasses) {
+    it(`${kind}: caps cRaw at ${TIER2_CAP_VALUES[kind]}, below both green thresholds`, () => {
+      const { cRaw } = computeCRaw(maxedButHardClass(kind))
+      expect(cRaw).toBe(TIER2_CAP_VALUES[kind])
+      expect(cRaw).toBeLessThan(GREEN_THRESHOLD) // 0.95 — steady-state green unreachable
+      expect(cRaw).toBeLessThan(COLD_START_GREEN_THRESHOLD) // 0.97 — cold-start green unreachable
     })
   }
 })

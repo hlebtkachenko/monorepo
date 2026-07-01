@@ -38,6 +38,18 @@ export const TIER2_CAP_VALUES = {
   kb_rule_low: 0.8,
   trajectory_instability: 0.82,
   amount_near_threshold: 0.85,
+  // Prior-book re-derivation hard classes (2026-07-01). When re-deriving a booking (fresh OR from a prior
+  // book) touches one of these judgment-heavy classes AND an objective infra check does NOT resolve it (e.g.
+  // amount ≥ the DHM 40 000 Kč threshold, or a missing DUZP), the classifier fires the matching signal — so
+  // green (≥0.95) is UNREACHABLE and the item routes to the human. This is what makes "same confidence metric
+  // for the prior book" safe: the classes where a prior accountant's errors concentrate cannot auto-green.
+  // A prior-book DISAGREEMENT (Brain re-derivation != the prior GL row) reuses `multi_source_conflict` (0.75).
+  // Exact values pending a confirming advisor gate (WP-0.7 pattern); all are conservatively sub-green.
+  asset_vs_expense: 0.6, // 042/022 (capitalize) vs 501/518 (expense) — the classic prior error
+  accrual_period_boundary: 0.65, // časové rozlišení 381/382/383/384 — event spans the period boundary
+  reserve_or_impairment: 0.7, // rezervy / opravné položky — judgment + policy bound
+  dph_tax_point_timing: 0.7, // DPH belongs to the DUZP period, not the invoice-issue date
+  prior_without_source: 0.55, // a prior booking with no underlying primary fact in the dump — cannot re-derive
 } as const
 export type Tier2CapKind = keyof typeof TIER2_CAP_VALUES
 

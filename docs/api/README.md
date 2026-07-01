@@ -73,13 +73,15 @@ Deployment uses `pnpm deploy --config.node-linker=hoisted` so the bundle's exter
 
 ## Endpoints (v1 foundation)
 
-| Method | Path               | Auth    | Description                                          |
-| ------ | ------------------ | ------- | ---------------------------------------------------- |
-| `GET`  | `/v1/ping`         | API key | Connectivity check. Returns `{ ok: true }`.          |
-| `GET`  | `/v1/organization` | API key | Returns the API key's organization details.          |
-| `GET`  | `/v1/status`       | None    | Service health summary (proxies status.afframe.com). |
-| `POST` | `/v1/feedback`     | None    | Partner feedback ingestion.                          |
-| `GET`  | `/api/health`      | None    | Container health (used by ECS, Cloudflare).          |
+| Method | Path                       | Auth    | Description                                                          |
+| ------ | -------------------------- | ------- | -------------------------------------------------------------------- |
+| `GET`  | `/v1/ping`                 | API key | Connectivity check. Returns `{ ok: true }`.                          |
+| `GET`  | `/v1/organization`         | API key | Returns the API key's organization details.                          |
+| `GET`  | `/v1/status`               | None    | Service health summary (proxies status.afframe.com).                 |
+| `POST` | `/v1/feedback`             | None    | Partner feedback ingestion.                                          |
+| `GET`  | `/v1/structure`            | None    | App structure — modules, pages, layout archetypes (agent discovery). |
+| `GET`  | `/v1/structure/archetypes` | None    | The content-panel layout archetypes.                                 |
+| `GET`  | `/api/health`              | None    | Container health (used by ECS, Cloudflare).                          |
 
 Domain endpoints (invoices, accounts, journals) land with AFF-71. Authz (Cerbos L3 + OpenFGA L2) wires in with the first resource endpoint (AFF-46).
 

@@ -42,12 +42,12 @@ export interface ExpandInput {
   extraAmounts?: Record<string, Decimal>
 }
 
+/** The SQL-computed amount bases (kept separate from vat_mode so it can't be indexed as an amount). */
 interface PartialAmounts {
   net: Decimal
   vat: Decimal
   gross: Decimal
   self_assessed_vat: Decimal
-  vat_mode: string
 }
 
 function resolveScenario(s: PredkontaceScenario | string): PredkontaceScenario {
@@ -62,8 +62,10 @@ export async function expandPartialRecord(
 ): Promise<DoubleEntryLineInput[]> {
   const scenario = resolveScenario(input.scenario)
 
-  const amounts = await one<PartialAmounts>(
+  const row = await one<PartialAmounts & { vat_mode: string }>(
     db,
+    // self_assessed_vat rounds to 2 dp — the §37 ZDPH VAT-rounding convention
+    // (daň se zaokrouhluje na haléře / celé koruny); the numeric(19,4) column stores it exactly.
     sql`SELECT base_in_accounting_currency::text                                  AS net,
                vat_in_accounting_currency::text                                   AS vat,
                (base_in_accounting_currency + vat_in_accounting_currency)::text   AS gross,
@@ -72,10 +74,11 @@ export async function expandPartialRecord(
           FROM partial_record
          WHERE id = ${input.partialRecordId}::uuid`,
   )
+  const { vat_mode, ...amounts } = row
 
-  if (amounts.vat_mode !== scenario.vatMode) {
+  if (vat_mode !== scenario.vatMode) {
     throw new Error(
-      `accounting: předkontace "${scenario.id}" is for vat_mode ${scenario.vatMode}, but partial_record ${input.partialRecordId} is ${amounts.vat_mode}`,
+      `accounting: předkontace "${scenario.id}" is for vat_mode ${scenario.vatMode}, but partial_record ${input.partialRecordId} is ${vat_mode}`,
     )
   }
 

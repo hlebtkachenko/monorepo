@@ -39,6 +39,13 @@ export async function postMonetary(
 
   const lineIds: string[] = []
   for (const line of input.lines) {
+    // A tax-relevant, non-clearing row ALWAYS has a §7b/§9 daňový základ; default
+    // it to the cash amount when the caller didn't give a distinct net base (the
+    // neplátce case — cash amount IS the base). This keeps total_tax_base
+    // authoritative so the přehledy / DPFO base is never guessed from gross cash.
+    const isClearing = line.isClearing ?? false
+    const taxBase =
+      line.taxBase ?? (line.isTaxRelevant && !isClearing ? line.amount : null)
     const row = await one<{ id: string }>(
       db,
       sql`INSERT INTO posting_monetary_line
@@ -46,7 +53,7 @@ export async function postMonetary(
              location, direction, is_tax_relevant, is_clearing, tax_base, amount)
           VALUES
             (${ctx.organizationId}::uuid, ${postingId}::uuid, ${input.regime}, ${line.partialRecordId ?? null}, ${line.categoryId ?? null},
-             ${line.location}, ${line.direction}, ${line.isTaxRelevant}, ${line.isClearing ?? false}, ${line.taxBase ?? null}, ${line.amount})
+             ${line.location}, ${line.direction}, ${line.isTaxRelevant}, ${isClearing}, ${taxBase}, ${line.amount})
           RETURNING id`,
     )
     lineIds.push(row.id)

@@ -50,13 +50,14 @@ export async function buildZaverka(
          WHERE b.period_id = ${periodId}::uuid
            AND a.nature <> 'CLOSING'
       )
+      -- ::numeric(19,4) so an empty aggregate formats as '0.0000', not '0'
       SELECT
-        COALESCE(SUM(z)  FILTER (WHERE nature = 'ASSET'), 0)                        AS aktiva,
-        COALESCE(SUM(-z) FILTER (WHERE nature IN ('LIABILITY', 'EQUITY')), 0)       AS pasiva,
-        COALESCE(SUM(z)  FILTER (WHERE nature = 'EXPENSE'), 0)                      AS naklady,
-        COALESCE(SUM(-z) FILTER (WHERE nature = 'REVENUE'), 0)                      AS vynosy,
-        COALESCE(SUM(-z) FILTER (WHERE nature = 'REVENUE'), 0)
-          - COALESCE(SUM(z) FILTER (WHERE nature = 'EXPENSE'), 0)                   AS vysledek
+        COALESCE(SUM(z)  FILTER (WHERE nature = 'ASSET'), 0)::numeric(19,4)                  AS aktiva,
+        COALESCE(SUM(-z) FILTER (WHERE nature IN ('LIABILITY', 'EQUITY')), 0)::numeric(19,4) AS pasiva,
+        COALESCE(SUM(z)  FILTER (WHERE nature = 'EXPENSE'), 0)::numeric(19,4)                AS naklady,
+        COALESCE(SUM(-z) FILTER (WHERE nature = 'REVENUE'), 0)::numeric(19,4)                AS vynosy,
+        (COALESCE(SUM(-z) FILTER (WHERE nature = 'REVENUE'), 0)
+          - COALESCE(SUM(z) FILTER (WHERE nature = 'EXPENSE'), 0))::numeric(19,4)            AS vysledek
       FROM acct`,
   )
 

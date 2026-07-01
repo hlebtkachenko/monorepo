@@ -30,6 +30,24 @@ import type {
   PartialRecordInput,
 } from "./types"
 
+/** Plausible CZ VAT rates (0/12/21 from 2024; 10/15 valid pre-2024 for historical corrections). */
+const PLAUSIBLE_VAT_RATES = new Set(["0", "10", "12", "15", "21"])
+
+/**
+ * Boundary sanity guard on a captured vat_rate: reject a garbage / typo rate (a
+ * rate is a percentage, not a money amount, so this string check is not R13
+ * arithmetic). Period-specific rate enforcement is left to the VAT-return layer.
+ */
+function assertPlausibleVatRate(rate: string | null | undefined): void {
+  if (rate == null) return
+  const normalized = rate.trim().replace(/\.0+$/, "").replace(/\.$/, "")
+  if (!PLAUSIBLE_VAT_RATES.has(normalized)) {
+    throw new Error(
+      `accounting: vat_rate "${rate}" is not a valid CZ VAT rate (0/12/21 from 2024; 10/15 pre-2024, §47 ZDPH)`,
+    )
+  }
+}
+
 /** Create an účetní případ — the economic fact (§6/1). Allocates the Označení. */
 export async function createEvent(
   db: RowExecutor,
@@ -131,6 +149,7 @@ async function insertPartial(
   accountingCurrency: string,
 ): Promise<string> {
   const vatAmount = p.vatAmount ?? "0"
+  assertPlausibleVatRate(p.vatRate)
   const foreign = p.currencyCode !== accountingCurrency
   if (foreign && (p.fxRate === undefined || p.fxRate === null)) {
     throw new Error(

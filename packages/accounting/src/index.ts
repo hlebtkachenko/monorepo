@@ -96,8 +96,10 @@ export {
 // Period lifecycle (R12)
 export {
   closePeriod,
+  closeResult,
   copyChartForward,
   openNextPeriod,
+  type CloseResultInput,
   type OpenNextPeriodInput,
   type OpenNextPeriodResult,
 } from "./period"

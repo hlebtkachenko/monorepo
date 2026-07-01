@@ -16,8 +16,10 @@ import {
   seedTwoOrganizations,
 } from "./fixtures.js"
 import {
+  buildZaverka,
   captureDocument,
   closePeriod,
+  closeResult,
   createAsset,
   createCounterparty,
   createDepreciationPlan,
@@ -372,7 +374,7 @@ describe("FX engine — cross-currency settlement (ČÚS 006)", () => {
       const inv = await postFromPredkontace(db, s.ctx, {
         partialRecordId: doc.lines[0]!.partialRecordIds[0]!,
         periodId: s.periodId,
-        scenario: "S-EXEMPT",
+        scenario: "S-EXEMPT-NO-CREDIT",
         summaryRecordId: doc.summaryRecordId,
         accountingEventId: ev.eventId,
         postingDate: "2029-03-01",
@@ -460,7 +462,7 @@ describe("saldokonto", () => {
       const inv = await postFromPredkontace(db, s.ctx, {
         partialRecordId: doc.lines[0]!.partialRecordIds[0]!,
         periodId: s.periodId,
-        scenario: "S-EXEMPT",
+        scenario: "S-EXEMPT-NO-CREDIT",
         summaryRecordId: doc.summaryRecordId,
         accountingEventId: ev.eventId,
         postingDate: "2030-02-01",
@@ -535,7 +537,7 @@ describe("output (R6 gate)", () => {
       await postFromPredkontace(db, s.ctx, {
         partialRecordId: captured.doc.lines[0]!.partialRecordIds[0]!,
         periodId: s.periodId,
-        scenario: "S-EXEMPT",
+        scenario: "S-EXEMPT-NO-CREDIT",
         summaryRecordId: captured.doc.summaryRecordId,
         accountingEventId: captured.eventId,
         postingDate: "2031-02-01",
@@ -671,6 +673,90 @@ describe("supporting (depreciation generator)", () => {
       const b082 = await balance(db, s.periodId, s.accounts["082"]!)
       expect(b551!.td).toBe("2000.0000")
       expect(b082!.tc).toBe("2000.0000")
+    })
+  })
+})
+
+describe("year-end result close (710 → 431)", () => {
+  it("closes P&L to 710 → 431 so the rozvaha foots (aktiva = pasiva)", async () => {
+    const s = await seedDoubleEntryOrg(orgB, workspaceId, userId, {
+      periodStart: "2036-01-01",
+      periodEnd: "2036-12-31",
+    })
+    // a sale on credit: MD 311 / D 602 = 1000 → asset 1000, revenue 1000, profit 1000
+    await withOrganization(orgB, userId, async (db) => {
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Prodej služby na fakturu",
+        occurredAt: "2036-03-01",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2036-03-01",
+        lines: [
+          {
+            eventId: ev.eventId,
+            partials: [{ baseAmount: "1000.00", vatMode: "EXEMPT", currencyCode: "CZK" }],
+          },
+        ],
+      })
+      await postFromPredkontace(db, s.ctx, {
+        partialRecordId: doc.lines[0]!.partialRecordIds[0]!,
+        periodId: s.periodId,
+        scenario: "S-EXEMPT-NO-CREDIT",
+        summaryRecordId: doc.summaryRecordId,
+        accountingEventId: ev.eventId,
+        postingDate: "2036-03-01",
+        responsibleUserId: userId,
+      })
+    })
+
+    // before the close: aktiva = 1000, pasiva = 0 (result still on P&L) — does NOT foot
+    await withOrganization(orgB, userId, async (db) => {
+      const z = await buildZaverka(db, s.periodId)
+      expect(z.aktiva).toBe("1000.0000")
+      expect(z.pasiva).toBe("0.0000")
+      expect(z.vysledek).toBe("1000.0000")
+    })
+
+    // year-end close: 602 → 710 → 431
+    await withOrganization(orgB, userId, async (db) => {
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Uzávěrkové operace",
+        occurredAt: "2036-12-31",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "INTERNAL",
+        issuedAt: "2036-12-31",
+        lines: [],
+      })
+      const closed = await closeResult(db, s.ctx, {
+        periodId: s.periodId,
+        summaryRecordId: doc.summaryRecordId,
+        accountingEventId: ev.eventId,
+        postingDate: "2036-12-31",
+        responsibleUserId: userId,
+      })
+      expect(closed.postingId).not.toBeNull()
+    })
+
+    // after the close: result rolled to equity (431) → aktiva = pasiva, P&L zeroed
+    await withOrganization(orgB, userId, async (db) => {
+      const z = await buildZaverka(db, s.periodId)
+      expect(z.aktiva).toBe("1000.0000")
+      expect(z.pasiva).toBe("1000.0000") // now foots
+      expect(z.vynosy).toBe("0.0000") // 602 closed to 710
+      const b431 = await balance(db, s.periodId, s.accounts["431"]!)
+      expect(b431!.closing).toBe("-1000.0000") // equity credit balance = result
     })
   })
 })

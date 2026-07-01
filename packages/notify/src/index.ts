@@ -129,6 +129,10 @@ export interface ApprovalRequest {
   callbackToken?: string
   /** GitHub workflow file the bot dispatches on resolve (inputs: ask_id, decision, text). */
   resumeWorkflow?: string
+  /** Git ref the resumeWorkflow dispatches against. Defaults to "main". */
+  resumeRef?: string
+  /** Agent run id, so the answer can be correlated back to its originating run. */
+  runId?: string
   /** Caller-supplied id for idempotency; generated if omitted. */
   id?: string
 }

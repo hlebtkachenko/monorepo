@@ -20,6 +20,8 @@ function approval(over: Partial<ApprovalRecord> = {}): ApprovalRecord {
     callbackUrl: null,
     callbackToken: null,
     resumeWorkflow: null,
+    resumeRef: null,
+    runId: null,
     delivered: false,
     exp: 2_000_000,
     created: 0,

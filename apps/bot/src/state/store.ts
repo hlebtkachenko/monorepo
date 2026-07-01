@@ -35,6 +35,10 @@ export interface ApprovalRecord {
   callbackToken: string | null
   /** GitHub workflow file to dispatch on resolve, carrying the answer as inputs. */
   resumeWorkflow: string | null
+  /** Git ref the resumeWorkflow dispatches against; null falls back to "main". */
+  resumeRef: string | null
+  /** Agent run id to correlate an answer back to its originating run; optional. */
+  runId: string | null
   /** 1 once the answer trigger fired (idempotent). */
   delivered: boolean
   exp: number
@@ -124,6 +128,8 @@ interface ApprovalRow {
   callback_url: string | null
   callback_token: string | null
   resume_workflow: string | null
+  resume_ref: string | null
+  run_id: string | null
   delivered: number
   exp: number
   created: number
@@ -163,6 +169,8 @@ function toApproval(row: ApprovalRow): ApprovalRecord {
     callbackUrl: row.callback_url,
     callbackToken: row.callback_token,
     resumeWorkflow: row.resume_workflow,
+    resumeRef: row.resume_ref,
+    runId: row.run_id,
     delivered: row.delivered === 1,
     exp: row.exp,
     created: row.created,
@@ -213,7 +221,7 @@ export function createStore(db: D1Database): Store {
     async putApproval(r) {
       await db
         .prepare(
-          "INSERT INTO approval (id, kind, decision, answer_text, options, summary, answered_at, asker, on_timeout, prompt_message_id, callback_url, callback_token, resume_workflow, delivered, exp, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, options=excluded.options, summary=excluded.summary, asker=excluded.asker, on_timeout=excluded.on_timeout, prompt_message_id=excluded.prompt_message_id, callback_url=excluded.callback_url, callback_token=excluded.callback_token, resume_workflow=excluded.resume_workflow, exp=excluded.exp",
+          "INSERT INTO approval (id, kind, decision, answer_text, options, summary, answered_at, asker, on_timeout, prompt_message_id, callback_url, callback_token, resume_workflow, resume_ref, run_id, delivered, exp, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, options=excluded.options, summary=excluded.summary, asker=excluded.asker, on_timeout=excluded.on_timeout, prompt_message_id=excluded.prompt_message_id, callback_url=excluded.callback_url, callback_token=excluded.callback_token, resume_workflow=excluded.resume_workflow, resume_ref=excluded.resume_ref, run_id=excluded.run_id, exp=excluded.exp",
         )
         .bind(
           r.id,
@@ -229,6 +237,8 @@ export function createStore(db: D1Database): Store {
           r.callbackUrl,
           r.callbackToken,
           r.resumeWorkflow,
+          r.resumeRef,
+          r.runId,
           r.delivered ? 1 : 0,
           r.exp,
           r.created,

@@ -58,6 +58,10 @@ interface AskBody {
   callbackToken?: string
   /** GitHub workflow file to dispatch on resolve (inputs: ask_id, decision, text). */
   resumeWorkflow?: string
+  /** Git ref the resumeWorkflow dispatches against. Defaults to "main". */
+  resumeRef?: string
+  /** Agent run id to correlate the answer back to its originating run. */
+  runId?: string
 }
 
 function createApp(env: Env) {
@@ -171,6 +175,8 @@ function createApp(env: Env) {
       callbackUrl: body.callbackUrl ?? null,
       callbackToken: body.callbackToken ?? null,
       resumeWorkflow: body.resumeWorkflow ?? null,
+      resumeRef: body.resumeRef ?? null,
+      runId: body.runId ?? null,
       delivered: false,
       exp,
       created: now,

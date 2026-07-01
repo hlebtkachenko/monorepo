@@ -12,7 +12,8 @@ deterministic stage machine (WP-1.4a) drives transitions; the model never decide
 4. **score** — 4-tier infra-signal router + calibration → `C_final` per item (I8).
 5. **stage** — write to `brain_run_item.staged_payload` (I6). Run the 7 online CZ gates (I-gate).
 6. **review** — `awaiting_review`: human master gate (I7). Green fast-approve, red focus.
-7. **commit** — on human confirm, flip staged → live via `withOrganization` (I1), stamp `brain_run_id` (I4).
+7. **commit** — on human confirm, the client calls the commit endpoint; the **server** flips staged → live
+   under `withOrganization` (I1) and stamps `brain_run_id` (I4). The Brain client holds no DB path (reframe R-2).
 8. **learn** — librarian distills corrections → proposed rule → GitHub PR (never a local prod-box write).
 
 ## Hard pre-flights (constitution invariants, every transition)

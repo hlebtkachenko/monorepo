@@ -7,6 +7,7 @@ import { registerGetStatus } from "./getStatus"
 import { registerCreateFeedback } from "./createFeedback"
 import { registerGetStructure } from "./getStructure"
 import { registerListArchetypes } from "./listArchetypes"
+import { registerGetAccountingJournal } from "./getAccountingJournal"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -15,6 +16,7 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerCreateFeedback(server, client)
   registerGetStructure(server, client)
   registerListArchetypes(server, client)
+  registerGetAccountingJournal(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -24,4 +26,5 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "createFeedback",
   "getStructure",
   "listArchetypes",
+  "getAccountingJournal",
 ] as const

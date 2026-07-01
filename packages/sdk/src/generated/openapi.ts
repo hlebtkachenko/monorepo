@@ -124,6 +124,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/periods/{periodId}/journal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get journal (deník)
+         * @description Returns the deník — the double-entry postings of the given accounting period in chronological book order (§13), including 701 opening postings. Read-model view; organization-scoped (FORCE RLS) via the API key's own tenant.
+         */
+        get: operations["getAccountingJournal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -751,6 +771,146 @@ export interface components {
              */
             demoRoute: string | null;
         };
+        /** @description Deník (chronological journal) for a period — the double-entry lines including 701 opening postings, in book order. */
+        JournalResponse: {
+            /**
+             * Format: uuid
+             * @description Opaque organization identifier (UUID).
+             */
+            organizationId: string;
+            /**
+             * Format: uuid
+             * @description The period these lines belong to.
+             * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
+             */
+            periodId: string;
+            /** @description Journal lines in chronological book order (§13). */
+            rows: {
+                /**
+                 * Format: uuid
+                 * @description Posting the line belongs to.
+                 * @example 9c1e7a02-4b6d-4f18-9a3e-7d2c5b8f1e40
+                 */
+                postingId: string;
+                /**
+                 * @description Posting date (ISO `YYYY-MM-DD`).
+                 * @example 2025-03-14
+                 */
+                postingDate: string;
+                /**
+                 * @description True for 701 opening-balance postings carried into the period.
+                 * @example false
+                 */
+                isOpening: boolean;
+                /**
+                 * @description Human designation of the summary record (doklad label).
+                 * @example FP2025/0042
+                 */
+                summaryDesignation: string;
+                /**
+                 * @description Summary-record type (document class).
+                 * @example INVOICE_RECEIVED
+                 */
+                summaryType: string;
+                /**
+                 * Format: uuid
+                 * @description Originating accounting event.
+                 * @example 1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                 */
+                accountingEventId: string;
+                /**
+                 * Format: uuid
+                 * @description Double-entry line id.
+                 * @example aa11bb22-cc33-4d44-9e55-ff6677889900
+                 */
+                lineId: string;
+                /**
+                 * Format: uuid
+                 * @description Account the line posts to.
+                 * @example bb22cc33-dd44-4e55-9f66-001122334455
+                 */
+                accountId: string;
+                /**
+                 * @description Syntetický/analytický account number (účtový rozvrh).
+                 * @example 311000
+                 */
+                accountNumber: string;
+                /**
+                 * @description Side of the double entry — MD (DEBIT) or Dal (CREDIT).
+                 * @example DEBIT
+                 * @enum {string}
+                 */
+                side: "DEBIT" | "CREDIT";
+                /**
+                 * @description Signed line amount as a decimal string in the accounting currency (CZK by default). Never a JS number.
+                 * @example 12100.00
+                 */
+                amount: string;
+            }[];
+        };
+        /** @description One deník line — a single side of a double-entry posting. */
+        JournalRow: {
+            /**
+             * Format: uuid
+             * @description Posting the line belongs to.
+             * @example 9c1e7a02-4b6d-4f18-9a3e-7d2c5b8f1e40
+             */
+            postingId: string;
+            /**
+             * @description Posting date (ISO `YYYY-MM-DD`).
+             * @example 2025-03-14
+             */
+            postingDate: string;
+            /**
+             * @description True for 701 opening-balance postings carried into the period.
+             * @example false
+             */
+            isOpening: boolean;
+            /**
+             * @description Human designation of the summary record (doklad label).
+             * @example FP2025/0042
+             */
+            summaryDesignation: string;
+            /**
+             * @description Summary-record type (document class).
+             * @example INVOICE_RECEIVED
+             */
+            summaryType: string;
+            /**
+             * Format: uuid
+             * @description Originating accounting event.
+             * @example 1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+             */
+            accountingEventId: string;
+            /**
+             * Format: uuid
+             * @description Double-entry line id.
+             * @example aa11bb22-cc33-4d44-9e55-ff6677889900
+             */
+            lineId: string;
+            /**
+             * Format: uuid
+             * @description Account the line posts to.
+             * @example bb22cc33-dd44-4e55-9f66-001122334455
+             */
+            accountId: string;
+            /**
+             * @description Syntetický/analytický account number (účtový rozvrh).
+             * @example 311000
+             */
+            accountNumber: string;
+            /**
+             * @description Side of the double entry — MD (DEBIT) or Dal (CREDIT).
+             * @example DEBIT
+             * @enum {string}
+             */
+            side: "DEBIT" | "CREDIT";
+            /**
+             * @description Signed line amount as a decimal string in the accounting currency (CZK by default). Never a JS number.
+             * @example 12100.00
+             */
+            amount: string;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -1032,6 +1192,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListArchetypesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccountingJournal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
+                periodId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The period's journal lines in book order. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JournalResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

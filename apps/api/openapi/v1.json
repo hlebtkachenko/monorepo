@@ -1475,6 +1475,196 @@
           "demoRoute"
         ],
         "description": "One content-panel layout archetype."
+      },
+      "JournalResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The period these lines belong to.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "postingId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Posting the line belongs to.",
+                  "example": "9c1e7a02-4b6d-4f18-9a3e-7d2c5b8f1e40"
+                },
+                "postingDate": {
+                  "type": "string",
+                  "description": "Posting date (ISO `YYYY-MM-DD`).",
+                  "example": "2025-03-14"
+                },
+                "isOpening": {
+                  "type": "boolean",
+                  "description": "True for 701 opening-balance postings carried into the period.",
+                  "example": false
+                },
+                "summaryDesignation": {
+                  "type": "string",
+                  "description": "Human designation of the summary record (doklad label).",
+                  "example": "FP2025/0042"
+                },
+                "summaryType": {
+                  "type": "string",
+                  "description": "Summary-record type (document class).",
+                  "example": "INVOICE_RECEIVED"
+                },
+                "accountingEventId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Originating accounting event.",
+                  "example": "1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+                },
+                "lineId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Double-entry line id.",
+                  "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+                },
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Account the line posts to.",
+                  "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Syntetický/analytický account number (účtový rozvrh).",
+                  "example": "311000"
+                },
+                "side": {
+                  "type": "string",
+                  "enum": [
+                    "DEBIT",
+                    "CREDIT"
+                  ],
+                  "description": "Side of the double entry — MD (DEBIT) or Dal (CREDIT).",
+                  "example": "DEBIT"
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Signed line amount as a decimal string in the accounting currency (CZK by default). Never a JS number.",
+                  "example": "12100.00"
+                }
+              },
+              "required": [
+                "postingId",
+                "postingDate",
+                "isOpening",
+                "summaryDesignation",
+                "summaryType",
+                "accountingEventId",
+                "lineId",
+                "accountId",
+                "accountNumber",
+                "side",
+                "amount"
+              ],
+              "description": "One deník line — a single side of a double-entry posting."
+            },
+            "description": "Journal lines in chronological book order (§13)."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rows"
+        ],
+        "description": "Deník (chronological journal) for a period — the double-entry lines including 701 opening postings, in book order."
+      },
+      "JournalRow": {
+        "type": "object",
+        "properties": {
+          "postingId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Posting the line belongs to.",
+            "example": "9c1e7a02-4b6d-4f18-9a3e-7d2c5b8f1e40"
+          },
+          "postingDate": {
+            "type": "string",
+            "description": "Posting date (ISO `YYYY-MM-DD`).",
+            "example": "2025-03-14"
+          },
+          "isOpening": {
+            "type": "boolean",
+            "description": "True for 701 opening-balance postings carried into the period.",
+            "example": false
+          },
+          "summaryDesignation": {
+            "type": "string",
+            "description": "Human designation of the summary record (doklad label).",
+            "example": "FP2025/0042"
+          },
+          "summaryType": {
+            "type": "string",
+            "description": "Summary-record type (document class).",
+            "example": "INVOICE_RECEIVED"
+          },
+          "accountingEventId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Originating accounting event.",
+            "example": "1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+          },
+          "lineId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Double-entry line id.",
+            "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Account the line posts to.",
+            "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Syntetický/analytický account number (účtový rozvrh).",
+            "example": "311000"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "description": "Side of the double entry — MD (DEBIT) or Dal (CREDIT).",
+            "example": "DEBIT"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Signed line amount as a decimal string in the accounting currency (CZK by default). Never a JS number.",
+            "example": "12100.00"
+          }
+        },
+        "required": [
+          "postingId",
+          "postingDate",
+          "isOpening",
+          "summaryDesignation",
+          "summaryType",
+          "accountingEventId",
+          "lineId",
+          "accountId",
+          "accountNumber",
+          "side",
+          "amount"
+        ],
+        "description": "One deník line — a single side of a double-entry posting."
       }
     },
     "parameters": {}
@@ -1715,6 +1905,65 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListArchetypesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/journal": {
+      "get": {
+        "operationId": "getAccountingJournal",
+        "summary": "Get journal (deník)",
+        "description": "Returns the deník — the double-entry postings of the given accounting period in chronological book order (§13), including 701 opening postings. Read-model view; organization-scoped (FORCE RLS) via the API key's own tenant.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's journal lines in book order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalResponse"
                 }
               }
             }

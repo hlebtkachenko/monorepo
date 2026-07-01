@@ -32,6 +32,11 @@ import {
   NavPageSchema,
   NavSubpageSchema,
 } from "./structure"
+import {
+  JournalResponseSchema,
+  JournalRowSchema,
+  PeriodIdParamSchema,
+} from "./accounting"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
 
@@ -98,6 +103,11 @@ const ListArchetypesResponse = registry.register(
   ListArchetypesResponseSchema,
 )
 registry.register("Archetype", ArchetypeSchema)
+const JournalResponse = registry.register(
+  "JournalResponse",
+  JournalResponseSchema,
+)
+registry.register("JournalRow", JournalRowSchema)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -358,6 +368,28 @@ registry.registerPath({
     "200": {
       description: "The layout-archetype catalog.",
       content: { "application/json": { schema: ListArchetypesResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/journal",
+  operationId: "getAccountingJournal",
+  summary: "Get journal (deník)",
+  description:
+    "Returns the deník — the double-entry postings of the given accounting " +
+    "period in chronological book order (§13), including 701 opening " +
+    "postings. Read-model view; organization-scoped (FORCE RLS) via the API " +
+    "key's own tenant.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's journal lines in book order.",
+      content: { "application/json": { schema: JournalResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

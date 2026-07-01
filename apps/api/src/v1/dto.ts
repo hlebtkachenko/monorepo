@@ -1,6 +1,7 @@
 import { createZodDto } from "nestjs-zod"
 import {
   GetOrganizationResponseSchema,
+  JournalResponseSchema,
   PingResponseSchema,
 } from "@workspace/shared/api"
 
@@ -12,3 +13,4 @@ export class PingResponseDto extends createZodDto(PingResponseSchema) {}
 export class GetOrganizationResponseDto extends createZodDto(
   GetOrganizationResponseSchema,
 ) {}
+export class JournalResponseDto extends createZodDto(JournalResponseSchema) {}

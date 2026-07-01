@@ -18,19 +18,27 @@ import { SidebarRow, activeHref } from "./sidebar-row"
 export interface SidebarNavSubpage {
   label: string
   href: string
+  /** Trailing live count / label (e.g. unread count). Independent of `tba`. */
   badge?: string | number
+  /** Build-status flag — renders a muted "TBA" chip until the page ships. */
+  tba?: boolean
 }
 
 /**
- * A clickable nav link — always has an icon. May nest up to two Subpages,
- * which makes it an expandable parent (the page itself stays navigable).
+ * A clickable nav link — always has an icon. May nest Subpages, which makes it
+ * an expandable parent (the page itself stays navigable). The tree stops at the
+ * Subpage level (Group › Page › Subpage = 3 levels); a Page may own any number
+ * of Subpages.
  */
 export interface SidebarNavPage {
   label: string
   href: string
   icon: IconName
+  /** Trailing live count / label (e.g. unread count). Independent of `tba`. */
   badge?: string | number
-  subpages?: [SidebarNavSubpage] | [SidebarNavSubpage, SidebarNavSubpage]
+  /** Build-status flag — renders a muted "TBA" chip until the page ships. */
+  tba?: boolean
+  subpages?: SidebarNavSubpage[]
 }
 
 /** A non-clickable label that groups Pages under a heading. */
@@ -86,6 +94,7 @@ function NavPage({
       active={page.href === active}
       icon={<Icon className="size-4 shrink-0" />}
       badge={page.badge}
+      tba={page.tba}
       className={hasSubs ? "min-w-0 flex-1" : undefined}
     >
       {page.label}
@@ -123,6 +132,7 @@ function NavPage({
               href={sub.href}
               active={sub.href === active}
               badge={sub.badge}
+              tba={sub.tba}
               muted
             >
               {sub.label}

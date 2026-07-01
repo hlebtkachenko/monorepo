@@ -98,6 +98,15 @@ pre-push:
       glob:
         - "apps/web/app/**"
       run: pnpm exec tsx scripts/check-nav.ts
+    sitemap-drift:
+      # Sitemap-doc drift guard — companion to nav-drift. Fails if an org nav
+      # label is missing from docs/specs/SITEMAP.md, so the doc (the hand-
+      # maintained mirror) can't silently fall behind the code.
+      glob:
+        - "apps/web/app/[orgSlug]/**/nav.ts"
+        - "apps/web/app/[orgSlug]/_nav/org-nav.ts"
+        - "docs/specs/SITEMAP.md"
+      run: pnpm exec tsx scripts/check-sitemap.ts
     actionlint:
       # Mirrors `.github/workflows/workflow-lint.yml` actionlint job.
       # Runs when workflow YAML changed. Composite actions under

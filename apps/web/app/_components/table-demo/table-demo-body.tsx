@@ -32,8 +32,8 @@ import { useIcons } from "@workspace/ui/icon-packs"
 import { applyFilterBar } from "../_shared/apply-filter-bar"
 
 import { invoiceColumns } from "./columns"
-import { ContentDemoStatusBar } from "./content-demo-statusbar"
-import { ContentDemoToolbar } from "./content-demo-toolbar"
+import { TableDemoStatusBar } from "./table-demo-statusbar"
+import { TableDemoToolbar } from "./table-demo-toolbar"
 import { useOrgContent } from "./context"
 import {
   INVOICE_ROWS,
@@ -171,7 +171,7 @@ function InvoiceDetail({ row }: { row: InvoiceRow }) {
  * pagination, selection, and column visibility. Mounts as the app-shell
  * `children`.
  */
-export function ContentDemoBody() {
+export function TableDemoBody() {
   const icons = useIcons()
   const {
     activeTab,
@@ -294,7 +294,7 @@ export function ContentDemoBody() {
       }}
       inspectorTitle={inspected?.document}
       toolbar={
-        <ContentDemoToolbar
+        <TableDemoToolbar
           table={table}
           filterColumns={filterColumns}
           filters={fbFilters}
@@ -313,7 +313,7 @@ export function ContentDemoBody() {
         />
       }
       statusBar={
-        <ContentDemoStatusBar
+        <TableDemoStatusBar
           table={table}
           visibleCount={filteredRows.length}
           total={total}

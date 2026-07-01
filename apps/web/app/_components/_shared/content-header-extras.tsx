@@ -4,6 +4,10 @@ import * as React from "react"
 
 import {
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -88,9 +92,12 @@ export function useTabVisibility(tabs: ManageTab[], active?: string) {
 }
 
 /**
- * The body of the content-header's manage-tabs (⋯) menu: a "Choose tabs"
- * submenu with an eye / eye-off toggle per tab. The first tab is always-on
- * (can't be hidden), mirroring the Table demo. Pass as `ContentHeader.manageTabs`.
+ * The body of the content-header's manage-tabs (⋯) menu — the SAME mechanism the
+ * Table demo carries, so every archetype header behaves identically: a "Choose
+ * tabs" submenu (eye / eye-off per tab; the first tab is always-on and can't be
+ * hidden), a "Show in this section" scope group, and a "Sort this section" group.
+ * The scope/sort selections are self-contained local state (presentational for
+ * now, like the Table demo). Pass as `ContentHeader.manageTabs`.
  */
 export function ManageTabsMenu({
   tabs,
@@ -104,32 +111,57 @@ export function ManageTabsMenu({
   const icons = useIcons()
   const EyeIcon = icons.Eye
   const EyeOffIcon = icons.EyeOff
+  const [scope, setScope] = React.useState("all")
+  const [sort, setSort] = React.useState("alpha")
   return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger>Choose tabs</DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="min-w-44">
-        {tabs.map((tab, i) => {
-          const isHidden = hidden.has(tab.value)
-          const alwaysOn = i === 0
-          const Icon = isHidden ? EyeOffIcon : EyeIcon
-          return (
-            <DropdownMenuItem
-              key={tab.value}
-              disabled={alwaysOn}
-              onSelect={(event) => {
-                event.preventDefault()
-                if (!alwaysOn) onToggle(tab.value)
-              }}
-              className="justify-between gap-6"
-            >
-              <span className={cn(isHidden && "text-muted-foreground")}>
-                {tab.label}
-              </span>
-              <Icon className="text-muted-foreground" />
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
+    <>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>Choose tabs</DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="min-w-44">
+          {tabs.map((tab, i) => {
+            const isHidden = hidden.has(tab.value)
+            const alwaysOn = i === 0
+            const Icon = isHidden ? EyeOffIcon : EyeIcon
+            return (
+              <DropdownMenuItem
+                key={tab.value}
+                disabled={alwaysOn}
+                onSelect={(event) => {
+                  event.preventDefault()
+                  if (!alwaysOn) onToggle(tab.value)
+                }}
+                className="justify-between gap-6"
+              >
+                <span className={cn(isHidden && "text-muted-foreground")}>
+                  {tab.label}
+                </span>
+                <Icon className="text-muted-foreground" />
+              </DropdownMenuItem>
+            )
+          })}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>Show in this section</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={scope} onValueChange={setScope}>
+        <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="unread">
+          Unread updates only
+        </DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="mentions">
+          Mentions only
+        </DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>Sort this section</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={sort} onValueChange={setSort}>
+        <DropdownMenuRadioItem value="alpha">
+          Alphabetically
+        </DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="recent">
+          By most recent
+        </DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+    </>
   )
 }

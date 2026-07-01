@@ -11,7 +11,9 @@ export interface RecordWorkspaceProps {
    */
   children: React.ReactNode
   /**
-   * Optional company / VAT / totals recap rail beside the form (right column).
+   * Optional right-hand section beside the form (recap card, document preview,
+   * company panel, …). This is an in-flow COLUMN of the page — not a docked
+   * sidebar — so it scrolls with the form and stacks under it on a narrow panel.
    * Omit to render the form full-width.
    */
   aside?: React.ReactNode
@@ -27,6 +29,16 @@ export interface RecordWorkspaceProps {
   footer?: React.ReactNode
   /** Width of the centered form/aside band. Default `"5xl"`. */
   maxWidth?: "3xl" | "4xl" | "5xl" | "full"
+  /**
+   * How the form band lays out `children`:
+   *   - `"stack"` (default) → the classic centered form + optional `aside`
+   *     column, capped at `maxWidth`. This is the original behavior.
+   *   - `"panels"` → a full-width, container-query grid of side-by-side panels
+   *     (1 → 2 → 3 columns as the panel widens). `aside` is ignored and the
+   *     `maxWidth` band is dropped, so `children` (the panels) fill the width.
+   * The `lineItems` / `footer` slots behave identically in both modes.
+   */
+  formLayout?: "stack" | "panels"
   className?: string
 }
 
@@ -53,53 +65,68 @@ export function RecordWorkspace({
   lineItems,
   footer,
   maxWidth = "5xl",
+  formLayout = "stack",
   className,
 }: RecordWorkspaceProps) {
+  const isPanels = formLayout === "panels"
   return (
     <div
       data-slot="record-workspace"
       className={cn("flex min-h-0 flex-1 flex-col", className)}
     >
-      {/* Form band — scrolls on its own and stays the dominant region. When
-          line-items are present the grid below keeps a guaranteed readable
-          band (a min height) while the form takes the rest; without lines the
-          form takes the whole body. */}
+      {/* Form band — scrolls on its own and stays the dominant region. In
+          "stack" it keeps the original proportion (form flex-[3], line-items
+          flex-[2]); in "panels" it's flex-1 above a content-sized grid. */}
       <div
         className={cn(
           "min-h-0 overflow-auto",
-          lineItems != null ? "flex-[3]" : "flex-1",
+          isPanels ? "flex-1" : lineItems != null ? "flex-[3]" : "flex-1",
         )}
       >
-        <div
-          className={cn(
-            "@container mx-auto flex w-full flex-col gap-6 p-4",
-            MAX_W[maxWidth],
-          )}
-        >
+        {isPanels ? (
+          // Panels mode — a full-width container-query grid of side-by-side
+          // record panels. No centered band, no aside: the panels ARE the
+          // layout and fill the width, folding 3 → 2 → 1 column as it narrows.
+          <div className="@container w-full p-4">
+            <div className="grid grid-cols-1 items-start gap-4 @2xl:grid-cols-2 @5xl:grid-cols-3">
+              {children}
+            </div>
+          </div>
+        ) : (
           <div
             className={cn(
-              "grid gap-6",
-              // Side-by-side only when there's genuinely room. A CONTAINER query
-              // (not viewport) so that with the inspector docked — which narrows
-              // the panel — the recap rail stacks under the form instead of
-              // crushing the field grid.
-              aside != null && "@3xl:grid-cols-[minmax(0,1fr)_18rem]",
+              "@container mx-auto flex w-full flex-col gap-6 p-4",
+              MAX_W[maxWidth],
             )}
           >
-            <div className="min-w-0">{children}</div>
-            {aside != null ? (
-              <aside aria-label="Record summary" className="min-w-0">
-                {aside}
-              </aside>
-            ) : null}
+            <div
+              className={cn(
+                "grid gap-6",
+                // Side-by-side only when there's genuinely room. A CONTAINER
+                // query (not viewport) so that with the inspector docked — which
+                // narrows the panel — the recap rail stacks under the form
+                // instead of crushing the field grid.
+                aside != null && "@3xl:grid-cols-[minmax(0,1fr)_18rem]",
+              )}
+            >
+              <div className="min-w-0">{children}</div>
+              {aside != null ? (
+                <aside aria-label="Record summary" className="min-w-0">
+                  {aside}
+                </aside>
+              ) : null}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {lineItems != null ? (
         <div
           data-slot="record-workspace-lines"
-          className="flex min-h-[14rem] flex-[2] flex-col border-t border-border-subtle"
+          className={cn(
+            "flex flex-col border-t border-border-subtle",
+            isPanels ? "shrink-0" : "min-h-[14rem] flex-[2]",
+          )}
         >
           {lineItems}
         </div>

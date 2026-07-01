@@ -1,12 +1,15 @@
 "use client"
 
-import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 
-import { DataGridView } from "@workspace/ui/components/data-grid-view"
-import { useDataTable } from "@workspace/ui/components/data-table"
+import { DataGrid } from "@workspace/ui/components/data-grid"
 
-import { formatNum } from "./data"
+import {
+  recomputeLine,
+  UNIT_OPTIONS,
+  VAT_RATE_OPTIONS,
+  WAREHOUSE_OPTIONS,
+} from "./data"
 
 /** One invoice line (položka). */
 export interface LineRow {
@@ -18,86 +21,104 @@ export interface LineRow {
   unit: string
   unitPrice: number
   base: number
-  vatRate: number
+  /** String so it matches the VAT select cell's option values ("21"/"12"/"0"). */
+  vatRate: string
   total: number
 }
 
-const right = (value: React.ReactNode, strong = false) => (
-  <div
-    className={
-      strong ? "text-right font-medium tabular-nums" : "text-right tabular-nums"
-    }
-  >
-    {value}
-  </div>
-)
-
+/**
+ * The line-items columns — real editable cells (short-text / number / select),
+ * not read-only text. `qty` · `unitPrice` · `vatRate` are the inputs; `base` and
+ * `total` are derived (see `recomputeLine`) so they always reconcile. Cell
+ * variants are declared on `meta.cell` per the `data-grid` contract.
+ */
 const lineColumns: ColumnDef<LineRow>[] = [
-  { accessorKey: "code", header: "Code", size: 110, meta: { label: "Code" } },
+  {
+    accessorKey: "code",
+    header: "Code",
+    size: 120,
+    meta: { label: "Code", cell: { variant: "short-text" } },
+  },
   {
     accessorKey: "warehouse",
     header: "Warehouse",
-    size: 120,
-    meta: { label: "Warehouse" },
+    size: 150,
+    meta: {
+      label: "Warehouse",
+      cell: { variant: "select", options: WAREHOUSE_OPTIONS },
+    },
   },
   {
     accessorKey: "name",
     header: "Name",
-    size: 240,
-    cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-    meta: { label: "Name" },
+    size: 260,
+    meta: { label: "Name", cell: { variant: "short-text" } },
   },
   {
     accessorKey: "qty",
     header: "Qty",
-    size: 72,
-    cell: ({ row }) => right(formatNum(row.original.qty)),
-    meta: { label: "Qty" },
+    size: 96,
+    meta: { label: "Qty", cell: { variant: "number", min: 0, decimals: 2 } },
   },
-  { accessorKey: "unit", header: "Unit", size: 64, meta: { label: "Unit" } },
+  {
+    accessorKey: "unit",
+    header: "Unit",
+    size: 100,
+    meta: { label: "Unit", cell: { variant: "select", options: UNIT_OPTIONS } },
+  },
   {
     accessorKey: "unitPrice",
     header: "Unit price",
-    size: 110,
-    cell: ({ row }) => right(formatNum(row.original.unitPrice)),
-    meta: { label: "Unit price" },
-  },
-  {
-    accessorKey: "base",
-    header: "Base",
-    size: 110,
-    cell: ({ row }) => right(formatNum(row.original.base)),
-    meta: { label: "Base" },
+    size: 130,
+    meta: {
+      label: "Unit price",
+      cell: { variant: "number", min: 0, decimals: 2 },
+    },
   },
   {
     accessorKey: "vatRate",
     header: "VAT %",
-    size: 72,
-    cell: ({ row }) => right(`${row.original.vatRate} %`),
-    meta: { label: "VAT rate" },
+    size: 120,
+    meta: {
+      label: "VAT rate",
+      cell: { variant: "select", options: VAT_RATE_OPTIONS },
+    },
+  },
+  {
+    accessorKey: "base",
+    header: "Base",
+    size: 130,
+    meta: { label: "Base", cell: { variant: "number", decimals: 2 } },
   },
   {
     accessorKey: "total",
     header: "Total",
-    size: 120,
-    cell: ({ row }) => right(formatNum(row.original.total), true),
-    meta: { label: "Total" },
+    size: 140,
+    meta: { label: "Total", cell: { variant: "number", decimals: 2 } },
   },
 ]
 
-/** The line-items grid — our Table machinery (useDataTable + DataGridView). */
-export function LineItemsGrid({ rows }: { rows: LineRow[] }) {
-  const { table } = useDataTable<LineRow>({
-    data: rows,
-    columns: lineColumns,
-    getRowId: (row) => row.id,
-    columnResizeMode: "onChange",
-    defaultColumn: { minSize: 56, size: 140, maxSize: 480 },
-    initialState: { pagination: { pageIndex: 0, pageSize: 50 } },
-  })
-
-  // Fill the bounded line-items region (the parent gives it a real height) and
-  // scroll inside — so the grid reads as a proper, usable table, not a column
-  // of rows that pushes the page.
-  return <DataGridView table={table} className="min-h-0 flex-1" />
+/**
+ * The editable line-items grid — the real `data-grid` (inline edit, keyboard nav,
+ * paste, sort, context-menu add/delete rows). The parent owns the rows; every
+ * change is re-derived through `recomputeLine` so `base`/`total` (and the recap +
+ * status bar that read them) stay reconciled.
+ */
+export function LineItemsGrid({
+  rows,
+  onRowsChange,
+}: {
+  rows: LineRow[]
+  onRowsChange: (rows: LineRow[]) => void
+}) {
+  return (
+    <DataGrid
+      data={rows}
+      columns={lineColumns}
+      onDataChange={(next) => onRowsChange(next.map(recomputeLine))}
+      rowHeight="short"
+      height={300}
+      className="w-full"
+    />
+  )
 }

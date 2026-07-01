@@ -37,9 +37,12 @@ export function LaunchpadDemo() {
   const [followed, setFollowed] = React.useState<ReadonlySet<string>>(
     () =>
       new Set(
-        BASE_SECTIONS.flatMap((s) => s.pages)
-          .filter((p) => p.followed)
-          .map((p) => p.id),
+        BASE_SECTIONS.flatMap((s) => s.pages).flatMap((p) => [
+          ...(p.followed ? [p.id] : []),
+          ...(p.subpages ?? [])
+            .filter((sub) => sub.followed)
+            .map((sub) => sub.id),
+        ]),
       ),
   )
 
@@ -52,7 +55,8 @@ export function LaunchpadDemo() {
     })
   }, [])
 
-  // Project the live follow state back onto the section data the block reads.
+  // Project the live follow state back onto the section data the block reads —
+  // onto both top-level pages and their subpages (subpage ids are unique).
   const sections = React.useMemo(
     () =>
       BASE_SECTIONS.map((section) => ({
@@ -60,6 +64,10 @@ export function LaunchpadDemo() {
         pages: section.pages.map((page) => ({
           ...page,
           followed: followed.has(page.id),
+          subpages: page.subpages?.map((sub) => ({
+            ...sub,
+            followed: followed.has(sub.id),
+          })),
         })),
       })),
     [followed],

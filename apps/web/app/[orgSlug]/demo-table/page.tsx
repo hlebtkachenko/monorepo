@@ -1,17 +1,17 @@
 import { notFound } from "next/navigation"
 
-import { ContentDemoBody } from "../../_components/content-demo/content-demo-body"
-import { ContentDemoHeader } from "../../_components/content-demo/content-demo-header"
-import { OrgContentProvider } from "../../_components/content-demo/context"
+import { TableDemoBody } from "../../_components/table-demo/table-demo-body"
+import { TableDemoHeader } from "../../_components/table-demo/table-demo-header"
+import { OrgContentProvider } from "../../_components/table-demo/context"
 import { OrgPageHeader } from "../../_components/org-page-header"
 
-export const metadata = { title: "Content panel demo" }
+export const metadata = { title: "Table demo" }
 
 /**
  * SAVED DEMO — the invoices Content Panel preview, kept for reference after being
  * removed from the Company overview. Renders under the persistent shell like any
  * org page; `OrgContentProvider` links the demo's content header (portaled in via
- * `OrgPageHeader`) to its body. Reachable at `/<org>/demo`, hidden from nav
+ * `OrgPageHeader`) to its body. Reachable at `/<org>/demo-table`, hidden from nav
  * (allow-listed in scripts/check-nav.ts).
  *
  * DEV-ONLY: any production build (staging or prod) returns 404, so the mock data
@@ -23,9 +23,9 @@ export default function ContentPanelDemoPage() {
   return (
     <OrgContentProvider>
       <OrgPageHeader>
-        <ContentDemoHeader />
+        <TableDemoHeader />
       </OrgPageHeader>
-      <ContentDemoBody />
+      <TableDemoBody />
     </OrgContentProvider>
   )
 }

@@ -1,6 +1,16 @@
 "use client"
 
 import * as React from "react"
+import {
+  Calendar as CalendarIcon,
+  ChevronDown,
+  Copy,
+  Pencil,
+  Plus,
+  ScanLine,
+  Upload,
+  X,
+} from "lucide-react"
 
 import {
   ContentHeader,
@@ -8,15 +18,56 @@ import {
   ContentStatusBar,
   ContentToolbar,
   RecordWorkspace,
-  type ContentTab,
 } from "@workspace/ui/blocks/app-content"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
-import { Card } from "@workspace/ui/components/card"
+import { Calendar } from "@workspace/ui/components/calendar"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@workspace/ui/components/combobox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import { Field, FieldLabel } from "@workspace/ui/components/field"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Input } from "@workspace/ui/components/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@workspace/ui/components/input-group"
+import {
+  InputTags,
+  InputTagsInput,
+  InputTagsItem,
+  InputTagsList,
+} from "@workspace/ui/components/input-tags"
+import { PhoneInput } from "@workspace/ui/components/input-phone"
+import {
+  KeyValue,
+  KeyValueItem,
+  KeyValueKeyInput,
+  KeyValueList,
+  KeyValueValueInput,
+} from "@workspace/ui/components/key-value"
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@workspace/ui/components/native-select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
 import {
   Select,
   SelectContent,
@@ -25,435 +76,899 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { toast } from "@workspace/ui/components/sonner"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@workspace/ui/components/table"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
-import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import {
-  ManageTabsMenu,
-  PageHeaderActions,
-  useTabVisibility,
-} from "../_shared/content-header-extras"
 import { OrgPageHeader } from "../org-page-header"
-import { DocumentPreview } from "./document-preview"
-import { LineItemsGrid } from "./line-items"
+import { LineItemsGrid, type LineRow } from "./line-items"
 import {
-  ATTACHMENTS,
+  COMPANIES,
+  CONTACTS,
   formatNum,
   ledgerTotals,
-  type LedgerTotals,
   LINE_ITEMS,
-  SINGLE_TABS,
-  type SingleView,
+  recomputeLine,
+  vatRecap,
 } from "./data"
 
-const RECORD_NUMBER = "FV-2026-0001"
-const SUPPLIER = "ČEZ, a.s."
+const RECORD_NUMBER = "VF3-0001/2026"
 
-/**
- * A labeled sub-section inside a tab — a small heading + its own field grid,
- * mirroring ABRA's grouped form (a tab is NOT one flat divider but several
- * named groups). The default grid is a 1/2/3-column field grid; pass `grid` to
- * override (e.g. a single full-width column).
- */
-function FormSection({
-  title,
-  description,
-  grid = "sm:grid-cols-2",
-  children,
-}: {
-  title: string
-  description?: string
-  grid?: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="space-y-3">
-      <div className="space-y-0.5 border-b border-border-subtle pb-1.5">
-        <h3 className="font-heading text-sm font-semibold text-foreground">
-          {title}
-        </h3>
-        {description ? (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      <div className={cn("grid gap-4", grid)}>{children}</div>
-    </section>
-  )
-}
+/* -------------------------------------------------------------------------- */
+/* Field helpers                                                              */
+/* -------------------------------------------------------------------------- */
 
-function FormField({
+/** A labelled shadcn Select. */
+function SelectField({
   id,
   label,
-  children,
+  defaultValue,
+  options,
+  className,
 }: {
   id: string
   label: string
-  children: React.ReactNode
+  defaultValue: string
+  options: { value: string; label: string }[]
+  className?: string
 }) {
   return (
-    <Field>
+    <Field className={className}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      {children}
+      <Select defaultValue={defaultValue}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </Field>
   )
 }
 
-function SelectField({
+/** A labelled date field — a real Popover + Calendar picker (not a raw input). */
+function DateField({
   id,
-  defaultValue,
-  options,
+  label,
+  defaultDate,
+  className,
 }: {
   id: string
+  label: string
+  defaultDate?: Date
+  className?: string
+}) {
+  const [date, setDate] = React.useState<Date | undefined>(defaultDate)
+  return (
+    <Field className={className}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            variant="outline"
+            className="w-full justify-start gap-2 font-normal"
+          >
+            <CalendarIcon className="size-4 text-muted-foreground" />
+            {date ? (
+              date.toLocaleDateString("cs-CZ")
+            ) : (
+              <span className="text-muted-foreground">Select date</span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <Calendar mode="single" selected={date} onSelect={setDate} />
+        </PopoverContent>
+      </Popover>
+    </Field>
+  )
+}
+
+/** A labelled native select. */
+function NativeSelectField({
+  id,
+  label,
+  defaultValue,
+  options,
+  className,
+}: {
+  id: string
+  label: string
   defaultValue: string
   options: { value: string; label: string }[]
+  className?: string
 }) {
   return (
-    <Select defaultValue={defaultValue}>
-      <SelectTrigger id={id} className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
+    <Field className={className}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <NativeSelect id={id} defaultValue={defaultValue} className="w-full">
         {options.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
+          <NativeSelectOption key={o.value} value={o.value}>
             {o.label}
-          </SelectItem>
+          </NativeSelectOption>
         ))}
-      </SelectContent>
-    </Select>
+      </NativeSelect>
+    </Field>
+  )
+}
+
+/** A labelled searchable combobox. */
+function ComboboxField({
+  id,
+  label,
+  defaultValue,
+  options,
+  className,
+}: {
+  id: string
+  label: string
+  defaultValue: string
+  options: string[]
+  className?: string
+}) {
+  const [value, setValue] = React.useState(defaultValue)
+  return (
+    <Field className={className}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Combobox value={value} onValueChange={(v) => setValue(v ?? "")}>
+        <ComboboxInput id={id} placeholder="Search…" className="w-full" />
+        <ComboboxContent>
+          <ComboboxList>
+            {options.map((o) => (
+              <ComboboxItem key={o} value={o}>
+                {o}
+              </ComboboxItem>
+            ))}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </Field>
+  )
+}
+
+/** A labelled input-group with a trailing text addon (`%`, `Kč`, `kg`). */
+function AddonField({
+  id,
+  label,
+  defaultValue,
+  addon,
+  className,
+}: {
+  id: string
+  label: string
+  defaultValue: string
+  addon: string
+  className?: string
+}) {
+  return (
+    <Field className={className}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <InputGroup>
+        <InputGroupInput
+          id={id}
+          defaultValue={defaultValue}
+          inputMode="numeric"
+        />
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>{addon}</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
+    </Field>
+  )
+}
+
+/** A labelled plain input. */
+function TextField({
+  id,
+  label,
+  className,
+  ...props
+}: { id: string; label: string } & React.ComponentProps<typeof Input>) {
+  return (
+    <Field className={className}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Input id={id} {...props} />
+    </Field>
   )
 }
 
 /**
- * The "Header" tab — three labeled groups (Document, Company, Description),
- * each its own `<section>` with a heading + field grid. The "Amounts" group is
- * the recap rail (the aside), so it isn't repeated here.
+ * A record panel — a card with a local tab strip and, below it, the active
+ * tab's field grid. The three panels (Document / Party / Amounts) each own an
+ * independent `Tabs` and are laid out side-by-side by `RecordWorkspace`'s
+ * panels layout.
  */
-function HeaderSection() {
+function Panel({
+  title,
+  defaultTab,
+  tabs,
+}: {
+  title: string
+  defaultTab: string
+  tabs: { value: string; label: string; content: React.ReactNode }[]
+}) {
   return (
-    <div className="space-y-6">
-      <FormSection
-        title="Document"
-        description="Identification, dates and tax point of the invoice."
-      >
-        <FormField id="f-type" label="Invoice type">
-          <SelectField
-            id="f-type"
-            defaultValue="received"
-            options={[
-              { value: "received", label: "Received invoice" },
-              { value: "issued", label: "Issued invoice" },
-              { value: "advance", label: "Advance" },
-            ]}
-          />
-        </FormField>
-        <FormField id="f-vs" label="Variable symbol">
-          <Input id="f-vs" defaultValue="20260001" />
-        </FormField>
-        <FormField id="f-order" label="Order">
-          <Input id="f-order" placeholder="—" />
-        </FormField>
-        <FormField id="f-issued" label="Issued">
-          <Input id="f-issued" type="date" defaultValue="2026-06-12" />
-        </FormField>
-        <FormField id="f-due" label="Due">
-          <Input id="f-due" type="date" defaultValue="2026-06-26" />
-        </FormField>
-        <FormField id="f-taxdate" label="Tax point">
-          <Input id="f-taxdate" type="date" defaultValue="2026-06-12" />
-        </FormField>
-      </FormSection>
-
-      <FormSection
-        title="Company"
-        description="Supplier, cost allocation and the responsible person."
-      >
-        <FormField id="f-supplier" label="Supplier">
-          <Input id="f-supplier" defaultValue={SUPPLIER} />
-        </FormField>
-        <FormField id="f-center" label="Cost centre">
-          <SelectField
-            id="f-center"
-            defaultValue="hq"
-            options={[
-              { value: "hq", label: "HQ" },
-              { value: "branch", label: "Branch" },
-            ]}
-          />
-        </FormField>
-        <FormField id="f-responsible" label="Responsible">
-          <Input id="f-responsible" defaultValue="J. Novák" />
-        </FormField>
-      </FormSection>
-
-      <FormSection title="Description" grid="grid-cols-1">
-        <FormField id="f-desc" label="Description">
-          <Textarea
-            id="f-desc"
-            rows={2}
-            defaultValue="Coffee supply, June 2026."
-          />
-        </FormField>
-      </FormSection>
-    </div>
+    <section
+      aria-label={title}
+      className="rounded-xl bg-card p-4 ring-1 ring-foreground/10"
+    >
+      <Tabs defaultValue={defaultTab}>
+        <TabsList variant="line" className="mb-4 w-full justify-start">
+          {tabs.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {tabs.map((t) => (
+          <TabsContent key={t.value} value={t.value}>
+            {t.content}
+          </TabsContent>
+        ))}
+      </Tabs>
+    </section>
   )
 }
 
-function AccountingSection() {
-  return (
-    <div className="space-y-6">
-      <FormSection
-        title="Posting"
-        description="The ledger account and VAT treatment of this document."
-      >
-        <FormField id="a-acc" label="Account">
-          <SelectField
-            id="a-acc"
-            defaultValue="321"
-            options={[
-              { value: "321", label: "321 — Suppliers" },
-              { value: "504", label: "504 — Goods sold" },
-            ]}
-          />
-        </FormField>
-        <FormField id="a-vat" label="VAT regime">
-          <SelectField
-            id="a-vat"
-            defaultValue="standard"
-            options={[
-              { value: "standard", label: "Standard" },
-              { value: "reverse", label: "Reverse charge" },
-            ]}
-          />
-        </FormField>
-        <FormField id="a-activity" label="Activity">
-          <Input id="a-activity" defaultValue="Hospitality" />
-        </FormField>
-      </FormSection>
-    </div>
-  )
-}
+const TWO_COL = "grid grid-cols-1 gap-4 sm:grid-cols-2"
 
-function OtherSection() {
-  return (
-    <div className="space-y-6">
-      <FormSection title="Internal" grid="grid-cols-1">
-        <FormField id="o-note" label="Internal note">
-          <Textarea
-            id="o-note"
-            rows={4}
-            placeholder="Notes visible to the team…"
-          />
-        </FormField>
-      </FormSection>
-    </div>
-  )
-}
+/* -------------------------------------------------------------------------- */
+/* Left panel — Document                                                      */
+/* -------------------------------------------------------------------------- */
 
-function PaymentSection() {
+function DocumentPanel() {
   return (
-    <div className="space-y-6">
-      <FormSection
-        title="Settlement"
-        description="How and from which account this invoice is paid."
-      >
-        <FormField id="p-method" label="Payment method">
-          <SelectField
-            id="p-method"
-            defaultValue="transfer"
-            options={[
-              { value: "transfer", label: "Bank transfer" },
-              { value: "cash", label: "Cash" },
-              { value: "card", label: "Card" },
-            ]}
-          />
-        </FormField>
-        <FormField id="p-account" label="Bank account">
-          <Input id="p-account" defaultValue="27566234 / 0300" />
-        </FormField>
-        <FormField id="p-currency" label="Currency">
-          <SelectField
-            id="p-currency"
-            defaultValue="czk"
-            options={[
-              { value: "czk", label: "CZK" },
-              { value: "eur", label: "EUR" },
-            ]}
-          />
-        </FormField>
-      </FormSection>
-    </div>
-  )
-}
-
-function AttachmentsSection() {
-  const icons = useIcons()
-  return (
-    <div className="space-y-6">
-      <FormSection title="Files" grid="grid-cols-1">
-        <ul className="space-y-2">
-          {ATTACHMENTS.map((file) => {
-            const Icon = icons[file.icon]
-            return (
-              <li
-                key={file.id}
-                className="flex items-center gap-3 rounded-xl bg-card p-3 ring-1 ring-foreground/10"
-              >
-                <span className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
-                  <Icon className="size-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{file.size}</p>
-                </div>
-                <IconButton
-                  icon="Download"
-                  aria-label={`Download ${file.name}`}
-                  tooltip="Download"
-                  tooltipSide="bottom"
+    <Panel
+      title="Document"
+      defaultTab="header"
+      tabs={[
+        {
+          value: "header",
+          label: "Header",
+          content: (
+            <div className={TWO_COL}>
+              <SelectField
+                id="d-type"
+                label="Invoice type"
+                defaultValue="issued"
+                className="sm:col-span-2"
+                options={[
+                  { value: "issued", label: "Issued invoice" },
+                  { value: "advance", label: "Advance" },
+                  { value: "credit", label: "Credit note" },
+                ]}
+              />
+              <TextField
+                id="d-vs"
+                label="Variable symbol"
+                defaultValue="30001"
+              />
+              <DateField
+                id="d-issued"
+                label="Issued"
+                defaultDate={new Date(2026, 5, 12)}
+              />
+              <DateField
+                id="d-due"
+                label="Due"
+                defaultDate={new Date(2026, 5, 26)}
+              />
+              <DateField
+                id="d-taxpoint"
+                label="Tax point"
+                defaultDate={new Date(2026, 5, 12)}
+              />
+              <DateField
+                id="d-posting"
+                label="Posting date"
+                defaultDate={new Date(2026, 5, 12)}
+              />
+              <NativeSelectField
+                id="d-order"
+                label="Order"
+                defaultValue="none"
+                options={[
+                  { value: "none", label: "—" },
+                  { value: "ord-1", label: "ORD-2026-0044" },
+                  { value: "ord-2", label: "ORD-2026-0051" },
+                ]}
+              />
+              <NativeSelectField
+                id="d-payform"
+                label="Payment form"
+                defaultValue="transfer"
+                options={[
+                  { value: "transfer", label: "Bank transfer" },
+                  { value: "cash", label: "Cash" },
+                  { value: "card", label: "Card" },
+                ]}
+              />
+              <ComboboxField
+                id="d-responsible"
+                label="Responsible person"
+                defaultValue="Jana Nováková"
+                options={CONTACTS}
+                className="sm:col-span-2"
+              />
+            </div>
+          ),
+        },
+        {
+          value: "accounting",
+          label: "Accounting",
+          content: (
+            <div className={TWO_COL}>
+              <SelectField
+                id="a-ledger"
+                label="Ledger account"
+                defaultValue="311"
+                options={[
+                  { value: "311", label: "311 — Receivables" },
+                  { value: "604", label: "604 — Goods revenue" },
+                ]}
+              />
+              <SelectField
+                id="a-vat"
+                label="VAT regime"
+                defaultValue="standard"
+                options={[
+                  { value: "standard", label: "Standard" },
+                  { value: "reverse", label: "Reverse charge" },
+                  { value: "exempt", label: "Exempt" },
+                ]}
+              />
+              <NativeSelectField
+                id="a-template"
+                label="Posting template"
+                defaultValue="sales"
+                options={[
+                  { value: "sales", label: "Domestic sales" },
+                  { value: "eu", label: "EU supply" },
+                  { value: "export", label: "Export" },
+                ]}
+              />
+              <AddonField
+                id="a-coef"
+                label="VAT coefficient"
+                defaultValue="100"
+                addon="%"
+              />
+            </div>
+          ),
+        },
+        {
+          value: "other",
+          label: "Other",
+          content: (
+            <div className="grid grid-cols-1 gap-4">
+              <Field>
+                <FieldLabel htmlFor="o-note">Internal note</FieldLabel>
+                <Textarea
+                  id="o-note"
+                  rows={4}
+                  defaultValue="Standing order, delivered on the 12th."
                 />
-              </li>
-            )
-          })}
-        </ul>
-      </FormSection>
-    </div>
+              </Field>
+              <Field>
+                <FieldLabel>Tags</FieldLabel>
+                <TagsField defaultValue={["recurring", "priority"]} />
+              </Field>
+            </div>
+          ),
+        },
+        {
+          value: "payment",
+          label: "Payment details",
+          content: (
+            <div className={TWO_COL}>
+              <SelectField
+                id="p-method"
+                label="Payment method"
+                defaultValue="transfer"
+                options={[
+                  { value: "transfer", label: "Bank transfer" },
+                  { value: "cash", label: "Cash" },
+                  { value: "card", label: "Card" },
+                ]}
+              />
+              <TextField id="p-account" label="Bank account" defaultValue="—" />
+              <TextField
+                id="p-iban"
+                label="IBAN"
+                defaultValue="CZ65 9999 0000 0000 1234 5670"
+                className="sm:col-span-2"
+              />
+              <AddonField
+                id="p-amount"
+                label="Amount paid"
+                defaultValue="0"
+                addon="Kč"
+              />
+              <DateField id="p-date" label="Payment date" />
+            </div>
+          ),
+        },
+      ]}
+    />
   )
 }
 
-/** VAT / totals recap rail — reconciles with the line-items grid. */
-function RecapAside({ base, vat, total }: LedgerTotals) {
+/** Tags editor — a small local-state wrapper around `input-tags`. */
+function TagsField({ defaultValue }: { defaultValue: string[] }) {
+  const [tags, setTags] = React.useState(defaultValue)
   return (
-    <Card className="gap-4 p-4">
-      <div className="space-y-0.5">
-        <p className="font-heading text-base font-medium">{SUPPLIER}</p>
-        <p className="text-sm text-muted-foreground">
-          Supplier · VAT registered
-        </p>
-      </div>
-      <dl className="space-y-2 text-sm">
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">Base</dt>
-          <dd className="tabular-nums">{formatNum(base)} Kč</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">VAT</dt>
-          <dd className="tabular-nums">{formatNum(vat)} Kč</dd>
-        </div>
-        <div className="flex justify-between gap-2 border-t border-border pt-2 font-medium">
-          <dt>Total</dt>
-          <dd className="tabular-nums">{formatNum(total)} Kč</dd>
-        </div>
-      </dl>
-    </Card>
+    <InputTags value={tags} onValueChange={setTags}>
+      <InputTagsList>
+        {tags.map((tag) => (
+          <InputTagsItem key={tag} value={tag}>
+            {tag}
+          </InputTagsItem>
+        ))}
+        <InputTagsInput placeholder="Add tag…" />
+      </InputTagsList>
+    </InputTags>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/* Middle panel — Party                                                       */
+/* -------------------------------------------------------------------------- */
+
+function PartyPanel() {
+  return (
+    <Panel
+      title="Party"
+      defaultTab="company"
+      tabs={[
+        {
+          value: "company",
+          label: "Company",
+          content: (
+            <div className="grid grid-cols-1 gap-4">
+              <ComboboxField
+                id="c-company"
+                label="Company"
+                defaultValue="Acme s.r.o."
+                options={COMPANIES}
+              />
+              <TextField
+                id="c-street"
+                label="Street"
+                defaultValue="Vodičkova 700/32"
+              />
+              <div className="grid grid-cols-[120px_1fr] gap-4">
+                <TextField id="c-zip" label="ZIP" defaultValue="110 00" />
+                <TextField id="c-city" label="City" defaultValue="Praha 1" />
+              </div>
+              <NativeSelectField
+                id="c-country"
+                label="Country"
+                defaultValue="CZ"
+                options={[
+                  { value: "CZ", label: "Czech Republic" },
+                  { value: "SK", label: "Slovakia" },
+                  { value: "DE", label: "Germany" },
+                ]}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <TextField id="c-ico" label="IČO" defaultValue="—" />
+                <TextField id="c-dic" label="DIČ" defaultValue="—" />
+              </div>
+              <Field>
+                <FieldLabel htmlFor="c-desc">Description</FieldLabel>
+                <Textarea
+                  id="c-desc"
+                  rows={3}
+                  placeholder="Notes about this company…"
+                />
+              </Field>
+            </div>
+          ),
+        },
+        {
+          value: "delivery",
+          label: "Delivery",
+          content: (
+            <div className="grid grid-cols-1 gap-4">
+              <TextField
+                id="dl-street"
+                label="Delivery street"
+                defaultValue="Vodičkova 700/32"
+              />
+              <div className="grid grid-cols-[120px_1fr] gap-4">
+                <TextField id="dl-zip" label="ZIP" defaultValue="110 00" />
+                <TextField id="dl-city" label="City" defaultValue="Praha 1" />
+              </div>
+              <NativeSelectField
+                id="dl-carrier"
+                label="Carrier"
+                defaultValue="pickup"
+                options={[
+                  { value: "pickup", label: "Personal pickup" },
+                  { value: "ppl", label: "PPL" },
+                  { value: "dpd", label: "DPD" },
+                ]}
+              />
+              <DateField
+                id="dl-date"
+                label="Delivery date"
+                defaultDate={new Date(2026, 5, 12)}
+              />
+            </div>
+          ),
+        },
+        {
+          value: "overview",
+          label: "Overview",
+          content: (
+            <KeyValue
+              readOnly
+              value={[
+                { id: "balance", key: "Balance", value: "12 480 Kč" },
+                { id: "last", key: "Last invoice", value: "VF3-0044/2026" },
+                { id: "limit", key: "Credit limit", value: "50 000 Kč" },
+              ]}
+            >
+              <KeyValueList>
+                <KeyValueItem>
+                  <KeyValueKeyInput readOnly className="bg-muted/40" />
+                  <KeyValueValueInput readOnly className="bg-muted/40" />
+                </KeyValueItem>
+              </KeyValueList>
+            </KeyValue>
+          ),
+        },
+        {
+          value: "contact",
+          label: "Contact",
+          content: (
+            <div className="grid grid-cols-1 gap-4">
+              <ComboboxField
+                id="ct-person"
+                label="Contact person"
+                defaultValue="Petr Svoboda"
+                options={CONTACTS}
+              />
+              <TextField
+                id="ct-email"
+                label="Email"
+                type="email"
+                defaultValue="petr.svoboda@acme.cz"
+              />
+              <Field>
+                <FieldLabel htmlFor="ct-phone">Phone</FieldLabel>
+                <PhoneInput id="ct-phone" defaultValue="+420776123456" />
+              </Field>
+            </div>
+          ),
+        },
+      ]}
+    />
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Right panel — Amounts                                                      */
+/* -------------------------------------------------------------------------- */
+
+/** The read-only per-rate VAT recap table, derived live from the grid rows. */
+function VatRecapTable({ rows }: { rows: LineRow[] }) {
+  const recap = React.useMemo(() => vatRecap(rows), [rows])
+  const totals = React.useMemo(() => ledgerTotals(rows), [rows])
+  const cell = "text-right tabular-nums"
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="text-muted-foreground">Rate</TableHead>
+          <TableHead className={cn(cell, "text-muted-foreground")}>
+            Base [Kč]
+          </TableHead>
+          <TableHead className={cn(cell, "text-muted-foreground")}>
+            VAT [Kč]
+          </TableHead>
+          <TableHead className={cn(cell, "text-muted-foreground")}>
+            Total incl. VAT [Kč]
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {recap.map((r) => (
+          <TableRow key={r.rate} className="hover:bg-transparent">
+            <TableCell>{r.rate} %</TableCell>
+            <TableCell className={cell}>{formatNum(r.base)}</TableCell>
+            <TableCell className={cell}>{formatNum(r.vat)}</TableCell>
+            <TableCell className={cell}>{formatNum(r.total)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+      <TableFooter className="bg-transparent">
+        <TableRow className="hover:bg-transparent">
+          <TableCell>Σ</TableCell>
+          <TableCell className={cell}>{formatNum(totals.base)}</TableCell>
+          <TableCell className={cell}>{formatNum(totals.vat)}</TableCell>
+          <TableCell className={cell}>{formatNum(totals.total)}</TableCell>
+        </TableRow>
+      </TableFooter>
+    </Table>
+  )
+}
+
+/** A zero VAT recap table (foreign-currency tab: all `0.00` for CZK). */
+function ZeroRecapTable() {
+  const cell = "text-right tabular-nums"
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="text-muted-foreground">Rate</TableHead>
+          <TableHead className={cn(cell, "text-muted-foreground")}>
+            Base [Kč]
+          </TableHead>
+          <TableHead className={cn(cell, "text-muted-foreground")}>
+            VAT [Kč]
+          </TableHead>
+          <TableHead className={cn(cell, "text-muted-foreground")}>
+            Total incl. VAT [Kč]
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {["21", "12", "0"].map((rate) => (
+          <TableRow key={rate} className="hover:bg-transparent">
+            <TableCell>{rate} %</TableCell>
+            <TableCell className={cell}>0.00</TableCell>
+            <TableCell className={cell}>0.00</TableCell>
+            <TableCell className={cell}>0.00</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+      <TableFooter className="bg-transparent">
+        <TableRow className="hover:bg-transparent">
+          <TableCell>Σ</TableCell>
+          <TableCell className={cell}>0.00</TableCell>
+          <TableCell className={cell}>0.00</TableCell>
+          <TableCell className={cell}>0.00</TableCell>
+        </TableRow>
+      </TableFooter>
+    </Table>
+  )
+}
+
+function AmountsPanel({ rows }: { rows: LineRow[] }) {
+  return (
+    <Panel
+      title="Amounts"
+      defaultTab="local"
+      tabs={[
+        {
+          value: "local",
+          label: "Local currency",
+          content: (
+            <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <AddonField
+                  id="am-discount"
+                  label="Discount"
+                  defaultValue="0"
+                  addon="%"
+                />
+                <NativeSelectField
+                  id="am-currency"
+                  label="Currency"
+                  defaultValue="CZK"
+                  options={[
+                    { value: "CZK", label: "CZK" },
+                    { value: "EUR", label: "EUR" },
+                    { value: "USD", label: "USD" },
+                  ]}
+                />
+              </div>
+              <VatRecapTable rows={rows} />
+            </div>
+          ),
+        },
+        {
+          value: "foreign",
+          label: "Foreign currency",
+          content: (
+            <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <TextField
+                  id="am-rate"
+                  label="Exchange rate"
+                  defaultValue="1.00"
+                />
+                <DateField id="am-ratedate" label="Rate date" />
+              </div>
+              <ZeroRecapTable />
+            </div>
+          ),
+        },
+        {
+          value: "intrastat",
+          label: "Intrastat",
+          content: (
+            <div className="grid grid-cols-1 gap-4">
+              <NativeSelectField
+                id="in-type"
+                label="Transaction type"
+                defaultValue="11"
+                options={[
+                  { value: "11", label: "11 — Outright purchase/sale" },
+                  { value: "12", label: "12 — Consignment" },
+                  { value: "31", label: "31 — Processing" },
+                ]}
+              />
+              <AddonField
+                id="in-weight"
+                label="Weight"
+                defaultValue="0"
+                addon="kg"
+              />
+              <AddonField
+                id="in-statvalue"
+                label="Statistical value"
+                defaultValue="0"
+                addon="Kč"
+              />
+            </div>
+          ),
+        },
+      ]}
+    />
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Line items                                                                 */
+/* -------------------------------------------------------------------------- */
+
+let lineSeq = 0
 
 /**
- * The full-width line-items region: a labeled line toolbar above a bounded,
- * scrolling grid. The parent (`RecordWorkspace.lineItems`) gives this a real
- * height, so the grid scrolls inside itself and reads as a usable table.
+ * The full-width line-items region — a labelled line toolbar above the real
+ * editable `data-grid`. The parent owns the rows; New / Duplicate / Delete
+ * mutate that state, and inline editing flows back through `onRowsChange`, so
+ * the VAT recap table + the status bar always reconcile.
  */
-function LineItems() {
+function LineItemsRegion({
+  rows,
+  onRowsChange,
+}: {
+  rows: LineRow[]
+  onRowsChange: (rows: LineRow[]) => void
+}) {
+  const addRow = () => {
+    onRowsChange([
+      ...rows,
+      recomputeLine({
+        id: `new-${(lineSeq += 1)}`,
+        code: "",
+        warehouse: "MAIN",
+        name: "New item",
+        qty: 1,
+        unit: "pc",
+        unitPrice: 0,
+        base: 0,
+        vatRate: "21",
+        total: 0,
+      }),
+    ])
+    toast.success("Line added")
+  }
+  const duplicateLast = () => {
+    const last = rows[rows.length - 1]
+    if (!last) return
+    onRowsChange([...rows, { ...last, id: `new-${(lineSeq += 1)}` }])
+    toast.success("Line duplicated")
+  }
+  const deleteLast = () => {
+    if (rows.length === 0) return
+    onRowsChange(rows.slice(0, -1))
+    toast.success("Line removed")
+  }
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle px-3 py-1.5">
-        <span className="text-xs font-medium text-muted-foreground">
+    <div className="flex flex-col">
+      <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border-subtle px-3 py-1.5">
+        <span className="mr-2 text-xs font-medium text-muted-foreground">
           Line items
         </span>
-        <div className="ml-2 flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => toast.success("Row added")}
-          >
-            + Add row
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => toast.success("Selected rows removed")}
-          >
-            Delete
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => toast.success("Import from Excel…")}
-          >
-            Import
-          </Button>
-        </div>
+        <Button variant="ghost" size="sm" onClick={addRow}>
+          <Plus />
+          New
+        </Button>
+        <Button variant="ghost" size="sm" onClick={duplicateLast}>
+          <Copy />
+          Duplicate
+        </Button>
+        <Button variant="ghost" size="sm" onClick={deleteLast}>
+          <X />
+          Cancel line
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => toast.success("Import from Excel…")}
+        >
+          <Upload />
+          Import from Excel
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => toast.success("Barcode scanner…")}
+        >
+          <ScanLine />
+          Barcode scanner
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => toast.success("Bulk changes…")}
+        >
+          <Pencil />
+          Bulk changes
+        </Button>
       </div>
-      <LineItemsGrid rows={LINE_ITEMS} />
+      <div className="p-3">
+        <LineItemsGrid rows={rows} onRowsChange={onRowsChange} />
+      </div>
     </div>
   )
 }
 
+/* -------------------------------------------------------------------------- */
+/* Single archetype demo                                                      */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Single archetype demo (#425) — an ABRA-style record workspace. Section tabs in
- * the content header swap a dense, grouped form; the "Header" section also shows
- * the full-width line-items grid (our Table machinery) + a VAT recap rail. A
- * ContentToolbar carries the record actions, a ContentStatusBar pins Base / VAT
- * / Total at the bottom, and the document preview stays docked in an
- * always-open inspector panel. A sticky footer holds Save / Close. The
- * `RecordWorkspace` block is generic — other record types simply omit the
- * line-items / aside slots.
+ * Single archetype demo (#425) — an ABRA-style record workspace for an issued
+ * invoice. Three side-by-side panels (Document / Party / Amounts), each with its
+ * OWN local tab strip, sit above a full-width editable line-items grid (no
+ * single top-level content-header tab strip). The right panel's VAT recap table
+ * and the ContentStatusBar totals both derive live from the editable rows.
  */
 export function SingleDemo() {
-  const [view, setView] = React.useState<SingleView>("header")
-
-  // Header extras — the same cluster the Table demo carries: manage-tabs (⋯),
-  // favorite + config, and tab show/hide. `activeView` is the visible-clamped
-  // active tab (hiding the active tab falls back to the first visible one,
-  // derived in render — no effect, no header/body mismatch).
-  const { hidden, toggle, visible, activeValue } = useTabVisibility(
-    SINGLE_TABS,
-    view,
-  )
-  const activeView = (activeValue ?? "header") as SingleView
-
-  const tabs: ContentTab[] = visible.map((t) => ({
-    value: t.value,
-    label: t.label,
-  }))
-
-  const sectionContent =
-    activeView === "header" ? (
-      <HeaderSection />
-    ) : activeView === "accounting" ? (
-      <AccountingSection />
-    ) : activeView === "other" ? (
-      <OtherSection />
-    ) : activeView === "payment" ? (
-      <PaymentSection />
-    ) : (
-      <AttachmentsSection />
-    )
-
-  const showLines = activeView === "header"
-  const showAside = activeView === "header" || activeView === "payment"
-
-  const sectionLabel =
-    SINGLE_TABS.find((t) => t.value === activeView)?.label ?? "Section"
-
-  const totals = React.useMemo(() => ledgerTotals(LINE_ITEMS), [])
+  const [rows, setRows] = React.useState<LineRow[]>(LINE_ITEMS)
+  const totals = React.useMemo(() => ledgerTotals(rows), [rows])
 
   const toolbar = (
     <ContentToolbar
       left={
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium text-foreground">{sectionLabel}</span>
+          <span className="font-medium text-foreground">Editing</span>
           <Badge variant="secondary" className="h-5">
-            Editing
+            Draft
           </Badge>
         </div>
       }
       right={
-        <ButtonGroup>
+        <>
           <IconButton
             icon="Copy"
-            aria-label="Duplicate"
+            aria-label="Duplicate document"
             tooltip="Duplicate"
             tooltipSide="bottom"
             onClick={() => toast.success("Document duplicated")}
@@ -465,10 +980,7 @@ export function SingleDemo() {
             tooltipSide="bottom"
             onClick={() => toast.success("Exporting document…")}
           />
-          <Button size="sm" onClick={() => toast.success("Record saved")}>
-            Save
-          </Button>
-        </ButtonGroup>
+        </>
       }
     />
   )
@@ -499,7 +1011,7 @@ export function SingleDemo() {
       }
       right={
         <span className="text-muted-foreground">
-          {LINE_ITEMS.length} {LINE_ITEMS.length === 1 ? "line" : "lines"}
+          {rows.length} {rows.length === 1 ? "line" : "lines"}
         </span>
       }
     />
@@ -519,32 +1031,47 @@ export function SingleDemo() {
             />
           }
           title={RECORD_NUMBER}
-          tabs={tabs}
-          value={activeView}
-          onValueChange={(value) => setView(value as SingleView)}
-          manageTabs={
-            <ManageTabsMenu
-              tabs={SINGLE_TABS}
-              hidden={hidden}
-              onToggle={toggle}
-            />
-          }
           actions={
             <>
-              <Badge variant="secondary" className="h-5">
-                To match
+              <Badge variant="destructive" className="h-5">
+                Overdue
               </Badge>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => toast("Edit cancelled")}
+                className="h-7"
+                onClick={() => toast("Deliveries")}
               >
-                Cancel
+                Deliveries
               </Button>
-              <Button size="sm" onClick={() => toast.success("Record saved")}>
-                Save
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7"
+                onClick={() => toast("Received orders")}
+              >
+                Received orders
               </Button>
-              <PageHeaderActions />
+              <IconButton
+                icon="ChevronUp"
+                aria-label="Previous record"
+                tooltip="Previous"
+                tooltipSide="bottom"
+                onClick={() => toast("Previous record")}
+              />
+              <IconButton
+                icon="ChevronDown"
+                aria-label="Next record"
+                tooltip="Next"
+                tooltipSide="bottom"
+                onClick={() => toast("Next record")}
+              />
+              <IconButton
+                icon="Settings2"
+                aria-label="Configure"
+                tooltip="Configure"
+                tooltipSide="bottom"
+              />
             </>
           }
         />
@@ -553,32 +1080,50 @@ export function SingleDemo() {
         bodyClassName="flex min-h-0 flex-col p-0"
         toolbar={toolbar}
         statusBar={statusBar}
-        inspector={
-          <DocumentPreview
-            number={RECORD_NUMBER}
-            supplier={SUPPLIER}
-            lines={LINE_ITEMS}
-          />
-        }
-        inspectorOpen
-        inspectorMode="panel"
-        inspectorTitle="Document preview"
       >
         <RecordWorkspace
-          aside={showAside ? <RecapAside {...totals} /> : undefined}
-          lineItems={showLines ? <LineItems /> : undefined}
+          formLayout="panels"
+          lineItems={<LineItemsRegion rows={rows} onRowsChange={setRows} />}
           footer={
             <>
               <Button variant="ghost" size="sm" onClick={() => toast("Closed")}>
                 Close
               </Button>
-              <Button size="sm" onClick={() => toast.success("Record saved")}>
-                Save
-              </Button>
+              <ButtonGroup>
+                <Button size="sm" onClick={() => toast.success("Record saved")}>
+                  Save
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" aria-label="More save options">
+                      <ChevronDown />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => toast.success("Record saved")}
+                    >
+                      Save
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => toast.success("Saved — new record")}
+                    >
+                      Save and new
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => toast.success("Saved and closed")}
+                    >
+                      Save and close
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </ButtonGroup>
             </>
           }
         >
-          {sectionContent}
+          <DocumentPanel />
+          <PartyPanel />
+          <AmountsPanel rows={rows} />
         </RecordWorkspace>
       </ContentPanel>
     </>

@@ -24,6 +24,8 @@ export interface LaunchpadSubpage {
   href?: string
   /** Unread count — surfaces a badge and feeds the page's "unread" rollup. */
   unread?: number
+  /** Followed flag — a starred subpage is hoisted into "Followed" as a Small card. */
+  followed?: boolean
 }
 
 /**
@@ -50,6 +52,12 @@ export interface LaunchpadPage {
   compact?: boolean
   /** Start a subpage card unfolded (Large) rather than the default folded. */
   defaultUnfolded?: boolean
+  /**
+   * Parent page title — set only on a followed SUBPAGE promoted to a Small card
+   * in the Followed group. Renders a `★ {parent} »` breadcrumb before the title
+   * so the small card shows where the subpage lives.
+   */
+  parentTitle?: string
 }
 
 /**
@@ -93,6 +101,46 @@ function isUnread(page: LaunchpadPage): boolean {
   )
 }
 
+/**
+ * The Followed collection: followed top-level pages (foldable ones forced
+ * FOLDED — `defaultUnfolded` stripped) plus followed subpages as Small cards,
+ * de-duped by id. Shared by the "Followed" tab view and the "all" view's
+ * hoisted Followed group so the two never diverge.
+ */
+function collectFollowed(sections: LaunchpadSection[]): LaunchpadPage[] {
+  // Footer sections are utility links rendered as their own dense row, never
+  // hoisted into Followed — so counts, the Followed tab, and the "all" view's
+  // Followed group all read from the same structural set and never diverge.
+  const pages = sections
+    .filter((s) => s.kind !== "footer")
+    .flatMap((s) => s.pages)
+
+  const topLevel = pages
+    .filter((p) => p.followed)
+    .map(({ defaultUnfolded: _drop, ...p }) => p)
+
+  // A followed subpage becomes a Small card carrying its parent's title as a
+  // breadcrumb, so it reads `★ {parent} » {subpage}` in the Followed group.
+  const subs: LaunchpadPage[] = pages.flatMap((parent) =>
+    (parent.subpages ?? [])
+      .filter((sub) => sub.followed)
+      .map((sub) => ({
+        id: sub.id,
+        title: sub.title,
+        href: sub.href,
+        unread: sub.unread,
+        followed: true,
+        compact: true,
+        parentTitle: parent.title,
+      })),
+  )
+
+  const seen = new Set<string>()
+  return [...topLevel, ...subs].filter((p) =>
+    seen.has(p.id) ? false : (seen.add(p.id), true),
+  )
+}
+
 /** Tab counts for the header (`All n · Followed n · Unread n`). */
 export function getLaunchpadCounts(sections: LaunchpadSection[]): {
   all: number
@@ -102,7 +150,7 @@ export function getLaunchpadCounts(sections: LaunchpadSection[]): {
   const pages = sections.flatMap((s) => s.pages)
   return {
     all: pages.length,
-    followed: pages.filter((p) => p.followed).length,
+    followed: collectFollowed(sections).length,
     unread: pages.filter(isUnread).length,
   }
 }
@@ -117,37 +165,47 @@ function UnreadBadge({ count }: { count?: number }) {
   )
 }
 
-/** The follow star — a real toggle, present on every card variant. */
+/** The follow star — a real toggle, usable on any card variant or subpage row.
+ * Takes primitive `id` + `followed` so a subpage (not a full `LaunchpadPage`)
+ * can carry its own star. `alwaysVisible` keeps the star painted even when
+ * unfollowed (used for subpage rows, which have no reveal-on-hover affordance). */
 function FollowStar({
-  page,
+  id,
+  followed,
   onToggleFollow,
   className,
+  alwaysVisible,
 }: {
-  page: LaunchpadPage
+  id: string
+  followed?: boolean
   onToggleFollow?: (pageId: string) => void
   className?: string
+  alwaysVisible?: boolean
 }) {
   return (
     <IconButton
       icon="Star"
-      aria-label={page.followed ? "Unfollow" : "Follow"}
-      tooltip={page.followed ? "Following" : "Follow"}
+      aria-label={followed ? "Unfollow" : "Follow"}
+      tooltip={followed ? "Following" : "Follow"}
       tooltipSide="bottom"
-      onClick={() => onToggleFollow?.(page.id)}
+      onClick={() => onToggleFollow?.(id)}
       className={cn(
-        page.followed
+        followed
           ? "text-primary [&_svg]:fill-current"
-          : "text-muted-foreground opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100",
+          : alwaysVisible
+            ? "text-muted-foreground"
+            : "text-muted-foreground opacity-0 group-focus-within/card:opacity-100 group-hover/card:opacity-100",
         className,
       )}
     />
   )
 }
 
-/** The Standard icon-centered card (1 column). Its `description` is clamped to
- * two lines; the full text shows on hover via a native `title`. `foldButton`
- * is the optional top-right control rendered by a foldable card when folded. */
-function StandardCard({
+/** The inner content of a Standard card — a stretched nav link, the follow star
+ * (+ optional fold button) top-right, a centered icon, the title, and a 2-line
+ * clamped description. Extracted so the Large card's LEFT half renders the
+ * IDENTICAL content (no re-positioning, no re-alignment, no button migration). */
+function StandardInner({
   page,
   Link,
   onToggleFollow,
@@ -163,10 +221,7 @@ function StandardCard({
   const unread = page.unread ?? 0
 
   return (
-    <Card
-      data-slot="launchpad-card"
-      className="group/card relative min-h-36 items-center justify-center gap-2 p-4 text-center transition-colors hover:ring-foreground/20"
-    >
+    <>
       {page.href ? (
         <Link
           href={page.href}
@@ -175,12 +230,15 @@ function StandardCard({
         />
       ) : null}
 
-      <FollowStar
-        page={page}
-        onToggleFollow={onToggleFollow}
-        className="absolute top-1.5 left-1.5 z-10"
-      />
-      {foldButton}
+      {/* Top-right controls: follow star, then the optional expand button. */}
+      <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5">
+        <FollowStar
+          id={page.id}
+          followed={page.followed}
+          onToggleFollow={onToggleFollow}
+        />
+        {foldButton}
+      </div>
 
       {Icon ? (
         <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
@@ -202,13 +260,43 @@ function StandardCard({
           {page.description}
         </p>
       ) : null}
+    </>
+  )
+}
+
+/** The Standard icon-centered card (1 column). `foldButton` is the optional
+ * expand control a foldable card adds beside the star when folded. */
+function StandardCard({
+  page,
+  Link,
+  onToggleFollow,
+  foldButton,
+}: {
+  page: LaunchpadPage
+  Link: React.ElementType
+  onToggleFollow?: (pageId: string) => void
+  foldButton?: React.ReactNode
+}) {
+  return (
+    <Card
+      data-slot="launchpad-card"
+      className="group/card relative min-h-36 items-center justify-center gap-2 p-4 text-center transition-colors hover:ring-foreground/20"
+    >
+      <StandardInner
+        page={page}
+        Link={Link}
+        onToggleFollow={onToggleFollow}
+        foldButton={foldButton}
+      />
     </Card>
   )
 }
 
-/** The Large horizontal card (spans 2 columns) — a subpage card UNFOLDED.
- * Left half = info (icon + title + description), right half = the subpages list
- * rendered inline and visible. Star top-left, fold chevron top-right. */
+/** The Large card (spans 2 columns) — a subpage card UNFOLDED. LEFT half is the
+ * UNCHANGED Standard card content (icon centered, title, description, star
+ * top-right). RIGHT half is the subpages list, which has its own width, with the
+ * `«` collapse control sitting BESIDE it (top-right), not over it. No separator,
+ * no text transform, no button migration. */
 function LargeCard({
   page,
   Link,
@@ -220,71 +308,57 @@ function LargeCard({
   onToggleFollow?: (pageId: string) => void
   onFold: () => void
 }) {
-  const icons = useIcons()
-  const Icon = page.icon ? icons[page.icon] : null
-  const ChevronRight = icons.ChevronRight
-  const unread = page.unread ?? 0
   const subpages = page.subpages ?? []
 
   return (
     <Card
       data-slot="launchpad-card"
-      className="group/card relative min-h-36 flex-row gap-4 p-4 transition-colors hover:ring-foreground/20 @md:col-span-2"
+      className="group/card relative min-h-36 flex-row gap-2 p-0 transition-colors hover:ring-foreground/20 @md:col-span-2"
     >
-      <FollowStar
-        page={page}
-        onToggleFollow={onToggleFollow}
-        className="absolute top-1.5 left-1.5 z-10"
-      />
-      <IconButton
-        icon="ChevronUp"
-        aria-label={`Collapse ${page.title}`}
-        tooltip="Collapse"
-        tooltipSide="bottom"
-        onClick={onFold}
-        className="absolute top-1.5 right-1.5 z-10 text-muted-foreground"
-      />
-
-      {/* Left half — info. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2 pt-6">
-        {Icon ? (
-          <span className="flex size-11 items-center justify-center rounded-xl bg-muted text-foreground">
-            <Icon className="size-6" />
-          </span>
-        ) : null}
-        <div className="flex items-center gap-1.5">
-          {page.href ? (
-            <Link
-              href={page.href}
-              className="font-heading text-sm leading-snug font-medium hover:underline"
-            >
-              {page.title}
-            </Link>
-          ) : (
-            <span className="font-heading text-sm leading-snug font-medium">
-              {page.title}
-            </span>
-          )}
-          {unread > 0 ? <UnreadBadge count={unread} /> : null}
-        </div>
-        {page.description ? (
-          <p className="text-xs text-muted-foreground">{page.description}</p>
-        ) : null}
+      {/* Left half — the identical Standard card content, untouched. */}
+      <div className="relative flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
+        <StandardInner
+          page={page}
+          Link={Link}
+          onToggleFollow={onToggleFollow}
+        />
       </div>
 
-      {/* Right half — subpages, inline and visible. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5 border-l border-border-subtle pt-6 pl-4">
-        {subpages.map((sub) => (
-          <Link
-            key={sub.id}
-            href={sub.href ?? "#"}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
-            <ChevronRight className="size-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{sub.title}</span>
-            <UnreadBadge count={sub.unread} />
-          </Link>
-        ))}
+      {/* Right half — the subpages list (its own width) with the `«` collapse
+          control beside it, top-aligned. Each row: a navigating title link + its
+          own follow star. No leading chevron, no left border. */}
+      <div className="flex flex-1 gap-1 p-4">
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+          {subpages.map((sub) => (
+            <div
+              key={sub.id}
+              className="group/sub flex items-center gap-2 rounded-md px-2 hover:bg-accent"
+            >
+              <Link
+                href={sub.href ?? "#"}
+                className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-sm text-muted-foreground group-hover/sub:text-foreground"
+              >
+                <span className="min-w-0 flex-1 truncate">{sub.title}</span>
+                <UnreadBadge count={sub.unread} />
+              </Link>
+              <FollowStar
+                id={sub.id}
+                followed={sub.followed}
+                onToggleFollow={onToggleFollow}
+                alwaysVisible
+                className="shrink-0"
+              />
+            </div>
+          ))}
+        </div>
+        <IconButton
+          icon="ChevronsLeft"
+          aria-label={`Collapse ${page.title}`}
+          tooltip="Collapse"
+          tooltipSide="bottom"
+          onClick={onFold}
+          className="shrink-0 self-start text-muted-foreground"
+        />
       </div>
     </Card>
   )
@@ -321,20 +395,23 @@ function FoldableCard({
       onToggleFollow={onToggleFollow}
       foldButton={
         <IconButton
-          icon="ChevronDown"
+          icon="ChevronsRight"
           aria-label={`Expand ${page.title}`}
           tooltip="Expand"
           tooltipSide="bottom"
           onClick={() => setUnfolded(true)}
-          className="absolute top-1.5 right-1.5 z-10 text-muted-foreground"
+          className="text-muted-foreground"
         />
       }
     />
   )
 }
 
-/** The Small dense cell (footer / utility) — ~3x shorter than a Standard card,
- * one column wide, tiles inside the same 4-col grid. Has a working star. */
+/** The Small dense cell — a fixed-height horizontal tile. Every Small card is
+ * the SAME height (`h-14`) and `self-start`, so a followed subpage's Small card
+ * in the Followed group matches the footer's Small cards and can sit inline
+ * among Standard cards without stretching to their height. A promoted subpage
+ * shows a muted `★ {parent} »` breadcrumb before its title. */
 function SmallCard({
   page,
   Link,
@@ -346,11 +423,13 @@ function SmallCard({
 }) {
   const icons = useIcons()
   const Icon = page.icon ? icons[page.icon] : null
+  const StarIcon = icons.Star
+  const ChevronsRightIcon = icons.ChevronsRight
 
   return (
     <Card
       data-slot="launchpad-card"
-      className="group/card relative flex-row items-center gap-2.5 p-2.5 transition-colors hover:ring-foreground/20"
+      className="group/card relative h-14 flex-row items-center gap-2.5 self-start p-2.5 transition-colors hover:ring-foreground/20"
     >
       {page.href ? (
         <Link
@@ -365,11 +444,21 @@ function SmallCard({
           <Icon className="size-4" />
         </span>
       ) : null}
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-        {page.title}
-      </span>
+      <div className="flex min-w-0 flex-1 items-center gap-1 truncate">
+        {page.parentTitle ? (
+          <span className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
+            <StarIcon className="size-3.5" />
+            <span className="max-w-24 truncate">{page.parentTitle}</span>
+            <ChevronsRightIcon className="size-3.5" />
+          </span>
+        ) : null}
+        <span className="min-w-0 truncate text-sm font-medium">
+          {page.title}
+        </span>
+      </div>
       <FollowStar
-        page={page}
+        id={page.id}
+        followed={page.followed}
         onToggleFollow={onToggleFollow}
         className="relative z-10 shrink-0"
       />
@@ -435,9 +524,9 @@ export function LaunchpadGrid({
   const Link = linkComponent ?? "a"
   const allPages = sections.flatMap((s) => s.pages)
 
-  // Followed view — every starred page, flat.
+  // Followed view — every starred page + starred subpage, flat.
   if (view === "followed") {
-    const followed = allPages.filter((p) => p.followed)
+    const followed = collectFollowed(sections)
     return (
       <Grid className={className}>
         {followed.length > 0 ? (
@@ -486,19 +575,26 @@ export function LaunchpadGrid({
   // All view — a synthetic "Followed" group first (hoisted from the structural
   // sections), then the structural sections in order, then footer last.
   const isStructural = (s: LaunchpadSection) => s.kind !== "footer"
-  const followedLoose = sections
-    .filter(isStructural)
-    .flatMap((s) => s.pages)
-    .filter((p) => p.followed)
-  const followedIds = new Set(followedLoose.map((p) => p.id))
+
+  // The Followed group = followed top-level pages (folded) + followed subpages
+  // (Small cards), de-duped. Only followed TOP-LEVEL pages are removed from
+  // their structural group — a followed subpage's parent stays put.
+  const followedPages = collectFollowed(sections.filter(isStructural))
+  const followedIds = new Set(
+    sections
+      .filter(isStructural)
+      .flatMap((s) => s.pages)
+      .filter((p) => p.followed)
+      .map((p) => p.id),
+  )
 
   const renderSections: RenderSection[] = []
 
-  if (followedLoose.length > 0) {
+  if (followedPages.length > 0) {
     renderSections.push({
       id: "__followed__",
       label: "Followed",
-      pages: followedLoose,
+      pages: followedPages,
     })
   }
 

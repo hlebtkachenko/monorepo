@@ -24,7 +24,7 @@ const SLUG = "__slug__"
 // Routes that intentionally exist without a nav entry (deep detail pages, the
 // saved content-panel demo, etc.).
 const HIDDEN_ROUTES = new Set<string>([
-  "demo",
+  "demo-table",
   "demo-launchpad",
   "demo-dashboard",
   "demo-single",

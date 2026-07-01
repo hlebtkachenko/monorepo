@@ -88,7 +88,15 @@ export const BASE_SECTIONS: LaunchpadSection[] = [
         // Start unfolded so the demo shows the Large card with inline subpages.
         defaultUnfolded: true,
         subpages: [
-          { id: "gl", title: "General ledger", href: "#", unread: 2 },
+          // Pre-followed so the demo shows a followed subpage hoisted into the
+          // "Followed" group as a Small card, while Journals stays in place.
+          {
+            id: "gl",
+            title: "General ledger",
+            href: "#",
+            unread: 2,
+            followed: true,
+          },
           { id: "vat", title: "VAT ledger", href: "#" },
         ],
       },

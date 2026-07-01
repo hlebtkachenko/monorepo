@@ -313,18 +313,24 @@ export interface DashboardChart extends Pick<
 
 /**
  * The "Line"/table view of the same aggregation: a financial-statement matrix
- * with metrics as ROWS and time buckets as COLUMNS. `numeric` rows render
- * right-aligned CZK; `count` rows render plain integers.
+ * with metrics as ROWS and time buckets as COLUMNS. Numeric rows render
+ * right-aligned CZK; the count row renders plain integers. Rows are
+ * hierarchical — Revenue/Expenses carry per-category `children` that expand in
+ * the interactive matrix. Structurally matches the block's `DashboardMatrixData`.
  */
+interface DashboardMatrixRow {
+  label: string
+  /** Pre-formatted cell per column (CZK or integer count). */
+  cells: string[]
+  /** Pre-formatted row total. */
+  total: string
+  /** Optional per-category breakdown rows (e.g. Revenue → Sales, Services). */
+  children?: DashboardMatrixRow[]
+}
+
 export interface DashboardMatrix {
   columns: string[]
-  rows: {
-    label: string
-    /** Pre-formatted cell per column (CZK or integer count). */
-    cells: string[]
-    /** Pre-formatted row total. */
-    total: string
-  }[]
+  rows: DashboardMatrixRow[]
 }
 
 /**
@@ -471,20 +477,53 @@ export function aggregate(
 
   // The matrix (Line view) mirrors the metric scope: same rows the tiles show,
   // but expanded per bucket. Numeric rows are CZK; the count row is integers.
-  const numericRow = (label: string, series: number[]) => ({
+  const numericRow = (
+    label: string,
+    series: number[],
+    children?: DashboardMatrixRow[],
+  ): DashboardMatrixRow => ({
     label,
     cells: buckets.map((_, i) => fmtCZK(series[i] ?? 0)),
     total: fmtCZK(sum(series)),
+    ...(children && children.length > 0 ? { children } : {}),
   })
-  const countRow = (label: string, series: number[]) => ({
+  const countRow = (label: string, series: number[]): DashboardMatrixRow => ({
     label,
     cells: buckets.map((_, i) => String(series[i] ?? 0)),
     total: String(rows.length),
   })
 
+  // Per-category child rows for a transaction type. Categories present in the
+  // (filtered) ledger become the breakdown; each child's cells sum to the
+  // parent's — the aggregate is unchanged, just expandable.
+  const categoryChildren = (type: Transaction["type"]): DashboardMatrixRow[] =>
+    Array.from(
+      new Set(rows.filter((t) => t.type === type).map((t) => t.category)),
+    )
+      .sort((a, b) => a.localeCompare(b))
+      .map((category) =>
+        numericRow(
+          category,
+          buckets.map((b) =>
+            rows
+              .filter(
+                (t) =>
+                  t.type === type &&
+                  t.category === category &&
+                  bucketOf(t.date, g) === b,
+              )
+              .reduce((s, t) => s + t.amount, 0),
+          ),
+        ),
+      )
+
   const allRows = {
-    revenue: numericRow("Revenue", revenueSeries),
-    expenses: numericRow("Expenses", expenseSeries),
+    revenue: numericRow("Revenue", revenueSeries, categoryChildren("income")),
+    expenses: numericRow(
+      "Expenses",
+      expenseSeries,
+      categoryChildren("expense"),
+    ),
     result: numericRow("Result", resultSeries),
     transactions: countRow("Transactions", countSeries),
   }

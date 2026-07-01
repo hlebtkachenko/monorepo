@@ -9,7 +9,14 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 import { ContentPanel } from "./content-panel"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentToolbar } from "./content-toolbar"
+import {
+  DashboardChartCard,
+  DashboardGrid,
+  type MetricTileProps,
+} from "./dashboard-grid"
 import { DetailField } from "./detail-field"
+import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
+import { RecordWorkspace } from "./record-workspace"
 
 /**
  * `ContentPanel` is the single frame for every content-panel body. It owns the
@@ -24,13 +31,16 @@ import { DetailField } from "./detail-field"
  *   - **Table**      — toolbar + body + status bar (+ inspector / action bar).
  *                      The dense list page. The wired demo lives in the web app.
  *   - **Blank**      — just a body on the layout, no chrome. The zero-slot case.
- *   - **Launchpad**  — a folder / overview page (cards → subpages). Empty stub.
- *   - **Dashboard**  — analytics widgets + charts. Empty stub.
- *   - **Single**     — one record on show (a document, a profile). Empty stub.
+ *   - **Launchpad**  — a folder / overview page (cards → subpages). Prototype
+ *                      block: `LaunchpadGrid`.
+ *   - **Dashboard**  — analytics widgets + charts. Prototype block:
+ *                      `DashboardGrid` (+ `DashboardChartCard`).
+ *   - **Single**     — one record on show (a document, a profile). Prototype
+ *                      block: `RecordWorkspace`.
  *
- * Copy the `Table` story's wiring to scaffold a real list page; the three stub
- * archetypes render a labelled placeholder body until a real page earns them
- * their own composition.
+ * Copy the `Table` story's wiring to scaffold a real list page; the other three
+ * archetypes are rough prototype blocks (#425) — presentational, mock-data
+ * bodies you drop into `children` and refine when a real page earns it.
  */
 const meta: Meta<typeof ContentPanel> = {
   title: "Blocks/App Content/ContentPanel",
@@ -86,18 +96,6 @@ function DemoTable() {
         ))}
       </tbody>
     </table>
-  )
-}
-
-/** A centred labelled placeholder for the not-yet-built body archetypes. */
-function Placeholder({ label, hint }: { label: string; hint: string }) {
-  return (
-    <div className="grid h-full place-items-center p-6 text-center">
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </div>
-    </div>
   )
 }
 
@@ -228,45 +226,220 @@ export const Blank: Story = {
   ),
 }
 
-// ── Variant: Launchpad (stub) ────────────────────────────────────────────────
-// A folder / overview page: a grid of cards linking to subpages or summaries.
-// Not built yet — placeholder until a real folder page earns it a composition.
+// ── Variant: Launchpad (prototype) ───────────────────────────────────────────
+// A folder / overview hub that lays out a page's navigation structure (single,
+// grouped + subpages, footer) as cards in a strict 4-column grid. Followed pages
+// hoist to a "Followed" group first; the header view tabs (All / Followed /
+// Unread) filter the body. Data-driven via `sections` + `view`.
+
+const LAUNCHPAD_SECTIONS: LaunchpadSection[] = [
+  {
+    id: "quick",
+    kind: "single",
+    pages: [
+      {
+        id: "invoices",
+        title: "Invoices",
+        description: "Received and issued documents.",
+        icon: "FileText",
+        href: "#",
+        unread: 4,
+      },
+      {
+        id: "bank",
+        title: "Bank",
+        description: "Accounts, statements, matching.",
+        icon: "Banknote",
+        href: "#",
+      },
+    ],
+  },
+  {
+    id: "single",
+    kind: "single",
+    pages: [
+      {
+        id: "counterparties",
+        title: "Counterparties",
+        description: "Customers and suppliers.",
+        icon: "Users",
+        href: "#",
+        followed: true,
+      },
+      {
+        id: "reports",
+        title: "Reports",
+        description: "VAT, balance, income statement.",
+        icon: "BarChart3",
+        href: "#",
+        unread: 1,
+      },
+    ],
+  },
+  {
+    id: "accounting",
+    kind: "group",
+    label: "Accounting",
+    pages: [
+      {
+        id: "journals",
+        title: "Journals",
+        description: "Posted entries by book.",
+        icon: "BookOpen",
+        href: "#",
+        subpages: [
+          { id: "gl", title: "General ledger", href: "#", unread: 2 },
+          { id: "vat", title: "VAT ledger", href: "#" },
+        ],
+      },
+      {
+        id: "documents",
+        title: "Documents",
+        description: "Contracts and attachments.",
+        icon: "FolderOpen",
+        href: "#",
+        subpages: [
+          { id: "contracts", title: "Contracts", href: "#" },
+          { id: "attachments", title: "Attachments", href: "#", unread: 5 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "footer",
+    kind: "footer",
+    label: "More",
+    pages: [
+      { id: "settings", title: "Settings", icon: "Building2", href: "#" },
+      { id: "help", title: "Help", icon: "Bell", href: "#" },
+    ],
+  },
+]
 
 export const Launchpad: Story = {
   render: () => (
     <ContentPanel>
-      <Placeholder
-        label="Launchpad"
-        hint="Folder / overview — a grid of cards to subpages. Coming soon."
-      />
+      <LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="all" />
     </ContentPanel>
   ),
 }
 
-// ── Variant: Dashboard (stub) ────────────────────────────────────────────────
-// Analytics: metric tiles, charts, period controls. Not built yet.
+// The "Followed" view tab — only starred pages, flat.
+export const LaunchpadFollowed: Story = {
+  render: () => (
+    <ContentPanel>
+      <LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="followed" />
+    </ContentPanel>
+  ),
+}
+
+// The "Unread" view tab — pages (and subpages) with unread activity.
+export const LaunchpadUnread: Story = {
+  render: () => (
+    <ContentPanel>
+      <LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="unread" />
+    </ContentPanel>
+  ),
+}
+
+// ── Variant: Dashboard (prototype) ───────────────────────────────────────────
+// Analytics: KPI tiles (each with a sparkline) + chart cards. The prototype
+// `DashboardGrid` block fills the body; period / scope controls live in the
+// `ContentToolbar` above it (see the web demo), not in the body.
+
+const DASHBOARD_METRICS: MetricTileProps[] = [
+  {
+    label: "Revenue",
+    value: "1 240 800 Kč",
+    delta: { label: "8.2%", direction: "up" },
+    series: [82, 90, 88, 102, 115, 124],
+  },
+  {
+    label: "Expenses",
+    value: "812 440 Kč",
+    delta: { label: "3.1%", direction: "down" },
+    series: [70, 74, 72, 80, 78, 81],
+  },
+  {
+    label: "Open invoices",
+    value: "23",
+    delta: { label: "0%", direction: "flat" },
+    series: [21, 24, 22, 25, 23, 23],
+  },
+  {
+    label: "Cash",
+    value: "428 300 Kč",
+    delta: { label: "1.4%", direction: "up" },
+    series: [30, 33, 36, 40, 44, 47],
+  },
+]
+
+const DASHBOARD_CHART_DATA = [
+  { month: "Jan", revenue: 82, expenses: 70 },
+  { month: "Feb", revenue: 90, expenses: 74 },
+  { month: "Mar", revenue: 88, expenses: 72 },
+  { month: "Apr", revenue: 102, expenses: 80 },
+  { month: "May", revenue: 115, expenses: 78 },
+  { month: "Jun", revenue: 124, expenses: 81 },
+]
 
 export const Dashboard: Story = {
   render: () => (
     <ContentPanel>
-      <Placeholder
-        label="Dashboard"
-        hint="Analytics, charts and metric tiles. Coming soon."
-      />
+      <DashboardGrid metrics={DASHBOARD_METRICS}>
+        <DashboardChartCard
+          title="Revenue vs. expenses"
+          span={2}
+          chartType="bar"
+          xKey="month"
+          data={DASHBOARD_CHART_DATA}
+          chartConfig={{
+            revenue: { label: "Revenue", color: "var(--chart-2)" },
+            expenses: { label: "Expenses", color: "var(--chart-1)" },
+          }}
+        />
+        <DashboardChartCard title="Top counterparties" />
+      </DashboardGrid>
     </ContentPanel>
   ),
 }
 
-// ── Variant: Single (stub) ───────────────────────────────────────────────────
-// One record on show: a document, a profile, a settings object. Not built yet.
+// ── Variant: Single (prototype) ──────────────────────────────────────────────
+// One record on show as a workspace: a form section, an optional recap rail, and
+// a sticky footer. The `RecordWorkspace` block lays out the body; on a real page
+// the section tabs live in the content header and an optional line-items grid +
+// document preview fill the remaining slots.
 
 export const Single: Story = {
   render: () => (
-    <ContentPanel>
-      <Placeholder
-        label="Single"
-        hint="One record on show (a document, a profile). Coming soon."
-      />
+    <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
+      <RecordWorkspace
+        aside={
+          <dl className="flex flex-col gap-3">
+            <DetailField label="Supplier" value="ČEZ, a.s." />
+            <DetailField
+              label="Total"
+              value={<span className="tabular-nums">12 480 Kč</span>}
+            />
+            <DetailField label="Status" value="To match" />
+          </dl>
+        }
+        footer={
+          <>
+            <Button variant="ghost" size="sm">
+              Close
+            </Button>
+            <Button size="sm">Save</Button>
+          </>
+        }
+      >
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <DetailField label="Number" value="FV-2026-0001" />
+          <DetailField label="Type" value="Received invoice" />
+          <DetailField label="Issued" value="12.06.2026" />
+          <DetailField label="Due" value="26.06.2026" />
+        </dl>
+      </RecordWorkspace>
     </ContentPanel>
   ),
 }

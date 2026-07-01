@@ -44,7 +44,7 @@ import { INVOICE_STATUS_OPTIONS, type InvoiceRow } from "./data"
 
 const ADD_TYPES = ["Tax document", "Advance", "Credit note", "Settlement"]
 
-export interface ContentDemoToolbarProps {
+export interface TableDemoToolbarProps {
   table: Table<InvoiceRow>
   /** FilterBar wiring (document / partner / amount / vat / date). */
   filterColumns: FilterColumn<InvoiceRow>[]
@@ -72,7 +72,7 @@ export interface ContentDemoToolbarProps {
  * grid headers). Right: Columns, Sort, a split "Add invoice" button, and the
  * Inspector view switch (rightmost).
  */
-export function ContentDemoToolbar({
+export function TableDemoToolbar({
   table,
   filterColumns,
   filters,
@@ -88,7 +88,7 @@ export function ContentDemoToolbar({
   onSearchChange,
   inspectorMode,
   onInspectorModeChange,
-}: ContentDemoToolbarProps) {
+}: TableDemoToolbarProps) {
   const icons = useIcons()
   const PlusIcon = icons.Plus
   const ChevronIcon = icons.ChevronDown

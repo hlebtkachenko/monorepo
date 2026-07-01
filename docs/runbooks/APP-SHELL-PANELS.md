@@ -211,25 +211,29 @@ so a "variant" is just which slots a page fills — not a different component. F
 named archetypes cover every page; pick one when scaffolding. Live examples:
 `packages/ui/src/blocks/app-content/content-panel.stories.tsx` (one story each).
 
-| Variant       | Slots filled                                                | Use for                                                          |
-| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today. |
-| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.       |
-| **Launchpad** | body only (stub)                                            | Folder / overview pages — a grid of cards to subpages. _Empty._  |
-| **Dashboard** | body only (stub)                                            | Analytics — metric tiles, charts, period controls. _Empty._      |
-| **Single**    | body only (stub)                                            | One record on show (a document, a profile). _Empty._             |
+| Variant       | Slots filled                                                | Use for                                                                                                                |
+| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today.                                                       |
+| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.                                                             |
+| **Launchpad** | body only (`LaunchpadGrid`)                                 | Folder / overview pages — a grid of cards to subpages. Demo: `/demo-launchpad`.                                        |
+| **Dashboard** | body only (`DashboardGrid` + `DashboardChartCard`)          | Analytics — KPI tiles, chart cards, period control, a selectable matrix. Demo: `/demo-dashboard`.                      |
+| **Single**    | body only (`RecordWorkspace`)                               | One record on show — side-by-side form panels + an editable line-items grid + live totals. Demo: `/demo-single`.       |
 
 **Scaffolding a Table page** (the common case): mount `ContentPanel` with a
 `ContentToolbar` in `toolbar`, the body in `children` (`bodyClassName="p-0"` so a
 table fills edge-to-edge), and a status bar in `statusBar`. Add `inspector*` for a
 detail view and `actionBar` for bulk selection. Copy the `Table` story's wiring.
 
-**Promotion rule:** Launchpad / Dashboard / Single are documented placeholders, not
-shipped components — growing into `children` is correct for now. Promote one to a
-real `<ContentPanel>`-composing component **only** when a real page proves it needs
-shared body machinery the frame shouldn't own (e.g. a launchpad card-grid with its
-own selection model). Don't pre-build the empty ones; don't add a `variant` prop
-(it would only duplicate `bodyClassName` and bake in undesigned layouts).
+**Archetype blocks (#425):** Launchpad / Dashboard / Single ship as
+data-driven blocks in `packages/ui/src/blocks/app-content` (`LaunchpadGrid`,
+`DashboardGrid` + `MetricTile` + `DashboardChartCard`, `RecordWorkspace`). They
+take data via props and drop straight into a `ContentPanel`'s `children`;
+mock-data examples are the matching stories in `content-panel.stories.tsx` and
+the dev-only demo routes. **The full catalog — data contracts, layouts, and a
+"pick one and build a page" recipe — lives in
+[`docs/specs/CONTENT-ARCHETYPES.md`](../specs/CONTENT-ARCHETYPES.md).**
+`ContentPanel` itself stays one frame with **no `variant` prop** — a "variant"
+is still just which slots a page fills.
 
 ### Reuse — do NOT reinvent these
 
@@ -284,7 +288,7 @@ in the shell's header while staying in your page's React tree (so it keeps your
 state/context). When the header and body share state (active tab, filter
 visibility), wrap **your page subtree** — not `AppShell` — in a small context
 provider; the Faktury demo does this in
-`apps/web/app/_components/content-demo/context.tsx`. Full steps:
+`apps/web/app/_components/table-demo/context.tsx`. Full steps:
 [recipe C](#c-custom-content-header-tabs).
 
 ---
@@ -359,7 +363,7 @@ its own tabs or actions in the content-panel header, render `<OrgPageHeader>` in
 the page body; it portals into the shell's header slot (and stays in your page's
 tree, so it keeps your state). If tabs drive the body, wrap **your page subtree**
 — not `AppShell` — in a small context provider. Copy the live example:
-`apps/web/app/[orgSlug]/demo/page.tsx` + `apps/web/app/_components/content-demo/`.
+`apps/web/app/[orgSlug]/demo-table/page.tsx` + `apps/web/app/_components/table-demo/`.
 
 ### Verify
 
@@ -379,8 +383,8 @@ Tracked in GitHub issue
 - **Sidebar**: reminders + insight are "on-call" (self-hide until a server source
   feeds them) — wire the real sources; swap nav `<a>` → Next `<Link>` when the
   blocks move to real navigation.
-- **Content panel**: the `/demo` route
-  (`apps/web/app/_components/content-demo`) is a saved, dev-only preview of the
+- **Content panel**: the `/demo-table` route
+  (`apps/web/app/_components/table-demo`) is a saved, dev-only preview of the
   Table archetype — a reference to copy, not a shipped page. Tab reorder in the
   manage-tabs menu is not built (show/hide + add only).
 - **Header switchers** (`org-switcher.tsx` / `period-switcher.tsx`): org

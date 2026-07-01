@@ -35,7 +35,7 @@ import { formatMoney, type InvoiceRow } from "./data"
 const PAGE_SIZE_OPTIONS = [10, 20, 50]
 const EXPORT_FORMATS = ["CSV", "PDF", "XLSX"]
 
-export interface ContentDemoStatusBarProps {
+export interface TableDemoStatusBarProps {
   table: Table<InvoiceRow>
   /** Count of currently visible (filtered) rows. */
   visibleCount: number
@@ -58,14 +58,14 @@ export interface ContentDemoStatusBarProps {
  * While mounted it publishes `--app-statusbar-clearance` so the floating
  * ActionBar and Sonner toasts both clear the bar instead of overlapping it.
  */
-export function ContentDemoStatusBar({
+export function TableDemoStatusBar({
   table,
   visibleCount,
   total,
   isFiltered,
   onReload,
   onExport,
-}: ContentDemoStatusBarProps) {
+}: TableDemoStatusBarProps) {
   const icons = useIcons()
   const FirstIcon = icons.ChevronsLeft
   const PrevIcon = icons.ChevronLeft
@@ -98,7 +98,7 @@ export function ContentDemoStatusBar({
   return (
     <TooltipProvider delayDuration={200}>
       <div
-        data-slot="content-demo-status-bar"
+        data-slot="table-demo-status-bar"
         className="flex h-9 shrink-0 items-center gap-4 border-t border-border-subtle px-2 text-xs text-muted-foreground"
       >
         {/* Pagination — position, navigation, then the page-size dropdown. */}

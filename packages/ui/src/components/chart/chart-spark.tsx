@@ -21,6 +21,12 @@ const SPARK_COLORS = [
   "var(--chart-5)",
 ] as const
 
+// A hairline of vertical breathing room. With a zero top/bottom margin the
+// highest peak / lowest trough is drawn on the SVG's very edge, so half the
+// stroke (and any solid-area fill top) lands outside the plot box and gets
+// clipped. A few pixels of inset keeps every peak + trough fully inside.
+const SPARK_MARGIN = { top: 3, right: 0, bottom: 3, left: 0 } as const
+
 export interface ChartSparkAreaProps extends React.ComponentProps<"div"> {
   data: Record<string, unknown>[]
   index: string
@@ -59,10 +65,7 @@ function ChartSparkArea({
       {...props}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={data}
-          margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-        >
+        <AreaChart data={data} margin={SPARK_MARGIN}>
           <YAxis domain={[minValue ?? "auto", maxValue ?? "auto"]} hide />
           {categories.map((cat, i) => {
             const color = resolvedColors[i % resolvedColors.length]
@@ -140,10 +143,7 @@ function ChartSparkLine({
       {...props}
     >
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={data}
-          margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-        >
+        <LineChart data={data} margin={SPARK_MARGIN}>
           <YAxis domain={[minValue ?? "auto", maxValue ?? "auto"]} hide />
           {categories.map((cat, i) => {
             const color = resolvedColors[i % resolvedColors.length]
@@ -201,7 +201,7 @@ function ChartSparkBar({
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
-          margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+          margin={SPARK_MARGIN}
           barCategoryGap={barCategoryGap}
         >
           <YAxis domain={[minValue ?? "auto", maxValue ?? "auto"]} hide />

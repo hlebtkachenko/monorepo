@@ -23,7 +23,12 @@ import { MODULE_NAV, orgRailNav } from "../apps/web/app/[orgSlug]/_nav/org-nav"
 const SLUG = "__slug__"
 // Routes that intentionally exist without a nav entry (deep detail pages, the
 // saved content-panel demo, etc.).
-const HIDDEN_ROUTES = new Set<string>(["demo"])
+const HIDDEN_ROUTES = new Set<string>([
+  "demo-table",
+  "demo-launchpad",
+  "demo-dashboard",
+  "demo-single",
+])
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ORG_DIR = join(here, "..", "apps", "web", "app", "[orgSlug]")

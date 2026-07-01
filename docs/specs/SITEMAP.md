@@ -129,7 +129,11 @@ Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 > **Overview = the org digest** (content, not new pages): an **obligations mini-cockpit**
 > (next deadlines across VAT / payroll / income-tax / close — a **read-only digest**;
 > the actionable cockpit is Closing, deep-linked), the org-level **agent-activity feed**,
-> and an **anomalies pin** (the agent's flagged variance/exceptions for this org). The
+> an **anomalies pin** (the agent's flagged variance/exceptions for this org), and — for a
+> **neplátce** org — a **rolling-12mo turnover gauge** with a VAT-registration-threshold alert
+> (§6 ZDPH **2,000,000 CZK/yr** → mandatory _plátce_; §6c _identifikovaná osoba_ → _plátce_ at
+> **2,536,500 CZK** rolling-12m). This is the **only proactive obligation a neplátce has** — every
+> Closing VAT lane is gated off for them, so the watcher's home is here, not Closing. The
 > cross-client versions live in `/workspace`.
 
 #### Accounting (`/accounting`) — the books (regime-aware) — REVIEWED
@@ -146,6 +150,11 @@ Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 - **VAT** _(gated on vat_status — plátce / IO only)_
   - **VAT ledger** — 343 evidence; subpages: **Input VAT** (odpočet) · **Output VAT** (daň na výstupu) · **Reverse charge** (přenesená daňová povinnost §92a–92h — supplier A1 / buyer B1) · **Breakdown** (by rate / section — maps to control-statement sections A1–A5 / B1–B3, §101c–101j) · **Supporting documents** (podklady DPH — the source-document evidence backing the VAT return)
 - _Number series → Settings (org-general, spans all entity types). DPH filings → Closing._
+
+> **Margin schemes (§89 travel service / §90 second-hand · art · collectors)** post VAT on the
+> **margin only** (no tax itemised on the doklad) — so they change posting, not just reporting.
+> Modelled as a **VAT-scheme flag on the doc type** + a **margin rate-mode** in the VAT ledger
+> Breakdown. **V2-DEFERRED — declared, not built** (niche: travel agencies / used-goods & art dealers).
 
 #### Records (`/documents`) — all documents, "what's on paper" — REVIEWED
 
@@ -227,6 +236,7 @@ file — AI-denied). No competitor unifies this.
   - **VAT** _(vat_status-gated)_ — subpages: VAT return (DAP) · Control statement (kontrolní hlášení) · EC Sales List (souhrnné hlášení) · OSS · IOSS
   - **Payroll** _(has_employees-gated)_ — subpages: Monthly employer report (JMHZ) · Social insurance · Health insurance · Withholding tax
   - **Income tax** — subpages: Corporation tax (DPPO) · Personal income tax (DPFO) · Advances
+  - **Intrastat** _(activity-gated: intra-EU goods trade ≥ 15M CZK/flow/yr — statistical, no tax)_ — subpages: Dispatches (odeslání) · Arrivals (přijetí)
   - **Year-end** — subpages: Accruals · Provisions · Value adjustments · Deferred tax · Statements · Publication · Year close
 - **Archive** — filed periods + výstupy (submitted DAP/KH/SH, závěrka, protocols/confirmations)
 
@@ -245,6 +255,7 @@ layer (`period_output`) is V2-DEFERRED.**
 - **VAT** — DAP (monthly/quarterly; monthly mandatory if prior-year turnover ≥ 10M or first 12 months as payer, §99–99b) · **KH (always monthly, even if quarterly payer)** · SH · OSS (quarterly, EUR) · IOSS (monthly, EUR) · opravy odpočtené daně
 - **Payroll** — **Vyúčtování daně ze závislé činnosti** (annual employer income-tax reconciliation to FÚ, 1 Mar, §38j) · **Vyúčtování srážkové daně** · JMHZ (2026 unified, 20th — confidence-flagged superset lane, §G1) + the verified legacy SP / ZP / withholding přehledy (which MUST stay)
 - **Income tax** — DPPO / DPFO (deadlines 1 Apr / 1 May / 1 Jul) + **advances (zálohy)**
+- **Intrastat** _(activity-gated, statistical — NOT a tax)_ — monthly declaration to **ČSÚ** via the **INTRASTAT-CZ portal** (Celní správa IT); Dispatches (odeslání) + Arrivals (přijetí) reported separately once **either flow crosses 15M CZK/yr**; due the **12th working day** after month-end; files to Directory › Institutions › **Customs**, feeds the cockpit board. Legal basis: §58 Act 242/2016 + NV 333/2021 (am. 442/2023) + Act 89/1995 (statistics), EU Reg 2019/2152. **Distinct from Souhrnné hlášení** (SH = tax evidence, 25th; Intrastat = physical goods movement incl. own-stock transfers / call-off)
 - **Year-end** — opening balances · **časové rozlišení (38x)** (accruals/deferrals) + **dohadné účty (388/389)** (estimated items — explicit year-end step) · provisions (rezervy) · value adjustments (opravné položky) · FX revaluation _[no FX in MVP]_ · inventarizace (register in Assets) · deferred tax _(audit-required entities, §59 Decree 500/2002 — proxied by size MEDIUM/LARGE)_ · **závěrkové předkontace** (closing entries — distinct step before statements) · závěrka statements (rendered from Reports, frozen at confirm) · **approval (valná hromada, 30 Jun)** · audit (before publication) · zpráva o vztazích (koncern) · publication (sbírka listin) · **year close + period lock** (uzavření roku / **datová uzávěrka** — append-only enforcement: locked period is immutable, post-lock corrections only via a new opravná položka/storno posting)
 - **OSVČ** — annual SP / ZP přehledy (~2 May) _(person_type = NATURAL, off on paušál)_
 

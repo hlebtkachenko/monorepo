@@ -106,6 +106,27 @@ export function closingNav(base: string): SidebarNavEntry[] {
           ],
         },
         {
+          // Statistical declaration (ČSÚ, via the Celní správa INTRASTAT-CZ
+          // portal) — NOT a tax. Activity-gated: intra-EU goods trade ≥ 15M CZK
+          // per flow/yr (§58 Act 242/2016 + NV 333/2021, EU Reg 2019/2152).
+          label: "Intrastat",
+          href: `${base}/intrastat`,
+          icon: "Globe",
+          tba: true,
+          subpages: [
+            {
+              label: "Dispatches",
+              href: `${base}/intrastat/dispatches`,
+              tba: true,
+            },
+            {
+              label: "Arrivals",
+              href: `${base}/intrastat/arrivals`,
+              tba: true,
+            },
+          ],
+        },
+        {
           label: "Year-end",
           href: `${base}/year-end`,
           icon: "Archive",

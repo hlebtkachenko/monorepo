@@ -24,6 +24,14 @@ import {
   ServiceStatusSchema,
   StatusResponseSchema,
 } from "./status"
+import {
+  ArchetypeSchema,
+  GetStructureResponseSchema,
+  ListArchetypesResponseSchema,
+  ModuleStructureSchema,
+  NavPageSchema,
+  NavSubpageSchema,
+} from "./structure"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
 
@@ -78,6 +86,18 @@ const CreateFeedbackResponse = registry.register(
   CreateFeedbackResponseSchema,
 )
 registry.register("FeedbackType", FeedbackTypeSchema)
+const GetStructureResponse = registry.register(
+  "GetStructureResponse",
+  GetStructureResponseSchema,
+)
+registry.register("ModuleStructure", ModuleStructureSchema)
+registry.register("NavPage", NavPageSchema)
+registry.register("NavSubpage", NavSubpageSchema)
+const ListArchetypesResponse = registry.register(
+  "ListArchetypesResponse",
+  ListArchetypesResponseSchema,
+)
+registry.register("Archetype", ArchetypeSchema)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -303,6 +323,46 @@ registry.registerPath({
   },
 })
 
+registry.registerPath({
+  method: "get",
+  path: "/v1/structure",
+  operationId: "getStructure",
+  summary: "Get application structure",
+  description:
+    "Returns the org application's information architecture — the ten rail " +
+    "modules, each with its full page tree (pages → subpages), build-status, " +
+    "and layout archetype. Start here to discover what the app exposes " +
+    "without driving a browser. Public — no API key required; the structure " +
+    "is tenant-agnostic.",
+  tags: ["Structure"],
+  responses: {
+    "200": {
+      description: "The full application structure.",
+      content: { "application/json": { schema: GetStructureResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/structure/archetypes",
+  operationId: "listArchetypes",
+  summary: "List layout archetypes",
+  description:
+    "Returns the five content-panel layout archetypes (Table, Blank, " +
+    "Launchpad, Dashboard, Single) with their slot contract — how any page " +
+    "is laid out. Public — no API key required.",
+  tags: ["Structure"],
+  responses: {
+    "200": {
+      description: "The layout-archetype catalog.",
+      content: { "application/json": { schema: ListArchetypesResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
 /**
  * Emit the full OpenAPI 3.1 document. The api process and the codegen
  * scripts both go through this single call — drop adapters here, not in
@@ -406,6 +466,12 @@ export function buildOpenApiDocument(): OpenAPIDocument {
       {
         name: "Feedback",
         description: "Send bug reports, requests, and questions",
+      },
+      {
+        name: "Structure",
+        description:
+          "Application information architecture — modules, pages, and layout " +
+          "archetypes for agent discovery",
       },
     ],
   })

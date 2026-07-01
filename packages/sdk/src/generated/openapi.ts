@@ -84,6 +84,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get application structure
+         * @description Returns the org application's information architecture — the ten rail modules, each with its full page tree (pages → subpages), build-status, and layout archetype. Start here to discover what the app exposes without driving a browser. Public — no API key required; the structure is tenant-agnostic.
+         */
+        get: operations["getStructure"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/structure/archetypes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List layout archetypes
+         * @description Returns the five content-panel layout archetypes (Table, Blank, Launchpad, Dashboard, Single) with their slot contract — how any page is laid out. Public — no API key required.
+         */
+        get: operations["listArchetypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -368,6 +408,349 @@ export interface components {
          * @enum {string}
          */
         FeedbackType: "bug" | "request" | "issue" | "question";
+        /** @description `GET /v1/structure` — the full org application structure (modules → pages → subpages). */
+        GetStructureResponse: {
+            /** @description The ten org rail modules, in rail order. */
+            modules: {
+                /**
+                 * @description Module route key (first path segment after the org slug). Empty string is the Company index module.
+                 * @example closing
+                 */
+                key: string;
+                /**
+                 * @description Module label as shown in the rail.
+                 * @example Closing
+                 */
+                label: string;
+                /**
+                 * @description Module route relative to the org root. Empty for Company.
+                 * @example closing
+                 */
+                route: string;
+                /**
+                 * @description Rail icon name for the module.
+                 * @example CalendarClock
+                 */
+                icon: string;
+                /** @description Flat list of the module's pages, each carrying its `group` heading (null when ungrouped) and any subpages. */
+                pages: {
+                    /**
+                     * @description Sidebar group heading this page sits under, or null when the page is pinned / ungrouped.
+                     * @example Obligations
+                     */
+                    group: string | null;
+                    /**
+                     * @description Page label as shown in the sidebar.
+                     * @example VAT
+                     */
+                    label: string;
+                    /**
+                     * @description Route relative to the org root (no org slug). Empty string is the module index.
+                     * @example closing/vat
+                     */
+                    route: string;
+                    /**
+                     * @description Lucide/Phosphor icon name for the page.
+                     * @example ReceiptEuro
+                     */
+                    icon: string;
+                    /**
+                     * @description Build-status flag — `true` = not-yet-built placeholder.
+                     * @example true
+                     */
+                    tba: boolean;
+                    /**
+                     * @description Layout archetype, or null when not yet assigned.
+                     * @example null
+                     * @enum {string|null}
+                     */
+                    archetype: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single" | null;
+                    /**
+                     * @description One-line description of the page, or null.
+                     * @example null
+                     */
+                    purpose: string | null;
+                    /** @description Leaf subpages under this page. Empty when the page is a leaf. */
+                    subpages: {
+                        /**
+                         * @description Subpage label as shown in the sidebar.
+                         * @example VAT return
+                         */
+                        label: string;
+                        /**
+                         * @description Route relative to the org root (no org slug). Prefix with `/{orgSlug}/` to build a URL.
+                         * @example closing/vat/dap
+                         */
+                        route: string;
+                        /**
+                         * @description Build-status flag. `true` = not-yet-built placeholder (renders a muted TBA chip in the GUI); `false` = shipped.
+                         * @example true
+                         */
+                        tba: boolean;
+                        /**
+                         * @description The layout archetype this page uses, or null when not yet assigned (most pages are placeholders today).
+                         * @example null
+                         * @enum {string|null}
+                         */
+                        archetype: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single" | null;
+                        /**
+                         * @description One-line description of the page, or null.
+                         * @example null
+                         */
+                        purpose: string | null;
+                    }[];
+                }[];
+            }[];
+        };
+        /** @description One org rail module and its page tree. */
+        ModuleStructure: {
+            /**
+             * @description Module route key (first path segment after the org slug). Empty string is the Company index module.
+             * @example closing
+             */
+            key: string;
+            /**
+             * @description Module label as shown in the rail.
+             * @example Closing
+             */
+            label: string;
+            /**
+             * @description Module route relative to the org root. Empty for Company.
+             * @example closing
+             */
+            route: string;
+            /**
+             * @description Rail icon name for the module.
+             * @example CalendarClock
+             */
+            icon: string;
+            /** @description Flat list of the module's pages, each carrying its `group` heading (null when ungrouped) and any subpages. */
+            pages: {
+                /**
+                 * @description Sidebar group heading this page sits under, or null when the page is pinned / ungrouped.
+                 * @example Obligations
+                 */
+                group: string | null;
+                /**
+                 * @description Page label as shown in the sidebar.
+                 * @example VAT
+                 */
+                label: string;
+                /**
+                 * @description Route relative to the org root (no org slug). Empty string is the module index.
+                 * @example closing/vat
+                 */
+                route: string;
+                /**
+                 * @description Lucide/Phosphor icon name for the page.
+                 * @example ReceiptEuro
+                 */
+                icon: string;
+                /**
+                 * @description Build-status flag — `true` = not-yet-built placeholder.
+                 * @example true
+                 */
+                tba: boolean;
+                /**
+                 * @description Layout archetype, or null when not yet assigned.
+                 * @example null
+                 * @enum {string|null}
+                 */
+                archetype: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single" | null;
+                /**
+                 * @description One-line description of the page, or null.
+                 * @example null
+                 */
+                purpose: string | null;
+                /** @description Leaf subpages under this page. Empty when the page is a leaf. */
+                subpages: {
+                    /**
+                     * @description Subpage label as shown in the sidebar.
+                     * @example VAT return
+                     */
+                    label: string;
+                    /**
+                     * @description Route relative to the org root (no org slug). Prefix with `/{orgSlug}/` to build a URL.
+                     * @example closing/vat/dap
+                     */
+                    route: string;
+                    /**
+                     * @description Build-status flag. `true` = not-yet-built placeholder (renders a muted TBA chip in the GUI); `false` = shipped.
+                     * @example true
+                     */
+                    tba: boolean;
+                    /**
+                     * @description The layout archetype this page uses, or null when not yet assigned (most pages are placeholders today).
+                     * @example null
+                     * @enum {string|null}
+                     */
+                    archetype: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single" | null;
+                    /**
+                     * @description One-line description of the page, or null.
+                     * @example null
+                     */
+                    purpose: string | null;
+                }[];
+            }[];
+        };
+        /** @description A navigable page within a module (2nd nav level). */
+        NavPage: {
+            /**
+             * @description Sidebar group heading this page sits under, or null when the page is pinned / ungrouped.
+             * @example Obligations
+             */
+            group: string | null;
+            /**
+             * @description Page label as shown in the sidebar.
+             * @example VAT
+             */
+            label: string;
+            /**
+             * @description Route relative to the org root (no org slug). Empty string is the module index.
+             * @example closing/vat
+             */
+            route: string;
+            /**
+             * @description Lucide/Phosphor icon name for the page.
+             * @example ReceiptEuro
+             */
+            icon: string;
+            /**
+             * @description Build-status flag — `true` = not-yet-built placeholder.
+             * @example true
+             */
+            tba: boolean;
+            /**
+             * @description Layout archetype, or null when not yet assigned.
+             * @example null
+             * @enum {string|null}
+             */
+            archetype: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single" | null;
+            /**
+             * @description One-line description of the page, or null.
+             * @example null
+             */
+            purpose: string | null;
+            /** @description Leaf subpages under this page. Empty when the page is a leaf. */
+            subpages: {
+                /**
+                 * @description Subpage label as shown in the sidebar.
+                 * @example VAT return
+                 */
+                label: string;
+                /**
+                 * @description Route relative to the org root (no org slug). Prefix with `/{orgSlug}/` to build a URL.
+                 * @example closing/vat/dap
+                 */
+                route: string;
+                /**
+                 * @description Build-status flag. `true` = not-yet-built placeholder (renders a muted TBA chip in the GUI); `false` = shipped.
+                 * @example true
+                 */
+                tba: boolean;
+                /**
+                 * @description The layout archetype this page uses, or null when not yet assigned (most pages are placeholders today).
+                 * @example null
+                 * @enum {string|null}
+                 */
+                archetype: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single" | null;
+                /**
+                 * @description One-line description of the page, or null.
+                 * @example null
+                 */
+                purpose: string | null;
+            }[];
+        };
+        /** @description A leaf subpage under a page (3rd nav level). */
+        NavSubpage: {
+            /**
+             * @description Subpage label as shown in the sidebar.
+             * @example VAT return
+             */
+            label: string;
+            /**
+             * @description Route relative to the org root (no org slug). Prefix with `/{orgSlug}/` to build a URL.
+             * @example closing/vat/dap
+             */
+            route: string;
+            /**
+             * @description Build-status flag. `true` = not-yet-built placeholder (renders a muted TBA chip in the GUI); `false` = shipped.
+             * @example true
+             */
+            tba: boolean;
+            /**
+             * @description The layout archetype this page uses, or null when not yet assigned (most pages are placeholders today).
+             * @example null
+             * @enum {string|null}
+             */
+            archetype: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single" | null;
+            /**
+             * @description One-line description of the page, or null.
+             * @example null
+             */
+            purpose: string | null;
+        };
+        /** @description `GET /v1/structure/archetypes` — the layout-archetype catalog. */
+        ListArchetypesResponse: {
+            /** @description The five content-panel layout archetypes. */
+            archetypes: {
+                /**
+                 * @description Content-panel layout archetype. `Table` = dense list (toolbar + grid + status bar); `Blank` = body only, no chrome; `Launchpad` = card grid to subpages; `Dashboard` = KPI tiles + chart cards; `Single` = one record (form panels + line-items).
+                 * @example Table
+                 * @enum {string}
+                 */
+                key: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single";
+                /**
+                 * @description Human-facing archetype name.
+                 * @example Table
+                 */
+                label: string;
+                /**
+                 * @description Which `ContentPanel` slots this archetype fills.
+                 * @example toolbar + body + statusBar (+ inspector, actionBar)
+                 */
+                slots: string;
+                /**
+                 * @description When to pick this archetype for a page.
+                 * @example Dense list pages (invoices, transactions).
+                 */
+                useWhen: string;
+                /**
+                 * @description Route segment of the dev-only demo page for this archetype (404 in production), or null if none.
+                 * @example demo-table
+                 */
+                demoRoute: string | null;
+            }[];
+        };
+        /** @description One content-panel layout archetype. */
+        Archetype: {
+            /**
+             * @description Content-panel layout archetype. `Table` = dense list (toolbar + grid + status bar); `Blank` = body only, no chrome; `Launchpad` = card grid to subpages; `Dashboard` = KPI tiles + chart cards; `Single` = one record (form panels + line-items).
+             * @example Table
+             * @enum {string}
+             */
+            key: "Table" | "Blank" | "Launchpad" | "Dashboard" | "Single";
+            /**
+             * @description Human-facing archetype name.
+             * @example Table
+             */
+            label: string;
+            /**
+             * @description Which `ContentPanel` slots this archetype fills.
+             * @example toolbar + body + statusBar (+ inspector, actionBar)
+             */
+            slots: string;
+            /**
+             * @description When to pick this archetype for a page.
+             * @example Dense list pages (invoices, transactions).
+             */
+            useWhen: string;
+            /**
+             * @description Route segment of the dev-only demo page for this archetype (404 in production), or null if none.
+             * @example demo-table
+             */
+            demoRoute: string | null;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -597,6 +980,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateFeedbackResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getStructure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The full application structure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetStructureResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listArchetypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The layout-archetype catalog. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListArchetypesResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

@@ -9,7 +9,8 @@ const VERSION = "0.0.1"
 /**
  * `afframe` — command-line client for api.afframe.com/v1.
  *
- * Today: login / logout / whoami / ping / api. Resource ops, listen, and
+ * Today: login / logout / whoami / ping / api / structure / archetypes.
+ * `structure` + `archetypes` are public (no key). Resource ops, listen, and
  * trigger land with the matching API surfaces (see docs/api/CLI.md).
  *
  * Auth: API key paste-and-validate. Stored at ~/.config/afframe/config.toml
@@ -135,6 +136,101 @@ program
     const body = await res.text()
     output.write(body + (body.endsWith("\n") ? "" : "\n"))
     if (!res.ok) process.exit(2)
+  })
+
+// --- Structure (public IA discovery — no API key required) -------------------
+
+interface StructureSubpage {
+  label: string
+  route: string
+  tba: boolean
+}
+interface StructurePage {
+  group: string | null
+  label: string
+  route: string
+  tba: boolean
+  archetype: string | null
+  subpages: StructureSubpage[]
+}
+interface StructureModule {
+  key: string
+  label: string
+  route: string
+  pages: StructurePage[]
+}
+
+/** Base URL for the public ops: active profile, else env, else production. */
+function resolveBaseUrl(): string {
+  const cfg = loadConfig()
+  return (
+    cfg?.apiBase ??
+    process.env.AFFRAME_API_BASE ??
+    "https://api.afframe.com"
+  ).replace(/\/$/, "")
+}
+
+async function getPublic<T>(path: string): Promise<T> {
+  const res = await fetch(`${resolveBaseUrl()}${path}`, {
+    headers: { accept: "application/json" },
+  })
+  if (!res.ok) {
+    output.write(`request failed: HTTP ${res.status} from ${path}\n`)
+    process.exit(2)
+  }
+  return (await res.json()) as T
+}
+
+program
+  .command("structure")
+  .description(
+    "Print the org application structure (modules → pages → subpages). Public; no key needed.",
+  )
+  .option("--json", "Output raw JSON")
+  .action(async (opts: { json?: boolean }) => {
+    const data = await getPublic<{ modules: StructureModule[] }>(
+      "/v1/structure",
+    )
+    if (opts.json) {
+      output.write(JSON.stringify(data, null, 2) + "\n")
+      return
+    }
+    for (const m of data.modules) {
+      output.write(`\n${m.label}  (${m.route || "/"})\n`)
+      let lastGroup: string | null = null
+      for (const p of m.pages) {
+        if (p.group && p.group !== lastGroup) output.write(`  ${p.group}\n`)
+        lastGroup = p.group
+        const indent = p.group ? "    " : "  "
+        const tags =
+          (p.tba ? " ·TBA" : "") + (p.archetype ? ` [${p.archetype}]` : "")
+        output.write(`${indent}${p.label}${tags}  ${p.route || "(index)"}\n`)
+        for (const s of p.subpages) {
+          output.write(
+            `${indent}  - ${s.label}${s.tba ? " ·TBA" : ""}  ${s.route}\n`,
+          )
+        }
+      }
+    }
+  })
+
+program
+  .command("archetypes")
+  .description(
+    "List the content-panel layout archetypes. Public; no key needed.",
+  )
+  .option("--json", "Output raw JSON")
+  .action(async (opts: { json?: boolean }) => {
+    const data = await getPublic<{
+      archetypes: { key: string; slots: string; useWhen: string }[]
+    }>("/v1/structure/archetypes")
+    if (opts.json) {
+      output.write(JSON.stringify(data, null, 2) + "\n")
+      return
+    }
+    for (const a of data.archetypes) {
+      output.write(`${a.key}\n  slots: ${a.slots}\n  use:   ${a.useWhen}\n`)
+    }
   })
 
 function requireConfig(): NonNullable<ReturnType<typeof loadConfig>> {

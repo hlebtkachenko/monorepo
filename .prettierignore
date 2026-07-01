@@ -24,3 +24,8 @@ apps/api/openapi/v1.json
 # committed content drifts from CI's regen.
 packages/sdk/src/generated/
 apps/mcp/src/tools/generated/
+
+# Generated app-structure snapshot — emitted by `pnpm gen:structure`
+# (JSON.stringify format). Prettier must not reformat or the `--check` drift
+# guard (lefthook structure-drift) would never match the emitter's output.
+apps/api/src/v1/structure/structure.data.ts

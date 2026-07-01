@@ -46,7 +46,7 @@ RUN pnpm --filter admin build
 # ---------- storybook-builder ----------
 # Independent of `builder`; both stages pull from `deps` + `pruner` in parallel
 # under BuildKit, so image build time = max(next build, storybook build).
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS storybook-builder
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS storybook-builder
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate

@@ -22,6 +22,9 @@
  *   - 0003_rls_force.sql  — organization
  *   - 0004_audit.sql      — tool_call_log
  *   - 0015_api_key.sql    — api_key
+ *   - 0034_accounting_enforcement.sql — the v2 accounting `org_scoped` array
+ *     (section 1: FORCE RLS + organization_isolation on every org-scoped
+ *     accounting table). The list below mirrors that array verbatim.
  *
  * If you add an organization-scoped table, add it here AND to a migration
  * that creates the `organization_isolation` policy with the NULLIF guard.
@@ -29,11 +32,46 @@
  * Note: auth_invite (dropped in 0020) was previously in this list.
  * auth_token is global, not organization-scoped — it carries
  * organization context in `payload` for `inv` rows only.
+ *
+ * Deliberately EXCLUDED from this FORCE-RLS set (see 0034_accounting_enforcement.sql):
+ *   - counterparty — WORKSPACE-scoped, not org-scoped. Gets 4 command-specific
+ *     RLS policies keyed on workspace_id (0034 §2), not organization_isolation.
+ *   - account_period_balance, monetary_period_summary — read-model turnover
+ *     tables get ENABLE (not FORCE) RLS so the SECURITY DEFINER maintenance
+ *     trigger writes through (0034 §3). Not in this org-isolation list.
+ *   - regime, legal_form, legal_form_allowed_regime, accounting_size,
+ *     vat_regime, currency, business_activity, account_group,
+ *     directive_account, depreciation_group — reference (law) tables, shared
+ *     across all tenants, no RLS.
  */
 export const ORGANIZATION_SCOPED_TABLES = [
   "api_key",
   "organization",
   "tool_call_log",
+  // v2 accounting org-scoped tables (0034_accounting_enforcement.sql, `org_scoped`)
+  "organization_business_activity",
+  "accounting_period",
+  "vat_status",
+  "number_series",
+  "accounting_event",
+  "signature",
+  "summary_record",
+  "individual_record",
+  "partial_record",
+  "chart_of_accounts",
+  "account",
+  "category",
+  "posting",
+  "posting_double_entry_line",
+  "posting_monetary_line",
+  "asset",
+  "depreciation_plan",
+  "tax_depreciation",
+  "inventory_count",
+  "inventory_count_line",
+  "period_output",
+  "open_item",
+  "open_item_settlement",
 ] as const
 
 export type OrganizationScopedTable =

@@ -113,10 +113,12 @@ Sidebar = **Pinned** (top, ungrouped) then **Groups** (logical heading → Pages
 Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 
 > **Build-status tag.** Every nav entry that is still a `ModulePage` placeholder
-> carries a `badge: "TBA"` in its `nav.ts` — a small "TBA" pill in the sidebar.
-> When a page's real body ships, **remove that entry's badge**. Agents can list
-> everything outstanding with `grep -r 'badge: "TBA"' apps/web/app/[orgSlug]`
-> straight off the nav index — no need to open each page. All pages are TBA today.
+> carries a `tba: true` in its `nav.ts` — a muted "TBA" chip in the sidebar. It
+> has **its own slot**, separate from the live `badge` count (so a page can show
+> a real count and TBA at once, and TBA never blocks a real badge). When a page's
+> real body ships, **remove its `tba` flag**. Agents list everything outstanding
+> with `grep -r 'tba: true' apps/web/app/[orgSlug]` straight off the nav index —
+> no need to open each page. All pages are TBA today.
 
 #### Company (`/`) — LOCKED
 

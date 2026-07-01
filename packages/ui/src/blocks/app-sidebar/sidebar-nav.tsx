@@ -18,7 +18,10 @@ import { SidebarRow, activeHref } from "./sidebar-row"
 export interface SidebarNavSubpage {
   label: string
   href: string
+  /** Trailing live count / label (e.g. unread count). Independent of `tba`. */
   badge?: string | number
+  /** Build-status flag — renders a muted "TBA" chip until the page ships. */
+  tba?: boolean
 }
 
 /**
@@ -31,7 +34,10 @@ export interface SidebarNavPage {
   label: string
   href: string
   icon: IconName
+  /** Trailing live count / label (e.g. unread count). Independent of `tba`. */
   badge?: string | number
+  /** Build-status flag — renders a muted "TBA" chip until the page ships. */
+  tba?: boolean
   subpages?: SidebarNavSubpage[]
 }
 
@@ -88,6 +94,7 @@ function NavPage({
       active={page.href === active}
       icon={<Icon className="size-4 shrink-0" />}
       badge={page.badge}
+      tba={page.tba}
       className={hasSubs ? "min-w-0 flex-1" : undefined}
     >
       {page.label}
@@ -125,6 +132,7 @@ function NavPage({
               href={sub.href}
               active={sub.href === active}
               badge={sub.badge}
+              tba={sub.tba}
               muted
             >
               {sub.label}

@@ -4,17 +4,17 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * Finance module sidebar nav. Derived from `docs/specs/SITEMAP.md`. `base` =
  * `/${orgSlug}/finance`. Depth-3.
  *
- * `badge: "TBA"` = not-yet-built placeholder; remove when the real body ships.
+ * `tba: true` = not-yet-built placeholder; remove when the real body ships.
  */
 export function financeNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "ReceiptEuro", badge: "TBA" },
+    { label: "Overview", href: base, icon: "ReceiptEuro", tba: true },
     // Register of all money accounts (bank accounts + cash points) with balances.
     {
       label: "Accounts",
       href: `${base}/accounts`,
       icon: "CreditCard",
-      badge: "TBA",
+      tba: true,
     },
     {
       label: "Treasury",
@@ -23,22 +23,22 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Bank",
           href: `${base}/bank`,
           icon: "Building2",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Movements",
               href: `${base}/bank/movements`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Statements",
               href: `${base}/bank/statements`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Reconciliation",
               href: `${base}/bank/reconciliation`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -46,23 +46,23 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Cash in hand",
           href: `${base}/cash`,
           icon: "Banknote",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Loans",
           href: `${base}/loans`,
           icon: "PiggyBank",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Movements",
               href: `${base}/loans/movements`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Statements",
               href: `${base}/loans/statements`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -75,17 +75,17 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Receivables",
           href: `${base}/receivables`,
           icon: "ArrowDown",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Ageing",
               href: `${base}/receivables/aging`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Debtors",
               href: `${base}/receivables/debtors`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -93,13 +93,13 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Payables",
           href: `${base}/payables`,
           icon: "ArrowUp",
-          badge: "TBA",
+          tba: true,
           subpages: [
-            { label: "Due", href: `${base}/payables/due`, badge: "TBA" },
+            { label: "Due", href: `${base}/payables/due`, tba: true },
             {
               label: "Creditors",
               href: `${base}/payables/creditors`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -112,13 +112,13 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Dunning",
           href: `${base}/dunning`,
           icon: "Mail",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Penalisation",
           href: `${base}/penalization`,
           icon: "AlertTriangle",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },
@@ -129,23 +129,23 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Payment orders",
           href: `${base}/payment-orders`,
           icon: "Send",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Settlements",
           href: `${base}/settlements`,
           icon: "ArrowUpDown",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Bilateral",
               href: `${base}/settlements/bilateral`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Multilateral",
               href: `${base}/settlements/multilateral`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -153,24 +153,24 @@ export function financeNav(base: string): SidebarNavEntry[] {
           label: "Bulk reconciliation",
           href: `${base}/reconciliation`,
           icon: "RefreshCw",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Calculators",
           href: `${base}/calculators`,
           icon: "Calculator",
-          badge: "TBA",
+          tba: true,
           subpages: [
-            { label: "FX", href: `${base}/calculators/fx`, badge: "TBA" },
+            { label: "FX", href: `${base}/calculators/fx`, tba: true },
             {
               label: "Penalty",
               href: `${base}/calculators/penalty`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Cash denomination",
               href: `${base}/calculators/cash-denomination`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },

@@ -5,17 +5,17 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * payroll; mock — no v2 payroll entity yet). `base` = `/${orgSlug}/hr`.
  *
  * People/Payroll gated on `has_employees` (gate not wired yet — superset now).
- * Vehicles/fleet moved to Assets. `badge: "TBA"` = not-yet-built placeholder.
+ * Vehicles/fleet moved to Assets. `tba: true` = not-yet-built placeholder.
  */
 export function hrNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "Users", badge: "TBA" },
+    { label: "Overview", href: base, icon: "Users", tba: true },
     // AI-prepared payroll runs awaiting a human's review + approval.
     {
       label: "Payroll approvals",
       href: `${base}/approvals`,
       icon: "ListChecksIcon",
-      badge: "TBA",
+      tba: true,
     },
     {
       // TODO(regime): gate by has_employees.
@@ -25,23 +25,23 @@ export function hrNav(base: string): SidebarNavEntry[] {
           label: "Employees",
           href: `${base}/employees`,
           icon: "User",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Agreements",
           href: `${base}/agreements`,
           icon: "FileText",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Task agreement",
               href: `${base}/agreements/dpp`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Activity agreement",
               href: `${base}/agreements/dpc`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -55,61 +55,61 @@ export function hrNav(base: string): SidebarNavEntry[] {
           label: "Payroll runs",
           href: `${base}/payroll-runs`,
           icon: "Banknote",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Payroll posting",
           href: `${base}/payroll-posting`,
           icon: "Workflow",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Attendance",
           href: `${base}/attendance`,
           icon: "CalendarIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Sickness e-filing",
           href: `${base}/e-davky`,
           icon: "Activity",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Payroll reports",
           href: `${base}/payroll-reports`,
           icon: "FileSpreadsheet",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Income-tax reconciliation",
               href: `${base}/payroll-reports/income-tax`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Withholding-tax reconciliation",
               href: `${base}/payroll-reports/withholding`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Health insurance",
               href: `${base}/payroll-reports/health`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Social insurance",
               href: `${base}/payroll-reports/social`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Tax statements",
               href: `${base}/payroll-reports/tax`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Sick-pay",
               href: `${base}/payroll-reports/sick-pay`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -117,13 +117,13 @@ export function hrNav(base: string): SidebarNavEntry[] {
           label: "Payroll sheets",
           href: `${base}/payroll-sheets`,
           icon: "ClipboardIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Pension record",
           href: `${base}/eldp`,
           icon: "IdCard",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },

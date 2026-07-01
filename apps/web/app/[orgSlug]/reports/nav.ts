@@ -5,7 +5,7 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * analytical & statement outputs). `base` = `/${orgSlug}/reports`.
  *
  * Snapshot/report surfaces: live books = Accounting, working open items =
- * Finance, frozen závěrka = Closing. `badge: "TBA"` = not-yet-built placeholder.
+ * Finance, frozen závěrka = Closing. `tba: true` = not-yet-built placeholder.
  */
 export function reportsNav(base: string): SidebarNavEntry[] {
   return [
@@ -13,7 +13,7 @@ export function reportsNav(base: string): SidebarNavEntry[] {
       label: "Overview",
       href: base,
       icon: "ChartNoAxesCombined",
-      badge: "TBA",
+      tba: true,
     },
     {
       label: "Statements",
@@ -22,23 +22,23 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Balance sheet",
           href: `${base}/balance-sheet`,
           icon: "FileSpreadsheet",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Income statement",
           href: `${base}/income-statement`,
           icon: "BarChart3",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Statutory",
               href: `${base}/income-statement/statutory`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Monthly P&L",
               href: `${base}/income-statement/monthly`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -46,19 +46,19 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Notes",
           href: `${base}/notes`,
           icon: "FileText",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Cash flow",
           href: `${base}/cash-flow`,
           icon: "Activity",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Equity changes",
           href: `${base}/equity-changes`,
           icon: "RefreshCw",
-          badge: "TBA",
+          tba: true,
         },
         {
           // TODO(regime): cash-regime year-end statements (přehled o majetku a
@@ -66,13 +66,13 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Assets & liabilities list",
           href: `${base}/assets-liabilities`,
           icon: "ListChecksIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Income & expenditure list",
           href: `${base}/income-expenditure`,
           icon: "ListIcon",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },
@@ -83,29 +83,29 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Account analysis",
           href: `${base}/account-analysis`,
           icon: "Search",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Trial balance",
           href: `${base}/trial-balance`,
           icon: "ListIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Profitability",
           href: `${base}/profitability`,
           icon: "PiggyBank",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Summary",
               href: `${base}/profitability/summary`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Cost & revenue listing",
               href: `${base}/profitability/cost-revenue`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -113,23 +113,23 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Management reporting",
           href: `${base}/controlling`,
           icon: "Shapes",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "By cost centre",
               href: `${base}/controlling/cost-centers`,
-              badge: "TBA",
+              tba: true,
             },
-            { label: "By job", href: `${base}/controlling/jobs`, badge: "TBA" },
+            { label: "By job", href: `${base}/controlling/jobs`, tba: true },
             {
               label: "By activity",
               href: `${base}/controlling/activities`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Job profitability",
               href: `${base}/controlling/job-evaluation`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -142,31 +142,31 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Open items by partner",
           href: `${base}/saldo`,
           icon: "BookUser",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Account balances",
           href: `${base}/account-balances`,
           icon: "ListIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Account movements",
           href: `${base}/account-movements`,
           icon: "ArrowUpDown",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Account verification",
           href: `${base}/account-inventory`,
           icon: "ClipboardIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Receivables/payables at date",
           href: `${base}/balances-at-date`,
           icon: "CalendarIcon",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },
@@ -177,29 +177,29 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "Document journal",
           href: `${base}/document-journal`,
           icon: "BookOpen",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "FX rate list",
           href: `${base}/fx-rate-list`,
           icon: "Globe",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Statutory prints",
           href: `${base}/statutory-prints`,
           icon: "FileText",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Journal",
               href: `${base}/statutory-prints/journal`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "General ledger",
               href: `${base}/statutory-prints/ledger`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -207,13 +207,13 @@ export function reportsNav(base: string): SidebarNavEntry[] {
           label: "XML statement export",
           href: `${base}/xml-export`,
           icon: "Download",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Audit confirmation letters",
           href: `${base}/confirmation-letters`,
           icon: "Mail",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },

@@ -5,12 +5,12 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * `base` = `/${orgSlug}/documents`. Depth-3: document families are Pages, their
  * Received/Issued (or subtype) splits are Subpages.
  *
- * `badge: "TBA"` = not-yet-built placeholder; remove when the real body ships.
+ * `tba: true` = not-yet-built placeholder; remove when the real body ships.
  */
 export function documentsNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "FolderBookmark", badge: "TBA" },
-    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox", badge: "TBA" },
+    { label: "Overview", href: base, icon: "FolderBookmark", tba: true },
+    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox", tba: true },
     {
       label: "Invoices & vouchers",
       pages: [
@@ -18,45 +18,45 @@ export function documentsNav(base: string): SidebarNavEntry[] {
           label: "Invoices",
           href: `${base}/invoices`,
           icon: "FileText",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Received",
               href: `${base}/invoices/received`,
-              badge: "TBA",
+              tba: true,
             },
-            { label: "Issued", href: `${base}/invoices/issued`, badge: "TBA" },
+            { label: "Issued", href: `${base}/invoices/issued`, tba: true },
           ],
         },
         {
           label: "Advances",
           href: `${base}/advances`,
           icon: "FileSpreadsheet",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Received",
               href: `${base}/advances/received`,
-              badge: "TBA",
+              tba: true,
             },
-            { label: "Issued", href: `${base}/advances/issued`, badge: "TBA" },
+            { label: "Issued", href: `${base}/advances/issued`, tba: true },
           ],
         },
         {
           label: "Credit & debit notes",
           href: `${base}/credit-notes`,
           icon: "RotateCcw",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Received",
               href: `${base}/credit-notes/received`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Issued",
               href: `${base}/credit-notes/issued`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -64,17 +64,17 @@ export function documentsNav(base: string): SidebarNavEntry[] {
           label: "Obligation documents",
           href: `${base}/obligation-vouchers`,
           icon: "ClipboardIcon",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Payable",
               href: `${base}/obligation-vouchers/payable`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Receivable",
               href: `${base}/obligation-vouchers/receivable`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -87,23 +87,23 @@ export function documentsNav(base: string): SidebarNavEntry[] {
           label: "Loan documents",
           href: `${base}/loan-documents`,
           icon: "PiggyBank",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Internal documents",
           href: `${base}/internal-documents`,
           icon: "FileCogIcon",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Internal",
               href: `${base}/internal-documents/internal`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Customs declaration",
               href: `${base}/internal-documents/customs`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -113,7 +113,7 @@ export function documentsNav(base: string): SidebarNavEntry[] {
       label: "Recurring templates",
       href: `${base}/recurring-templates`,
       icon: "RefreshCw",
-      badge: "TBA",
+      tba: true,
     },
   ]
 }

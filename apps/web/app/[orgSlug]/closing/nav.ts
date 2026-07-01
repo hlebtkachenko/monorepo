@@ -6,16 +6,16 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  *
  * Layers: dynamic cockpit (Overview board ⇄ Calendar) · Monthly close (routine
  * per-month cycle) · Obligations (each obligation KIND has a stable home) ·
- * Archive. `badge: "TBA"` = not-yet-built placeholder.
+ * Archive. `tba: true` = not-yet-built placeholder.
  */
 export function closingNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "CalendarClock", badge: "TBA" },
+    { label: "Overview", href: base, icon: "CalendarClock", tba: true },
     {
       label: "Calendar",
       href: `${base}/calendar`,
       icon: "CalendarIcon",
-      badge: "TBA",
+      tba: true,
     },
     {
       label: "Monthly close",
@@ -27,9 +27,9 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Unclosed",
           href: `${base}/unclosed`,
           icon: "LockOpen",
-          badge: "TBA",
+          tba: true,
         },
-        { label: "Closed", href: `${base}/closed`, icon: "Lock", badge: "TBA" },
+        { label: "Closed", href: `${base}/closed`, icon: "Lock", tba: true },
       ],
     },
     {
@@ -40,17 +40,17 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "VAT",
           href: `${base}/vat`,
           icon: "ReceiptEuro",
-          badge: "TBA",
+          tba: true,
           subpages: [
-            { label: "VAT return", href: `${base}/vat/dap`, badge: "TBA" },
+            { label: "VAT return", href: `${base}/vat/dap`, tba: true },
             {
               label: "Control statement",
               href: `${base}/vat/kh`,
-              badge: "TBA",
+              tba: true,
             },
-            { label: "EC Sales List", href: `${base}/vat/sh`, badge: "TBA" },
-            { label: "OSS", href: `${base}/vat/oss`, badge: "TBA" },
-            { label: "IOSS", href: `${base}/vat/ioss`, badge: "TBA" },
+            { label: "EC Sales List", href: `${base}/vat/sh`, tba: true },
+            { label: "OSS", href: `${base}/vat/oss`, tba: true },
+            { label: "IOSS", href: `${base}/vat/ioss`, tba: true },
           ],
         },
         {
@@ -58,27 +58,27 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Payroll",
           href: `${base}/payroll`,
           icon: "Users",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Monthly employer report",
               href: `${base}/payroll/jmhz`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Social insurance",
               href: `${base}/payroll/social`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Health insurance",
               href: `${base}/payroll/health`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Withholding tax",
               href: `${base}/payroll/withholding`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -86,22 +86,22 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Income tax",
           href: `${base}/income-tax`,
           icon: "Calculator",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Corporation tax",
               href: `${base}/income-tax/dppo`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Personal income tax",
               href: `${base}/income-tax/dpfo`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Advances",
               href: `${base}/income-tax/advances`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -109,42 +109,42 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Year-end",
           href: `${base}/year-end`,
           icon: "Archive",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Accruals",
               href: `${base}/year-end/accruals`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Provisions",
               href: `${base}/year-end/provisions`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Value adjustments",
               href: `${base}/year-end/value-adjustments`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Deferred tax",
               href: `${base}/year-end/deferred-tax`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Statements",
               href: `${base}/year-end/statements`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Publication",
               href: `${base}/year-end/publication`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Year close",
               href: `${base}/year-end/close`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -154,7 +154,7 @@ export function closingNav(base: string): SidebarNavEntry[] {
       label: "Archive",
       href: `${base}/archive`,
       icon: "FileArchive",
-      badge: "TBA",
+      tba: true,
     },
   ]
 }

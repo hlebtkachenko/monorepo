@@ -4,13 +4,13 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  * Accounting module sidebar nav. Derived from `docs/specs/SITEMAP.md`. `base` =
  * `/${orgSlug}/accounting`. Depth-3: Group › Page › Subpage.
  *
- * `badge: "TBA"` marks a page as a not-yet-built placeholder. Remove the badge
- * when the page's real body ships — grep `badge: "TBA"` across the nav to list
- * everything still outstanding.
+ * `tba: true` marks a page as a not-yet-built placeholder (renders a muted "TBA"
+ * chip, separate from the live `badge` count slot). Remove the flag when the
+ * page's real body ships — grep `tba: true` across the nav lists what's left.
  */
 export function accountingNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "Calculator", badge: "TBA" },
+    { label: "Overview", href: base, icon: "Calculator", tba: true },
     // "Posting approvals" = the queue where the AI Assistant's automatically
     // prepared postings wait for a human to review + approve them (the AI→human
     // schvalovací cesta / approval path).
@@ -18,7 +18,7 @@ export function accountingNav(base: string): SidebarNavEntry[] {
       label: "Posting approvals",
       href: `${base}/approvals`,
       icon: "ListChecksIcon",
-      badge: "TBA",
+      tba: true,
     },
     {
       label: "Books",
@@ -31,37 +31,37 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           label: "Cash journal",
           href: `${base}/cash-journal`,
           icon: "Banknote",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Journal",
           href: `${base}/journal`,
           icon: "BookOpen",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "General ledger",
           href: `${base}/ledger`,
           icon: "BookOpenText",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Off-balance ledger",
           href: `${base}/off-balance`,
           icon: "BookmarkIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Analytical ledger",
           href: `${base}/analytical`,
           icon: "ListIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Trial balance",
           href: `${base}/trial-balance`,
           icon: "BarChart3",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },
@@ -73,31 +73,31 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           label: "Chart of accounts",
           href: `${base}/chart-of-accounts`,
           icon: "Shapes",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Categories",
           href: `${base}/categories`,
           icon: "Box",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Posting rules",
           href: `${base}/posting-rules`,
           icon: "Workflow",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Posting checks",
           href: `${base}/posting-checks`,
           icon: "CheckCircle2",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Opening balances",
           href: `${base}/opening-balances`,
           icon: "Pencil",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },
@@ -109,32 +109,32 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           label: "VAT ledger",
           href: `${base}/vat-ledger`,
           icon: "FileSpreadsheet",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Input VAT",
               href: `${base}/vat-ledger/input`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Output VAT",
               href: `${base}/vat-ledger/output`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Reverse charge",
               href: `${base}/vat-ledger/reverse-charge`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Breakdown",
               href: `${base}/vat-ledger/breakdown`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Supporting documents",
               href: `${base}/vat-ledger/supporting-documents`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },

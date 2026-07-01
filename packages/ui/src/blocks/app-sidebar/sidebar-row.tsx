@@ -35,8 +35,10 @@ export interface SidebarRowProps
   href: string
   /** Leading icon node — footer rows only; module-nav rows are text-only. */
   icon?: React.ReactNode
-  /** Trailing count/label badge value. */
+  /** Trailing count/label badge value (live data — independent of `tba`). */
   badge?: React.ReactNode
+  /** Build-status flag — renders a muted "TBA" chip; free of the `badge` slot. */
+  tba?: boolean
 }
 
 /**
@@ -50,6 +52,7 @@ export function SidebarRow({
   muted,
   icon,
   badge,
+  tba,
   className,
   children,
   ...props
@@ -66,6 +69,15 @@ export function SidebarRow({
       {badge != null ? (
         <Badge variant="secondary" className="shrink-0">
           {badge}
+        </Badge>
+      ) : null}
+      {/* Build-status chip — its own slot, never competes with a live `badge`. */}
+      {tba ? (
+        <Badge
+          variant="outline"
+          className="shrink-0 px-1 text-[10px] font-normal text-muted-foreground"
+        >
+          TBA
         </Badge>
       ) : null}
     </a>

@@ -6,17 +6,17 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  *
  * Fleet (vehicles / trip log / drivers) lives here — vehicles are assets.
  * Asset-card tabs (Movements, Účetní/Daňové odpisy, …) stay per-record detail
- * tabs. `badge: "TBA"` = not-yet-built placeholder.
+ * tabs. `tba: true` = not-yet-built placeholder.
  */
 export function assetsNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "BriefcaseBusiness", badge: "TBA" },
+    { label: "Overview", href: base, icon: "BriefcaseBusiness", tba: true },
     // AI-prepared commissioning / disposal events awaiting a human's approval.
     {
       label: "Asset approvals",
       href: `${base}/approvals`,
       icon: "ListChecksIcon",
-      badge: "TBA",
+      tba: true,
     },
     {
       // TODO(regime): cash regime → simpler evidence majetku (daňové-only).
@@ -26,22 +26,22 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           label: "Fixed assets",
           href: `${base}/fixed-assets`,
           icon: "Building2",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Intangible assets",
               href: `${base}/fixed-assets/intangible`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Tangible assets",
               href: `${base}/fixed-assets/tangible`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Land & artwork",
               href: `${base}/fixed-assets/land-art`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -49,28 +49,28 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           label: "Small assets",
           href: `${base}/small-assets`,
           icon: "Box",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Acquisitions & disposals",
           href: `${base}/acquisitions`,
           icon: "PlusCircle",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Under construction",
               href: `${base}/acquisitions/wip`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Advances",
               href: `${base}/acquisitions/advances`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Disposals",
               href: `${base}/acquisitions/disposals`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -78,17 +78,17 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           label: "Leasing",
           href: `${base}/leasing`,
           icon: "CreditCard",
-          badge: "TBA",
+          tba: true,
           subpages: [
             {
               label: "Contracts",
               href: `${base}/leasing/contracts`,
-              badge: "TBA",
+              tba: true,
             },
             {
               label: "Instalments",
               href: `${base}/leasing/instalments`,
-              badge: "TBA",
+              tba: true,
             },
           ],
         },
@@ -101,13 +101,13 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           label: "Depreciation run",
           href: `${base}/depreciation-run`,
           icon: "Workflow",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Inventory count",
           href: `${base}/inventory-count`,
           icon: "ClipboardIcon",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },
@@ -119,19 +119,19 @@ export function assetsNav(base: string): SidebarNavEntry[] {
           label: "Vehicles",
           href: `${base}/vehicles`,
           icon: "Box",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Trip log",
           href: `${base}/trip-log`,
           icon: "ListIcon",
-          badge: "TBA",
+          tba: true,
         },
         {
           label: "Drivers",
           href: `${base}/drivers`,
           icon: "CircleUser",
-          badge: "TBA",
+          tba: true,
         },
       ],
     },

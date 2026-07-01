@@ -94,7 +94,9 @@ export function computeCRaw(inputs: ScoreInputs): RawScore {
   for (const key of Object.keys(VERIFY_BONUS) as (keyof VerifyChecks)[]) {
     if (inputs.verify[key]) cVerify += VERIFY_BONUS[key]
   }
-  const cExtraction = 0.15 * inputs.extractionQuality
+  // extractionQuality domain is [0,1] (score.ts spec); clamp defensively — the M1 confidence endpoint
+  // (N-3) scores proposals whose extractionQuality may arrive from parsed JSON at the HTTP boundary.
+  const cExtraction = 0.15 * Math.min(1, Math.max(0, inputs.extractionQuality))
   const cReconciliation = RECON_DELTA[inputs.reconciliation]
   // D6's canonical aggregation has no intermediate clamp; Step 3's "C_verify capped at 1.0" is enforced
   // by the outer min (cCaps <= 1.0, so cRaw <= 1.0). Inert today (max cVerify = 0.18); if verify bonuses

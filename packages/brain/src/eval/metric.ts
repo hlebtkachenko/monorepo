@@ -59,6 +59,9 @@ export interface EvalResult {
 export function evaluateBookings(
   predicted: readonly BookingLine[],
   expected: readonly BookingLine[],
+  // Steady-state green lane. The M1 eval-runner MUST pass the ACTIVE threshold — cold-start is 0.97
+  // (COLD_START_GREEN_THRESHOLD, confidence/calibration.ts), not 0.95 — or confident-wrong is measured
+  // against the wrong lane. The default errs strict (over-counts at cold-start), never leaks a real one.
   greenThreshold = 0.95,
 ): EvalResult {
   // Build a multiset of remaining expected keys.

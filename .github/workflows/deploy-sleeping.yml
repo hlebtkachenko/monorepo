@@ -50,8 +50,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: infra/cloudflare-sleeping
-          # Keep in sync with wrangler in infra/cloudflare-sleeping/package.json.
-          wranglerVersion: "4.100.0"
+          # No wranglerVersion pin: the action uses the wrangler the `setup`
+          # step already installed via pnpm (package.json `wrangler` range). A
+          # pinned version that drifts from what pnpm resolves makes the action
+          # declare the installed wrangler "incompatible" and fall back to
+          # `npm i wrangler@<pin>`, which dies on this package's `workspace:*`
+          # devDep (`npm error EUNSUPPORTEDPROTOCOL`).
           command: deploy
 
       - name: Smoke check the *.workers.dev preview

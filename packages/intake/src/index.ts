@@ -1,0 +1,11 @@
+// Afframe intake — pure parsers turning a heterogeneous client dump into canonical Brain IR.
+export * from "./types"
+export * from "./text"
+export * from "./zip-guard"
+export * from "./pohoda-signature"
+export * from "./detect"
+export * from "./zip"
+export * from "./tabular"
+export * from "./csv"
+export * from "./xlsx"
+export * from "./pohoda"

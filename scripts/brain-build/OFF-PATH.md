@@ -3,7 +3,7 @@
 Agent self-checks; the BGTG also enforces. If **any** of these is observed, **HALT-and-ask** — do not
 self-correct, do not "reconcile" silently.
 
-- Built against a symbol **not in** `expected-symbols.json`.
+- Built against an accounting operation **not in** `expected-endpoints.json` (a hallucinated endpoint).
 - Touched a file **outside** the current WP's declared `where`.
 - A golden fixture hash changed (vs `fixtures.lock`) without a matching `[fixture-change]` PROGRESS
   entry carrying a ≥2-advisor sign-off id.

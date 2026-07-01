@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react"
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
@@ -7,7 +7,10 @@ import { ContentHeader, type ContentTab } from "./content-header"
 import { ContentToolbar } from "./content-toolbar"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentPanel } from "./content-panel"
+import { DashboardChartCard, DashboardGrid } from "./dashboard-grid"
 import { DetailField } from "./detail-field"
+import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
+import { RecordWorkspace, type RecordWorkspaceProps } from "./record-workspace"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
@@ -175,5 +178,195 @@ describe("DetailField", () => {
     const dd = container.querySelector("dd")
     expect(dt).toHaveTextContent("Partner")
     expect(dd).toHaveTextContent("ČEZ, a.s.")
+  })
+})
+
+const LAUNCHPAD_SECTIONS: LaunchpadSection[] = [
+  {
+    id: "single",
+    kind: "single",
+    pages: [
+      {
+        id: "invoices",
+        title: "Invoices",
+        description: "Received documents.",
+        icon: "FileText",
+        href: "/invoices",
+        unread: 3,
+      },
+      {
+        id: "bank",
+        title: "Bank",
+        description: "Accounts.",
+        icon: "Banknote",
+        href: "/bank",
+        followed: true,
+      },
+    ],
+  },
+  {
+    id: "footer",
+    kind: "footer",
+    pages: [{ id: "settings", title: "Settings", href: "/settings" }],
+  },
+]
+
+describe("LaunchpadGrid", () => {
+  it("renders a card per page with a title and a stretched link", () => {
+    const { container } = wrap(
+      <LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="all" />,
+    )
+    expect(screen.getByText("Invoices")).toBeInTheDocument()
+    expect(container.querySelector('a[href="/invoices"]')).toBeInTheDocument()
+  })
+
+  it("hoists a followed page into a top Followed section in the all view", () => {
+    wrap(<LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="all" />)
+    expect(screen.getByText("Followed")).toBeInTheDocument()
+    // Bank is followed → present (in the hoisted strip).
+    expect(screen.getByText("Bank")).toBeInTheDocument()
+  })
+
+  it("followed view shows only starred pages", () => {
+    wrap(<LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="followed" />)
+    expect(screen.getByText("Bank")).toBeInTheDocument()
+    expect(screen.queryByText("Invoices")).not.toBeInTheDocument()
+  })
+
+  it("unread view shows only pages with unread activity", () => {
+    wrap(<LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="unread" />)
+    expect(screen.getByText("Invoices")).toBeInTheDocument()
+    expect(screen.queryByText("Bank")).not.toBeInTheDocument()
+  })
+
+  it("calls onToggleFollow when a star is clicked", () => {
+    const onToggleFollow = vi.fn()
+    wrap(
+      <LaunchpadGrid
+        sections={LAUNCHPAD_SECTIONS}
+        view="all"
+        onToggleFollow={onToggleFollow}
+      />,
+    )
+    const stars = screen.getAllByRole("button", { name: /follow/i })
+    stars[0]?.click()
+    expect(onToggleFollow).toHaveBeenCalledTimes(1)
+  })
+
+  it("renders footer pages as compact rows that are still favoritable", () => {
+    wrap(<LaunchpadGrid sections={LAUNCHPAD_SECTIONS} view="all" />)
+    const settingsRow = screen
+      .getByText("Settings")
+      .closest('[data-slot="launchpad-card"]')
+    expect(settingsRow).toBeInTheDocument()
+    // The compact row carries a working follow control (unlike the old chips).
+    expect(
+      settingsRow?.querySelector('button[aria-label="Follow"]'),
+    ).toBeInTheDocument()
+  })
+
+  it("renders a card with subpages as a foldable card (unfolded shows them)", () => {
+    wrap(
+      <LaunchpadGrid
+        sections={[
+          {
+            id: "s",
+            kind: "group",
+            label: "Accounting",
+            pages: [
+              {
+                id: "journals",
+                title: "Journals",
+                description: "Posted entries.",
+                href: "/journals",
+                defaultUnfolded: true,
+                subpages: [{ id: "gl", title: "General ledger", href: "/gl" }],
+              },
+            ],
+          },
+        ]}
+        view="all"
+      />,
+    )
+    expect(screen.getByText("Journals")).toBeInTheDocument()
+    expect(screen.getByText("General ledger")).toBeInTheDocument()
+  })
+})
+
+describe("DashboardGrid", () => {
+  it("renders a metric tile per metric with label and value", () => {
+    wrap(
+      <DashboardGrid
+        metrics={[
+          { label: "Revenue", value: "1 000 Kč" },
+          { label: "Expenses", value: "400 Kč" },
+        ]}
+      />,
+    )
+    expect(screen.getByText("Revenue")).toBeInTheDocument()
+    expect(screen.getByText("1 000 Kč")).toBeInTheDocument()
+    expect(screen.getByText("Expenses")).toBeInTheDocument()
+  })
+
+  it("renders a sparkline when a metric has a series", () => {
+    const { container } = wrap(
+      <DashboardGrid
+        metrics={[
+          {
+            label: "Cash",
+            value: "10 Kč",
+            delta: { label: "1%", direction: "up" },
+            series: [1, 2, 3, 4],
+          },
+        ]}
+      />,
+    )
+    // The sparkline renders via ChartSparkLine.
+    expect(
+      container.querySelector('[data-slot="chart-spark-line"]'),
+    ).toBeInTheDocument()
+  })
+
+  it("renders a chart card with a title", () => {
+    wrap(
+      <DashboardGrid metrics={[{ label: "Cash", value: "10 Kč" }]}>
+        <DashboardChartCard title="Revenue vs. expenses" />
+      </DashboardGrid>,
+    )
+    expect(screen.getByText("Revenue vs. expenses")).toBeInTheDocument()
+  })
+})
+
+describe("RecordWorkspace", () => {
+  it("renders the active section, plus optional aside / line-items / footer", () => {
+    const props: RecordWorkspaceProps = {
+      children: <div>section body</div>,
+      aside: <div>recap</div>,
+      lineItems: <div>line items</div>,
+      footer: <button type="button">Save</button>,
+    }
+    const { container } = wrap(<RecordWorkspace {...props} />)
+    expect(screen.getByText("section body")).toBeInTheDocument()
+    expect(screen.getByText("recap")).toBeInTheDocument()
+    expect(screen.getByText("line items")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-slot="record-workspace-lines"]'),
+    ).toBeInTheDocument()
+  })
+
+  it("omits the optional slots when not provided", () => {
+    const { container } = wrap(
+      <RecordWorkspace>
+        <div>just a body</div>
+      </RecordWorkspace>,
+    )
+    expect(screen.getByText("just a body")).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-slot="record-workspace-lines"]'),
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-slot="record-workspace-footer"]'),
+    ).toBeNull()
   })
 })

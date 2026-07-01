@@ -119,13 +119,18 @@ export function ContentPanel({
                 <span className="min-w-0 flex-1 truncate px-1 text-sm font-medium">
                   {inspectorTitle}
                 </span>
-                <IconButton
-                  icon="X"
-                  aria-label="Close inspector"
-                  tooltip="Close"
-                  tooltipSide="bottom"
-                  onClick={() => onInspectorOpenChange?.(false)}
-                />
+                {/* The close control only appears when the panel is dismissible
+                    (a change handler is wired). An always-docked inspector
+                    (no handler) shows no dead "Close" button. */}
+                {onInspectorOpenChange ? (
+                  <IconButton
+                    icon="X"
+                    aria-label="Close inspector"
+                    tooltip="Close"
+                    tooltipSide="bottom"
+                    onClick={() => onInspectorOpenChange(false)}
+                  />
+                ) : null}
               </div>
               <div className="min-h-0 flex-1 overflow-auto p-3">
                 {inspector}

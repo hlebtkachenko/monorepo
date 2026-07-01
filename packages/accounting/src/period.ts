@@ -20,6 +20,7 @@
 import { sql } from "drizzle-orm"
 import { rows } from "./sql"
 import type { RowExecutor } from "./sql"
+import { resolveAccountIds } from "./accounts"
 import { captureDocument, createEvent } from "./capture"
 import { createChart, createPeriod } from "./setup"
 import { postDoubleEntry } from "./posting/double-entry"
@@ -33,6 +34,109 @@ export async function closePeriod(
   await db.execute(
     sql`UPDATE accounting_period SET status = 'CLOSED', updated_at = now() WHERE id = ${periodId}::uuid`,
   )
+}
+
+export interface CloseResultInput {
+  periodId: string
+  summaryRecordId: string
+  accountingEventId: string
+  postingDate: string
+  responsibleUserId: string
+  /** Účet zisků a ztrát; defaults to "710". */
+  plCloseAccountNumber?: string
+  /** Výsledek hospodaření account; defaults to "431". */
+  resultAccountNumber?: string
+}
+
+/**
+ * Year-end result close (ČÚS 002): close every P&L account (5xx náklady / 6xx
+ * výnosy) to 710, then transfer 710's net (výsledek hospodaření) to 431. This is
+ * the step that makes the rozvaha foot: without it the prior-year result sits on
+ * P&L accounts that never carry forward, so the next period's opening balance
+ * sheet would be short by exactly the result. Run this BEFORE closePeriod +
+ * openNextPeriod, in the (still OPEN) closing period.
+ *
+ * One compound posting: each revenue → MD account / D 710, each expense → MD 710
+ * / D account, then MD 710 / D 431 (profit) or MD 431 / D 710 (loss). Balanced by
+ * construction (710 is the hub; 431 absorbs the net). Returns null when the
+ * period has no P&L movement.
+ */
+export async function closeResult(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: CloseResultInput,
+): Promise<{ postingId: string | null }> {
+  const plClose = input.plCloseAccountNumber ?? "710"
+  const resultAccount = input.resultAccountNumber ?? "431"
+
+  const pl = await rows<{ number: string; nature: string; amt: string }>(
+    db,
+    sql`SELECT a.number, a.nature, abs(b.closing_balance)::text AS amt
+          FROM account_period_balance b
+          JOIN account a ON b.account_id = a.id
+         WHERE b.period_id = ${input.periodId}::uuid
+           AND a.nature IN ('EXPENSE', 'REVENUE')
+           AND b.closing_balance <> 0
+         ORDER BY a.number`,
+  )
+  if (pl.length === 0) return { postingId: null }
+
+  // net result = výnosy − náklady (sign + magnitude computed in SQL).
+  const result = await rows<{ sgn: number; amt: string }>(
+    db,
+    sql`SELECT sign(r)::int AS sgn, abs(r)::text AS amt FROM (
+           SELECT COALESCE(SUM(CASE WHEN a.nature = 'REVENUE' THEN -b.closing_balance ELSE 0 END), 0)
+                - COALESCE(SUM(CASE WHEN a.nature = 'EXPENSE' THEN  b.closing_balance ELSE 0 END), 0) AS r
+             FROM account_period_balance b
+             JOIN account a ON b.account_id = a.id
+            WHERE b.period_id = ${input.periodId}::uuid
+              AND a.nature IN ('EXPENSE', 'REVENUE')
+         ) t`,
+  )
+  const net = result[0] as { sgn: number; amt: string }
+
+  const ids = await resolveAccountIds(db, input.periodId, [
+    plClose,
+    resultAccount,
+    ...pl.map((r) => r.number),
+  ])
+  const closeId = ids.get(plClose) as string
+
+  const lines: DoubleEntryLineInput[] = []
+  for (const row of pl) {
+    const accountId = ids.get(row.number) as string
+    if (row.nature === "REVENUE") {
+      // credit-balance account → debit it to zero; contra credits 710
+      lines.push({ accountId, side: "DEBIT", amount: row.amt })
+      lines.push({ accountId: closeId, side: "CREDIT", amount: row.amt })
+    } else {
+      // expense debit-balance → credit it to zero; contra debits 710
+      lines.push({ accountId, side: "CREDIT", amount: row.amt })
+      lines.push({ accountId: closeId, side: "DEBIT", amount: row.amt })
+    }
+  }
+  if (net.sgn !== 0) {
+    const resultId = ids.get(resultAccount) as string
+    // profit (výnosy > náklady): 710 carries a credit → MD 710 / D 431.
+    // loss: MD 431 / D 710.
+    if (net.sgn > 0) {
+      lines.push({ accountId: closeId, side: "DEBIT", amount: net.amt })
+      lines.push({ accountId: resultId, side: "CREDIT", amount: net.amt })
+    } else {
+      lines.push({ accountId: resultId, side: "DEBIT", amount: net.amt })
+      lines.push({ accountId: closeId, side: "CREDIT", amount: net.amt })
+    }
+  }
+
+  const posting = await postDoubleEntry(db, ctx, {
+    periodId: input.periodId,
+    summaryRecordId: input.summaryRecordId,
+    accountingEventId: input.accountingEventId,
+    postingDate: input.postingDate,
+    responsibleUserId: input.responsibleUserId,
+    lines,
+  })
+  return { postingId: posting.postingId }
 }
 
 /**

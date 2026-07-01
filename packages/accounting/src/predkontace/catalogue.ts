@@ -30,6 +30,8 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
     vatMode: "STANDARD",
     legalBasis: [`${ZDPH} §13`, `${DECREE} §20`],
     confidence: "high",
+    dapRow: "1",
+    khSection: "A4_or_A5",
     entries: [
       {
         account: "311",
@@ -58,6 +60,8 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
     vatMode: "STANDARD",
     legalBasis: [`${ZDPH} §13`, `${ZDPH} §47`],
     confidence: "high",
+    dapRow: "2",
+    khSection: "A4_or_A5",
     entries: [
       { account: "311", side: "DEBIT", basis: "gross" },
       { account: "604", side: "CREDIT", basis: "net" },
@@ -76,6 +80,8 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
     vatMode: "STANDARD",
     legalBasis: [`${ZDPH} §14`],
     confidence: "high",
+    dapRow: "1",
+    khSection: "A4_or_A5",
     entries: [
       { account: "311", side: "DEBIT", basis: "gross" },
       {
@@ -94,6 +100,8 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
     vatMode: "STANDARD",
     legalBasis: [`${ZDPH} §14`, `${ZDPH} §47`],
     confidence: "high",
+    dapRow: "2",
+    khSection: "A4_or_A5",
     entries: [
       { account: "311", side: "DEBIT", basis: "gross" },
       { account: "602", side: "CREDIT", basis: "net" },
@@ -105,8 +113,11 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
     label: "FV — domestic reverse charge (PDP) — seller side",
     documentSide: "SALES",
     vatMode: "REVERSE_CHARGE",
-    legalBasis: [`${ZDPH} §92a`],
+    legalBasis: [`${ZDPH} §92a`, `${ZDPH} §101c`],
     confidence: "high",
+    // §92a seller supply is declared in oddíl A.1 of the kontrolní hlášení + DAP ř. 25.
+    dapRow: "25",
+    khSection: "A1",
     entries: [
       {
         account: "311",
@@ -117,20 +128,68 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
       { account: "602", side: "CREDIT", basis: "net" },
     ],
   },
+  // The next three all book identically (311 / 604 net, no VAT) but are legally
+  // distinct plnění that land on DIFFERENT DAP rows and differ on the souhrnné
+  // hlášení obligation — kept as separate scenarios so the VAT-return layer can
+  // route them (advisor finding: a §64 EU supply must NOT be misfiled as generic
+  // domestic exempt, which would silently omit the §102 SH obligation).
   {
-    id: "S-EXEMPT",
-    label: "FV — exempt / zero-rated supply (osvobozeno, EU dodání, vývoz)",
+    id: "S-EXEMPT-NO-CREDIT",
+    label: "FV — exempt supply without credit (§51 — pojištění, nájem, …)",
     documentSide: "SALES",
     vatMode: "EXEMPT",
-    legalBasis: [`${ZDPH} §51`, `${ZDPH} §63-71`],
+    legalBasis: [`${ZDPH} §51`],
     confidence: "high",
+    dapRow: "50",
+    requiresRecapitulativeStatement: false,
+    entries: [
+      { account: "311", side: "DEBIT", basis: "net" },
+      {
+        // §51 exempt-without-credit is predominantly a service (pojištění, nájem,
+        // finanční, zdravotní) → 602, not 604 (goods).
+        account: "602",
+        side: "CREDIT",
+        basis: "net",
+        description: "Osvobozené plnění bez nároku na odpočet",
+      },
+    ],
+  },
+  {
+    id: "S-EU-GOODS-DELIVERY",
+    label:
+      "FV — intra-EU supply of goods to a VAT-registered acquirer (§64, zero-rated)",
+    documentSide: "SALES",
+    vatMode: "EXEMPT",
+    legalBasis: [`${ZDPH} §64`, `${ZDPH} §102`],
+    confidence: "high",
+    dapRow: "20",
+    requiresRecapitulativeStatement: true,
     entries: [
       { account: "311", side: "DEBIT", basis: "net" },
       {
         account: "604",
         side: "CREDIT",
         basis: "net",
-        description: "Osvobozené plnění",
+        description: "Dodání zboží do EU (osvobozeno s nárokem)",
+      },
+    ],
+  },
+  {
+    id: "S-EXPORT",
+    label: "FV — export of goods to a third country (§66, zero-rated)",
+    documentSide: "SALES",
+    vatMode: "EXEMPT",
+    legalBasis: [`${ZDPH} §66`],
+    confidence: "high",
+    dapRow: "22",
+    requiresRecapitulativeStatement: false,
+    entries: [
+      { account: "311", side: "DEBIT", basis: "net" },
+      {
+        account: "604",
+        side: "CREDIT",
+        basis: "net",
+        description: "Vývoz zboží (osvobozeno s nárokem)",
       },
     ],
   },

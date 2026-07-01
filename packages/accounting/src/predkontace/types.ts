@@ -51,4 +51,15 @@ export interface PredkontaceScenario {
   /** Transcription confidence from the KB (high = unambiguous core case). */
   confidence: "high" | "medium"
   entries: PredkontaceEntry[]
+  /**
+   * VAT-return classification discriminators — NOT used by the ledger posting
+   * (the entries drive that), but carried so the future DPH-return / kontrolní
+   * hlášení / souhrnné hlášení layer (EPIC 4) can route a posting without
+   * re-deriving it. Two supplies with identical bookkeeping (e.g. §51 exempt vs
+   * §64 EU supply vs §66 export — all 311/604 net) differ only here.
+   */
+  dapRow?: string
+  khSection?: string
+  /** §102 souhrnné hlášení obligation (intra-EU supplies / services). */
+  requiresRecapitulativeStatement?: boolean
 }

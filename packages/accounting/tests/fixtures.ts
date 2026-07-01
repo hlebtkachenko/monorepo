@@ -105,6 +105,12 @@ const DEMO_COA: ReadonlyArray<{
     normalBalance: "CREDIT",
   },
   {
+    number: "431",
+    name: "Výsledek hospodaření ve schvalování",
+    nature: "EQUITY",
+    normalBalance: "CREDIT",
+  },
+  {
     number: "701",
     name: "Počáteční účet rozvažný",
     nature: "CLOSING",

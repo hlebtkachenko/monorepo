@@ -26,16 +26,15 @@ export async function buildDpfo(
     db,
     sql`
       WITH s AS (
-        SELECT direction,
-               CASE WHEN total_tax_base <> 0 THEN total_tax_base ELSE total_amount END AS base
+        SELECT direction, total_tax_base AS base
           FROM monetary_period_summary
          WHERE period_id = ${periodId}::uuid AND is_clearing = false AND is_tax_relevant = true
       )
       SELECT
-        COALESCE(SUM(base) FILTER (WHERE direction = 'INFLOW'), 0)  AS prijmy_danove,
-        COALESCE(SUM(base) FILTER (WHERE direction = 'OUTFLOW'), 0) AS vydaje_danove,
-        COALESCE(SUM(base) FILTER (WHERE direction = 'INFLOW'), 0)
-          - COALESCE(SUM(base) FILTER (WHERE direction = 'OUTFLOW'), 0) AS zaklad_dane
+        COALESCE(SUM(base) FILTER (WHERE direction = 'INFLOW'), 0)::numeric(19,4)  AS prijmy_danove,
+        COALESCE(SUM(base) FILTER (WHERE direction = 'OUTFLOW'), 0)::numeric(19,4) AS vydaje_danove,
+        (COALESCE(SUM(base) FILTER (WHERE direction = 'INFLOW'), 0)
+          - COALESCE(SUM(base) FILTER (WHERE direction = 'OUTFLOW'), 0))::numeric(19,4) AS zaklad_dane
       FROM s`,
   )
   return { type: "PERSONAL_INCOME_TAX", ...r }

@@ -11,7 +11,14 @@
  * cross-workspace FK-bypass hole via (counterparty_id, workspace_id).
  * Triggers / RLS / CHECK constraints live in the migration, not this DSL.
  */
-import { pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core"
+import {
+  char,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 import { organization } from "./organization"
 import { workspace } from "./workspace"
@@ -28,6 +35,11 @@ export const counterparty = pgTable(
     self_of_organization_id: uuid("self_of_organization_id")
       .unique()
       .references(() => organization.id, { onDelete: "set null" }),
+    // Tax identity for per-partner outputs (KH §101d, SH §102). Added in 0039;
+    // CHECK on country_code lives in the migration, not this DSL.
+    name: text("name"), // obchodní jméno / jméno osoby
+    tax_id: text("tax_id"), // DIČ incl. country prefix (CZ12345678)
+    country_code: char("country_code", { length: 2 }), // ISO 3166-1 alpha-2 member state
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

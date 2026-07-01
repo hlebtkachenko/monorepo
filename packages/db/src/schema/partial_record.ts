@@ -42,6 +42,10 @@ export const partial_record = pgTable(
     base_amount: numeric("base_amount", { precision: 19, scale: 4 }).notNull(), // základ daně
     vat_rate: numeric("vat_rate", { precision: 5, scale: 2 }), // 0/12/21…; null for OUTSIDE_VAT
     vat_mode: vatMode("vat_mode").notNull(), // DRIVES posting
+    // Place-of-supply regime (ZDPH §16/§92/§102). Splits ř.3/4 (EU acquisition)
+    // from ř.10/11 (domestic PDP) on the DPH return; NULL = legacy/undistinguished.
+    // CHECK constraint lives in migration 0038, not this DSL.
+    vat_jurisdiction: text("vat_jurisdiction"), // DOMESTIC|REVERSE_CHARGE|EU|IMPORT|EXEMPT|OUTSIDE_VAT
     vat_deductible: boolean("vat_deductible").notNull().default(true), // false -> VAT folds into cost
     advance_settlement: boolean("advance_settlement").notNull().default(false), // daňový doklad k záloze (§37a)
     vat_amount: numeric("vat_amount", { precision: 19, scale: 4 })
@@ -74,10 +78,7 @@ export const partial_record = pgTable(
     foreignKey({
       name: "partial_record_line_fk",
       columns: [t.individual_record_id, t.organization_id],
-      foreignColumns: [
-        individual_record.id,
-        individual_record.organization_id,
-      ],
+      foreignColumns: [individual_record.id, individual_record.organization_id],
     }),
     unique("partial_record_id_org_unique").on(t.id, t.organization_id),
   ],

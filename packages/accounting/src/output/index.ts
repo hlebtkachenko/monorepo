@@ -19,6 +19,8 @@ import { unpostedCases, type UnpostedCase } from "../invariants"
 import { buildZaverka, type Zaverka } from "./zaverka"
 import { buildPrehledy, type Prehledy } from "./prehledy"
 import { buildDpfo, type Dpfo } from "./dpfo"
+import { buildDppo, type Dppo } from "./dppo"
+import { buildDph, type Dph } from "./dph"
 
 export {
   buildZaverka,
@@ -28,6 +30,38 @@ export {
 } from "./zaverka"
 export { buildPrehledy, type Prehledy } from "./prehledy"
 export { buildDpfo, type Dpfo } from "./dpfo"
+export {
+  buildDppo,
+  computeIncomeTaxAdvances,
+  NON_DEDUCTIBLE_CATALOGUE,
+  type Dppo,
+  type DppoInput,
+} from "./dppo"
+export {
+  buildDph,
+  type Dph,
+  type DphRows,
+  type KontrolniHlaseniTotals,
+} from "./dph"
+export {
+  buildKontrolniHlaseni,
+  KH_ROW_THRESHOLD,
+  type KontrolniHlaseni,
+  type KhRow,
+  type KhAggregate,
+} from "./kontrolni-hlaseni"
+export {
+  buildSouhrnneHlaseni,
+  type SouhrnneHlaseni,
+  type ShRow,
+} from "./souhrnne-hlaseni"
+export {
+  buildStatementLayout,
+  type StatementLayout,
+  type LayoutLine,
+  type StatementRozsah,
+  type StatementUnit,
+} from "./statement-layout"
 
 export type OutputFigures = Zaverka | Prehledy | Dpfo
 

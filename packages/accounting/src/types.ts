@@ -11,6 +11,7 @@
  * rationale.
  */
 
+import type { VatJurisdiction } from "./classify"
 import type {
   periodStatus,
   summaryRecordType,
@@ -98,6 +99,13 @@ export interface PartialRecordInput {
   vatRate?: Decimal | null
   /** DRIVES posting (STANDARD / REVERSE_CHARGE / EXEMPT / OUTSIDE_VAT / IMPORT). */
   vatMode: VatMode
+  /**
+   * Place-of-supply regime (ZDPH §16/§92/§102) — DOMESTIC/REVERSE_CHARGE/EU/
+   * IMPORT/EXEMPT/OUTSIDE_VAT. Splits ř.3/4 (EU acquisition) from ř.10/11
+   * (domestic PDP) on the DPH return and drives the §102 souhrnné hlášení.
+   * Omit → NULL (legacy: a REVERSE_CHARGE receipt defaults to domestic ř.10/11).
+   */
+  vatJurisdiction?: VatJurisdiction | null
   /** false → VAT folds into cost. Defaults true. */
   vatDeductible?: boolean
   /** daňový doklad k záloze (§37a). Defaults false. */

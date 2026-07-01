@@ -363,6 +363,64 @@ export const PURCHASE_SCENARIOS: readonly PredkontaceScenario[] = [
       { account: "321", side: "CREDIT", basis: "gross" },
     ],
   },
+  {
+    // Received credit note (dobropis) — opravný daňový doklad that lowers the tax
+    // base. Reverses a standard purchase: cut the payable (321), cut the cost
+    // (504/501/518 via override), reverse the input VAT (343). The caller flips
+    // the negative document totals to positive before posting.
+    id: "P-CREDIT-NOTE-STD",
+    label: "FP dobropis — snížení základu daně (§42) — 21/12 %",
+    documentSide: "PURCHASE",
+    vatMode: "STANDARD",
+    legalBasis: [`${ZDPH} §42`, `${ZDPH} §74`],
+    confidence: "high",
+    entries: [
+      {
+        account: "321",
+        side: "DEBIT",
+        basis: "gross",
+        description: "Snížení závazku vůči dodavateli",
+      },
+      {
+        account: "504",
+        side: "CREDIT",
+        basis: "net",
+        description: "Snížení nákladu (dobropis)",
+      },
+      {
+        account: "343",
+        side: "CREDIT",
+        basis: "vat",
+        description: "Oprava odpočtu DPH (§74)",
+      },
+    ],
+  },
+  {
+    // Received supply exempt / outside the scope of Czech VAT (e.g. international
+    // passenger air transport, §70 — place of supply under §10a, so no §24
+    // self-assessment). Whole gross is expensed; no input VAT. Override 518 to
+    // the category account (e.g. 512 cestovné) as needed.
+    id: "P-EXEMPT-RECEIVED",
+    label: "FP — přijaté osvobozené / mimo předmět DPH (bez odpočtu)",
+    documentSide: "PURCHASE",
+    vatMode: "EXEMPT",
+    legalBasis: [`${ZDPH} §51`, `${ZDPH} §70`],
+    confidence: "high",
+    entries: [
+      {
+        account: "518",
+        side: "DEBIT",
+        basis: "gross",
+        description: "Náklad (osvobozené plnění, bez odpočtu)",
+      },
+      {
+        account: "321",
+        side: "CREDIT",
+        basis: "gross",
+        description: "Závazek vůči dodavateli",
+      },
+    ],
+  },
 ] as const
 
 /** All catalogue scenarios indexed by id. */

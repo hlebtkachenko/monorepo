@@ -6,6 +6,26 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.10.2] — 2026-07-01
+
+Patch release: the app-structure discovery surface — the org navigation tree, pages, and layout archetypes, reachable by AI agents **outside the GUI** via the public API / SDK / MCP / CLI. Read-only metadata; no runtime behavior change to the app.
+
+### Added
+
+- **api**: read-only app-structure discovery surface for agents — `GET /v1/structure` (the ten rail modules → pages → subpages, each with route, icon, build-status, and layout archetype) and `GET /v1/structure/archetypes` (the five content-panel archetypes). Public (no API key — the IA is tenant-agnostic), auto-shipped as MCP tools (`getStructure`, `listArchetypes`) and CLI commands (`afframe structure`, `afframe archetypes`). Generated from the typed `nav.ts` trees at build time (`scripts/gen-structure.ts` → committed snapshot), drift-locked via a lefthook `structure-drift` hook; the GUI is untouched. Operability (agents acting on pages) is deferred until the accounting domain lands — see [`docs/api/AGENT-STRUCTURE.md`](docs/api/AGENT-STRUCTURE.md) + issue #439. (#438)
+
+## [v0.10.1] — 2026-07-01
+
+Patch release: Intrastat placeholder pages on the app skeleton, plus admin security-scan hygiene. Mock-surface + hygiene only, no runtime behavior change.
+
+### Added
+
+- **web**: Intrastat obligation surface on the app skeleton — a **Closing › Obligations › Intrastat** page with **Dispatches** / **Arrivals** subpages (TBA-flagged `ModulePage` placeholders, matching every other closing leaf). Statistical filing to ČSÚ via the Celní správa INTRASTAT-CZ portal (threshold 15M CZK/flow; §58 Act 242/2016 + NV 333/2021). Also documents the VAT-registration turnover watcher (rolling-12mo gauge, §6/§6c ZDPH) on Company › Overview and flags the §89/§90 VAT margin schemes as a V2-deferred scope-out. (#434)
+
+### Fixed
+
+- **admin**: cleared the three open security-scan findings, all on the staff-gated admin surface (two-advisor verified as real root-cause fixes). CodeQL `js/file-system-race` (TOCTOU) in the Storybook static route removed by dropping the `stat` check and reading directly with an `EISDIR` fallback; the one unpinned `storybook-builder` Docker stage pinned to the same digest as the other four (also clears a latent Dependabot mixed-reference under-update); and the `js-yaml <3.15.0` quadratic-DoS (GHSA-h67p-54hq-rp68, dev/test-only transitive) closed with a bounded pnpm override to exactly `3.15.0`. (#435)
+
 ## [v0.10.0] — 2026-07-01
 
 Minor release: the org application surface skeleton — the full navigable sidebar built from the enriched SITEMAP, plus the four reusable content-panel archetypes.

@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { headers } from "next/headers"
 
@@ -31,6 +31,24 @@ const MIME: Record<string, string> = {
   ".ttf": "font/ttf",
   ".eot": "application/vnd.ms-fontobject",
   ".txt": "text/plain; charset=utf-8",
+}
+
+// Read a bundle path directly, falling back to <dir>/index.html when the path
+// is a directory (readFile throws EISDIR). Reading in one call — with no prior
+// stat() check — removes the check-then-use pair the CodeQL js/file-system-race
+// (TOCTOU) query flags. `target` is the path actually read, used for MIME/ext.
+async function loadAsset(
+  filePath: string,
+): Promise<{ data: Buffer; target: string }> {
+  try {
+    return { data: await readFile(filePath), target: filePath }
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EISDIR") {
+      const target = path.join(filePath, "index.html")
+      return { data: await readFile(target), target }
+    }
+    throw e
+  }
 }
 
 export const dynamic = "force-dynamic"
@@ -67,11 +85,7 @@ export async function GET(
   }
 
   try {
-    const s = await stat(resolved)
-    const target = s.isDirectory()
-      ? path.join(resolved, "index.html")
-      : resolved
-    const data = await readFile(target)
+    const { data, target } = await loadAsset(resolved)
     const ext = path.extname(target).toLowerCase()
 
     if (ext === ".html") {

@@ -1,8 +1,11 @@
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
+  Post,
   Query,
   UseGuards,
 } from "@nestjs/common"
@@ -15,6 +18,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger"
 import type {
+  ClassifyEventResponse,
   ControlStatementResponse,
   DphResponse,
   DppoResponse,
@@ -22,12 +26,14 @@ import type {
   FinancialStatementsResponse,
   JournalResponse,
   LedgerResponse,
+  NumberSeriesListResponse,
   OpenItemsResponse,
   SaldokontoResponse,
   StatementLayoutResponse,
 } from "@workspace/shared/api"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
-import { withOrganization } from "@workspace/db"
+import { eq, withOrganization } from "@workspace/db"
+import { number_series } from "@workspace/db/schema"
 import {
   buildDph,
   buildDppo,
@@ -35,6 +41,8 @@ import {
   buildSouhrnneHlaseni,
   buildStatementLayout,
   buildZaverka,
+  classifyEvent,
+  type EconomicEvent,
   generalLedger,
   journal,
   saldoPerPartner,
@@ -43,6 +51,8 @@ import {
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
 import {
+  ClassifyEventRequestDto,
+  ClassifyEventResponseDto,
   ControlStatementResponseDto,
   DphResponseDto,
   DppoResponseDto,
@@ -50,6 +60,7 @@ import {
   FinancialStatementsResponseDto,
   JournalResponseDto,
   LedgerResponseDto,
+  NumberSeriesListResponseDto,
   OpenItemsResponseDto,
   SaldokontoResponseDto,
   StatementLayoutResponseDto,
@@ -408,5 +419,58 @@ export class AccountingController {
       vynosy: s.vynosy,
       vysledek: s.vysledek,
     }
+  }
+
+  @Post("classify")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Classify an economic event",
+    description:
+      "Pure decision — returns the accounting treatment (VAT mode, scenario, " +
+      "capitalisation/deferral, open-item account) with a law-cited reasoning " +
+      "trail. No mutation, no tenant read.",
+  })
+  @ApiOkResponse({ type: ClassifyEventResponseDto })
+  classify(@Body() body: ClassifyEventRequestDto): ClassifyEventResponse {
+    return classifyEvent(body as unknown as EconomicEvent)
+  }
+
+  @Get("number-series")
+  @ApiOperation({
+    summary: "List number series",
+    description:
+      "The organization's gapless number series — write bodies reference a " +
+      "series by seriesId; this is how an agent discovers those ids.",
+  })
+  @ApiQuery({
+    name: "entityType",
+    required: false,
+    enum: ["EVENT", "DOCUMENT", "ASSET", "INVENTORY_COUNT"],
+  })
+  @ApiOkResponse({ type: NumberSeriesListResponseDto })
+  async listNumberSeries(
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+    @Query("entityType")
+    entityType?: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT",
+  ): Promise<NumberSeriesListResponse> {
+    const series = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      (db) =>
+        db
+          .select({
+            id: number_series.id,
+            entityType: number_series.entity_type,
+            code: number_series.code,
+            pattern: number_series.pattern,
+            nextNumber: number_series.next_number,
+          })
+          .from(number_series)
+          .where(
+            entityType ? eq(number_series.entity_type, entityType) : undefined,
+          )
+          .orderBy(number_series.entity_type, number_series.code),
+    )
+    return { series }
   }
 }

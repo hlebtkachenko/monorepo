@@ -1,5 +1,7 @@
 import { createZodDto } from "nestjs-zod"
 import {
+  ClassifyEventRequestSchema,
+  ClassifyEventResponseSchema,
   ControlStatementResponseSchema,
   DphResponseSchema,
   DppoResponseSchema,
@@ -9,6 +11,7 @@ import {
   JournalResponseSchema,
   LedgerResponseSchema,
   OpenItemsResponseSchema,
+  NumberSeriesListResponseSchema,
   PingResponseSchema,
   SaldokontoResponseSchema,
   StatementLayoutResponseSchema,
@@ -43,4 +46,13 @@ export class FinancialStatementsResponseDto extends createZodDto(
 ) {}
 export class StatementLayoutResponseDto extends createZodDto(
   StatementLayoutResponseSchema,
+) {}
+export class ClassifyEventRequestDto extends createZodDto(
+  ClassifyEventRequestSchema,
+) {}
+export class ClassifyEventResponseDto extends createZodDto(
+  ClassifyEventResponseSchema,
+) {}
+export class NumberSeriesListResponseDto extends createZodDto(
+  NumberSeriesListResponseSchema,
 ) {}

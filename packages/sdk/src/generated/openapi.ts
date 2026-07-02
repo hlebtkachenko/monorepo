@@ -324,6 +324,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/classify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Classify an economic event
+         * @description Pure decision: given raw economic-event facts, returns the accounting treatment (VAT mode, předkontace scenario, capitalisation/deferral, open-item account) with a law-cited reasoning trail. No mutation, no tenant read — safe and repeatable.
+         */
+        post: operations["classifyAccountingEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/number-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List number series
+         * @description Returns the organization's gapless number series (optionally filtered by entity type). Write bodies reference a series by `seriesId`; this is how an agent discovers those ids. Organization-scoped (FORCE RLS).
+         */
+        get: operations["listAccountingNumberSeries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2417,6 +2457,185 @@ export interface components {
              */
             amount: string;
         };
+        /** @description Economic-event facts to classify into an accounting treatment. */
+        ClassifyEventRequest: {
+            /**
+             * @description FP (RECEIVED / purchase) vs FV (ISSUED / sale).
+             * @example RECEIVED
+             * @enum {string}
+             */
+            direction: "RECEIVED" | "ISSUED";
+            /**
+             * @description Kind of supply.
+             * @example SERVICES
+             * @enum {string}
+             */
+            supplyKind: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+            /**
+             * @description VAT jurisdiction.
+             * @example DOMESTIC
+             * @enum {string}
+             */
+            jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+            /**
+             * @description Unsigned decimal amount as a string.
+             * @example 12100.00
+             */
+            base: string;
+            /**
+             * @description Unsigned decimal amount as a string.
+             * @example 12100.00
+             */
+            vat: string;
+            /**
+             * @description Stated VAT rate.
+             * @example 21
+             */
+            vatRate?: string | null;
+            /**
+             * @description ISO 4217.
+             * @example CZK
+             */
+            currency: string;
+            /**
+             * @description FX rate if foreign currency.
+             * @example 25.30
+             */
+            fxRate?: string | null;
+            /** @description Service window (ISO dates) — deferral split. */
+            serviceWindow?: {
+                start: string;
+                end: string;
+            };
+            /**
+             * @description Accounting period end (ISO).
+             * @example 2025-12-31
+             */
+            periodEnd?: string;
+            /**
+             * @description Durable long-term asset?
+             * @example false
+             */
+            durable?: boolean;
+            /**
+             * @description Unsigned decimal amount as a string.
+             * @example 12100.00
+             */
+            assetThreshold?: string;
+            /**
+             * @description 042/041 for a capitalised asset.
+             * @example 042
+             */
+            acquisitionAccount?: string;
+            /**
+             * @description Credit note (§42) — flips sides.
+             * @example false
+             */
+            isCreditNote?: boolean;
+        };
+        /** @description The accounting treatment decided from the facts (with reasoning). */
+        ClassifyEventResponse: {
+            /**
+             * @description VAT mode to stamp on the partial record.
+             * @example STANDARD
+             */
+            vatMode: string;
+            /**
+             * @description Rate to freeze (null for exempt/outside).
+             * @example 21
+             */
+            vatRate: string | null;
+            /**
+             * @description Předkontace scenario id.
+             * @example PURCHASE_SERVICE_STANDARD
+             */
+            scenario: string;
+            /** @description Template→tenant account remap. */
+            accountOverrides?: {
+                [key: string]: string;
+            };
+            /**
+             * @description Open-item account, or null.
+             * @example 321
+             * @enum {string|null}
+             */
+            saldoAccount: "311" | "321" | null;
+            /** @description Route net to an acquisition account. */
+            capitalise?: {
+                acquisitionAccount: string;
+            };
+            /** @description Defer the future part to a bridge account. */
+            deferral?: {
+                /** @enum {string} */
+                bridge: "381" | "384";
+                reason: string;
+            };
+            /** @description Law-cited decision trail. */
+            reasoning: string[];
+        };
+        /** @description Number series available for write-body seriesId references. */
+        NumberSeriesListResponse: {
+            /** @description The organization's number series. */
+            series: {
+                /**
+                 * Format: uuid
+                 * @description Series id — reference by this in write bodies (seriesId).
+                 * @example aa11bb22-cc33-4d44-9e55-ff6677889900
+                 */
+                id: string;
+                /**
+                 * @description What the series numbers.
+                 * @example DOCUMENT
+                 * @enum {string}
+                 */
+                entityType: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT";
+                /**
+                 * @description Company série label.
+                 * @example FP
+                 */
+                code: string;
+                /**
+                 * @description Designation format.
+                 * @example FP{YYYY}{NNNN}
+                 */
+                pattern: string;
+                /**
+                 * @description Next sequence number.
+                 * @example 43
+                 */
+                nextNumber: number;
+            }[];
+        };
+        /** @description A gapless number series. */
+        NumberSeriesRow: {
+            /**
+             * Format: uuid
+             * @description Series id — reference by this in write bodies (seriesId).
+             * @example aa11bb22-cc33-4d44-9e55-ff6677889900
+             */
+            id: string;
+            /**
+             * @description What the series numbers.
+             * @example DOCUMENT
+             * @enum {string}
+             */
+            entityType: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT";
+            /**
+             * @description Company série label.
+             * @example FP
+             */
+            code: string;
+            /**
+             * @description Designation format.
+             * @example FP{YYYY}{NNNN}
+             */
+            pattern: string;
+            /**
+             * @description Next sequence number.
+             * @example 43
+             */
+            nextNumber: number;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -2992,6 +3211,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatementLayoutResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    classifyAccountingEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassifyEventRequest"];
+            };
+        };
+        responses: {
+            /** @description The decided accounting treatment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassifyEventResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAccountingNumberSeries: {
+        parameters: {
+            query?: {
+                /** @description Filter by entity type. */
+                entityType?: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organization's number series. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NumberSeriesListResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

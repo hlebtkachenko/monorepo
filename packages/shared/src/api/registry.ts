@@ -33,6 +33,13 @@ import {
   NavSubpageSchema,
 } from "./structure"
 import {
+  ClassifyEventRequestSchema,
+  ClassifyEventResponseSchema,
+  NumberSeriesListResponseSchema,
+  NumberSeriesQuerySchema,
+  NumberSeriesRowSchema,
+} from "./accounting-writes"
+import {
   ControlStatementResponseSchema,
   DphResponseSchema,
   DphRowsSchema,
@@ -166,6 +173,19 @@ const StatementLayoutResponse = registry.register(
   StatementLayoutResponseSchema,
 )
 registry.register("LayoutLine", LayoutLineSchema)
+const ClassifyEventRequest = registry.register(
+  "ClassifyEventRequest",
+  ClassifyEventRequestSchema,
+)
+const ClassifyEventResponse = registry.register(
+  "ClassifyEventResponse",
+  ClassifyEventResponseSchema,
+)
+const NumberSeriesListResponse = registry.register(
+  "NumberSeriesListResponse",
+  NumberSeriesListResponseSchema,
+)
+registry.register("NumberSeriesRow", NumberSeriesRowSchema)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -634,6 +654,54 @@ registry.registerPath({
     "200": {
       description: "The period's formatted statement layout.",
       content: { "application/json": { schema: StatementLayoutResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/classify",
+  operationId: "classifyAccountingEvent",
+  summary: "Classify an economic event",
+  description:
+    "Pure decision: given raw economic-event facts, returns the accounting " +
+    "treatment (VAT mode, předkontace scenario, capitalisation/deferral, " +
+    "open-item account) with a law-cited reasoning trail. No mutation, no " +
+    "tenant read — safe and repeatable.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: ClassifyEventRequest } },
+    },
+  },
+  responses: {
+    "200": {
+      description: "The decided accounting treatment.",
+      content: { "application/json": { schema: ClassifyEventResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/number-series",
+  operationId: "listAccountingNumberSeries",
+  summary: "List number series",
+  description:
+    "Returns the organization's gapless number series (optionally filtered by " +
+    "entity type). Write bodies reference a series by `seriesId`; this is how " +
+    "an agent discovers those ids. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: NumberSeriesQuerySchema },
+  responses: {
+    "200": {
+      description: "The organization's number series.",
+      content: { "application/json": { schema: NumberSeriesListResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

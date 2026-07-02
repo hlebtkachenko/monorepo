@@ -17,6 +17,8 @@ import { registerGetAccountingEcSalesList } from "./getAccountingEcSalesList"
 import { registerGetAccountingControlStatement } from "./getAccountingControlStatement"
 import { registerGetAccountingFinancialStatements } from "./getAccountingFinancialStatements"
 import { registerGetAccountingStatementLayout } from "./getAccountingStatementLayout"
+import { registerClassifyAccountingEvent } from "./classifyAccountingEvent"
+import { registerListAccountingNumberSeries } from "./listAccountingNumberSeries"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -35,6 +37,8 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerGetAccountingControlStatement(server, client)
   registerGetAccountingFinancialStatements(server, client)
   registerGetAccountingStatementLayout(server, client)
+  registerClassifyAccountingEvent(server, client)
+  registerListAccountingNumberSeries(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -54,4 +58,6 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "getAccountingControlStatement",
   "getAccountingFinancialStatements",
   "getAccountingStatementLayout",
+  "classifyAccountingEvent",
+  "listAccountingNumberSeries",
 ] as const

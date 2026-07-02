@@ -3565,6 +3565,331 @@
           "amount"
         ],
         "description": "One formatted statement layout line."
+      },
+      "ClassifyEventRequest": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "ISSUED"
+            ],
+            "description": "FP (RECEIVED / purchase) vs FV (ISSUED / sale).",
+            "example": "RECEIVED"
+          },
+          "supplyKind": {
+            "type": "string",
+            "enum": [
+              "GOODS",
+              "MATERIAL",
+              "SERVICES",
+              "UTILITY",
+              "RENT",
+              "INSURANCE",
+              "ASSET",
+              "ADVANCE",
+              "CREDIT_NOTE",
+              "OTHER"
+            ],
+            "description": "Kind of supply.",
+            "example": "SERVICES"
+          },
+          "jurisdiction": {
+            "type": "string",
+            "enum": [
+              "DOMESTIC",
+              "REVERSE_CHARGE",
+              "EU",
+              "IMPORT",
+              "EXEMPT",
+              "OUTSIDE_VAT"
+            ],
+            "description": "VAT jurisdiction.",
+            "example": "DOMESTIC"
+          },
+          "base": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Unsigned decimal amount as a string.",
+            "example": "12100.00"
+          },
+          "vat": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Unsigned decimal amount as a string.",
+            "example": "12100.00"
+          },
+          "vatRate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stated VAT rate.",
+            "example": "21"
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "ISO 4217.",
+            "example": "CZK"
+          },
+          "fxRate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "FX rate if foreign currency.",
+            "example": "25.30"
+          },
+          "serviceWindow": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string"
+              },
+              "end": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "description": "Service window (ISO dates) — deferral split."
+          },
+          "periodEnd": {
+            "type": "string",
+            "description": "Accounting period end (ISO).",
+            "example": "2025-12-31"
+          },
+          "durable": {
+            "type": "boolean",
+            "description": "Durable long-term asset?",
+            "example": false
+          },
+          "assetThreshold": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Unsigned decimal amount as a string.",
+            "example": "12100.00"
+          },
+          "acquisitionAccount": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 6,
+            "description": "042/041 for a capitalised asset.",
+            "example": "042"
+          },
+          "isCreditNote": {
+            "type": "boolean",
+            "description": "Credit note (§42) — flips sides.",
+            "example": false
+          }
+        },
+        "required": [
+          "direction",
+          "supplyKind",
+          "jurisdiction",
+          "base",
+          "vat",
+          "currency"
+        ],
+        "description": "Economic-event facts to classify into an accounting treatment."
+      },
+      "ClassifyEventResponse": {
+        "type": "object",
+        "properties": {
+          "vatMode": {
+            "type": "string",
+            "description": "VAT mode to stamp on the partial record.",
+            "example": "STANDARD"
+          },
+          "vatRate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rate to freeze (null for exempt/outside).",
+            "example": "21"
+          },
+          "scenario": {
+            "type": "string",
+            "description": "Předkontace scenario id.",
+            "example": "PURCHASE_SERVICE_STANDARD"
+          },
+          "accountOverrides": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Template→tenant account remap."
+          },
+          "saldoAccount": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "311",
+              "321",
+              null
+            ],
+            "description": "Open-item account, or null.",
+            "example": "321"
+          },
+          "capitalise": {
+            "type": "object",
+            "properties": {
+              "acquisitionAccount": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "acquisitionAccount"
+            ],
+            "description": "Route net to an acquisition account."
+          },
+          "deferral": {
+            "type": "object",
+            "properties": {
+              "bridge": {
+                "type": "string",
+                "enum": [
+                  "381",
+                  "384"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "bridge",
+              "reason"
+            ],
+            "description": "Defer the future part to a bridge account."
+          },
+          "reasoning": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Law-cited decision trail."
+          }
+        },
+        "required": [
+          "vatMode",
+          "vatRate",
+          "scenario",
+          "saldoAccount",
+          "reasoning"
+        ],
+        "description": "The accounting treatment decided from the facts (with reasoning)."
+      },
+      "NumberSeriesListResponse": {
+        "type": "object",
+        "properties": {
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Series id — reference by this in write bodies (seriesId).",
+                  "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+                },
+                "entityType": {
+                  "type": "string",
+                  "enum": [
+                    "EVENT",
+                    "DOCUMENT",
+                    "ASSET",
+                    "INVENTORY_COUNT"
+                  ],
+                  "description": "What the series numbers.",
+                  "example": "DOCUMENT"
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Company série label.",
+                  "example": "FP"
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "Designation format.",
+                  "example": "FP{YYYY}{NNNN}"
+                },
+                "nextNumber": {
+                  "type": "integer",
+                  "description": "Next sequence number.",
+                  "example": 43
+                }
+              },
+              "required": [
+                "id",
+                "entityType",
+                "code",
+                "pattern",
+                "nextNumber"
+              ],
+              "description": "A gapless number series."
+            },
+            "description": "The organization's number series."
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "description": "Number series available for write-body seriesId references."
+      },
+      "NumberSeriesRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Series id — reference by this in write bodies (seriesId).",
+            "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+          },
+          "entityType": {
+            "type": "string",
+            "enum": [
+              "EVENT",
+              "DOCUMENT",
+              "ASSET",
+              "INVENTORY_COUNT"
+            ],
+            "description": "What the series numbers.",
+            "example": "DOCUMENT"
+          },
+          "code": {
+            "type": "string",
+            "description": "Company série label.",
+            "example": "FP"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Designation format.",
+            "example": "FP{YYYY}{NNNN}"
+          },
+          "nextNumber": {
+            "type": "integer",
+            "description": "Next sequence number.",
+            "example": 43
+          }
+        },
+        "required": [
+          "id",
+          "entityType",
+          "code",
+          "pattern",
+          "nextNumber"
+        ],
+        "description": "A gapless number series."
       }
     },
     "parameters": {}
@@ -4425,6 +4750,125 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatementLayoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/classify": {
+      "post": {
+        "operationId": "classifyAccountingEvent",
+        "summary": "Classify an economic event",
+        "description": "Pure decision: given raw economic-event facts, returns the accounting treatment (VAT mode, předkontace scenario, capitalisation/deferral, open-item account) with a law-cited reasoning trail. No mutation, no tenant read — safe and repeatable.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassifyEventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decided accounting treatment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifyEventResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/number-series": {
+      "get": {
+        "operationId": "listAccountingNumberSeries",
+        "summary": "List number series",
+        "description": "Returns the organization's gapless number series (optionally filtered by entity type). Write bodies reference a series by `seriesId`; this is how an agent discovers those ids. Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EVENT",
+                "DOCUMENT",
+                "ASSET",
+                "INVENTORY_COUNT"
+              ],
+              "description": "Filter by entity type.",
+              "example": "DOCUMENT"
+            },
+            "required": false,
+            "description": "Filter by entity type.",
+            "name": "entityType",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organization's number series.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NumberSeriesListResponse"
                 }
               }
             }

@@ -31,6 +31,7 @@ const HIDDEN_ROUTES = new Set<string>([
   // Accounting v2 pages — real routes, reachable by URL; the Accounting nav
   // module that lists them is wired once the full page set lands (EPIC 5).
   "denik",
+  "ledger",
 ])
 
 const here = dirname(fileURLToPath(import.meta.url))

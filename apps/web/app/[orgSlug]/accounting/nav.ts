@@ -10,7 +10,7 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  */
 export function accountingNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "Calculator", tba: true },
+    { label: "Overview", href: base, icon: "Calculator" },
     // "Posting approvals" = the queue where the AI Assistant's automatically
     // prepared postings wait for a human to review + approve them (the AI→human
     // schvalovací cesta / approval path).
@@ -37,13 +37,16 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           label: "Journal",
           href: `${base}/journal`,
           icon: "BookOpen",
-          tba: true,
         },
         {
           label: "General ledger",
           href: `${base}/ledger`,
           icon: "BookOpenText",
-          tba: true,
+        },
+        {
+          label: "Saldokonto",
+          href: `${base}/saldokonto`,
+          icon: "ArrowUpDown",
         },
         {
           label: "Off-balance ledger",
@@ -73,7 +76,6 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           label: "Chart of accounts",
           href: `${base}/chart-of-accounts`,
           icon: "Shapes",
-          tba: true,
         },
         {
           label: "Categories",

@@ -28,10 +28,10 @@ const HIDDEN_ROUTES = new Set<string>([
   "demo-launchpad",
   "demo-dashboard",
   "demo-single",
-  // Accounting v2 pages — real routes, reachable by URL; the Accounting nav
-  // module that lists them is wired once the full page set lands (EPIC 5).
-  "denik",
-  "ledger",
+  // Doklad (invoice/document editor, Single archetype) — real route; its home
+  // module (Documents/Invoicing) is TBD, so allow-list it until then. The other
+  // accounting v2 pages live in the wired `accounting` nav module (no allowlist).
+  "doklad",
 ])
 
 const here = dirname(fileURLToPath(import.meta.url))

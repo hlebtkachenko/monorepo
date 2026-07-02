@@ -12,14 +12,14 @@ import {
 import { presignAvatarRead } from "../../_lib/avatar-storage"
 import { readActiveWorkspaceCookie } from "../../onboarding/_lib/active-workspace-cookie"
 
-export type WorkspaceRole = "owner" | "admin" | "member"
+type WorkspaceRole = "owner" | "admin" | "member"
 
 interface WorkspaceSummary {
   id: string
   name: string
   role: WorkspaceRole
-  /** Number of client books (organizations) under this workspace. */
-  clientCount: number
+  /** Number of companies (organizations) under this workspace. */
+  companyCount: number
 }
 
 export interface WorkspaceContext {
@@ -29,8 +29,6 @@ export interface WorkspaceContext {
    */
   activeWorkspaceId: string | null
   current: WorkspaceSummary | null
-  /** Other workspaces the user belongs to (for the switcher). */
-  others: WorkspaceSummary[]
   hasNoWorkspace: boolean
 }
 
@@ -96,7 +94,7 @@ export async function getWorkspaceContext(
       id: r.id,
       name: r.name,
       role: r.role,
-      clientCount: countByWorkspace.get(r.id) ?? 0,
+      companyCount: countByWorkspace.get(r.id) ?? 0,
     }))
   })
 
@@ -104,11 +102,13 @@ export async function getWorkspaceContext(
     return {
       activeWorkspaceId: null,
       current: null,
-      others: [],
       hasNoWorkspace: true,
     }
   }
 
+  // The user operates one office (no switcher). The `wks` cookie set at
+  // onboarding names it; fall back to the first active membership, validated
+  // (never trust the raw cookie — reads bypass RLS).
   const cookieWorkspaceId = await readActiveWorkspaceCookie()
   const current =
     (cookieWorkspaceId &&
@@ -118,7 +118,6 @@ export async function getWorkspaceContext(
   return {
     activeWorkspaceId: current.id,
     current,
-    others: memberships.filter((m) => m.id !== current.id),
     hasNoWorkspace: false,
   }
 }

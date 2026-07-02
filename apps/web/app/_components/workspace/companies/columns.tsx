@@ -9,15 +9,15 @@ import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { useIcons } from "@workspace/ui/icon-packs"
 
-import { useClients } from "./context"
+import { useCompanies } from "./context"
 import {
-  CLIENT_STATUS_OPTIONS,
-  type ClientRow,
-  type ClientStatus,
+  COMPANY_STATUS_OPTIONS,
+  type CompanyRow,
+  type CompanyStatus,
 } from "./data"
 
 const STATUS_BADGE: Record<
-  ClientStatus,
+  CompanyStatus,
   React.ComponentProps<typeof Badge>["variant"]
 > = {
   Active: "default",
@@ -32,8 +32,8 @@ function SelectCell({
   row,
   table,
 }: {
-  row: Row<ClientRow>
-  table: Table<ClientRow>
+  row: Row<CompanyRow>
+  table: Table<CompanyRow>
 }) {
   const checked = row.getIsSelected()
   return (
@@ -64,9 +64,9 @@ function SelectCell({
   )
 }
 
-/** Row affordance that opens the client Inspector. */
-function InspectCell({ row }: { row: ClientRow }) {
-  const { openInspector } = useClients()
+/** Row affordance that opens the company Inspector. */
+function InspectCell({ row }: { row: CompanyRow }) {
+  const { openInspector } = useCompanies()
   const icons = useIcons()
   const Icon = icons.PanelRight
   return (
@@ -81,16 +81,16 @@ function InspectCell({ row }: { row: ClientRow }) {
   )
 }
 
-/** "Open book" — navigate into the client's organization surface. */
+/** "Open" — navigate into the company's organization surface. */
 function OpenBookCell({ slug }: { slug: string }) {
   return (
     <Button asChild variant="outline" size="sm" className="h-7">
-      <Link href={`/${slug}`}>Open book</Link>
+      <Link href={`/${slug}`}>Open</Link>
     </Button>
   )
 }
 
-export const clientColumns: ColumnDef<ClientRow>[] = [
+export const companyColumns: ColumnDef<CompanyRow>[] = [
   {
     id: "select",
     size: 32,
@@ -115,12 +115,12 @@ export const clientColumns: ColumnDef<ClientRow>[] = [
   },
   {
     accessorKey: "legalName",
-    header: "Client",
+    header: "Company",
     size: 240,
     cell: ({ row }) => (
       <span className="font-medium">{row.original.legalName}</span>
     ),
-    meta: { label: "Client" },
+    meta: { label: "Company" },
     enableSorting: true,
   },
   {
@@ -161,7 +161,7 @@ export const clientColumns: ColumnDef<ClientRow>[] = [
     meta: {
       label: "Status",
       variant: "multiSelect",
-      options: CLIENT_STATUS_OPTIONS,
+      options: COMPANY_STATUS_OPTIONS,
     },
     enableColumnFilter: true,
     filterFn: (row, columnId, value) => {

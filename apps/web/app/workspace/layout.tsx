@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
-import { getBuildVersion } from "@workspace/ui/brand-assets"
+import { Logo, getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 import {
   Card,
@@ -15,30 +15,24 @@ import {
 import { AppContextMenuClient } from "../_components/app-context-menu-client"
 import { OrgHeaderActions } from "../_components/org-header-actions"
 import { WorkspaceShell } from "../_components/workspace-shell"
-import { WorkspaceSwitcherClient } from "../_components/workspace-switcher"
 import { AccountMenu } from "../auth/_components/account-menu"
 import {
   getWorkspaceContext,
   getWorkspaceHeaderUser,
-  type WorkspaceRole,
 } from "./_lib/workspace-context"
-
-// DB role enum → human-readable label shown in the workspace switcher.
-const ROLE_LABELS: Record<WorkspaceRole, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-}
 
 /**
  * Workspace tier layout — the accountant-office shell.
  *
  * Real session validation against the Better Auth store (the edge proxy only
- * does the optimistic cookie-presence check). Resolves the active workspace +
- * the user's other workspaces, builds the persistent `AppHeader` node
- * server-side (it needs the session + an avatar presign), and mounts the
- * persistent `WorkspaceShell` once so the rail/sidebar/chrome stay put while the
- * page bodies under `/workspace/*` swap.
+ * does the optimistic cookie-presence check). Resolves the active workspace,
+ * builds the persistent `AppHeader` node server-side (it needs the session + an
+ * avatar presign), and mounts the persistent `WorkspaceShell` once so the
+ * rail/sidebar/chrome stay put while the page bodies under `/workspace/*` swap.
+ *
+ * There is no workspace switcher — a user operates one office (unlike the org
+ * tier's multi-book switcher). The header's left slot carries the brand wordmark
+ * (white, on the green office chrome) instead.
  *
  * A user with no active workspace membership can't be shown an office, so this
  * short-circuits to a centered empty state (with a sign-out affordance) instead
@@ -94,14 +88,10 @@ export default async function WorkspaceLayout({
   const header = (
     <AppHeader
       leftContent={
-        <WorkspaceSwitcherClient
-          currentWorkspace={{
-            id: ctx.current.id,
-            name: ctx.current.name,
-            role: ROLE_LABELS[ctx.current.role],
-            clientCount: ctx.current.clientCount,
-          }}
-          otherWorkspaces={ctx.others.map((w) => ({ id: w.id, name: w.name }))}
+        <Logo
+          variant="wordmark"
+          tone="mono-light"
+          className="ml-1 h-[18px] w-auto"
         />
       }
       actions={

@@ -17,18 +17,18 @@ import { Separator } from "@workspace/ui/components/separator"
 import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 
-import { deadlineColumns } from "./columns"
-import { useDeadlines } from "./context"
-import { DeadlinesToolbar } from "./deadlines-toolbar"
+import { obligationColumns } from "./columns"
+import { useLegislation } from "./context"
+import { LegislationToolbar } from "./legislation-toolbar"
 import {
-  DEADLINE_ROWS,
-  DEADLINE_TABS,
+  OBLIGATION_ROWS,
+  OBLIGATION_TABS,
   formatDueDate,
-  type DeadlineRow,
+  type ObligationRow,
 } from "./data"
 
-/** Free-text search across the deadline's readable fields. */
-function applySearch(rows: DeadlineRow[], query: string): DeadlineRow[] {
+/** Free-text search across the obligation's readable fields. */
+function applySearch(rows: ObligationRow[], query: string): ObligationRow[] {
   const q = query.trim().toLowerCase()
   if (!q) return rows
   return rows.filter((row) =>
@@ -38,12 +38,12 @@ function applySearch(rows: DeadlineRow[], query: string): DeadlineRow[] {
   )
 }
 
-/** Inspector content — the detail of the selected deadline. */
-function DeadlineDetail({ row }: { row: DeadlineRow }) {
+/** Inspector content — the detail of the selected obligation. */
+function ObligationDetail({ row }: { row: ObligationRow }) {
   return (
     <dl className="flex flex-col gap-3">
       <DetailField label="Obligation" value={row.obligation} />
-      <DetailField label="Client" value={row.client} />
+      <DetailField label="Company" value={row.client} />
       <DetailField label="Due date" value={formatDueDate(row.dueDate)} />
       <DetailField
         label="Status"
@@ -55,25 +55,25 @@ function DeadlineDetail({ row }: { row: DeadlineRow }) {
 }
 
 /**
- * Deadlines body — the Table archetype on the workspace shell. A static MOCK
+ * Legislation body — the Table archetype on the workspace shell. A static MOCK
  * obligation board drives a TanStack `DataGridView`: tab-filtered by status, a
  * universal search, the faceted Status filter, row selection with a bulk
  * `ActionBar`, and a per-row `Inspector`. Mounts as the shell `children`.
  */
-export function DeadlinesBody({
-  rows = DEADLINE_ROWS,
+export function LegislationBody({
+  rows = OBLIGATION_ROWS,
 }: {
-  rows?: DeadlineRow[]
+  rows?: ObligationRow[]
 }) {
   const icons = useIcons()
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
-    useDeadlines()
+    useLegislation()
 
   const [statusFilterOpen, setStatusFilterOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
 
   const tabFiltered = React.useMemo(() => {
-    const tab = DEADLINE_TABS.find((t) => t.value === activeTab)
+    const tab = OBLIGATION_TABS.find((t) => t.value === activeTab)
     if (!tab?.status) return rows
     return rows.filter((row) => row.status === tab.status)
   }, [activeTab, rows])
@@ -83,9 +83,9 @@ export function DeadlinesBody({
     [tabFiltered, search],
   )
 
-  const { table } = useDataTable<DeadlineRow>({
+  const { table } = useDataTable<ObligationRow>({
     data,
-    columns: deadlineColumns,
+    columns: obligationColumns,
     getRowId: (row) => row.id,
     columnResizeMode: "onChange",
     defaultColumn: { minSize: 56, size: 150, maxSize: 480 },
@@ -106,7 +106,7 @@ export function DeadlinesBody({
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
-      inspector={inspected ? <DeadlineDetail row={inspected} /> : null}
+      inspector={inspected ? <ObligationDetail row={inspected} /> : null}
       inspectorOpen={inspectorOpen}
       inspectorMode={inspectorMode}
       onInspectorOpenChange={(open) => {
@@ -114,7 +114,7 @@ export function DeadlinesBody({
       }}
       inspectorTitle={inspected?.obligation}
       toolbar={
-        <DeadlinesToolbar
+        <LegislationToolbar
           table={table}
           statusOpen={statusFilterOpen}
           onStatusOpenChange={setStatusFilterOpen}
@@ -126,7 +126,7 @@ export function DeadlinesBody({
         <div className="flex h-9 shrink-0 items-center gap-4 border-t border-border-subtle px-2 text-xs text-muted-foreground">
           <span>
             {filteredRows.length}{" "}
-            {filteredRows.length === 1 ? "deadline" : "deadlines"}
+            {filteredRows.length === 1 ? "obligation" : "obligations"}
           </span>
           {isFiltered ? (
             <>

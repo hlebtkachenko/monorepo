@@ -4,7 +4,7 @@ import type {
 } from "@workspace/ui/blocks/app-content"
 
 /**
- * Home (office overview) dashboard data. `Active clients` is REAL (the workspace
+ * Analyse (office overview) dashboard data. `Active companies` is REAL (the workspace
  * client-book count, injected). Every other tile + both charts are MOCK
  * operational placeholders (no source table yet), deterministic and static —
  * they mirror the org tier's mock-backed analytics. The tiles are ops-focused
@@ -12,15 +12,15 @@ import type {
  * reads as a triage number an accountant-office principal actually opens with.
  */
 
-export interface HomeChart extends Pick<
+export interface AnalyseChart extends Pick<
   DashboardChartCardProps,
   "title" | "data" | "chartConfig" | "xKey" | "chartType"
 > {
   id: string
 }
 
-export function buildHomeMetrics(counts: {
-  activeClients: number
+export function buildAnalyseMetrics(counts: {
+  companyCount: number
 }): MetricTileProps[] {
   return [
     {
@@ -48,22 +48,22 @@ export function buildHomeMetrics(counts: {
       series: [4, 3, 5, 4, 5, 5],
     },
     {
-      label: "Active clients",
-      value: String(counts.activeClients),
+      label: "Active companies",
+      value: String(counts.companyCount),
       delta: { label: "client books", direction: "flat" },
       series: [
-        Math.max(counts.activeClients - 3, 0),
-        Math.max(counts.activeClients - 2, 0),
-        Math.max(counts.activeClients - 2, 0),
-        Math.max(counts.activeClients - 1, 0),
-        counts.activeClients,
-        counts.activeClients,
+        Math.max(counts.companyCount - 3, 0),
+        Math.max(counts.companyCount - 2, 0),
+        Math.max(counts.companyCount - 2, 0),
+        Math.max(counts.companyCount - 1, 0),
+        counts.companyCount,
+        counts.companyCount,
       ],
     },
   ]
 }
 
-export const HOME_CHARTS: HomeChart[] = [
+export const ANALYSE_CHARTS: AnalyseChart[] = [
   {
     id: "deadlines-by-week",
     title: "Deadlines by week",

@@ -17,10 +17,3 @@ export type {
 
 export { PeriodSwitcher } from "./period-switcher"
 export type { PeriodSwitcherProps, AccountingPeriod } from "./period-switcher"
-
-export { WorkspaceSwitcher } from "./workspace-switcher"
-export type {
-  WorkspaceSwitcherProps,
-  WorkspaceSwitcherWorkspace,
-  WorkspaceSwitcherCurrentWorkspace,
-} from "./workspace-switcher"

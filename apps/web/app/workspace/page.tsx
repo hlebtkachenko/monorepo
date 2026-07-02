@@ -1,31 +1,44 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
+import { and, eq, inArray } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
+import { withAdminBypass } from "@workspace/db"
+import {
+  app_user,
+  organization,
+  organization_membership,
+} from "@workspace/db/schema"
 
-import { HomeDashboard } from "../_components/workspace/home/home-dashboard"
+import { CompaniesView } from "../_components/workspace/companies/companies-view"
+import { CompaniesProvider } from "../_components/workspace/companies/context"
+import {
+  enrichCompanyMock,
+  fiscalYearLabel,
+  type CompanyMember,
+  type CompanyRow,
+} from "../_components/workspace/companies/data"
 import { getWorkspaceContext } from "./_lib/workspace-context"
 
-export const metadata = {
-  title: "Overview",
-}
+export const metadata = { title: "Companies" }
 
-// `?error=` values the org layout redirects here on a failed org entry
-// (`[orgSlug]/layout.tsx`). Surfaced as a toast on load so the signal isn't lost
-// now that the standalone chooser (which never showed them) is gone.
+// `?error=` values the org layout redirects here on a failed book entry
+// (`[orgSlug]/layout.tsx`). Surfaced as a toast on load — Companies is the
+// workspace index + post-login landing, so the signal isn't lost.
 const ERROR_MESSAGES: Record<string, string> = {
-  "invalid-slug": "That workspace address isn't valid.",
-  "no-access": "You don't have access to that organization.",
+  "invalid-slug": "That company address isn't valid.",
+  "no-access": "You don't have access to that company.",
   internal: "Something went wrong. Please try again.",
 }
 
 /**
- * Workspace Home — the accountant-office overview dashboard, and the post-login
- * landing (`/` → `/workspace`). Replaces the old workspace chooser: the org
- * list moved to `/workspace/clients`, and switching workspaces moved to the
- * header `WorkspaceSwitcher`. The zero-workspace case is handled one level up in
- * `layout.tsx`, so `ctx.current` is present here.
+ * Companies — the accountant-office hub + workspace index (post-login landing).
+ * Lists the company books (organizations) of the active workspace as big cards
+ * or a table. Identity fields + the member stack are real; operational columns
+ * are mock (see `data.ts`). Reads use `withAdminBypass` + an explicit
+ * `workspace_id` predicate — `organization` RLS is keyed on `app.organization_id`
+ * (no workspace-scoped read policy), so `withWorkspace` would return zero rows.
  */
-export default async function WorkspaceHomePage({
+export default async function CompaniesPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>
@@ -34,16 +47,74 @@ export default async function WorkspaceHomePage({
   if (!session) redirect("/auth/login")
 
   const ctx = await getWorkspaceContext(session.user.id)
-  if (!ctx.current) return null
+  if (!ctx.activeWorkspaceId) return null
+
+  const activeWorkspaceId = ctx.activeWorkspaceId
+  const companies = await withAdminBypass(async (db) => {
+    const orgs = await db
+      .select({
+        id: organization.id,
+        slug: organization.slug,
+        legalName: organization.legal_name,
+        personKind: organization.person_kind,
+        legalSubjectKind: organization.legal_subject_kind,
+        fiscalYearStartMonth: organization.fiscal_year_start_month,
+      })
+      .from(organization)
+      .where(eq(organization.workspace_id, activeWorkspaceId))
+      .orderBy(organization.legal_name)
+
+    if (orgs.length === 0) return []
+
+    // Active members of every company in one round-trip, grouped by company.
+    const memberRows = await db
+      .select({
+        organizationId: organization_membership.organization_id,
+        userId: app_user.id,
+        name: app_user.name,
+        displayName: app_user.display_name,
+        image: app_user.image,
+      })
+      .from(organization_membership)
+      .innerJoin(app_user, eq(app_user.id, organization_membership.user_id))
+      .where(
+        and(
+          inArray(
+            organization_membership.organization_id,
+            orgs.map((o) => o.id),
+          ),
+          eq(organization_membership.active, true),
+        ),
+      )
+
+    const membersByCompany = new Map<string, CompanyMember[]>()
+    for (const m of memberRows) {
+      const list = membersByCompany.get(m.organizationId) ?? []
+      list.push({
+        userId: m.userId,
+        name: m.displayName || m.name || "Member",
+        image: m.image ?? undefined,
+      })
+      membersByCompany.set(m.organizationId, list)
+    }
+
+    return orgs.map<CompanyRow>((o) => ({
+      id: o.id,
+      slug: o.slug,
+      legalName: o.legalName,
+      typeLabel: o.legalSubjectKind || o.personKind,
+      fiscalYear: fiscalYearLabel(o.fiscalYearStartMonth),
+      members: membersByCompany.get(o.id) ?? [],
+      ...enrichCompanyMock(o.id),
+    }))
+  })
 
   const { error } = await searchParams
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined
 
   return (
-    <HomeDashboard
-      workspaceName={ctx.current.name}
-      activeClients={ctx.current.clientCount}
-      errorMessage={errorMessage}
-    />
+    <CompaniesProvider>
+      <CompaniesView companies={companies} errorMessage={errorMessage} />
+    </CompaniesProvider>
   )
 }

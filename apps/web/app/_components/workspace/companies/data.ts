@@ -1,18 +1,25 @@
 /**
- * Clients (client books = organizations) table data contract for the workspace
+ * Companies (company books = organizations) table data contract for the workspace
  * tier. The identity fields (name, slug, type, fiscal year) are REAL — resolved
  * server-side from the `organization` table. The operational fields (VAT
  * regime, status, next deadline, assignee) are MOCK: no columns back them yet
  * (`organization` has no ico/dic/vat_status/status/assignee), so they are
- * derived deterministically from the row id in `enrichClientMock` — stable
+ * derived deterministically from the row id in `enrichCompanyMock` — stable
  * across renders (no hydration drift), clearly placeholder until real sources
  * land. Mirrors the org tier's mock-backed surfaces.
  */
 
-export type ClientStatus = "Active" | "Onboarding" | "Archived"
-export type ClientVatRegime = "Payer" | "Non-payer" | "Identified person"
+export type CompanyStatus = "Active" | "Onboarding" | "Archived"
+export type CompanyVatRegime = "Payer" | "Non-payer" | "Identified person"
 
-export interface ClientRow {
+/** A person with an active membership in the company (real, from the DB). */
+export interface CompanyMember {
+  userId: string
+  name: string
+  image?: string
+}
+
+export interface CompanyRow {
   id: string
   slug: string
   /** Real: organization.legal_name. */
@@ -21,34 +28,57 @@ export interface ClientRow {
   typeLabel: string
   /** Real: derived from organization.fiscal_year_start_month. */
   fiscalYear: string
+  /** Real: active organization members (avatars on the card). */
+  members: CompanyMember[]
   /** MOCK. */
-  vatRegime: ClientVatRegime
+  vatRegime: CompanyVatRegime
   /** MOCK. */
-  status: ClientStatus
+  status: CompanyStatus
   /** MOCK — next obligation summary. */
   nextDeadline: string
   /** MOCK — responsible accountant. */
   assignee: string
 }
 
-export interface ClientTab {
+/** An accounting period a user can jump straight into from the card. */
+export interface CompanyPeriod {
   value: string
   label: string
-  status?: ClientStatus
+  /** Open (postable) vs closed (locked) — drives the lock glyph. */
+  open: boolean
 }
 
-export const CLIENT_TABS: ClientTab[] = [
+/**
+ * MOCK period list for the card's period picker. There is no `accounting_period`
+ * table yet (the org tier's PeriodSwitcher is mock too), so every company shows
+ * the same static set; "fast open" navigates into the company book.
+ */
+export const COMPANY_PERIODS: CompanyPeriod[] = [
+  { value: "2026", label: "2026", open: true },
+  { value: "2025", label: "2025", open: true },
+  { value: "2024", label: "2024", open: false },
+  { value: "2023", label: "2023", open: false },
+]
+
+export interface CompanyTab {
+  value: string
+  label: string
+  status?: CompanyStatus
+}
+
+export const COMPANY_TABS: CompanyTab[] = [
   { value: "all", label: "All" },
   { value: "active", label: "Active", status: "Active" },
   { value: "onboarding", label: "Onboarding", status: "Onboarding" },
   { value: "archived", label: "Archived", status: "Archived" },
 ]
 
-export const CLIENT_STATUS_OPTIONS: { label: string; value: ClientStatus }[] = [
-  { label: "Active", value: "Active" },
-  { label: "Onboarding", value: "Onboarding" },
-  { label: "Archived", value: "Archived" },
-]
+export const COMPANY_STATUS_OPTIONS: { label: string; value: CompanyStatus }[] =
+  [
+    { label: "Active", value: "Active" },
+    { label: "Onboarding", value: "Onboarding" },
+    { label: "Archived", value: "Archived" },
+  ]
 
 const MONTHS = [
   "Jan",
@@ -72,12 +102,12 @@ export function fiscalYearLabel(startMonth: number): string {
   return `${MONTHS[start]} – ${MONTHS[end]}`
 }
 
-const VAT_REGIMES: ClientVatRegime[] = [
+const VAT_REGIMES: CompanyVatRegime[] = [
   "Payer",
   "Non-payer",
   "Identified person",
 ]
-const STATUSES: ClientStatus[] = ["Active", "Active", "Active", "Onboarding"]
+const STATUSES: CompanyStatus[] = ["Active", "Active", "Onboarding", "Archived"]
 const ASSIGNEES = [
   "Jana Nováková",
   "Petr Svoboda",
@@ -100,10 +130,10 @@ function hash(input: string): number {
   return h
 }
 
-/** Deterministic MOCK operational fields derived from the client id. */
-export function enrichClientMock(id: string): {
-  vatRegime: ClientVatRegime
-  status: ClientStatus
+/** Deterministic MOCK operational fields derived from the company id. */
+export function enrichCompanyMock(id: string): {
+  vatRegime: CompanyVatRegime
+  status: CompanyStatus
   nextDeadline: string
   assignee: string
 } {

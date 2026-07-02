@@ -4,46 +4,50 @@ import * as React from "react"
 
 import type { InspectorMode } from "@workspace/ui/blocks/app-content"
 
-import type { DeadlineRow } from "./data"
+import type { ObligationRow } from "./data"
 
 /**
- * Shared UI state linking the Deadlines page's two shell slots: the portaled
+ * Shared UI state linking the Legislation page's two shell slots: the portaled
  * content-header (status tabs) and the body (toolbar + table + inspector). Same
- * seam the Clients Table uses, trimmed to what this page actually consumes — the
+ * seam the Companies table uses, trimmed to what this page actually consumes — the
  * favorite star lives in the shared `PageHeaderActions` cluster and the
  * inspector is panel-mode only, so neither needs page-level state here.
  */
-interface DeadlinesState {
+interface LegislationState {
   activeTab: string
   setActiveTab: (value: string) => void
-  inspected: DeadlineRow | null
+  inspected: ObligationRow | null
   inspectorOpen: boolean
   inspectorMode: InspectorMode
-  openInspector: (row: DeadlineRow) => void
+  openInspector: (row: ObligationRow) => void
   closeInspector: () => void
 }
 
-const DeadlinesContext = React.createContext<DeadlinesState | null>(null)
+const LegislationContext = React.createContext<LegislationState | null>(null)
 
-export function useDeadlines(): DeadlinesState {
-  const ctx = React.useContext(DeadlinesContext)
+export function useLegislation(): LegislationState {
+  const ctx = React.useContext(LegislationContext)
   if (!ctx)
-    throw new Error("useDeadlines must be used within DeadlinesProvider")
+    throw new Error("useLegislation must be used within LegislationProvider")
   return ctx
 }
 
-export function DeadlinesProvider({ children }: { children: React.ReactNode }) {
+export function LegislationProvider({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const [activeTab, setActiveTab] = React.useState("all")
-  const [inspected, setInspected] = React.useState<DeadlineRow | null>(null)
+  const [inspected, setInspected] = React.useState<ObligationRow | null>(null)
   const [inspectorOpen, setInspectorOpen] = React.useState(false)
 
-  const openInspector = React.useCallback((row: DeadlineRow) => {
+  const openInspector = React.useCallback((row: ObligationRow) => {
     setInspected(row)
     setInspectorOpen(true)
   }, [])
   const closeInspector = React.useCallback(() => setInspectorOpen(false), [])
 
-  const value = React.useMemo<DeadlinesState>(
+  const value = React.useMemo<LegislationState>(
     () => ({
       activeTab,
       setActiveTab,
@@ -57,8 +61,8 @@ export function DeadlinesProvider({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <DeadlinesContext.Provider value={value}>
+    <LegislationContext.Provider value={value}>
       {children}
-    </DeadlinesContext.Provider>
+    </LegislationContext.Provider>
   )
 }

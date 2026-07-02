@@ -17,13 +17,13 @@ import { Separator } from "@workspace/ui/components/separator"
 import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 
-import { clientColumns } from "./columns"
-import { ClientsToolbar } from "./clients-toolbar"
-import { useClients } from "./context"
-import { CLIENT_TABS, type ClientRow } from "./data"
+import { companyColumns } from "./columns"
+import { CompaniesTableToolbar } from "./companies-table-toolbar"
+import { useCompanies } from "./context"
+import { COMPANY_TABS, type CompanyRow } from "./data"
 
-/** Free-text search across the client's readable fields. */
-function applySearch(rows: ClientRow[], query: string): ClientRow[] {
+/** Free-text search across the company's readable fields. */
+function applySearch(rows: CompanyRow[], query: string): CompanyRow[] {
   const q = query.trim().toLowerCase()
   if (!q) return rows
   return rows.filter((row) =>
@@ -38,8 +38,8 @@ function applySearch(rows: ClientRow[], query: string): ClientRow[] {
   )
 }
 
-/** Inspector content — the detail of the selected client. */
-function ClientDetail({ row }: { row: ClientRow }) {
+/** Inspector content — the detail of the selected company. */
+function CompanyDetail({ row }: { row: CompanyRow }) {
   return (
     <dl className="flex flex-col gap-3">
       <DetailField label="Type" value={row.typeLabel} />
@@ -57,33 +57,32 @@ function ClientDetail({ row }: { row: ClientRow }) {
 }
 
 /**
- * Clients body — the Table archetype on the workspace shell. Real client rows
+ * Companies body — the Table archetype on the workspace shell. Real company rows
  * (resolved server-side) drive a TanStack `DataGridView`: tab-filtered by
  * status, a universal search, the faceted Status filter, row selection with a
  * bulk `ActionBar`, and a per-row `Inspector`. Mounts as the shell `children`.
  */
-export function ClientsBody({ clients }: { clients: ClientRow[] }) {
+export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
   const icons = useIcons()
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
-    useClients()
+    useCompanies()
 
-  const [statusFilterOpen, setStatusFilterOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
 
   const tabFiltered = React.useMemo(() => {
-    const tab = CLIENT_TABS.find((t) => t.value === activeTab)
-    if (!tab?.status) return clients
-    return clients.filter((row) => row.status === tab.status)
-  }, [activeTab, clients])
+    const tab = COMPANY_TABS.find((t) => t.value === activeTab)
+    if (!tab?.status) return companies
+    return companies.filter((row) => row.status === tab.status)
+  }, [activeTab, companies])
 
   const data = React.useMemo(
     () => applySearch(tabFiltered, search),
     [tabFiltered, search],
   )
 
-  const { table } = useDataTable<ClientRow>({
+  const { table } = useDataTable<CompanyRow>({
     data,
-    columns: clientColumns,
+    columns: companyColumns,
     getRowId: (row) => row.id,
     columnResizeMode: "onChange",
     defaultColumn: { minSize: 56, size: 150, maxSize: 480 },
@@ -104,7 +103,7 @@ export function ClientsBody({ clients }: { clients: ClientRow[] }) {
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
-      inspector={inspected ? <ClientDetail row={inspected} /> : null}
+      inspector={inspected ? <CompanyDetail row={inspected} /> : null}
       inspectorOpen={inspectorOpen}
       inspectorMode={inspectorMode}
       onInspectorOpenChange={(open) => {
@@ -112,10 +111,8 @@ export function ClientsBody({ clients }: { clients: ClientRow[] }) {
       }}
       inspectorTitle={inspected?.legalName}
       toolbar={
-        <ClientsToolbar
+        <CompaniesTableToolbar
           table={table}
-          statusOpen={statusFilterOpen}
-          onStatusOpenChange={setStatusFilterOpen}
           search={search}
           onSearchChange={setSearch}
         />
@@ -124,7 +121,7 @@ export function ClientsBody({ clients }: { clients: ClientRow[] }) {
         <div className="flex h-9 shrink-0 items-center gap-4 border-t border-border-subtle px-2 text-xs text-muted-foreground">
           <span>
             {filteredRows.length}{" "}
-            {filteredRows.length === 1 ? "client" : "clients"}
+            {filteredRows.length === 1 ? "company" : "companies"}
           </span>
           {isFiltered ? (
             <>

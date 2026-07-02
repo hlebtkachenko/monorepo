@@ -7,16 +7,15 @@ import type {
 import { longestPrefixMatch } from "@workspace/ui/lib/active-path"
 
 /**
- * Workspace-surface nav, single source — the accountant-office counterpart to
- * `[orgSlug]/_nav/org-nav.ts`. There is no slug: the workspace tier is the firm
- * itself, so every href is a static `/workspace/...` path (base = `/workspace`).
+ * Workspace-surface nav, single source — the accountant-office hub. There is no
+ * slug and no workspace switcher: a user operates one office, so every href is a
+ * static `/workspace/...` path (base = `/workspace`). **Companies** is the index
+ * (`/workspace`) — the hub of the companies (client books) the office keeps.
  *
  * The RAIL lists the office modules; each module's SIDEBAR tree lives in
  * `WORKSPACE_MODULE_NAV`. The shell resolves the active module from the rail's
- * `activeRailEntry` and looks the key up here — one active-module source that
- * can't drift from the rail highlight. Sidebar leaves point ONLY at routes that
- * exist (no dead links; `scripts/check-nav.ts` does not walk this tree, so
- * correctness is by construction, not by guard).
+ * `activeRailEntry` and looks the key up here. Sidebar leaves point ONLY at
+ * routes that exist (no dead links).
  */
 
 const BASE = "/workspace"
@@ -24,16 +23,19 @@ const BASE = "/workspace"
 /** Rail menu — the office modules. Order, icons, separators are presentation. */
 export function workspaceRailNav(): RailMenuEntry[] {
   return [
-    { label: "Home", icon: "Home", href: BASE },
+    { label: "Companies", icon: "Building2", href: BASE },
+    {
+      label: "Analyse",
+      icon: "ChartNoAxesCombined",
+      href: `${BASE}/analyse`,
+    },
+    { label: "Audit", icon: "Award", href: `${BASE}/audit` },
     "separator",
-    { label: "Clients", icon: "BookUser", href: `${BASE}/clients` },
-    { label: "Deadlines", icon: "CalendarClock", href: `${BASE}/deadlines` },
-    { label: "Agents", icon: "Sparkles", href: `${BASE}/agents` },
-    "separator",
-    { label: "Team", icon: "Users", href: `${BASE}/team` },
     { label: "Inbox", icon: "Inbox", href: `${BASE}/inbox` },
+    { label: "Legislation", icon: "BookOpen", href: `${BASE}/legislation` },
     "separator",
     { label: "Billing", icon: "CreditCard", href: `${BASE}/billing` },
+    { label: "Team", icon: "Users", href: `${BASE}/team` },
     { label: "Settings", icon: "Settings", href: `${BASE}/settings` },
   ]
 }
@@ -41,56 +43,52 @@ export function workspaceRailNav(): RailMenuEntry[] {
 /** Mobile bottom-bar subset — 5 items, not the full rail. */
 export function workspaceBottomNav(): BottomNavItem[] {
   return [
-    { label: "Home", icon: "Home", href: BASE },
-    { label: "Clients", icon: "BookUser", href: `${BASE}/clients` },
-    { label: "Deadlines", icon: "CalendarClock", href: `${BASE}/deadlines` },
+    { label: "Companies", icon: "Building2", href: BASE },
+    { label: "Analyse", icon: "ChartNoAxesCombined", href: `${BASE}/analyse` },
+    { label: "Audit", icon: "Award", href: `${BASE}/audit` },
     { label: "Inbox", icon: "Inbox", href: `${BASE}/inbox` },
     { label: "Settings", icon: "Settings", href: `${BASE}/settings` },
   ]
 }
 
-// The Home module has no folder (it is the `/workspace` index), so its tree
-// lives here under the `""` key — mirrors org-nav's `companyNav`. Every module
-// key below equals the first path segment after `/workspace`.
-function homeNav(): SidebarNavEntry[] {
+// Companies is the index (`/workspace`), so its tree lives here under the `""`
+// key — mirrors org-nav's index module. The personal profile page has no rail
+// module of its own (reached from the header account menu); like the org tier it
+// lives in the index module's sidebar, so the rail stays on Companies while
+// you're on it. Every other module key equals the first path segment.
+function companiesNav(): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: BASE, icon: "Home" },
-    // The account/profile page has no rail module of its own (it's reached from
-    // the header account menu). Like the org tier — where the personal pages
-    // live in the index module's `companyNav` — it belongs to the Home module,
-    // so the rail keeps Home active and the sidebar shows it while you're on it.
+    { label: "All companies", href: BASE, icon: "Building2" },
     { label: "Your profile", href: `${BASE}/profile`, icon: "User" },
   ]
 }
 
-function clientsNav(): SidebarNavEntry[] {
-  return [{ label: "All clients", href: `${BASE}/clients`, icon: "BookUser" }]
-}
-
-function deadlinesNav(): SidebarNavEntry[] {
+function analyseNav(): SidebarNavEntry[] {
   return [
-    {
-      label: "All deadlines",
-      href: `${BASE}/deadlines`,
-      icon: "CalendarClock",
-    },
+    { label: "Overview", href: `${BASE}/analyse`, icon: "ChartNoAxesCombined" },
   ]
 }
 
-function agentsNav(): SidebarNavEntry[] {
-  return [{ label: "Overview", href: `${BASE}/agents`, icon: "Sparkles" }]
-}
-
-function teamNav(): SidebarNavEntry[] {
-  return [{ label: "Members", href: `${BASE}/team`, icon: "Users" }]
+function auditNav(): SidebarNavEntry[] {
+  return [{ label: "Overview", href: `${BASE}/audit`, icon: "Award" }]
 }
 
 function inboxNav(): SidebarNavEntry[] {
   return [{ label: "All messages", href: `${BASE}/inbox`, icon: "Inbox" }]
 }
 
+function legislationNav(): SidebarNavEntry[] {
+  return [
+    { label: "All obligations", href: `${BASE}/legislation`, icon: "BookOpen" },
+  ]
+}
+
 function billingNav(): SidebarNavEntry[] {
   return [{ label: "Overview", href: `${BASE}/billing`, icon: "CreditCard" }]
+}
+
+function teamNav(): SidebarNavEntry[] {
+  return [{ label: "Members", href: `${BASE}/team`, icon: "Users" }]
 }
 
 function settingsNav(): SidebarNavEntry[] {
@@ -98,22 +96,22 @@ function settingsNav(): SidebarNavEntry[] {
 }
 
 /**
- * module key (first path segment after `/workspace`, "" for the Home index) →
- * its sidebar tree. The shell resolves the active module via the rail's
+ * module key (first path segment after `/workspace`, "" for the Companies
+ * index) → its sidebar tree. The shell resolves the active module via the rail's
  * `activeRailEntry` and looks the key up here.
  */
 export const WORKSPACE_MODULE_NAV: Record<string, () => SidebarNavEntry[]> = {
-  "": homeNav,
-  clients: clientsNav,
-  deadlines: deadlinesNav,
-  agents: agentsNav,
-  team: teamNav,
+  "": companiesNav,
+  analyse: analyseNav,
+  audit: auditNav,
   inbox: inboxNav,
+  legislation: legislationNav,
   billing: billingNav,
+  team: teamNav,
   settings: settingsNav,
 }
 
-/** First path segment of a workspace href after `/workspace` ("" for Home). */
+/** First path segment of a workspace href after `/workspace` ("" for Companies). */
 export function moduleKeyFromWorkspaceHref(href: string | undefined): string {
   if (!href) return ""
   const rest = href.startsWith(BASE) ? href.slice(BASE.length) : href

@@ -1,15 +1,15 @@
 /**
- * Deadlines table data contract for the workspace tier — the accountant
+ * Legislation table data contract for the workspace tier — the accountant
  * office's cross-client statutory obligation board. Every field is MOCK: no
- * columns back statutory deadlines yet, so the rows are a static, deterministic
+ * columns back statutory obligations yet, so the rows are a static, deterministic
  * fixture (no `Math.random`, no `Date.now`) — stable across renders (no
  * hydration drift), clearly placeholder until a real obligation source lands.
- * Mirrors the Clients Table surface.
+ * Mirrors the Companies table surface.
  */
 
-export type DeadlineStatus = "Upcoming" | "Due soon" | "Overdue" | "Filed"
+export type ObligationStatus = "Upcoming" | "Due soon" | "Overdue" | "Filed"
 
-export interface DeadlineRow {
+export interface ObligationRow {
   id: string
   /** e.g. "VAT return", "Control statement (KH)". */
   obligation: string
@@ -17,27 +17,27 @@ export interface DeadlineRow {
   client: string
   /** ISO date string of the statutory due date. */
   dueDate: string
-  status: DeadlineStatus
+  status: ObligationStatus
   /** Responsible accountant. */
   assignee: string
 }
 
-export interface DeadlineTab {
+export interface ObligationTab {
   value: string
   label: string
-  status?: DeadlineStatus
+  status?: ObligationStatus
 }
 
-export const DEADLINE_TABS: DeadlineTab[] = [
+export const OBLIGATION_TABS: ObligationTab[] = [
   { value: "all", label: "All" },
   { value: "upcoming", label: "Upcoming", status: "Upcoming" },
   { value: "overdue", label: "Overdue", status: "Overdue" },
   { value: "filed", label: "Filed", status: "Filed" },
 ]
 
-export const DEADLINE_STATUS_OPTIONS: {
+export const OBLIGATION_STATUS_OPTIONS: {
   label: string
-  value: DeadlineStatus
+  value: ObligationStatus
 }[] = [
   { label: "Upcoming", value: "Upcoming" },
   { label: "Due soon", value: "Due soon" },
@@ -70,7 +70,7 @@ export function formatDueDate(iso: string): string {
  * Static MOCK obligation board — ~18 rows across a mock client roster. Dates
  * straddle the current period so all four status buckets are represented.
  */
-export const DEADLINE_ROWS: DeadlineRow[] = [
+export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-01",
     obligation: "VAT return",

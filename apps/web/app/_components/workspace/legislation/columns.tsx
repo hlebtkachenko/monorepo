@@ -8,16 +8,16 @@ import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { useIcons } from "@workspace/ui/icon-packs"
 
-import { useDeadlines } from "./context"
+import { useLegislation } from "./context"
 import {
-  DEADLINE_STATUS_OPTIONS,
+  OBLIGATION_STATUS_OPTIONS,
   formatDueDate,
-  type DeadlineRow,
-  type DeadlineStatus,
+  type ObligationRow,
+  type ObligationStatus,
 } from "./data"
 
 const STATUS_BADGE: Record<
-  DeadlineStatus,
+  ObligationStatus,
   React.ComponentProps<typeof Badge>["variant"]
 > = {
   Upcoming: "outline",
@@ -33,8 +33,8 @@ function SelectCell({
   row,
   table,
 }: {
-  row: Row<DeadlineRow>
-  table: Table<DeadlineRow>
+  row: Row<ObligationRow>
+  table: Table<ObligationRow>
 }) {
   const checked = row.getIsSelected()
   return (
@@ -65,9 +65,9 @@ function SelectCell({
   )
 }
 
-/** Row affordance that opens the deadline Inspector. */
-function InspectCell({ row }: { row: DeadlineRow }) {
-  const { openInspector } = useDeadlines()
+/** Row affordance that opens the obligation Inspector. */
+function InspectCell({ row }: { row: ObligationRow }) {
+  const { openInspector } = useLegislation()
   const icons = useIcons()
   const Icon = icons.PanelRight
   return (
@@ -82,7 +82,7 @@ function InspectCell({ row }: { row: DeadlineRow }) {
   )
 }
 
-export const deadlineColumns: ColumnDef<DeadlineRow>[] = [
+export const obligationColumns: ColumnDef<ObligationRow>[] = [
   {
     id: "select",
     size: 32,
@@ -117,9 +117,9 @@ export const deadlineColumns: ColumnDef<DeadlineRow>[] = [
   },
   {
     accessorKey: "client",
-    header: "Client",
+    header: "Company",
     size: 220,
-    meta: { label: "Client" },
+    meta: { label: "Company" },
     enableSorting: true,
   },
   {
@@ -146,7 +146,7 @@ export const deadlineColumns: ColumnDef<DeadlineRow>[] = [
     meta: {
       label: "Status",
       variant: "multiSelect",
-      options: DEADLINE_STATUS_OPTIONS,
+      options: OBLIGATION_STATUS_OPTIONS,
     },
     enableColumnFilter: true,
     filterFn: (row, columnId, value) => {

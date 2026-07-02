@@ -3,6 +3,7 @@
 import * as React from "react"
 import { usePathname } from "next/navigation"
 
+import { Logo } from "@workspace/ui/brand-assets"
 import { ContentHeader } from "@workspace/ui/blocks/app-content"
 import { activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
@@ -51,24 +52,38 @@ export function WorkspaceShell({
 
   return (
     <AppPageHeaderProvider>
-      <AppShell
-        header={header}
-        rail={<AppRailNav items={railNav} />}
-        bottomNav={<AppBottomNav items={workspaceBottomNav()} />}
-        sidebar={<WorkspaceSidebar nav={nav} />}
-        sidebarHeader={<SidebarModuleTitle items={railNav} />}
-        contentHeader={
-          <AppContentHeaderSlot fallback={<ContentHeader title={title} />} />
-        }
-        assistant={
-          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-            Assistant — coming soon
-          </div>
-        }
-        logoHref="/workspace"
-      >
-        {children}
-      </AppShell>
+      {/* `.workspace-chrome` (globals.css) paints the rail + top header + frame
+          brand green and flips the rail/header icon + label tokens to white —
+          the accountant-office identity, distinct from a client's book. */}
+      <div className="workspace-chrome">
+        <AppShell
+          header={header}
+          // White logomark on the green rail (the default primary-green mark
+          // would vanish on green).
+          logo={
+            <Logo
+              variant="logomark"
+              tone="mono-light"
+              className="h-[var(--shell-header-height)] w-[var(--shell-rail-width)]"
+            />
+          }
+          rail={<AppRailNav items={railNav} />}
+          bottomNav={<AppBottomNav items={workspaceBottomNav()} />}
+          sidebar={<WorkspaceSidebar nav={nav} />}
+          sidebarHeader={<SidebarModuleTitle items={railNav} />}
+          contentHeader={
+            <AppContentHeaderSlot fallback={<ContentHeader title={title} />} />
+          }
+          assistant={
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+              Assistant — coming soon
+            </div>
+          }
+          logoHref="/workspace"
+        >
+          {children}
+        </AppShell>
+      </div>
     </AppPageHeaderProvider>
   )
 }

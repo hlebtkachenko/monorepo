@@ -364,6 +364,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an accounting event
+         * @description Create an účetní případ. Gated: auto-applies (201) at/above the confidence threshold, otherwise held (202) for human review. Tenant + responsible user injected from the API-key principal.
+         */
+        post: operations["createAccountingEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Capture a summary document (doklad)
+         * @description Capture a doklad with its lines/partials. Gated (201 applied / 202 held). Tenant injected from the principal.
+         */
+        post: operations["captureAccountingDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/postings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post a posting (zaúčtování)
+         * @description Post a double-entry or monetary posting. Gated (201 applied / 202 held). Tenant + responsible user injected; opening/correction/generated linkage is not client-settable.
+         */
+        post: operations["createAccountingPosting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2636,6 +2696,264 @@ export interface components {
              */
             nextNumber: number;
         };
+        /** @description Create an accounting event (účetní případ). Tenant + responsible user are injected from the API-key principal — never from the body. */
+        CreateAccountingEventRequest: {
+            /**
+             * Format: uuid
+             * @description Účetní období.
+             */
+            periodId: string;
+            /**
+             * Format: uuid
+             * @description EVENT number series (see GET number-series).
+             */
+            seriesId: string;
+            /**
+             * Format: uuid
+             * @description OUR side (counterparty row); null for internal.
+             */
+            partyId?: string | null;
+            /**
+             * Format: uuid
+             * @description THEIR side (counterparty row).
+             */
+            counterpartyId?: string | null;
+            /**
+             * @description Case description.
+             * @example FP — nájem kanceláře
+             */
+            description: string;
+            /** @description Optional detail. */
+            content?: string | null;
+            /**
+             * @description Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period.
+             * @example 2025-03-14
+             */
+            occurredAt: string;
+            /**
+             * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
+             * @example 0.95
+             */
+            confidence: number;
+            /**
+             * @description Why this write — persisted to the audit trail. Required.
+             * @example Standard domestic service invoice, VAT 21% deductible.
+             */
+            rationale: string;
+            /**
+             * Format: uuid
+             * @description Audit-correlation id of the driving agent conversation.
+             */
+            conversationId?: string;
+        };
+        /** @description Create-event result (applied or held). */
+        CreateAccountingEventResponse: {
+            /**
+             * @description applied = booked; held = queued for human review.
+             * @enum {string}
+             */
+            status: "applied" | "held";
+            /**
+             * Format: uuid
+             * @description tool_call_log id when held.
+             */
+            reviewId?: string | null;
+            /** Format: uuid */
+            eventId?: string | null;
+            designation?: string | null;
+            sequenceNumber?: number | null;
+        };
+        /** @description Capture a summary document (doklad) with its lines/partials. Tenant + user injected. */
+        CaptureAccountingDocumentRequest: {
+            /** Format: uuid */
+            periodId: string;
+            /**
+             * Format: uuid
+             * @description DOCUMENT number series.
+             */
+            seriesId: string;
+            /** @enum {string} */
+            type: "RECEIVED_INVOICE" | "ISSUED_INVOICE" | "BANK_STATEMENT" | "INTERNAL" | "CASH_DOCUMENT" | "BATCH";
+            /**
+             * @description Okamžik vyhotovení (§11/1d) — ISO.
+             * @example 2025-03-14
+             */
+            issuedAt: string;
+            /**
+             * @description §37 doc-total rounding → 548/648.
+             * @example -500.00
+             */
+            roundingAmount?: string;
+            lines: {
+                /** Format: uuid */
+                eventId: string;
+                description?: string | null;
+                partials: {
+                    /**
+                     * @description Signed decimal amount as a string.
+                     * @example -500.00
+                     */
+                    baseAmount: string;
+                    /** @enum {string} */
+                    vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    vatRate?: string | null;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    vatAmount?: string;
+                    /** @enum {string|null} */
+                    vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | null;
+                    vatDeductible?: boolean;
+                    advanceSettlement?: boolean;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    quantity?: string | null;
+                    measureUnit?: string | null;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    unitPrice?: string | null;
+                    currencyCode: string;
+                    /** @enum {string|null} */
+                    fxRateKind?: "DAILY" | "REAL" | "FIXED" | null;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    fxRate?: string | null;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    vatFxRate?: string | null;
+                }[];
+            }[];
+            /**
+             * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
+             * @example 0.95
+             */
+            confidence: number;
+            /**
+             * @description Why this write — persisted to the audit trail. Required.
+             * @example Standard domestic service invoice, VAT 21% deductible.
+             */
+            rationale: string;
+            /**
+             * Format: uuid
+             * @description Audit-correlation id of the driving agent conversation.
+             */
+            conversationId?: string;
+        };
+        /** @description Capture-document result (applied or held). */
+        CaptureAccountingDocumentResponse: {
+            /** @enum {string} */
+            status: "applied" | "held";
+            /** Format: uuid */
+            reviewId?: string | null;
+            /** Format: uuid */
+            summaryRecordId?: string | null;
+            designation?: string | null;
+            sequenceNumber?: number | null;
+            lines?: {
+                /** Format: uuid */
+                individualRecordId: string;
+                partialRecordIds: string[];
+            }[] | null;
+        };
+        /** @description Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting. Tenant + responsible user injected; opening/correction/generated linkage is not client-settable. */
+        CreateAccountingPostingRequest: {
+            /** @enum {string} */
+            kind: "double" | "monetary";
+            entry: {
+                /** Format: uuid */
+                periodId: string;
+                /** Format: uuid */
+                summaryRecordId: string;
+                /** Format: uuid */
+                accountingEventId: string;
+                /**
+                 * @description Datum (§5.2) — ISO date.
+                 * @example 2025-03-14
+                 */
+                postingDate: string;
+                lines: {
+                    /** Format: uuid */
+                    accountId: string;
+                    /** @enum {string} */
+                    side: "DEBIT" | "CREDIT";
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    amount: string;
+                    /** Format: uuid */
+                    partialRecordId?: string | null;
+                }[];
+            } | {
+                /** Format: uuid */
+                periodId: string;
+                /** Format: uuid */
+                summaryRecordId: string;
+                /** Format: uuid */
+                accountingEventId: string;
+                /**
+                 * @description Datum (§5.2) — ISO date.
+                 * @example 2025-03-14
+                 */
+                postingDate: string;
+                lines: {
+                    /** @enum {string} */
+                    location: "CASH" | "BANK";
+                    /** @enum {string} */
+                    direction: "INFLOW" | "OUTFLOW";
+                    isTaxRelevant: boolean;
+                    isClearing?: boolean;
+                    /** Format: uuid */
+                    categoryId?: string | null;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    taxBase?: string | null;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    amount: string;
+                    /** Format: uuid */
+                    partialRecordId?: string | null;
+                }[];
+            };
+            /**
+             * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
+             * @example 0.95
+             */
+            confidence: number;
+            /**
+             * @description Why this write — persisted to the audit trail. Required.
+             * @example Standard domestic service invoice, VAT 21% deductible.
+             */
+            rationale: string;
+            /**
+             * Format: uuid
+             * @description Audit-correlation id of the driving agent conversation.
+             */
+            conversationId?: string;
+        };
+        /** @description Create-posting result (applied or held). */
+        CreateAccountingPostingResponse: {
+            /** @enum {string} */
+            status: "applied" | "held";
+            /** Format: uuid */
+            reviewId?: string | null;
+            /** Format: uuid */
+            postingId?: string | null;
+            lineIds?: string[] | null;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -3270,6 +3588,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NumberSeriesListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createAccountingEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Idempotency key (1–255 chars); reuse on retry. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAccountingEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Event applied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAccountingEventResponse"];
+                };
+            };
+            /** @description Held for human review. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAccountingEventResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    captureAccountingDocument: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Idempotency key (1–255 chars); reuse on retry. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptureAccountingDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Document applied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptureAccountingDocumentResponse"];
+                };
+            };
+            /** @description Held for human review. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptureAccountingDocumentResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createAccountingPosting: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Idempotency key (1–255 chars); reuse on retry. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAccountingPostingRequest"];
+            };
+        };
+        responses: {
+            /** @description Posting applied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAccountingPostingResponse"];
+                };
+            };
+            /** @description Held for human review. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAccountingPostingResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

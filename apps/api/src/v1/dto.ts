@@ -1,8 +1,14 @@
 import { createZodDto } from "nestjs-zod"
 import {
+  CaptureAccountingDocumentRequestSchema,
+  CaptureAccountingDocumentResponseSchema,
   ClassifyEventRequestSchema,
   ClassifyEventResponseSchema,
   ControlStatementResponseSchema,
+  CreateAccountingEventRequestSchema,
+  CreateAccountingEventResponseSchema,
+  CreateAccountingPostingRequestSchema,
+  CreateAccountingPostingResponseSchema,
   DphResponseSchema,
   DppoResponseSchema,
   EcSalesListResponseSchema,
@@ -55,4 +61,22 @@ export class ClassifyEventResponseDto extends createZodDto(
 ) {}
 export class NumberSeriesListResponseDto extends createZodDto(
   NumberSeriesListResponseSchema,
+) {}
+export class CreateAccountingEventRequestDto extends createZodDto(
+  CreateAccountingEventRequestSchema,
+) {}
+export class CreateAccountingEventResponseDto extends createZodDto(
+  CreateAccountingEventResponseSchema,
+) {}
+export class CaptureAccountingDocumentRequestDto extends createZodDto(
+  CaptureAccountingDocumentRequestSchema,
+) {}
+export class CaptureAccountingDocumentResponseDto extends createZodDto(
+  CaptureAccountingDocumentResponseSchema,
+) {}
+export class CreateAccountingPostingRequestDto extends createZodDto(
+  CreateAccountingPostingRequestSchema,
+) {}
+export class CreateAccountingPostingResponseDto extends createZodDto(
+  CreateAccountingPostingResponseSchema,
 ) {}

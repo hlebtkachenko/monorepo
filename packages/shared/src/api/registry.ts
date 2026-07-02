@@ -3,6 +3,7 @@ import {
   OpenAPIRegistry,
 } from "@asteasolutions/zod-to-openapi"
 import type { RouteConfig } from "@asteasolutions/zod-to-openapi"
+import { z } from "zod"
 
 import "./zod-openapi"
 import {
@@ -33,8 +34,14 @@ import {
   NavSubpageSchema,
 } from "./structure"
 import {
+  CaptureAccountingDocumentRequestSchema,
+  CaptureAccountingDocumentResponseSchema,
   ClassifyEventRequestSchema,
   ClassifyEventResponseSchema,
+  CreateAccountingEventRequestSchema,
+  CreateAccountingEventResponseSchema,
+  CreateAccountingPostingRequestSchema,
+  CreateAccountingPostingResponseSchema,
   NumberSeriesListResponseSchema,
   NumberSeriesQuerySchema,
   NumberSeriesRowSchema,
@@ -186,6 +193,30 @@ const NumberSeriesListResponse = registry.register(
   NumberSeriesListResponseSchema,
 )
 registry.register("NumberSeriesRow", NumberSeriesRowSchema)
+const CreateAccountingEventRequest = registry.register(
+  "CreateAccountingEventRequest",
+  CreateAccountingEventRequestSchema,
+)
+const CreateAccountingEventResponse = registry.register(
+  "CreateAccountingEventResponse",
+  CreateAccountingEventResponseSchema,
+)
+const CaptureAccountingDocumentRequest = registry.register(
+  "CaptureAccountingDocumentRequest",
+  CaptureAccountingDocumentRequestSchema,
+)
+const CaptureAccountingDocumentResponse = registry.register(
+  "CaptureAccountingDocumentResponse",
+  CaptureAccountingDocumentResponseSchema,
+)
+const CreateAccountingPostingRequest = registry.register(
+  "CreateAccountingPostingRequest",
+  CreateAccountingPostingRequestSchema,
+)
+const CreateAccountingPostingResponse = registry.register(
+  "CreateAccountingPostingResponse",
+  CreateAccountingPostingResponseSchema,
+)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -702,6 +733,122 @@ registry.registerPath({
     "200": {
       description: "The organization's number series.",
       content: { "application/json": { schema: NumberSeriesListResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+const IdempotencyKeyHeader = z.object({
+  "idempotency-key": z
+    .string()
+    .openapi({ description: "Idempotency key (1–255 chars); reuse on retry." }),
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/events",
+  operationId: "createAccountingEvent",
+  summary: "Create an accounting event",
+  description:
+    "Create an účetní případ. Gated: auto-applies (201) at/above the confidence " +
+    "threshold, otherwise held (202) for human review. Tenant + responsible " +
+    "user injected from the API-key principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateAccountingEventRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Event applied.",
+      content: {
+        "application/json": { schema: CreateAccountingEventResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateAccountingEventResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/documents",
+  operationId: "captureAccountingDocument",
+  summary: "Capture a summary document (doklad)",
+  description:
+    "Capture a doklad with its lines/partials. Gated (201 applied / 202 held). " +
+    "Tenant injected from the principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CaptureAccountingDocumentRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Document applied.",
+      content: {
+        "application/json": { schema: CaptureAccountingDocumentResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CaptureAccountingDocumentResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/postings",
+  operationId: "createAccountingPosting",
+  summary: "Post a posting (zaúčtování)",
+  description:
+    "Post a double-entry or monetary posting. Gated (201 applied / 202 held). " +
+    "Tenant + responsible user injected; opening/correction/generated linkage " +
+    "is not client-settable.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateAccountingPostingRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Posting applied.",
+      content: {
+        "application/json": { schema: CreateAccountingPostingResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateAccountingPostingResponse },
+      },
     },
     ...ERROR_RESPONSE_REFS,
   },

@@ -53,6 +53,7 @@ import {
 } from "@workspace/accounting"
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
+import { translateAccountingError } from "./accounting-error"
 import {
   ClassifyEventRequestDto,
   ClassifyEventResponseDto,
@@ -80,7 +81,11 @@ class ParseIsoDateQueryPipe implements PipeTransform<
 > {
   transform(value: string | undefined): string | undefined {
     if (value == null) return undefined
-    if (!/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/.test(value)) {
+    if (
+      !/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.test(
+        value,
+      )
+    ) {
       throw new BadRequestException(
         "dueBefore must be an ISO date (YYYY-MM-DD)",
       )
@@ -422,8 +427,22 @@ export class AccountingController {
   async getStatementLayout(
     @Param("periodId", new ParseUUIDPipe()) periodId: string,
     @CurrentPrincipal() principal: ApiKeyPrincipal,
-    @Query("rozsah") rozsah?: "FULL" | "ABBREVIATED",
-    @Query("unit") unit?: "CZK" | "THOUSANDS",
+    @Query(
+      "rozsah",
+      new ParseEnumPipe(
+        { FULL: "FULL", ABBREVIATED: "ABBREVIATED" },
+        { optional: true },
+      ),
+    )
+    rozsah?: "FULL" | "ABBREVIATED",
+    @Query(
+      "unit",
+      new ParseEnumPipe(
+        { CZK: "CZK", THOUSANDS: "THOUSANDS" },
+        { optional: true },
+      ),
+    )
+    unit?: "CZK" | "THOUSANDS",
   ): Promise<StatementLayoutResponse> {
     const s = await withOrganization(
       principal.organizationId,
@@ -462,7 +481,13 @@ export class AccountingController {
   })
   @ApiOkResponse({ type: ClassifyEventResponseDto })
   classify(@Body() body: ClassifyEventRequestDto): ClassifyEventResponse {
-    return classifyEvent(body as unknown as EconomicEvent)
+    try {
+      return classifyEvent(body as unknown as EconomicEvent)
+    } catch (e) {
+      // classifyEvent throws `accounting: …` on a boundary-invalid fact (e.g. an
+      // implausible vat_rate); route it through the same 4xx seam as the writes.
+      translateAccountingError(e)
+    }
   }
 
   @Get("number-series")

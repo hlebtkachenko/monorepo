@@ -125,11 +125,32 @@ export class AccountingWritesController {
         rationale: string
         conversationId?: string
       }
+    // The always-hold gate compares against a CZK ceiling, so each partial's
+    // transaction-currency amount must be converted to accounting currency via
+    // its own fx rate before it is tested (a large FX partial otherwise slips
+    // under the ceiling and evades the hold). Rounding is already accounting
+    // currency; posting amounts elsewhere are already accounting currency too.
+    const toAccountingCurrency = (p: {
+      baseAmount: string
+      fxRate?: string | null
+      vatAmount?: string | null
+      vatFxRate?: string | null
+    }): string[] => {
+      const baseCzk =
+        p.fxRate != null
+          ? String(Number(p.baseAmount) * Number(p.fxRate))
+          : p.baseAmount
+      if (p.vatAmount == null) return [baseCzk]
+      const vatRate = p.vatFxRate ?? p.fxRate
+      const vatCzk =
+        vatRate != null
+          ? String(Number(p.vatAmount) * Number(vatRate))
+          : p.vatAmount
+      return [baseCzk, vatCzk]
+    }
     const holdAmounts = [
       ...(fields.lines ?? []).flatMap((l) =>
-        (l.partials ?? []).flatMap((p) =>
-          p.vatAmount != null ? [p.baseAmount, p.vatAmount] : [p.baseAmount],
-        ),
+        (l.partials ?? []).flatMap(toAccountingCurrency),
       ),
       ...(fields.roundingAmount != null ? [fields.roundingAmount] : []),
     ]

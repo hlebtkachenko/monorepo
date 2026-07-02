@@ -183,6 +183,86 @@ describe("decision layer — the domain DECIDES from raw facts", () => {
       "REVERSE_CHARGE",
     )
   })
+
+  it("compares the service window by DATE part, not raw strings (mixed formats)", () => {
+    // ends INSIDE the period, but stated as a timestamp — a raw string compare
+    // would see "2026-12-31T09:00" > "2026-12-31" and wrongly defer
+    const timestampInside = classifyEvent(
+      facts({
+        serviceWindow: { start: "2026-01-01", end: "2026-12-31T09:00" },
+        periodEnd: "2026-12-31",
+      }),
+    )
+    expect(timestampInside.deferral).toBeUndefined()
+
+    // same date across T- vs space-separated forms (" " < "T" would invert a
+    // raw compare) — still inside the period
+    const mixedForms = classifyEvent(
+      facts({
+        serviceWindow: { start: "2026-01-01", end: "2026-12-31T00:00" },
+        periodEnd: "2026-12-31 23:59",
+      }),
+    )
+    expect(mixedForms.deferral).toBeUndefined()
+
+    // genuinely past the period end → deferral, regardless of format
+    const beyond = classifyEvent(
+      facts({
+        serviceWindow: { start: "2026-11-01", end: "2027-01-05 09:00" },
+        periodEnd: "2026-12-31",
+      }),
+    )
+    expect(beyond.deferral?.bridge).toBe("381")
+  })
+
+  it("routes an ISSUED credit note to the sale side (S-CREDIT-NOTE-STD, 311, revenue remap)", () => {
+    const d = classifyEvent(
+      facts({ direction: "ISSUED", isCreditNote: true, vatRate: "21" }),
+    )
+    expect(d.scenario).toBe("S-CREDIT-NOTE-STD")
+    expect(d.vatMode).toBe("STANDARD")
+    expect(d.vatRate).toBe("21")
+    expect(d.saldoAccount).toBe("311")
+    // SERVICES credit note reverses 602, not the template's 604 goods revenue
+    expect(d.accountOverrides?.["604"]).toBe("602")
+    expect(d.reasoning.some((r) => r.includes("§42"))).toBe(true)
+  })
+
+  it("keeps a RECEIVED credit note on the purchase side with its 321 open item", () => {
+    const d = classifyEvent(facts({ isCreditNote: true }))
+    expect(d.scenario).toBe("P-CREDIT-NOTE-STD")
+    expect(d.vatMode).toBe("STANDARD")
+    expect(d.saldoAccount).toBe("321")
+    // SERVICES credit note reverses 518, not the template's 504 goods cost
+    expect(d.accountOverrides?.["504"]).toBe("518")
+  })
+
+  it("preserves reverse charge on a §92a credit note (correction stays RC)", () => {
+    const d = classifyEvent(
+      facts({
+        jurisdiction: "REVERSE_CHARGE",
+        isCreditNote: true,
+        vatRate: "21",
+      }),
+    )
+    expect(d.vatMode).toBe("REVERSE_CHARGE")
+    expect(d.scenario).toBe("P-PDP")
+    expect(d.saldoAccount).toBe("321")
+  })
+
+  it("gives an EXEMPT credit note no rate (null), not a forced 21", () => {
+    const d = classifyEvent(
+      facts({ jurisdiction: "EXEMPT", isCreditNote: true }),
+    )
+    expect(d.vatMode).toBe("EXEMPT")
+    expect(d.vatRate).toBeNull()
+  })
+
+  it("rejects an implausible vat rate at the boundary (same rule as capture)", () => {
+    expect(() => classifyEvent(facts({ vatRate: "19" }))).toThrow(
+      /not a valid CZ VAT rate/,
+    )
+  })
 })
 
 describe("časové rozlišení (accruals)", () => {

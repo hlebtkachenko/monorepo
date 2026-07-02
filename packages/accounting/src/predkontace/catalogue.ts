@@ -193,6 +193,39 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
       },
     ],
   },
+  {
+    // Issued credit note (dobropis vydaný) — opravný daňový doklad lowering the
+    // supplier's tax base. Reverses a standard sale: cut the receivable (311),
+    // cut the revenue (604/602 via override), reverse the output VAT (343).
+    // Mirror of P-CREDIT-NOTE-STD; the caller flips the negative document
+    // totals to positive before posting.
+    id: "S-CREDIT-NOTE-STD",
+    label: "FV dobropis — snížení základu daně (§42) — 21/12 %",
+    documentSide: "SALES",
+    vatMode: "STANDARD",
+    legalBasis: [`${ZDPH} §42`, `${ZDPH} §45`],
+    confidence: "high",
+    entries: [
+      {
+        account: "311",
+        side: "CREDIT",
+        basis: "gross",
+        description: "Snížení pohledávky (dobropis)",
+      },
+      {
+        account: "604",
+        side: "DEBIT",
+        basis: "net",
+        description: "Snížení tržeb (dobropis)",
+      },
+      {
+        account: "343",
+        side: "DEBIT",
+        basis: "vat",
+        description: "Oprava DPH na výstupu (§42)",
+      },
+    ],
+  },
 ] as const
 
 export const PURCHASE_SCENARIOS: readonly PredkontaceScenario[] = [

@@ -66,6 +66,20 @@ export function translateAccountingError(e: unknown): never {
     }
     throw new ConflictError("Duplicate resource")
   }
+  if (code === "23514") {
+    // CHECK constraint — a client-supplied value violates an integrity rule.
+    throw new ValidationError(
+      constraint
+        ? `A value violates the accounting integrity constraint "${constraint}"`
+        : "A value violates an accounting integrity constraint",
+    )
+  }
+  if (code?.startsWith("22")) {
+    // SQLSTATE class 22 (data exception) — malformed date, numeric overflow, etc.
+    throw new ValidationError(
+      "Invalid value in request (e.g. a malformed date or out-of-range number)",
+    )
+  }
 
   // Message-based (robust across P0001 RAISE and 23514 CHECK triggers).
   if (

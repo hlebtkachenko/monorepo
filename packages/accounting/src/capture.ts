@@ -37,8 +37,9 @@ const PLAUSIBLE_VAT_RATES = new Set(["0", "10", "12", "15", "21"])
  * Boundary sanity guard on a captured vat_rate: reject a garbage / typo rate (a
  * rate is a percentage, not a money amount, so this string check is not R13
  * arithmetic). Period-specific rate enforcement is left to the VAT-return layer.
+ * Shared with the decision layer (classify.ts) so both agree on plausible rates.
  */
-function assertPlausibleVatRate(rate: string | null | undefined): void {
+export function assertPlausibleVatRate(rate: string | null | undefined): void {
   if (rate == null) return
   const normalized = rate.trim().replace(/\.0+$/, "").replace(/\.$/, "")
   if (!PLAUSIBLE_VAT_RATES.has(normalized)) {

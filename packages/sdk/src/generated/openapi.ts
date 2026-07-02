@@ -2598,8 +2598,9 @@ export interface components {
             /**
              * @description VAT mode to stamp on the partial record.
              * @example STANDARD
+             * @enum {string}
              */
-            vatMode: string;
+            vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
             /**
              * @description Rate to freeze (null for exempt/outside).
              * @example 21
@@ -2807,8 +2808,8 @@ export interface components {
                     vatDeductible?: boolean;
                     advanceSettlement?: boolean;
                     /**
-                     * @description Unsigned decimal amount as a string.
-                     * @example 12100.00
+                     * @description Signed decimal amount as a string.
+                     * @example -500.00
                      */
                     quantity?: string | null;
                     measureUnit?: string | null;
@@ -2821,13 +2822,13 @@ export interface components {
                     /** @enum {string|null} */
                     fxRateKind?: "DAILY" | "REAL" | "FIXED" | null;
                     /**
-                     * @description Unsigned decimal amount as a string.
-                     * @example 12100.00
+                     * @description Positive decimal amount as a string (nonzero).
+                     * @example 25.30
                      */
                     fxRate?: string | null;
                     /**
-                     * @description Unsigned decimal amount as a string.
-                     * @example 12100.00
+                     * @description Positive decimal amount as a string (nonzero).
+                     * @example 25.30
                      */
                     vatFxRate?: string | null;
                 }[];

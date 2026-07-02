@@ -282,6 +282,90 @@ describe("TODO-2 — per-counterparty kontrolní hlášení", () => {
       expect(kh.a5.dan).toBe("210.0000")
     })
   })
+
+  it("puts a negative opravný doklad over 10k in ABSOLUTE value on the A.4 row (§101d)", async () => {
+    const s = await seedFull("2057-01-01", "2057-12-31")
+    await withOrganization(orgA, userId, async (db) => {
+      const cp = await createCounterparty(db, s.ctx, {
+        name: "Odběratel dobropisu s.r.o.",
+        taxId: "CZ87654321",
+        countryCode: "CZ",
+      })
+
+      // A.4: dobropis base −50000 + VAT −10500, gross −60500 → |gross| > 10000
+      const ev1 = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cp,
+        description: "FV dobropis big",
+        occurredAt: "2057-06-01",
+        responsibleUserId: userId,
+      })
+      const d1 = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2057-06-01",
+        lines: [
+          {
+            eventId: ev1.eventId,
+            partials: [
+              {
+                baseAmount: "-50000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "-10500.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      // A.5: small dobropis base −1000 + VAT −210, |gross| 1210 ≤ 10000
+      const ev2 = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cp,
+        description: "FV dobropis small",
+        occurredAt: "2057-06-02",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2057-06-02",
+        lines: [
+          {
+            eventId: ev2.eventId,
+            partials: [
+              {
+                baseAmount: "-1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "-210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      // the big dobropis is a row-level A.4 entry with NEGATIVE amounts,
+      // not folded into the aggregate
+      expect(kh.a4).toHaveLength(1)
+      expect(kh.a4[0]!.tax_id).toBe("CZ87654321")
+      expect(kh.a4[0]!.doklad).toBe(d1.designation)
+      expect(kh.a4[0]!.base21).toBe("-50000.0000")
+      expect(kh.a4[0]!.dan21).toBe("-10500.0000")
+      // the small dobropis stays in the A.5 aggregate, keeping its sign
+      expect(kh.a5.count).toBe(1)
+      expect(kh.a5.base).toBe("-1000.0000")
+      expect(kh.a5.dan).toBe("-210.0000")
+    })
+  })
 })
 
 describe("TODO-3 — auto-driven depreciation + §23/3 book-vs-tax", () => {

@@ -19,6 +19,7 @@
  * (capitalisation + časové rozlišení), §3/1 ZoÚ (matching principle).
  */
 
+import { assertPlausibleVatRate } from "./capture"
 import type { Decimal, VatMode } from "./types"
 
 /** The durable-asset capitalisation threshold (§26/2 ZDP hmotný majetek = 80 000 Kč;
@@ -118,36 +119,40 @@ const REVENUE_ACCOUNT: Record<SupplyKind, string> = {
 
 function crossesPeriodEnd(ev: EconomicEvent): boolean {
   if (!ev.serviceWindow || !ev.periodEnd) return false
-  return ev.serviceWindow.end > ev.periodEnd
+  // Compare DATE parts only: the boundary accepts date-only and timestamp forms
+  // ("2025-12-31", "2025-12-31T09:00", "2025-12-31 09:00"), and a raw string
+  // compare across mixed forms is wrong ("2025-12-31T09:00" > "2025-12-31" even
+  // though the service ends inside the period).
+  return ev.serviceWindow.end.slice(0, 10) > ev.periodEnd.slice(0, 10)
 }
 
 /**
  * Decide the full accounting treatment for one economic event.
  */
 export function classifyEvent(ev: EconomicEvent): PostingDecision {
+  assertPlausibleVatRate(ev.vatRate)
   const reasoning: string[] = []
   const isPurchase = ev.direction === "RECEIVED"
+  const isCreditNote =
+    ev.isCreditNote === true || ev.supplyKind === "CREDIT_NOTE"
 
-  // --- 1. credit note (§42) — reverse-sign standard scenario ---
-  if (ev.isCreditNote || ev.supplyKind === "CREDIT_NOTE") {
+  // --- 1. credit note (§42) — reverse-sign scenario, but the VAT routing
+  // (mode / rate / jurisdiction) is the SAME as the original supply's, and the
+  // open item lives on the same saldo account (311/321) the correction reduces.
+  if (isCreditNote) {
     reasoning.push(
       "§42 ZDPH: opravný daňový doklad (dobropis) → reverse the original supply's sides.",
     )
-    return {
-      vatMode: "STANDARD",
-      vatRate: ev.vatRate ?? "21",
-      scenario: "P-CREDIT-NOTE-STD",
-      accountOverrides: { "504": EXPENSE_ACCOUNT[ev.supplyKind] ?? "504" },
-      saldoAccount: null,
-      reasoning,
-    }
   }
 
   // --- 2. asset capitalisation (§26 ZDP + Decree 500/2002 §7) ---
   const threshold = ev.assetThreshold ?? DEFAULT_ASSET_THRESHOLD
   const capitalise =
-    isPurchase && ev.durable === true && Number(ev.base) >= Number(threshold)
-  if (isPurchase && ev.durable) {
+    !isCreditNote &&
+    isPurchase &&
+    ev.durable === true &&
+    Number(ev.base) >= Number(threshold)
+  if (!isCreditNote && isPurchase && ev.durable) {
     if (capitalise) {
       reasoning.push(
         `§26/2 ZDP + Decree 500/2002 §7: durable asset, pořizovací cena ${ev.base} ≥ ${threshold} → capitalise to 042 (pořízení DHM), depreciate; not a direct expense.`,
@@ -160,8 +165,29 @@ export function classifyEvent(ev: EconomicEvent): PostingDecision {
   }
 
   // --- 3. VAT mode from jurisdiction ---
-  const { vatMode, vatRate, scenario, note } = decideVat(ev, isPurchase)
+  const {
+    vatMode,
+    vatRate,
+    scenario: vatScenario,
+    note,
+  } = decideVat(ev, isPurchase)
   reasoning.push(note)
+
+  // A STANDARD credit note posts through the dedicated reverse-side template
+  // (P-/S-CREDIT-NOTE-STD). A non-STANDARD one (PDP / EU / import / exempt)
+  // keeps its jurisdiction's scenario so the §42 correction aggregates into the
+  // right DPH/KH regime rows — the poster books it with the reversed sign.
+  const scenario =
+    isCreditNote && vatMode === "STANDARD"
+      ? isPurchase
+        ? "P-CREDIT-NOTE-STD"
+        : "S-CREDIT-NOTE-STD"
+      : vatScenario
+  if (isCreditNote && vatMode !== "STANDARD") {
+    reasoning.push(
+      "credit note outside STANDARD mode → reuse the original supply's scenario with reversed sign (same DPH/KH routing as the corrected plnění).",
+    )
+  }
 
   // --- 4. account (expense or revenue), with capitalisation override ---
   const overrides: Record<string, string> = {}
@@ -179,15 +205,17 @@ export function classifyEvent(ev: EconomicEvent): PostingDecision {
     else if (scenario === "P-EXEMPT-RECEIVED") overrides["518"] = costAccount
   } else {
     // sale: remap the scenario's default revenue account to the category revenue
-    if (scenario === "S-GOODS-21") overrides["604"] = revenueAccount
+    if (scenario === "S-GOODS-21" || scenario === "S-CREDIT-NOTE-STD")
+      overrides["604"] = revenueAccount
     else if (scenario === "S-SERVICES-21") overrides["602"] = revenueAccount
     else if (scenario === "S-EXEMPT-NO-CREDIT")
       overrides["602"] = revenueAccount
   }
 
-  // --- 5. časové rozlišení (§3/1 matching) ---
+  // --- 5. časové rozlišení (§3/1 matching) — not applied to a credit note (the
+  // correction follows the original supply's split, decided by the poster) ---
   let deferral: PostingDecision["deferral"]
-  if (crossesPeriodEnd(ev)) {
+  if (!isCreditNote && crossesPeriodEnd(ev)) {
     if (isPurchase) {
       deferral = {
         bridge: "381",

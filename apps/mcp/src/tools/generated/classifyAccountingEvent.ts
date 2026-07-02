@@ -13,7 +13,7 @@ const inputShape = {
   "base": z.string().describe("Unsigned decimal amount as a string."),
   "vat": z.string().describe("Unsigned decimal amount as a string."),
   "vatRate": z.string().nullable().describe("Stated VAT rate.").optional(),
-  "currency": z.string().min(3).max(3).describe("ISO 4217."),
+  "currency": z.string().describe("ISO 4217."),
   "fxRate": z.string().nullable().describe("FX rate if foreign currency.").optional(),
   "serviceWindow": z.object({ "start": z.string(), "end": z.string() }).describe("Service window (ISO dates) — deferral split.").optional(),
   "periodEnd": z.string().describe("Accounting period end (ISO).").optional(),
@@ -41,7 +41,8 @@ export function registerClassifyAccountingEvent(
     async (args): Promise<CallToolResult> => {
       try {
         const body = args as unknown as components["schemas"]["ClassifyEventRequest"]
-        const { data, error, response } = await client.POST("/v1/accounting/classify", { body })
+        const init = { body }
+        const { data, error, response } = await client.POST("/v1/accounting/classify", init)
         if (error) throw error
         if (!response.ok) {
           throw new Error(`Upstream HTTP ${response.status}`)

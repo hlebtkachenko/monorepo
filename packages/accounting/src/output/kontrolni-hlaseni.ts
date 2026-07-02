@@ -23,8 +23,11 @@
  *        Per doklad: DIČ, ev. číslo, DPPD, základ+daň dle sazby.
  *   B.3  ostatní přijatá zdanitelná plnění (≤ 10 000 vč. daně) — SOUHRNNĚ.
  *
- * The 10 000 Kč threshold is on the DOKLAD total INCLUDING daň (§101d/1). Rows
- * are grouped per (doklad, counterparty); all money arithmetic is in SQL (R13).
+ * The 10 000 Kč threshold is on the ABSOLUTE DOKLAD total INCLUDING daň
+ * (§101d/1) — a negative opravný doklad (dobropis) over 10 000 Kč in absolute
+ * value goes on an A.4/B.2 row with its negative amounts, not into the
+ * aggregate. Rows are grouped per (doklad, counterparty); all money arithmetic
+ * is in SQL (R13).
  */
 
 import { sql } from "drizzle-orm"
@@ -32,7 +35,8 @@ import { rows } from "../sql"
 import type { RowExecutor } from "../sql"
 import type { Decimal } from "../types"
 
-/** §101d/1 limit — plnění nad 10 000 Kč včetně daně jde na řádkovou evidenci. */
+/** §101d/1 limit — plnění nad 10 000 Kč včetně daně (v absolutní hodnotě —
+ * opravné doklady jsou záporné) jde na řádkovou evidenci. */
 export const KH_ROW_THRESHOLD = "10000"
 
 /** One per-counterparty, per-doklad KH row (A.1/A.2/A.4/B.1/B.2). */
@@ -165,7 +169,7 @@ async function standardRowsOverThreshold(
              base12::numeric(19,4) AS base12,
              dan12::numeric(19,4)  AS dan12
         FROM doklad
-       WHERE gross > ${KH_ROW_THRESHOLD}::numeric
+       WHERE abs(gross) > ${KH_ROW_THRESHOLD}::numeric
          AND tax_id IS NOT NULL
        ORDER BY doklad`,
   )
@@ -185,7 +189,7 @@ async function standardAggregate(
              COALESCE(SUM(dan21 + dan12), 0)::numeric(19,4)   AS dan,
              COUNT(*)::int                                    AS count
         FROM doklad
-       WHERE NOT (gross > ${KH_ROW_THRESHOLD}::numeric AND tax_id IS NOT NULL)`,
+       WHERE NOT (abs(gross) > ${KH_ROW_THRESHOLD}::numeric AND tax_id IS NOT NULL)`,
   )
   return r[0] ?? { base: "0.0000", dan: "0.0000", count: 0 }
 }

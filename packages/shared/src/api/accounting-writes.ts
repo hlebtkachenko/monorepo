@@ -22,6 +22,22 @@ const Decimal = z
     example: "12100.00",
   })
 
+const VAT_MODE = z.enum([
+  "STANDARD",
+  "REVERSE_CHARGE",
+  "EXEMPT",
+  "OUTSIDE_VAT",
+  "IMPORT",
+])
+const VAT_JURISDICTION = z.enum([
+  "DOMESTIC",
+  "REVERSE_CHARGE",
+  "EU",
+  "IMPORT",
+  "EXEMPT",
+  "OUTSIDE_VAT",
+])
+
 // ── classify (pure decision) ────────────────────────────────────────────────
 
 export const ClassifyEventRequestSchema = z
@@ -62,7 +78,7 @@ export const ClassifyEventRequestSchema = z
       .openapi({ description: "Stated VAT rate.", example: "21" }),
     currency: z
       .string()
-      .length(3)
+      .regex(/^[A-Z]{3}$/)
       .openapi({ description: "ISO 4217.", example: "CZK" }),
     fxRate: z.string().nullish().openapi({
       description: "FX rate if foreign currency.",
@@ -72,14 +88,22 @@ export const ClassifyEventRequestSchema = z
       .object({
         start: z
           .string()
-          .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/),
-        end: z.string().regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/),
+          .regex(
+            /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
+          ),
+        end: z
+          .string()
+          .regex(
+            /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
+          ),
       })
       .optional()
       .openapi({ description: "Service window (ISO dates) — deferral split." }),
     periodEnd: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
+      .regex(
+        /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
+      )
       .optional()
       .openapi({
         description: "Accounting period end (ISO).",
@@ -107,7 +131,7 @@ export type ClassifyEventRequest = z.infer<typeof ClassifyEventRequestSchema>
 
 export const ClassifyEventResponseSchema = z
   .object({
-    vatMode: z.string().openapi({
+    vatMode: VAT_MODE.openapi({
       description: "VAT mode to stamp on the partial record.",
       example: "STANDARD",
     }),
@@ -205,6 +229,15 @@ const SignedDecimal = z
     example: "-500.00",
   })
 
+/** Positive (nonzero) decimal — fx rates must satisfy the DB `fx_rate > 0` CHECK. */
+const PositiveDecimal = z
+  .string()
+  .regex(/^(?!0+(\.0+)?$)\d{1,15}(\.\d{1,4})?$/)
+  .openapi({
+    description: "Positive decimal amount as a string (nonzero).",
+    example: "25.30",
+  })
+
 /**
  * Server-gate envelope, present on every mutation. NOT tenant data — the
  * confidence + rationale drive the auto-apply/hold decision and the audit
@@ -227,22 +260,6 @@ const RATIONALE = z.string().min(1).max(2000).openapi({
 const CONVERSATION_ID = z.string().uuid().optional().openapi({
   description: "Audit-correlation id of the driving agent conversation.",
 })
-
-const VAT_MODE = z.enum([
-  "STANDARD",
-  "REVERSE_CHARGE",
-  "EXEMPT",
-  "OUTSIDE_VAT",
-  "IMPORT",
-])
-const VAT_JURISDICTION = z.enum([
-  "DOMESTIC",
-  "REVERSE_CHARGE",
-  "EU",
-  "IMPORT",
-  "EXEMPT",
-  "OUTSIDE_VAT",
-])
 
 // --- POST /v1/accounting/events ---------------------------------------------
 export const CreateAccountingEventRequestSchema = z
@@ -271,7 +288,9 @@ export const CreateAccountingEventRequestSchema = z
       .openapi({ description: "Optional detail." }),
     occurredAt: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
+      .regex(
+        /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
+      )
       .openapi({
         description:
           "Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period.",
@@ -318,13 +337,13 @@ const PartialRecordSchema = z.object({
   vatJurisdiction: VAT_JURISDICTION.nullish(),
   vatDeductible: z.boolean().optional(),
   advanceSettlement: z.boolean().optional(),
-  quantity: Decimal.nullish(),
+  quantity: SignedDecimal.nullish(),
   measureUnit: z.string().nullish(),
   unitPrice: Decimal.nullish(),
-  currencyCode: z.string().length(3),
+  currencyCode: z.string().regex(/^[A-Z]{3}$/),
   fxRateKind: z.enum(["DAILY", "REAL", "FIXED"]).nullish(),
-  fxRate: Decimal.nullish(),
-  vatFxRate: Decimal.nullish(),
+  fxRate: PositiveDecimal.nullish(),
+  vatFxRate: PositiveDecimal.nullish(),
 })
 
 const IndividualRecordSchema = z.object({
@@ -350,7 +369,9 @@ export const CaptureAccountingDocumentRequestSchema = z
     ]),
     issuedAt: z
       .string()
-      .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
+      .regex(
+        /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
+      )
       .openapi({
         description: "Okamžik vyhotovení (§11/1d) — ISO.",
         example: "2025-03-14",
@@ -399,7 +420,9 @@ const PostingBaseFields = {
   accountingEventId: z.string().uuid(),
   postingDate: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
+    .regex(
+      /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/,
+    )
     .openapi({
       description: "Datum (§5.2) — ISO date.",
       example: "2025-03-14",

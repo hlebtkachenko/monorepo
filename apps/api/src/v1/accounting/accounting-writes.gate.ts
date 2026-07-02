@@ -15,13 +15,15 @@ import {
 
 import { translateAccountingError } from "./accounting-error"
 
-const AUTO_APPLY_THRESHOLD = Number(
+// A non-finite override (e.g. "100 000" / "100,000" → NaN) would silently
+// disable the amount hold fleet-wide, so fall back to the documented default.
+const rawThreshold = Number(
   process.env["ACCOUNTING_AUTO_APPLY_THRESHOLD"] ?? "0.9",
 )
+const AUTO_APPLY_THRESHOLD = Number.isFinite(rawThreshold) ? rawThreshold : 0.9
 /** Any single amount above this (CZK) is HELD regardless of claimed confidence. */
-const ALWAYS_HOLD_AMOUNT = Number(
-  process.env["ACCOUNTING_ALWAYS_HOLD_AMOUNT"] ?? "100000",
-)
+const rawHold = Number(process.env["ACCOUNTING_ALWAYS_HOLD_AMOUNT"] ?? "100000")
+const ALWAYS_HOLD_AMOUNT = Number.isFinite(rawHold) ? rawHold : 100000
 
 /** The organization-bound tx handle `withOrganization` hands its callback. */
 type OrgTx = Parameters<Parameters<typeof withOrganization>[2]>[0]

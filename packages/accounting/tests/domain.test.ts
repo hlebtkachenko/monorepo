@@ -16,6 +16,7 @@ import {
   seedTwoOrganizations,
 } from "./fixtures.js"
 import {
+  allocateNumber,
   buildZaverka,
   captureDocument,
   closePeriod,
@@ -224,6 +225,24 @@ describe("number series — gapless designation", () => {
       return [a.designation, b.designation]
     })
     expect(designations).toEqual(["EV20270001", "EV20270002"])
+  })
+
+  it("refuses to burn a series for the wrong entity kind and does not advance it", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2038-01-01",
+      periodEnd: "2038-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      // an EVENT series must not be consumable as a DOCUMENT series
+      await expect(
+        allocateNumber(db, s.eventSeriesId, "2038-03-01", "DOCUMENT"),
+      ).rejects.toThrow(/not of type DOCUMENT/)
+      // and the refused attempt must NOT advance next_number — the next
+      // legitimate allocation still draws sequence 1
+      const a = await allocateNumber(db, s.eventSeriesId, "2038-03-01", "EVENT")
+      expect(a.sequenceNumber).toBe(1)
+      expect(a.designation).toBe("EV20380001")
+    })
   })
 })
 
@@ -700,7 +719,9 @@ describe("year-end result close (710 → 431)", () => {
         lines: [
           {
             eventId: ev.eventId,
-            partials: [{ baseAmount: "1000.00", vatMode: "EXEMPT", currencyCode: "CZK" }],
+            partials: [
+              { baseAmount: "1000.00", vatMode: "EXEMPT", currencyCode: "CZK" },
+            ],
           },
         ],
       })

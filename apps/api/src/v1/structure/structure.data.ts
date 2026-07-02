@@ -93,7 +93,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Overview",
           "route": "accounting",
           "icon": "Calculator",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -123,7 +123,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Journal",
           "route": "accounting/journal",
           "icon": "BookOpen",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -133,7 +133,17 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "General ledger",
           "route": "accounting/ledger",
           "icon": "BookOpenText",
-          "tba": true,
+          "tba": false,
+          "archetype": null,
+          "purpose": null,
+          "subpages": []
+        },
+        {
+          "group": "Books",
+          "label": "Saldokonto",
+          "route": "accounting/saldokonto",
+          "icon": "ArrowUpDown",
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -173,7 +183,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Chart of accounts",
           "route": "accounting/chart-of-accounts",
           "icon": "Shapes",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []

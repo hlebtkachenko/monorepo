@@ -27,7 +27,7 @@ const ALWAYS_HOLD_AMOUNT = Number(
 type OrgTx = Parameters<Parameters<typeof withOrganization>[2]>[0]
 
 /** Sorted-key canonical JSON → stable idempotency payload hash. */
-function canonicalHash(value: unknown): string {
+export function canonicalHash(value: unknown): string {
   const sortKeys = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(sortKeys)
     if (v && typeof v === "object") {

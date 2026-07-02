@@ -72,7 +72,7 @@ import {
   useTabVisibility,
   type ManageTab,
 } from "../_shared/content-header-extras"
-import { OrgPageHeader } from "../org-page-header"
+import { AppPageHeader } from "../app-page-header"
 import {
   ACCOUNT_OPTIONS,
   aggregate,
@@ -496,7 +496,7 @@ export function DashboardDemo() {
 
   return (
     <>
-      <OrgPageHeader>
+      <AppPageHeader>
         <ContentHeader
           title="Dashboard"
           tabs={tabs}
@@ -511,7 +511,7 @@ export function DashboardDemo() {
           }
           actions={<PageHeaderActions />}
         />
-      </OrgPageHeader>
+      </AppPageHeader>
       <ContentPanel toolbar={toolbar}>
         <DashboardGrid
           metrics={metrics}

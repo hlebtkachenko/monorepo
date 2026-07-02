@@ -164,19 +164,23 @@ test.describe("Onboarding wizard — owner happy path", () => {
       .filter({ hasText: /^Open / })
       .click({ timeout: 20_000 })
 
-    // --- Lands on the workspace chooser with the new workspace + org -------
+    // --- Lands on the workspace Home shell (the chooser was retired; the
+    // org list now lives under /workspace/clients, workspace switching in the
+    // header) -----------------------------------------------------------------
     await page.waitForURL((url) => url.pathname === "/workspace", {
       timeout: 15_000,
     })
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Your workspaces" }),
-    ).toBeVisible()
-    // Workspace card title + the default org row (legal name mirrors the
-    // workspace display name).
+    await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
+    // The workspace name shows in the header switcher + the Home content title.
     await expect(page.getByText(WORKSPACE_NAME).first()).toBeVisible()
 
-    // --- Open the default org → org dashboard shell -------------------------
-    await page.getByRole("link", { name: "Open", exact: true }).first().click()
+    // --- Open the default client book from the Clients list → org shell ------
+    await page.goto("/workspace/clients")
+    await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
+    await page
+      .getByRole("link", { name: "Open book", exact: true })
+      .first()
+      .click()
     await page.waitForURL((url) => /^\/wizard-works-/.test(url.pathname), {
       timeout: 15_000,
     })

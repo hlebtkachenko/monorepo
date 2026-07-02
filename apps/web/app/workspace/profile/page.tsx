@@ -1,47 +1,35 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { auth } from "@workspace/auth/server"
-import { Button } from "@workspace/ui/components/button"
 
-export const metadata = {
-  title: "Your profile",
-}
+import { ProfileForm } from "../../_components/workspace/profile/profile-form"
+import { getWorkspaceHeaderUser } from "../_lib/workspace-context"
 
+export const metadata = { title: "Your profile" }
+
+/**
+ * Your profile — the signed-in user's account. Identity is display-real (name +
+ * presigned avatar, resolved server-side) with a stub Save; the two-factor
+ * section reads the live `twoFactorEnabled` flag and links to the real MFA
+ * setup flow (see `ProfileForm`).
+ */
 export default async function ProfilePage() {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) {
-    redirect("/auth/login")
-  }
+  if (!session) redirect("/auth/login")
+
+  const { userName, userImage } = await getWorkspaceHeaderUser(
+    session.user.id,
+    session.user.email,
+  )
+
   return (
-    <div className="mx-auto max-w-3xl space-y-4 px-4 py-12">
-      <h1>Your profile</h1>
-      <dl className="text-sm">
-        <div className="flex gap-4 py-1">
-          <dt className="w-24 text-muted-foreground">Name</dt>
-          <dd>{session.user.name}</dd>
-        </div>
-        <div className="flex gap-4 py-1">
-          <dt className="w-24 text-muted-foreground">Email</dt>
-          <dd>{session.user.email}</dd>
-        </div>
-      </dl>
-      <div className="space-y-2 pt-2">
-        <h3>Two-factor authentication</h3>
-        <p className="text-sm text-muted-foreground">
-          {session.user.twoFactorEnabled
-            ? "Two-factor is enabled on this account."
-            : "Protect your account with a TOTP authenticator app."}
-        </p>
-        {!session.user.twoFactorEnabled ? (
-          <Button asChild variant="outline">
-            <Link href="/auth/mfa/setup">Set up two-factor</Link>
-          </Button>
-        ) : null}
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Profile editing (name, avatar, locale) lands later.
-      </p>
-    </div>
+    <ProfileForm
+      profile={{
+        displayName: userName ?? session.user.name,
+        email: session.user.email,
+        image: userImage,
+        twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
+      }}
+    />
   )
 }

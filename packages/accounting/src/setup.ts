@@ -181,6 +181,7 @@ export async function createAsset(
     db,
     input.seriesId,
     input.commissioningDate,
+    "ASSET",
   )
   const r = await one<{ id: string }>(
     db,
@@ -237,7 +238,12 @@ export async function createInventoryCount(
   ctx: OrgCtx,
   input: { seriesId: string; countDate: string; description?: string | null },
 ): Promise<{ id: string; designation: string; sequenceNumber: number }> {
-  const allocated = await allocateNumber(db, input.seriesId, input.countDate)
+  const allocated = await allocateNumber(
+    db,
+    input.seriesId,
+    input.countDate,
+    "INVENTORY_COUNT",
+  )
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO inventory_count (organization_id, number_series_id, sequence_number, designation, count_date, description)

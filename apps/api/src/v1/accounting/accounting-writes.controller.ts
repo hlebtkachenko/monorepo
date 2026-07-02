@@ -90,8 +90,8 @@ export class AccountingWritesController {
       rationale,
       conversationId,
       holdAmounts: [],
-      run: (db) =>
-        createEvent(db, principal, {
+      run: (db, ctx) =>
+        createEvent(db, ctx, {
           ...fields,
           responsibleUserId: principal.userId as string,
         } as unknown as EventInput),
@@ -125,9 +125,14 @@ export class AccountingWritesController {
         rationale: string
         conversationId?: string
       }
-    const holdAmounts = (fields.lines ?? []).flatMap((l) =>
-      (l.partials ?? []).map((p) => p.baseAmount),
-    )
+    const holdAmounts = [
+      ...(fields.lines ?? []).flatMap((l) =>
+        (l.partials ?? []).flatMap((p) =>
+          p.vatAmount != null ? [p.baseAmount, p.vatAmount] : [p.baseAmount],
+        ),
+      ),
+      ...(fields.roundingAmount != null ? [fields.roundingAmount] : []),
+    ]
     const result = await runGatedWrite<CapturedDocument>({
       principal,
       idempotencyKey,

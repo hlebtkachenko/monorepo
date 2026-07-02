@@ -54,7 +54,12 @@ export async function createEvent(
   ctx: OrgCtx,
   input: EventInput,
 ): Promise<CapturedEvent> {
-  const allocated = await allocateNumber(db, input.seriesId, input.occurredAt)
+  const allocated = await allocateNumber(
+    db,
+    input.seriesId,
+    input.occurredAt,
+    "EVENT",
+  )
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO accounting_event
@@ -85,7 +90,12 @@ export async function captureDocument(
   input: DocumentInput,
 ): Promise<CapturedDocument> {
   const accountingCurrency = await periodAccountingCurrency(db, input.periodId)
-  const allocated = await allocateNumber(db, input.seriesId, input.issuedAt)
+  const allocated = await allocateNumber(
+    db,
+    input.seriesId,
+    input.issuedAt,
+    "DOCUMENT",
+  )
 
   const doc = await one<{ id: string }>(
     db,

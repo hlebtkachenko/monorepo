@@ -69,13 +69,22 @@ export const ClassifyEventRequestSchema = z
       example: "25.30",
     }),
     serviceWindow: z
-      .object({ start: z.string(), end: z.string() })
+      .object({
+        start: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/),
+        end: z.string().regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/),
+      })
       .optional()
       .openapi({ description: "Service window (ISO dates) — deferral split." }),
-    periodEnd: z.string().optional().openapi({
-      description: "Accounting period end (ISO).",
-      example: "2025-12-31",
-    }),
+    periodEnd: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
+      .optional()
+      .openapi({
+        description: "Accounting period end (ISO).",
+        example: "2025-12-31",
+      }),
     durable: z
       .boolean()
       .optional()
@@ -243,26 +252,18 @@ export const CreateAccountingEventRequestSchema = z
       .string()
       .uuid()
       .openapi({ description: "EVENT number series (see GET number-series)." }),
-    partyId: z
-      .string()
-      .uuid()
-      .nullish()
-      .openapi({
-        description: "OUR side (counterparty row); null for internal.",
-      }),
+    partyId: z.string().uuid().nullish().openapi({
+      description: "OUR side (counterparty row); null for internal.",
+    }),
     counterpartyId: z
       .string()
       .uuid()
       .nullish()
       .openapi({ description: "THEIR side (counterparty row)." }),
-    description: z
-      .string()
-      .min(1)
-      .max(2000)
-      .openapi({
-        description: "Case description.",
-        example: "FP — nájem kanceláře",
-      }),
+    description: z.string().min(1).max(2000).openapi({
+      description: "Case description.",
+      example: "FP — nájem kanceláře",
+    }),
     content: z
       .string()
       .max(10000)
@@ -270,6 +271,7 @@ export const CreateAccountingEventRequestSchema = z
       .openapi({ description: "Optional detail." }),
     occurredAt: z
       .string()
+      .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
       .openapi({
         description:
           "Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period.",
@@ -290,11 +292,9 @@ export type CreateAccountingEventRequest = z.infer<
 
 export const CreateAccountingEventResponseSchema = z
   .object({
-    status: z
-      .enum(["applied", "held"])
-      .openapi({
-        description: "applied = booked; held = queued for human review.",
-      }),
+    status: z.enum(["applied", "held"]).openapi({
+      description: "applied = booked; held = queued for human review.",
+    }),
     reviewId: z
       .string()
       .uuid()
@@ -314,7 +314,7 @@ const PartialRecordSchema = z.object({
   baseAmount: SignedDecimal,
   vatMode: VAT_MODE,
   vatRate: z.string().nullish(),
-  vatAmount: Decimal.optional(),
+  vatAmount: SignedDecimal.optional(),
   vatJurisdiction: VAT_JURISDICTION.nullish(),
   vatDeductible: z.boolean().optional(),
   advanceSettlement: z.boolean().optional(),
@@ -350,6 +350,7 @@ export const CaptureAccountingDocumentRequestSchema = z
     ]),
     issuedAt: z
       .string()
+      .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
       .openapi({
         description: "Okamžik vyhotovení (§11/1d) — ISO.",
         example: "2025-03-14",
@@ -398,6 +399,7 @@ const PostingBaseFields = {
   accountingEventId: z.string().uuid(),
   postingDate: z
     .string()
+    .regex(/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/)
     .openapi({
       description: "Datum (§5.2) — ISO date.",
       example: "2025-03-14",
@@ -446,6 +448,19 @@ export const CreateAccountingPostingRequestSchema = z
     rationale: RATIONALE,
     conversationId: CONVERSATION_ID,
   })
+  // Enforce the kind↔entry correlation a bare union can't: a `double` kind must
+  // carry a double entry (and `monetary` a monetary entry). Without this the
+  // loose union accepts a mismatched entry and the domain post() throws a 500.
+  // (A top-level z.discriminatedUnion would express this but can't back a
+  // nestjs-zod createZodDto class — hence the refine.)
+  .refine(
+    (data) =>
+      (data.kind === "double"
+        ? DoubleEntrySchema
+        : MonetaryEntrySchema
+      ).safeParse(data.entry).success,
+    { message: "entry shape does not match kind", path: ["entry"] },
+  )
   .openapi({
     description:
       "Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) " +

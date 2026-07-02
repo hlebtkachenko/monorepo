@@ -12,7 +12,7 @@
  */
 
 import { sql } from "drizzle-orm"
-import { one } from "./sql"
+import { rows } from "./sql"
 import type { RowExecutor } from "./sql"
 
 export interface AllocatedNumber {
@@ -44,20 +44,29 @@ export function formatDesignation(
 /**
  * Allocate the next gapless number on a series and return the sequence + the
  * frozen Označení. `isoDate` feeds the date tokens in the pattern (typically the
- * document's issued_at / the event's occurred_at).
+ * document's issued_at / the event's occurred_at). `expectedEntityType` guards
+ * the row's entity_type so a series can only be burned by its own entity kind.
  */
 export async function allocateNumber(
   db: RowExecutor,
   seriesId: string,
   isoDate: string,
+  expectedEntityType: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT",
 ): Promise<AllocatedNumber> {
-  const r = await one<{ sequence_number: string; pattern: string }>(
+  const result = await rows<{ sequence_number: string; pattern: string }>(
     db,
     sql`UPDATE number_series
            SET next_number = next_number + 1, updated_at = now()
          WHERE id = ${seriesId}::uuid
+           AND entity_type = ${expectedEntityType}::number_series_entity
         RETURNING next_number - 1 AS sequence_number, pattern`,
   )
+  const r = result[0]
+  if (r === undefined) {
+    throw new Error(
+      `accounting: number series ${seriesId} not found or not of type ${expectedEntityType} (§11/1a gapless series must match its entity kind)`,
+    )
+  }
   const seq = Number(r.sequence_number)
   return {
     sequenceNumber: seq,

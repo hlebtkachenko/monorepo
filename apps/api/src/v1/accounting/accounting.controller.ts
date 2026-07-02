@@ -1,10 +1,13 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   HttpCode,
   Param,
+  ParseEnumPipe,
   ParseUUIDPipe,
+  type PipeTransform,
   Post,
   Query,
   UseGuards,
@@ -65,6 +68,26 @@ import {
   SaldokontoResponseDto,
   StatementLayoutResponseDto,
 } from "../dto"
+
+/**
+ * Rejects a `dueBefore` query value that is not an ISO date string. There is no
+ * built-in Nest date pipe, so this thin transform validates the shape at the
+ * boundary before the value flows into the domain query.
+ */
+class ParseIsoDateQueryPipe implements PipeTransform<
+  string | undefined,
+  string | undefined
+> {
+  transform(value: string | undefined): string | undefined {
+    if (value == null) return undefined
+    if (!/^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?$/.test(value)) {
+      throw new BadRequestException(
+        "dueBefore must be an ISO date (YYYY-MM-DD)",
+      )
+    }
+    return value
+  }
+}
 
 /**
  * `GET /v1/accounting/*` — read-model surface over the `@workspace/accounting`
@@ -169,8 +192,15 @@ export class AccountingController {
   @ApiOkResponse({ type: OpenItemsResponseDto })
   async getOpenItems(
     @CurrentPrincipal() principal: ApiKeyPrincipal,
-    @Query("dueBefore") dueBefore?: string,
-    @Query("direction") direction?: "RECEIVABLE" | "PAYABLE",
+    @Query("dueBefore", ParseIsoDateQueryPipe) dueBefore?: string,
+    @Query(
+      "direction",
+      new ParseEnumPipe(
+        { RECEIVABLE: "RECEIVABLE", PAYABLE: "PAYABLE" },
+        { optional: true },
+      ),
+    )
+    direction?: "RECEIVABLE" | "PAYABLE",
   ): Promise<OpenItemsResponse> {
     const rows = await withOrganization(
       principal.organizationId,
@@ -450,7 +480,18 @@ export class AccountingController {
   @ApiOkResponse({ type: NumberSeriesListResponseDto })
   async listNumberSeries(
     @CurrentPrincipal() principal: ApiKeyPrincipal,
-    @Query("entityType")
+    @Query(
+      "entityType",
+      new ParseEnumPipe(
+        {
+          EVENT: "EVENT",
+          DOCUMENT: "DOCUMENT",
+          ASSET: "ASSET",
+          INVENTORY_COUNT: "INVENTORY_COUNT",
+        },
+        { optional: true },
+      ),
+    )
     entityType?: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT",
   ): Promise<NumberSeriesListResponse> {
     const series = await withOrganization(

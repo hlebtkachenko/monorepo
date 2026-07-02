@@ -3647,10 +3647,12 @@
             "type": "object",
             "properties": {
               "start": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?)?$"
               },
               "end": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?)?$"
               }
             },
             "required": [
@@ -3661,6 +3663,7 @@
           },
           "periodEnd": {
             "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?)?$",
             "description": "Accounting period end (ISO).",
             "example": "2025-12-31"
           },
@@ -3937,6 +3940,7 @@
           },
           "occurredAt": {
             "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?)?$",
             "description": "Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period.",
             "example": "2025-03-14"
           },
@@ -4039,6 +4043,7 @@
           },
           "issuedAt": {
             "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?)?$",
             "description": "Okamžik vyhotovení (§11/1d) — ISO.",
             "example": "2025-03-14"
           },
@@ -4092,9 +4097,9 @@
                       },
                       "vatAmount": {
                         "type": "string",
-                        "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
-                        "description": "Unsigned decimal amount as a string.",
-                        "example": "12100.00"
+                        "pattern": "^-?\\d{1,15}(\\.\\d{1,4})?$",
+                        "description": "Signed decimal amount as a string.",
+                        "example": "-500.00"
                       },
                       "vatJurisdiction": {
                         "type": [
@@ -4323,6 +4328,7 @@
                   },
                   "postingDate": {
                     "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?)?$",
                     "description": "Datum (§5.2) — ISO date.",
                     "example": "2025-03-14"
                   },
@@ -4391,6 +4397,7 @@
                   },
                   "postingDate": {
                     "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?)?$",
                     "description": "Datum (§5.2) — ISO date.",
                     "example": "2025-03-14"
                   },

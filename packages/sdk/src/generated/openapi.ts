@@ -2798,8 +2798,8 @@ export interface components {
                     vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
                     vatRate?: string | null;
                     /**
-                     * @description Unsigned decimal amount as a string.
-                     * @example 12100.00
+                     * @description Signed decimal amount as a string.
+                     * @example -500.00
                      */
                     vatAmount?: string;
                     /** @enum {string|null} */

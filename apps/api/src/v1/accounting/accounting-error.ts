@@ -105,7 +105,15 @@ export function translateAccountingError(e: unknown): never {
   if (/append-only/i.test(msg)) {
     throw new ConflictError("Append-only violation")
   }
-  if (/fx rate is set|accounting_currency|fx rate.*required/i.test(msg)) {
+  // Plain substring checks (not a regex) — the message can embed user-supplied
+  // text, and a `fx rate.*required` pattern backtracks polynomially (ReDoS) on
+  // repeated "fx rate" input. Linear `includes` is equivalent for classification.
+  const lower = msg.toLowerCase()
+  if (
+    lower.includes("fx rate is set") ||
+    lower.includes("accounting_currency") ||
+    (lower.includes("fx rate") && lower.includes("required"))
+  ) {
     throw new ValidationError("Foreign-exchange rate is inconsistent")
   }
   if (/^accounting:/.test(msg)) {

@@ -207,6 +207,7 @@ regexes = [
   # IČO + VAT both); allow-listing it stops the contextual rule firing
   # on typography demos and seed scripts.
   '''CZ12345678''',                                              # fixture VAT
+  '''CZ27604321''',                                              # doklad demo-fixture DIČ (CZ+IČO), not a secret
   '''(?i)i[čc]o\s*[:=]\s*12345678\b''',                          # fixture IČO with the ICO: prefix
   '''CZ65[ ]?9999[ ]?0000[ ]?0000[ ]?1234[ ]?5670''',            # fixture IBAN — succeeds
   '''CZ69[ ]?9998[ ]?0000[ ]?0000[ ]?9999[ ]?9990''',            # fixture IBAN — not found

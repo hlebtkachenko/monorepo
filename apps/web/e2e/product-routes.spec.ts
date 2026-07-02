@@ -45,18 +45,18 @@ const ORG_SECTIONS = [
 ] as const
 
 /**
- * The workspace tier under `app/workspace/` — the Home index + one route
+ * The workspace tier under `app/workspace/` — the Companies index + one route
  * directory per office module. All render under the persistent workspace shell
  * (same chrome as the org sections), so they assert the shell + the sidebar h2,
  * not an h1 (the tier has no body headings by design).
  */
 const WORKSPACE_PAGES = [
   "/workspace",
-  "/workspace/clients",
-  "/workspace/deadlines",
-  "/workspace/agents",
+  "/workspace/analyse",
+  "/workspace/audit",
   "/workspace/team",
   "/workspace/inbox",
+  "/workspace/legislation",
   "/workspace/billing",
   "/workspace/settings",
   "/workspace/profile",

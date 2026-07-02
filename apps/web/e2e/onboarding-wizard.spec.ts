@@ -6,8 +6,8 @@
  * surface writes) -> email-link landing -> prefetch-defense consume ->
  * welcome card -> profile -> experience -> password (Better Auth account
  * created) -> workspace (workspace + default organization created) ->
- * plan -> team (skip) -> done -> /workspace chooser -> open the new org's
- * dashboard.
+ * plan -> team (skip) -> done -> /workspace Companies hub -> open the new
+ * company's book.
  *
  * Token minting mirrors `packages/auth/src/tokens/format.ts` (ADR-0022):
  * `afkey-<43 base62>-<8 hex>` where the checksum is the UNKEYED
@@ -164,23 +164,16 @@ test.describe("Onboarding wizard — owner happy path", () => {
       .filter({ hasText: /^Open / })
       .click({ timeout: 20_000 })
 
-    // --- Lands on the workspace Home shell (the chooser was retired; the
-    // org list now lives under /workspace/clients, workspace switching in the
-    // header) -----------------------------------------------------------------
+    // --- Lands on the workspace Companies hub (the chooser was retired; the
+    // company list is the /workspace index, and there is no workspace switcher —
+    // one office per user) ---------------------------------------------------
     await page.waitForURL((url) => url.pathname === "/workspace", {
       timeout: 15_000,
     })
     await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
-    // The workspace name shows in the header switcher + the Home content title.
-    await expect(page.getByText(WORKSPACE_NAME).first()).toBeVisible()
 
-    // --- Open the default client book from the Clients list → org shell ------
-    await page.goto("/workspace/clients")
-    await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
-    await page
-      .getByRole("link", { name: "Open book", exact: true })
-      .first()
-      .click()
+    // --- Open the default company book from the hub → org shell --------------
+    await page.getByRole("link", { name: "Open", exact: true }).first().click()
     await page.waitForURL((url) => /^\/wizard-works-/.test(url.pathname), {
       timeout: 15_000,
     })

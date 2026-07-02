@@ -117,27 +117,33 @@ export function InboxView() {
           actions={<PageHeaderActions />}
         />
       </AppPageHeader>
-      <ContentPanel toolbar={toolbar} statusBar={statusBar}>
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Type</TableHead>
-              <TableHead>Subject</TableHead>
-              <TableHead>From</TableHead>
-              <TableHead className="text-right">Date</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shown.map((message) => (
-              <InboxRow
-                key={message.id}
-                message={message}
-                read={isRead(message.id)}
-                onToggle={() => toggleRead(message.id)}
-              />
-            ))}
-          </TableBody>
-        </Table>
+      <ContentPanel
+        bodyClassName="flex min-h-0 flex-col p-0"
+        toolbar={toolbar}
+        statusBar={statusBar}
+      >
+        <div className="min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-muted">
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Type</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead>From</TableHead>
+                <TableHead className="text-right">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shown.map((message) => (
+                <InboxRow
+                  key={message.id}
+                  message={message}
+                  read={isRead(message.id)}
+                  onToggle={() => toggleRead(message.id)}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </ContentPanel>
     </>
   )

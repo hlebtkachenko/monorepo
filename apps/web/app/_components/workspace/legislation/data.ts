@@ -1,6 +1,6 @@
 /**
  * Legislation table data contract for the workspace tier — the accountant
- * office's cross-client statutory obligation board. Every field is MOCK: no
+ * office's cross-company statutory obligation board. Every field is MOCK: no
  * columns back statutory obligations yet, so the rows are a static, deterministic
  * fixture (no `Math.random`, no `Date.now`) — stable across renders (no
  * hydration drift), clearly placeholder until a real obligation source lands.
@@ -14,7 +14,7 @@ export interface ObligationRow {
   /** e.g. "VAT return", "Control statement (KH)". */
   obligation: string
   /** Client book (organization) the obligation belongs to. */
-  client: string
+  company: string
   /** ISO date string of the statutory due date. */
   dueDate: string
   status: ObligationStatus
@@ -67,14 +67,14 @@ export function formatDueDate(iso: string): string {
 }
 
 /**
- * Static MOCK obligation board — ~18 rows across a mock client roster. Dates
+ * Static MOCK obligation board — ~18 rows across a mock company roster. Dates
  * straddle the current period so all four status buckets are represented.
  */
 export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-01",
     obligation: "VAT return",
-    client: "Novák Trading s.r.o.",
+    company: "Novák Trading s.r.o.",
     dueDate: "2026-07-27",
     status: "Due soon",
     assignee: "Jana Nováková",
@@ -82,7 +82,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-02",
     obligation: "Control statement (KH)",
-    client: "Novák Trading s.r.o.",
+    company: "Novák Trading s.r.o.",
     dueDate: "2026-07-27",
     status: "Due soon",
     assignee: "Jana Nováková",
@@ -90,7 +90,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-03",
     obligation: "Payroll report",
-    client: "Svoboda Design s.r.o.",
+    company: "Svoboda Design s.r.o.",
     dueDate: "2026-07-20",
     status: "Overdue",
     assignee: "Petr Svoboda",
@@ -98,7 +98,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-04",
     obligation: "EC Sales List",
-    client: "Dvořák Export a.s.",
+    company: "Dvořák Export a.s.",
     dueDate: "2026-07-25",
     status: "Due soon",
     assignee: "Lucie Dvořáková",
@@ -106,7 +106,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-05",
     obligation: "Income tax advance",
-    client: "Horák Consulting s.r.o.",
+    company: "Horák Consulting s.r.o.",
     dueDate: "2026-06-15",
     status: "Overdue",
     assignee: "Tomáš Novák",
@@ -114,7 +114,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-06",
     obligation: "VAT return",
-    client: "Kučera Bistro s.r.o.",
+    company: "Kučera Bistro s.r.o.",
     dueDate: "2026-08-25",
     status: "Upcoming",
     assignee: "Jana Nováková",
@@ -122,7 +122,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-07",
     obligation: "Payroll report",
-    client: "Novák Trading s.r.o.",
+    company: "Novák Trading s.r.o.",
     dueDate: "2026-06-20",
     status: "Filed",
     assignee: "Petr Svoboda",
@@ -130,7 +130,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-08",
     obligation: "Control statement (KH)",
-    client: "Dvořák Export a.s.",
+    company: "Dvořák Export a.s.",
     dueDate: "2026-08-25",
     status: "Upcoming",
     assignee: "Lucie Dvořáková",
@@ -138,7 +138,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-09",
     obligation: "EC Sales List",
-    client: "Marek Logistics s.r.o.",
+    company: "Marek Logistics s.r.o.",
     dueDate: "2026-07-25",
     status: "Due soon",
     assignee: "Tomáš Novák",
@@ -146,7 +146,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-10",
     obligation: "Income tax advance",
-    client: "Svoboda Design s.r.o.",
+    company: "Svoboda Design s.r.o.",
     dueDate: "2026-09-15",
     status: "Upcoming",
     assignee: "Jana Nováková",
@@ -154,7 +154,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-11",
     obligation: "VAT return",
-    client: "Horák Consulting s.r.o.",
+    company: "Horák Consulting s.r.o.",
     dueDate: "2026-06-25",
     status: "Filed",
     assignee: "Tomáš Novák",
@@ -162,7 +162,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-12",
     obligation: "Payroll report",
-    client: "Kučera Bistro s.r.o.",
+    company: "Kučera Bistro s.r.o.",
     dueDate: "2026-07-20",
     status: "Overdue",
     assignee: "Petr Svoboda",
@@ -170,7 +170,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-13",
     obligation: "Control statement (KH)",
-    client: "Marek Logistics s.r.o.",
+    company: "Marek Logistics s.r.o.",
     dueDate: "2026-07-27",
     status: "Due soon",
     assignee: "Lucie Dvořáková",
@@ -178,7 +178,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-14",
     obligation: "VAT return",
-    client: "Dvořák Export a.s.",
+    company: "Dvořák Export a.s.",
     dueDate: "2026-06-25",
     status: "Filed",
     assignee: "Lucie Dvořáková",
@@ -186,7 +186,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-15",
     obligation: "Income tax advance",
-    client: "Marek Logistics s.r.o.",
+    company: "Marek Logistics s.r.o.",
     dueDate: "2026-09-15",
     status: "Upcoming",
     assignee: "Tomáš Novák",
@@ -194,7 +194,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-16",
     obligation: "EC Sales List",
-    client: "Novák Trading s.r.o.",
+    company: "Novák Trading s.r.o.",
     dueDate: "2026-06-25",
     status: "Filed",
     assignee: "Jana Nováková",
@@ -202,7 +202,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-17",
     obligation: "Payroll report",
-    client: "Horák Consulting s.r.o.",
+    company: "Horák Consulting s.r.o.",
     dueDate: "2026-08-20",
     status: "Upcoming",
     assignee: "Petr Svoboda",
@@ -210,7 +210,7 @@ export const OBLIGATION_ROWS: ObligationRow[] = [
   {
     id: "d-18",
     obligation: "Control statement (KH)",
-    client: "Kučera Bistro s.r.o.",
+    company: "Kučera Bistro s.r.o.",
     dueDate: "2026-08-25",
     status: "Upcoming",
     assignee: "Jana Nováková",

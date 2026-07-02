@@ -290,6 +290,21 @@
   --background: rgba(255, 255, 255, 0.14);
   --input: rgba(255, 255, 255, 0.32);
 }
+/* The mobile bottom-nav bar paints `bg-shell-surface/60` and marks the active
+   item with `--primary` — so, unlike the rail/header (which sit transparent on
+   the green canvas), it needs those two tokens flipped too, or the bar renders
+   frosted-white with an unreadable near-black active item. Scoped to the
+   bottom-nav ONLY so the rail/header don't inherit a green surface / white
+   primary they never use. */
+.workspace-chrome [data-slot="app-shell-bottom-nav"] {
+  --shell-surface: var(--brand-primary-light);
+  --primary: #ffffff;
+}
+/* The header search Input inherits the body text color; the header's white
+   `--foreground` flip doesn't re-resolve an inherited `color`, so force it. */
+.workspace-chrome [data-slot="app-shell-header"] input {
+  color: var(--foreground);
+}
 
 .theme-blue {
   --background: #f0f5ff;

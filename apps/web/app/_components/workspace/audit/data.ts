@@ -27,6 +27,42 @@ export interface AuditService {
 
 export type AuditStatus = "Active" | "In review" | "Completed" | "Awaiting docs"
 
+/**
+ * The five-step lifecycle of an engagement, in order. Drives the inspector's
+ * status timeline. Independent of the coarse `status` badge (which the tables
+ * show): `stage` is the progress marker, `status` is the headline label.
+ */
+export type AuditStage =
+  | "Requested"
+  | "Docs"
+  | "Fieldwork"
+  | "Review"
+  | "Delivered"
+
+/** Ordered stage list — the single source for the timeline + progress math. */
+export const AUDIT_STAGES: readonly AuditStage[] = [
+  "Requested",
+  "Docs",
+  "Fieldwork",
+  "Review",
+  "Delivered",
+]
+
+/** Severity of a single audit finding, low → high. */
+export type AuditFindingSeverity = "info" | "low" | "medium" | "high"
+
+/** One requested source document and whether the client has provided it. */
+interface AuditDocumentRequest {
+  label: string
+  received: boolean
+}
+
+/** One finding raised during fieldwork / review. */
+interface AuditFinding {
+  severity: AuditFindingSeverity
+  note: string
+}
+
 /** One company enrolled in a service for a given period. */
 export interface AuditEngagement {
   id: string
@@ -35,10 +71,18 @@ export interface AuditEngagement {
   /** Service name (matches an `AuditService.name`). */
   service: string
   status: AuditStatus
+  /** Lifecycle stage (drives the timeline). */
+  stage: AuditStage
   /** Fiscal period, e.g. "2025". */
   period: string
   /** Display price string. */
   price: string
+  /** Source documents the audit team has requested. */
+  documentsRequested: AuditDocumentRequest[]
+  /** Findings raised so far (empty until fieldwork). */
+  findings: AuditFinding[]
+  /** ISO target delivery date (deterministic, no `Date.now`). */
+  deliveryEta: string
   /** ISO date of the last update (deterministic, no `Date.now`). */
   updated: string
 }
@@ -52,6 +96,8 @@ export interface AuditMessage {
   body: string
   /** ISO date string (deterministic). */
   date: string
+  /** Whether the recipient has read it (seed state; client can mutate). */
+  read: boolean
 }
 
 export type AuditReportKind = "Report" | "Certificate" | "Working papers"
@@ -73,22 +119,44 @@ export interface AuditTab {
   label: string
 }
 
-export const AUDIT_TABS: AuditTab[] = [
-  { value: "services", label: "Services" },
-  { value: "engagements", label: "Engagements" },
-  { value: "messages", label: "Messages" },
-  { value: "reports", label: "Reports" },
+/** In-page tabs for the Engagements table. */
+export const AUDIT_ENGAGEMENT_TABS: AuditTab[] = [
+  { value: "all", label: "All" },
+  { value: "action", label: "Action needed" },
+  { value: "completed", label: "Completed" },
 ]
 
-/** Per-status Badge variant, kept as a lookup so the view stays declarative. */
+type BadgeVariant =
+  | "default"
+  | "secondary"
+  | "outline"
+  | "destructive"
+  | "ghost"
+
+/**
+ * Per-status Badge variant, kept as a lookup so the view stays declarative.
+ * "Awaiting docs" is `secondary` (action-needed, NOT a failure — reserve
+ * `destructive` for genuine errors).
+ */
 export const AUDIT_STATUS_META: Record<
   AuditStatus,
-  { badgeVariant: "default" | "secondary" | "outline" | "destructive" }
+  { badgeVariant: BadgeVariant }
 > = {
   Active: { badgeVariant: "default" },
   "In review": { badgeVariant: "secondary" },
   Completed: { badgeVariant: "outline" },
-  "Awaiting docs": { badgeVariant: "destructive" },
+  "Awaiting docs": { badgeVariant: "secondary" },
+}
+
+/** Per-severity Badge variant + label for the findings list. */
+export const AUDIT_FINDING_META: Record<
+  AuditFindingSeverity,
+  { badgeVariant: BadgeVariant; label: string }
+> = {
+  info: { badgeVariant: "outline", label: "Info" },
+  low: { badgeVariant: "secondary", label: "Low" },
+  medium: { badgeVariant: "secondary", label: "Medium" },
+  high: { badgeVariant: "destructive", label: "High" },
 }
 
 /** Per-kind Badge variant for the reports table. */
@@ -100,6 +168,23 @@ export const AUDIT_REPORT_KIND_META: Record<
   Certificate: { badgeVariant: "outline" },
   "Working papers": { badgeVariant: "outline" },
 }
+
+/**
+ * A small deterministic list of client companies the order flow can cover.
+ * Mirrors the company names used in the engagement fixtures + the `companies`
+ * surface, without importing that module (this data file stays dependency-free).
+ */
+export const AUDIT_COMPANIES: string[] = [
+  "Acme s.r.o.",
+  "Novák & Partners a.s.",
+  "Kovář Holding s.r.o.",
+  "Dvořák Logistics s.r.o.",
+  "Svoboda Trading s.r.o.",
+  "Procházka Retail s.r.o.",
+]
+
+/** Fiscal periods offered in the order flow. */
+export const AUDIT_PERIODS: string[] = ["2026", "2025", "2024"]
 
 /** MOCK service catalog — the paid add-ons delivered by Afframe's audit team. */
 export const AUDIT_SERVICES: AuditService[] = [
@@ -154,8 +239,26 @@ export const AUDIT_ENGAGEMENTS: AuditEngagement[] = [
     company: "Acme s.r.o.",
     service: "Annual statutory audit",
     status: "In review",
+    stage: "Review",
     period: "2025",
     price: "48 000 Kč / yr",
+    documentsRequested: [
+      { label: "Signed financial statements", received: true },
+      { label: "Trial balance", received: true },
+      { label: "Bank confirmations", received: true },
+      { label: "Intercompany agreements", received: false },
+    ],
+    findings: [
+      {
+        severity: "medium",
+        note: "Three intercompany balances need supporting agreements before sign-off.",
+      },
+      {
+        severity: "info",
+        note: "Depreciation schedule matches the fixed-asset register.",
+      },
+    ],
+    deliveryEta: "2026-07-12T00:00:00.000Z",
     updated: "2026-06-28T10:15:00.000Z",
   },
   {
@@ -163,8 +266,21 @@ export const AUDIT_ENGAGEMENTS: AuditEngagement[] = [
     company: "Novák & Partners a.s.",
     service: "Tax compliance review",
     status: "Active",
+    stage: "Fieldwork",
     period: "2025",
     price: "18 000 Kč / yr",
+    documentsRequested: [
+      { label: "Corporate income tax return", received: true },
+      { label: "VAT ledger", received: true },
+      { label: "Control-statement export", received: false },
+    ],
+    findings: [
+      {
+        severity: "low",
+        note: "Two VAT entries reclassified between standard and reduced rate.",
+      },
+    ],
+    deliveryEta: "2026-07-20T00:00:00.000Z",
     updated: "2026-06-24T14:40:00.000Z",
   },
   {
@@ -172,8 +288,17 @@ export const AUDIT_ENGAGEMENTS: AuditEngagement[] = [
     company: "Kovář Holding s.r.o.",
     service: "Due diligence report",
     status: "Awaiting docs",
+    stage: "Docs",
     period: "2026",
     price: "36 000 Kč / engagement",
+    documentsRequested: [
+      { label: "Management accounts (last 3 years)", received: true },
+      { label: "Shareholder register", received: false },
+      { label: "Material contracts", received: false },
+      { label: "Debt schedule", received: false },
+    ],
+    findings: [],
+    deliveryEta: "2026-08-05T00:00:00.000Z",
     updated: "2026-06-20T08:05:00.000Z",
   },
   {
@@ -181,8 +306,21 @@ export const AUDIT_ENGAGEMENTS: AuditEngagement[] = [
     company: "Dvořák Logistics s.r.o.",
     service: "Payroll audit",
     status: "Completed",
+    stage: "Delivered",
     period: "2025",
     price: "12 000 Kč / yr",
+    documentsRequested: [
+      { label: "Payroll runs (12 months)", received: true },
+      { label: "Social & health contribution filings", received: true },
+      { label: "Employment contracts sample", received: true },
+    ],
+    findings: [
+      {
+        severity: "info",
+        note: "All contribution filings reconcile to the payroll ledger.",
+      },
+    ],
+    deliveryEta: "2026-06-05T00:00:00.000Z",
     updated: "2026-05-30T16:20:00.000Z",
   },
   {
@@ -190,8 +328,21 @@ export const AUDIT_ENGAGEMENTS: AuditEngagement[] = [
     company: "Svoboda Trading s.r.o.",
     service: "VAT control review",
     status: "Active",
+    stage: "Fieldwork",
     period: "2025",
     price: "9 000 Kč / yr",
+    documentsRequested: [
+      { label: "VAT returns (4 quarters)", received: true },
+      { label: "Kontrolní hlášení exports", received: true },
+      { label: "Reverse-charge invoice sample", received: false },
+    ],
+    findings: [
+      {
+        severity: "medium",
+        note: "Reverse-charge treatment on two EU-service invoices needs review.",
+      },
+    ],
+    deliveryEta: "2026-07-18T00:00:00.000Z",
     updated: "2026-06-18T11:50:00.000Z",
   },
   {
@@ -199,8 +350,17 @@ export const AUDIT_ENGAGEMENTS: AuditEngagement[] = [
     company: "Procházka Retail s.r.o.",
     service: "Annual statutory audit",
     status: "Awaiting docs",
+    stage: "Docs",
     period: "2025",
     price: "48 000 Kč / yr",
+    documentsRequested: [
+      { label: "Signed financial statements", received: true },
+      { label: "Trial balance", received: false },
+      { label: "Inventory count sheets", received: false },
+      { label: "Bank confirmations", received: false },
+    ],
+    findings: [],
+    deliveryEta: "2026-08-15T00:00:00.000Z",
     updated: "2026-06-12T09:30:00.000Z",
   },
 ]
@@ -213,6 +373,7 @@ export const AUDIT_MESSAGES: AuditMessage[] = [
     author: "Petra Marešová · Afframe Audit",
     body: "Welcome. We've opened the 2025 statutory audit for Acme s.r.o. Please upload the signed financial statements and the trial balance so we can begin fieldwork.",
     date: "2026-06-16T09:00:00.000Z",
+    read: true,
   },
   {
     id: "aud-msg-02",
@@ -220,6 +381,7 @@ export const AUDIT_MESSAGES: AuditMessage[] = [
     author: "You",
     body: "Statements and trial balance are attached. The bank confirmations are still pending — expect them by the end of the week.",
     date: "2026-06-18T13:20:00.000Z",
+    read: true,
   },
   {
     id: "aud-msg-03",
@@ -227,6 +389,7 @@ export const AUDIT_MESSAGES: AuditMessage[] = [
     author: "Petra Marešová · Afframe Audit",
     body: "Received, thank you. We've flagged three intercompany balances that need supporting agreements. I've listed them in the working-papers draft.",
     date: "2026-06-22T10:45:00.000Z",
+    read: true,
   },
   {
     id: "aud-msg-04",
@@ -234,6 +397,7 @@ export const AUDIT_MESSAGES: AuditMessage[] = [
     author: "You",
     body: "Agreements uploaded. Could you also cover the VAT control review for Svoboda Trading in the same period?",
     date: "2026-06-25T15:05:00.000Z",
+    read: true,
   },
   {
     id: "aud-msg-05",
@@ -241,6 +405,15 @@ export const AUDIT_MESSAGES: AuditMessage[] = [
     author: "Petra Marešová · Afframe Audit",
     body: "Added — the VAT control review for Svoboda Trading is now active. The Acme audit opinion is on track for delivery in the second week of July.",
     date: "2026-06-28T08:30:00.000Z",
+    read: false,
+  },
+  {
+    id: "aud-msg-06",
+    from: "Afframe",
+    author: "Petra Marešová · Afframe Audit",
+    body: "One more thing — we still need the intercompany agreements for Acme to finalize the opinion. Could you upload them this week?",
+    date: "2026-06-30T09:10:00.000Z",
+    read: false,
   },
 ]
 
@@ -295,6 +468,48 @@ export const AUDIT_REPORTS: AuditReport[] = [
     archived: true,
   },
 ]
+
+/** Aggregate counts surfaced on the Overview KPI row. Computed once, static. */
+export interface AuditKpis {
+  /** Engagements not yet delivered. */
+  active: number
+  /** Engagements whose status is "Awaiting docs" — the action-required set. */
+  actionRequired: number
+  /** Unread messages in the audit thread. */
+  unreadMessages: number
+  /** ISO date of the soonest upcoming delivery, or null when none. */
+  nextDeliveryEta: string | null
+}
+
+/** Derives the Overview KPIs from the fixtures (deterministic). */
+export function computeAuditKpis(
+  engagements: AuditEngagement[] = AUDIT_ENGAGEMENTS,
+  messages: AuditMessage[] = AUDIT_MESSAGES,
+): AuditKpis {
+  const active = engagements.filter((e) => e.status !== "Completed").length
+  const actionRequired = engagements.filter(
+    (e) => e.status === "Awaiting docs",
+  ).length
+  const unreadMessages = messages.filter((m) => !m.read).length
+  const nextDeliveryEta =
+    engagements
+      .filter((e) => e.status !== "Completed")
+      .map((e) => e.deliveryEta)
+      .sort()[0] ?? null
+  return { active, actionRequired, unreadMessages, nextDeliveryEta }
+}
+
+/** The awaiting-docs engagements — the Overview "Action required" list. */
+export function actionRequiredEngagements(
+  engagements: AuditEngagement[] = AUDIT_ENGAGEMENTS,
+): AuditEngagement[] {
+  return engagements.filter((e) => e.status === "Awaiting docs")
+}
+
+/** Zero-based index of a stage in `AUDIT_STAGES` (−1 when unknown). */
+export function stageIndex(stage: AuditStage): number {
+  return AUDIT_STAGES.indexOf(stage)
+}
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",

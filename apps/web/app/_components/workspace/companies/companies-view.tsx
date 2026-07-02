@@ -1,6 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
+// LayoutGrid / Rows3 are not in the workspace icon pack (no grid/rows glyphs);
+// keep the direct lucide import as the sole documented exception here.
 import { LayoutGrid, Rows3 } from "lucide-react"
 
 import {
@@ -26,12 +29,15 @@ import { CompaniesTable } from "./companies-table"
 import { useCompanies, type CompaniesView as ViewMode } from "./context"
 import { COMPANY_TABS, type CompanyRow } from "./data"
 
+const CardsIcon = LayoutGrid
+const TableIcon = Rows3
+
 /**
  * Companies — the accountant-office hub of company books. The portaled header
- * carries the status tabs (shared by both views) and the Card/Table view
- * toggle; the body is the big-card grid or the dense table. The content-header
- * title is "All companies" (the sidebar module h2 already says "Companies", so
- * they stay distinct).
+ * carries the status tabs (shared by both views, with per-status counts) and
+ * the Card/Table view toggle; the body is the big-card grid or the dense table.
+ * The content-header title is "All companies" (the sidebar module h2 already
+ * says "Companies", so they stay distinct).
  */
 export function CompaniesView({
   companies,
@@ -41,15 +47,24 @@ export function CompaniesView({
   /** `?error=` redirected here from the org layout on a failed book entry. */
   errorMessage?: string
 }) {
+  const router = useRouter()
   const { activeTab, setActiveTab, view, setView } = useCompanies()
+  const errorHandled = React.useRef(false)
 
   React.useEffect(() => {
-    if (errorMessage) toast.error(errorMessage)
-  }, [errorMessage])
+    if (!errorMessage || errorHandled.current) return
+    errorHandled.current = true
+    toast.error(errorMessage)
+    // Strip `?error=` so a reload doesn't re-toast the same message.
+    router.replace("/workspace")
+  }, [errorMessage, router])
 
   const tabs: ContentTab[] = COMPANY_TABS.map((tab) => ({
     value: tab.value,
     label: tab.label,
+    badge: tab.status
+      ? companies.filter((c) => c.status === tab.status).length
+      : companies.length,
   }))
 
   return (
@@ -63,29 +78,32 @@ export function CompaniesView({
           actions={
             <>
               <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <ToggleGroup
-                      type="single"
-                      value={view}
-                      onValueChange={(value) => {
-                        if (value) setView(value as ViewMode)
-                      }}
-                      variant="outline"
-                      size="sm"
-                    >
+                <ToggleGroup
+                  type="single"
+                  value={view}
+                  onValueChange={(value) => {
+                    if (value) setView(value as ViewMode)
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <ToggleGroupItem value="cards" aria-label="Card view">
-                        <LayoutGrid />
+                        <CardsIcon />
                       </ToggleGroupItem>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Card view</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
                       <ToggleGroupItem value="table" aria-label="Table view">
-                        <Rows3 />
+                        <TableIcon />
                       </ToggleGroupItem>
-                    </ToggleGroup>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    View — cards or table
-                  </TooltipContent>
-                </Tooltip>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Table view</TooltipContent>
+                  </Tooltip>
+                </ToggleGroup>
               </TooltipProvider>
               <PageHeaderActions />
             </>

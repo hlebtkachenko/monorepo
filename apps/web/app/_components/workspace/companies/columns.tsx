@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import Link from "next/link"
 import type { ColumnDef, Row, Table } from "@tanstack/react-table"
 
@@ -10,20 +9,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { useCompanies } from "./context"
-import {
-  COMPANY_STATUS_OPTIONS,
-  type CompanyRow,
-  type CompanyStatus,
-} from "./data"
-
-const STATUS_BADGE: Record<
-  CompanyStatus,
-  React.ComponentProps<typeof Badge>["variant"]
-> = {
-  Active: "default",
-  Onboarding: "secondary",
-  Archived: "outline",
-}
+import { COMPANY_STATUS_OPTIONS, STATUS_BADGE, type CompanyRow } from "./data"
 
 // Anchor for shift-range selection across the visible page (row id).
 const selectAnchorId: { current: string | null } = { current: null }

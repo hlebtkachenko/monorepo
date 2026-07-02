@@ -16,7 +16,13 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import { Input } from "@workspace/ui/components/input"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@workspace/ui/components/empty"
 import { toast } from "@workspace/ui/components/sonner"
 import {
   Table,
@@ -26,11 +32,11 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
-import { Search } from "@workspace/ui/lib/icons"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { AppPageHeader } from "../../app-page-header"
 import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { ToolbarSearch } from "../_shared/toolbar-search"
 
 export interface TeamMember {
   userId: string
@@ -87,15 +93,11 @@ export function TeamView({ members }: { members: TeamMember[] }) {
         toolbar={
           <ContentToolbar
             left={
-              <div className="relative flex h-7 w-72 items-center">
-                <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search team…"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="h-7 w-full pl-8"
-                />
-              </div>
+              <ToolbarSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search team…"
+              />
             }
             right={
               <Button
@@ -118,7 +120,7 @@ export function TeamView({ members }: { members: TeamMember[] }) {
           />
         }
       >
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-muted">
               <TableRow className="hover:bg-transparent">
@@ -133,11 +135,9 @@ export function TeamView({ members }: { members: TeamMember[] }) {
                 <TableRow key={m.userId}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Avatar className="size-6">
+                      <Avatar size="sm">
                         <AvatarImage src={m.image} alt={m.name} />
-                        <AvatarFallback className="text-[10px]">
-                          {initialsOf(m.name)}
-                        </AvatarFallback>
+                        <AvatarFallback>{initialsOf(m.name)}</AvatarFallback>
                       </Avatar>
                       <span className="font-medium">{m.name}</span>
                     </div>
@@ -163,6 +163,19 @@ export function TeamView({ members }: { members: TeamMember[] }) {
               ))}
             </TableBody>
           </Table>
+          {shown.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <icons.Users />
+                </EmptyMedia>
+                <EmptyTitle>No members found</EmptyTitle>
+                <EmptyDescription>
+                  Try a different search term.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : null}
         </div>
       </ContentPanel>
     </>

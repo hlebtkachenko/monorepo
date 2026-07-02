@@ -70,7 +70,25 @@ function analyseNav(): SidebarNavEntry[] {
 }
 
 function auditNav(): SidebarNavEntry[] {
-  return [{ label: "Overview", href: `${BASE}/audit`, icon: "Award" }]
+  return [
+    { label: "Overview", href: `${BASE}/audit`, icon: "Award" },
+    {
+      label: "Services",
+      href: `${BASE}/audit/services`,
+      icon: "BriefcaseBusiness",
+    },
+    {
+      label: "Engagements",
+      href: `${BASE}/audit/engagements`,
+      icon: "ListChecksIcon",
+    },
+    {
+      label: "Messages",
+      href: `${BASE}/audit/messages`,
+      icon: "MessageSquare",
+    },
+    { label: "Reports", href: `${BASE}/audit/reports`, icon: "FileText" },
+  ]
 }
 
 function inboxNav(): SidebarNavEntry[] {
@@ -84,7 +102,19 @@ function legislationNav(): SidebarNavEntry[] {
 }
 
 function billingNav(): SidebarNavEntry[] {
-  return [{ label: "Overview", href: `${BASE}/billing`, icon: "CreditCard" }]
+  return [
+    { label: "Overview", href: `${BASE}/billing`, icon: "CreditCard" },
+    {
+      label: "Invoices",
+      href: `${BASE}/billing/invoices`,
+      icon: "ReceiptEuro",
+    },
+    {
+      label: "Billing entity",
+      href: `${BASE}/billing/entity`,
+      icon: "IdCard",
+    },
+  ]
 }
 
 function teamNav(): SidebarNavEntry[] {

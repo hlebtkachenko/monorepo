@@ -147,3 +147,37 @@ export function enrichCompanyMock(id: string): {
     assignee: ASSIGNEES[(h >> 5) % ASSIGNEES.length]!,
   }
 }
+
+/**
+ * Status → Badge variant. The single source shared by the card, the table
+ * columns, and the inspector (was copy-pasted in three places). Typed to the
+ * literal variants so this data module stays free of component imports.
+ */
+export const STATUS_BADGE: Record<
+  CompanyStatus,
+  "default" | "secondary" | "outline"
+> = {
+  Active: "default",
+  Onboarding: "secondary",
+  Archived: "outline",
+}
+
+/**
+ * The one free-text search predicate for BOTH Companies views. Card and table
+ * previously carried divergent copies (the card omitted `status`), so the same
+ * query returned different results per view.
+ */
+export function applySearch(rows: CompanyRow[], query: string): CompanyRow[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return rows
+  return rows.filter((row) =>
+    [
+      row.legalName,
+      row.slug,
+      row.typeLabel,
+      row.vatRegime,
+      row.status,
+      row.assignee,
+    ].some((value) => value.toLowerCase().includes(q)),
+  )
+}

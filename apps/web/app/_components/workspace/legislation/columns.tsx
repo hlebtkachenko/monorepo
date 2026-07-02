@@ -39,7 +39,7 @@ function SelectCell({
   const checked = row.getIsSelected()
   return (
     <Checkbox
-      aria-label={`Select ${row.original.obligation} for ${row.original.client}`}
+      aria-label={`Select ${row.original.obligation} for ${row.original.company}`}
       checked={checked}
       onClick={(event) => {
         if (event.shiftKey && selectAnchorId.current !== null) {
@@ -74,7 +74,7 @@ function InspectCell({ row }: { row: ObligationRow }) {
     <Button
       variant="ghost"
       size="icon-xs"
-      aria-label={`Details for ${row.obligation} · ${row.client}`}
+      aria-label={`Details for ${row.obligation} · ${row.company}`}
       onClick={() => openInspector(row)}
     >
       <Icon />
@@ -116,7 +116,7 @@ export const obligationColumns: ColumnDef<ObligationRow>[] = [
     enableSorting: true,
   },
   {
-    accessorKey: "client",
+    accessorKey: "company",
     header: "Company",
     size: 220,
     meta: { label: "Company" },

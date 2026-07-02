@@ -73,7 +73,7 @@ export function formatMoney(value: number): string {
   return money.format(value)
 }
 
-const invoiceDate = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" })
+const invoiceDate = new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium" })
 
 export function formatInvoiceDate(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number)

@@ -13,10 +13,10 @@ import {
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { useDataTable } from "@workspace/ui/components/data-table"
-import { Separator } from "@workspace/ui/components/separator"
 import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import { TableStatusBar } from "../_shared/table-status-bar"
 import { obligationColumns } from "./columns"
 import { useLegislation } from "./context"
 import { LegislationToolbar } from "./legislation-toolbar"
@@ -32,7 +32,7 @@ function applySearch(rows: ObligationRow[], query: string): ObligationRow[] {
   const q = query.trim().toLowerCase()
   if (!q) return rows
   return rows.filter((row) =>
-    [row.obligation, row.client, row.status, row.assignee].some((value) =>
+    [row.obligation, row.company, row.status, row.assignee].some((value) =>
       value.toLowerCase().includes(q),
     ),
   )
@@ -43,7 +43,7 @@ function ObligationDetail({ row }: { row: ObligationRow }) {
   return (
     <dl className="flex flex-col gap-3">
       <DetailField label="Obligation" value={row.obligation} />
-      <DetailField label="Company" value={row.client} />
+      <DetailField label="Company" value={row.company} />
       <DetailField label="Due date" value={formatDueDate(row.dueDate)} />
       <DetailField
         label="Status"
@@ -95,7 +95,6 @@ export function LegislationBody({
     },
   })
 
-  const filteredRows = table.getFilteredRowModel().rows
   const selectedCount = table.getFilteredSelectedRowModel().rows.length
   const isFiltered =
     search.trim() !== "" || table.getState().columnFilters.length > 0
@@ -123,24 +122,11 @@ export function LegislationBody({
         />
       }
       statusBar={
-        <div className="flex h-9 shrink-0 items-center gap-4 border-t border-border-subtle px-2 text-xs text-muted-foreground">
-          <span>
-            {filteredRows.length}{" "}
-            {filteredRows.length === 1 ? "obligation" : "obligations"}
-          </span>
-          {isFiltered ? (
-            <>
-              <Separator
-                orientation="vertical"
-                inset
-                className="!h-6 bg-border-subtle"
-              />
-              <Badge variant="secondary" className="h-5">
-                Filtered
-              </Badge>
-            </>
-          ) : null}
-        </div>
+        <TableStatusBar
+          table={table}
+          noun="obligation"
+          isFiltered={isFiltered}
+        />
       }
       actionBar={
         <ActionBar

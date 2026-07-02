@@ -8,7 +8,7 @@ import type {
  * client-book count, injected). Every other tile + both charts are MOCK
  * operational placeholders (no source table yet), deterministic and static —
  * they mirror the org tier's mock-backed analytics. The tiles are ops-focused
- * (deadlines / overdue / work / approvals), not vanity SaaS counters, and each
+ * (deadlines / overdue / work / companies), not vanity SaaS counters, and each
  * reads as a triage number an accountant-office principal actually opens with.
  */
 
@@ -42,15 +42,9 @@ export function buildAnalyseMetrics(counts: {
       series: [9, 10, 11, 12, 13, 14],
     },
     {
-      label: "Pending approvals",
-      value: "5",
-      delta: { label: "agent bookings", direction: "flat" },
-      series: [4, 3, 5, 4, 5, 5],
-    },
-    {
       label: "Active companies",
       value: String(counts.companyCount),
-      delta: { label: "client books", direction: "flat" },
+      delta: { label: "company books", direction: "flat" },
       series: [
         Math.max(counts.companyCount - 3, 0),
         Math.max(counts.companyCount - 2, 0),

@@ -8,9 +8,8 @@ import {
   DataTableFacetedFilter,
   DataTableMultiSort,
 } from "@workspace/ui/components/data-table"
-import { Input } from "@workspace/ui/components/input"
-import { Search } from "@workspace/ui/lib/icons"
 
+import { ToolbarSearch } from "../_shared/toolbar-search"
 import { OBLIGATION_STATUS_OPTIONS, type ObligationRow } from "./data"
 
 export interface LegislationToolbarProps {
@@ -24,7 +23,7 @@ export interface LegislationToolbarProps {
 /**
  * Legislation toolbar — Left: a faceted Status filter + a universal search.
  * Right: the column manager and multi-sort. No "Add" action — obligations are
- * derived from client books, not manually created here.
+ * derived from company books, not manually created here.
  */
 export function LegislationToolbar({
   table,
@@ -49,15 +48,11 @@ export function LegislationToolbar({
               onOpenChange={onStatusOpenChange}
             />
           ) : null}
-          <div className="relative flex h-7 w-72 items-center">
-            <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
-            <Input
-              placeholder="Search obligations…"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              className="h-7 w-full pl-8"
-            />
-          </div>
+          <ToolbarSearch
+            value={search}
+            onChange={onSearchChange}
+            placeholder="Search obligations…"
+          />
         </>
       }
       right={

@@ -172,8 +172,10 @@ test.describe("Onboarding wizard — owner happy path", () => {
     })
     await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
 
-    // --- Open the default company book from the hub → org shell --------------
-    await page.getByRole("link", { name: "Open", exact: true }).first().click()
+    // --- Open the default company book from the hub → org shell. The company
+    // card is a whole-card link to `/<slug>` (no explicit "Open" button), so
+    // target it by its href prefix — robust to the card's accessible name. -----
+    await page.locator('a[href^="/wizard-works-"]').first().click()
     await page.waitForURL((url) => /^\/wizard-works-/.test(url.pathname), {
       timeout: 15_000,
     })

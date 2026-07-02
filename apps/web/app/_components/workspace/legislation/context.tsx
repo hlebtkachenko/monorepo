@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import type { InspectorMode } from "@workspace/ui/blocks/app-content"
+import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 
 import type { ObligationRow } from "./data"
 
@@ -10,8 +11,9 @@ import type { ObligationRow } from "./data"
  * Shared UI state linking the Legislation page's two shell slots: the portaled
  * content-header (status tabs) and the body (toolbar + table + inspector). Same
  * seam the Companies table uses, trimmed to what this page actually consumes — the
- * favorite star lives in the shared `PageHeaderActions` cluster and the
- * inspector is panel-mode only, so neither needs page-level state here.
+ * favorite star lives in the shared `PageHeaderActions` cluster. The inspector
+ * mode switches to a `dialog` on mobile (a side panel doesn't fit a narrow
+ * viewport) and stays a `panel` on desktop.
  */
 interface LegislationState {
   activeTab: string
@@ -37,6 +39,7 @@ export function LegislationProvider({
 }: {
   children: React.ReactNode
 }) {
+  const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = React.useState("all")
   const [inspected, setInspected] = React.useState<ObligationRow | null>(null)
   const [inspectorOpen, setInspectorOpen] = React.useState(false)
@@ -53,11 +56,18 @@ export function LegislationProvider({
       setActiveTab,
       inspected,
       inspectorOpen,
-      inspectorMode: "panel",
+      inspectorMode: isMobile ? "dialog" : "panel",
       openInspector,
       closeInspector,
     }),
-    [activeTab, inspected, inspectorOpen, openInspector, closeInspector],
+    [
+      activeTab,
+      inspected,
+      inspectorOpen,
+      isMobile,
+      openInspector,
+      closeInspector,
+    ],
   )
 
   return (

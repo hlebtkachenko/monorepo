@@ -8,7 +8,6 @@ import {
   DashboardChartCard,
   DashboardGrid,
 } from "@workspace/ui/blocks/app-content"
-import { toast } from "@workspace/ui/components/sonner"
 
 import { AppPageHeader } from "../../app-page-header"
 import { PageHeaderActions } from "../../_shared/content-header-extras"
@@ -16,28 +15,21 @@ import { ANALYSE_CHARTS, buildAnalyseMetrics } from "./data"
 
 /**
  * Analyse — the accountant-office overview. Dashboard archetype: ops-focused KPI
- * tiles (deadlines / overdue / open work / pending approvals / active companies)
- * over mock chart cards. `companyCount` is the real client-book count; the rest
- * is mock, matching the org tier's analytics maturity.
+ * tiles (deadlines / overdue / open work / active companies) over mock chart
+ * cards. `companyCount` is the real client-book count; the rest is mock,
+ * matching the org tier's analytics maturity.
  *
  * The content-header title is the WORKSPACE NAME (not "Analyse") so it doesn't echo
  * the sidebar's "Analyse" module title — the shell shows the office you're in, the
- * rail shows which module. Any `?error=` redirected here from the org layout is
- * surfaced as a toast.
+ * rail shows which module.
  */
 export function AnalyseDashboard({
   workspaceName,
   companyCount,
-  errorMessage,
 }: {
   workspaceName: string
   companyCount: number
-  errorMessage?: string
 }) {
-  React.useEffect(() => {
-    if (errorMessage) toast.error(errorMessage)
-  }, [errorMessage])
-
   const metrics = React.useMemo(
     () => buildAnalyseMetrics({ companyCount }),
     [companyCount],

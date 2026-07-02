@@ -8,11 +8,10 @@ import {
   DataTableColumnManager,
   DataTableMultiSort,
 } from "@workspace/ui/components/data-table"
-import { Input } from "@workspace/ui/components/input"
 import { toast } from "@workspace/ui/components/sonner"
-import { Search } from "@workspace/ui/lib/icons"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import { ToolbarSearch } from "../_shared/toolbar-search"
 import type { CompanyRow } from "./data"
 
 export interface CompaniesTableToolbarProps {
@@ -38,15 +37,11 @@ export function CompaniesTableToolbar({
   return (
     <ContentToolbar
       left={
-        <div className="relative flex h-7 w-72 items-center">
-          <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
-          <Input
-            placeholder="Search companies…"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            className="h-7 w-full pl-8"
-          />
-        </div>
+        <ToolbarSearch
+          value={search}
+          onChange={onSearchChange}
+          placeholder="Search companies…"
+        />
       }
       right={
         <>

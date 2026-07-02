@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import type { InspectorMode } from "@workspace/ui/blocks/app-content"
+import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 
 import type { CompanyRow } from "./data"
 
@@ -11,8 +12,8 @@ import type { CompanyRow } from "./data"
  * content-header (status tabs) and the body (toolbar + table + inspector). Same
  * seam the org Table demo uses (`table-demo/context.tsx`), trimmed to what this
  * page actually consumes — the favorite star lives in the shared
- * `PageHeaderActions` cluster, and the inspector is panel-mode only, so neither
- * needs page-level state here.
+ * `PageHeaderActions` cluster, and the inspector mode follows the viewport
+ * (panel on desktop, dialog on mobile), so neither needs page-level state here.
  */
 export type CompaniesView = "cards" | "table"
 
@@ -39,6 +40,7 @@ export function useCompanies(): CompaniesState {
 }
 
 export function CompaniesProvider({ children }: { children: React.ReactNode }) {
+  const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = React.useState("all")
   const [view, setView] = React.useState<CompaniesView>("cards")
   const [inspected, setInspected] = React.useState<CompanyRow | null>(null)
@@ -58,11 +60,19 @@ export function CompaniesProvider({ children }: { children: React.ReactNode }) {
       setView,
       inspected,
       inspectorOpen,
-      inspectorMode: "panel",
+      inspectorMode: isMobile ? "dialog" : "panel",
       openInspector,
       closeInspector,
     }),
-    [activeTab, view, inspected, inspectorOpen, openInspector, closeInspector],
+    [
+      activeTab,
+      view,
+      inspected,
+      inspectorOpen,
+      isMobile,
+      openInspector,
+      closeInspector,
+    ],
   )
 
   return (

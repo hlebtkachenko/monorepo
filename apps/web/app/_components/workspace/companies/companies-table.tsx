@@ -13,30 +13,19 @@ import {
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { useDataTable } from "@workspace/ui/components/data-table"
-import { Separator } from "@workspace/ui/components/separator"
 import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import { TableStatusBar } from "../_shared/table-status-bar"
 import { companyColumns } from "./columns"
 import { CompaniesTableToolbar } from "./companies-table-toolbar"
 import { useCompanies } from "./context"
-import { COMPANY_TABS, type CompanyRow } from "./data"
-
-/** Free-text search across the company's readable fields. */
-function applySearch(rows: CompanyRow[], query: string): CompanyRow[] {
-  const q = query.trim().toLowerCase()
-  if (!q) return rows
-  return rows.filter((row) =>
-    [
-      row.legalName,
-      row.slug,
-      row.typeLabel,
-      row.vatRegime,
-      row.status,
-      row.assignee,
-    ].some((value) => value.toLowerCase().includes(q)),
-  )
-}
+import {
+  applySearch,
+  COMPANY_TABS,
+  STATUS_BADGE,
+  type CompanyRow,
+} from "./data"
 
 /** Inspector content — the detail of the selected company. */
 function CompanyDetail({ row }: { row: CompanyRow }) {
@@ -47,7 +36,7 @@ function CompanyDetail({ row }: { row: CompanyRow }) {
       <DetailField label="Fiscal year" value={row.fiscalYear} />
       <DetailField
         label="Status"
-        value={<Badge variant="secondary">{row.status}</Badge>}
+        value={<Badge variant={STATUS_BADGE[row.status]}>{row.status}</Badge>}
       />
       <DetailField label="Next deadline" value={row.nextDeadline} />
       <DetailField label="Assigned" value={row.assignee} />
@@ -92,7 +81,6 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
     },
   })
 
-  const filteredRows = table.getFilteredRowModel().rows
   const selectedCount = table.getFilteredSelectedRowModel().rows.length
   const isFiltered =
     search.trim() !== "" || table.getState().columnFilters.length > 0
@@ -118,24 +106,12 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
         />
       }
       statusBar={
-        <div className="flex h-9 shrink-0 items-center gap-4 border-t border-border-subtle px-2 text-xs text-muted-foreground">
-          <span>
-            {filteredRows.length}{" "}
-            {filteredRows.length === 1 ? "company" : "companies"}
-          </span>
-          {isFiltered ? (
-            <>
-              <Separator
-                orientation="vertical"
-                inset
-                className="!h-6 bg-border-subtle"
-              />
-              <Badge variant="secondary" className="h-5">
-                Filtered
-              </Badge>
-            </>
-          ) : null}
-        </div>
+        <TableStatusBar
+          table={table}
+          noun="company"
+          nounPlural="companies"
+          isFiltered={isFiltered}
+        />
       }
       actionBar={
         <ActionBar

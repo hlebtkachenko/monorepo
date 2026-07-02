@@ -83,4 +83,38 @@ describe("translateAccountingError", () => {
     expect(err).toBe(original)
     expect(err).not.toBeInstanceOf(DomainError)
   })
+
+  it("UNWRAPS a drizzle DrizzleQueryError to reach the driver SQLSTATE (C1)", () => {
+    // drizzle 0.45 wraps statement errors: message has no code; .cause does.
+    const wrapped = Object.assign(new Error("Failed query: insert …"), {
+      cause: { code: "23503", message: "violates foreign key" },
+    })
+    expect(caught(wrapped)).toBeInstanceOf(NotFoundError)
+  })
+
+  it("unwraps a period-not-visible trigger nested in .cause → 404", () => {
+    const wrapped = Object.assign(new Error("Failed query: insert …"), {
+      cause: {
+        code: "P0001",
+        message: "accounting_period abc is not visible for this tenant",
+      },
+    })
+    expect(caught(wrapped)).toBeInstanceOf(NotFoundError)
+  })
+
+  it("maps the real balance trigger text (must touch both / Má dáti) to 422", () => {
+    const err = caught(
+      new Error("posting p1 must touch both a Má dáti and a Dal side (§13/2)"),
+    )
+    expect(err).toBeInstanceOf(ValidationError)
+  })
+
+  it("maps an FX-coherence trigger to 422", () => {
+    const err = caught(
+      new Error(
+        "currency_code = accounting_currency (CZK) but an FX rate is set",
+      ),
+    )
+    expect(err).toBeInstanceOf(ValidationError)
+  })
 })

@@ -157,7 +157,9 @@ export async function runGatedWrite<T>(
         const heldBody = { status: "held", reviewId: log.toolCallLogId }
         await updateToolCallLogOutput(db, {
           toolCallLogId: log.toolCallLogId,
-          output: { payloadHash, status: "held" },
+          // Persist the FULL held body (incl. reviewId) so a same-key replay
+          // returns the review handle, not a bare {status:"held"}.
+          output: { payloadHash, ...heldBody },
           autoApplied: false,
           rationale: opts.rationale,
         })
@@ -170,7 +172,9 @@ export async function runGatedWrite<T>(
 
   if (outcome.kind === "replay") {
     const { payloadHash: _omit, ...replayBody } = outcome.prior
-    return { httpStatus: 200, body: replayBody, replayed: true }
+    // A held write replays as 202 (still awaiting review), applied as 200.
+    const httpStatus = replayBody["status"] === "held" ? 202 : 200
+    return { httpStatus, body: replayBody, replayed: true }
   }
   if (outcome.kind === "applied") {
     return { httpStatus: 201, body: outcome.body, replayed: false }

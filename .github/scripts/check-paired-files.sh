@@ -29,8 +29,16 @@ fi
 # Collect the PR's changed files, one path per line. In CI, actions/checkout
 # leaves a detached HEAD, so `gh pr diff` cannot infer the PR from the branch
 # — the workflow passes the PR number explicitly via PR_NUMBER.
+#
+# Use the Files API rather than `gh pr diff --name-only`: the latter fetches the
+# unified-diff media type, which the REST API refuses with HTTP 406 once the PR
+# diff exceeds 20000 lines — so a large PR breaks this check even though it only
+# needs the changed paths. `pulls/{n}/files` has no line cap (only a 3000-file
+# ceiling, walked via --paginate) and returns the filenames directly.
 if [[ -n "${PR_NUMBER:-}" ]]; then
-  changed_files="$(gh pr diff "${PR_NUMBER}" --name-only)"
+  changed_files="$(gh api --paginate \
+    "repos/{owner}/{repo}/pulls/${PR_NUMBER}/files" \
+    --jq '.[].filename')"
 else
   changed_files="$(gh pr diff --name-only)"
 fi

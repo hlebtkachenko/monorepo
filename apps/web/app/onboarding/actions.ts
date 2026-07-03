@@ -6,6 +6,7 @@ import { auth } from "@workspace/auth/server"
 import { getBetterAuthUrl } from "@workspace/auth/env"
 import { notifierFromEnv, sanitizeError } from "@workspace/notify"
 import { withAdminBypass, withWorkspace } from "@workspace/db"
+import { slugify, isReservedSlug } from "@workspace/org-provisioning"
 import {
   app_user,
   organization,
@@ -375,19 +376,6 @@ export async function submitWorkspaceAction(
   return { ok: true }
 }
 
-function slugify(input: string): string {
-  const slug = input
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-  // Slug column has a CHECK enforcing length >= 2; pad single-char or
-  // empty results so the INSERT does not fail with a CHECK violation
-  // for short workspace names like "A".
-  if (slug.length < 2) return "workspace"
-  return slug
-}
-
 const MAX_SLUG_ATTEMPTS = 50
 
 async function pickUniqueSlug(
@@ -397,6 +385,8 @@ async function pickUniqueSlug(
 ): Promise<string> {
   for (let i = 0; i < MAX_SLUG_ATTEMPTS; i++) {
     const candidate = i === 0 ? base : `${base}-${i + 1}`
+    // A reserved slug would be unreachable at /{slug}; skip to the next form.
+    if (isReservedSlug(candidate)) continue
     // Slug uniqueness is per (workspace_id, slug). Two workspaces with
     // display_name "Acme" should both be able to land slug "acme" inside
     // their own workspace; without this filter the second workspace

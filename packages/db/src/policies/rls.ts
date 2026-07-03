@@ -72,6 +72,10 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "period_output",
   "open_item",
   "open_item_settlement",
+  // org config satellites (0042_org_config.sql)
+  "organization_authorized_person",
+  "organization_tax_representative",
+  "organization_oss_registration",
 ] as const
 
 export type OrganizationScopedTable =

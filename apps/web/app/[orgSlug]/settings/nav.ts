@@ -17,19 +17,16 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           label: "Identity",
           href: `${base}/identity`,
           icon: "IdCard",
-          tba: true,
         },
         {
           label: "Periods & fiscal year",
           href: `${base}/periods`,
           icon: "CalendarClock",
-          tba: true,
         },
         {
           label: "VAT status",
           href: `${base}/vat-status`,
           icon: "ReceiptEuro",
-          tba: true,
         },
         {
           label: "Business activities",
@@ -185,7 +182,6 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           label: "Data box",
           href: `${base}/data-box`,
           icon: "Mail",
-          tba: true,
         },
         {
           label: "Homebanking",

@@ -1,15 +1,82 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import type { ColumnDef, Row, Table } from "@tanstack/react-table"
 
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
+import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import {
+  archiveOrgAction,
+  unarchiveOrgAction,
+} from "../../../workspace/organizations/actions"
 import { useCompanies } from "./context"
 import { COMPANY_STATUS_OPTIONS, STATUS_BADGE, type CompanyRow } from "./data"
+
+const ARCHIVE_ERROR: Record<string, string> = {
+  sessionExpired: "Your session expired. Please sign in again.",
+  noActiveWorkspace: "No active workspace.",
+  notFound: "That company could not be found.",
+}
+
+/** Overflow row action: archive an active book / restore an archived one. */
+function RowActionsCell({ row }: { row: CompanyRow }) {
+  const router = useRouter()
+  const icons = useIcons()
+  const MenuIcon = icons.Ellipsis
+  const ArchiveIcon = icons.Archive
+  const RestoreIcon = icons.RotateCcw
+  const [pending, startTransition] = React.useTransition()
+
+  const toggleArchived = () => {
+    startTransition(async () => {
+      const res = row.archived
+        ? await unarchiveOrgAction(row.id)
+        : await archiveOrgAction(row.id)
+      if (res.ok) {
+        toast.success(row.archived ? "Company restored" : "Company archived")
+        router.refresh()
+      } else {
+        toast.error(
+          (res.errorKey && ARCHIVE_ERROR[res.errorKey]) ||
+            "Could not update the company.",
+        )
+      }
+    })
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Actions for ${row.legalName}`}
+          disabled={pending}
+        >
+          <MenuIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40">
+        <DropdownMenuItem onSelect={toggleArchived} disabled={pending}>
+          {row.archived ? <RestoreIcon /> : <ArchiveIcon />}
+          {row.archived ? "Restore" : "Archive"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 // Anchor for shift-range selection across the visible page (row id).
 const selectAnchorId: { current: string | null } = { current: null }
@@ -190,6 +257,17 @@ export const companyColumns: ColumnDef<CompanyRow>[] = [
     maxSize: 44,
     meta: { align: "center" },
     cell: ({ row }) => <InspectCell row={row.original} />,
+    enableSorting: false,
+    enableHiding: false,
+    enableResizing: false,
+  },
+  {
+    id: "actions",
+    size: 44,
+    minSize: 44,
+    maxSize: 44,
+    meta: { align: "center" },
+    cell: ({ row }) => <RowActionsCell row={row.original} />,
     enableSorting: false,
     enableHiding: false,
     enableResizing: false,

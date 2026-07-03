@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 // LayoutGrid / Rows3 are not in the workspace icon pack (no grid/rows glyphs);
 // keep the direct lucide import as the sole documented exception here.
@@ -10,6 +11,7 @@ import {
   ContentHeader,
   type ContentTab,
 } from "@workspace/ui/blocks/app-content"
+import { Button } from "@workspace/ui/components/button"
 import { toast } from "@workspace/ui/components/sonner"
 import {
   ToggleGroup,
@@ -21,6 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { useIcons } from "@workspace/ui/icon-packs"
 
 import { AppPageHeader } from "../../app-page-header"
 import { PageHeaderActions } from "../../_shared/content-header-extras"
@@ -42,12 +45,18 @@ const TableIcon = Rows3
 export function CompaniesView({
   companies,
   errorMessage,
+  showArchived = false,
 }: {
   companies: CompanyRow[]
   /** `?error=` redirected here from the org layout on a failed book entry. */
   errorMessage?: string
+  /** Server-resolved: the list is showing archived books (`?archived=1`). */
+  showArchived?: boolean
 }) {
   const router = useRouter()
+  const icons = useIcons()
+  const PlusIcon = icons.Plus
+  const ExportIcon = icons.Download
   const { activeTab, setActiveTab, view, setView } = useCompanies()
   const errorHandled = React.useRef(false)
 
@@ -77,6 +86,22 @@ export function CompaniesView({
           onValueChange={setActiveTab}
           actions={
             <>
+              {/* Active vs archived books — REAL isolation on
+                  organization.archived_at, driven by the `?archived=` param
+                  (distinct from the mock status tabs). */}
+              <ToggleGroup
+                type="single"
+                value={showArchived ? "archived" : "active"}
+                variant="outline"
+                size="sm"
+              >
+                <ToggleGroupItem value="active" asChild>
+                  <Link href="/workspace">Active</Link>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="archived" asChild>
+                  <Link href="/workspace?archived=1">Archived</Link>
+                </ToggleGroupItem>
+              </ToggleGroup>
               <TooltipProvider delayDuration={200}>
                 <ToggleGroup
                   type="single"
@@ -105,6 +130,18 @@ export function CompaniesView({
                   </Tooltip>
                 </ToggleGroup>
               </TooltipProvider>
+              <Button asChild variant="outline" size="sm">
+                <a href="/workspace/organizations/export">
+                  <ExportIcon />
+                  Export CSV
+                </a>
+              </Button>
+              <Button asChild size="sm">
+                <Link href="/workspace/organizations/new">
+                  <PlusIcon />
+                  New company
+                </Link>
+              </Button>
               <PageHeaderActions />
             </>
           }

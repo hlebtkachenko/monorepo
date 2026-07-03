@@ -27,6 +27,7 @@
     "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/notify": "workspace:*",
+    "@workspace/org-provisioning": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/storage": "workspace:*",
     "@workspace/ui": "workspace:*",

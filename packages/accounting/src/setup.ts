@@ -8,7 +8,7 @@
  */
 
 import { sql } from "drizzle-orm"
-import { one } from "./sql"
+import { one, rows } from "./sql"
 import type { RowExecutor } from "./sql"
 import { allocateNumber } from "./number-series"
 import type {
@@ -23,6 +23,8 @@ import type {
   PeriodStatus,
   Regime,
   SignatureRole,
+  VatFilingPeriod,
+  VatRegime,
 } from "./types"
 
 export async function createPeriod(
@@ -46,6 +48,31 @@ export async function createPeriod(
           (${ctx.organizationId}::uuid, ${input.periodStart}::date, ${input.periodEnd}::date,
            ${input.status ?? "OPEN"}, ${input.regimeCode}, ${input.accountingSizeCode ?? null},
            ${input.accountingCurrency}, ${input.fxRatePolicy ?? null})
+        RETURNING id`,
+  )
+  return r.id
+}
+
+/**
+ * Register a VAT status range (§6/§6f/§97 ZDPH). One open row per org
+ * (valid_to = null); the vat_status_no_overlap gist EXCLUDE bars overlaps.
+ * filing_period applies to PAYER only (MONTHLY default for new payers, §99/§99a).
+ */
+export async function createVatStatus(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: {
+    vatRegimeCode: VatRegime
+    validFrom: string
+    validTo?: string | null
+    filingPeriod?: VatFilingPeriod | null
+  },
+): Promise<string> {
+  const r = await one<{ id: string }>(
+    db,
+    sql`INSERT INTO vat_status (organization_id, vat_regime_code, valid_from, valid_to, filing_period)
+        VALUES (${ctx.organizationId}::uuid, ${input.vatRegimeCode}, ${input.validFrom}::date,
+                ${input.validTo ?? null}, ${input.filingPeriod ?? null})
         RETURNING id`,
   )
   return r.id
@@ -83,6 +110,69 @@ export async function createChart(
         RETURNING id`,
   )
   return r.id
+}
+
+/**
+ * The classic saldokonto (open-items) synthetics — receivables/payables and the
+ * settlement accounts that MUST pair per counterparty (§16 + KH matching). These
+ * ship with tracks_open_items = true so the open-items/saldokonto engine and KH
+ * pairing are live on a freshly-scaffolded entity (advisor change 8).
+ */
+export const DEFAULT_OPEN_ITEM_ACCOUNTS: readonly string[] = [
+  "311", // Odběratelé
+  "314", // Poskytnuté zálohy
+  "315", // Ostatní pohledávky
+  "321", // Dodavatelé
+  "324", // Přijaté provozní zálohy
+  "325", // Ostatní závazky
+  "335", // Pohledávky za zaměstnanci
+  "355", // Ostatní pohledávky za společníky
+  "361", // Závazky ovládaná/ovládající
+  "365", // Ostatní závazky ke společníkům
+  "371", // Pohledávky z prodeje obchodního závodu
+  "379", // Jiné závazky
+  "343", // DPH
+] as const
+
+/**
+ * Materialize the směrná účtová osnova (Vyhláška 500/2002 Příloha 1) into a
+ * chart as synthetic účty — one INSERT…SELECT over directive_account, NOT 218
+ * round-trips. nature/normal_balance are stored on the directive; the account's
+ * class/group/synthetic/is_synthetic are GENERATED from number. tracks_open_items
+ * is preset for the saldokonto set. specializes_directive_code back-links each
+ * account to its 3-digit catalogue row. Returns the count seeded.
+ *
+ * FOR-PROFIT double-entry ONLY. Spolek/nadace book under Vyhláška 504/2002 (a
+ * different osnova, not seeded) — the orchestrator hard-errors before reaching
+ * here; this function does not guard legal form.
+ */
+export async function seedChartFromDirectives(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: {
+    chartId: string
+    periodId: string
+    openItemAccounts?: readonly string[]
+  },
+): Promise<number> {
+  const openItems = input.openItemAccounts ?? DEFAULT_OPEN_ITEM_ACCOUNTS
+  const seeded = await rows<{ id: string }>(
+    db,
+    sql`INSERT INTO account
+          (organization_id, chart_id, period_id, number, name, nature, normal_balance,
+           tracks_open_items, specializes_directive_code)
+        SELECT ${ctx.organizationId}::uuid, ${input.chartId}::uuid, ${input.periodId}::uuid,
+               da.code, COALESCE(da.name_cs, da.name_en), da.nature, da.normal_balance,
+               (da.code = ANY(${sql`ARRAY[${sql.join(
+                 openItems.map((c) => sql`${c}`),
+                 sql`, `,
+               )}]::char(3)[]`})),
+               da.code
+        FROM directive_account da
+        WHERE da.deprecated = false
+        RETURNING id`,
+  )
+  return seeded.length
 }
 
 /**

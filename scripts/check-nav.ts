@@ -28,10 +28,11 @@ const HIDDEN_ROUTES = new Set<string>([
   "demo-launchpad",
   "demo-dashboard",
   "demo-single",
-  // Doklad (invoice/document editor, Single archetype) — real route; its home
-  // module (Documents/Invoicing) is TBD, so allow-list it until then. The other
-  // accounting v2 pages live in the wired `accounting` nav module (no allowlist).
-  "doklad",
+  // Doklad (invoice/document editor, Single archetype) — a detail workspace in
+  // the Records (documents) module, not a sidebar list page, so it has no
+  // nav.ts slot. The other accounting v2 pages live in the wired `accounting`
+  // nav module (no allowlist).
+  "documents/doklad",
 ])
 
 const here = dirname(fileURLToPath(import.meta.url))

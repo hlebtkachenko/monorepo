@@ -1,4 +1,4 @@
-import { Doklad } from "../../_components/doklad/doklad"
+import { Doklad } from "../../../_components/doklad/doklad"
 
 export const metadata = { title: "Doklad" }
 
@@ -10,8 +10,9 @@ export const metadata = { title: "Doklad" }
  * strip; the Částky panel carries the per-rate VAT recap table. A full-width
  * editable line-items grid sits below, a ContentToolbar carries the record
  * actions, a ContentStatusBar pins Základ / DPH / Celkem (live off the grid),
- * and a split Uložit / Zavřít footer closes it out. Reachable at
- * `/<org>/doklad`. Not gated on NODE_ENV — this is a real page, not a demo.
+ * and a split Uložit / Zavřít footer closes it out. Lives in the Records
+ * (documents) module at `/<org>/documents/doklad`. Not gated on NODE_ENV —
+ * this is a real page, not a demo.
  */
 export default function DokladPage() {
   return <Doklad />

@@ -48,7 +48,7 @@ export const BASE_SECTIONS: LaunchpadSection[] = [
         title: "Doklad",
         description: "Detail účetního dokladu — položky a zaúčtování.",
         icon: "FileText",
-        href: "doklad",
+        href: "documents/doklad",
       },
     ],
   },

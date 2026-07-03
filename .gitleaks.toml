@@ -207,6 +207,11 @@ regexes = [
   # IČO + VAT both); allow-listing it stops the contextual rule firing
   # on typography demos and seed scripts.
   '''CZ12345678''',                                              # fixture VAT
+  # Fake supplier DIČ in the doklad demo fixture
+  # (apps/web/app/_components/doklad/data.ts on the epic4-5 branch).
+  # Gitleaks scans every fetched ref, so an unlisted fixture on ANY
+  # branch fails ALL PR scans once pushed.
+  '''CZ27604321''',                                              # fixture VAT — doklad demo
   '''(?i)i[čc]o\s*[:=]\s*12345678\b''',                          # fixture IČO with the ICO: prefix
   '''CZ65[ ]?9999[ ]?0000[ ]?0000[ ]?1234[ ]?5670''',            # fixture IBAN — succeeds
   '''CZ69[ ]?9998[ ]?0000[ ]?0000[ ]?9999[ ]?9990''',            # fixture IBAN — not found

@@ -6,6 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.11.0] — 2026-07-03
+
+Minor release: the workspace tier — the accountant-office surface for managing multiple client books, billing, and team, distinct from a client's own book.
+
+### Added
+
+- **web**: full workspace-tier app shell + 8 modules (Companies hub, Analyse, Audit, Inbox, Legislation, Billing, Team, Settings/Profile), built on the org tier's shell/archetype vocabulary. Green office-chrome identity, combined logomark+wordmark rail lockup. Real writes for Settings, Billing entity, and Profile display name; Companies/Team/Billing-overview backed by real data. Inbox and other undelivered surfaces (Audit backend, Legislation, Billing/Invoices) ship as designed mock UI with tracked follow-ups (#452–458), or as a prod TODO stub with the mock preserved dev-only (Inbox). (#444)
+
+### Fixed
+
+- **ci**: gitleaks false positives (statute citations, example IBAN, fixture DIČ) from other branches surfacing via the all-refs scan. (#444)
+
 ## [v0.10.3] — 2026-07-03
 
 Patch release: dev-tooling and docs only, no runtime behavior change.

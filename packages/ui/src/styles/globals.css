@@ -255,6 +255,57 @@
   --sidebar-ring: #737373;
 }
 
+/* Workspace-tier chrome — the accountant-office identity that sets the firm hub
+   apart from a client's book (both mount the same AppShell). The rail + the 40px
+   top header + the frame around the content sit on brand green (via --canvas,
+   the only surface those zones paint); the content + sidebar stay their normal
+   white --shell-surface cards floating on the green. Icon / label / border /
+   control tokens flip to white shades ONLY inside the rail + header + bottom-nav
+   (scoped by data-slot) so the nav + header controls read on green, while the
+   white work surfaces keep their dark-on-white icons untouched. Same green in
+   light + dark — the office identity is constant. `display:contents` keeps the
+   shell layout intact while still scoping these custom properties. */
+.workspace-chrome {
+  display: contents;
+}
+.workspace-chrome [data-slot="app-shell"] {
+  --canvas: var(--brand-primary-light);
+}
+.workspace-chrome [data-slot="app-shell-rail"],
+.workspace-chrome [data-slot="app-shell-header"],
+.workspace-chrome [data-slot="app-shell-bottom-nav"] {
+  --icon: rgba(255, 255, 255, 0.72);
+  --icon-active: #ffffff;
+  --icon-hover-bg: rgba(255, 255, 255, 0.14);
+  --icon-active-bg: rgba(255, 255, 255, 0.22);
+  --rail-label: rgba(255, 255, 255, 0.72);
+  --rail-label-active: #ffffff;
+  --rail-separator: rgba(255, 255, 255, 0.24);
+  --border-subtle: rgba(255, 255, 255, 0.2);
+  --sidekick-idle-bg: rgba(255, 255, 255, 0.16);
+  --sidekick-active-bg: rgba(255, 255, 255, 0.26);
+  --sidekick-icon: #ffffff;
+  --foreground: #ffffff;
+  --muted-foreground: rgba(255, 255, 255, 0.7);
+  --background: rgba(255, 255, 255, 0.14);
+  --input: rgba(255, 255, 255, 0.32);
+}
+/* The mobile bottom-nav bar paints `bg-shell-surface/60` and marks the active
+   item with `--primary` — so, unlike the rail/header (which sit transparent on
+   the green canvas), it needs those two tokens flipped too, or the bar renders
+   frosted-white with an unreadable near-black active item. Scoped to the
+   bottom-nav ONLY so the rail/header don't inherit a green surface / white
+   primary they never use. */
+.workspace-chrome [data-slot="app-shell-bottom-nav"] {
+  --shell-surface: var(--brand-primary-light);
+  --primary: #ffffff;
+}
+/* The header search Input inherits the body text color; the header's white
+   `--foreground` flip doesn't re-resolve an inherited `color`, so force it. */
+.workspace-chrome [data-slot="app-shell-header"] input {
+  color: var(--foreground);
+}
+
 .theme-blue {
   --background: #f0f5ff;
   --foreground: #0f172a;

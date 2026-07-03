@@ -16,7 +16,7 @@ import {
 } from "../[orgSlug]/_nav/org-nav"
 import { AppBottomNav } from "./app-bottom-nav"
 import { AppRailNav } from "./app-rail-nav"
-import { OrgContentHeaderSlot, OrgPageHeaderProvider } from "./org-page-header"
+import { AppContentHeaderSlot, AppPageHeaderProvider } from "./app-page-header"
 import { OrgSidebar } from "./org-sidebar"
 import { SidebarModuleTitle } from "./sidebar-module-title"
 
@@ -27,7 +27,7 @@ import { SidebarModuleTitle } from "./sidebar-module-title"
  * `activeRailEntry` (one source, can't drift from the highlight), and its
  * page tree from `MODULE_NAV[moduleKey]`. The content-header title falls back to
  * the active page's nav label; a page can override the whole header via
- * `OrgPageHeader` (portaled into the slot). `header` is built server-side (it
+ * `AppPageHeader` (portaled into the slot). `header` is built server-side (it
  * needs the session/avatar) and passed down as a node.
  */
 export function OrgShell({
@@ -49,7 +49,7 @@ export function OrgShell({
   const title = activeNavTitle(nav, pathname) ?? active?.label ?? ""
 
   return (
-    <OrgPageHeaderProvider>
+    <AppPageHeaderProvider>
       <AppShell
         header={header}
         rail={<AppRailNav items={railNav} />}
@@ -57,7 +57,7 @@ export function OrgShell({
         sidebar={<OrgSidebar orgSlug={orgSlug} nav={nav} />}
         sidebarHeader={<SidebarModuleTitle items={railNav} />}
         contentHeader={
-          <OrgContentHeaderSlot fallback={<ContentHeader title={title} />} />
+          <AppContentHeaderSlot fallback={<ContentHeader title={title} />} />
         }
         assistant={
           <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
@@ -68,6 +68,6 @@ export function OrgShell({
       >
         {children}
       </AppShell>
-    </OrgPageHeaderProvider>
+    </AppPageHeaderProvider>
   )
 }

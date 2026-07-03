@@ -1,6 +1,20 @@
 # Idempotency
 
-> **[Concept]** Not implemented. The contract below is what `api.afframe.com/v1` ships before public launch.
+> **[Partially shipped]** The accounting write surface (`POST /v1/accounting/{events,documents,postings}`) implements idempotency today — see section 0. The generic contract below (sections 1–5) is what the rest of `api.afframe.com/v1` ships before public launch.
+
+---
+
+## 0. Shipped: accounting writes
+
+`POST /v1/accounting/events`, `/v1/accounting/documents`, and `/v1/accounting/postings` enforce `Idempotency-Key` now (`apps/api/src/v1/accounting/accounting-writes.gate.ts`). Deliberate deviations from the concept contract below:
+
+- **Missing header → `422 validation_error`** (not `400`). Key must be 1–255 chars.
+- **Storage is `tool_call_log`**, not a dedicated `idempotency_key` table. Keyed on `(organization_id, operation, idempotency_key)`. Rows are the permanent audit log — **no 24-hour expiry**; a key replays indefinitely.
+- **Replay statuses:** an applied write replays as `200`, a held write replays as `202` (still awaiting review). Both carry `Idempotent-Replayed: true`. Payload compared via canonical-JSON sha256; mismatch → `409 idempotency_key_conflict`.
+- **Failures don't burn the key.** The audit row and the domain write commit or roll back together in one transaction, so a failed write leaves no cached failure — retrying with the same key works (differs from the "cache 5xx for 24h" rule below).
+- **In-progress or crashed prior request** with the same key → `409` ("still in progress or failed; use a new key").
+
+These routes also require the `accounting:write` API-key scope — see [`README.md` → Scopes](./README.md#scopes).
 
 Adopts the [IETF `Idempotency-Key`](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header) draft with Stripe's replay semantics.
 
@@ -83,7 +97,7 @@ Purge job runs daily — drops rows where `expires_at < now()`. RLS scoped by `o
 4. **On `409 idempotency_key_in_progress`** — back off and retry. The previous call hasn't finished.
 5. **On `409 idempotency_key_conflict`** — your payload differs. Use a new key.
 
-`@afframe/sdk` today: the SDK does NOT auto-generate a key. Callers pass `Idempotency-Key` directly as a header on the request (`client.POST("/v1/...", { headers: { "idempotency-key": k }, body })`). The retry layer reuses the same header on automatic retries and only retries mutations when the header is present (`packages/sdk/src/client.ts`). Auto-generation + a `replayed` field are possible future SDK additions, not current behavior. The server side (storage/replay of the key) is also not implemented yet — see the [Concept] banner above.
+`@afframe/sdk` today: the SDK does NOT auto-generate a key. Callers pass `Idempotency-Key` directly as a header on the request (`client.POST("/v1/...", { headers: { "idempotency-key": k }, body })`). The retry layer reuses the same header on automatic retries and only retries mutations when the header is present (`packages/sdk/src/client.ts`). Auto-generation + a `replayed` field are possible future SDK additions, not current behavior. Server-side storage/replay is live for the accounting writes (section 0); the generic surface is still concept.
 
 ---
 

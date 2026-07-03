@@ -505,3 +505,121 @@ export const CreateAccountingPostingResponseSchema = z
 export type CreateAccountingPostingResponse = z.infer<
   typeof CreateAccountingPostingResponseSchema
 >
+
+// ── held-writes review queue ────────────────────────────────────────────────
+
+export const HeldWriteRowSchema = z
+  .object({
+    id: z
+      .string()
+      .uuid()
+      .openapi({
+        description:
+          "Held-write id (the tool_call_log row / the reviewId a held write " +
+          "returned). Pass it to POST /v1/accounting/held-writes/{id}/resolve.",
+        example: "0196f1de-0000-7000-8000-000000000001",
+      }),
+    toolName: z.string().openapi({
+      description:
+        "Operation the write targeted (createAccountingEvent, " +
+        "captureAccountingDocument, createAccountingPosting).",
+      example: "captureAccountingDocument",
+    }),
+    idempotencyKey: z.string().openapi({
+      description: "The Idempotency-Key the original write carried.",
+      example: "doc-2025-03-14-001",
+    }),
+    actorKind: z.enum(["human", "ai", "ai_on_behalf", "system"]).openapi({
+      description: "Who initiated the original write.",
+      example: "ai_on_behalf",
+    }),
+    confidence: z.string().nullable().openapi({
+      description: "Agent's claimed confidence as a decimal string.",
+      example: "0.75",
+    }),
+    rationale: z.string().nullable().openapi({
+      description: "Why the agent wanted this write (audit trail).",
+      example: "Vendor unclear; amount above the always-hold ceiling.",
+    }),
+    createdAt: z.string().openapi({
+      description: "When the write was held (ISO 8601).",
+      example: "2025-03-14T10:15:00.000Z",
+    }),
+    input: z.record(z.string(), z.unknown()).openapi({
+      description:
+        "The stored (redacted) request payload the write would apply.",
+    }),
+  })
+  .openapi({ description: "A gated write held for human review." })
+export type HeldWriteRow = z.infer<typeof HeldWriteRowSchema>
+
+export const ListHeldWritesResponseSchema = z
+  .object({
+    heldWrites: z.array(HeldWriteRowSchema).openapi({
+      description: "The organization's held writes, oldest first.",
+    }),
+  })
+  .openapi({
+    description: "Review queue of gated accounting writes awaiting a human.",
+  })
+export type ListHeldWritesResponse = z.infer<
+  typeof ListHeldWritesResponseSchema
+>
+
+export const HeldWriteIdParamSchema = z.object({
+  id: z
+    .string()
+    .uuid()
+    .openapi({
+      description:
+        "Held-write id (the reviewId returned by the held write). Resolved " +
+        "within the API key's own organization (FORCE RLS).",
+      example: "0196f1de-0000-7000-8000-000000000001",
+    }),
+})
+
+export const ResolveHeldWriteRequestSchema = z
+  .object({
+    action: z.enum(["approve", "reject"]).openapi({
+      description:
+        "approve = execute the stored payload through the original domain " +
+        "path; reject = close the review without any domain write.",
+      example: "approve",
+    }),
+    note: z.string().max(1000).optional().openapi({
+      description: "Reviewer note, persisted to the audit trail.",
+      example: "Checked the invoice PDF — amounts match.",
+    }),
+  })
+  .openapi({
+    description:
+      "Resolve a held write. The row id is the idempotency anchor — no " +
+      "Idempotency-Key header is needed; a second resolve returns 409.",
+  })
+export type ResolveHeldWriteRequest = z.infer<
+  typeof ResolveHeldWriteRequestSchema
+>
+
+export const ResolveHeldWriteResponseSchema = z
+  .object({
+    id: z.string().uuid().openapi({
+      description: "The resolved held-write id.",
+      example: "0196f1de-0000-7000-8000-000000000001",
+    }),
+    resolution: z.enum(["approved", "rejected"]).openapi({
+      description: "How the review was resolved.",
+      example: "approved",
+    }),
+    result: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .openapi({
+        description:
+          "Domain result when approved — same shape as the original " +
+          "endpoint's applied body (eventId / summaryRecordId / postingId…).",
+      }),
+  })
+  .openapi({ description: "Held-write resolution result." })
+export type ResolveHeldWriteResponse = z.infer<
+  typeof ResolveHeldWriteResponseSchema
+>

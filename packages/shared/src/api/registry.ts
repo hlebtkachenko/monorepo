@@ -42,9 +42,14 @@ import {
   CreateAccountingEventResponseSchema,
   CreateAccountingPostingRequestSchema,
   CreateAccountingPostingResponseSchema,
+  HeldWriteIdParamSchema,
+  HeldWriteRowSchema,
+  ListHeldWritesResponseSchema,
   NumberSeriesListResponseSchema,
   NumberSeriesQuerySchema,
   NumberSeriesRowSchema,
+  ResolveHeldWriteRequestSchema,
+  ResolveHeldWriteResponseSchema,
 } from "./accounting-writes"
 import {
   ControlStatementResponseSchema,
@@ -216,6 +221,19 @@ const CreateAccountingPostingRequest = registry.register(
 const CreateAccountingPostingResponse = registry.register(
   "CreateAccountingPostingResponse",
   CreateAccountingPostingResponseSchema,
+)
+const ListHeldWritesResponse = registry.register(
+  "ListHeldWritesResponse",
+  ListHeldWritesResponseSchema,
+)
+registry.register("HeldWriteRow", HeldWriteRowSchema)
+const ResolveHeldWriteRequest = registry.register(
+  "ResolveHeldWriteRequest",
+  ResolveHeldWriteRequestSchema,
+)
+const ResolveHeldWriteResponse = registry.register(
+  "ResolveHeldWriteResponse",
+  ResolveHeldWriteResponseSchema,
 )
 
 /**
@@ -849,6 +867,55 @@ registry.registerPath({
       content: {
         "application/json": { schema: CreateAccountingPostingResponse },
       },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/held-writes",
+  operationId: "listAccountingHeldWrites",
+  summary: "List held writes",
+  description:
+    "Returns the organization's review queue — gated writes that were HELD " +
+    "(below the confidence threshold or above the always-hold amount) and " +
+    "await a human decision, oldest first. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  responses: {
+    "200": {
+      description: "The organization's held writes.",
+      content: { "application/json": { schema: ListHeldWritesResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/held-writes/{id}/resolve",
+  operationId: "resolveAccountingHeldWrite",
+  summary: "Resolve a held write",
+  description:
+    "Approve or reject a held write. Approve executes the stored payload " +
+    "through the same domain path the original endpoint would have used, " +
+    "with the approver as the responsible user; reject closes the review " +
+    "with no domain write. The row id is the idempotency anchor — no " +
+    "Idempotency-Key header; a second resolve returns 409.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    params: HeldWriteIdParamSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: ResolveHeldWriteRequest } },
+    },
+  },
+  responses: {
+    "200": {
+      description: "The held write was resolved.",
+      content: { "application/json": { schema: ResolveHeldWriteResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

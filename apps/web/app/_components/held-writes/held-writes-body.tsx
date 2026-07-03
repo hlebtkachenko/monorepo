@@ -50,10 +50,17 @@ function applySearch(
 
 /**
  * Held-writes review queue body — the Table archetype over `fetchHeldWrites`
- * rows. Read-only: approve/reject actions arrive with the API half of #459;
- * until then the inspector shows the full gated payload for manual review.
+ * rows. The inspector shows the full gated payload and resolves the write via
+ * the `resolveHeldWrite` server action (approve replays the domain call,
+ * reject just marks the row); the resolved row disappears on revalidate.
  */
-export function HeldWritesBody({ rows }: { rows: HeldWriteListRow[] }) {
+export function HeldWritesBody({
+  rows,
+  orgSlug,
+}: {
+  rows: HeldWriteListRow[]
+  orgSlug: string
+}) {
   const [search, setSearch] = React.useState("")
   const [inspected, setInspected] = React.useState<HeldWriteListRow | null>(
     null,
@@ -93,7 +100,18 @@ export function HeldWritesBody({ rows }: { rows: HeldWriteListRow[] }) {
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
-      inspector={inspected ? <HeldWriteDetail row={inspected} /> : null}
+      inspector={
+        inspected ? (
+          <HeldWriteDetail
+            row={inspected}
+            orgSlug={orgSlug}
+            onResolved={() => {
+              setInspectorOpen(false)
+              setInspected(null)
+            }}
+          />
+        ) : null
+      }
       inspectorOpen={inspectorOpen}
       inspectorMode={inspectorMode}
       onInspectorOpenChange={(open) => {

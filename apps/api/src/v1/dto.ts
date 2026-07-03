@@ -16,9 +16,12 @@ import {
   GetOrganizationResponseSchema,
   JournalResponseSchema,
   LedgerResponseSchema,
+  ListHeldWritesResponseSchema,
   OpenItemsResponseSchema,
   NumberSeriesListResponseSchema,
   PingResponseSchema,
+  ResolveHeldWriteRequestSchema,
+  ResolveHeldWriteResponseSchema,
   SaldokontoResponseSchema,
   StatementLayoutResponseSchema,
 } from "@workspace/shared/api"
@@ -79,4 +82,13 @@ export class CreateAccountingPostingRequestDto extends createZodDto(
 ) {}
 export class CreateAccountingPostingResponseDto extends createZodDto(
   CreateAccountingPostingResponseSchema,
+) {}
+export class ListHeldWritesResponseDto extends createZodDto(
+  ListHeldWritesResponseSchema,
+) {}
+export class ResolveHeldWriteRequestDto extends createZodDto(
+  ResolveHeldWriteRequestSchema,
+) {}
+export class ResolveHeldWriteResponseDto extends createZodDto(
+  ResolveHeldWriteResponseSchema,
 ) {}

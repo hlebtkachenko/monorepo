@@ -22,6 +22,7 @@ import {
 
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
+import { RequireScopes } from "../../auth/require-scopes.decorator"
 import {
   CaptureAccountingDocumentRequestDto,
   CaptureAccountingDocumentResponseDto,
@@ -60,6 +61,7 @@ export class AccountingWritesController {
   }
 
   @Post("events")
+  @RequireScopes("accounting:write")
   @ApiOperation({
     summary: "Create an accounting event (case)",
     description:
@@ -105,6 +107,7 @@ export class AccountingWritesController {
   }
 
   @Post("documents")
+  @RequireScopes("accounting:write")
   @ApiOperation({
     summary: "Capture a summary document (doklad)",
     description:
@@ -176,6 +179,7 @@ export class AccountingWritesController {
   }
 
   @Post("postings")
+  @RequireScopes("accounting:write")
   @ApiOperation({
     summary: "Post a posting (zaúčtování)",
     description: "Applies (201) or holds (202). Tenant + user injected.",

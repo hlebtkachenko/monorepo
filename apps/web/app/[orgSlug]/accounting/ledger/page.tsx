@@ -8,7 +8,7 @@ import { LedgerBody } from "../../../_components/ledger/ledger-body"
 import { LedgerHeader } from "../../../_components/ledger/ledger-header"
 import { LedgerProvider } from "../../../_components/ledger/context"
 import type { LedgerRow } from "../../../_components/ledger/data"
-import { OrgPageHeader } from "../../../_components/org-page-header"
+import { AppPageHeader } from "../../../_components/app-page-header"
 
 export const metadata = { title: "General ledger" }
 
@@ -43,9 +43,9 @@ export default async function LedgerPage({
 
   return (
     <LedgerProvider>
-      <OrgPageHeader>
+      <AppPageHeader>
         <LedgerHeader />
-      </OrgPageHeader>
+      </AppPageHeader>
       <LedgerBody rows={rows} />
     </LedgerProvider>
   )

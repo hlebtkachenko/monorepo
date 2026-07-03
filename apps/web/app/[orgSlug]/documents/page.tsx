@@ -1,6 +1,6 @@
 import { DocumentsAllBody } from "../../_components/documents-all/documents-all-body"
 import { DocumentsAllHeader } from "../../_components/documents-all/documents-all-header"
-import { OrgPageHeader } from "../../_components/org-page-header"
+import { AppPageHeader } from "../../_components/app-page-header"
 import {
   fetchDocuments,
   getOrgAccountingContext,
@@ -24,9 +24,9 @@ export default async function DocumentsPage({
 
   return (
     <>
-      <OrgPageHeader>
+      <AppPageHeader>
         <DocumentsAllHeader />
-      </OrgPageHeader>
+      </AppPageHeader>
       <DocumentsAllBody rows={rows} />
     </>
   )

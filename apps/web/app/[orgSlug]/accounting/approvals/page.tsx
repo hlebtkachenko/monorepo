@@ -1,6 +1,6 @@
 import { HeldWritesBody } from "../../../_components/held-writes/held-writes-body"
 import { HeldWritesHeader } from "../../../_components/held-writes/held-writes-header"
-import { OrgPageHeader } from "../../../_components/org-page-header"
+import { AppPageHeader } from "../../../_components/app-page-header"
 import type { HeldWriteListRow } from "../../../_components/held-writes/columns"
 import {
   fetchHeldWrites,
@@ -60,9 +60,9 @@ export default async function ApprovalsPage({
 
   return (
     <>
-      <OrgPageHeader>
+      <AppPageHeader>
         <HeldWritesHeader />
-      </OrgPageHeader>
+      </AppPageHeader>
       <HeldWritesBody rows={rows} />
     </>
   )

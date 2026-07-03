@@ -8,7 +8,7 @@ import { DenikBody } from "../../../_components/denik/denik-body"
 import { DenikHeader } from "../../../_components/denik/denik-header"
 import { DenikProvider } from "../../../_components/denik/context"
 import type { JournalRow } from "../../../_components/denik/data"
-import { OrgPageHeader } from "../../../_components/org-page-header"
+import { AppPageHeader } from "../../../_components/app-page-header"
 
 export const metadata = { title: "Journal" }
 
@@ -47,9 +47,9 @@ export default async function JournalPage({
 
   return (
     <DenikProvider>
-      <OrgPageHeader>
+      <AppPageHeader>
         <DenikHeader />
-      </OrgPageHeader>
+      </AppPageHeader>
       <DenikBody rows={rows} />
     </DenikProvider>
   )

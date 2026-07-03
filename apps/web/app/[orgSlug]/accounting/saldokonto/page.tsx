@@ -5,7 +5,7 @@ import type {
   OpenItemRow,
   SaldoPartnerRow,
 } from "../../../_components/saldokonto/data"
-import { OrgPageHeader } from "../../../_components/org-page-header"
+import { AppPageHeader } from "../../../_components/app-page-header"
 import {
   fetchOpenItems,
   fetchSaldoPerPartner,
@@ -55,9 +55,9 @@ export default async function SaldokontoPage({
 
   return (
     <SaldokontoProvider>
-      <OrgPageHeader>
+      <AppPageHeader>
         <SaldokontoHeader />
-      </OrgPageHeader>
+      </AppPageHeader>
       <SaldokontoBody rows={rows} partners={partners} />
     </SaldokontoProvider>
   )

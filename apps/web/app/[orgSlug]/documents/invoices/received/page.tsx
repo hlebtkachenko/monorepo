@@ -1,6 +1,6 @@
 import { DocumentsReceivedBody } from "../../../../_components/documents-received/documents-received-body"
 import { DocumentsReceivedHeader } from "../../../../_components/documents-received/documents-received-header"
-import { OrgPageHeader } from "../../../../_components/org-page-header"
+import { AppPageHeader } from "../../../../_components/app-page-header"
 import {
   fetchDocuments,
   getOrgAccountingContext,
@@ -26,9 +26,9 @@ export default async function ReceivedInvoicesPage({
 
   return (
     <>
-      <OrgPageHeader>
+      <AppPageHeader>
         <DocumentsReceivedHeader />
-      </OrgPageHeader>
+      </AppPageHeader>
       <DocumentsReceivedBody rows={rows} />
     </>
   )

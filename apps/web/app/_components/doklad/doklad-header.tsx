@@ -6,19 +6,19 @@ import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { OrgPageHeader } from "../org-page-header"
+import { AppPageHeader } from "../app-page-header"
 import { useDoklad } from "./context"
 
 /**
  * The doklad content header — mounted into the shell's content-header slot via
- * `OrgPageHeader`. Carries a Back button (icon), the document number as title,
+ * `AppPageHeader`. Carries a Back button (icon), the document number as title,
  * a draft status pill, relation pills (orders / deliveries), record paging, and
  * a configure button. Reads the document number from the shared record state.
  */
 export function DokladHeader() {
   const { header } = useDoklad()
   return (
-    <OrgPageHeader>
+    <AppPageHeader>
       <ContentHeader
         icon={
           <IconButton
@@ -74,6 +74,6 @@ export function DokladHeader() {
           </>
         }
       />
-    </OrgPageHeader>
+    </AppPageHeader>
   )
 }

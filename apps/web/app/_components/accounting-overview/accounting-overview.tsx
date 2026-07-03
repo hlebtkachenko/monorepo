@@ -17,7 +17,7 @@ import {
   PageHeaderActions,
   useTabVisibility,
 } from "../_shared/content-header-extras"
-import { OrgPageHeader } from "../org-page-header"
+import { AppPageHeader } from "../app-page-header"
 import { BASE_SECTIONS } from "./data"
 
 const TAB_DEFS = [
@@ -99,7 +99,7 @@ export function AccountingOverview({ orgSlug }: { orgSlug: string }) {
 
   return (
     <>
-      <OrgPageHeader>
+      <AppPageHeader>
         <ContentHeader
           title="Přehled"
           tabs={tabs}
@@ -114,7 +114,7 @@ export function AccountingOverview({ orgSlug }: { orgSlug: string }) {
           }
           actions={<PageHeaderActions />}
         />
-      </OrgPageHeader>
+      </AppPageHeader>
       <ContentPanel>
         <LaunchpadGrid
           sections={sections}

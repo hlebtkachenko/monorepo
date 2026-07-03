@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 import { DetailField } from "@workspace/ui/blocks/app-content"
 import { initialsOf } from "@workspace/ui/blocks/app-header"
@@ -34,7 +35,17 @@ import { toast } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import {
+  archiveOrgAction,
+  unarchiveOrgAction,
+} from "../../../workspace/organizations/actions"
 import { COMPANY_PERIODS, STATUS_BADGE, type CompanyRow } from "./data"
+
+const CARD_ARCHIVE_ERROR: Record<string, string> = {
+  sessionExpired: "Your session expired. Please sign in again.",
+  noActiveWorkspace: "No active workspace.",
+  notFound: "That company could not be found.",
+}
 
 /** Grey rounded-square company mark (initial) — a stand-in until org logos land. */
 function CompanyAvatar({ name }: { name: string }) {
@@ -53,14 +64,38 @@ function CompanyAvatar({ name }: { name: string }) {
  * members are real.
  */
 export function CompanyCard({ company }: { company: CompanyRow }) {
+  const router = useRouter()
   const icons = useIcons()
   const CalendarIcon = icons.CalendarClock
   const ChevronIcon = icons.ChevronDown
   const LockIcon = icons.Lock
   const LockOpenIcon = icons.LockOpen
   const InviteIcon = icons.UserPlus
+  const MenuIcon = icons.Ellipsis
+  const ArchiveIcon = icons.Archive
+  const RestoreIcon = icons.RotateCcw
 
   const [manageOpen, setManageOpen] = React.useState(false)
+  const [pending, startTransition] = React.useTransition()
+
+  const toggleArchived = () => {
+    startTransition(async () => {
+      const res = company.archived
+        ? await unarchiveOrgAction(company.id)
+        : await archiveOrgAction(company.id)
+      if (res.ok) {
+        toast.success(
+          company.archived ? "Company restored" : "Company archived",
+        )
+        router.refresh()
+      } else {
+        toast.error(
+          (res.errorKey && CARD_ARCHIVE_ERROR[res.errorKey]) ||
+            "Could not update the company.",
+        )
+      }
+    })
+  }
 
   const shownMembers = company.members.slice(0, 4)
   const extraMembers = company.members.length - shownMembers.length
@@ -93,6 +128,25 @@ export function CompanyCard({ company }: { company: CompanyRow }) {
             {company.typeLabel}
           </CardDescription>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Actions for ${company.legalName}`}
+              disabled={pending}
+              className="relative z-10 -mr-1 shrink-0 text-muted-foreground"
+            >
+              <MenuIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuItem onSelect={toggleArchived} disabled={pending}>
+              {company.archived ? <RestoreIcon /> : <ArchiveIcon />}
+              {company.archived ? "Restore" : "Archive"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Facts */}

@@ -77,7 +77,10 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
     defaultColumn: { minSize: 56, size: 150, maxSize: 480 },
     initialState: {
       pagination: { pageIndex: 0, pageSize: 15 },
-      columnPinning: { left: ["select"], right: ["open", "inspect"] },
+      columnPinning: {
+        left: ["select"],
+        right: ["open", "inspect", "actions"],
+      },
     },
   })
 

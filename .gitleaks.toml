@@ -207,13 +207,27 @@ regexes = [
   # IČO + VAT both); allow-listing it stops the contextual rule firing
   # on typography demos and seed scripts.
   '''CZ12345678''',                                              # fixture VAT
-  '''CZ27604321''',                                              # doklad demo-fixture DIČ (CZ+IČO), not a secret
+  # Fake supplier DIČ in the doklad demo fixture
+  # (apps/web/app/_components/doklad/data.ts on the epic4-5 branch).
+  # Gitleaks scans every fetched ref, so an unlisted fixture on ANY
+  # branch fails ALL PR scans once pushed.
+  '''CZ27604321''',                                              # fixture VAT — doklad demo
   '''(?i)i[čc]o\s*[:=]\s*12345678\b''',                          # fixture IČO with the ICO: prefix
   '''CZ65[ ]?9999[ ]?0000[ ]?0000[ ]?1234[ ]?5670''',            # fixture IBAN — succeeds
   '''CZ69[ ]?9998[ ]?0000[ ]?0000[ ]?9999[ ]?9990''',            # fixture IBAN — not found
   '''affk_(live|test)_(…|\.\.\.)''',                             # ellipsis in docs
   '''affk_test_e7f1\.\.\.''',
   '''whsec_(BASE64SECRET|TESTONLY)\.\.\.''',
+  # Czech statute citations (zák. č. 299/2020 Sb. — loss carryback; Act
+  # 609/2020 — tax package). The NNN/YYYY citation form collides with the
+  # czech-account-number rule because 2020 is also a CNB bank code. These
+  # exact statutes are cited across the accounting KB; a real bank account
+  # "299/2020" is implausible enough to allowlist the literal values.
+  '''\b(?:299|609)/2020\b''',
+  # Canonical Czech example IBAN (the well-known public example, used as a
+  # form placeholder across the org-tier "new entity" pages). Not a real
+  # account.
+  '''CZ65[ ]?0800[ ]?0000[ ]?1920[ ]?0014[ ]?5399''',
 ]
 
 stopwords = []

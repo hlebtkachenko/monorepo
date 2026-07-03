@@ -28,6 +28,7 @@ import {
   type WorkspaceInput,
 } from "@workspace/shared/auth"
 
+import { type ActionResult } from "../../lib/action-result"
 import { logServerError } from "../../lib/log-server-error"
 import { isEmailAlreadyRegistered } from "../auth/_lib/email-error"
 import { issueInvite, revokePendingInvites } from "../auth/_lib/issue-invite"
@@ -45,11 +46,6 @@ import {
   readOnboardingState,
   writeOnboardingState,
 } from "./_lib/state-cookie"
-
-export interface ActionResult {
-  ok: boolean
-  errorKey?: string
-}
 
 /**
  * Member password action returns the org slug so the client can

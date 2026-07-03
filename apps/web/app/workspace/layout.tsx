@@ -2,22 +2,43 @@ import type { ReactNode } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
+import { getBuildVersion } from "@workspace/ui/brand-assets"
+import { AppHeader } from "@workspace/ui/blocks/app-header"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@workspace/ui/components/card"
 
 import { AppContextMenuClient } from "../_components/app-context-menu-client"
+import { OrgHeaderActions } from "../_components/org-header-actions"
+import { WorkspaceShell } from "../_components/workspace-shell"
+import { AccountMenu } from "../auth/_components/account-menu"
+import {
+  getWorkspaceContext,
+  getWorkspaceHeaderUser,
+} from "./_lib/workspace-context"
 
 /**
- * Workspace tier layout.
+ * Workspace tier layout — the accountant-office shell.
  *
- * Real session validation against the Better Auth store: signed cookie,
- * not expired, user still exists. Edge proxy already does the optimistic
- * cookie-presence check; this is the durable Node-runtime gate.
+ * Real session validation against the Better Auth store (the edge proxy only
+ * does the optimistic cookie-presence check). Resolves the active workspace,
+ * builds the persistent `AppHeader` node server-side (it needs the session + an
+ * avatar presign), and mounts the persistent `WorkspaceShell` once so the
+ * rail/sidebar/chrome stay put while the page bodies under `/workspace/*` swap.
  *
- * Wraps every route under `/workspace/*` (chooser, settings, billing,
- * profile, onboarding when added). Mirrors `[orgSlug]/layout.tsx` in
- * mounting the in-app right-click context menu so the same Sidekick /
- * About / Report-bug / Copy-path actions are available on every
- * authenticated app surface — no org slug here since the workspace
- * scope is the accountant office, not a tenant book.
+ * There is no workspace switcher — a user operates one office (unlike the org
+ * tier's multi-book switcher). The rail carries a combined logomark+wordmark
+ * lockup instead (`WorkspaceShell`'s `logo` — white, on the green office
+ * chrome); the header's left slot is unused.
+ *
+ * A user with no active workspace membership can't be shown an office, so this
+ * short-circuits to a centered empty state (with a sign-out affordance) instead
+ * of the shell — the single home for the zero-workspace case across every
+ * `/workspace/*` route.
  */
 export default async function WorkspaceLayout({
   children,
@@ -28,11 +49,60 @@ export default async function WorkspaceLayout({
   if (!session) {
     redirect("/auth/login")
   }
+
+  const ctx = await getWorkspaceContext(session.user.id)
+
+  if (ctx.hasNoWorkspace || !ctx.current) {
+    return (
+      <AppContextMenuClient
+        user={{ id: session.user.id, email: session.user.email }}
+      >
+        <div className="mx-auto max-w-md space-y-4 px-4 py-12">
+          <header className="flex items-start justify-between gap-4">
+            <h1 className="text-xl font-semibold">No workspace yet</h1>
+            <AccountMenu email={session.user.email} />
+          </header>
+          <Card>
+            <CardHeader>
+              <CardTitle>You are not part of a workspace</CardTitle>
+              <CardDescription>
+                Your account is not linked to an accounting workspace yet. Ask
+                support to send you an invitation to get started.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Signed in as {session.user.email}.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppContextMenuClient>
+    )
+  }
+
+  const { userName, userImage } = await getWorkspaceHeaderUser(
+    session.user.id,
+    session.user.email,
+  )
+
+  const header = (
+    <AppHeader
+      actions={
+        <OrgHeaderActions
+          userName={userName}
+          userImage={userImage}
+          version={getBuildVersion()}
+        />
+      }
+    />
+  )
+
   return (
     <AppContextMenuClient
       user={{ id: session.user.id, email: session.user.email }}
     >
-      {children}
+      <WorkspaceShell header={header}>{children}</WorkspaceShell>
     </AppContextMenuClient>
   )
 }

@@ -1,205 +1,120 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import Link from "next/link"
-import { eq, and } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
 import {
-  workspace,
-  workspace_membership,
+  app_user,
   organization,
   organization_membership,
 } from "@workspace/db/schema"
-import { Button } from "@workspace/ui/components/button"
+
+import { CompaniesView } from "../_components/workspace/companies/companies-view"
+import { CompaniesProvider } from "../_components/workspace/companies/context"
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
+  enrichCompanyMock,
+  fiscalYearLabel,
+  type CompanyMember,
+  type CompanyRow,
+} from "../_components/workspace/companies/data"
+import { getWorkspaceContext } from "./_lib/workspace-context"
 
-import { AccountMenu } from "../auth/_components/account-menu"
+export const metadata = { title: "Companies" }
 
-export const metadata = {
-  title: "Your workspaces",
+// `?error=` values the org layout redirects here on a failed book entry
+// (`[orgSlug]/layout.tsx`). Surfaced as a toast on load — Companies is the
+// workspace index + post-login landing, so the signal isn't lost.
+const ERROR_MESSAGES: Record<string, string> = {
+  "invalid-slug": "That company address isn't valid.",
+  "no-access": "You don't have access to that company.",
+  internal: "Something went wrong. Please try again.",
 }
 
-interface WorkspaceRow {
-  id: string
-  display_name: string
-  onboarding_completed_at: Date | null
-  role: "owner" | "admin" | "member" | "guest"
-  organizations: { id: string; slug: string; legal_name: string }[]
-}
-
-export default async function WorkspaceChooserPage() {
+/**
+ * Companies — the accountant-office hub + workspace index (post-login landing).
+ * Lists the company books (organizations) of the active workspace as big cards
+ * or a table. Identity fields + the member stack are real; operational columns
+ * are mock (see `data.ts`). Reads use `withAdminBypass` + an explicit
+ * `workspace_id` predicate — `organization` RLS is keyed on `app.organization_id`
+ * (no workspace-scoped read policy), so `withWorkspace` would return zero rows.
+ */
+export default async function CompaniesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
   const session = await auth.api.getSession({ headers: await headers() })
-  if (!session) {
-    redirect("/auth/login")
-  }
+  if (!session) redirect("/auth/login")
 
-  const workspaces = await listWorkspacesForUser(session.user.id)
-  if (workspaces.length === 0) {
-    return (
-      <div className="mx-auto max-w-md space-y-4 px-4 py-12">
-        <Card>
-          <CardHeader>
-            <CardTitle>No workspaces yet</CardTitle>
-            <CardDescription>
-              Your account is not linked to a workspace. Ask support to send you
-              an invitation to get started.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Signed in as {session.user.email}.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  const ctx = await getWorkspaceContext(session.user.id)
+  if (!ctx.activeWorkspaceId) return null
 
-  return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-12">
-      <header className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1>Your workspaces</h1>
-          <p className="text-sm text-muted-foreground">
-            Pick a workspace to enter, or open one of its organizations.
-          </p>
-        </div>
-        <AccountMenu email={session.user.email} />
-      </header>
-      <nav className="flex flex-wrap gap-2 text-sm">
-        <Button asChild variant="outline" size="sm">
-          <Link href="/workspace/inbox">Inbox</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/workspace/profile">Profile</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/workspace/settings">Workspace settings</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/workspace/billing">Billing</Link>
-        </Button>
-      </nav>
-      <div className="grid gap-4">
-        {workspaces.map((ws) => (
-          <Card key={ws.id}>
-            <CardHeader>
-              <CardTitle>{ws.display_name}</CardTitle>
-              <CardDescription>{ws.role}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {ws.organizations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No organizations yet.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {ws.organizations.map((org) => (
-                    <li
-                      key={org.id}
-                      className="flex items-center justify-between"
-                    >
-                      <span>{org.legal_name}</span>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/${org.slug}`}>Open</Link>
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex gap-2">
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={`/workspace/settings?ws=${ws.id}`}>Settings</Link>
-                </Button>
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={`/workspace/billing?ws=${ws.id}`}>Billing</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-async function listWorkspacesForUser(userId: string): Promise<WorkspaceRow[]> {
-  return await withAdminBypass(async (db) => {
-    // Single round-trip: workspace memberships LEFT JOINed to the user's
-    // active org memberships in each workspace, grouped in JS. Replaces the
-    // previous one-org-query-per-workspace loop (W+1 round trips).
-    const rows = await db
+  const activeWorkspaceId = ctx.activeWorkspaceId
+  const companies = await withAdminBypass(async (db) => {
+    const orgs = await db
       .select({
-        workspaceId: workspace.id,
-        displayName: workspace.display_name,
-        onboardingAt: workspace.onboarding_completed_at,
-        role: workspace_membership.role,
-        orgId: organization.id,
-        orgSlug: organization.slug,
-        orgLegalName: organization.legal_name,
+        id: organization.id,
+        slug: organization.slug,
+        legalName: organization.legal_name,
+        personKind: organization.person_kind,
+        legalSubjectKind: organization.legal_subject_kind,
+        fiscalYearStartMonth: organization.fiscal_year_start_month,
       })
-      .from(workspace_membership)
-      .innerJoin(workspace, eq(workspace.id, workspace_membership.workspace_id))
-      .leftJoin(
-        organization_membership,
+      .from(organization)
+      .where(eq(organization.workspace_id, activeWorkspaceId))
+      .orderBy(organization.legal_name)
+
+    if (orgs.length === 0) return []
+
+    // Active members of every company in one round-trip, grouped by company.
+    const memberRows = await db
+      .select({
+        organizationId: organization_membership.organization_id,
+        userId: app_user.id,
+        name: app_user.name,
+        displayName: app_user.display_name,
+        image: app_user.image,
+      })
+      .from(organization_membership)
+      .innerJoin(app_user, eq(app_user.id, organization_membership.user_id))
+      .where(
         and(
-          eq(
-            organization_membership.workspace_id,
-            workspace_membership.workspace_id,
+          inArray(
+            organization_membership.organization_id,
+            orgs.map((o) => o.id),
           ),
-          eq(organization_membership.user_id, userId),
           eq(organization_membership.active, true),
         ),
       )
-      .leftJoin(
-        organization,
-        eq(organization.id, organization_membership.organization_id),
-      )
-      .where(
-        and(
-          eq(workspace_membership.user_id, userId),
-          eq(workspace_membership.active, true),
-        ),
-      )
 
-    const byWorkspace = new Map<string, WorkspaceRow>()
-    for (const row of rows) {
-      let ws = byWorkspace.get(row.workspaceId)
-      if (!ws) {
-        ws = {
-          id: row.workspaceId,
-          display_name: row.displayName,
-          onboarding_completed_at: row.onboardingAt,
-          role: row.role,
-          organizations: [],
-        }
-        byWorkspace.set(row.workspaceId, ws)
-      }
-      // LEFT JOIN miss leaves all org columns null: narrow on the join
-      // key (orgId), not column truthiness, so an org row with an
-      // empty-string legal_name still lists. The slug keeps an explicit
-      // empty check on purpose: an empty/whitespace-only slug (impossible
-      // under the DB CHECK, guarded here anyway) would render a broken
-      // /[orgSlug] link.
-      if (
-        row.orgId !== null &&
-        row.orgSlug !== null &&
-        row.orgSlug.trim() !== "" &&
-        row.orgLegalName !== null
-      ) {
-        ws.organizations.push({
-          id: row.orgId,
-          slug: row.orgSlug,
-          legal_name: row.orgLegalName,
-        })
-      }
+    const membersByCompany = new Map<string, CompanyMember[]>()
+    for (const m of memberRows) {
+      const list = membersByCompany.get(m.organizationId) ?? []
+      list.push({
+        userId: m.userId,
+        name: m.displayName || m.name || "Member",
+        image: m.image ?? undefined,
+      })
+      membersByCompany.set(m.organizationId, list)
     }
-    return [...byWorkspace.values()]
+
+    return orgs.map<CompanyRow>((o) => ({
+      id: o.id,
+      slug: o.slug,
+      legalName: o.legalName,
+      typeLabel: o.legalSubjectKind || o.personKind,
+      fiscalYear: fiscalYearLabel(o.fiscalYearStartMonth),
+      members: membersByCompany.get(o.id) ?? [],
+      ...enrichCompanyMock(o.id),
+    }))
   })
+
+  const { error } = await searchParams
+  const errorMessage = error ? ERROR_MESSAGES[error] : undefined
+
+  return (
+    <CompaniesProvider>
+      <CompaniesView companies={companies} errorMessage={errorMessage} />
+    </CompaniesProvider>
+  )
 }

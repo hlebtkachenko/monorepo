@@ -16,7 +16,7 @@ import {
   PageHeaderActions,
   useTabVisibility,
 } from "../_shared/content-header-extras"
-import { OrgPageHeader } from "../org-page-header"
+import { AppPageHeader } from "../app-page-header"
 import { BASE_SECTIONS } from "./data"
 
 const TAB_DEFS = [
@@ -92,7 +92,7 @@ export function LaunchpadDemo() {
 
   return (
     <>
-      <OrgPageHeader>
+      <AppPageHeader>
         <ContentHeader
           title="Overview"
           tabs={tabs}
@@ -107,7 +107,7 @@ export function LaunchpadDemo() {
           }
           actions={<PageHeaderActions />}
         />
-      </OrgPageHeader>
+      </AppPageHeader>
       <ContentPanel>
         <LaunchpadGrid
           sections={sections}

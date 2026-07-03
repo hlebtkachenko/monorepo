@@ -94,7 +94,7 @@ import {
 import { Textarea } from "@workspace/ui/components/textarea"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { OrgPageHeader } from "../org-page-header"
+import { AppPageHeader } from "../app-page-header"
 import { LineItemsGrid, type LineRow } from "./line-items"
 import {
   COMPANIES,
@@ -1019,7 +1019,7 @@ export function SingleDemo() {
 
   return (
     <>
-      <OrgPageHeader>
+      <AppPageHeader>
         <ContentHeader
           icon={
             <IconButton
@@ -1075,7 +1075,7 @@ export function SingleDemo() {
             </>
           }
         />
-      </OrgPageHeader>
+      </AppPageHeader>
       <ContentPanel
         bodyClassName="flex min-h-0 flex-col p-0"
         toolbar={toolbar}

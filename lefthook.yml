@@ -20,6 +20,17 @@ pre-commit:
       # likely belongs in packages/ui. Sub-second, staged apps/web files only.
       glob: "apps/web/**/*.{ts,tsx}"
       run: node scripts/governance/check-ui-location.mjs {staged_files}
+    no-tracked-ignored:
+      # .gitignore only affects untracked files — a force-add keeps ignored
+      # paths (_junk/, .env*, .context/) in the tree forever. Mirror of the
+      # CI `changes` job guard; sub-second.
+      run: |
+        tracked_ignored="$(git ls-files -i -c --exclude-standard)"
+        if [ -n "$tracked_ignored" ]; then
+          echo "gitignored paths are tracked (git rm --cached them):"
+          echo "$tracked_ignored"
+          exit 1
+        fi
     no-drizzle-kit-generate:
       glob: "*.{json,jsonc,yml,yaml,sh,ts,mjs,cjs}"
       run: |

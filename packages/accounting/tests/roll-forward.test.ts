@@ -2,9 +2,10 @@
  * rollForwardPeriod — end-to-end period close + open next, on a real PG18.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import { withOrganization } from "@workspace/db"
+import { executeRows, sql, withOrganization } from "@workspace/db"
 import {
   captureDocument,
+  closePeriod,
   createEvent,
   generalLedger,
   postDoubleEntry,
@@ -119,5 +120,30 @@ describe("rollForwardPeriod", () => {
     expect(result.newChartId).toBeNull()
     expect(result.openingPostingId).toBeNull()
     expect(result.closeResultPostingId).toBeNull()
+  })
+})
+
+describe("closePeriod advisory lock (close-vs-post serialization)", () => {
+  it("takes the per-(org, period) advisory lock before closing", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2041-01-01",
+      periodEnd: "2041-12-31",
+    })
+    const advisoryLocksHeld = (db: Parameters<typeof executeRows>[0]) =>
+      executeRows<{ n: number }>(
+        db,
+        sql`SELECT count(*)::int AS n FROM pg_locks
+              WHERE locktype = 'advisory' AND pid = pg_backend_pid()`,
+      ).then((r) => r[0]!.n)
+
+    await withOrganization(orgA, userId, async (db) => {
+      const before = await advisoryLocksHeld(db)
+      await closePeriod(db, s.periodId)
+      const after = await advisoryLocksHeld(db)
+      // closePeriod added the (org, period) advisory lock (xact-scoped, still
+      // held in this tx) — the SAME lock the write path takes, so a concurrent
+      // post to this period serializes against the close instead of racing it.
+      expect(after).toBeGreaterThan(before)
+    })
   })
 })

@@ -51,9 +51,10 @@ export type { OrganizationScopedTable } from "./policies/rls"
 export * from "./audit/index"
 
 // Marshrutizátor core (ADR-0028): per-(org, period) write serialization +
-// admission caps. Wiring into the accounting write endpoint / closePeriod is
-// deferred to #395; this is the reusable, tested core.
-export { withPeriodLock, hashInt } from "./period-lock"
+// admission caps. `lockPeriodInTx` is wired into the accounting write gate + the
+// approve-replay lanes; `withPeriodLock` (own-tx form) + `closePeriod` locking
+// stay reusable for a future period-close endpoint.
+export { withPeriodLock, lockPeriodInTx, hashInt } from "./period-lock"
 export {
   AdmissionController,
   AdmissionRejected,

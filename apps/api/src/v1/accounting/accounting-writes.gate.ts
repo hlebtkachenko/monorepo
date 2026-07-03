@@ -2,6 +2,10 @@ import { createHash } from "node:crypto"
 
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
 import {
+  type AdmissionController,
+  AdmissionRejected,
+  type AdmissionSlot,
+  lockPeriodInTx,
   updateToolCallLogOutput,
   withOrganization,
   writeToolCallLog,
@@ -10,9 +14,11 @@ import {
   ConflictError,
   ForbiddenError,
   IdempotencyConflictError,
+  RateLimitedError,
   ValidationError,
 } from "@workspace/shared/errors"
 
+import { accountingAdmission } from "./admission.singleton"
 import { translateAccountingError } from "./accounting-error"
 
 // A non-finite override (e.g. "100 000" / "100,000" → NaN) would silently
@@ -58,6 +64,12 @@ export interface GatedWriteOptions<T> {
   operationId: string
   /** Full request body — hashed for idempotency + persisted to the audit log. */
   body: unknown
+  /**
+   * The accounting period this write targets (top-level `periodId` for
+   * events/documents, `entry.periodId` for postings). The per-(org, period)
+   * advisory lock is keyed on it so concurrent writes to one period serialize.
+   */
+  periodId: string
   confidence: number
   rationale: string
   conversationId?: string
@@ -81,6 +93,7 @@ export interface GatedWriteOptions<T> {
  */
 export async function runGatedWrite<T>(
   opts: GatedWriteOptions<T>,
+  admission: AdmissionController = accountingAdmission,
 ): Promise<GatedWriteResult> {
   const { principal, idempotencyKey, operationId, body } = opts
 
@@ -96,90 +109,122 @@ export async function runGatedWrite<T>(
   }
   const userId = principal.userId
 
-  const payloadHash = canonicalHash(body)
-  const amountHold = opts.holdAmounts.some(
-    (a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT,
-  )
-  const actorKind = opts.conversationId ? "ai_on_behalf" : "human"
-
-  type TxOutcome =
-    | { kind: "replay"; prior: Record<string, unknown> }
-    | { kind: "applied"; body: Record<string, unknown> }
-    | { kind: "held"; body: Record<string, unknown> }
-
-  let outcome: TxOutcome
+  // EPIC-R marshrutizátor front door: admit the run (kill-switch + concurrency
+  // caps) BEFORE opening a transaction. All v1 accounting writes are agent
+  // traffic (the review UI uses Server Actions, not this API), so every write is
+  // gated; held-write RESOLVE is exempt. A rejection maps to 429 (already a
+  // documented response for these ops — no contract change).
+  let slot: AdmissionSlot
   try {
-    outcome = await withOrganization(
-      principal.organizationId,
-      userId,
-      async (db): Promise<TxOutcome> => {
-        const log = await writeToolCallLog(db, {
-          organizationId: principal.organizationId,
-          toolName: operationId,
-          idempotencyKey,
-          actorKind,
-          userId,
-          conversationId: opts.conversationId ?? null,
-          input: body,
-          confidence: opts.confidence,
-        })
+    slot = admission.acquire(principal.organizationId)
+  } catch (e) {
+    if (e instanceof AdmissionRejected) {
+      throw new RateLimitedError(
+        e.reason === "kill_switch_inactive"
+          ? "The accounting write runtime is disabled (BRAIN_RUNTIME_ACTIVE off)"
+          : "Too many concurrent accounting runs; retry shortly",
+      )
+    }
+    throw e
+  }
 
-        if (log.replayed) {
-          const prior = log.existingOutput as
-            | (Record<string, unknown> & { payloadHash?: string })
-            | null
-          if (!prior) {
-            throw new ConflictError(
-              "A previous request with this idempotency key is still in progress or failed; use a new key",
-            )
-          }
-          if (prior.payloadHash !== payloadHash) {
-            throw new IdempotencyConflictError(
-              "This idempotency key was used with a different request body",
-            )
-          }
-          return { kind: "replay", prior }
-        }
+  try {
+    const payloadHash = canonicalHash(body)
+    const amountHold = opts.holdAmounts.some(
+      (a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT,
+    )
+    const actorKind = opts.conversationId ? "ai_on_behalf" : "human"
 
-        if (opts.confidence >= AUTO_APPLY_THRESHOLD && !amountHold) {
-          const result = await opts.run(db, {
+    type TxOutcome =
+      | { kind: "replay"; prior: Record<string, unknown> }
+      | { kind: "applied"; body: Record<string, unknown> }
+      | { kind: "held"; body: Record<string, unknown> }
+
+    let outcome: TxOutcome
+    try {
+      outcome = await withOrganization(
+        principal.organizationId,
+        userId,
+        async (db): Promise<TxOutcome> => {
+          const log = await writeToolCallLog(db, {
             organizationId: principal.organizationId,
-            workspaceId: principal.workspaceId,
+            toolName: operationId,
+            idempotencyKey,
+            actorKind,
+            userId,
+            conversationId: opts.conversationId ?? null,
+            input: body,
+            confidence: opts.confidence,
           })
-          const appliedBody = { status: "applied", ...opts.applied(result) }
+
+          if (log.replayed) {
+            const prior = log.existingOutput as
+              | (Record<string, unknown> & { payloadHash?: string })
+              | null
+            if (!prior) {
+              throw new ConflictError(
+                "A previous request with this idempotency key is still in progress or failed; use a new key",
+              )
+            }
+            if (prior.payloadHash !== payloadHash) {
+              throw new IdempotencyConflictError(
+                "This idempotency key was used with a different request body",
+              )
+            }
+            return { kind: "replay", prior }
+          }
+
+          if (opts.confidence >= AUTO_APPLY_THRESHOLD && !amountHold) {
+            // Serialize concurrent writes to this (org, period) on the SAME
+            // bound tx that holds the RLS GUCs (ADR-0028) — protects the
+            // allocateNumber read-modify-write and orders same-period posts. The
+            // closePeriod-vs-post race is only fully closed once closePeriod
+            // takes this SAME lock (deferred: no live close caller yet). Held
+            // writes take no lock (they touch only the audit log, not the period).
+            await lockPeriodInTx(db, principal.organizationId, opts.periodId)
+            const result = await opts.run(db, {
+              organizationId: principal.organizationId,
+              workspaceId: principal.workspaceId,
+            })
+            const appliedBody = { status: "applied", ...opts.applied(result) }
+            await updateToolCallLogOutput(db, {
+              toolCallLogId: log.toolCallLogId,
+              output: { payloadHash, ...appliedBody },
+              autoApplied: true,
+              rationale: opts.rationale,
+            })
+            return { kind: "applied", body: appliedBody }
+          }
+
+          const heldBody = { status: "held", reviewId: log.toolCallLogId }
           await updateToolCallLogOutput(db, {
             toolCallLogId: log.toolCallLogId,
-            output: { payloadHash, ...appliedBody },
-            autoApplied: true,
+            // Persist the FULL held body (incl. reviewId) so a same-key replay
+            // returns the review handle, not a bare {status:"held"}.
+            output: { payloadHash, ...heldBody },
+            autoApplied: false,
             rationale: opts.rationale,
           })
-          return { kind: "applied", body: appliedBody }
-        }
+          return { kind: "held", body: heldBody }
+        },
+      )
+    } catch (e) {
+      translateAccountingError(e)
+    }
 
-        const heldBody = { status: "held", reviewId: log.toolCallLogId }
-        await updateToolCallLogOutput(db, {
-          toolCallLogId: log.toolCallLogId,
-          // Persist the FULL held body (incl. reviewId) so a same-key replay
-          // returns the review handle, not a bare {status:"held"}.
-          output: { payloadHash, ...heldBody },
-          autoApplied: false,
-          rationale: opts.rationale,
-        })
-        return { kind: "held", body: heldBody }
-      },
-    )
-  } catch (e) {
-    translateAccountingError(e)
+    if (outcome.kind === "replay") {
+      const { payloadHash: _omit, ...replayBody } = outcome.prior
+      // A held write replays as 202 (still awaiting review), applied as 200.
+      const httpStatus = replayBody["status"] === "held" ? 202 : 200
+      return { httpStatus, body: replayBody, replayed: true }
+    }
+    if (outcome.kind === "applied") {
+      return { httpStatus: 201, body: outcome.body, replayed: false }
+    }
+    return { httpStatus: 202, body: outcome.body, replayed: false }
+  } finally {
+    // Free the admission slot on EVERY exit path (applied / held / replay /
+    // throw) so a run never leaks a concurrency slot. Release is idempotent.
+    slot.release()
   }
-
-  if (outcome.kind === "replay") {
-    const { payloadHash: _omit, ...replayBody } = outcome.prior
-    // A held write replays as 202 (still awaiting review), applied as 200.
-    const httpStatus = replayBody["status"] === "held" ? 202 : 200
-    return { httpStatus, body: replayBody, replayed: true }
-  }
-  if (outcome.kind === "applied") {
-    return { httpStatus: 201, body: outcome.body, replayed: false }
-  }
-  return { httpStatus: 202, body: outcome.body, replayed: false }
 }

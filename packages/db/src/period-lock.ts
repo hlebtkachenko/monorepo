@@ -39,6 +39,7 @@
  * reusable, tested core only.
  */
 
+import { sql, type SQL } from "drizzle-orm"
 import type postgres from "postgres"
 
 /**
@@ -97,4 +98,35 @@ export async function withPeriodLock<T>(
     await tx`SELECT pg_advisory_xact_lock(${orgKey}::int4, ${periodKey}::int4)`
     return await fn(tx)
   })) as T
+}
+
+/** A drizzle raw-SQL executor — any `withOrganization`-bound tx handle satisfies this. */
+type SqlExecutor = { execute: (query: SQL) => Promise<unknown> }
+
+/**
+ * Take the per-(org, period) advisory lock on an EXISTING transaction, instead
+ * of opening a fresh one via {@link withPeriodLock}.
+ *
+ * The accounting write path already runs inside a `withOrganization` transaction
+ * that sets the RLS GUCs (`app.organization_id`, `app.user_id`) on one backend
+ * connection. The advisory lock MUST share that connection — a
+ * `pg_advisory_xact_lock` taken on a different connection serializes nothing for
+ * this write, and (behind the transaction-mode pgbouncer pool) a lock on a
+ * second connection would leak across the pool. So the caller passes its bound
+ * `tx` and we take the lock as the FIRST statement inside it, before any write
+ * to `(org, period)`.
+ *
+ * Same keying as `withPeriodLock` (two-int `pg_advisory_xact_lock(int4, int4)`
+ * on `hashInt(orgId)`, `hashInt(periodId)`), so a direct write, an approve-replay
+ * and a future `closePeriod` all contend on the SAME lock. Transaction-scoped:
+ * auto-released on COMMIT / ROLLBACK / crash. Reads take no lock.
+ */
+export async function lockPeriodInTx(
+  db: SqlExecutor,
+  orgId: string,
+  periodId: string,
+): Promise<void> {
+  await db.execute(
+    sql`SELECT pg_advisory_xact_lock(${hashInt(orgId)}::int4, ${hashInt(periodId)}::int4)`,
+  )
 }

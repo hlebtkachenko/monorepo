@@ -16,8 +16,9 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
-import { hashInt, withPeriodLock } from "../src/period-lock.js"
+import { hashInt, lockPeriodInTx, withPeriodLock } from "../src/period-lock.js"
 
 // Its own pool with room for several real backend connections so concurrent
 // withPeriodLock calls hold DISTINCT connections (otherwise they'd serialize at
@@ -127,5 +128,47 @@ describe("withPeriodLock", () => {
   it("propagates the callback's return value", async () => {
     const value = await withPeriodLock(sql, ORG, PERIOD_B, async () => 42)
     expect(value).toBe(42)
+  })
+})
+
+// The gate wires the lock INLINE on the withOrganization-bound tx (not via
+// withPeriodLock's own tx) so the advisory lock and the RLS GUCs share one
+// backend connection. This proves lockPeriodInTx serializes the same key on a
+// caller-supplied drizzle transaction, exactly as the write path uses it.
+describe("lockPeriodInTx (inline on a bound tx)", () => {
+  it("serializes concurrent holders of the SAME (org, period) key", async () => {
+    const d = drizzle(sql)
+    let inFlight = 0
+    let maxInFlight = 0
+
+    const worker = () =>
+      d.transaction(async (tx) => {
+        await lockPeriodInTx(tx, ORG, PERIOD_A)
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await sleep(150)
+        inFlight -= 1
+      })
+
+    await Promise.all([worker(), worker()])
+    expect(maxInFlight).toBe(1)
+  })
+
+  it("runs DIFFERENT keys in parallel", async () => {
+    const d = drizzle(sql)
+    let inFlight = 0
+    let maxInFlight = 0
+
+    const worker = (period: string) =>
+      d.transaction(async (tx) => {
+        await lockPeriodInTx(tx, ORG, period)
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await sleep(150)
+        inFlight -= 1
+      })
+
+    await Promise.all([worker(PERIOD_A), worker(PERIOD_B)])
+    expect(maxInFlight).toBe(2)
   })
 })

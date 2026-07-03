@@ -424,6 +424,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/held-writes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List held writes
+         * @description Returns the organization's review queue — gated writes that were HELD (below the confidence threshold or above the always-hold amount) and await a human decision, oldest first. Organization-scoped (FORCE RLS).
+         */
+        get: operations["listAccountingHeldWrites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/held-writes/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve a held write
+         * @description Approve or reject a held write. Approve executes the stored payload through the same domain path the original endpoint would have used, with the approver as the responsible user; reject closes the review with no domain write. The row id is the idempotency anchor — no Idempotency-Key header; a second resolve returns 409.
+         */
+        post: operations["resolveAccountingHeldWrite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2985,6 +3025,130 @@ export interface components {
             postingId?: string | null;
             lineIds?: string[] | null;
         };
+        /** @description Review queue of gated accounting writes awaiting a human. */
+        ListHeldWritesResponse: {
+            /** @description The organization's held writes, oldest first. */
+            heldWrites: {
+                /**
+                 * Format: uuid
+                 * @description Held-write id (the tool_call_log row / the reviewId a held write returned). Pass it to POST /v1/accounting/held-writes/{id}/resolve.
+                 * @example 0196f1de-0000-7000-8000-000000000001
+                 */
+                id: string;
+                /**
+                 * @description Operation the write targeted (createAccountingEvent, captureAccountingDocument, createAccountingPosting).
+                 * @example captureAccountingDocument
+                 */
+                toolName: string;
+                /**
+                 * @description The Idempotency-Key the original write carried.
+                 * @example doc-2025-03-14-001
+                 */
+                idempotencyKey: string;
+                /**
+                 * @description Who initiated the original write.
+                 * @example ai_on_behalf
+                 * @enum {string}
+                 */
+                actorKind: "human" | "ai" | "ai_on_behalf" | "system";
+                /**
+                 * @description Agent's claimed confidence as a decimal string.
+                 * @example 0.75
+                 */
+                confidence: string | null;
+                /**
+                 * @description Why the agent wanted this write (audit trail).
+                 * @example Vendor unclear; amount above the always-hold ceiling.
+                 */
+                rationale: string | null;
+                /**
+                 * @description When the write was held (ISO 8601).
+                 * @example 2025-03-14T10:15:00.000Z
+                 */
+                createdAt: string;
+                /** @description The stored (redacted) request payload the write would apply. */
+                input: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
+        /** @description A gated write held for human review. */
+        HeldWriteRow: {
+            /**
+             * Format: uuid
+             * @description Held-write id (the tool_call_log row / the reviewId a held write returned). Pass it to POST /v1/accounting/held-writes/{id}/resolve.
+             * @example 0196f1de-0000-7000-8000-000000000001
+             */
+            id: string;
+            /**
+             * @description Operation the write targeted (createAccountingEvent, captureAccountingDocument, createAccountingPosting).
+             * @example captureAccountingDocument
+             */
+            toolName: string;
+            /**
+             * @description The Idempotency-Key the original write carried.
+             * @example doc-2025-03-14-001
+             */
+            idempotencyKey: string;
+            /**
+             * @description Who initiated the original write.
+             * @example ai_on_behalf
+             * @enum {string}
+             */
+            actorKind: "human" | "ai" | "ai_on_behalf" | "system";
+            /**
+             * @description Agent's claimed confidence as a decimal string.
+             * @example 0.75
+             */
+            confidence: string | null;
+            /**
+             * @description Why the agent wanted this write (audit trail).
+             * @example Vendor unclear; amount above the always-hold ceiling.
+             */
+            rationale: string | null;
+            /**
+             * @description When the write was held (ISO 8601).
+             * @example 2025-03-14T10:15:00.000Z
+             */
+            createdAt: string;
+            /** @description The stored (redacted) request payload the write would apply. */
+            input: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description Resolve a held write. The row id is the idempotency anchor — no Idempotency-Key header is needed; a second resolve returns 409. */
+        ResolveHeldWriteRequest: {
+            /**
+             * @description approve = execute the stored payload through the original domain path; reject = close the review without any domain write.
+             * @example approve
+             * @enum {string}
+             */
+            action: "approve" | "reject";
+            /**
+             * @description Reviewer note, persisted to the audit trail.
+             * @example Checked the invoice PDF — amounts match.
+             */
+            note?: string;
+        };
+        /** @description Held-write resolution result. */
+        ResolveHeldWriteResponse: {
+            /**
+             * Format: uuid
+             * @description The resolved held-write id.
+             * @example 0196f1de-0000-7000-8000-000000000001
+             */
+            id: string;
+            /**
+             * @description How the review was resolved.
+             * @example approved
+             * @enum {string}
+             */
+            resolution: "approved" | "rejected";
+            /** @description Domain result when approved — same shape as the original endpoint's applied body (eventId / summaryRecordId / postingId…). */
+            result?: {
+                [key: string]: unknown;
+            };
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -3745,6 +3909,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateAccountingPostingResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAccountingHeldWrites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organization's held writes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListHeldWritesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    resolveAccountingHeldWrite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Held-write id (the reviewId returned by the held write). Resolved within the API key's own organization (FORCE RLS). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveHeldWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description The held write was resolved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolveHeldWriteResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

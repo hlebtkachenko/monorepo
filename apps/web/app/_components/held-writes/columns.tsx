@@ -1,11 +1,15 @@
 "use client"
 
+import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 
 import { DetailField } from "@workspace/ui/blocks/app-content"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
+import { Textarea } from "@workspace/ui/components/textarea"
 import { useIcons } from "@workspace/ui/icon-packs"
+
+import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
 
 /**
  * Held gated write as prepared by the approvals page from `fetchHeldWrites`
@@ -202,8 +206,80 @@ export function buildHeldWriteColumns({
   ]
 }
 
-/** Inspector detail for a single held write — read-only until the API ships. */
-export function HeldWriteDetail({ row }: { row: HeldWriteListRow }) {
+/** Approve / reject controls — call the `resolveHeldWrite` server action. */
+function HeldWriteResolveActions({
+  orgSlug,
+  id,
+  onResolved,
+}: {
+  orgSlug: string
+  id: string
+  onResolved: () => void
+}) {
+  const [note, setNote] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
+  const [isPending, startTransition] = React.useTransition()
+
+  const resolve = (action: "approve" | "reject") => {
+    setError(null)
+    startTransition(async () => {
+      const result = await resolveHeldWrite({
+        orgSlug,
+        id,
+        action,
+        note: note.trim() || undefined,
+      })
+      if (result.ok) {
+        onResolved()
+      } else {
+        setError(result.error ?? "Operace se nezdařila.")
+      }
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t pt-4">
+      <Textarea
+        placeholder="Poznámka (nepovinná)"
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+        rows={2}
+        className="min-h-0 text-xs"
+        disabled={isPending}
+        aria-label="Poznámka"
+      />
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          disabled={isPending}
+          onClick={() => resolve("approve")}
+        >
+          {isPending ? "Zpracovává se…" : "Schválit a zaúčtovat"}
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={isPending}
+          onClick={() => resolve("reject")}
+        >
+          Zamítnout
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/** Inspector detail for a single held write, with approve/reject resolution. */
+export function HeldWriteDetail({
+  row,
+  orgSlug,
+  onResolved,
+}: {
+  row: HeldWriteListRow
+  orgSlug: string
+  onResolved: () => void
+}) {
   return (
     <div className="flex flex-col gap-4">
       <dl className="flex flex-col gap-3">
@@ -243,9 +319,11 @@ export function HeldWriteDetail({ row }: { row: HeldWriteListRow }) {
           {row.payload_json}
         </pre>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Schválení/zamítnutí přijde s API #459.
-      </p>
+      <HeldWriteResolveActions
+        orgSlug={orgSlug}
+        id={row.id}
+        onResolved={onResolved}
+      />
     </div>
   )
 }

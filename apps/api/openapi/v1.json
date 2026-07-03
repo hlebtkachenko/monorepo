@@ -4597,6 +4597,211 @@
           "status"
         ],
         "description": "Create-posting result (applied or held)."
+      },
+      "ListHeldWritesResponse": {
+        "type": "object",
+        "properties": {
+          "heldWrites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Held-write id (the tool_call_log row / the reviewId a held write returned). Pass it to POST /v1/accounting/held-writes/{id}/resolve.",
+                  "example": "0196f1de-0000-7000-8000-000000000001"
+                },
+                "toolName": {
+                  "type": "string",
+                  "description": "Operation the write targeted (createAccountingEvent, captureAccountingDocument, createAccountingPosting).",
+                  "example": "captureAccountingDocument"
+                },
+                "idempotencyKey": {
+                  "type": "string",
+                  "description": "The Idempotency-Key the original write carried.",
+                  "example": "doc-2025-03-14-001"
+                },
+                "actorKind": {
+                  "type": "string",
+                  "enum": [
+                    "human",
+                    "ai",
+                    "ai_on_behalf",
+                    "system"
+                  ],
+                  "description": "Who initiated the original write.",
+                  "example": "ai_on_behalf"
+                },
+                "confidence": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Agent's claimed confidence as a decimal string.",
+                  "example": "0.75"
+                },
+                "rationale": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Why the agent wanted this write (audit trail).",
+                  "example": "Vendor unclear; amount above the always-hold ceiling."
+                },
+                "createdAt": {
+                  "type": "string",
+                  "description": "When the write was held (ISO 8601).",
+                  "example": "2025-03-14T10:15:00.000Z"
+                },
+                "input": {
+                  "type": "object",
+                  "additionalProperties": {},
+                  "description": "The stored (redacted) request payload the write would apply."
+                }
+              },
+              "required": [
+                "id",
+                "toolName",
+                "idempotencyKey",
+                "actorKind",
+                "confidence",
+                "rationale",
+                "createdAt",
+                "input"
+              ],
+              "description": "A gated write held for human review."
+            },
+            "description": "The organization's held writes, oldest first."
+          }
+        },
+        "required": [
+          "heldWrites"
+        ],
+        "description": "Review queue of gated accounting writes awaiting a human."
+      },
+      "HeldWriteRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Held-write id (the tool_call_log row / the reviewId a held write returned). Pass it to POST /v1/accounting/held-writes/{id}/resolve.",
+            "example": "0196f1de-0000-7000-8000-000000000001"
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Operation the write targeted (createAccountingEvent, captureAccountingDocument, createAccountingPosting).",
+            "example": "captureAccountingDocument"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "The Idempotency-Key the original write carried.",
+            "example": "doc-2025-03-14-001"
+          },
+          "actorKind": {
+            "type": "string",
+            "enum": [
+              "human",
+              "ai",
+              "ai_on_behalf",
+              "system"
+            ],
+            "description": "Who initiated the original write.",
+            "example": "ai_on_behalf"
+          },
+          "confidence": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent's claimed confidence as a decimal string.",
+            "example": "0.75"
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the agent wanted this write (audit trail).",
+            "example": "Vendor unclear; amount above the always-hold ceiling."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When the write was held (ISO 8601).",
+            "example": "2025-03-14T10:15:00.000Z"
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "The stored (redacted) request payload the write would apply."
+          }
+        },
+        "required": [
+          "id",
+          "toolName",
+          "idempotencyKey",
+          "actorKind",
+          "confidence",
+          "rationale",
+          "createdAt",
+          "input"
+        ],
+        "description": "A gated write held for human review."
+      },
+      "ResolveHeldWriteRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "description": "approve = execute the stored payload through the original domain path; reject = close the review without any domain write.",
+            "example": "approve"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Reviewer note, persisted to the audit trail.",
+            "example": "Checked the invoice PDF — amounts match."
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "description": "Resolve a held write. The row id is the idempotency anchor — no Idempotency-Key header is needed; a second resolve returns 409."
+      },
+      "ResolveHeldWriteResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The resolved held-write id.",
+            "example": "0196f1de-0000-7000-8000-000000000001"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "description": "How the review was resolved.",
+            "example": "approved"
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Domain result when approved — same shape as the original endpoint's applied body (eventId / summaryRecordId / postingId…)."
+          }
+        },
+        "required": [
+          "id",
+          "resolution"
+        ],
+        "description": "Held-write resolution result."
       }
     },
     "parameters": {}
@@ -5807,6 +6012,120 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateAccountingPostingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/held-writes": {
+      "get": {
+        "operationId": "listAccountingHeldWrites",
+        "summary": "List held writes",
+        "description": "Returns the organization's review queue — gated writes that were HELD (below the confidence threshold or above the always-hold amount) and await a human decision, oldest first. Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organization's held writes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListHeldWritesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/held-writes/{id}/resolve": {
+      "post": {
+        "operationId": "resolveAccountingHeldWrite",
+        "summary": "Resolve a held write",
+        "description": "Approve or reject a held write. Approve executes the stored payload through the same domain path the original endpoint would have used, with the approver as the responsible user; reject closes the review with no domain write. The row id is the idempotency anchor — no Idempotency-Key header; a second resolve returns 409.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Held-write id (the reviewId returned by the held write). Resolved within the API key's own organization (FORCE RLS).",
+              "example": "0196f1de-0000-7000-8000-000000000001"
+            },
+            "required": true,
+            "description": "Held-write id (the reviewId returned by the held write). Resolved within the API key's own organization (FORCE RLS).",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveHeldWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The held write was resolved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveHeldWriteResponse"
                 }
               }
             }

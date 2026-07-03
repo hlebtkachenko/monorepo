@@ -51,7 +51,7 @@ export type { OrganizationScopedTable } from "./policies/rls"
 export * from "./audit/index"
 
 // Drizzle helpers for consumers
-export { sql, eq, and, or, inArray, ne } from "drizzle-orm"
+export { sql, eq, and, or, inArray, ne, isNull } from "drizzle-orm"
 
 // Db type for consumers that need the raw client type
 export type { Db } from "./client"

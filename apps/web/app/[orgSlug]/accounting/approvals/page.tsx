@@ -34,8 +34,8 @@ function summarize(row: HeldWriteRow): string {
 /**
  * Held-writes review queue ("Ke schválení") — gated accounting writes the
  * confidence gate held (202) awaiting human review. Fills the accounting
- * module's Posting-approvals nav slot. Read-only until the resolve/reject
- * API ships (#459); the inspector exposes the full original payload.
+ * module's Posting-approvals nav slot. The inspector exposes the full
+ * original payload and resolves the write via the `resolveHeldWrite` action.
  */
 export default async function ApprovalsPage({
   params,
@@ -63,7 +63,7 @@ export default async function ApprovalsPage({
       <AppPageHeader>
         <HeldWritesHeader />
       </AppPageHeader>
-      <HeldWritesBody rows={rows} />
+      <HeldWritesBody rows={rows} orgSlug={orgSlug} />
     </>
   )
 }

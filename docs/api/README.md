@@ -25,6 +25,16 @@ Key format: `affk_live_<43-char base64url>` (256-bit random). Only the SHA-256 h
 
 Issuing keys: no UI yet. Seed manually in the `api_key` table. Future: admin dashboard key management (AFF-73).
 
+#### Scopes
+
+`api_key.scopes` (`text[]`) carries coarse capability scopes. Routes declare requirements via `@RequireScopes(...)` (`apps/api/src/auth/require-scopes.decorator.ts`); `ApiKeyGuard` enforces them after the key resolves — the key must hold EVERY required scope, else `403` with the missing scope(s) named in the error message. Undecorated routes ignore scopes entirely.
+
+| Scope              | Grants                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `accounting:write` | `POST /v1/accounting/{events,documents,postings}` — the accounting mutation surface. |
+
+**Legacy-empty rule (deliberate back-compat):** a key with an EMPTY `scopes` array is treated as a legacy full-access key and passes every scope check, with a server-side warning logged. Enforcement flips to strict (empty = deny) once all issued keys carry explicit scopes.
+
 ### Session auth (BFF surface)
 
 Same Better Auth session cookies as the web app. No API-key needed for `/api/*` routes hit by the web frontend.
@@ -116,7 +126,7 @@ The Scalar reference is one surface. The public-launch story is broader — narr
 | [`DEV-PORTAL.md`](./DEV-PORTAL.md)       | Page map + sidebar IA for `api.afframe.com/docs`                          | Concept                   |
 | [`ERRORS.md`](./ERRORS.md)               | Error envelope + code registry                                            | Live + concept extension  |
 | [`RATE-LIMITS.md`](./RATE-LIMITS.md)     | Throttle contract, `RateLimit-*` headers, 429                             | Live + concept upgrades   |
-| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes                      | Concept                   |
+| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes                      | Live (accounting) + concept |
 | [`VERSIONING.md`](./VERSIONING.md)       | URL-path versioning, RFC 8594 Sunset, deprecation policy                  | Live + concept signalling |
 | [`SANDBOX.md`](./SANDBOX.md)             | `affk_test_…` keys, seeded fixtures, force-trigger endpoints              | Concept                   |
 | [`WEBHOOKS.md`](./WEBHOOKS.md)           | Standard Webhooks contract, Svix Cloud backend                            | Concept                   |

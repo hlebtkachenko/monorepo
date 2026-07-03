@@ -29,12 +29,16 @@ import type {
   periodOutputType,
   assetCategory,
   depreciationMethod,
+  vatFilingPeriod,
 } from "@workspace/db/schema"
 
 // --- enum unions -----------------------------------------------------------
 
 /** The three bookkeeping regimes (regime.code reference table, §13/§13b/§7b). */
 export type Regime = "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS"
+/** vat_regime.code reference table (§6/§6f/§97 ZDPH). */
+export type VatRegime = "NON_PAYER" | "PAYER" | "IDENTIFIED_PERSON"
+export type VatFilingPeriod = (typeof vatFilingPeriod.enumValues)[number]
 export type PeriodStatus = (typeof periodStatus.enumValues)[number]
 export type SummaryRecordType = (typeof summaryRecordType.enumValues)[number]
 export type VatMode = (typeof vatMode.enumValues)[number]

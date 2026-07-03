@@ -333,3 +333,116 @@ export async function openNextPeriod(
     openingPostingId: posting.postingId,
   }
 }
+
+// ---------------------------------------------------------------------------
+// rollForwardPeriod — end-to-end period close + open next
+// ---------------------------------------------------------------------------
+
+export interface RollForwardInput {
+  priorPeriodId: string
+  periodStart: string
+  periodEnd: string
+  /** number_series (EVENT) for the internal closing/opening case. */
+  eventSeriesId: string
+  /** number_series (DOCUMENT) for the internal closing/opening doklad. */
+  documentSeriesId: string
+  responsibleUserId: string
+  /** Závěrka date; defaults to the prior period_end. */
+  closingDate?: string
+}
+
+export interface RollForwardResult {
+  newPeriodId: string
+  newChartId: string | null
+  openingPostingId: string | null
+  closeResultPostingId: string | null
+}
+
+/**
+ * Roll a period forward: (double-entry) post the year-end result close
+ * (5xx/6xx → 710 → 431) via an internal uzávěrkový doklad, close the period,
+ * then open the next one with the chart copied forward + 701 opening balances.
+ *
+ * Monetary regimes (single-entry / daňová evidence) have no double-entry result
+ * close and no chart to copy — they just close and open a bare next period; the
+ * peněžní deník continues via the read model.
+ */
+export async function rollForwardPeriod(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: RollForwardInput,
+): Promise<RollForwardResult> {
+  const prior = await rows<{
+    regime_code: Regime
+    accounting_currency: string
+    fx_rate_policy: FxRateKind | null
+    period_end: string
+  }>(
+    db,
+    sql`SELECT regime_code, accounting_currency, fx_rate_policy, period_end::text AS period_end
+          FROM accounting_period WHERE id = ${input.priorPeriodId}::uuid`,
+  )
+  const p = prior[0]
+  if (!p)
+    throw new Error(`accounting: prior period ${input.priorPeriodId} not found`)
+
+  const closingDate = input.closingDate ?? p.period_end
+
+  if (p.regime_code !== "DOUBLE_ENTRY") {
+    await closePeriod(db, input.priorPeriodId)
+    const newPeriodId = await createPeriod(db, ctx, {
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      regimeCode: p.regime_code,
+      accountingCurrency: p.accounting_currency,
+      fxRatePolicy: p.fx_rate_policy,
+    })
+    return {
+      newPeriodId,
+      newChartId: null,
+      openingPostingId: null,
+      closeResultPostingId: null,
+    }
+  }
+
+  // Double-entry year-end result close (§17, ČÚS 002): 5xx/6xx → 710 → 431.
+  const ev = await createEvent(db, ctx, {
+    periodId: input.priorPeriodId,
+    seriesId: input.eventSeriesId,
+    description: "Uzávěrkové operace",
+    occurredAt: closingDate,
+    responsibleUserId: input.responsibleUserId,
+  })
+  const doc = await captureDocument(db, ctx, {
+    periodId: input.priorPeriodId,
+    seriesId: input.documentSeriesId,
+    type: "INTERNAL",
+    issuedAt: closingDate,
+    lines: [],
+  })
+  const closed = await closeResult(db, ctx, {
+    periodId: input.priorPeriodId,
+    summaryRecordId: doc.summaryRecordId,
+    accountingEventId: ev.eventId,
+    postingDate: closingDate,
+    responsibleUserId: input.responsibleUserId,
+  })
+
+  await closePeriod(db, input.priorPeriodId)
+
+  const opened = await openNextPeriod(db, ctx, {
+    priorPeriodId: input.priorPeriodId,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    eventSeriesId: input.eventSeriesId,
+    documentSeriesId: input.documentSeriesId,
+    responsibleUserId: input.responsibleUserId,
+  })
+
+  return {
+    newPeriodId: opened.newPeriodId,
+    newChartId: opened.newChartId,
+    openingPostingId: opened.openingPostingId,
+    closeResultPostingId: closed.postingId,
+  }
+}

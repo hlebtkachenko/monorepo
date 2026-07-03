@@ -21,8 +21,11 @@ export { resolveAccountId, resolveAccountIds } from "./accounts"
 // Master-data / setup
 export {
   createPeriod,
+  createVatStatus,
   createNumberSeries,
   createChart,
+  seedChartFromDirectives,
+  DEFAULT_OPEN_ITEM_ACCOUNTS,
   createAccount,
   createCounterparty,
   createCategory,
@@ -99,9 +102,12 @@ export {
   closeResult,
   copyChartForward,
   openNextPeriod,
+  rollForwardPeriod,
   type CloseResultInput,
   type OpenNextPeriodInput,
   type OpenNextPeriodResult,
+  type RollForwardInput,
+  type RollForwardResult,
 } from "./period"
 
 // Corrections (R8)

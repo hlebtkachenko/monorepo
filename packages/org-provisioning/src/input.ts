@@ -134,12 +134,14 @@ export type ScaffoldInputRaw = z.input<typeof ScaffoldInput>
 export function slugify(input: string): string {
   const slug = input
     .toLowerCase()
+    // Collapses every run of non-alphanumerics to a SINGLE "-", so there is
+    // never more than one leading/trailing dash to trim.
     .replace(/[^a-z0-9]+/g, "-")
-    // Two anchored trims (not `/^-+|-+$/g`): the alternation form is a
-    // polynomial-ReDoS shape (CodeQL js/polynomial-redos); each anchored
-    // quantifier here backtracks linearly.
-    .replace(/^-+/, "")
-    .replace(/-+$/, "")
+    // Quantifier-free trims (not `/^-+|-+$/g` / `/-+$/`): no `+`, so there is
+    // no backtracking shape for CodeQL js/polynomial-redos to flag. Safe
+    // because the collapse above guarantees at most one boundary dash.
+    .replace(/^-/, "")
+    .replace(/-$/, "")
     .slice(0, 48)
   return slug.length < 2 ? "org" : slug
 }

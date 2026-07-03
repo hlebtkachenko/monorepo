@@ -10,8 +10,6 @@ import { app_user } from "@workspace/db/schema"
 import { type ActionResult } from "../../../lib/action-result"
 import { logServerError } from "../../../lib/log-server-error"
 
-export type { ActionResult }
-
 const DisplayNameSchema = z.object({
   displayName: z
     .string()

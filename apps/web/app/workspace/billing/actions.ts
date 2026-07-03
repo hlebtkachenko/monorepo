@@ -10,8 +10,6 @@ import { type ActionResult } from "../../../lib/action-result"
 import { logServerError } from "../../../lib/log-server-error"
 import { getWorkspaceContext } from "../_lib/workspace-context"
 
-export type { ActionResult }
-
 const BillingEntitySchema = z.object({
   legalName: z
     .string()

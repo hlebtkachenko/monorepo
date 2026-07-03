@@ -47,8 +47,6 @@ import {
   writeOnboardingState,
 } from "./_lib/state-cookie"
 
-export type { ActionResult }
-
 /**
  * Member password action returns the org slug so the client can
  * redirect to the freshly-joined organization.

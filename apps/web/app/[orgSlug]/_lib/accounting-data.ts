@@ -141,6 +141,38 @@ export async function fetchChartAccounts(
   )
 }
 
+export interface HeldWriteRow {
+  id: string
+  tool_name: string
+  idempotency_key: string
+  actor_kind: string
+  confidence: string
+  rationale: string | null
+  created_at: string
+  /** Original gated payload — shown to the reviewer verbatim. */
+  input_json: unknown
+}
+
+/**
+ * Gated writes the confidence gate HELD (202) — the human review queue.
+ * A held row has auto_applied = false and no approver yet.
+ */
+export async function fetchHeldWrites(
+  ctx: OrgAccountingContext,
+): Promise<HeldWriteRow[]> {
+  return withOrganization(ctx.organizationId, ctx.userId, (db) =>
+    executeRows<HeldWriteRow>(
+      db,
+      sql`select id, tool_name, idempotency_key, actor_kind::text as actor_kind,
+                 confidence::text as confidence, rationale,
+                 created_at::text as created_at, input_json
+          from tool_call_log
+          where auto_applied = false and approved_by_user_id is null
+          order by created_at desc`,
+    ),
+  )
+}
+
 export interface DocumentListRow {
   id: string
   designation: string

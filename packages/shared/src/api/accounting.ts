@@ -51,6 +51,14 @@ export const JournalRowSchema = z
       description: "Originating accounting event.",
       example: "1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
     }),
+    eventDescription: z.string().nullable().openapi({
+      description: "Description of the originating accounting event (case).",
+      example: "Účtenka MOL — nafta služební vůz",
+    }),
+    counterpartyName: z.string().nullable().openapi({
+      description: "Counterparty (their side) of the originating event.",
+      example: "MOL Česká republika, s.r.o.",
+    }),
     lineId: z.string().uuid().openapi({
       description: "Double-entry line id.",
       example: "aa11bb22-cc33-4d44-9e55-ff6677889900",
@@ -62,6 +70,10 @@ export const JournalRowSchema = z
     accountNumber: z.string().openapi({
       description: "Syntetický/analytický account number (účtový rozvrh).",
       example: "311000",
+    }),
+    accountName: z.string().openapi({
+      description: "Account name from the účtový rozvrh.",
+      example: "Odběratelé",
     }),
     side: z.enum(["DEBIT", "CREDIT"]).openapi({
       description: "Side of the double entry — MD (DEBIT) or Dal (CREDIT).",
@@ -363,13 +375,10 @@ export type DphResponse = z.infer<typeof DphResponseSchema>
 export const DppoResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
-    periodId: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Period covered.",
-        example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
-      }),
+    periodId: z.string().uuid().openapi({
+      description: "Period covered.",
+      example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
+    }),
     ucetniVysledek: dec("Účetní výsledek hospodaření."),
     nedanoveNaklady: dec("Daňově neuznatelné náklady (§25)."),
     osvobozeneVynosy: dec("Osvobozené/nezdaňované výnosy."),
@@ -391,27 +400,19 @@ export type DppoResponse = z.infer<typeof DppoResponseSchema>
 // --- Souhrnné hlášení (EC sales list) ----------------------------------------
 export const EcSalesRowSchema = z
   .object({
-    countryCode: z
-      .string()
-      .nullable()
-      .openapi({
-        description: "Acquirer member state (ISO 3166-1 alpha-2).",
-        example: "DE",
-      }),
-    taxId: z
-      .string()
-      .nullable()
-      .openapi({
-        description: "Acquirer VAT id (DIČ) incl. country prefix.",
-        example: "DE123456789",
-      }),
-    kodPlneni: z
-      .string()
-      .openapi({
-        description:
-          "Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).",
-        example: "0",
-      }),
+    countryCode: z.string().nullable().openapi({
+      description: "Acquirer member state (ISO 3166-1 alpha-2).",
+      example: "DE",
+    }),
+    taxId: z.string().nullable().openapi({
+      description: "Acquirer VAT id (DIČ) incl. country prefix.",
+      example: "DE123456789",
+    }),
+    kodPlneni: z.string().openapi({
+      description:
+        "Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).",
+      example: "0",
+    }),
     count: z
       .number()
       .int()
@@ -427,13 +428,10 @@ export type EcSalesRow = z.infer<typeof EcSalesRowSchema>
 export const EcSalesListResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
-    periodId: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Period covered.",
-        example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
-      }),
+    periodId: z.string().uuid().openapi({
+      description: "Period covered.",
+      example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
+    }),
     rows: z
       .array(EcSalesRowSchema)
       .openapi({ description: "EU supply recap rows (§102)." }),
@@ -446,25 +444,18 @@ export type EcSalesListResponse = z.infer<typeof EcSalesListResponseSchema>
 // --- Kontrolní hlášení (per-counterparty control statement) ------------------
 export const KhRowSchema = z
   .object({
-    taxId: z
-      .string()
-      .nullable()
-      .openapi({
-        description: "DIČ of the other party.",
-        example: "CZ12345678",
-      }),
-    doklad: z
-      .string()
-      .openapi({
-        description: "Evidenční číslo daňového dokladu.",
-        example: "FV2025/0042",
-      }),
-    dppd: z
-      .string()
-      .openapi({
-        description: "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
-        example: "2025-03-14",
-      }),
+    taxId: z.string().nullable().openapi({
+      description: "DIČ of the other party.",
+      example: "CZ12345678",
+    }),
+    doklad: z.string().openapi({
+      description: "Evidenční číslo daňového dokladu.",
+      example: "FV2025/0042",
+    }),
+    dppd: z.string().openapi({
+      description: "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+      example: "2025-03-14",
+    }),
     base21: dec("Základ, 21 % bucket."),
     dan21: dec("Daň, 21 % bucket."),
     base12: dec("Základ, 12 % bucket."),
@@ -477,13 +468,10 @@ export const KhAggregateSchema = z
   .object({
     base: dec("Základ celkem."),
     dan: dec("Daň celkem."),
-    count: z
-      .number()
-      .int()
-      .openapi({
-        description: "Počet dokladů folded into the aggregate.",
-        example: 12,
-      }),
+    count: z.number().int().openapi({
+      description: "Počet dokladů folded into the aggregate.",
+      example: 12,
+    }),
   })
   .openapi({
     description:
@@ -495,13 +483,10 @@ export type KhAggregate = z.infer<typeof KhAggregateSchema>
 export const ControlStatementResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
-    periodId: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Period covered.",
-        example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
-      }),
+    periodId: z.string().uuid().openapi({
+      description: "Period covered.",
+      example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
+    }),
     a1: z.array(KhRowSchema).openapi({ description: "A.1 — PDP dodavatel." }),
     a2: z
       .array(KhRowSchema)
@@ -540,13 +525,10 @@ export const StatementLineRowSchema = z
       .string()
       .openapi({ description: "Account nature.", example: "ASSET" }),
     closingBalance: dec("Konečný stav."),
-    balanceSheetLine: z
-      .string()
-      .nullable()
-      .openapi({
-        description: "Rozvaha line code, or null.",
-        example: "C.II.1",
-      }),
+    balanceSheetLine: z.string().nullable().openapi({
+      description: "Rozvaha line code, or null.",
+      example: "C.II.1",
+    }),
     incomeStatementLine: z
       .string()
       .nullable()
@@ -561,23 +543,18 @@ export type StatementLineRow = z.infer<typeof StatementLineRowSchema>
 export const FinancialStatementsResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
-    periodId: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Period covered.",
-        example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
-      }),
+    periodId: z.string().uuid().openapi({
+      description: "Period covered.",
+      example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
+    }),
     aktiva: dec("Aktiva celkem."),
     pasiva: dec("Pasiva celkem."),
     naklady: dec("Náklady celkem."),
     vynosy: dec("Výnosy celkem."),
     vysledek: dec("Výsledek hospodaření."),
-    lines: z
-      .array(StatementLineRowSchema)
-      .openapi({
-        description: "Per-account closing balances mapped to statement lines.",
-      }),
+    lines: z.array(StatementLineRowSchema).openapi({
+      description: "Per-account closing balances mapped to statement lines.",
+    }),
   })
   .openapi({
     description:
@@ -593,30 +570,22 @@ export const StatementLayoutQuerySchema = z.object({
     .enum(["FULL", "ABBREVIATED"])
     .optional()
     .openapi({ description: "Plný / zkrácený rozsah.", example: "FULL" }),
-  unit: z
-    .enum(["CZK", "THOUSANDS"])
-    .optional()
-    .openapi({
-      description: "Presentation unit (celé Kč / v tisících).",
-      example: "CZK",
-    }),
+  unit: z.enum(["CZK", "THOUSANDS"]).optional().openapi({
+    description: "Presentation unit (celé Kč / v tisících).",
+    example: "CZK",
+  }),
 })
 
 export const LayoutLineSchema = z
   .object({
-    code: z
-      .string()
-      .openapi({
-        description: "Příloha line code (e.g. B, B.II, B.II.1).",
-        example: "B.II.1",
-      }),
-    depth: z
-      .number()
-      .int()
-      .openapi({
-        description: "Nesting depth (1 = letter, 2 = roman, …).",
-        example: 3,
-      }),
+    code: z.string().openapi({
+      description: "Příloha line code (e.g. B, B.II, B.II.1).",
+      example: "B.II.1",
+    }),
+    depth: z.number().int().openapi({
+      description: "Nesting depth (1 = letter, 2 = roman, …).",
+      example: 3,
+    }),
     amount: dec("Rolled-up amount in the presentation unit."),
   })
   .openapi({ description: "One formatted statement layout line." })
@@ -626,13 +595,10 @@ export type LayoutLine = z.infer<typeof LayoutLineSchema>
 export const StatementLayoutResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
-    periodId: z
-      .string()
-      .uuid()
-      .openapi({
-        description: "Period covered.",
-        example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
-      }),
+    periodId: z.string().uuid().openapi({
+      description: "Period covered.",
+      example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
+    }),
     rozsah: z
       .enum(["FULL", "ABBREVIATED"])
       .openapi({ description: "Rozsah used.", example: "FULL" }),

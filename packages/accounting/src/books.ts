@@ -29,9 +29,12 @@ export interface JournalRow {
   summary_designation: string
   summary_type: string
   accounting_event_id: string
+  event_description: string | null
+  counterparty_name: string | null
   line_id: string
   account_id: string
   account_number: string
+  account_name: string
   side: DebitCredit
   amount: Decimal
 }
@@ -46,11 +49,16 @@ export function journal(
     sql`SELECT p.id  AS posting_id, p.posting_date, p.is_opening,
                s.designation AS summary_designation, s.type AS summary_type,
                p.accounting_event_id,
-               l.id  AS line_id, l.account_id, a.number AS account_number, l.side, l.amount
+               e.description AS event_description,
+               cp.name AS counterparty_name,
+               l.id  AS line_id, l.account_id, a.number AS account_number,
+               a.name AS account_name, l.side, l.amount
           FROM posting_double_entry_line l
-          JOIN posting        p ON l.posting_id = p.id
-          JOIN summary_record s ON p.summary_record_id = s.id
-          JOIN account        a ON l.account_id = a.id
+          JOIN posting          p ON l.posting_id = p.id
+          JOIN summary_record   s ON p.summary_record_id = s.id
+          JOIN account          a ON l.account_id = a.id
+          LEFT JOIN accounting_event e ON p.accounting_event_id = e.id
+          LEFT JOIN counterparty    cp ON e.counterparty_id = cp.id
          WHERE p.period_id = ${periodId}::uuid
          ORDER BY p.posting_date, p.id, l.id`,
   )

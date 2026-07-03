@@ -38,8 +38,11 @@ export default async function JournalPage({
     lineId: r.line_id,
     accountId: r.account_id,
     accountNumber: r.account_number,
+    accountName: r.account_name,
     side: r.side,
     amount: r.amount,
+    eventDescription: r.event_description,
+    counterpartyName: r.counterparty_name,
   }))
 
   return (

@@ -1527,6 +1527,22 @@
                   "description": "Originating accounting event.",
                   "example": "1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
                 },
+                "eventDescription": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Description of the originating accounting event (case).",
+                  "example": "Účtenka MOL — nafta služební vůz"
+                },
+                "counterpartyName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Counterparty (their side) of the originating event.",
+                  "example": "MOL Česká republika, s.r.o."
+                },
                 "lineId": {
                   "type": "string",
                   "format": "uuid",
@@ -1543,6 +1559,11 @@
                   "type": "string",
                   "description": "Syntetický/analytický account number (účtový rozvrh).",
                   "example": "311000"
+                },
+                "accountName": {
+                  "type": "string",
+                  "description": "Account name from the účtový rozvrh.",
+                  "example": "Odběratelé"
                 },
                 "side": {
                   "type": "string",
@@ -1566,9 +1587,12 @@
                 "summaryDesignation",
                 "summaryType",
                 "accountingEventId",
+                "eventDescription",
+                "counterpartyName",
                 "lineId",
                 "accountId",
                 "accountNumber",
+                "accountName",
                 "side",
                 "amount"
               ],
@@ -1619,6 +1643,22 @@
             "description": "Originating accounting event.",
             "example": "1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
           },
+          "eventDescription": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Description of the originating accounting event (case).",
+            "example": "Účtenka MOL — nafta služební vůz"
+          },
+          "counterpartyName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Counterparty (their side) of the originating event.",
+            "example": "MOL Česká republika, s.r.o."
+          },
           "lineId": {
             "type": "string",
             "format": "uuid",
@@ -1635,6 +1675,11 @@
             "type": "string",
             "description": "Syntetický/analytický account number (účtový rozvrh).",
             "example": "311000"
+          },
+          "accountName": {
+            "type": "string",
+            "description": "Account name from the účtový rozvrh.",
+            "example": "Odběratelé"
           },
           "side": {
             "type": "string",
@@ -1658,9 +1703,12 @@
           "summaryDesignation",
           "summaryType",
           "accountingEventId",
+          "eventDescription",
+          "counterpartyName",
           "lineId",
           "accountId",
           "accountNumber",
+          "accountName",
           "side",
           "amount"
         ],

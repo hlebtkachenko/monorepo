@@ -103,7 +103,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Posting approvals",
           "route": "accounting/approvals",
           "icon": "ListChecksIcon",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -287,7 +287,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Overview",
           "route": "documents",
           "icon": "FolderBookmark",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -314,7 +314,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
             {
               "label": "Received",
               "route": "documents/invoices/received",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },

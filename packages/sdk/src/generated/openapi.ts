@@ -1099,6 +1099,16 @@ export interface components {
                  */
                 accountingEventId: string;
                 /**
+                 * @description Description of the originating accounting event (case).
+                 * @example Účtenka MOL — nafta služební vůz
+                 */
+                eventDescription: string | null;
+                /**
+                 * @description Counterparty (their side) of the originating event.
+                 * @example MOL Česká republika, s.r.o.
+                 */
+                counterpartyName: string | null;
+                /**
                  * Format: uuid
                  * @description Double-entry line id.
                  * @example aa11bb22-cc33-4d44-9e55-ff6677889900
@@ -1115,6 +1125,11 @@ export interface components {
                  * @example 311000
                  */
                 accountNumber: string;
+                /**
+                 * @description Account name from the účtový rozvrh.
+                 * @example Odběratelé
+                 */
+                accountName: string;
                 /**
                  * @description Side of the double entry — MD (DEBIT) or Dal (CREDIT).
                  * @example DEBIT
@@ -1163,6 +1178,16 @@ export interface components {
              */
             accountingEventId: string;
             /**
+             * @description Description of the originating accounting event (case).
+             * @example Účtenka MOL — nafta služební vůz
+             */
+            eventDescription: string | null;
+            /**
+             * @description Counterparty (their side) of the originating event.
+             * @example MOL Česká republika, s.r.o.
+             */
+            counterpartyName: string | null;
+            /**
              * Format: uuid
              * @description Double-entry line id.
              * @example aa11bb22-cc33-4d44-9e55-ff6677889900
@@ -1179,6 +1204,11 @@ export interface components {
              * @example 311000
              */
             accountNumber: string;
+            /**
+             * @description Account name from the účtový rozvrh.
+             * @example Odběratelé
+             */
+            accountName: string;
             /**
              * @description Side of the double entry — MD (DEBIT) or Dal (CREDIT).
              * @example DEBIT

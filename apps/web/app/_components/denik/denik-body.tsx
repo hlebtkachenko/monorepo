@@ -35,11 +35,16 @@ function applySearch(rows: JournalRow[], query: string): JournalRow[] {
   return rows.filter((row) =>
     [
       row.summaryDesignation,
+      row.eventDescription,
+      row.counterpartyName,
       row.accountNumber,
+      row.accountName,
       row.side,
       row.amount,
       row.postingDate,
-    ].some((value) => normalizeSearch(String(value)).includes(q)),
+    ].some(
+      (value) => value != null && normalizeSearch(String(value)).includes(q),
+    ),
   )
 }
 
@@ -47,8 +52,21 @@ function JournalDetail({ row }: { row: JournalRow }) {
   return (
     <dl className="flex flex-col gap-3">
       <DetailField label="Doklad" value={row.summaryDesignation} />
+      {row.eventDescription ? (
+        <DetailField label="Popis" value={row.eventDescription} />
+      ) : null}
+      {row.counterpartyName ? (
+        <DetailField label="Protistrana" value={row.counterpartyName} />
+      ) : null}
       <DetailField label="Date" value={formatDate(row.postingDate)} />
-      <DetailField label="Account" value={row.accountNumber} />
+      <DetailField
+        label="Account"
+        value={
+          row.accountName
+            ? `${row.accountNumber} — ${row.accountName}`
+            : row.accountNumber
+        }
+      />
       <DetailField
         label="Side"
         value={

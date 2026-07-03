@@ -18,7 +18,6 @@ export function accountingNav(base: string): SidebarNavEntry[] {
       label: "Posting approvals",
       href: `${base}/approvals`,
       icon: "ListChecksIcon",
-      tba: true,
     },
     {
       label: "Books",

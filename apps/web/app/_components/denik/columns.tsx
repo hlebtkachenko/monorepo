@@ -77,11 +77,55 @@ export const journalColumns: ColumnDef<JournalRow>[] = [
     enableSorting: true,
   },
   {
+    accessorKey: "eventDescription",
+    header: "Popis",
+    size: 240,
+    cell: ({ row }) => {
+      const description = row.original.eventDescription
+      if (!description) return null
+      return (
+        <span className="block truncate" title={description}>
+          {description}
+        </span>
+      )
+    },
+    meta: { label: "Popis" },
+    enableSorting: true,
+  },
+  {
+    accessorKey: "counterpartyName",
+    header: "Protistrana",
+    size: 180,
+    cell: ({ row }) => {
+      const counterparty = row.original.counterpartyName
+      if (!counterparty) return null
+      return (
+        <span className="block truncate" title={counterparty}>
+          {counterparty}
+        </span>
+      )
+    },
+    meta: { label: "Protistrana" },
+    enableSorting: true,
+  },
+  {
     accessorKey: "accountNumber",
     header: "Account",
-    size: 120,
+    size: 180,
     cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.accountNumber}</span>
+      <span className="flex items-baseline gap-1.5 truncate">
+        <span className="font-medium tabular-nums">
+          {row.original.accountNumber}
+        </span>
+        {row.original.accountName ? (
+          <span
+            className="truncate text-muted-foreground"
+            title={row.original.accountName}
+          >
+            {row.original.accountName}
+          </span>
+        ) : null}
+      </span>
     ),
     meta: { label: "Account" },
     enableSorting: true,

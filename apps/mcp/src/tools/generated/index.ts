@@ -7,6 +7,23 @@ import { registerGetStatus } from "./getStatus"
 import { registerCreateFeedback } from "./createFeedback"
 import { registerGetStructure } from "./getStructure"
 import { registerListArchetypes } from "./listArchetypes"
+import { registerGetAccountingJournal } from "./getAccountingJournal"
+import { registerGetAccountingLedger } from "./getAccountingLedger"
+import { registerGetAccountingOpenItems } from "./getAccountingOpenItems"
+import { registerGetAccountingSaldokonto } from "./getAccountingSaldokonto"
+import { registerGetAccountingVatReturn } from "./getAccountingVatReturn"
+import { registerGetAccountingCorporateIncomeTax } from "./getAccountingCorporateIncomeTax"
+import { registerGetAccountingEcSalesList } from "./getAccountingEcSalesList"
+import { registerGetAccountingControlStatement } from "./getAccountingControlStatement"
+import { registerGetAccountingFinancialStatements } from "./getAccountingFinancialStatements"
+import { registerGetAccountingStatementLayout } from "./getAccountingStatementLayout"
+import { registerClassifyAccountingEvent } from "./classifyAccountingEvent"
+import { registerListAccountingNumberSeries } from "./listAccountingNumberSeries"
+import { registerCreateAccountingEvent } from "./createAccountingEvent"
+import { registerCaptureAccountingDocument } from "./captureAccountingDocument"
+import { registerCreateAccountingPosting } from "./createAccountingPosting"
+import { registerListAccountingHeldWrites } from "./listAccountingHeldWrites"
+import { registerResolveAccountingHeldWrite } from "./resolveAccountingHeldWrite"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -15,6 +32,23 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerCreateFeedback(server, client)
   registerGetStructure(server, client)
   registerListArchetypes(server, client)
+  registerGetAccountingJournal(server, client)
+  registerGetAccountingLedger(server, client)
+  registerGetAccountingOpenItems(server, client)
+  registerGetAccountingSaldokonto(server, client)
+  registerGetAccountingVatReturn(server, client)
+  registerGetAccountingCorporateIncomeTax(server, client)
+  registerGetAccountingEcSalesList(server, client)
+  registerGetAccountingControlStatement(server, client)
+  registerGetAccountingFinancialStatements(server, client)
+  registerGetAccountingStatementLayout(server, client)
+  registerClassifyAccountingEvent(server, client)
+  registerListAccountingNumberSeries(server, client)
+  registerCreateAccountingEvent(server, client)
+  registerCaptureAccountingDocument(server, client)
+  registerCreateAccountingPosting(server, client)
+  registerListAccountingHeldWrites(server, client)
+  registerResolveAccountingHeldWrite(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -24,4 +58,21 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "createFeedback",
   "getStructure",
   "listArchetypes",
+  "getAccountingJournal",
+  "getAccountingLedger",
+  "getAccountingOpenItems",
+  "getAccountingSaldokonto",
+  "getAccountingVatReturn",
+  "getAccountingCorporateIncomeTax",
+  "getAccountingEcSalesList",
+  "getAccountingControlStatement",
+  "getAccountingFinancialStatements",
+  "getAccountingStatementLayout",
+  "classifyAccountingEvent",
+  "listAccountingNumberSeries",
+  "createAccountingEvent",
+  "captureAccountingDocument",
+  "createAccountingPosting",
+  "listAccountingHeldWrites",
+  "resolveAccountingHeldWrite",
 ] as const

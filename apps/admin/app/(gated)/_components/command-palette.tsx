@@ -870,7 +870,7 @@ function CommandListBody({
             onSelect={() => toast.info("AI ask ships in Tier 3")}
             className="py-2.5"
           >
-            <Sparkles aria-hidden />
+            <Sparkles aria-hidden className="text-purple" />
             <span>{`Ask AI: "${q}"`}</span>
             <span className="ml-auto text-xs text-muted-foreground">
               AI ask ships in Tier 3

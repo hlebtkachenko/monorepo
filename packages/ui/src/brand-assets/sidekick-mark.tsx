@@ -10,7 +10,7 @@ export function SidekickMark({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 16 16"
-      color="#4f5255"
+      style={{ color: "var(--purple)" }}
       aria-hidden
       className={cn("size-[var(--icon-size)] shrink-0", className)}
     >

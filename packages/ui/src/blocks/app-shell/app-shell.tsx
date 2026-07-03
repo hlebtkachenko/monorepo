@@ -63,12 +63,22 @@ interface AppShellProps {
   /**
    * Optional href the painted logo artwork links to (e.g. the org
    * dashboard). When set, a transparent `<a>` overlay covers just the
-   * visible artwork area (~32×26 inside the 60×40 rail-header zone) —
+   * visible artwork area (~32×26 inside the 70×40 rail-header zone) —
    * so the gray breathing-room is NOT clickable, only the logo
    * pixels. For Next.js client-side navigation, pass a wrapped
    * `<Link>` via the `logo` prop instead.
    */
   logoHref?: string
+  /**
+   * Lets `logo` render wider than the 70×40 rail-header zone (e.g. a
+   * combined logomark+wordmark lockup) without being clipped. The mark
+   * itself stays pinned at the zone's usual top-left position; only the
+   * right edge is free to extend — into the header's territory — because
+   * the logo paints as a top-layer overlay (after the header in DOM,
+   * `overflow-visible`) instead of living inside the rail's clipped box.
+   * Default `false`: identical pixel output to today for any square logo.
+   */
+  logoOverflow?: boolean
 }
 
 const DEFAULT_LOGO = (
@@ -238,6 +248,7 @@ export function AppShell({
   defaultAssistantOpen = false,
   logo = DEFAULT_LOGO,
   logoHref,
+  logoOverflow = false,
 }: AppShellProps) {
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = React.useState(defaultSidebarOpen)
@@ -368,10 +379,13 @@ export function AppShell({
           >
             <div
               data-slot="app-shell-logomark"
-              className="relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden [&>svg]:translate-y-[4px]"
+              className={cn(
+                "relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden [&>svg]:translate-y-[4px]",
+                logoOverflow && "invisible",
+              )}
             >
-              {logo}
-              {logoHref && (
+              {!logoOverflow && logo}
+              {!logoOverflow && logoHref && (
                 <a
                   href={logoHref}
                   aria-label="Home"
@@ -392,6 +406,34 @@ export function AppShell({
           >
             {header}
           </header>
+        )}
+
+        {/* Overflow logo overlay — paints AFTER (on top of) both the rail and
+            the header, so a lockup wider than the rail-header zone (e.g. a
+            combined logomark+wordmark) bleeds rightward into the header's
+            territory unclipped. Pinned at the same top-left origin the
+            rail's logomark box always used. */}
+        {rail !== undefined && logoOverflow && (
+          <div
+            data-slot="app-shell-logo-overlay"
+            className="pointer-events-none absolute top-0 left-0 z-10 flex h-[var(--shell-header-height)] items-center overflow-visible max-md:hidden [&>svg]:translate-y-[4px]"
+          >
+            {/* `relative` + `inset-0` (not a hardcoded box like the default
+                path's 26×32) so the click target always matches whatever
+                width the wider lockup renders at, logomark through
+                wordmark — no magic number to drift when the artwork
+                changes. */}
+            <div className="pointer-events-auto relative">
+              {logo}
+              {logoHref && (
+                <a
+                  href={logoHref}
+                  aria-label="Home"
+                  className="absolute inset-0"
+                />
+              )}
+            </div>
+          </div>
         )}
 
         <div

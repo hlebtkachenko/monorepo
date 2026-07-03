@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { BorderBeam } from "@workspace/ui/components/border-beam"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -10,13 +9,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@workspace/ui/components/context-menu"
-import {
-  ArrowUpRight,
-  BookOpen,
-  Bug,
-  Copy,
-  Sparkles,
-} from "@workspace/ui/lib/icons"
+import { ArrowUpRight, BookOpen, Bug, Copy } from "@workspace/ui/lib/icons"
+import { SidekickMark } from "@workspace/ui/brand-assets"
 
 import { BugReportDialog } from "./parts/bug-report-dialog"
 import {
@@ -220,16 +214,13 @@ export function AppContextMenu({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-48 p-2 [&_[data-slot=context-menu-item]]:gap-2 [&_[data-slot=context-menu-item]]:px-2 [&_[data-slot=context-menu-item]]:py-1.5 [&_[data-slot=context-menu-label]]:px-2 [&_[data-slot=context-menu-separator]]:-mx-2 [&_[data-slot=context-menu-separator]]:my-2">
-          <BorderBeam size="md" borderRadius={6} className="block rounded-md">
-            <ContextMenuItem
-              onSelect={() => void handleAskSidekick()}
-              data-slot="app-context-menu-ask-sidekick"
-              className="border border-input bg-background hover:bg-accent"
-            >
-              <Sparkles />
-              Ask Sidekick
-            </ContextMenuItem>
-          </BorderBeam>
+          <ContextMenuItem
+            onSelect={() => void handleAskSidekick()}
+            data-slot="app-context-menu-ask-sidekick"
+          >
+            <SidekickMark className="size-4" />
+            Ask Sidekick
+          </ContextMenuItem>
           <ContextMenuItem onSelect={() => void handleAboutBlock()}>
             <BookOpen />
             About this block

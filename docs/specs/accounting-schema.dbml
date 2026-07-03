@@ -1,0 +1,1034 @@
+// =============================================================================
+// Accounting Records System — v2 GROUND LAYER (DBML)
+// =============================================================================
+// STATUS: design/eval only. NOT migrated. Live schema is the Czech v1
+// (packages/db/migrations/0024-0028). Paste into https://dbdiagram.io.
+//
+// SCOPE: ONLY the organized ground layer — platform anchor, law reference tables,
+// period/regime/size/VAT links, business activity (CZ-NACE), workspace-shared
+// counterparty. Capture / chart of accounts / posting / output come later,
+// table by table.
+//
+// organization IS the účetní jednotka (thin: workspace_id, slug, person_type).
+// Identity lives on the org's own counterparty (self_of_organization_id).
+// counterparty is workspace-shared across all orgs in the office. workspace /
+// organization / app_user are platform tables (faithful stubs).
+//
+// ENFORCEMENT: DBML models only tables/columns/FKs/indexes. The full guard-rail
+// layer — FORCE RLS + policies (isolation), append-only triggers (R8), closed-
+// period + date∈období guard (R12), R4 balance (with OFF_BALANCE exemption),
+// read-model maintenance triggers, §16 no-direct-post-to-parent, R6 output
+// completeness, the reconcile function — lives in accounting-schema.sql only and
+// is PG18-validated (see .context/accounting/enforcement-*.sql, 22/22 behavioral).
+// =============================================================================
+
+Project accounting_v2_ground {
+  database_type: 'PostgreSQL'
+  Note: 'CZ accounting ground layer. Law as reference tables; org links to them over time. counterparty shared at workspace tier; an org-self row is edit/delete-protected via RLS.'
+}
+
+// --- Enums -------------------------------------------------------------------
+
+enum person_type {
+  NATURAL
+  LEGAL
+}
+enum period_status {
+  OPEN
+  CLOSED
+}
+enum vat_filing_period {
+  MONTHLY
+  QUARTERLY
+}
+enum book_kind {
+  LEDGER
+  MONETARY_JOURNAL
+}
+
+// --- Platform tables (faithful stubs) ----------------------------------------
+
+Table app_user {
+  id    uuid [pk]
+  email text
+}
+
+Table workspace {
+  id                 uuid        [pk]
+  created_by_user_id uuid        [not null]
+  display_name       text        [not null]
+  plan               text        [not null, default: 'starter']
+  created_at         timestamptz [not null, default: `now()`]
+  updated_at         timestamptz [not null, default: `now()`]
+  Note: 'Accounting office (parent tenant). Subset of real columns.'
+}
+
+// --- Reference tables (the law) ----------------------------------------------
+
+Table regime {
+  code                       text      [pk]
+  name                       text      [not null]
+  requires_chart_of_accounts boolean   [not null]
+  book_kind                  book_kind [not null]
+  Note: 'DOUBLE_ENTRY / SINGLE_ENTRY / TAX_RECORDS + effects.'
+}
+
+Table legal_form {
+  code                   text        [pk]
+  name                   text        [not null]
+  person_type            person_type [not null]
+  mandatory_double_entry boolean     [not null, default: false]
+  audit_possible         boolean     [not null, default: true]
+  Note: 's.r.o./a.s./spolek/nadace/OSVČ + obligations.'
+}
+
+Table legal_form_allowed_regime {
+  legal_form_code text [not null]
+  regime_code     text [not null]
+  indexes { (legal_form_code, regime_code) [pk] }
+  Note: 'Which regimes each legal form may use (§4 matrix).'
+}
+
+Table accounting_size {
+  code                  text          [pk]
+  name                  text          [not null]
+  max_assets            "numeric(19,4)"
+  max_net_turnover      "numeric(19,4)"
+  max_average_employees integer
+  Note: 'MICRO/SMALL/MEDIUM/LARGE + 2-of-3 thresholds (§1b).'
+}
+
+Table vat_regime {
+  code text [pk]
+  name text [not null]
+  Note: 'NON_PAYER / PAYER / IDENTIFIED_PERSON + how each works.'
+}
+
+Table currency {
+  code        "char(3)" [pk]
+  name        text      [not null]
+  minor_units smallint  [not null, default: 2]
+  is_functional_currency boolean [not null, default: false]  // §24a: eligible as měna účetnictví (CZK/EUR/USD/GBP)
+  indexes {
+    (code, is_functional_currency) [unique, name: 'currency_code_functional_unique']
+  }
+  Note: 'ISO 4217 currencies offered in accounting settings. Org accounting currency pinned per period on accounting_period.accounting_currency (must be is_functional_currency, §24a); document/transaction currency on partial_record.currency_code / open_item.currency_code (any currency).'
+}
+
+Table business_activity {
+  code        text     [pk]
+  level       smallint [not null]
+  parent_code text
+  name_cs     text     [not null]
+  name_en     text
+  Note: 'Předmět podnikání = CZ-NACE 2025, 5-level hierarchy (~1763 rows). A -> 01 -> 01.1 -> 01.11 -> 01.11.0.'
+}
+
+// --- Organization (= účetní jednotka; platform-owned, target shape) ----------
+
+Table organization {
+  id           uuid          [pk]
+  workspace_id uuid          [not null]
+  slug         "varchar(64)" [not null]
+  person_type  person_type   [not null]
+  created_at   timestamptz   [not null, default: `now()`]
+  updated_at   timestamptz   [not null, default: `now()`]
+  indexes {
+    (id, workspace_id) [unique]   // composite-FK anchor for the capture layer
+  }
+  Note: 'Thin. person_type (FO/PO) IMMUTABLE — gates legal_form+regime. Identity on the self-counterparty; fiscal/regime/size in accounting_period. Live table also has organization_id(=id)/legal_name/legal_subject_kind/fiscal_year_start_month — reshape is a platform migration.'
+}
+
+Table organization_business_activity {
+  organization_id        uuid [not null]
+  business_activity_code text [not null]
+  indexes { (organization_id, business_activity_code) [pk] }
+  Note: 'Org předmět podnikání (M:N to CZ-NACE).'
+}
+
+// --- Org ↔ law links (time-bound) --------------------------------------------
+
+Table accounting_period {
+  id                   uuid          [pk, default: `uuidv7()`]
+  organization_id      uuid          [not null]
+  period_start         date          [not null]
+  period_end           date          [not null]
+  status               period_status [not null, default: 'OPEN']
+  regime_code          text          [not null]
+  accounting_size_code text
+  accounting_currency  "char(3)"     [not null]   // měna účetnictví (§4/12), 1/org/period — must be §24a functional
+  accounting_currency_is_functional boolean [not null, note: 'GENERATED true; composite-FK gate to currency(code, is_functional_currency)']
+  fx_rate_policy       fx_rate_kind                // §24 směrnice: DAILY | FIXED elected rate method; NULL = default DAILY
+  created_at           timestamptz   [not null, default: `now()`]
+  updated_at           timestamptz   [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (id, organization_id, regime_code) [unique]
+  }
+  Note: 'One účetní období. regime fixed per period (immutable until closed); size assessed at period_end (§1b). §24a: accounting_currency gated to a functional currency via (accounting_currency, accounting_currency_is_functional) -> currency(code, is_functional_currency).'
+}
+
+Table vat_status {
+  id              uuid              [pk, default: `uuidv7()`]
+  organization_id uuid              [not null]
+  vat_regime_code text              [not null]
+  valid_from      date              [not null]
+  valid_to        date
+  filing_period   vat_filing_period
+  created_at      timestamptz       [not null, default: `now()`]
+  Note: 'Time-versioned VAT status, independent of účetní období. valid_to null = current. M8 (SQL only): EXCLUDE USING gist (organization_id =, daterange(valid_from, COALESCE(valid_to,infinity)) &&) — no two VAT-status ranges per org may overlap (closes the two-open-rows race; needs btree_gist).'
+}
+
+// --- Counterparty (workspace-shared) -----------------------------------------
+
+Table counterparty {
+  id                      uuid        [pk, default: `uuidv7()`]
+  workspace_id            uuid        [not null]
+  self_of_organization_id uuid        [unique]
+  created_at              timestamptz [not null, default: `now()`]
+  updated_at              timestamptz [not null, default: `now()`]
+  indexes { (id, workspace_id) [unique] }
+  Note: 'Shared across all orgs in the workspace. self_of_organization_id set = this row IS that org identity (one per org). RLS: shared read; a self row is not editable by other orgs and not deletable while its org exists (ON DELETE SET NULL). Identity columns enriched later.'
+}
+
+// --- Read surface (SQL only — not a table, DBML can't model views) -----------
+// VIEW organization_identity (security_invoker = true): organization LEFT JOIN
+// counterparty ON self_of_organization_id. Exposes org -> its self-counterparty
+// (id + identity cols once added) without a column on the thin organization table
+// and without a junction (the link is a static 1:1). App accessor
+// getSelfCounterparty(orgId) reads this view (built with the v2 domain package).
+// See accounting-schema.sql for the DDL + contract.
+
+// --- Table groups ------------------------------------------------------------
+
+TableGroup platform {
+  app_user
+  workspace
+}
+TableGroup law_reference {
+  regime
+  legal_form
+  legal_form_allowed_regime
+  accounting_size
+  vat_regime
+  currency
+  business_activity
+}
+TableGroup organization_core {
+  organization
+  organization_business_activity
+}
+TableGroup org_links {
+  accounting_period
+  vat_status
+}
+TableGroup shared {
+  counterparty
+}
+
+// --- Relationships -----------------------------------------------------------
+Ref: workspace.created_by_user_id > app_user.id
+
+Ref: legal_form_allowed_regime.legal_form_code > legal_form.code
+Ref: legal_form_allowed_regime.regime_code     > regime.code
+Ref: business_activity.parent_code             > business_activity.code
+
+Ref: organization.workspace_id > workspace.id
+
+Ref: organization_business_activity.organization_id        > organization.id
+Ref: organization_business_activity.business_activity_code  > business_activity.code
+
+Ref: accounting_period.organization_id      > organization.id
+Ref: accounting_period.regime_code          > regime.code
+Ref: accounting_period.accounting_size_code > accounting_size.code
+Ref: accounting_period.accounting_currency  > currency.code
+
+Ref: vat_status.organization_id  > organization.id
+Ref: vat_status.vat_regime_code  > vat_regime.code
+
+Ref: counterparty.workspace_id            > workspace.id
+Ref: counterparty.self_of_organization_id > organization.id
+
+// =============================================================================
+// CAPTURE CORE (§33 + §6/1 + §11) — fact -> voucher -> line -> dílčí (money)
+// =============================================================================
+
+enum number_series_entity {
+  EVENT
+  DOCUMENT
+  ASSET
+  INVENTORY_COUNT
+}
+enum summary_record_type {
+  RECEIVED_INVOICE
+  ISSUED_INVOICE
+  BANK_STATEMENT
+  INTERNAL
+  CASH_DOCUMENT
+  BATCH
+}
+enum vat_mode {
+  STANDARD
+  REVERSE_CHARGE
+  EXEMPT
+  OUTSIDE_VAT
+  IMPORT
+}
+enum fx_rate_kind {
+  DAILY
+  REAL
+  FIXED
+}
+enum signature_role {
+  FOR_EVENT
+  FOR_POSTING
+}
+
+Table number_series {
+  id              uuid                 [pk, default: `uuidv7()`]
+  organization_id uuid                 [not null]
+  entity_type     number_series_entity [not null]
+  code            text                 [not null]
+  pattern         text                 [not null]
+  next_number     bigint               [not null, default: 1]
+  created_at      timestamptz          [not null, default: `now()`]
+  updated_at      timestamptz          [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (organization_id, entity_type, code) [unique]
+  }
+  Note: 'Company-defined číselné řady per entity_type. Gapless counter (row-lock, never a SEQUENCE).'
+}
+
+Table accounting_event {
+  id               uuid        [pk, default: `uuidv7()`]
+  organization_id  uuid        [not null]
+  workspace_id     uuid        [not null]
+  period_id        uuid        [not null]                  // M2 (decision 2): the case's účetní období (occurred_at ∈ period); R6 denominator; period guard
+  number_series_id uuid        [not null]
+  sequence_number  bigint      [not null]
+  designation      text        [not null, note: 'FROZEN Označení string (gov/audit id)']
+  party_id         uuid
+  counterparty_id  uuid
+  description      text        [not null]
+  content          text
+  occurred_at      timestamptz [not null]
+  responsible_user_id uuid     [not null]                  // osoba odp. za případ (§11/1f, R10) -> app_user; za-zaúčtování is on posting
+  created_at       timestamptz [not null, default: `now()`]
+  updated_at       timestamptz [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (number_series_id, sequence_number) [unique]
+  }
+  Note: 'The fact (§6/1). party_id = us, counterparty_id = them (both workspace-shared counterparty). Označení = number_series_id + sequence_number. workspace_id = composite-FK key (FK bypasses RLS). Money on partial_record.'
+}
+
+Table signature {
+  id              uuid           [pk, default: `uuidv7()`]
+  organization_id uuid           [not null]
+  role            signature_role [not null]
+  signer_id       uuid           [not null]
+  signed_at       timestamptz    [not null]
+  event_id        uuid                                          // set when role = FOR_EVENT
+  posting_id      uuid                                          // set when role = FOR_POSTING (= v1 podpis.zapis_id, §5.6/§33a/4)
+  created_at      timestamptz    [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique]
+    (event_id, organization_id)
+    (posting_id, organization_id)
+  }
+  Note: 'Podpisový záznam (§33a + §11/1f). Append-only (triggers at migration). SQL CHECK enforces exactly-one-of: role=FOR_EVENT <=> event_id set (posting_id null); role=FOR_POSTING <=> posting_id set (event_id null). posting_id FK lands with the posting layer below.'
+}
+
+Table summary_record {
+  id               uuid                [pk, default: `uuidv7()`]
+  organization_id  uuid                [not null]
+  workspace_id     uuid                [not null]
+  period_id        uuid                [not null]
+  number_series_id uuid                [not null]
+  sequence_number  bigint              [not null]
+  designation      text                [not null, note: 'FROZEN Označení string (gov/audit id)']
+  type             summary_record_type [not null]
+  issued_at        timestamptz         [not null]
+  rounding_amount  "numeric(19,4)"     [not null, default: 0]
+  created_at       timestamptz         [not null, default: `now()`]
+  updated_at       timestamptz         [not null, default: `now()`]
+  indexes {
+    (number_series_id, sequence_number) [unique, name: 'cislena_rada gapless (R3/§11/1a)']
+    (id, organization_id) [unique]
+    (organization_id, period_id, type, designation) [unique, name: 'summary_record_oznaceni_unique']  // M7 §11/1a: Označení unique per (org, period, type)
+  }
+  Note: 'Voucher/doklad header (§11). No line money (= Σ partial_records). rounding_amount = §37 doc rounding -> 548/648. counterparty lives on the event.'
+}
+
+Table individual_record {
+  id                  uuid        [pk, default: `uuidv7()`]
+  organization_id     uuid        [not null]
+  summary_record_id   uuid        [not null]
+  accounting_event_id uuid        [not null]
+  description         text
+  created_at          timestamptz [not null, default: `now()`]
+  updated_at          timestamptz [not null, default: `now()`]
+  indexes { (id, organization_id) [unique] }
+  Note: 'Jednotlivý úč. záznam — links one event to a voucher (§11/1c line). No stored money; line total = Σ its partial_records.'
+}
+
+Table partial_record {
+  id                   uuid            [pk, default: `uuidv7()`]
+  organization_id      uuid            [not null]
+  individual_record_id uuid            [not null]
+  quantity             "numeric(19,4)"
+  measure_unit         text
+  unit_price           "numeric(19,4)"
+  base_amount          "numeric(19,4)" [not null]
+  vat_rate             "numeric(5,2)"
+  vat_mode             vat_mode        [not null]
+  vat_deductible       boolean         [not null, default: true]
+  advance_settlement   boolean         [not null, default: false]
+  vat_amount           "numeric(19,4)" [not null, default: 0]
+  currency_code        "char(3)"       [not null]
+  fx_rate_kind         fx_rate_kind
+  fx_rate              "numeric(18,6)"
+  vat_fx_rate          "numeric(18,6)"
+  base_in_accounting_currency "numeric(19,4)" [not null]
+  vat_in_accounting_currency  "numeric(19,4)" [not null, default: 0]
+  created_at           timestamptz     [not null, default: `now()`]
+  updated_at           timestamptz     [not null, default: `now()`]
+  indexes { (id, organization_id) [unique] }
+  Note: 'Dílčí úč. záznam = THE money level (taxable supplies only; rounding on summary_record). §11/1c + VAT + currency/FX captured once; posting EXPANDS one row into N MD/D lines. vat_mode drives posting; ξ injected at posting time. CHECKs in the SQL. FX coherence (0035, option C): row-local CHECKs (fx_rate iff fx_rate_kind; vat_fx_rate needs fx_rate; fx_rate>0) + the cross-table identity guard in app_partial_period_guard() (currency=accounting_currency => no FX & frozen=source; foreign => fx_rate required).'
+}
+
+TableGroup capture_core {
+  number_series
+  accounting_event
+  signature
+  summary_record
+  individual_record
+  partial_record
+}
+
+// capture core relationships
+Ref: number_series.organization_id > organization.id
+
+Ref: accounting_event.(organization_id, workspace_id)     > organization.(id, workspace_id)
+Ref: accounting_event.(period_id, organization_id)        > accounting_period.(id, organization_id)   // M2: the case's period
+Ref: accounting_event.(party_id, workspace_id)            > counterparty.(id, workspace_id)
+Ref: accounting_event.(counterparty_id, workspace_id)     > counterparty.(id, workspace_id)
+Ref: accounting_event.(number_series_id, organization_id) > number_series.(id, organization_id)
+Ref: accounting_event.responsible_user_id                 > app_user.id
+
+Ref: signature.organization_id              > organization.id
+Ref: signature.signer_id                    > app_user.id
+Ref: signature.(event_id, organization_id)  > accounting_event.(id, organization_id)
+
+Ref: summary_record.(organization_id, workspace_id)     > organization.(id, workspace_id)
+Ref: summary_record.(period_id, organization_id)        > accounting_period.(id, organization_id)
+Ref: summary_record.(number_series_id, organization_id) > number_series.(id, organization_id)
+
+Ref: individual_record.organization_id                        > organization.id
+Ref: individual_record.(summary_record_id, organization_id)   > summary_record.(id, organization_id)
+Ref: individual_record.(accounting_event_id, organization_id) > accounting_event.(id, organization_id)
+
+Ref: partial_record.organization_id                        > organization.id
+Ref: partial_record.(individual_record_id, organization_id) > individual_record.(id, organization_id)
+Ref: partial_record.currency_code                          > currency.code
+
+// =============================================================================
+// CHART OF ACCOUNTS (§14 účtový rozvrh, §16 reconcile, Decree 500/2002)
+// =============================================================================
+// DOUBLE_ENTRY regime only. Fork1=A (account_group binding + directive_account
+// catalogue), Fork2=B (per-period chart header + copy-forward), D3 (nature +
+// normal_balance stored), D5 (regime gate via generated regime_code + composite FK).
+
+enum account_nature {
+  ASSET
+  LIABILITY
+  EQUITY
+  EXPENSE
+  REVENUE
+  CLOSING       // 701/702/710 — závěrkové účty
+  OFF_BALANCE   // podrozvahové — skup. 75–79
+}
+enum debit_credit {     // shared: account.normal_balance + posting line side
+  DEBIT
+  CREDIT
+}
+
+Table account_group {
+  code                    "char(2)" [pk]                          // '01','31','70','71'
+  class                   smallint  [not null]                    // left digit; CHECK 0..9
+  name_cs                 text      [not null]
+  name_en                 text
+  nature                  account_nature                          // hint; NULL where group mixes (cl. 3,4,7)
+  is_internal             boolean   [not null, default: false]    // classes 8-9, entity-free
+  is_valuation_adjustment boolean   [not null, default: false]    // oprávky/opravné položky -> rozvaha KOREKCE (§4/4)
+  // Statement-line mapping FALLBACK (decision 3, §14 ZoU + Vyhlaska 500/2002 Priloha 4).
+  // The smerná úctová osnova binds at the 2-digit skupina, so the GROUP is the legally-guaranteed
+  // rozvaha/VZZ anchor for tenant accounts with no directive link. Seeded on ~80 immutable rows.
+  // NULL for classes 8-9 (is_internal, off-statement); mixed groups (34, 48) use the sign-split pair.
+  balance_sheet_line             text   // Priloha 1 default line for the whole skupina
+  balance_sheet_line_when_debit  text   // sign-split: group 34/48 with a DEBIT net balance -> asset row
+  balance_sheet_line_when_credit text   // sign-split: group 34/48 with a CREDIT net balance -> liability row
+  income_statement_line          text   // Priloha 2 default line for cost/revenue groups (5x/6x)
+  Note: 'BINDING level for podnikatelé (§14/1 + Decree 500/2002 Priloha 4). ~80 seeded immutable rows. account.group_code (generated) FKs this. statement-line columns are the group-level FALLBACK for tenant accounts with no directive link (decision 3); exact mapping is on directive_account.'
+}
+
+Table directive_account {
+  code                  "char(3)" [pk]                            // '311','518','701'
+  group_code            "char(2)" [not null]
+  name_cs               text      [not null]
+  name_en               text
+  nature                account_nature [not null]
+  normal_balance        debit_credit                              // NULL where genuinely mixed/technical
+  balance_sheet_line    text                                      // Příloha 1, e.g. B.II.4 (default / single-side)
+  balance_sheet_line_when_debit  text                             // sign-split: 481/341-345 DEBIT -> asset row
+  balance_sheet_line_when_credit text                             // sign-split: 481/341-345 CREDIT -> liability row
+  income_statement_line text                                      // Příloha 2; rozvaha picks _when_debit/_when_credit by sign(closing_balance), else balance_sheet_line
+  deprecated            boolean   [not null, default: false]
+  Note: 'NON-BINDING 3-digit catalogue, seeded from coa.json. account.specializes_directive_code is a nullable soft link (tenants may invent synthetics). Seed-time: 710 -> group 71; resolve normal_balance mixed/technical/None -> enum+NULL.'
+}
+
+Table chart_of_accounts {
+  id              uuid        [pk, default: `uuidv7()`]
+  organization_id uuid        [not null]
+  period_id       uuid        [not null]
+  regime_code     text        [not null]                          // GENERATED ALWAYS AS ('DOUBLE_ENTRY') STORED
+  created_at      timestamptz [not null, default: `now()`]
+  updated_at      timestamptz [not null, default: `now()`]
+  indexes {
+    period_id [unique, name: 'chart_one_per_period']
+    (id, organization_id) [unique, name: 'chart_id_org_unique']
+    (id, period_id) [unique, name: 'chart_id_period_unique']   // B1: account.(chart_id, period_id) -> here, pins account to its chart's period
+  }
+  Note: 'One účtový rozvrh per účetní období (§14/3). D5 regime gate: composite FK (period_id, organization_id, regime_code) -> accounting_period(id, organization_id, regime_code) with regime_code generated DOUBLE_ENTRY -> chart only on a double-entry period, unbypassable. No status column.'
+}
+
+Table account {
+  id                uuid           [pk, default: `uuidv7()`]
+  organization_id   uuid           [not null]
+  chart_id          uuid           [not null]
+  period_id         uuid           [not null]                     // B1: = the chart's period; FK below pins them equal (closes cross-period posting hole)
+  parent_id         uuid                                          // analytical -> synthetic (§16); same chart
+  number            text           [not null]                     // '31','311','311.001'; CHECK shape
+  name              text           [not null]
+  nature            account_nature [not null]
+  normal_balance    debit_credit                                  // NULL where sign-flips (431,481,FX)
+  tracks_open_items boolean        [not null, default: false]     // saldokonto — the ONE stored flag
+  class             smallint                                      // GENERATED left(number,1)
+  group_code        "char(2)"                                     // GENERATED; NULL for cl.8–9; FK -> account_group
+  synthetic_code    text                                          // GENERATED left(replace(number,'.',''),3)
+  is_synthetic      boolean                                       // GENERATED parent_id IS NULL
+  specializes_directive_code "char(3)"                            // nullable soft link to directive_account
+  created_at        timestamptz    [not null, default: `now()`]
+  updated_at        timestamptz    [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'account_id_org_unique']     // posting line -> account target
+    (id, chart_id) [unique, name: 'account_id_chart_unique']          // parent-same-chart target
+    (id, period_id) [unique, name: 'account_id_period_unique']        // B1: line/balance -> account-in-period target
+    (chart_id, number) [unique, name: 'account_chart_number_unique']
+    parent_id
+    group_code
+    synthetic_code
+  }
+  Note: 'Tenant účet. 4 structural levels GENERATED from number (zero drift). nature fuses Druh+Typ; tracks_open_items the only user flag. 2-digit allowed (§13a). CHECK parent_id<>id, number shape. §16 Σ-reconcile = service+test in posting layer, NOT DDL.'
+}
+
+TableGroup chart_of_accounts_layer {
+  account_group
+  directive_account
+  chart_of_accounts
+  account
+}
+
+Ref: directive_account.group_code > account_group.code
+Ref: chart_of_accounts.(period_id, organization_id) > accounting_period.(id, organization_id)  // + regime_code gate (3-col FK in SQL)
+Ref: account.(chart_id, organization_id) > chart_of_accounts.(id, organization_id)
+Ref: account.(chart_id, period_id)       > chart_of_accounts.(id, period_id)   // B1: account.period == chart.period
+Ref: account.(parent_id, chart_id)       > account.(id, chart_id)
+Ref: account.group_code                  > account_group.code
+Ref: account.specializes_directive_code  > directive_account.code
+
+// =============================================================================
+// POSTING (ZAÚČTOVÁNÍ §6/2) — shared header + 2 regime-specific line shapes
+// =============================================================================
+// Faithful v2 rename of v1 ucetni_zapis / zapis_radek / penezni_denik_radek
+// (TECH-SPEC §5.2–5.4). Header shared across 3 regimes (carries regime_code);
+// PODVOJNÉ -> double_entry_line, JEDNODUCHÉ / DAŇOVÁ EVIDENCE -> shared cash_line.
+// Books are VIEWS over these, never tables. MVP: no FX. debit_credit reused from chart.
+
+enum posting_kind {     // druh (§5.2)
+  SIMPLE
+  COMPOUND
+}
+enum correction_type {  // oprava_typ (§5.2; R8/§35/ČÚS 001)
+  REVERSAL
+  SUPPLEMENTARY
+}
+enum monetary_location {    // misto (§5.4)
+  CASH
+  BANK
+}
+enum monetary_direction {   // smer (§5.4)
+  INFLOW
+  OUTFLOW
+}
+enum category_type {    // kategorie typ (§5.7/§9)
+  INCOME
+  EXPENSE
+}
+
+Table category {
+  id              uuid          [pk, default: `uuidv7()`]
+  organization_id uuid          [not null]
+  type            category_type [not null]
+  name            text          [not null]
+  created_at      timestamptz   [not null, default: `now()`]
+  updated_at      timestamptz   [not null, default: `now()`]
+  indexes { (id, organization_id) [unique, name: 'category_id_org_unique'] }
+  Note: 'kategorie — peněžní-deník income/expense category (§5.7, §9). Referenced by posting_monetary_line.'
+}
+
+Table posting {
+  id                   uuid            [pk, default: `uuidv7()`]
+  organization_id      uuid            [not null]
+  period_id            uuid            [not null]                  // obdobi_id (§5.2); regime spine
+  regime_code          text            [not null]                  // == accounting_period.regime_code via composite FK
+  summary_record_id    uuid            [not null]                  // doklad_id (§5.2, R2) — posting on basis of a doklad (§6/2)
+  accounting_event_id  uuid            [not null]                  // pripad_id (§5.2, R2)
+  depreciation_plan_id uuid                                        // odpisovy_plan_id (§5.2/§6) — FK active (supporting layer)
+  inventory_count_id   uuid                                        // inventura_id (§5.2/§6) — FK active (supporting layer)
+  posting_date         date            [not null]                  // datum (§5.2); CHECK ∈ period (trigger)
+  posting_kind         posting_kind    [not null]                  // druh (§5.2)
+  responsible_user_id  uuid            [not null]                  // odpovedna_osoba (§5.2, R10) -> app_user
+  posted_at            timestamptz     [not null]                  // okamzik_zauctovani (§5.2)
+  corrects_posting_id  uuid                                        // opravuje_zapis_id (R8/§35) — self-FK
+  correction_type      correction_type                             // set iff corrects_posting_id set
+  is_opening           boolean         [not null, default: false]  // B2: 701 počáteční-stav opening posting; read-model trigger EXCLUDES from turnover (sets opening_balance), still in deník
+  created_at           timestamptz     [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'posting_id_org_unique']
+    (id, period_id) [unique, name: 'posting_id_period_unique']                          // B1: line.(posting_id, period_id) -> here, pins line.period == posting.period
+    (id, organization_id, regime_code) [unique, name: 'posting_id_org_regime_unique']  // line-FK target (R7 spine)
+    period_id
+    summary_record_id
+    accounting_event_id
+    corrects_posting_id
+  }
+  Note: 'Shared posting header (§12) made on the basis of a doklad (§6/2). For DAŇOVÁ EVIDENCE a technical container (§7b). Append-only (no updated_at; R8). Composite FKs in SQL: (period_id,org,regime_code)->accounting_period [REGIME SPINE]; (summary_record_id,org); (accounting_event_id,org); self (corrects_posting_id,org,regime_code); depreciation_plan/inventory_count FKs ACTIVE (supporting layer). CHECK (corrects_posting_id IS NULL)=(correction_type IS NULL). TRIGGERS: append-only; closed-period+date∈period.'
+}
+
+Table posting_double_entry_line {
+  id                uuid            [pk, default: `uuidv7()`]
+  organization_id   uuid            [not null]
+  posting_id        uuid            [not null]                     // zapis_id (§5.3)
+  period_id         uuid            [not null]                     // B1: = posting's period; pins the account to the posting's period chart
+  regime_code       text            [not null]                     // CHECK = 'DOUBLE_ENTRY' (R7)
+  account_id        uuid            [not null]                     // ucet_id (§5.3, R1)
+  partial_record_id uuid                                           // dilci_id (§5.3); nullable for generated postings
+  side              debit_credit    [not null]                     // strana (§5.3): MD | Dal
+  amount            "numeric(19,4)" [not null]                     // castka (§5.3, R13); may be negative (storno)
+  created_at        timestamptz     [not null, default: `now()`]
+  indexes {
+    posting_id
+    account_id
+    partial_record_id
+  }
+  Note: 'One MD/Dal side (§13/2). PODVOJNÉ only. Append-only (R8). CHECK regime_code=DOUBLE_ENTRY (R7). Composite FKs in SQL: (posting_id,org,regime_code)->posting; (account_id,org)->account [R1]; (partial_record_id,org)->partial_record [§6/2, NOT unique: 1 dílčí -> N lines]. R4 balance trigger (DEFERRABLE): count>=2 AND ΣDEBIT=ΣCREDIT per posting.'
+}
+
+Table posting_monetary_line {
+  id                uuid            [pk, default: `uuidv7()`]
+  organization_id   uuid            [not null]
+  posting_id        uuid            [not null]                     // zapis_id (§5.4)
+  regime_code       text            [not null]                     // CHECK IN ('SINGLE_ENTRY','TAX_RECORDS') (R7)
+  partial_record_id uuid                                           // dilci_id (§5.4); nullable
+  category_id       uuid                                           // kategorie_id (§5.4, §9); nullable (generated postings)
+  location          monetary_location   [not null]                     // misto (§5.4)
+  direction         monetary_direction  [not null]                     // smer (§5.4)
+  is_tax_relevant   boolean         [not null]                     // danovy (§5.4, §9)
+  is_clearing       boolean         [not null, default: false]     // prubezny (§5.4, §9)
+  tax_base          "numeric(19,4)"                                // zaklad_dane (§5.4, §9); nullable
+  amount            "numeric(19,4)" [not null]                     // castka (§5.4, R13)
+  created_at        timestamptz     [not null, default: `now()`]
+  indexes {
+    posting_id
+    partial_record_id
+    category_id
+  }
+  Note: 'One classified peněžní-deník row (§13b/§7b, §9). JEDNODUCHÉ / DAŇOVÁ EVIDENCE only. Append-only (R8). CHECK regime_code IN (SINGLE_ENTRY,TAX_RECORDS) (R7). CHECK (is_clearing=false OR COALESCE(tax_base,0)=0): a průběžná položka carries no tax base. One cash movement may need several rows (§9). A cash posting must carry >=1 such line (deferred constraint). Composite FKs in SQL: (posting_id,org,regime_code)->posting; (partial_record_id,org); (category_id,org)->category.'
+}
+
+TableGroup posting_layer {
+  category
+  posting
+  posting_double_entry_line
+  posting_monetary_line
+}
+
+Ref: posting.(period_id, organization_id)           > accounting_period.(id, organization_id)  // + regime_code spine (3-col FK in SQL)
+Ref: posting.(summary_record_id, organization_id)   > summary_record.(id, organization_id)
+Ref: posting.(accounting_event_id, organization_id) > accounting_event.(id, organization_id)
+Ref: posting.responsible_user_id                    > app_user.id
+Ref: posting.(corrects_posting_id, organization_id) > posting.(id, organization_id)             // self-correction (+ regime in SQL)
+
+Ref: posting_double_entry_line.(posting_id, organization_id)        > posting.(id, organization_id)
+Ref: posting_double_entry_line.(posting_id, period_id)              > posting.(id, period_id)          // B1: line.period == posting.period
+Ref: posting_double_entry_line.(account_id, organization_id)        > account.(id, organization_id)
+Ref: posting_double_entry_line.(account_id, period_id)              > account.(id, period_id)          // B1: account is in THIS period's chart (closes cross-period hole)
+Ref: posting_double_entry_line.(partial_record_id, organization_id) > partial_record.(id, organization_id)
+
+Ref: posting_monetary_line.(posting_id, organization_id)        > posting.(id, organization_id)
+Ref: posting_monetary_line.(partial_record_id, organization_id) > partial_record.(id, organization_id)
+Ref: posting_monetary_line.(category_id, organization_id)       > category.(id, organization_id)
+
+Ref: signature.(posting_id, organization_id) > posting.(id, organization_id)   // FOR_POSTING link
+
+// =============================================================================
+// SUPPORTING (asset · depreciation · inventory) — §5.6 / §5.7
+// =============================================================================
+// Full fixed-asset register (ČÚS 013, ZoÚ §25–31, Vyhláška 500/2002, ZDP §26–33).
+// Dual-track depreciation: účetní (depreciation_plan -> MD 551 / D 08x) + daňové
+// (tax_depreciation, NOT posted). oprávky/ZC DERIVED from the 08x ledger (D3). COA
+// links by NUMBER (D8, advisor-confirmed); directive_code = renumber-survival anchor.
+
+enum asset_category {
+  INTANGIBLE                 // DNM 01x
+  TANGIBLE_DEPRECIABLE       // DHM 02x
+  TANGIBLE_NON_DEPRECIABLE   // DHM 03x (pozemky, umělecká díla)
+}
+enum depreciation_method {     // účetní (ČÚS 013); MVP STRAIGHT_LINE
+  STRAIGHT_LINE
+  PERFORMANCE
+  DECLINING
+}
+enum tax_depreciation_method { // daňové §31/§32/§30a; irrevocable
+  STRAIGHT_LINE
+  ACCELERATED
+  EXTRAORDINARY
+}
+enum asset_disposal_method {
+  SALE
+  LIQUIDATION
+  THEFT
+  NATURAL_DISASTER
+  DONATION
+  CONTRIBUTION
+}
+enum depreciation_plan_status {
+  ACTIVE
+  SUPERSEDED
+  FULLY_DEPRECIATED
+  DISPOSED
+}
+enum inventory_difference {
+  MATCH
+  SHORTAGE
+  SURPLUS
+}
+
+Table depreciation_group {     // odpisová skupina 1–6 (ZDP §30 Příloha 1 + §31/§32). Law ref, seeded, global.
+  code                    smallint [pk, note: '1–6; CHECK 1..6']
+  period_years            smallint [not null, note: '3/5/10/20/30/50']
+  linear_rate_first       "numeric(6,3)" [note: 'sazba 1. rok (§31)']
+  linear_rate_subsequent  "numeric(6,3)"
+  linear_rate_improvement "numeric(6,3)"
+  accel_coeff_first       smallint [note: 'koeficient 1. rok (§32)']
+  accel_coeff_subsequent  smallint
+  accel_coeff_improvement smallint
+  name                    text
+  Note: 'Seeded from ZDP. Global (no organization_id), like regime/legal_form. Drives the tax-odpis computation.'
+}
+
+Table asset {                  // majetek §5.7 register card. DFM excluded (D1). oprávky/ZC derived (D3). COA by number (D8).
+  id                  uuid           [pk, default: `uuidv7()`]
+  organization_id     uuid           [not null]
+  number_series_id    uuid           [not null]
+  sequence_number     bigint         [not null]
+  designation         text           [not null, note: 'FROZEN inventární číslo']
+  name                text           [not null]
+  category            asset_category [not null]
+  account_number      text           [not null, note: 'D8: balance-sheet majetkový účet number (02x/01x/03x); CHECK shape; resolved per-period at posting']
+  directive_code      "char(3)"      [note: 'D8 anchor: renumber survival + závěrka classifier (NOT the posting key); FK -> directive_account']
+  acquisition_date    date           [note: 'datum pořízení']
+  commissioning_date  date           [not null, note: 'datum zařazení — depreciation START']
+  disposal_date       date
+  disposal_method     asset_disposal_method
+  acquisition_cost    "numeric(19,4)" [not null, note: 'pořizovací cena účetní (§47)']
+  improvement_total   "numeric(19,4)" [not null, default: 0, note: 'technické zhodnocení účetní (§33)']
+  location            text
+  responsible_user_id uuid           [note: 'FK -> app_user(id)']
+  created_at          timestamptz    [not null, default: `now()`]
+  updated_at          timestamptz    [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'asset_id_org_unique']
+    (number_series_id, sequence_number) [unique, name: 'asset_oznaceni_unique']
+  }
+  Note: 'Composite FKs (SQL): (number_series_id, organization_id) -> number_series(id, organization_id); organization_id -> organization; responsible_user_id -> app_user; directive_code -> directive_account(code). account_number is a NUMBER not an FK (D8). DERIVED (D3): oprávky = 08x ledger SUM; účetní ZC = acquisition_cost + improvement_total − oprávky. Per-asset analytical evidence = THIS card, not a per-asset COA account.'
+}
+
+Table depreciation_plan {      // ÚČETNÍ; drives MD 551 / D 08x monthly. Revision history (D4). Closes posting.depreciation_plan_id.
+  id                 uuid                     [pk, default: `uuidv7()`]
+  organization_id    uuid                     [not null]
+  asset_id           uuid                     [not null]
+  supersedes_plan_id uuid                     [note: 'D4: prior plan this revises (self-FK); history kept']
+  method             depreciation_method      [not null, note: 'účetní; MVP STRAIGHT_LINE']
+  start_date         date                     [not null]
+  useful_life_months smallint
+  residual_value     "numeric(19,4)"          [not null, default: 0, note: 'zbytková hodnota (§56/3)']
+  monthly_amount     "numeric(19,4)"          [not null]
+  expense_account_number     text             [not null, note: 'D8: účet 551 number; CHECK shape']
+  accumulated_account_number text             [not null, note: 'D8: účet 08x/07x number; CHECK shape']
+  status             depreciation_plan_status [not null, default: 'ACTIVE']
+  created_at         timestamptz              [not null, default: `now()`]
+  updated_at         timestamptz              [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'depreciation_plan_id_org_unique']  // posting.depreciation_plan_id target
+    asset_id
+  }
+  Note: 'Composite FKs (SQL): (asset_id, organization_id) -> asset; (supersedes_plan_id, organization_id) -> depreciation_plan; organization_id -> organization. UC-4: one posting/asset/month MD 551 / D 08x. účetní accumulated DERIVED from 08x ledger (D3). Account pairing (02x↔08x) + resolver fail-loud + copy-forward pre-flight = service/migration (V2-DEFERRED).'
+}
+
+Table tax_depreciation {       // DAŇOVÉ per asset (1:1); NOT posted. DPPO + odložená daň (ČÚS 003). [D2]
+  id                      uuid                    [pk, default: `uuidv7()`]
+  organization_id         uuid                    [not null]
+  asset_id                uuid                    [not null]
+  depreciation_group_code smallint               [not null, note: 'FK -> depreciation_group(code)']
+  method                  tax_depreciation_method [not null, note: 'irrevocable (§30/2)']
+  tax_base                "numeric(19,4)"         [not null, note: 'vstupní cena daňová (§29)']
+  tax_improvement_total   "numeric(19,4)"         [not null, default: 0]
+  accumulated_amount      "numeric(19,4)"         [not null, default: 0, note: 'claimed cumulative — STORED (annual, can be suspended)']
+  start_year              smallint                [not null, note: 'rok zahájení (§26/5)']
+  is_suspended            boolean                 [not null, default: false, note: 'přerušení (§26/8)']
+  created_at              timestamptz             [not null, default: `now()`]
+  updated_at              timestamptz             [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'tax_depreciation_id_org_unique']
+    (asset_id, organization_id) [unique, name: 'tax_depreciation_asset_unique']   // 1:1
+    depreciation_group_code
+  }
+  Note: 'Composite FKs (SQL): (asset_id, organization_id) -> asset; organization_id -> organization; depreciation_group_code -> depreciation_group(code). daňová ZC = tax_base + tax_improvement_total − accumulated_amount. odložená daň computed at the output layer.'
+}
+
+Table inventory_count {        // inventurní soupis (ZoÚ §29–30). Below books; differences -> postings. Označení (D6).
+  id               uuid        [pk, default: `uuidv7()`]
+  organization_id  uuid        [not null]
+  number_series_id uuid        [not null]
+  sequence_number  bigint      [not null]
+  designation      text        [not null, note: 'FROZEN soupis č.']
+  count_date       date        [not null, note: 'datum inventury (§30/2)']
+  description      text
+  created_at       timestamptz [not null, default: `now()`]
+  updated_at       timestamptz [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'inventory_count_id_org_unique']  // posting.inventory_count_id target
+    (number_series_id, sequence_number) [unique, name: 'inventory_count_oznaceni_unique']
+  }
+  Note: 'Composite FKs (SQL): (number_series_id, organization_id) -> number_series; organization_id -> organization.'
+}
+
+Table inventory_count_line {   // položka soupisu (D7): book vs actual.
+  id                 uuid                 [pk, default: `uuidv7()`]
+  organization_id    uuid                 [not null]
+  inventory_count_id uuid                 [not null]
+  asset_id           uuid                 [note: 'counted asset; NULL for stock/cash (zásoby deferred)']
+  description        text                 [not null]
+  book_value         "numeric(19,4)"      [not null]
+  actual_value       "numeric(19,4)"      [not null]
+  difference_kind    inventory_difference [not null, note: 'sign(actual − book); CHECK enforces consistency']
+  created_at         timestamptz          [not null, default: `now()`]
+  updated_at         timestamptz          [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'inventory_count_line_id_org_unique']
+    inventory_count_id
+    asset_id
+  }
+  Note: 'Composite FKs (SQL): (inventory_count_id, organization_id) -> inventory_count; (asset_id, organization_id) -> asset; organization_id -> organization. CHECK difference_kind = sign(actual_value − book_value). SHORTAGE -> manko (549/569); SURPLUS -> přebytek (648/...).'
+}
+
+TableGroup supporting_layer {
+  depreciation_group
+  asset
+  depreciation_plan
+  tax_depreciation
+  inventory_count
+  inventory_count_line
+}
+
+// supporting relationships
+Ref: asset.(number_series_id, organization_id) > number_series.(id, organization_id)
+Ref: asset.organization_id                     > organization.id
+Ref: asset.responsible_user_id                 > app_user.id
+Ref: asset.directive_code                      > directive_account.code
+
+Ref: depreciation_plan.(asset_id, organization_id)           > asset.(id, organization_id)
+Ref: depreciation_plan.(supersedes_plan_id, organization_id) > depreciation_plan.(id, organization_id)
+Ref: depreciation_plan.organization_id                       > organization.id
+
+Ref: tax_depreciation.(asset_id, organization_id) > asset.(id, organization_id)
+Ref: tax_depreciation.depreciation_group_code     > depreciation_group.code
+Ref: tax_depreciation.organization_id             > organization.id
+
+Ref: inventory_count.(number_series_id, organization_id) > number_series.(id, organization_id)
+Ref: inventory_count.organization_id                     > organization.id
+
+Ref: inventory_count_line.(inventory_count_id, organization_id) > inventory_count.(id, organization_id)
+Ref: inventory_count_line.(asset_id, organization_id)          > asset.(id, organization_id)
+Ref: inventory_count_line.organization_id                      > organization.id
+
+// posting deferred FKs — now ACTIVE
+Ref: posting.(depreciation_plan_id, organization_id) > depreciation_plan.(id, organization_id)
+Ref: posting.(inventory_count_id, organization_id)   > inventory_count.(id, organization_id)
+
+// =============================================================================
+// SALDOKONTO (open items) — parování pohledávek a závazku (§16, CÚS 001)
+// =============================================================================
+// Decision 1 (Hleb 2026-06-30): track each unpaid receivable/payable and its
+// settlement matching. PERENNIAL (not period-scoped): an invoice issued in one
+// period is paid in another; open_item references the saldokonto account BY NUMBER
+// (D8, like asset/depreciation), resolved per-period by the books layer.
+// Counterparty denormalized (composite FK) so "all unpaid items for X" is one
+// indexed read. Only accounts with tracks_open_items=true participate.
+
+enum open_item_direction {
+  RECEIVABLE    // pohledávka
+  PAYABLE       // závazek
+}
+
+Table open_item {
+  id                 uuid                [pk, default: `uuidv7()`]
+  organization_id    uuid                [not null]
+  workspace_id       uuid                [not null]
+  counterparty_id    uuid                [not null]                  // protistrana (workspace-shared)
+  origin_posting_id  uuid                [not null]                  // the invoice posting that opened the obligation
+  account_number     text                [not null, note: 'saldokonto ucet (311/321/...) BY NUMBER (D8, perennial); CHECK shape']
+  direction          open_item_direction [not null]                  // RECEIVABLE | PAYABLE (pohledávka / závazek)
+  variable_symbol    text                                            // VS / párovací symbol
+  original_amount    "numeric(19,4)"     [not null]                  // full obligation (úcetní mena)
+  currency_code      "char(3)"           [not null]                  // FK -> currency.code
+  issue_date         date                [not null]                  // datum vystavení
+  due_date           date                                            // splatnost
+  settled_amount     "numeric(19,4)"     [not null, default: 0]      // maintained by the settlement trigger (may exceed original = preplatek)
+  remaining_amount   "numeric(19,4)"     [note: 'GENERATED ALWAYS AS (original_amount - settled_amount) STORED']
+  is_settled         boolean             [note: 'GENERATED ALWAYS AS (settled_amount >= original_amount) STORED']
+  created_at         timestamptz         [not null, default: `now()`]
+  updated_at         timestamptz         [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'open_item_id_org_unique']
+    counterparty_id       [name: 'open_item_counterparty_idx']
+    (organization_id, account_number) [name: 'open_item_account_idx']
+    (organization_id, due_date) [name: 'open_item_unsettled_idx', note: 'partial: WHERE is_settled = false (SQL only)']
+    origin_posting_id     [name: 'open_item_origin_posting_idx']
+  }
+  Note: 'One open obligation (pohledávka or závazek). settled_amount maintained by the open_item_settlement AFTER INSERT trigger; remaining_amount and is_settled are GENERATED (SQL only, not expressible in DBML). CHECKs (SQL only): original_amount > 0 AND settled_amount >= 0; account_number shape. Composite FKs: (organization_id, workspace_id) -> organization; (counterparty_id, workspace_id) -> counterparty; (origin_posting_id, organization_id) -> posting. FORCE RLS + organization_isolation policy. app_user has full DML (UPDATE for settled_amount).'
+}
+
+Table open_item_settlement {
+  id                  uuid            [pk, default: `uuidv7()`]
+  organization_id     uuid            [not null]
+  open_item_id        uuid            [not null]                      // the obligation being settled
+  settling_posting_id uuid            [not null]                      // the payment posting (bank/cash, §13b)
+  amount              "numeric(19,4)" [not null]                      // applied amount; negative = rozpárování
+  settlement_date     date            [not null]                      // datum úhrady
+  settlement_fx_rate            "numeric(18,6)"                       // FX (0035, option C): ČNB rate at settlement_date; NULL = accounting-currency settlement
+  amount_in_accounting_currency "numeric(19,4)"                       // FX: frozen settled value in měna účetnictví; engine-populated (EPIC 2)
+  created_at          timestamptz     [not null, default: `now()`]
+  indexes {
+    (id, organization_id) [unique, name: 'open_item_settlement_id_org_unique']
+    open_item_id          [name: 'open_item_settlement_item_idx']
+    settling_posting_id   [name: 'open_item_settlement_posting_idx']
+  }
+  Note: 'One payment-to-obligation match (párování). M:N: a payment clears many items; an item takes many partial payments. Append-only (a match is corrected by a new negative-amount match, never edited). CHECK (SQL only): amount <> 0. Composite FKs: (open_item_id, organization_id) -> open_item; (settling_posting_id, organization_id) -> posting. FORCE RLS + organization_isolation + append-only trigger.'
+}
+
+TableGroup saldokonto_layer {
+  open_item
+  open_item_settlement
+}
+
+// saldokonto relationships
+Ref: open_item.(organization_id, workspace_id) > organization.(id, workspace_id)
+Ref: open_item.(counterparty_id, workspace_id) > counterparty.(id, workspace_id)
+Ref: open_item.(origin_posting_id, organization_id) > posting.(id, organization_id)
+Ref: open_item.currency_code > currency.code
+
+Ref: open_item_settlement.(open_item_id, organization_id)        > open_item.(id, organization_id)
+Ref: open_item_settlement.(settling_posting_id, organization_id) > posting.(id, organization_id)
+
+// =============================================================================
+// READ-MODEL (books/reports materialization) — maintained turnover tables
+// =============================================================================
+// Books are NOT views (read-heavy SaaS): maintained by AFTER INSERT triggers on the
+// posting lines, SAME transaction. Research-settled + advisor-verified. Cumulative
+// MD/Dal columns; matviews + pg_ivm rejected. Triggers = migration (NOTE).
+
+Table account_period_balance {   // double-entry obraty per (org, period, account)
+  organization_id uuid            [not null]
+  period_id       uuid            [not null]
+  account_id      uuid            [not null, note: 'PERIOD chart account; cross-period joins use account.number/synthetic_code, NOT this UUID']
+  opening_balance "numeric(19,4)" [not null, default: 0, note: 'počáteční stav (carried; 0 for P&L)']
+  turnover_debit  "numeric(19,4)" [not null, default: 0, note: 'obrat MD (signed-accumulating; storno may decrease)']
+  turnover_credit "numeric(19,4)" [not null, default: 0, note: 'obrat Dal']
+  closing_balance "numeric(19,4)" [note: 'konečný stav. GENERATED ALWAYS AS (opening_balance + turnover_debit - turnover_credit) STORED']
+  updated_at      timestamptz     [not null, default: `now()`]
+  indexes {
+    (organization_id, period_id, account_id) [pk]
+    (organization_id, period_id, updated_at) [name: 'account_period_balance_updated_idx']   // cache token = max(updated_at)
+  }
+  Note: 'Maintained by AFTER INSERT trigger on posting_double_entry_line (SECURITY DEFINER, org+period from parent posting): ON CONFLICT DO UPDATE SET turnover_x += EXCLUDED. GRANT SELECT,INSERT,UPDATE (NOT append-only). Composite FKs (SQL): (period_id, organization_id) -> accounting_period; (account_id, organization_id) -> account. 701 opening tagged is_opening -> excluded from turnover (sets opening_balance), still in deník. Drift: Σ(all lines)=closing_balance. §16: Σ analytical closing GROUP BY synthetic_code = synthetic.'
+}
+
+Table monetary_period_summary {  // cash-regime (peněžní deník) totals
+  id              uuid               [pk, default: `uuidv7()`, note: 'surrogate — nullable category_id cannot be in a PK']
+  organization_id uuid               [not null]
+  period_id       uuid               [not null]
+  category_id     uuid               [note: 'nullable (uncategorized); folds via NULLS NOT DISTINCT']
+  direction       monetary_direction [not null]
+  is_tax_relevant boolean            [not null]
+  is_clearing     boolean            [not null, note: 'průběžná položka; tax/přehled views WHERE is_clearing=false']
+  location        monetary_location  [not null, note: 'CASH (hotovost) / BANK (banka)']
+  total_amount    "numeric(19,4)"    [not null, default: 0]
+  total_tax_base  "numeric(19,4)"    [not null, default: 0, note: 'Σ zaklad_dane (§7b daňový základ)']
+  updated_at      timestamptz        [not null, default: `now()`]
+  indexes {
+    (organization_id, period_id, category_id, direction, is_tax_relevant, is_clearing, location) [unique, name: 'monetary_period_summary_grain_unique']  // UNIQUE NULLS NOT DISTINCT
+  }
+  Note: 'Maintained by AFTER INSERT trigger on posting_monetary_line. UNIQUE is NULLS NOT DISTINCT (PG15+) so uncategorized lines fold. Composite FKs (SQL): (period_id, organization_id) -> accounting_period; (category_id, organization_id) -> category. CHECK (is_clearing=false OR total_tax_base=0): průběžná položka (bank<->till transfer) is neither příjem nor výdaj -> carries no tax base (§7b/§9).'
+}
+
+// =============================================================================
+// OUTPUT (period_output = vystup §5.5) — R9-derived marker, append-only
+// =============================================================================
+enum period_output_type {
+  FINANCIAL_STATEMENTS   // ZAVERKA — rozvaha + VZZ + příloha (§18); DOUBLE_ENTRY
+  OVERVIEWS              // PREHLEDY — §13b/3; SINGLE_ENTRY
+  PERSONAL_INCOME_TAX    // DPFO — §7b ZDP; TAX_RECORDS
+}
+
+Table period_output {
+  id              uuid               [pk, default: `uuidv7()`]
+  organization_id uuid               [not null]
+  period_id       uuid               [not null]
+  type            period_output_type [not null, note: 'regime-dependent']
+  generated_at    timestamptz        [not null, default: `now()`, note: 'append-only finalization marker']
+  generated_by    uuid               [not null, note: 'R10 attributable -> app_user(id)']
+  indexes {
+    (id, organization_id) [unique, name: 'period_output_id_org_unique']
+    (period_id, organization_id) [name: 'period_output_period_idx']
+  }
+  Note: 'vystup §5.5. Composite FK (period_id, organization_id) -> accounting_period; generated_by -> app_user. R6-gated (service). R9-DERIVED (no number column). Append-only (no updated_at; trigger blocks UPDATE/DELETE, V2-DEFERRED). NOT unique (period_id,type): append-only re-issues (opravná/mimořádná/mezitímní závěrka). R11 trace via the read-model.'
+}
+
+TableGroup read_model_and_output {
+  account_period_balance
+  monetary_period_summary
+  period_output
+}
+
+// read-model + output relationships
+Ref: account_period_balance.(period_id, organization_id)  > accounting_period.(id, organization_id)
+Ref: account_period_balance.(account_id, organization_id) > account.(id, organization_id)
+Ref: account_period_balance.(account_id, period_id)       > account.(id, period_id)   // B1: the balance's account belongs to THIS period's chart
+Ref: monetary_period_summary.(period_id, organization_id)   > accounting_period.(id, organization_id)
+Ref: monetary_period_summary.(category_id, organization_id) > category.(id, organization_id)
+Ref: period_output.(period_id, organization_id) > accounting_period.(id, organization_id)
+Ref: period_output.generated_by                 > app_user.id

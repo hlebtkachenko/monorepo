@@ -4,12 +4,13 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 
 /**
- * Content-header seam between the persistent shell and the active page.
+ * Content-header seam between a persistent app shell and the active page —
+ * shared by both the org and the workspace tiers.
  *
  * The shell owns the content-panel header SLOT (a Next layout can't read a child
  * page's exports), but a page needs to render its own title/tabs/actions there.
  * Solution: the shell renders an empty portal TARGET in the slot; a page renders
- * `<OrgPageHeader>` with its header node, which `createPortal`s into that target.
+ * `<AppPageHeader>` with its header node, which `createPortal`s into that target.
  * Because it's a portal, the node stays in the PAGE's React tree (keeps the
  * page's context/state) while its DOM lands in the shell header. When no page
  * provides one, the shell shows a nav-derived title fallback.
@@ -25,7 +26,7 @@ interface SlotContext {
 const Ctx = React.createContext<SlotContext | null>(null)
 
 /** Wraps the shell so the header slot + the page children share the target el. */
-export function OrgPageHeaderProvider({
+export function AppPageHeaderProvider({
   children,
 }: {
   children: React.ReactNode
@@ -43,7 +44,7 @@ export function OrgPageHeaderProvider({
  * The shell's content-header slot: a portal target plus a fallback shown until a
  * page claims it. Render into `AppShell`'s `contentHeader`.
  */
-export function OrgContentHeaderSlot({
+export function AppContentHeaderSlot({
   fallback,
 }: {
   fallback: React.ReactNode
@@ -58,7 +59,7 @@ export function OrgContentHeaderSlot({
 }
 
 /** Render a page's header node into the shell's content-header slot. */
-export function OrgPageHeader({ children }: { children: React.ReactNode }) {
+export function AppPageHeader({ children }: { children: React.ReactNode }) {
   const ctx = React.useContext(Ctx)
   const setClaimed = ctx?.setClaimed
   React.useEffect(() => {

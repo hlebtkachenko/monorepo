@@ -36,11 +36,21 @@ interface JsonSchemaNode {
   maximum?: number
 }
 
+interface Parameter {
+  $ref?: string
+  name?: string
+  in?: "path" | "query" | "header" | "cookie"
+  required?: boolean
+  description?: string
+  schema?: JsonSchemaNode
+}
+
 interface Operation {
   operationId?: string
   summary?: string
   description?: string
   tags?: string[]
+  parameters?: Parameter[]
   requestBody?: {
     content?: Record<string, { schema?: JsonSchemaNode }>
   }
@@ -48,7 +58,10 @@ interface Operation {
 
 interface Spec {
   paths?: Record<string, Record<string, Operation>>
-  components?: { schemas?: Record<string, JsonSchemaNode> }
+  components?: {
+    schemas?: Record<string, JsonSchemaNode>
+    parameters?: Record<string, Parameter>
+  }
 }
 
 const ROOT = resolve(__dirname, "..", "..", "..")
@@ -185,15 +198,65 @@ function buildRequestBodyInfo(
   }
 }
 
-function clientCallFor(method: string, path: string, hasBody: boolean): string {
-  // The codegen targets the openapi-fetch `client.GET/POST(...)` surface
-  // exported by `@afframe/sdk` (`createAfframeClient`). Emit the path as a
-  // bare string literal — TS narrows it to its literal type and openapi-
-  // fetch's `PathsWithMethod` accepts the match. No `as never` cast: that
-  // would defeat the path typing the generated types exist to provide.
+/** One operation parameter, resolved and grouped by `in` location. */
+interface ParameterInfo {
+  /** Parameter name — the spec's exact casing (round-trips openapi-fetch). */
+  name: string
+  in: "path" | "query" | "header"
+  required: boolean
+  /** Zod expression for the parameter schema (`.optional()` appended below). */
+  zodExpr: string
+}
+
+/**
+ * Resolve a `#/components/parameters/<Name>` $ref against the spec. Returns
+ * the target parameter node, or the input untouched when it's already inline.
+ */
+function resolveParameterRef(param: Parameter, spec: Spec): Parameter {
+  if (!param.$ref) return param
+  const name = param.$ref.replace("#/components/parameters/", "")
+  return spec.components?.parameters?.[name] ?? param
+}
+
+/**
+ * Collect an operation's parameters (path / query / header), resolving any
+ * `$ref` entries. Cookie params — none in the current surface — are dropped.
+ * Path params are always treated as required (openapi-fetch demands them).
+ */
+function buildParameterInfos(op: Operation, spec: Spec): ParameterInfo[] {
+  const infos: ParameterInfo[] = []
+  for (const raw of op.parameters ?? []) {
+    const param = resolveParameterRef(raw, spec)
+    if (!param.name || !param.in) continue
+    if (param.in === "cookie") continue
+    const schema = param.schema ?? { type: "string" }
+    infos.push({
+      name: param.name,
+      in: param.in,
+      required: param.in === "path" ? true : Boolean(param.required),
+      zodExpr: zodExprFor(schema, spec),
+    })
+  }
+  return infos
+}
+
+/**
+ * Emit the openapi-fetch `client.VERB(...)` call.
+ *
+ * The path is a bare string literal so TS narrows it to its literal type and
+ * openapi-fetch's `PathsWithMethod` still accepts the match — no `as never`
+ * on the whole call. The `init` object (`{ body?, params? }`) is assembled in
+ * the handler from the split `args`; its `params` sub-object is cast to the
+ * operation's precise `operations[id]["parameters"]` type (the exact shape
+ * `ParamsOption<T>` expects, round-tripping the spec's key casing), and the
+ * body keeps the existing `components["schemas"][Ref]` cast. Operations with
+ * neither a body nor parameters keep the bare single-argument call so their
+ * `params?`-optional type is not broken by an empty init.
+ */
+function clientCallFor(method: string, path: string, hasInit: boolean): string {
   const verb = method.toUpperCase()
-  return hasBody
-    ? `client.${verb}("${path}", { body })`
+  return hasInit
+    ? `client.${verb}("${path}", init)`
     : `client.${verb}("${path}")`
 }
 
@@ -207,26 +270,117 @@ function emitTool(
   const description =
     op.description ?? op.summary ?? `Wraps ${method.toUpperCase()} ${path}.`
   const body = buildRequestBodyInfo(op, spec)
+  const params = buildParameterInfos(op, spec)
+  const pathParams = params.filter((p) => p.in === "path")
+  const queryParams = params.filter((p) => p.in === "query")
+  const headerParams = params.filter((p) => p.in === "header")
+
   // The MCP SDK validates tool arguments against `inputShape` before the
-  // handler runs; the cast bridges the zod-inferred argument type to the
-  // spec-generated body type for openapi-fetch.
+  // handler runs, so both body fields and parameters live in one raw shape.
+  // A tool has an input schema whenever it has a body OR any parameter.
+  const hasInput = Boolean(body) || params.length > 0
+
+  // Raw-shape entries: body-derived fields (from buildRequestBodyInfo) plus
+  // one field per parameter, keyed by the spec's exact parameter name so it
+  // round-trips into openapi-fetch's `params.{path,query,header}`.
+  const bodyShapeLines = body
+    ? body.shapeSource.split("\n").slice(1, -1) // drop the `const inputShape = {` / `}` wrapper lines
+    : []
+  const paramShapeLines = params.map((p) => {
+    const expr = p.required ? p.zodExpr : `${p.zodExpr}.optional()`
+    return `  ${JSON.stringify(p.name)}: ${expr},`
+  })
+  const shapeSource = hasInput
+    ? ["const inputShape = {", ...bodyShapeLines, ...paramShapeLines, "}"].join(
+        "\n",
+      )
+    : ""
+
+  // The cast bridges the zod-inferred argument type to the spec-generated
+  // body type for openapi-fetch.
   const bodyType = body
     ? body.refName
       ? `components["schemas"][${JSON.stringify(body.refName)}]`
       : "Record<string, unknown>"
     : null
-  const sdkImport = body
+
+  const needsComponents = Boolean(body)
+  const sdkImport = needsComponents
     ? 'import type { AfframeClient, components } from "@afframe/sdk"'
     : 'import type { AfframeClient } from "@afframe/sdk"'
-  const zodImport = body ? 'import { z } from "zod"\n' : ""
-  const shapeBlock = body ? `\n${body.shapeSource}\n` : ""
-  const inputSchemaLine = body ? "\n      inputSchema: inputShape," : ""
-  const handlerParams = body ? "args" : ""
-  const handlerPrelude = body
-    ? `\n        const body = args as unknown as ${bodyType}`
-    : ""
+  const zodImport = hasInput ? 'import { z } from "zod"\n' : ""
+  const shapeBlock = hasInput ? `\n${shapeSource}\n` : ""
+  const inputSchemaLine = hasInput ? "\n      inputSchema: inputShape," : ""
+  const handlerParams = hasInput ? "args" : ""
+
+  // Handler prelude: split the validated args into parameter groups + body,
+  // then assemble the openapi-fetch `init`. `params` is cast to the
+  // operation's precise `operations[id]["parameters"]` type (exactly what
+  // `ParamsOption<T>` expects), and the body keeps its `components` cast.
+  const preludeLines: string[] = []
+  const paramNames = params.map((p) => p.name)
+  if (params.length > 0) {
+    preludeLines.push("const raw = args as Record<string, unknown>")
+  }
+  const groupExprs: string[] = []
+  const emitGroup = (group: ParameterInfo[], key: string): void => {
+    if (group.length === 0) return
+    const entries = group
+      .map((p) => `${JSON.stringify(p.name)}: raw[${JSON.stringify(p.name)}]`)
+      .join(", ")
+    groupExprs.push(`${key}: { ${entries} }`)
+  }
+  emitGroup(pathParams, "path")
+  emitGroup(queryParams, "query")
+  emitGroup(headerParams, "header")
+  if (groupExprs.length > 0) {
+    preludeLines.push(
+      `const params = { ${groupExprs.join(", ")} } as unknown as ` +
+        `NonNullable<operations[${JSON.stringify(operationId)}]["parameters"]>`,
+    )
+  }
+  if (body) {
+    if (params.length > 0) {
+      // Body is every arg field that is not a parameter. Runtime omit keeps
+      // this valid for hyphenated param names (e.g. `idempotency-key`) that
+      // can't be object-destructured to an identifier.
+      preludeLines.push(
+        `const paramKeys = new Set(${JSON.stringify(paramNames)})`,
+      )
+      preludeLines.push(
+        "const bodyFields = Object.fromEntries(" +
+          "Object.entries(raw).filter(([k]) => !paramKeys.has(k)))",
+      )
+      preludeLines.push(`const body = bodyFields as unknown as ${bodyType}`)
+    } else {
+      preludeLines.push(`const body = args as unknown as ${bodyType}`)
+    }
+  }
+  const initFields: string[] = []
+  if (body) initFields.push("body")
+  if (groupExprs.length > 0) initFields.push("params")
+  const hasInit = initFields.length > 0
+  if (hasInit) {
+    preludeLines.push(`const init = { ${initFields.join(", ")} }`)
+  }
+  const needsOperations = groupExprs.length > 0
+
+  const handlerPrelude =
+    preludeLines.length > 0
+      ? "\n" + preludeLines.map((l) => `        ${l}`).join("\n")
+      : ""
+
+  const operationsImport = needsOperations
+    ? sdkImport.replace(
+        needsComponents ? "components }" : "AfframeClient }",
+        needsComponents
+          ? "components, operations }"
+          : "AfframeClient, operations }",
+      )
+    : sdkImport
+
   return `// AUTO-GENERATED by apps/mcp/scripts/gen-tools.ts — do not edit.
-${zodImport}${sdkImport}
+${zodImport}${operationsImport}
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
 import { renderResult, toolError } from "../_render"
@@ -248,7 +402,7 @@ export function register${capitalize(operationId)}(
     },
     async (${handlerParams}): Promise<CallToolResult> => {
       try {${handlerPrelude}
-        const { data, error, response } = await ${clientCallFor(method, path, Boolean(body))}
+        const { data, error, response } = await ${clientCallFor(method, path, hasInit)}
         if (error) throw error
         if (!response.ok) {
           throw new Error(\`Upstream HTTP \${response.status}\`)
@@ -276,12 +430,13 @@ function main(): void {
     for (const method of HTTP_METHODS) {
       const op = pathItem[method]
       if (!op?.operationId) continue
-      // GET tools call openapi-fetch with no second argument; POST tools
-      // emit a Zod `inputSchema` from the operation's JSON request body
-      // and pass `{ body }`. PUT/PATCH/DELETE stay skipped until the first
-      // such operation exists — they need path-parameter wiring on top of
-      // the body support (mirror this skip in
-      // scripts/governance/check-mcp-coverage.mjs when extending).
+      // GET and POST tools both thread operation parameters (path / query /
+      // header) into the openapi-fetch `init` alongside any JSON request body
+      // (see emitTool). PUT/PATCH/DELETE stay skipped until the first such
+      // operation exists — the param+body wiring already generalizes to them,
+      // but the annotation defaults in `_curate` need a pass first (mirror
+      // this method skip in scripts/governance/check-mcp-coverage.mjs when
+      // extending to more verbs).
       if (method !== "get" && method !== "post") continue
       const out = emitTool(op.operationId, method, path, op, spec)
       writeFileSync(resolve(OUT_DIR, `${op.operationId}.ts`), out)

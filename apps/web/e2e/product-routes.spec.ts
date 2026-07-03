@@ -11,7 +11,8 @@
  *   - org dashboard (`/<orgSlug>`, AppShell chrome)
  *   - the 9 org module sections (module pages — the persistent shell + the
  *     sidebar's h2 module title)
- *   - the workspace chooser + 4 workspace/* pages (h1 landmarks)
+ *   - the workspace shell + its workspace/* pages (persistent shell + the
+ *     sidebar's h2 module title, same shape as the org sections)
  */
 
 import { readFileSync } from "node:fs"
@@ -43,13 +44,22 @@ const ORG_SECTIONS = [
   "settings",
 ] as const
 
-/** Workspace chooser + the 4 workspace pages, with their h1 landmarks. */
+/**
+ * The workspace tier under `app/workspace/` — the Companies index + one route
+ * directory per office module. All render under the persistent workspace shell
+ * (same chrome as the org sections), so they assert the shell + the sidebar h2,
+ * not an h1 (the tier has no body headings by design).
+ */
 const WORKSPACE_PAGES = [
-  { path: "/workspace", heading: "Your workspaces" },
-  { path: "/workspace/inbox", heading: "Inbox" },
-  { path: "/workspace/profile", heading: "Your profile" },
-  { path: "/workspace/settings", heading: "Workspace settings" },
-  { path: "/workspace/billing", heading: "Billing" },
+  "/workspace",
+  "/workspace/analyse",
+  "/workspace/audit",
+  "/workspace/team",
+  "/workspace/inbox",
+  "/workspace/legislation",
+  "/workspace/billing",
+  "/workspace/settings",
+  "/workspace/profile",
 ] as const
 
 /** Same two-step login as tenant-scoped.spec.ts. */
@@ -106,19 +116,23 @@ test.describe("Product route smoke", () => {
     expect(pageErrors).toEqual([])
   })
 
-  test("workspace chooser + workspace pages render for the seeded owner", async ({
+  test("workspace shell + workspace pages render for the seeded owner", async ({
     page,
   }) => {
-    test.setTimeout(90_000)
+    test.setTimeout(120_000)
     const pageErrors = collectPageErrors(page)
     await loginAsSeededOwner(page)
 
-    for (const { path, heading } of WORKSPACE_PAGES) {
+    for (const path of WORKSPACE_PAGES) {
       await test.step(path, async () => {
         const res = await page.goto(path)
         expect(res?.status()).toBe(200)
+        // Every workspace page renders under the persistent shell; error.tsx
+        // renders none of it, so the shell + an h2 (the sidebar module title)
+        // means the right page rendered, not an error boundary.
+        await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
         await expect(
-          page.getByRole("heading", { level: 1, name: heading }),
+          page.getByRole("heading", { level: 2 }).first(),
         ).toBeVisible()
       })
     }

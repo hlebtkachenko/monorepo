@@ -6,6 +6,67 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.12.2] — 2026-07-03
+
+Patch release: the human half of the accounting write gate, API-key write scopes, and a repo-hygiene guard.
+
+### Added
+
+- **api**: held-writes review surface — `GET /v1/accounting/held-writes` lists the gated writes the confidence gate held for human review; `POST /v1/accounting/held-writes/{id}/resolve` approves (re-validates the stored payload against the original schema and executes it through the same domain path, with the approver as the responsible user) or rejects (audit-only). 404/409/403/422 seams covered; SDK + MCP regenerated (23 tools). The "Ke schválení" page gains Schválit a zaúčtovat / Zamítnout actions with an optional note. (#462)
+- **api**: `accounting:write` API-key scope enforced on the three accounting write mutations via `@RequireScopes` in ApiKeyGuard — 403 names the missing scope; keys with empty scopes pass as legacy full access (warn-logged) until issued keys carry scopes. (#462)
+
+### Fixed
+
+- **ci**: removed a `_junk/` file force-added to the tree by #444 and added a tracked-but-gitignored guard (`git ls-files -i -c --exclude-standard` must be empty) to the CI `changes` job and lefthook pre-commit — `.gitignore` only affects untracked files, so nothing previously stopped ignored paths from being committed. (#463)
+
+## [v0.12.1] — 2026-07-03
+
+Patch release: Sidekick brand accent recolored to the shared purple token, UI-only, no runtime behavior change.
+
+### Changed
+
+- **ui**: the Sidekick brand mark, the `tone="sidekick"` IconButton, the "Ask Sidekick" context-menu item, and the admin command palette's "Ask AI" row now use the shared `--purple` token instead of hardcoded grays. The "Ask Sidekick" menu item's lucide `Sparkles` glyph is replaced with the real brand mark and its `BorderBeam` gradient wrapper is dropped. (#460)
+
+## [v0.12.0] — 2026-07-03
+
+Minor release: the v2 Czech accounting system — the double-entry domain, its public agent surface, and the accounting UI, landed as one piece (EPICs 1–5).
+
+### Added
+
+- **db**: v2 accounting ground layer — 16 migrations / 39 tables: law-as-reference directives, time-bound org links (regime, size, legal form, VAT regime), events → documents → postings spine, gapless number series, FORCE-RLS tenant isolation, trigger-maintained turnover read models, saldokonto open items. (#445)
+- **accounting**: `@workspace/accounting` domain engine — classification (predkontace + `decideVat`), capture, double-entry + monetary posting, FX (daily/real/fixed), depreciation, accruals, corrections, and statutory outputs: DPH return, kontrolní hlášení, souhrnné hlášení, DPPO, financial statements (závěrka) with statement layouts. (#445)
+- **api**: 15 `/v1/accounting` endpoints / 21 MCP tools — reads (journal, ledger, open items, saldokonto), 6 statutory outputs, pure `classify`, number-series discovery, and 3 gated write mutations (events, documents, postings) behind a confidence + idempotency gate (`tool_call_log`): low-confidence writes are held for human review, replays are idempotent, tenant identity comes only from the API-key principal. (#445)
+- **web**: accounting module UI on live domain data — deník (journal, with event description + counterparty context), hlavní kniha, saldokonto, účtový rozvrh, accounting overview, and the "Ke schválení" held-writes review queue; Records module connected to captured documents (overview + faktury přijaté); doklad editor (Single archetype) relocated into Records. (#445)
+
+### Fixed
+
+- **ci**: paired-files required check no longer fails structurally on PRs over 20k changed lines — the script lists files via the paginated REST Files API instead of the line-capped diff endpoint; squawk migration lint excludes `ban-char-field` + `adding-field-with-default` (correct-by-design fixed-length codes and generated columns). (#445)
+- **api**: high-severity polynomial-regex (ReDoS) in the accounting error seam replaced with linear matching; MCP generator now wires path/query/header parameters (11 accounting tools were broken at runtime). (#445)
+
+## [v0.11.0] — 2026-07-03
+
+Minor release: the workspace tier — the accountant-office surface for managing multiple client books, billing, and team, distinct from a client's own book.
+
+### Added
+
+- **web**: full workspace-tier app shell + 8 modules (Companies hub, Analyse, Audit, Inbox, Legislation, Billing, Team, Settings/Profile), built on the org tier's shell/archetype vocabulary. Green office-chrome identity, combined logomark+wordmark rail lockup. Real writes for Settings, Billing entity, and Profile display name; Companies/Team/Billing-overview backed by real data. Inbox and other undelivered surfaces (Audit backend, Legislation, Billing/Invoices) ship as designed mock UI with tracked follow-ups (#452–458), or as a prod TODO stub with the mock preserved dev-only (Inbox). (#444)
+
+### Fixed
+
+- **ci**: gitleaks false positives (statute citations, example IBAN, fixture DIČ) from other branches surfacing via the all-refs scan. (#444)
+
+## [v0.10.3] — 2026-07-03
+
+Patch release: dev-tooling and docs only, no runtime behavior change.
+
+### Fixed
+
+- **deps**: bounded the `js-yaml` pnpm override to `>=4.2.0 <5.0.0` — an unbounded 4.x floor let `@redocly/openapi-core` float to js-yaml 5.x and break `pnpm gen:all` SDK/MCP codegen repo-wide. (#442)
+
+### Docs
+
+- **api**: `/v1/structure` surface listed in the API README, CLI, and MCP guides. (#441)
+
 ## [v0.10.2] — 2026-07-01
 
 Patch release: the app-structure discovery surface — the org navigation tree, pages, and layout archetypes, reachable by AI agents **outside the GUI** via the public API / SDK / MCP / CLI. Read-only metadata; no runtime behavior change to the app.

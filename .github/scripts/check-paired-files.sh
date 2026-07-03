@@ -15,7 +15,7 @@
 # Requirements:
 #   - yq (mikefarah/yq v4) — preinstalled on GitHub ubuntu runners.
 #   - gh CLI with GH_TOKEN set — preinstalled on GitHub ubuntu runners.
-#   - Run inside a `pull_request` event so `gh pr diff` resolves the PR.
+#   - Run inside a `pull_request` event so the PR number resolves.
 
 set -euo pipefail
 
@@ -26,14 +26,19 @@ if [[ ! -f "${RULES_FILE}" ]]; then
   exit 1
 fi
 
-# Collect the PR's changed files, one path per line. In CI, actions/checkout
-# leaves a detached HEAD, so `gh pr diff` cannot infer the PR from the branch
-# — the workflow passes the PR number explicitly via PR_NUMBER.
+# Collect the PR's changed files, one path per line, via the paginated
+# "list pull request files" REST endpoint. The diff media type behind
+# `gh pr diff` hard-fails (HTTP 406) on PRs over 20,000 changed lines,
+# while the files endpoint has no line cap (3,000-file ceiling). In CI,
+# actions/checkout leaves a detached HEAD, so the PR cannot be inferred
+# from the branch — the workflow passes it explicitly via PR_NUMBER.
 if [[ -n "${PR_NUMBER:-}" ]]; then
-  changed_files="$(gh pr diff "${PR_NUMBER}" --name-only)"
+  pr_number="${PR_NUMBER}"
 else
-  changed_files="$(gh pr diff --name-only)"
+  pr_number="$(gh pr view --json number --jq .number)"
 fi
+
+changed_files="$(gh api --paginate "repos/{owner}/{repo}/pulls/${pr_number}/files" --jq '.[].filename')"
 
 if [[ -z "${changed_files}" ]]; then
   echo "No changed files detected in this PR; nothing to check."

@@ -57,7 +57,13 @@ import type postgres from "postgres"
 export function hashInt(s: string): number {
   // FNV-1a 32-bit offset basis.
   let hash = 0x811c9dc5
-  for (let i = 0; i < s.length; i++) {
+  // Bound the loop by a constant. Keys are UUIDs (<= 36 chars) resolved from the
+  // principal / a validated `periodId`, so this never truncates a real id; the
+  // cap only stops a maliciously long string from turning the hash into a DoS
+  // (CodeQL js/loop-bound-injection). A collision past the cap merely
+  // over-serializes an advisory lock — always the safe direction.
+  const len = Math.min(s.length, 256)
+  for (let i = 0; i < len; i++) {
     hash ^= s.charCodeAt(i)
     // FNV prime 16777619, kept in 32-bit via Math.imul; `| 0` yields the
     // final signed-32-bit (int4) result.

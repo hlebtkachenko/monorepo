@@ -256,3 +256,18 @@ describe("scaffoldOrganization — monetary regimes + guards", () => {
     ).rejects.toMatchObject({ code: "SINGLE_ENTRY_VAT_PAYER" })
   })
 })
+
+describe("scaffoldOrganization — slug safety", () => {
+  it("never mints a book at a router-reserved slug", async () => {
+    const result = await scaffoldOrganization(
+      baseInput({
+        legalName: "Workspace",
+        businessActivityCodes: [],
+      }),
+    )
+    // "workspace" is a reserved org-tier route; pickUniqueSlug skips it so the
+    // book stays reachable at /{slug}.
+    expect(result.slug).not.toBe("workspace")
+    expect(result.slug).toMatch(/^workspace-\d+$/)
+  })
+})

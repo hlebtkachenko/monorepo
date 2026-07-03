@@ -6,6 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.12.3] — 2026-07-03
+
+Patch release: the organization creation-scaffolding protocol — one call mints a ready-to-book účetní jednotka, wired into the workspace Companies hub and the org settings pages. Additive only; no existing behavior changed.
+
+### Added
+
+- **org-provisioning**: `@workspace/org-provisioning` — `scaffoldOrganization(input)` mints a fully-configured účetní jednotka in one atomic idempotent transaction: identity + owner membership + NACE links + vat_status + first accounting period + full směrná-osnova chart + number series + self-counterparty + peněžní-deník categories + optional signatory / OSS. Platform rows under `withAdminBypass`, accounting master-data via a nested `withOrganization(outerTx)` frame in the same transaction. (#443)
+- **registries**: `@workspace/registries` — ARES v3 REST + CRPDPH SOAP + ČSÚ legal-form lookups supplying prefill suggestions (kraj / finanční úřad / spisová značka / delivery address), zero workspace deps. (#443)
+- **accounting**: additive setup + lifecycle primitives — `createVatStatus` (§6/§6f/§97 ZDPH range), `seedChartFromDirectives` (materialize the směrná osnova via one INSERT…SELECT over `directive_account`), `rollForwardPeriod` (close result → close → open next účetní období). No existing domain function changed. (#443)
+- **db**: migrations 0041/0042 — organization identity + config columns (IČO, sídlo split, region, delivery address, data box, contact, tax office, registry file, archived_at) and 3 org-scoped satellites (authorized person, tax representative, OSS registration) + a workspace-tier provisioning idempotency table; all in `ORGANIZATION_SCOPED_TABLES`. (#443)
+- **web**: create-organization wizard (IČO → server-side ARES/DPH prefill → scaffold) on the Companies hub, plus archive/restore, an Active/Archived filter, and CSV export. The `[orgSlug]/settings` stub pages are filled — identity (identity/contact/sídlo/signatories), periods (list + roll-forward), VAT status (change / OSS / tax representative), data box. A scaffolded book auto-surfaces in the header org switcher via its active owner membership. (#443)
+
 ## [v0.12.2] — 2026-07-03
 
 Patch release: the human half of the accounting write gate, API-key write scopes, and a repo-hygiene guard.

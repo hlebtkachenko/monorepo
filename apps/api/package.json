@@ -24,6 +24,7 @@
     "@openfga/syntax-transformer": "^0.2.1",
     "@scalar/nestjs-api-reference": "^1.2.3",
     "@sentry/node": "^10.57.0",
+    "@workspace/accounting": "workspace:*",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",

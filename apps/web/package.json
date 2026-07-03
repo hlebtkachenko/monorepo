@@ -21,6 +21,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@sentry/nextjs": "^10.57.0",
     "@tanstack/react-table": "^8.21.3",
+    "@workspace/accounting": "workspace:*",
     "@workspace/auth": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",

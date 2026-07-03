@@ -3,6 +3,7 @@ import {
   OpenAPIRegistry,
 } from "@asteasolutions/zod-to-openapi"
 import type { RouteConfig } from "@asteasolutions/zod-to-openapi"
+import { z } from "zod"
 
 import "./zod-openapi"
 import {
@@ -32,6 +33,45 @@ import {
   NavPageSchema,
   NavSubpageSchema,
 } from "./structure"
+import {
+  CaptureAccountingDocumentRequestSchema,
+  CaptureAccountingDocumentResponseSchema,
+  ClassifyEventRequestSchema,
+  ClassifyEventResponseSchema,
+  CreateAccountingEventRequestSchema,
+  CreateAccountingEventResponseSchema,
+  CreateAccountingPostingRequestSchema,
+  CreateAccountingPostingResponseSchema,
+  NumberSeriesListResponseSchema,
+  NumberSeriesQuerySchema,
+  NumberSeriesRowSchema,
+} from "./accounting-writes"
+import {
+  ControlStatementResponseSchema,
+  DphResponseSchema,
+  DphRowsSchema,
+  DppoResponseSchema,
+  EcSalesListResponseSchema,
+  EcSalesRowSchema,
+  FinancialStatementsResponseSchema,
+  JournalResponseSchema,
+  JournalRowSchema,
+  KhAggregateSchema,
+  KhRowSchema,
+  KontrolniHlaseniTotalsSchema,
+  LayoutLineSchema,
+  LedgerAccountRowSchema,
+  LedgerResponseSchema,
+  OpenItemRowSchema,
+  OpenItemsQuerySchema,
+  OpenItemsResponseSchema,
+  PeriodIdParamSchema,
+  SaldoPerPartnerRowSchema,
+  SaldokontoResponseSchema,
+  StatementLayoutQuerySchema,
+  StatementLayoutResponseSchema,
+  StatementLineRowSchema,
+} from "./accounting"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
 
@@ -98,6 +138,85 @@ const ListArchetypesResponse = registry.register(
   ListArchetypesResponseSchema,
 )
 registry.register("Archetype", ArchetypeSchema)
+const JournalResponse = registry.register(
+  "JournalResponse",
+  JournalResponseSchema,
+)
+registry.register("JournalRow", JournalRowSchema)
+const LedgerResponse = registry.register("LedgerResponse", LedgerResponseSchema)
+registry.register("LedgerAccountRow", LedgerAccountRowSchema)
+const OpenItemsResponse = registry.register(
+  "OpenItemsResponse",
+  OpenItemsResponseSchema,
+)
+registry.register("OpenItemRow", OpenItemRowSchema)
+const SaldokontoResponse = registry.register(
+  "SaldokontoResponse",
+  SaldokontoResponseSchema,
+)
+registry.register("SaldoPerPartnerRow", SaldoPerPartnerRowSchema)
+const DphResponse = registry.register("DphResponse", DphResponseSchema)
+registry.register("DphRows", DphRowsSchema)
+registry.register("KontrolniHlaseniTotals", KontrolniHlaseniTotalsSchema)
+const DppoResponse = registry.register("DppoResponse", DppoResponseSchema)
+const EcSalesListResponse = registry.register(
+  "EcSalesListResponse",
+  EcSalesListResponseSchema,
+)
+registry.register("EcSalesRow", EcSalesRowSchema)
+const ControlStatementResponse = registry.register(
+  "ControlStatementResponse",
+  ControlStatementResponseSchema,
+)
+registry.register("KhRow", KhRowSchema)
+registry.register("KhAggregate", KhAggregateSchema)
+const FinancialStatementsResponse = registry.register(
+  "FinancialStatementsResponse",
+  FinancialStatementsResponseSchema,
+)
+registry.register("StatementLineRow", StatementLineRowSchema)
+const StatementLayoutResponse = registry.register(
+  "StatementLayoutResponse",
+  StatementLayoutResponseSchema,
+)
+registry.register("LayoutLine", LayoutLineSchema)
+const ClassifyEventRequest = registry.register(
+  "ClassifyEventRequest",
+  ClassifyEventRequestSchema,
+)
+const ClassifyEventResponse = registry.register(
+  "ClassifyEventResponse",
+  ClassifyEventResponseSchema,
+)
+const NumberSeriesListResponse = registry.register(
+  "NumberSeriesListResponse",
+  NumberSeriesListResponseSchema,
+)
+registry.register("NumberSeriesRow", NumberSeriesRowSchema)
+const CreateAccountingEventRequest = registry.register(
+  "CreateAccountingEventRequest",
+  CreateAccountingEventRequestSchema,
+)
+const CreateAccountingEventResponse = registry.register(
+  "CreateAccountingEventResponse",
+  CreateAccountingEventResponseSchema,
+)
+const CaptureAccountingDocumentRequest = registry.register(
+  "CaptureAccountingDocumentRequest",
+  CaptureAccountingDocumentRequestSchema,
+)
+const CaptureAccountingDocumentResponse = registry.register(
+  "CaptureAccountingDocumentResponse",
+  CaptureAccountingDocumentResponseSchema,
+)
+const CreateAccountingPostingRequest = registry.register(
+  "CreateAccountingPostingRequest",
+  CreateAccountingPostingRequestSchema,
+)
+const CreateAccountingPostingResponse = registry.register(
+  "CreateAccountingPostingResponse",
+  CreateAccountingPostingResponseSchema,
+)
 
 /**
  * Bearer security scheme. Registered once and referenced by every operation
@@ -358,6 +477,378 @@ registry.registerPath({
     "200": {
       description: "The layout-archetype catalog.",
       content: { "application/json": { schema: ListArchetypesResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/journal",
+  operationId: "getAccountingJournal",
+  summary: "Get journal (deník)",
+  description:
+    "Returns the deník — the double-entry postings of the given accounting " +
+    "period in chronological book order (§13), including 701 opening " +
+    "postings. Read-model view; organization-scoped (FORCE RLS) via the API " +
+    "key's own tenant.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's journal lines in book order.",
+      content: { "application/json": { schema: JournalResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/ledger",
+  operationId: "getAccountingLedger",
+  summary: "Get general ledger / trial balance (hlavní kniha)",
+  description:
+    "Returns per-account opening balance | debit/credit turnover | closing " +
+    "balance for the period, straight from the read-model — the hlavní kniha " +
+    "and obratová předvaha. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "Per-account balances for the period.",
+      content: { "application/json": { schema: LedgerResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/open-items",
+  operationId: "getAccountingOpenItems",
+  summary: "List open items (saldokonto)",
+  description:
+    "Returns unsettled receivables/payables (open items), optionally filtered " +
+    "by due date and direction. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: OpenItemsQuerySchema },
+  responses: {
+    "200": {
+      description: "Open items matching the filters.",
+      content: { "application/json": { schema: OpenItemsResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/saldokonto",
+  operationId: "getAccountingSaldokonto",
+  summary: "Get per-partner saldo",
+  description:
+    "Returns per-partner open receivable/payable balances (saldokonto). " +
+    "Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  responses: {
+    "200": {
+      description: "Per-partner open balances.",
+      content: { "application/json": { schema: SaldokontoResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/vat-return",
+  operationId: "getAccountingVatReturn",
+  summary: "Get VAT return (DPH přiznání)",
+  description:
+    "Computes the DPH přiznání line values and kontrolní hlášení section " +
+    "totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). " +
+    "Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's VAT return + KH totals.",
+      content: { "application/json": { schema: DphResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/corporate-income-tax",
+  operationId: "getAccountingCorporateIncomeTax",
+  summary: "Get corporate income tax (DPPO)",
+  description:
+    "Computes the DPPO base and tax (§23/1 base, §25 non-deductibles, §34 " +
+    "loss carry-forward, rate, zálohy §38a) for the period. Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's corporate income tax computation.",
+      content: { "application/json": { schema: DppoResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/ec-sales-list",
+  operationId: "getAccountingEcSalesList",
+  summary: "Get EC sales list (souhrnné hlášení)",
+  description:
+    "EU supplies recap (§102) for the period — per partner + kód plnění. " +
+    "Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's EU supplies recap.",
+      content: { "application/json": { schema: EcSalesListResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/control-statement",
+  operationId: "getAccountingControlStatement",
+  summary: "Get control statement (kontrolní hlášení)",
+  description:
+    "Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 " +
+    "and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's control statement.",
+      content: { "application/json": { schema: ControlStatementResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/financial-statements",
+  operationId: "getAccountingFinancialStatements",
+  summary: "Get financial statements (účetní závěrka)",
+  description:
+    "Účetní závěrka totals (aktiva/pasiva/náklady/výnosy/výsledek) plus " +
+    "per-account closing balances mapped to statement lines. Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: PeriodIdParamSchema },
+  responses: {
+    "200": {
+      description: "The period's financial statements.",
+      content: {
+        "application/json": { schema: FinancialStatementsResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods/{periodId}/outputs/statement-layout",
+  operationId: "getAccountingStatementLayout",
+  summary: "Get formatted statement layout (rozvaha / VZZ)",
+  description:
+    "Formatted rozvaha + výkaz zisku a ztráty per Decree 500/2002 přílohy " +
+    "(plný / zkrácený rozsah; celé Kč / v tisících). Organization-scoped.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    params: PeriodIdParamSchema,
+    query: StatementLayoutQuerySchema,
+  },
+  responses: {
+    "200": {
+      description: "The period's formatted statement layout.",
+      content: { "application/json": { schema: StatementLayoutResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/classify",
+  operationId: "classifyAccountingEvent",
+  summary: "Classify an economic event",
+  description:
+    "Pure decision: given raw economic-event facts, returns the accounting " +
+    "treatment (VAT mode, předkontace scenario, capitalisation/deferral, " +
+    "open-item account) with a law-cited reasoning trail. No mutation, no " +
+    "tenant read — safe and repeatable.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: ClassifyEventRequest } },
+    },
+  },
+  responses: {
+    "200": {
+      description: "The decided accounting treatment.",
+      content: { "application/json": { schema: ClassifyEventResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/number-series",
+  operationId: "listAccountingNumberSeries",
+  summary: "List number series",
+  description:
+    "Returns the organization's gapless number series (optionally filtered by " +
+    "entity type). Write bodies reference a series by `seriesId`; this is how " +
+    "an agent discovers those ids. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: NumberSeriesQuerySchema },
+  responses: {
+    "200": {
+      description: "The organization's number series.",
+      content: { "application/json": { schema: NumberSeriesListResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+const IdempotencyKeyHeader = z.object({
+  "idempotency-key": z
+    .string()
+    .openapi({ description: "Idempotency key (1–255 chars); reuse on retry." }),
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/events",
+  operationId: "createAccountingEvent",
+  summary: "Create an accounting event",
+  description:
+    "Create an účetní případ. Gated: auto-applies (201) at/above the confidence " +
+    "threshold, otherwise held (202) for human review. Tenant + responsible " +
+    "user injected from the API-key principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateAccountingEventRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Event applied.",
+      content: {
+        "application/json": { schema: CreateAccountingEventResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateAccountingEventResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/documents",
+  operationId: "captureAccountingDocument",
+  summary: "Capture a summary document (doklad)",
+  description:
+    "Capture a doklad with its lines/partials. Gated (201 applied / 202 held). " +
+    "Tenant injected from the principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CaptureAccountingDocumentRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Document applied.",
+      content: {
+        "application/json": { schema: CaptureAccountingDocumentResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CaptureAccountingDocumentResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/postings",
+  operationId: "createAccountingPosting",
+  summary: "Post a posting (zaúčtování)",
+  description:
+    "Post a double-entry or monetary posting. Gated (201 applied / 202 held). " +
+    "Tenant + responsible user injected; opening/correction/generated linkage " +
+    "is not client-settable.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateAccountingPostingRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Posting applied.",
+      content: {
+        "application/json": { schema: CreateAccountingPostingResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateAccountingPostingResponse },
+      },
     },
     ...ERROR_RESPONSE_REFS,
   },

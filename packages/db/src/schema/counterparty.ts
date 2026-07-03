@@ -1,0 +1,51 @@
+/**
+ * counterparty — workspace-shared protistrana; self-of-org identity row.
+ *
+ * Mirrors: packages/db/migrations/0026_accounting_organization_reshape.sql (CREATE TABLE counterparty)
+ *
+ * WORKSPACE-scoped (NOT organization-scoped): 4 command-specific RLS policies on
+ * workspace_id land in 0034, so this table is intentionally absent from
+ * ORGANIZATION_SCOPED_TABLES.
+ * UNIQUE(id, workspace_id) is the composite-FK target for org-tier tables that
+ * reference a counterparty (accounting_event, open_item), closing the
+ * cross-workspace FK-bypass hole via (counterparty_id, workspace_id).
+ * Triggers / RLS / CHECK constraints live in the migration, not this DSL.
+ */
+import {
+  char,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
+import { organization } from "./organization"
+import { workspace } from "./workspace"
+
+export const counterparty = pgTable(
+  "counterparty",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`uuidv7()`),
+    workspace_id: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id),
+    self_of_organization_id: uuid("self_of_organization_id")
+      .unique()
+      .references(() => organization.id, { onDelete: "set null" }),
+    // Tax identity for per-partner outputs (KH §101d, SH §102). Added in 0039;
+    // CHECK on country_code lives in the migration, not this DSL.
+    name: text("name"), // obchodní jméno / jméno osoby
+    tax_id: text("tax_id"), // DIČ incl. country prefix (CZ12345678)
+    country_code: char("country_code", { length: 2 }), // ISO 3166-1 alpha-2 member state
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [unique("counterparty_id_workspace_unique").on(t.id, t.workspace_id)],
+)

@@ -6,6 +6,22 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.12.0] — 2026-07-03
+
+Minor release: the v2 Czech accounting system — the double-entry domain, its public agent surface, and the accounting UI, landed as one piece (EPICs 1–5).
+
+### Added
+
+- **db**: v2 accounting ground layer — 16 migrations / 39 tables: law-as-reference directives, time-bound org links (regime, size, legal form, VAT regime), events → documents → postings spine, gapless number series, FORCE-RLS tenant isolation, trigger-maintained turnover read models, saldokonto open items. (#445)
+- **accounting**: `@workspace/accounting` domain engine — classification (predkontace + `decideVat`), capture, double-entry + monetary posting, FX (daily/real/fixed), depreciation, accruals, corrections, and statutory outputs: DPH return, kontrolní hlášení, souhrnné hlášení, DPPO, financial statements (závěrka) with statement layouts. (#445)
+- **api**: 15 `/v1/accounting` endpoints / 21 MCP tools — reads (journal, ledger, open items, saldokonto), 6 statutory outputs, pure `classify`, number-series discovery, and 3 gated write mutations (events, documents, postings) behind a confidence + idempotency gate (`tool_call_log`): low-confidence writes are held for human review, replays are idempotent, tenant identity comes only from the API-key principal. (#445)
+- **web**: accounting module UI on live domain data — deník (journal, with event description + counterparty context), hlavní kniha, saldokonto, účtový rozvrh, accounting overview, and the "Ke schválení" held-writes review queue; Records module connected to captured documents (overview + faktury přijaté); doklad editor (Single archetype) relocated into Records. (#445)
+
+### Fixed
+
+- **ci**: paired-files required check no longer fails structurally on PRs over 20k changed lines — the script lists files via the paginated REST Files API instead of the line-capped diff endpoint; squawk migration lint excludes `ban-char-field` + `adding-field-with-default` (correct-by-design fixed-length codes and generated columns). (#445)
+- **api**: high-severity polynomial-regex (ReDoS) in the accounting error seam replaced with linear matching; MCP generator now wires path/query/header parameters (11 accounting tools were broken at runtime). (#445)
+
 ## [v0.11.0] — 2026-07-03
 
 Minor release: the workspace tier — the accountant-office surface for managing multiple client books, billing, and team, distinct from a client's own book.

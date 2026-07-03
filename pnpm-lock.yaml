@@ -199,6 +199,9 @@ importers:
       '@workspace/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@workspace/brain':
+        specifier: workspace:*
+        version: link:../../packages/brain
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db

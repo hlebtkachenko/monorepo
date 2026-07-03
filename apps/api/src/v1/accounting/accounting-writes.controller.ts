@@ -31,6 +31,7 @@ import {
   CreateAccountingPostingRequestDto,
   CreateAccountingPostingResponseDto,
 } from "../dto"
+import { deriveCaptureVeto, derivePostingVeto } from "./accounting-veto"
 import { runGatedWrite, type GatedWriteResult } from "./accounting-writes.gate"
 
 const IDEMPOTENCY_HEADER = {
@@ -168,6 +169,12 @@ export class AccountingWritesController {
       rationale,
       conversationId,
       holdAmounts,
+      deriveVeto: () =>
+        Promise.resolve(
+          deriveCaptureVeto(
+            (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
+          ),
+        ),
       run: (db, ctx) =>
         captureDocument(db, ctx, fields as unknown as DocumentInput),
       applied: (doc) => ({
@@ -214,6 +221,8 @@ export class AccountingWritesController {
       rationale,
       conversationId,
       holdAmounts,
+      deriveVeto: (db) =>
+        derivePostingVeto(db, principal.organizationId, kind, entry),
       run: (db, ctx) =>
         postPosting(db, ctx, {
           kind,

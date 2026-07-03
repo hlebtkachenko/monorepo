@@ -5,7 +5,8 @@
   "description": "Afframe Brain (Track B) — autonomous CZ-accounting ingestion + booking orchestrator. Orchestration, canonical IR, calibrated confidence, librarian. Consumed source-first.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./confidence": "./src/confidence/index.ts"
   },
   "scripts": {
     "build": "tsc",

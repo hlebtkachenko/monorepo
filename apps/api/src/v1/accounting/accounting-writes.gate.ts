@@ -19,6 +19,7 @@ import {
 } from "@workspace/shared/errors"
 
 import { accountingAdmission } from "./admission.singleton"
+import type { VetoResult } from "./accounting-veto"
 import { translateAccountingError } from "./accounting-error"
 
 // A non-finite override (e.g. "100 000" / "100,000" → NaN) would silently
@@ -75,6 +76,13 @@ export interface GatedWriteOptions<T> {
   conversationId?: string
   /** Decimal-string amounts tested against the always-hold ceiling. */
   holdAmounts: string[]
+  /**
+   * Server-side confidence veto (M-B). Computed IN-TX for auto-apply candidates
+   * only; if it holds, the write is forced to HELD regardless of the claimed
+   * confidence — this is what stops a client forging a green. Optional: ops with
+   * no payload-derivable signal (e.g. createEvent) omit it.
+   */
+  deriveVeto?: (db: OrgTx) => Promise<VetoResult>
   /** Run the domain mutation. Only called when the write auto-applies. */
   run: (
     db: OrgTx,
@@ -174,7 +182,20 @@ export async function runGatedWrite<T>(
             return { kind: "replay", prior }
           }
 
-          if (opts.confidence >= AUTO_APPLY_THRESHOLD && !amountHold) {
+          // The client's confidence is NECESSARY but not SUFFICIENT: an
+          // auto-apply candidate still runs the SERVER veto (M-B), which derives
+          // the dangerous hard-class / VAT signals from the payload and forces a
+          // HOLD if one fires — so a client cannot green a wrong booking by
+          // claiming confidence 1.0. Computed only when the write would otherwise
+          // auto-apply (a confidence/amount hold needs no veto lookup).
+          const autoApplyCandidate =
+            opts.confidence >= AUTO_APPLY_THRESHOLD && !amountHold
+          const veto: VetoResult =
+            autoApplyCandidate && opts.deriveVeto
+              ? await opts.deriveVeto(db)
+              : { held: false, signals: [] }
+
+          if (autoApplyCandidate && !veto.held) {
             // Serialize concurrent writes to this (org, period) on the SAME
             // bound tx that holds the RLS GUCs (ADR-0028) — protects the
             // allocateNumber read-modify-write and orders same-period posts. The
@@ -189,7 +210,8 @@ export async function runGatedWrite<T>(
             const appliedBody = { status: "applied", ...opts.applied(result) }
             await updateToolCallLogOutput(db, {
               toolCallLogId: log.toolCallLogId,
-              output: { payloadHash, ...appliedBody },
+              // `serverGate` is audit-only — stripped from the replay body.
+              output: { payloadHash, serverGate: veto, ...appliedBody },
               autoApplied: true,
               rationale: opts.rationale,
             })
@@ -200,8 +222,9 @@ export async function runGatedWrite<T>(
           await updateToolCallLogOutput(db, {
             toolCallLogId: log.toolCallLogId,
             // Persist the FULL held body (incl. reviewId) so a same-key replay
-            // returns the review handle, not a bare {status:"held"}.
-            output: { payloadHash, ...heldBody },
+            // returns the review handle, not a bare {status:"held"}. `serverGate`
+            // records WHY the server held (veto signals) for the audit trail.
+            output: { payloadHash, serverGate: veto, ...heldBody },
             autoApplied: false,
             rationale: opts.rationale,
           })
@@ -213,7 +236,13 @@ export async function runGatedWrite<T>(
     }
 
     if (outcome.kind === "replay") {
-      const { payloadHash: _omit, ...replayBody } = outcome.prior
+      // Strip the internal audit keys (payloadHash + serverGate) so the replayed
+      // response body matches the original (client never saw them).
+      const {
+        payloadHash: _omit,
+        serverGate: _serverGate,
+        ...replayBody
+      } = outcome.prior
       // A held write replays as 202 (still awaiting review), applied as 200.
       const httpStatus = replayBody["status"] === "held" ? 202 : 200
       return { httpStatus, body: replayBody, replayed: true }

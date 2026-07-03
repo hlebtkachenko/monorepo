@@ -228,4 +228,46 @@ describe("runGatedWrite", () => {
     await runGatedWrite(build({ confidence: 0.5 }))
     expect(lockPeriod).not.toHaveBeenCalled()
   })
+
+  it("HOLDS an auto-apply-confidence write when the server veto fires (confident-wrong guard)", async () => {
+    const run = vi.fn()
+    const res = await runGatedWrite({
+      ...build({ confidence: 0.99, run }),
+      deriveVeto: () =>
+        Promise.resolve({ held: true, signals: ["asset_vs_expense"] }),
+    })
+    // The cardinal-sin guarantee: a claimed-0.99 booking the server vetoes holds.
+    expect(res.httpStatus).toBe(202)
+    expect(res.body).toMatchObject({ status: "held" })
+    expect(run).not.toHaveBeenCalled()
+    expect(lockPeriod).not.toHaveBeenCalled()
+    // The fired signals are persisted to the audit trail (output_json.serverGate).
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoApplied: false,
+        output: expect.objectContaining({
+          serverGate: { held: true, signals: ["asset_vs_expense"] },
+        }),
+      }),
+    )
+  })
+
+  it("auto-applies when the veto does not fire, recording an empty serverGate", async () => {
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-ok",
+      designation: "FP-ok",
+      sequenceNumber: 3,
+    })
+    const res = await runGatedWrite({
+      ...build({ confidence: 0.99, run }),
+      deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+    })
+    expect(res.httpStatus).toBe(201)
+    expect(run).toHaveBeenCalledOnce()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ autoApplied: true }),
+    )
+  })
 })

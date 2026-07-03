@@ -26,6 +26,7 @@
     "@sentry/node": "^10.57.0",
     "@workspace/accounting": "workspace:*",
     "@workspace/auth": "workspace:*",
+    "@workspace/brain": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",
     "@workspace/notify": "workspace:*",

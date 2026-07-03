@@ -6,6 +6,21 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.12.4] — 2026-07-03
+
+Patch release: organization slug hardening — a single shared reserved-name policy, a real name-to-slug pipeline, and two guard fixes from the org-scaffolding review.
+
+### Added
+
+- **org-provisioning**: a single shared slug + reserved-name policy (`slug.ts`) — `RESERVED_SLUGS` (grouped: routing/framework, product surface, Afframe brand, accounting domain, generic) + `isReservedSlug`, consumed by the create-org scaffolder, the `[orgSlug]` router guard, and onboarding (replacing three hand-mirrored copies). A real `slugify` pipeline: diacritic transliteration (á→a, š→s, ř→r, ú→u…), symbol words (`&`→"a", `+`→"plus"), word runs→`-`, a trailing legal-form cut (s.r.o./a.s./k.s./v.o.s./spol. s r.o./o.p.s./družstvo…), min length 3, max 48. (#475)
+
+### Fixed
+
+- **org-provisioning**: `pickUniqueSlug` skips router-reserved slugs so a company is never minted at an unreachable `/{slug}`. (#474)
+- **web**: company archive/restore now requires the active workspace role to be owner or admin, matching the org settings mutation gate; a plain member gets a forbidden toast. (#474)
+- **web**: onboarding no longer pads a short workspace name to the reserved literal `workspace` (which minted the default company at an unreachable `/workspace`); it uses the shared slugify + reserved-slug skip. (#475)
+- **org-provisioning / web**: the old collapse-only slugify left `Acme, s.r.o.` → `acme-s-r-o` and mangled diacritics (`Škoda` → `koda`); now `acme` / `skoda`. (#475)
+
 ## [v0.12.3] — 2026-07-03
 
 Patch release: the organization creation-scaffolding protocol — one call mints a ready-to-book účetní jednotka, wired into the workspace Companies hub and the org settings pages. Additive only; no existing behavior changed.

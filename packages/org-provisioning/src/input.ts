@@ -127,21 +127,6 @@ export const ScaffoldInput = z.object({
 export type ScaffoldInput = z.infer<typeof ScaffoldInput>
 export type ScaffoldInputRaw = z.input<typeof ScaffoldInput>
 
-/**
- * Slug from a legal name: lowercase, non-alphanumeric → '-', trimmed, ≤48 chars.
- * Pads to satisfy the length ≥ 2 CHECK. Mirrors the onboarding slugify contract.
- */
-export function slugify(input: string): string {
-  const slug = input
-    .toLowerCase()
-    // Collapses every run of non-alphanumerics to a SINGLE "-", so there is
-    // never more than one leading/trailing dash to trim.
-    .replace(/[^a-z0-9]+/g, "-")
-    // Quantifier-free trims (not `/^-+|-+$/g` / `/-+$/`): no `+`, so there is
-    // no backtracking shape for CodeQL js/polynomial-redos to flag. Safe
-    // because the collapse above guarantees at most one boundary dash.
-    .replace(/^-/, "")
-    .replace(/-$/, "")
-    .slice(0, 48)
-  return slug.length < 2 ? "org" : slug
-}
+// slugify lives in ./slug (the single slug + reserved-name policy); re-exported
+// here for the callers that already import it from this module.
+export { slugify } from "./slug"

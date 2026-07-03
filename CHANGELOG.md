@@ -6,6 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.10.3] — 2026-07-03
+
+Patch release: dev-tooling and docs only, no runtime behavior change.
+
+### Fixed
+
+- **deps**: bounded the `js-yaml` pnpm override to `>=4.2.0 <5.0.0` — an unbounded 4.x floor let `@redocly/openapi-core` float to js-yaml 5.x and break `pnpm gen:all` SDK/MCP codegen repo-wide. (#442)
+
+### Docs
+
+- **api**: `/v1/structure` surface listed in the API README, CLI, and MCP guides. (#441)
+
 ## [v0.10.2] — 2026-07-01
 
 Patch release: the app-structure discovery surface — the org navigation tree, pages, and layout archetypes, reachable by AI agents **outside the GUI** via the public API / SDK / MCP / CLI. Read-only metadata; no runtime behavior change to the app.

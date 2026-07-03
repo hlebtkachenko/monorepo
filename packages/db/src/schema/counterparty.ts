@@ -18,6 +18,7 @@ import {
   timestamp,
   unique,
   uuid,
+  varchar,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 import { organization } from "./organization"
@@ -40,6 +41,8 @@ export const counterparty = pgTable(
     name: text("name"), // obchodní jméno / jméno osoby
     tax_id: text("tax_id"), // DIČ incl. country prefix (CZ12345678)
     country_code: char("country_code", { length: 2 }), // ISO 3166-1 alpha-2 member state
+    // IČO (8 digits); §435 NOZ obchodní listiny + ARES supplier prefill. Added 0041.
+    ico: varchar("ico", { length: 8 }),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

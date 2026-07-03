@@ -1744,7 +1744,9 @@ CREATE TABLE public.counterparty (
     name text,
     tax_id text,
     country_code character(2),
-    CONSTRAINT counterparty_country_code_chk CHECK (((country_code IS NULL) OR (country_code ~ '^[A-Z]{2}$'::text)))
+    ico character varying(8),
+    CONSTRAINT counterparty_country_code_chk CHECK (((country_code IS NULL) OR (country_code ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT counterparty_ico_format_chk CHECK (((ico IS NULL) OR ((ico)::text ~ '^[0-9]{8}$'::text)))
 );
 
 ALTER TABLE ONLY public.counterparty FORCE ROW LEVEL SECURITY;
@@ -2036,6 +2038,28 @@ CASE person_kind
     WHEN 'legal_entity'::text THEN 'LEGAL'::public.person_type
     ELSE NULL::public.person_type
 END) STORED,
+    legal_form_code text,
+    ico character varying(8),
+    registered_street text,
+    registered_city text,
+    registered_postal_code character varying(10),
+    registered_country_code character(2),
+    data_box_id character varying(7),
+    contact_email text,
+    contact_phone character varying(32),
+    website text,
+    registered_house_number character varying(16),
+    registered_orientation_number character varying(16),
+    registered_region text,
+    delivery_address_line1 text,
+    delivery_address_line2 text,
+    delivery_address_line3 text,
+    tax_office_code character varying(4),
+    tax_office_workplace_code character varying(4),
+    registry_file_number text,
+    archived_at timestamp with time zone,
+    CONSTRAINT organization_data_box_format_chk CHECK (((data_box_id IS NULL) OR ((data_box_id)::text ~ '^[a-z0-9]{7}$'::text))),
+    CONSTRAINT organization_ico_format_chk CHECK (((ico IS NULL) OR ((ico)::text ~ '^[0-9]{8}$'::text))),
     CONSTRAINT organization_legal_subject_kind_check CHECK ((legal_subject_kind = ANY (ARRAY['for_profit'::text, 'non_profit'::text]))),
     CONSTRAINT organization_person_kind_check CHECK ((person_kind = ANY (ARRAY['natural_person'::text, 'legal_entity'::text]))),
     CONSTRAINT organization_person_subject_consistency CHECK ((((person_kind = 'natural_person'::text) AND (legal_subject_kind IS NULL)) OR ((person_kind = 'legal_entity'::text) AND (legal_subject_kind IS NOT NULL)))),
@@ -2043,6 +2067,23 @@ END) STORED,
 );
 
 ALTER TABLE ONLY public.organization FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: organization_authorized_person; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organization_authorized_person (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    given_name text NOT NULL,
+    family_name text NOT NULL,
+    "position" text,
+    is_primary boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.organization_authorized_person FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: organization_business_activity; Type: TABLE; Schema: public; Owner: -
@@ -2085,6 +2126,61 @@ CREATE TABLE public.organization_membership (
 );
 
 ALTER TABLE ONLY public.organization_membership FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: organization_oss_registration; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organization_oss_registration (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    scheme text NOT NULL,
+    valid_from date NOT NULL,
+    valid_to date,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT organization_oss_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to))),
+    CONSTRAINT organization_oss_registration_scheme_check CHECK ((scheme = ANY (ARRAY['UNION'::text, 'IMPORT'::text])))
+);
+
+ALTER TABLE ONLY public.organization_oss_registration FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: organization_provisioning; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organization_provisioning (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    idempotency_key text NOT NULL,
+    input jsonb NOT NULL,
+    ares_snapshot jsonb,
+    dph_snapshot jsonb,
+    organization_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.organization_provisioning FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: organization_tax_representative; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organization_tax_representative (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    representative_type text,
+    legal_name text,
+    given_name text,
+    family_name text,
+    ico character varying(8),
+    dic character varying(14),
+    advisor_registration_number text,
+    is_primary boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.organization_tax_representative FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: partial_record; Type: TABLE; Schema: public; Owner: -
@@ -2965,6 +3061,13 @@ ALTER TABLE ONLY public.open_item_settlement
     ADD CONSTRAINT open_item_settlement_pkey PRIMARY KEY (id);
 
 --
+-- Name: organization_authorized_person organization_authorized_person_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_authorized_person
+    ADD CONSTRAINT organization_authorized_person_pkey PRIMARY KEY (id);
+
+--
 -- Name: organization_business_activity organization_business_activity_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2993,6 +3096,20 @@ ALTER TABLE ONLY public.organization_membership
     ADD CONSTRAINT organization_membership_unique UNIQUE (organization_id, user_id);
 
 --
+-- Name: organization_oss_registration organization_oss_no_overlap; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_oss_registration
+    ADD CONSTRAINT organization_oss_no_overlap EXCLUDE USING gist (organization_id WITH =, scheme WITH =, daterange(valid_from, COALESCE(valid_to, 'infinity'::date), '[]'::text) WITH &&);
+
+--
+-- Name: organization_oss_registration organization_oss_registration_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_oss_registration
+    ADD CONSTRAINT organization_oss_registration_pkey PRIMARY KEY (id);
+
+--
 -- Name: organization organization_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3000,11 +3117,32 @@ ALTER TABLE ONLY public.organization
     ADD CONSTRAINT organization_pkey PRIMARY KEY (id);
 
 --
+-- Name: organization_provisioning organization_provisioning_key_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_provisioning
+    ADD CONSTRAINT organization_provisioning_key_unique UNIQUE (workspace_id, idempotency_key);
+
+--
+-- Name: organization_provisioning organization_provisioning_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_provisioning
+    ADD CONSTRAINT organization_provisioning_pkey PRIMARY KEY (id);
+
+--
 -- Name: organization organization_slug_not_reserved; Type: CHECK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE public.organization
     ADD CONSTRAINT organization_slug_not_reserved CHECK ((NOT public.app_is_reserved_org_slug((slug)::text))) NOT VALID;
+
+--
+-- Name: organization_tax_representative organization_tax_representative_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_tax_representative
+    ADD CONSTRAINT organization_tax_representative_pkey PRIMARY KEY (id);
 
 --
 -- Name: partial_record partial_record_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -3502,6 +3640,12 @@ CREATE INDEX open_item_settlement_posting_idx ON public.open_item_settlement USI
 CREATE INDEX open_item_unsettled_idx ON public.open_item USING btree (organization_id, due_date) WHERE (is_settled = false);
 
 --
+-- Name: organization_authorized_person_one_primary; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX organization_authorized_person_one_primary ON public.organization_authorized_person USING btree (organization_id) WHERE is_primary;
+
+--
 -- Name: organization_membership_org_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3530,6 +3674,24 @@ CREATE INDEX organization_membership_ws_membership_idx ON public.organization_me
 --
 
 CREATE INDEX organization_self_idx ON public.organization USING btree (organization_id, id);
+
+--
+-- Name: organization_tax_representative_one_primary; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX organization_tax_representative_one_primary ON public.organization_tax_representative USING btree (organization_id) WHERE is_primary;
+
+--
+-- Name: organization_workspace_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX organization_workspace_active_idx ON public.organization USING btree (workspace_id) WHERE (archived_at IS NULL);
+
+--
+-- Name: organization_workspace_ico_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX organization_workspace_ico_idx ON public.organization USING btree (workspace_id, ico) WHERE (ico IS NOT NULL);
 
 --
 -- Name: organization_workspace_idx; Type: INDEX; Schema: public; Owner: -
@@ -4562,6 +4724,13 @@ ALTER TABLE ONLY public.open_item_settlement
     ADD CONSTRAINT open_item_settlement_posting_fk FOREIGN KEY (settling_posting_id, organization_id) REFERENCES public.posting(id, organization_id);
 
 --
+-- Name: organization_authorized_person organization_authorized_person_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_authorized_person
+    ADD CONSTRAINT organization_authorized_person_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
 -- Name: organization_business_activity organization_business_activity_business_activity_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4574,6 +4743,13 @@ ALTER TABLE ONLY public.organization_business_activity
 
 ALTER TABLE ONLY public.organization_business_activity
     ADD CONSTRAINT organization_business_activity_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: organization organization_legal_form_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization
+    ADD CONSTRAINT organization_legal_form_code_fkey FOREIGN KEY (legal_form_code) REFERENCES public.legal_form(code);
 
 --
 -- Name: organization_membership organization_membership_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -4602,6 +4778,34 @@ ALTER TABLE ONLY public.organization_membership
 
 ALTER TABLE ONLY public.organization_membership
     ADD CONSTRAINT organization_membership_workspace_membership_id_fkey FOREIGN KEY (workspace_membership_id) REFERENCES public.workspace_membership(id) ON DELETE CASCADE;
+
+--
+-- Name: organization_oss_registration organization_oss_registration_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_oss_registration
+    ADD CONSTRAINT organization_oss_registration_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: organization_provisioning organization_provisioning_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_provisioning
+    ADD CONSTRAINT organization_provisioning_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: organization_provisioning organization_provisioning_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_provisioning
+    ADD CONSTRAINT organization_provisioning_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: organization_tax_representative organization_tax_representative_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_tax_representative
+    ADD CONSTRAINT organization_tax_representative_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
 
 --
 -- Name: organization organization_workspace_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -5160,6 +5364,12 @@ CREATE POLICY org_membership_ws_admin_write ON public.organization_membership US
 ALTER TABLE public.organization ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: organization_authorized_person; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.organization_authorized_person ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: organization_business_activity; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -5256,10 +5466,28 @@ CREATE POLICY organization_isolation ON public.open_item_settlement USING ((orga
 CREATE POLICY organization_isolation ON public.organization USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: organization_authorized_person organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.organization_authorized_person USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: organization_business_activity organization_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY organization_isolation ON public.organization_business_activity USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: organization_oss_registration organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.organization_oss_registration USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: organization_tax_representative organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.organization_tax_representative USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: partial_record organization_isolation; Type: POLICY; Schema: public; Owner: -
@@ -5326,6 +5554,42 @@ CREATE POLICY organization_isolation ON public.vat_status USING ((organization_i
 --
 
 ALTER TABLE public.organization_membership ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: organization_oss_registration; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.organization_oss_registration ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: organization_provisioning; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.organization_provisioning ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: organization_provisioning organization_provisioning_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_provisioning_insert ON public.organization_provisioning FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: organization_provisioning organization_provisioning_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_provisioning_select ON public.organization_provisioning FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: organization_provisioning organization_provisioning_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_provisioning_update ON public.organization_provisioning FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: organization_tax_representative; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.organization_tax_representative ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: partial_record; Type: ROW SECURITY; Schema: public; Owner: -

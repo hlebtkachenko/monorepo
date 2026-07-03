@@ -116,7 +116,8 @@ const tiers: Tier[] = [
     dir: join(APP_DIR, "workspace"),
     prefix: "/workspace",
     navPaths: navPathsFrom(wsHrefs, "/workspace"),
-    hidden: new Set<string>(),
+    // Saved dev-only demo: the pre-stub Inbox mock UI, kept for reference.
+    hidden: new Set(["demo-inbox"]),
   },
 ]
 

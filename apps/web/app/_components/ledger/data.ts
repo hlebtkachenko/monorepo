@@ -2,10 +2,9 @@
  * Hlavní kniha / obratová předvaha page data. `LedgerRow` mirrors the public
  * API shape `GET /v1/accounting/periods/{id}/ledger` → `accounts[]` (see
  * `packages/shared/src/api/accounting.ts` / the generated SDK). Money is a
- * decimal STRING. Fixture stands in until wired.
- *
- * TODO(epic4-wire): replace LEDGER_ROWS with a fetch through the generated
- * `@afframe/sdk` client (getAccountingLedger).
+ * decimal STRING. The real page (`[orgSlug]/accounting/ledger/page.tsx`)
+ * fetches rows server-side via `_lib/accounting-data`; `LEDGER_ROWS` below is
+ * a demo fixture kept for reference.
  */
 
 export type AccountNature =

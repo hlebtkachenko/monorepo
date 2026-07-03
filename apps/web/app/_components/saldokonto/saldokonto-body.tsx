@@ -26,7 +26,7 @@ import {
 } from "../_shared/accounting-format"
 import { DIRECTION_LABEL, saldokontoColumns } from "./columns"
 import { useSaldokonto } from "./context"
-import { OPEN_ITEM_ROWS, OPEN_ITEM_TABS, type OpenItemRow } from "./data"
+import { OPEN_ITEM_TABS, type OpenItemRow, type SaldoPartnerRow } from "./data"
 
 function applySearch(rows: OpenItemRow[], query: string): OpenItemRow[] {
   const q = normalizeSearch(query)
@@ -108,18 +108,25 @@ function OpenItemDetail({ row }: { row: OpenItemRow }) {
  * Saldokonto (open items) body — per-item original | settled | remaining split
  * by direction (pohledávky / závazky). Table archetype: `useDataTable` +
  * `DataGridView` in a `ContentPanel` with search + Direction filter, a status
- * bar summing remaining, and a per-item inspector. Fixture-backed.
+ * bar summing remaining, and a per-item inspector. Rows come from the server
+ * page via props.
  */
-export function SaldokontoBody() {
+export function SaldokontoBody({
+  rows,
+  partners,
+}: {
+  rows: OpenItemRow[]
+  partners: SaldoPartnerRow[]
+}) {
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
     useSaldokonto()
   const [search, setSearch] = React.useState("")
 
   const tabFiltered = React.useMemo(() => {
     const tab = OPEN_ITEM_TABS.find((t) => t.value === activeTab)
-    if (!tab?.direction) return OPEN_ITEM_ROWS
-    return OPEN_ITEM_ROWS.filter((row) => row.direction === tab.direction)
-  }, [activeTab])
+    if (!tab?.direction) return rows
+    return rows.filter((row) => row.direction === tab.direction)
+  }, [rows, activeTab])
 
   const data = React.useMemo(
     () => applySearch(tabFiltered, search),
@@ -143,6 +150,7 @@ export function SaldokontoBody() {
     (sum, r) => sum + Number(r.original.remainingAmount),
     0,
   )
+  const partnerCount = new Set(partners.map((p) => p.counterpartyId)).size
   const isFiltered =
     search.trim() !== "" || table.getState().columnFilters.length > 0
   const directionColumn = table.getColumn("direction")
@@ -196,6 +204,9 @@ export function SaldokontoBody() {
             <div className="flex items-center gap-3">
               <span>
                 {visible.length} {visible.length === 1 ? "item" : "items"}
+              </span>
+              <span>
+                {partnerCount} {partnerCount === 1 ? "partner" : "partners"}
               </span>
               {isFiltered ? (
                 <Badge variant="secondary" className="h-5">

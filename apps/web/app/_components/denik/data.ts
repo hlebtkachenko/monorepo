@@ -2,12 +2,9 @@
  * Deník (journal) page data. `JournalRow` mirrors the public API shape
  * `GET /v1/accounting/periods/{periodId}/journal` → `rows[]` (see
  * `packages/shared/src/api/accounting.ts` / the generated SDK). Money is a
- * decimal STRING. The fixture below stands in until the page is wired to the
- * SDK.
- *
- * TODO(epic4-wire): replace JOURNAL_ROWS with a fetch through the generated
- * `@afframe/sdk` client (getAccountingJournal) once the org's period id is
- * resolved server-side.
+ * decimal STRING. The real page (`[orgSlug]/accounting/journal/page.tsx`)
+ * fetches rows server-side via `_lib/accounting-data`; `JOURNAL_ROWS` below is
+ * a demo fixture kept for reference.
  */
 
 export type JournalSide = "DEBIT" | "CREDIT"

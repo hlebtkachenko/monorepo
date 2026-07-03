@@ -22,7 +22,7 @@ import { Search } from "@workspace/ui/lib/icons"
 import { normalizeSearch } from "../_shared/accounting-format"
 import { chartColumns } from "./columns"
 import { useChart } from "./context"
-import { ACCOUNT_ROWS, ACCOUNT_TABS, type AccountRow } from "./data"
+import { ACCOUNT_TABS, type AccountRow } from "./data"
 
 function applySearch(rows: AccountRow[], query: string): AccountRow[] {
   const q = normalizeSearch(query)
@@ -41,6 +41,7 @@ const NATURE_LABEL: Record<string, string> = {
   EXPENSE: "Náklady",
   REVENUE: "Výnosy",
   CLOSING: "Uzávěrka",
+  OFF_BALANCE: "Podrozvaha",
 }
 
 function normalBalanceLabel(value: AccountRow["normalBalance"]): string {
@@ -71,18 +72,10 @@ function AccountDetail({ row }: { row: AccountRow }) {
         }
       />
       <DetailField
-        label="Analytic"
+        label="Saldokonto"
         value={
-          <Badge variant={row.isAnalytic ? "outline" : "secondary"}>
-            {row.isAnalytic ? "Ano" : "Ne"}
-          </Badge>
-        }
-      />
-      <DetailField
-        label="Active"
-        value={
-          <Badge variant={row.active ? "outline" : "secondary"}>
-            {row.active ? "Aktivní" : "Neaktivní"}
+          <Badge variant={row.tracksOpenItems ? "outline" : "secondary"}>
+            {row.tracksOpenItems ? "Ano" : "Ne"}
           </Badge>
         }
       />
@@ -92,21 +85,22 @@ function AccountDetail({ row }: { row: AccountRow }) {
 
 /**
  * Účtový rozvrh (chart of accounts) body — per-account number | name | nature |
- * normal balance | active from the chart. Table archetype: `useDataTable` +
- * `DataGridView` in a `ContentPanel` with search + Nature filter, a status bar
- * counting accounts, and a per-account inspector. Fixture-backed.
+ * normal balance | saldokonto tracking from the chart. Table archetype:
+ * `useDataTable` + `DataGridView` in a `ContentPanel` with search + Nature
+ * filter, a status bar counting accounts, and a per-account inspector. Rows
+ * come from the server page via props.
  */
-export function ChartBody() {
+export function ChartBody({ rows }: { rows: AccountRow[] }) {
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
     useChart()
   const [search, setSearch] = React.useState("")
 
   const tabFiltered = React.useMemo(() => {
     const tab = ACCOUNT_TABS.find((t) => t.value === activeTab)
-    if (!tab?.natures) return ACCOUNT_ROWS
+    if (!tab?.natures) return rows
     const set = new Set<string>(tab.natures)
-    return ACCOUNT_ROWS.filter((row) => set.has(row.nature))
-  }, [activeTab])
+    return rows.filter((row) => set.has(row.nature))
+  }, [rows, activeTab])
 
   const data = React.useMemo(
     () => applySearch(tabFiltered, search),

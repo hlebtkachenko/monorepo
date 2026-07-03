@@ -22,7 +22,7 @@ import { Search, Sigma } from "@workspace/ui/lib/icons"
 import { formatDecimal, normalizeSearch } from "../_shared/accounting-format"
 import { ledgerColumns } from "./columns"
 import { useLedger } from "./context"
-import { LEDGER_ROWS, LEDGER_TABS, type LedgerRow } from "./data"
+import { LEDGER_TABS, type LedgerRow } from "./data"
 
 function applySearch(rows: LedgerRow[], query: string): LedgerRow[] {
   const q = normalizeSearch(query)
@@ -96,19 +96,20 @@ function AccountDetail({ row }: { row: LedgerRow }) {
  * Hlavní kniha / obratová předvaha body — per-account opening | turnover MD/Dal
  * | closing from the read-model. Table archetype: `useDataTable` +
  * `DataGridView` in a `ContentPanel` with search + Nature filter, a status bar
- * summing debit/credit turnover, and a per-account inspector. Fixture-backed.
+ * summing debit/credit turnover, and a per-account inspector. Rows come from
+ * the server page (route `page.tsx`).
  */
-export function LedgerBody() {
+export function LedgerBody({ rows }: { rows: LedgerRow[] }) {
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
     useLedger()
   const [search, setSearch] = React.useState("")
 
   const tabFiltered = React.useMemo(() => {
     const tab = LEDGER_TABS.find((t) => t.value === activeTab)
-    if (!tab?.natures) return LEDGER_ROWS
+    if (!tab?.natures) return rows
     const set = new Set<string>(tab.natures)
-    return LEDGER_ROWS.filter((row) => set.has(row.nature))
-  }, [activeTab])
+    return rows.filter((row) => set.has(row.nature))
+  }, [rows, activeTab])
 
   const data = React.useMemo(
     () => applySearch(tabFiltered, search),

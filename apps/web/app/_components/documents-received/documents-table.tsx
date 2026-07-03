@@ -6,7 +6,7 @@ import {
   ContentPanel,
   ContentStatusBar,
   ContentToolbar,
-  DetailField,
+  type InspectorMode,
 } from "@workspace/ui/blocks/app-content"
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
@@ -20,81 +20,81 @@ import { Input } from "@workspace/ui/components/input"
 import { Search, Sigma } from "@workspace/ui/lib/icons"
 
 import {
-  formatDecimal,
-  formatDate,
+  dateSearchText,
+  formatAmount,
   normalizeSearch,
 } from "../_shared/accounting-format"
-import { journalColumns } from "./columns"
-import { useDenik } from "./context"
-import { JOURNAL_TABS, type JournalRow } from "./data"
+import {
+  buildDocumentColumns,
+  DocumentDetail,
+  DOCUMENT_TYPE_OPTIONS,
+  documentTotal,
+  documentTypeLabel,
+  type DocumentRow,
+} from "./columns"
 
 /** Free-text search across every visible column. */
-function applySearch(rows: JournalRow[], query: string): JournalRow[] {
+function applySearch(rows: DocumentRow[], query: string): DocumentRow[] {
   const q = normalizeSearch(query)
   if (!q) return rows
   return rows.filter((row) =>
     [
-      row.summaryDesignation,
-      row.accountNumber,
-      row.side,
-      row.amount,
-      row.postingDate,
-    ].some((value) => normalizeSearch(String(value)).includes(q)),
-  )
-}
-
-function JournalDetail({ row }: { row: JournalRow }) {
-  return (
-    <dl className="flex flex-col gap-3">
-      <DetailField label="Doklad" value={row.summaryDesignation} />
-      <DetailField label="Date" value={formatDate(row.postingDate)} />
-      <DetailField label="Account" value={row.accountNumber} />
-      <DetailField
-        label="Side"
-        value={
-          <Badge variant={row.side === "DEBIT" ? "default" : "secondary"}>
-            {row.side === "DEBIT" ? "MD" : "Dal"}
-          </Badge>
-        }
-      />
-      <DetailField
-        label="Amount"
-        value={
-          <span className="tabular-nums">{formatDecimal(row.amount)}</span>
-        }
-      />
-      <DetailField label="Type" value={row.summaryType} />
-    </dl>
+      row.designation,
+      row.counterparty_name ?? "",
+      documentTypeLabel(row.type),
+      row.base_total,
+      row.vat_total,
+      String(documentTotal(row)),
+      dateSearchText(row.issued_at),
+    ].some((value) => normalizeSearch(value).includes(q)),
   )
 }
 
 /**
- * Deník (journal) body — the double-entry lines of the period in book order.
- * Mounts the Table archetype: `useDataTable` + `DataGridView` inside a
- * `ContentPanel` with a toolbar (search + side filter + column/sort managers),
- * a status bar (count + running debit sum + pagination), and a per-row
- * inspector. Rows come from the server page (route `page.tsx`).
+ * Captured-documents table body — the Table archetype over `fetchDocuments`
+ * rows: `useDataTable` + `DataGridView` inside a `ContentPanel` with a toolbar
+ * (search + optional Typ filter + column/sort managers), a status bar (count +
+ * Celkem sum + pagination), and a per-row inspector. Shared by the Records
+ * overview (`withType`) and the per-family document pages; the page passes the
+ * already-filtered rows down as plain serializable props.
  */
-export function DenikBody({ rows }: { rows: JournalRow[] }) {
-  const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
-    useDenik()
+export function DocumentsTable({
+  rows,
+  counterpartyHeader,
+  withType = false,
+  searchPlaceholder,
+}: {
+  rows: DocumentRow[]
+  counterpartyHeader: string
+  withType?: boolean
+  searchPlaceholder: string
+}) {
   const [search, setSearch] = React.useState("")
+  const [inspected, setInspected] = React.useState<DocumentRow | null>(null)
+  const [inspectorOpen, setInspectorOpen] = React.useState(false)
+  const [inspectorMode] = React.useState<InspectorMode>("panel")
 
-  const tabFiltered = React.useMemo(() => {
-    const tab = JOURNAL_TABS.find((t) => t.value === activeTab)
-    if (!tab?.kind) return rows
-    return rows.filter((row) => row.side === tab.kind)
-  }, [rows, activeTab])
+  const openInspector = React.useCallback((row: DocumentRow) => {
+    setInspected(row)
+    setInspectorOpen(true)
+  }, [])
 
-  const data = React.useMemo(
-    () => applySearch(tabFiltered, search),
-    [tabFiltered, search],
+  const columns = React.useMemo(
+    () =>
+      buildDocumentColumns({
+        counterpartyHeader,
+        withType,
+        onInspect: openInspector,
+      }),
+    [counterpartyHeader, withType, openInspector],
   )
 
-  const { table } = useDataTable<JournalRow>({
+  const data = React.useMemo(() => applySearch(rows, search), [rows, search])
+
+  const { table } = useDataTable<DocumentRow>({
     data,
-    columns: journalColumns,
-    getRowId: (row) => row.lineId,
+    columns,
+    getRowId: (row) => row.id,
     columnResizeMode: "onChange",
     defaultColumn: { minSize: 56, size: 140, maxSize: 640 },
     initialState: {
@@ -104,42 +104,47 @@ export function DenikBody({ rows }: { rows: JournalRow[] }) {
   })
 
   const visible = table.getFilteredRowModel().rows
-  const debitTotal = visible
-    .filter((r) => r.original.side === "DEBIT")
-    .reduce((sum, r) => sum + Number(r.original.amount), 0)
+  const totalSum = visible.reduce(
+    (sum, r) => sum + documentTotal(r.original),
+    0,
+  )
   const isFiltered =
     search.trim() !== "" || table.getState().columnFilters.length > 0
-  const sideColumn = table.getColumn("side")
+  const typeColumn = withType ? table.getColumn("type") : undefined
 
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
-      inspector={inspected ? <JournalDetail row={inspected} /> : null}
+      inspector={
+        inspected ? (
+          <DocumentDetail
+            row={inspected}
+            counterpartyLabel={counterpartyHeader}
+          />
+        ) : null
+      }
       inspectorOpen={inspectorOpen}
       inspectorMode={inspectorMode}
       onInspectorOpenChange={(open) => {
-        if (!open) closeInspector()
+        if (!open) setInspectorOpen(false)
       }}
-      inspectorTitle={inspected?.summaryDesignation}
+      inspectorTitle={inspected?.designation}
       toolbar={
         <ContentToolbar
           left={
             <>
-              {sideColumn ? (
+              {typeColumn ? (
                 <DataTableFacetedFilter
-                  column={sideColumn}
-                  title="Side"
-                  options={[
-                    { label: "MD (debit)", value: "DEBIT" },
-                    { label: "Dal (credit)", value: "CREDIT" },
-                  ]}
+                  column={typeColumn}
+                  title="Typ"
+                  options={DOCUMENT_TYPE_OPTIONS}
                   multiple
                 />
               ) : null}
               <div className="relative flex h-7 w-72 items-center">
                 <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search deník…"
+                  placeholder={searchPlaceholder}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   className="h-7 w-full pl-8"
@@ -160,7 +165,8 @@ export function DenikBody({ rows }: { rows: JournalRow[] }) {
           left={
             <div className="flex items-center gap-3">
               <span>
-                {visible.length} {visible.length === 1 ? "line" : "lines"}
+                {visible.length}{" "}
+                {visible.length === 1 ? "document" : "documents"}
               </span>
               {isFiltered ? (
                 <Badge variant="secondary" className="h-5">
@@ -169,9 +175,7 @@ export function DenikBody({ rows }: { rows: JournalRow[] }) {
               ) : null}
               <span className="flex items-center gap-1.5">
                 <Sigma className="size-3.5" aria-hidden />
-                <span className="tabular-nums">
-                  {formatDecimal(String(debitTotal))}
-                </span>
+                <span className="tabular-nums">{formatAmount(totalSum)}</span>
               </span>
             </div>
           }

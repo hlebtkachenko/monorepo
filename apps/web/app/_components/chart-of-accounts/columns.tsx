@@ -33,6 +33,7 @@ const NATURE_LABEL: Record<string, string> = {
   EXPENSE: "Náklady",
   REVENUE: "Výnosy",
   CLOSING: "Uzávěrka",
+  OFF_BALANCE: "Podrozvaha",
 }
 
 /** MD (debit) / Dal (credit) short labels for the normal-balance side. */
@@ -128,16 +129,16 @@ export const chartColumns: ColumnDef<AccountRow>[] = [
     enableSorting: true,
   },
   {
-    accessorKey: "active",
-    header: "Active",
-    size: 100,
+    accessorKey: "tracksOpenItems",
+    header: "Saldokonto",
+    size: 110,
     cell: ({ row }) =>
-      row.original.active ? (
-        <Badge variant="outline">Aktivní</Badge>
+      row.original.tracksOpenItems ? (
+        <Badge variant="outline">Ano</Badge>
       ) : (
-        <Badge variant="secondary">Neaktivní</Badge>
+        <Badge variant="secondary">Ne</Badge>
       ),
-    meta: { label: "Active" },
+    meta: { label: "Saldokonto" },
     enableSorting: true,
   },
   {

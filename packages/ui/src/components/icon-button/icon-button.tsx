@@ -164,8 +164,8 @@ export function IconButton({
       tone === "sidekick"
         ? // Inverted treatment: idle box shown, hover clears it, selected
           // paints the unique tone (Sidekick / AI assistant button). The
-          // label + any currentColor glyph read in the high-contrast fg.
-          "bg-sidekick-idle-bg text-icon-active hover:bg-transparent aria-expanded:bg-sidekick-active-bg data-[active]:bg-sidekick-active-bg"
+          // label + any currentColor glyph read the sidekick accent color.
+          "bg-sidekick-idle-bg text-sidekick-icon hover:bg-transparent aria-expanded:bg-sidekick-active-bg data-[active]:bg-sidekick-active-bg"
         : "hover:bg-icon-hover-bg aria-expanded:bg-icon-active-bg aria-expanded:text-icon-active data-[active]:bg-icon-active-bg data-[active]:text-icon-active",
       "disabled:pointer-events-none disabled:opacity-50",
       labeled
@@ -177,7 +177,14 @@ export function IconButton({
       <>
         {glyph}
         {labeled && (
-          <span className="truncate text-[length:var(--icon-label-size)] leading-none font-medium">
+          <span
+            className={cn(
+              "truncate text-[length:var(--icon-label-size)] leading-none font-medium",
+              // Sidekick tone paints the glyph in the purple accent; the
+              // label stays regular text color instead of inheriting it.
+              tone === "sidekick" && "text-foreground",
+            )}
+          >
             {label}
           </span>
         )}

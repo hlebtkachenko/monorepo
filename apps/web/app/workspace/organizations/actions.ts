@@ -26,6 +26,11 @@ async function archive(
   if (!ctx.activeWorkspaceId)
     return { ok: false, errorKey: "noActiveWorkspace" }
 
+  // Archiving/restoring a book is consequential office-level administration:
+  // owner/admin only (a plain member cannot), matching the org settings gate.
+  if (ctx.current?.role !== "owner" && ctx.current?.role !== "admin")
+    return { ok: false, errorKey: "forbidden" }
+
   const done = await setOrgArchived(ctx.activeWorkspaceId, orgId, archived)
   if (!done) return { ok: false, errorKey: "notFound" }
 

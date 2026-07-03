@@ -28,6 +28,7 @@ const ARCHIVE_ERROR: Record<string, string> = {
   sessionExpired: "Your session expired. Please sign in again.",
   noActiveWorkspace: "No active workspace.",
   notFound: "That company could not be found.",
+  forbidden: "Only an owner or admin can archive a company.",
 }
 
 /** Overflow row action: archive an active book / restore an archived one. */

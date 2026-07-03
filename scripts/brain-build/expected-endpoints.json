@@ -1,0 +1,7 @@
+{
+  "_comment": "BGTG check #1 anchor, REFRAMED 2026-07-01 (ADR-0025 amendment / REFRAME-v1.2 R-2). Under the client model the Brain is an MCP/HTTP client: it binds to the accounting API CONTRACT, not internal @workspace/accounting TS symbols. This lists the accounting WRITE operations the Brain client calls; check-track-a.sh verifies each operationId exists in origin/main's OpenAPI spec. POPULATED WHEN #395 registers the accounting write endpoints via the endpoint-addition runbook (pnpm gen:all). Empty (version 0) = contract not yet defined = GATE-A A0 still blocked. Changing this file is a [contract-change] — record it in PROGRESS ## Decisions.",
+  "version": 0,
+  "openapi_spec_path": "apps/api/openapi/v1.json",
+  "contract_source_ref": "PR #395 (accounting-v2-ground) — pending merge + endpoint registration",
+  "operations": []
+}

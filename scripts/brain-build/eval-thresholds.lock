@@ -1,0 +1,16 @@
+{
+  "_comment": "BGTG threshold tamper-anchor (plan §9 + §11.3). Committed so any DOWNWARD move shows in git diff and HALTs the build. Never loosen a bound to make a red gate pass — that is exactly how a stuck agent cheats. dir: min = value must be >= bound; max = value must be <= bound; eq = value must == bound.",
+  "version": 1,
+  "source": ".context/afframe-brain/plan v1.1 §9 (canonical threshold table)",
+  "thresholds": {
+    "booking_correctness": { "bound": 0.95, "dir": "min", "surface": "Fixture-1 in-proc (M1), per-run", "measure": "exact-match account+amount+period vs case.yaml (WP-0.9)" },
+    "classification_accuracy": { "bound": 0.95, "dir": "min", "surface": "Fixture-1 (M1)", "measure": "vs case.yaml" },
+    "bank_tie": { "bound": 1.0, "dir": "eq", "surface": "Fixture-1 (M1)", "measure": "221<->bank reconciliation check" },
+    "escalation_recall_m1": { "bound": 0.90, "dir": "min", "surface": "Fixture-1 (M1), suite", "measure": "items that SHOULD escalate that did" },
+    "escalation_recall_m4": { "bound": 0.95, "dir": "min", "surface": "M4 transition gate", "measure": "items that SHOULD escalate that did" },
+    "confident_wrong": { "bound": 0, "dir": "eq", "surface": "every eval + every run", "measure": "eval-time vs golden; review-time vs Hleb. THE CARDINAL SIN." },
+    "booking_rule_pr_gate": { "bound": 0.90, "dir": "min", "surface": ".brain/rules PR eval gate (different surface from acceptance)", "measure": "brain-eval suite" },
+    "brier": { "bound": 0.04, "dir": "max", "surface": "calibration", "measure": "M2 run-1 {score,correct?} pairs ONLY; not a pre-M2 DoD" },
+    "kappa": { "bound": 0.80, "dir": "min", "surface": "judge calibration", "measure": "M2+ Hleb-vs-Advisor pairs ONLY; not pre-M2" }
+  }
+}

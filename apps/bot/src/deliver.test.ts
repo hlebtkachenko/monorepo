@@ -17,6 +17,8 @@ function ap(over: Partial<ApprovalRecord> = {}): ApprovalRecord {
     callbackUrl: null,
     callbackToken: null,
     resumeWorkflow: null,
+    resumeRef: null,
+    runId: null,
     delivered: false,
     exp: 9_999,
     created: 0,
@@ -46,6 +48,20 @@ describe("deliverAnswer", () => {
     expect(r).toMatchObject({ fired: true, webhook: true })
   })
 
+  it("includes run_id in the callbackUrl body for answer→run correlation", async () => {
+    let body: unknown
+    const fetchImpl = vi.fn(
+      async (_u: string | URL | Request, init?: RequestInit) => {
+        body = JSON.parse(init?.body as string)
+        return new Response(null, { status: 200 })
+      },
+    )
+    await deliverAnswer(ap({ callbackUrl: "https://x/cb", runId: "run-42" }), {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+    expect(body).toMatchObject({ run_id: "run-42" })
+  })
+
   it("dispatches resumeWorkflow with ask_id/decision/text", async () => {
     const dispatch = vi.fn(async () => true)
     const r = await deliverAnswer(
@@ -62,6 +78,19 @@ describe("deliverAnswer", () => {
       text: "ship it",
     })
     expect(r).toMatchObject({ fired: true, workflow: true })
+  })
+
+  it("dispatches resumeWorkflow against a custom resumeRef", async () => {
+    const dispatch = vi.fn(async () => true)
+    await deliverAnswer(
+      ap({ resumeWorkflow: "resume.yml", resumeRef: "release/v2" }),
+      { dispatch },
+    )
+    expect(dispatch).toHaveBeenCalledWith(
+      "resume.yml",
+      "release/v2",
+      expect.any(Object),
+    )
   })
 
   it("does nothing when already delivered", async () => {

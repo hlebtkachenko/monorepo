@@ -1,0 +1,32 @@
+{
+  "name": "@workspace/intake",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Afframe intake — pure, dependency-light parsers that turn a heterogeneous client dump (XLSX/CSV/ZIP/Pohoda dataPack XML) into canonical Brain IR. Bytes-in, no I/O.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@workspace/brain": "workspace:*",
+    "fast-xml-parser": "^5.9.3",
+    "fflate": "^0.8.3",
+    "papaparse": "^5.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/papaparse": "^5.5.2",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^10.4.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

@@ -21,6 +21,7 @@ import {
   eq,
   executeRows,
   isNull,
+  lockPeriodInTx,
   sql,
   updateToolCallLogOutput,
   withOrganization,
@@ -252,6 +253,7 @@ export class HeldWritesController {
           conversationId: _cv,
           ...fields
         } = parsed.data
+        await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)
         const ev = await createEvent(db, ctx, {
           ...fields,
           responsibleUserId: approverUserId,
@@ -271,6 +273,7 @@ export class HeldWritesController {
           conversationId: _cv,
           ...fields
         } = parsed.data
+        await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)
         const doc = await captureDocument(
           db,
           ctx,
@@ -287,6 +290,11 @@ export class HeldWritesController {
         const parsed = CreateAccountingPostingRequestSchema.safeParse(input)
         if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
         const { kind, entry } = parsed.data
+        await lockPeriodInTx(
+          db,
+          ctx.organizationId,
+          (entry as { periodId: string }).periodId,
+        )
         const posting = await postPosting(db, ctx, {
           kind,
           entry: {

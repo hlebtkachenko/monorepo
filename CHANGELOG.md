@@ -6,6 +6,21 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.13.0] — 2026-07-04
+
+Minor release: the Afframe Brain v1 **foundation** — the server-side safety spine that lets an unprivileged agent book accounting without ever auto-applying a wrong entry unreviewed. The v1 accounting write lane ships **OFF by default** (`BRAIN_RUNTIME_ACTIVE` fail-closed), so nothing user-facing changes until Brain launch. This is the foundation layer only; the actual Brain client + first end-to-end run (M1) and the milestones beyond remain ahead.
+
+### Added
+
+- **api**: server-side confidence veto on the accounting write gate — a client's claimed `confidence` is now necessary but not sufficient. The server derives the dangerous signals from the payload and forces a HOLD regardless of the claim: `asset_vs_expense` at posting (in-tx `accountId`→`account.number` lookup, per-synthetic DHM aggregation over 501/502/503/504/505/511/512/513/518/548), and `unverified_vat_regime` / `vat_amount_missing` / `vat_mismatch` at capture (all non-STANDARD VAT held, STANDARD-missing-`vatAmount` held, `base×rate` mismatch held). Honest limit: a wrong VAT rate with self-consistent arithmetic and sub-40k misclassification stay underivable — human review of held writes is the master gate (full evidence contract tracked in #464). (#479)
+- **api / db / web**: EPIC-R marshrutizátor wired into the write path — a per-(org, period) transaction-scoped advisory lock (`lockPeriodInTx`) serializes concurrent posts across the write gate + both approve-replay lanes, and a fail-closed admission kill-switch (`BRAIN_RUNTIME_ACTIVE`) + concurrency caps front every v1 accounting write (held-write resolve stays exempt so a human can always drain the review queue). (#479)
+- **brain / intake / accounting-kb**: the Brain packages — `@workspace/brain` (calibrated confidence engine, canonical IR + provenance, the server-side gate, agent login-pack + N-1 tool sandbox + prompt-injection defense, cross-source reconcile/dedup), `@workspace/intake` (pure heterogeneous-dump parsers → Brain IR), `@workspace/accounting-kb` (vendored machine-readable KB + CZ-law taxonomy: §34 loss, PDP 343-split, OSVČ/DPFO, zahajovací rozvaha). Plus the BGTG build-ground-truth harness and ADRs 0025-0028. (#479)
+- **infra**: `BRAIN_RUNTIME_ACTIVE` wired into the api task env as a context flag defaulting OFF — the agent write lane stays closed until an operator enables it at Brain launch (`cdk deploy -c brainRuntimeActive=1`), no code change. (#479)
+
+### Fixed
+
+- **accounting**: `closePeriod` now takes the same per-(org, period) advisory lock as the write path, closing a close-vs-post race — a roll-forward close could previously commit concurrently with an in-flight post (the closed-period guard is a BEFORE-INSERT trigger only and cannot stop a close racing a live post). (#479)
+
 ## [v0.12.4] — 2026-07-03
 
 Patch release: organization slug hardening — a single shared reserved-name policy, a real name-to-slug pipeline, and two guard fixes from the org-scaffolding review.

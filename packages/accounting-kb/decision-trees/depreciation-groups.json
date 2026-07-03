@@ -1,0 +1,162 @@
+{
+  "schema_version": "1.0",
+  "last_verified": "2026-05-23",
+  "source": "Act 586/1992 Sb. (ZDP) § 30–32 + Příloha č. 1",
+  "source_url": "https://www.e-sbirka.cz/sb/1992/586",
+  "confidence": "medium",
+  "note": "Rates/coefficients verified against § 31 (linear) and § 32 (accelerated). Asset examples from Příloha č. 1. Confirm no 2025/2026 amendment per Q-20260523-008.",
+  "groups": [
+    {
+      "skupina": 1,
+      "minimum_years": 3,
+      "asset_examples": [
+        "Osobní počítače, servery, notebooky",
+        "Ruční nářadí (vrtačky, brusky)",
+        "Měřicí a zkušební přístroje",
+        "Zemědělské stroje (vybrané)",
+        "Optická zařízení"
+      ],
+      "linear_rate": {
+        "year_1_pct": 20.0,
+        "year_2plus_pct": 40.0,
+        "ti_year_pct": 33.3
+      },
+      "accelerated_coefficients": {
+        "k1_year_1": 3,
+        "k2_year_2plus": 4,
+        "k3_ti_year": 3
+      },
+      "notes": "Mimořádné odpisy allowed for 2020/2021 acquisitions (Act 609/2020); confirm 2026 status."
+    },
+    {
+      "skupina": 2,
+      "minimum_years": 5,
+      "asset_examples": [
+        "Osobní automobily (all passenger cars)",
+        "Nákladní automobily, dodávky",
+        "Stroje a zařízení (obecně)",
+        "Výrobní linky, obráběcí centra",
+        "Kopírovací stroje, tiskárny",
+        "Vysokozdvižné vozíky"
+      ],
+      "linear_rate": {
+        "year_1_pct": 11.0,
+        "year_2plus_pct": 22.25,
+        "ti_year_pct": 20.0
+      },
+      "accelerated_coefficients": {
+        "k1_year_1": 5,
+        "k2_year_2plus": 6,
+        "k3_ti_year": 5
+      },
+      "notes": "Default group for unclassified movable equipment. Osobní automobily always group 2 regardless of value."
+    },
+    {
+      "skupina": 3,
+      "minimum_years": 10,
+      "asset_examples": [
+        "Velké kotle, parní generátory",
+        "Nákladní lodě, vlečné remorkéry",
+        "Klimatizační systémy (průmyslové)",
+        "Velké jeřáby, výtahy",
+        "Cisterny (nezabudované)",
+        "Zemědělské stavby (menší)"
+      ],
+      "linear_rate": {
+        "year_1_pct": 5.5,
+        "year_2plus_pct": 10.5,
+        "ti_year_pct": 10.0
+      },
+      "accelerated_coefficients": {
+        "k1_year_1": 10,
+        "k2_year_2plus": 11,
+        "k3_ti_year": 10
+      },
+      "notes": null
+    },
+    {
+      "skupina": 4,
+      "minimum_years": 20,
+      "asset_examples": [
+        "Ploty, oplocení (trvalé)",
+        "Vodovody, kanalizace, plynovody (mimo budovy)",
+        "Železniční koleje, tramvajové dráhy",
+        "Mosty (lehčí konstrukce)",
+        "Inženýrské sítě"
+      ],
+      "linear_rate": {
+        "year_1_pct": 2.15,
+        "year_2plus_pct": 5.15,
+        "ti_year_pct": 5.0
+      },
+      "accelerated_coefficients": {
+        "k1_year_1": 20,
+        "k2_year_2plus": 21,
+        "k3_ti_year": 20
+      },
+      "notes": null
+    },
+    {
+      "skupina": 5,
+      "minimum_years": 30,
+      "asset_examples": [
+        "Bytové domy (residential buildings)",
+        "Rodinné domy",
+        "Průmyslové budovy (výrobní haly, sklady)",
+        "Zemědělské budovy",
+        "Sportovní haly (nekomerční)"
+      ],
+      "linear_rate": {
+        "year_1_pct": 1.4,
+        "year_2plus_pct": 3.4,
+        "ti_year_pct": 3.4
+      },
+      "accelerated_coefficients": {
+        "k1_year_1": 30,
+        "k2_year_2plus": 31,
+        "k3_ti_year": 30
+      },
+      "notes": "Buildings are never below threshold — always capitalized regardless of value."
+    },
+    {
+      "skupina": 6,
+      "minimum_years": 50,
+      "asset_examples": [
+        "Administrativní budovy (kancelářské)",
+        "Hotely, penziony",
+        "Obchodní centra",
+        "Bankovní sály, pojišťovny",
+        "Nemocniční budovy (vybrané)",
+        "Muzea, knihovny"
+      ],
+      "linear_rate": {
+        "year_1_pct": 1.02,
+        "year_2plus_pct": 2.02,
+        "ti_year_pct": 2.0
+      },
+      "accelerated_coefficients": {
+        "k1_year_1": 50,
+        "k2_year_2plus": 51,
+        "k3_ti_year": 50
+      },
+      "notes": "Classification into group 5 vs 6 follows CZ-CC construction codes in Příloha č. 1 ZDP."
+    }
+  ],
+  "non_depreciable": [
+    {
+      "asset_type": "Pozemky (land)",
+      "reason": "§ 27 odst. 2 písm. a) ZDP — never depreciable",
+      "accounting_treatment": "Carried at acquisition cost indefinitely"
+    },
+    {
+      "asset_type": "Umělecká díla (works of art, standalone)",
+      "reason": "§ 27 ZDP — excluded",
+      "accounting_treatment": "Carried at acquisition cost or fair value per accounting policy"
+    },
+    {
+      "asset_type": "Nedokončený majetek (WIP)",
+      "reason": "Not yet put into service — depreciation starts only after activation",
+      "accounting_treatment": "Account 042 until activated"
+    }
+  ]
+}

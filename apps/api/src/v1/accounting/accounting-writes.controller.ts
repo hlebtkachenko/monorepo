@@ -31,6 +31,7 @@ import {
   CreateAccountingPostingRequestDto,
   CreateAccountingPostingResponseDto,
 } from "../dto"
+import { deriveCaptureVeto, derivePostingVeto } from "./accounting-veto"
 import { runGatedWrite, type GatedWriteResult } from "./accounting-writes.gate"
 
 const IDEMPOTENCY_HEADER = {
@@ -88,6 +89,7 @@ export class AccountingWritesController {
       idempotencyKey,
       operationId: "createAccountingEvent",
       body,
+      periodId: fields.periodId,
       confidence,
       rationale,
       conversationId,
@@ -133,6 +135,8 @@ export class AccountingWritesController {
     // its own fx rate before it is tested (a large FX partial otherwise slips
     // under the ceiling and evades the hold). Rounding is already accounting
     // currency; posting amounts elsewhere are already accounting currency too.
+    // Float `Number()` math is fine here: this feeds the coarse screening
+    // ceiling only, never a booked amount (booked amounts use string-math).
     const toAccountingCurrency = (p: {
       baseAmount: string
       fxRate?: string | null
@@ -162,10 +166,17 @@ export class AccountingWritesController {
       idempotencyKey,
       operationId: "captureAccountingDocument",
       body,
+      periodId: fields.periodId,
       confidence,
       rationale,
       conversationId,
       holdAmounts,
+      deriveVeto: () =>
+        Promise.resolve(
+          deriveCaptureVeto(
+            (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
+          ),
+        ),
       run: (db, ctx) =>
         captureDocument(db, ctx, fields as unknown as DocumentInput),
       applied: (doc) => ({
@@ -207,10 +218,13 @@ export class AccountingWritesController {
       idempotencyKey,
       operationId: "createAccountingPosting",
       body,
+      periodId: (entry as { periodId: string }).periodId,
       confidence,
       rationale,
       conversationId,
       holdAmounts,
+      deriveVeto: (db) =>
+        derivePostingVeto(db, principal.organizationId, kind, entry),
       run: (db, ctx) =>
         postPosting(db, ctx, {
           kind,

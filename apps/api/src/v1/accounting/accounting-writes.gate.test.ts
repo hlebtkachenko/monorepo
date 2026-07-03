@@ -1,17 +1,42 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { AdmissionController } from "@workspace/db"
 import {
   ConflictError,
   ForbiddenError,
   IdempotencyConflictError,
+  RateLimitedError,
   ValidationError,
 } from "@workspace/shared/errors"
 
-vi.mock("@workspace/db", () => ({
-  withOrganization: vi.fn(),
-  writeToolCallLog: vi.fn(),
-  updateToolCallLogOutput: vi.fn(),
-}))
+// Mock the DB I/O the gate performs, plus the marshrutizátor primitives. The
+// admission singleton (imported transitively by the gate) constructs an
+// `AdmissionController` at load, so the mock must expose a usable (permissive)
+// one + the `AdmissionRejected` class so the gate's `instanceof` map fires.
+// The admission caps/kill-switch logic itself is covered in packages/db.
+vi.mock("@workspace/db", () => {
+  class AdmissionRejected extends Error {
+    readonly reason: string
+    constructor(reason: string) {
+      super(`admission rejected: ${reason}`)
+      this.name = "AdmissionRejected"
+      this.reason = reason
+    }
+  }
+  class AdmissionController {
+    acquire(): { release: () => void } {
+      return { release: () => {} }
+    }
+  }
+  return {
+    withOrganization: vi.fn(),
+    writeToolCallLog: vi.fn(),
+    updateToolCallLogOutput: vi.fn(),
+    lockPeriodInTx: vi.fn(),
+    AdmissionController,
+    AdmissionRejected,
+  }
+})
 
 const db = await import("@workspace/db")
 const { runGatedWrite, canonicalHash } =
@@ -20,6 +45,7 @@ const { runGatedWrite, canonicalHash } =
 const writeLog = vi.mocked(db.writeToolCallLog)
 const updateLog = vi.mocked(db.updateToolCallLogOutput)
 const withOrg = vi.mocked(db.withOrganization)
+const lockPeriod = vi.mocked(db.lockPeriodInTx)
 
 const principal = {
   userId: "user-1" as string | null,
@@ -50,6 +76,7 @@ function build(
     idempotencyKey: "idempotencyKey" in over ? over.idempotencyKey : "key-1",
     operationId: "createAccountingEvent",
     body,
+    periodId: "p-1",
     confidence: over.confidence ?? 0.95,
     rationale: "test rationale",
     conversationId: over.conversationId,
@@ -70,6 +97,8 @@ describe("runGatedWrite", () => {
     writeLog.mockReset()
     updateLog.mockReset()
     withOrg.mockReset()
+    lockPeriod.mockReset()
+    lockPeriod.mockResolvedValue(undefined)
     // Run the callback with a throwaway db handle, one transaction.
     withOrg.mockImplementation((_org, _user, fn) =>
       (fn as (db: unknown) => Promise<unknown>)({}),
@@ -167,5 +196,78 @@ describe("runGatedWrite", () => {
       existingOutput: null,
     })
     await expect(runGatedWrite(build())).rejects.toBeInstanceOf(ConflictError)
+  })
+
+  it("maps an admission rejection (kill-switch / cap) to 429 without opening a tx", async () => {
+    const rejecting = {
+      acquire: () => {
+        throw new db.AdmissionRejected("kill_switch_inactive")
+      },
+    } as unknown as AdmissionController
+    await expect(
+      runGatedWrite(build({ confidence: 0.95 }), rejecting),
+    ).rejects.toBeInstanceOf(RateLimitedError)
+    expect(withOrg).not.toHaveBeenCalled()
+  })
+
+  it("takes the per-(org, period) lock before an auto-applied domain write", async () => {
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-2",
+      designation: "FP2",
+      sequenceNumber: 2,
+    })
+    await runGatedWrite(build({ confidence: 0.95, run }))
+    expect(lockPeriod).toHaveBeenCalledWith(expect.anything(), "org-1", "p-1")
+    // Lock is taken before the domain mutation runs.
+    expect(lockPeriod.mock.invocationCallOrder[0]).toBeLessThan(
+      run.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it("does NOT take the period lock for a held write (no period touched)", async () => {
+    await runGatedWrite(build({ confidence: 0.5 }))
+    expect(lockPeriod).not.toHaveBeenCalled()
+  })
+
+  it("HOLDS an auto-apply-confidence write when the server veto fires (confident-wrong guard)", async () => {
+    const run = vi.fn()
+    const res = await runGatedWrite({
+      ...build({ confidence: 0.99, run }),
+      deriveVeto: () =>
+        Promise.resolve({ held: true, signals: ["asset_vs_expense"] }),
+    })
+    // The cardinal-sin guarantee: a claimed-0.99 booking the server vetoes holds.
+    expect(res.httpStatus).toBe(202)
+    expect(res.body).toMatchObject({ status: "held" })
+    expect(run).not.toHaveBeenCalled()
+    expect(lockPeriod).not.toHaveBeenCalled()
+    // The fired signals are persisted to the audit trail (output_json.serverGate).
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoApplied: false,
+        output: expect.objectContaining({
+          serverGate: { held: true, signals: ["asset_vs_expense"] },
+        }),
+      }),
+    )
+  })
+
+  it("auto-applies when the veto does not fire, recording an empty serverGate", async () => {
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-ok",
+      designation: "FP-ok",
+      sequenceNumber: 3,
+    })
+    const res = await runGatedWrite({
+      ...build({ confidence: 0.99, run }),
+      deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+    })
+    expect(res.httpStatus).toBe(201)
+    expect(run).toHaveBeenCalledOnce()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ autoApplied: true }),
+    )
   })
 })

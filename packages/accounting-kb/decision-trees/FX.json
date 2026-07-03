@@ -1,0 +1,296 @@
+{
+  "_meta": {
+    "title": "FX Transaction Decision Tree",
+    "version": "1.0.0",
+    "last_updated": "2026-05-24",
+    "author": "wave-2d-N2D.7-sonnet",
+    "status": "wave-output",
+    "confidence": "medium",
+    "scope": "Czech GAAP (Act 563/1991 Sb. + Decree 500/2002 Sb. + ČÚS 006) for PO + OSVČ under 1B CZK",
+    "legal_basis": [
+      "Act 563/1991 Sb. § 24 odst. 6",
+      "Decree 500/2002 Sb. § 60",
+      "ČÚS 006 body 3–5",
+      "Act 235/2004 Sb. § 4 odst. 5"
+    ],
+    "notes": [
+      "AI must inject CURRENT ČNB rate for the transaction date (not entity's pevný kurz for DPH).",
+      "AI must NOT declare organization_id, user_id, workspace_id, or role as input.",
+      "Pending advisor review: related-party loan FX loss thin-cap interaction (Q-20260524-FX08).",
+      "Pending advisor review: záloha year-end treatment (Q-20260524-FX07)."
+    ]
+  },
+
+  "method_choice": {
+    "description": "Entity-level accounting policy for FX conversion method",
+    "inputs": ["entity_method"],
+    "options": {
+      "denni_kurz": {
+        "label": "Denní kurz (daily ČNB rate)",
+        "rate_source": "ČNB official rate on transaction date",
+        "fallback_for_weekend_holiday": "ČNB rate from last preceding business day",
+        "admin_burden": "high",
+        "precision": "exact"
+      },
+      "pevny_kurz": {
+        "label": "Pevný kurz (entity-set fixed rate)",
+        "rate_source": "ČNB rate at start of sub-period (typically first business day of month)",
+        "reset_trigger": "Material deviation (entity-defined threshold, commonly 5%)",
+        "admin_burden": "low",
+        "precision": "approximate"
+      }
+    },
+    "consistency_required": true,
+    "disclosure_required": "Notes to financial statements (příloha k účetní závěrce)"
+  },
+
+  "transaction_types": [
+
+    {
+      "id": "FX-RECV-INIT",
+      "label": "Foreign-currency receivable — initial recognition",
+      "trigger": "Invoice issued with amount in foreign currency; entity is seller",
+      "inputs": {
+        "required": ["foreign_currency", "foreign_currency_amount", "transaction_date", "cnb_rate_on_date"],
+        "optional": ["entity_method"]
+      },
+      "outputs": {
+        "czk_amount": "foreign_currency_amount × cnb_rate_on_date",
+        "rate_used": "cnb_rate_on_date (or entity's pevný kurz if that method chosen)",
+        "posting": {
+          "debit": "311 — Pohledávky z obchodních vztahů",
+          "credit": "601/602/604 — Tržby (+ 343 DPH if applicable)",
+          "amounts": "CZK equivalent at conversion rate"
+        },
+        "dph_base": "Use ČNB rate on DUZP (NOT pevný kurz) — see FX-DPH-BASE"
+      },
+      "year_end_required": true,
+      "reference_file": "02-initial-recognition.md"
+    },
+
+    {
+      "id": "FX-RECV-SETTLE",
+      "label": "Foreign-currency receivable — settlement (payment received)",
+      "trigger": "Customer pays in foreign currency; entity receives funds in FX bank account",
+      "inputs": {
+        "required": [
+          "receivable_czk_book_value",
+          "foreign_currency_amount_received",
+          "settlement_date",
+          "cnb_rate_on_settlement_date"
+        ]
+      },
+      "computation": {
+        "czk_received": "foreign_currency_amount_received × cnb_rate_on_settlement_date",
+        "fx_difference": "czk_received − receivable_czk_book_value",
+        "fx_direction": "positive → kurzový zisk (663); negative → kurzová ztráta (563)"
+      },
+      "posting_gain": {
+        "label": "Rate rose (gain)",
+        "debit": "221 — Bankovní účty",
+        "credit_1": "311 — Pohledávky (book value)",
+        "credit_2": "663 — Kurzové zisky (positive difference)"
+      },
+      "posting_loss": {
+        "label": "Rate fell (loss)",
+        "debit_1": "221 — Bankovní účty (CZK received)",
+        "debit_2": "563 — Kurzové ztráty (negative difference)",
+        "credit": "311 — Pohledávky (book value)"
+      },
+      "tax_deductibility": "Daňově uznatelná (§ 24 odst. 2 písm. h) ZDP)",
+      "reference_file": "03-kurzove-rozdily-zaplaceni.md"
+    },
+
+    {
+      "id": "FX-LIAB-INIT",
+      "label": "Foreign-currency payable — initial recognition",
+      "trigger": "Invoice received with amount in foreign currency; entity is buyer",
+      "inputs": {
+        "required": ["foreign_currency", "foreign_currency_amount", "invoice_receipt_date", "cnb_rate_on_date"],
+        "optional": ["entity_method"]
+      },
+      "outputs": {
+        "czk_amount": "foreign_currency_amount × cnb_rate_on_date",
+        "posting": {
+          "debit": "501/504/518 etc. — Expense account",
+          "credit": "321 — Závazky z obchodních vztahů"
+        }
+      },
+      "year_end_required": true,
+      "reference_file": "02-initial-recognition.md"
+    },
+
+    {
+      "id": "FX-LIAB-SETTLE",
+      "label": "Foreign-currency payable — settlement (payment made)",
+      "trigger": "Entity pays foreign-currency invoice from FX bank account",
+      "inputs": {
+        "required": [
+          "payable_czk_book_value",
+          "foreign_currency_amount_paid",
+          "payment_date",
+          "cnb_rate_on_payment_date"
+        ]
+      },
+      "computation": {
+        "czk_paid": "foreign_currency_amount_paid × cnb_rate_on_payment_date",
+        "fx_difference": "payable_czk_book_value − czk_paid",
+        "fx_direction": "positive (paid less than booked) → gain (663); negative (paid more) → loss (563)"
+      },
+      "posting_gain": {
+        "label": "Rate fell (gain — paid less CZK than booked)",
+        "debit": "321 — Závazky (book value)",
+        "credit_1": "221 — Bankovní účty (CZK paid)",
+        "credit_2": "663 — Kurzové zisky"
+      },
+      "posting_loss": {
+        "label": "Rate rose (loss — paid more CZK than booked)",
+        "debit_1": "321 — Závazky (book value)",
+        "debit_2": "563 — Kurzové ztráty",
+        "credit": "221 — Bankovní účty (CZK paid)"
+      },
+      "tax_deductibility": "Daňově uznatelná (§ 24 odst. 2 písm. h) ZDP)",
+      "reference_file": "03-kurzove-rozdily-zaplaceni.md"
+    },
+
+    {
+      "id": "FX-YEAR-END",
+      "label": "Year-end re-translation (závěrkový přepočet)",
+      "trigger": "Balance-sheet date (typically 31 December); monetary FX items outstanding",
+      "inputs": {
+        "required": [
+          "item_type",
+          "foreign_currency_balance",
+          "czk_book_value",
+          "cnb_closing_rate"
+        ]
+      },
+      "eligible_items": [
+        "311 — Pohledávky z obchodních vztahů",
+        "315/378 — Jiné pohledávky",
+        "321 — Závazky z obchodních vztahů",
+        "461 — Bankovní úvěry dlouhodobé",
+        "221 — Bankovní účty (FX)",
+        "261 — Pokladna (FX)"
+      ],
+      "ineligible_items": [
+        "022 — DHM (historical cost, frozen)",
+        "012 — DNM (historical cost, frozen)",
+        "112/132 — Zásoby (historical cost, frozen)"
+      ],
+      "computation": {
+        "retranslated_czk": "foreign_currency_balance × cnb_closing_rate",
+        "fx_difference": "retranslated_czk − czk_book_value"
+      },
+      "posting_gain": {
+        "debit": "Affected balance-sheet account (increase)",
+        "credit": "663 — Kurzové zisky"
+      },
+      "posting_loss": {
+        "debit": "563 — Kurzové ztráty",
+        "credit": "Affected balance-sheet account (decrease)"
+      },
+      "no_reversal_in_next_period": true,
+      "tax_timing": "Same accounting period as the balance-sheet date",
+      "reference_file": "04-zaverkovy-prepocet.md"
+    },
+
+    {
+      "id": "FX-DHM-ACQUIRE",
+      "label": "DHM acquired in foreign currency",
+      "trigger": "Entity purchases tangible fixed asset; price denominated in foreign currency",
+      "inputs": {
+        "required": ["foreign_currency", "foreign_currency_amount", "delivery_date", "cnb_rate_on_delivery"]
+      },
+      "outputs": {
+        "porizovaci_cena_czk": "foreign_currency_amount × cnb_rate_on_delivery",
+        "posting_acquisition": {
+          "debit": "042 — Pořízení DHM",
+          "credit": "321 — Závazky"
+        },
+        "posting_transfer": {
+          "debit": "022 — Samostatné movité věci etc.",
+          "credit": "042"
+        }
+      },
+      "year_end_retranslation": false,
+      "fx_on_payment": {
+        "note": "Payment at different rate than delivery → FX difference goes to 563/663, NOT to DHM cost",
+        "posting": "Same as FX-LIAB-SETTLE"
+      },
+      "reference_file": "02-initial-recognition.md"
+    },
+
+    {
+      "id": "FX-ADVANCE-PAID",
+      "label": "Advance (záloha) paid in foreign currency",
+      "trigger": "Entity pays advance to foreign supplier in foreign currency before delivery",
+      "inputs": {
+        "required": ["foreign_currency_amount", "payment_date", "cnb_rate_on_payment"]
+      },
+      "outputs": {
+        "czk_book_value": "foreign_currency_amount × cnb_rate_on_payment",
+        "posting": {
+          "debit": "314 — Poskytnuté zálohy",
+          "credit": "221 — Bankovní účty"
+        }
+      },
+      "year_end_retranslation": false,
+      "note": "Záloha is non-monetary — carries at original CZK book value until cleared",
+      "on_clearing": {
+        "debit": "321 — Závazky",
+        "credit": "314 — Zálohy (at original CZK book value)"
+      },
+      "reference_file": "06-zalohy-FX.md"
+    },
+
+    {
+      "id": "FX-DPH-BASE",
+      "label": "DPH base computation for foreign-currency transaction",
+      "trigger": "Czech plátce DPH issues or receives invoice in foreign currency",
+      "inputs": {
+        "required": [
+          "transaction_type",
+          "foreign_currency_amount",
+          "duzp_date",
+          "cnb_rate_on_duzp"
+        ]
+      },
+      "outputs": {
+        "zaklad_dane_czk": "foreign_currency_amount × cnb_rate_on_duzp",
+        "dph_amount_czk": "zaklad_dane_czk × applicable_rate",
+        "note": "Always use ČNB rate on DUZP — entity's pevný kurz does NOT apply for DPH"
+      },
+      "alternative_rate": "ČNB rate from last business day preceding DUZP (§ 4 odst. 5 ZDPH)",
+      "invoice_requirements": [
+        "základ daně in CZK",
+        "DPH amount in CZK",
+        "ČNB rate used (or reference to § 4 odst. 5 ZDPH)"
+      ],
+      "reference_file": "08-DPH-base-FX.md"
+    }
+  ],
+
+  "accounts_reference": {
+    "221": "Bankovní účty — foreign currency subaccounts",
+    "261": "Pokladna — foreign currency cash",
+    "311": "Pohledávky z obchodních vztahů",
+    "314": "Poskytnuté zálohy (advances paid)",
+    "315": "Ostatní pohledávky",
+    "321": "Závazky z obchodních vztahů",
+    "324": "Přijaté zálohy (advances received)",
+    "343": "Daň z přidané hodnoty",
+    "378": "Jiné pohledávky",
+    "461": "Bankovní úvěry dlouhodobé",
+    "563": "Kurzové ztráty (FX losses — financial expense)",
+    "663": "Kurzové zisky (FX gains — financial income)"
+  },
+
+  "advisor_escalation_triggers": [
+    "Related-party foreign-currency loan with outstanding balance > CZK 5M",
+    "FX forward or option contract present",
+    "FX loss on related-party loan where thin-cap ratio already exceeded on interest",
+    "Záloha outstanding at year-end > CZK 1M",
+    "Entity reporting under IFRS (different rules apply)"
+  ]
+}

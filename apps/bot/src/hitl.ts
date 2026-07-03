@@ -15,6 +15,8 @@ export interface AnswerView {
   /** Resolved by the onTimeout policy (answered is also true; decision carries the value). */
   timedOut: boolean
   options: string[]
+  /** The originating agent run, for a poller correlating this answer back to its run. Null if not set. */
+  runId: string | null
 }
 
 /**
@@ -63,5 +65,6 @@ export function answerView(ap: ApprovalRecord, now: number): AnswerView {
     expired,
     timedOut,
     options: ap.options,
+    runId: ap.runId,
   }
 }

@@ -146,6 +146,7 @@ vi.mock("@workspace/db", () => {
     and,
     sql,
     withOrganization,
+    lockPeriodInTx: vi.fn().mockResolvedValue(undefined),
     updateToolCallLogOutput: vi.fn().mockResolvedValue(undefined),
     executeRows: vi
       .fn()

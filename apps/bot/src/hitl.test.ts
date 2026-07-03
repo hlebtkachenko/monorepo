@@ -17,6 +17,8 @@ function ap(over: Partial<ApprovalRecord> = {}): ApprovalRecord {
     callbackUrl: null,
     callbackToken: null,
     resumeWorkflow: null,
+    resumeRef: null,
+    runId: null,
     delivered: false,
     exp: 1000,
     created: 0,
@@ -44,6 +46,11 @@ describe("answerView", () => {
       expired: false,
       timedOut: false,
     })
+  })
+
+  it("carries runId for answer→run correlation", () => {
+    expect(answerView(ap({ runId: "run-9" }), 500).runId).toBe("run-9")
+    expect(answerView(ap(), 500).runId).toBeNull()
   })
 
   it("answered by free text", () => {

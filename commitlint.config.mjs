@@ -1,5 +1,11 @@
 export default {
   extends: ["@commitlint/config-conventional"],
+  // Integration merge commits ("chore(scope): merge origin/main ...") are
+  // auto-generated and DISCARDED ON SQUASH; their subject length/format is
+  // noise, not signal. config-conventional already ignores plain "Merge ..."
+  // messages; extend that to our conventional merge-into-branch commits so a
+  // long merge subject cannot block an otherwise-clean PR.
+  ignores: [(message) => /: merge (latest )?origin\/main/i.test(message)],
   rules: {
     "type-enum": [
       2,
@@ -26,4 +32,4 @@ export default {
     "body-max-line-length": [0, "always"],
     "footer-max-line-length": [0, "always"],
   },
-};
+}

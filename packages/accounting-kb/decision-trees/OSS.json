@@ -1,0 +1,189 @@
+{
+  "_meta": {
+    "title": "OSS/IOSS Decision Tree",
+    "description": "Machine-readable decision tree for Afframe AI advisor to determine OSS/IOSS obligations for Czech taxable persons",
+    "version": "1.0",
+    "wave": "N2D.5",
+    "last_updated": "2026-05-23",
+    "confidence": "medium",
+    "sources": [
+      "Act 235/2004 Sb. §§ 6, 6c, 89, 110a–110ze",
+      "EU Directive 2017/2455"
+    ],
+    "advisor_questions": [
+      "Q-20260523-114: CZK equivalent of EUR 10,000 in 2026",
+      "Q-N2D5-001: EUR 10,000 threshold amendment status 2026",
+      "Q-N2D5-006: EUR 150 IOSS threshold amendment status 2026"
+    ]
+  },
+  "entry_point": "Q1",
+  "nodes": {
+    "Q1": {
+      "id": "Q1",
+      "question": "Does the entity sell goods or services B2C to consumers in EU Member States other than CZ?",
+      "yes": "Q2",
+      "no": "RESULT_NO_OSS",
+      "note": "B2C = customer is a private person (non-taxable). If all EU sales are B2B, go to B2B branch (reverse charge, not OSS)."
+    },
+    "Q2": {
+      "id": "Q2",
+      "question": "What type of B2C cross-border supply is it?",
+      "branches": [
+        { "type": "goods_distance_sales", "label": "Physical goods shipped from CZ to EU consumers", "next": "Q3" },
+        { "type": "tbe_services", "label": "TBE or electronically supplied services (SaaS, streaming, e-books, digital downloads)", "next": "Q3" },
+        { "type": "goods_from_outside_eu", "label": "Goods imported from outside EU (seller ships from non-EU country to EU consumer)", "next": "Q_IOSS" },
+        { "type": "other_b2c_services", "label": "Other B2C services (non-TBE) with place of supply in destination MS", "next": "Q3" }
+      ]
+    },
+    "Q3": {
+      "id": "Q3",
+      "question": "What is the total annual value of all qualifying B2C cross-border supplies (goods + TBE services combined) to all EU MS combined?",
+      "threshold_eur": 10000,
+      "threshold_czk_approx": 250000,
+      "threshold_czk_note": "CZK equivalent approximate only; confirm 2026 exact figure (Q-20260523-114)",
+      "below_threshold": "Q4_BELOW",
+      "above_threshold": "Q5_ABOVE",
+      "at_threshold": "Q5_ABOVE"
+    },
+    "Q4_BELOW": {
+      "id": "Q4_BELOW",
+      "question": "Did the entity exceed EUR 10,000 in qualifying B2C cross-border supplies in the PREVIOUS calendar year?",
+      "yes": "Q5_ABOVE",
+      "no": "RESULT_CZ_DPH_OR_VOLUNTARY_OSS",
+      "note": "Prior-year breach locks in destination-country DPH from 1 January of current year."
+    },
+    "Q5_ABOVE": {
+      "id": "Q5_ABOVE",
+      "question": "Does the entity dispatch any goods from warehouses or fixed establishments in EU Member States other than CZ?",
+      "yes": "RESULT_MIXED_DIRECT_REGISTRATION",
+      "no": "Q6"
+    },
+    "Q6": {
+      "id": "Q6",
+      "question": "Is the entity already registered for OSS in CZ?",
+      "yes": "RESULT_OSS_REGISTERED",
+      "no": "RESULT_REGISTER_OSS_CZ"
+    },
+    "Q_IOSS": {
+      "id": "Q_IOSS",
+      "question": "Is the intrinsic value of each individual consignment (parcel) EUR 150 or less?",
+      "yes": "Q_IOSS_2",
+      "no": "RESULT_STANDARD_CUSTOMS",
+      "note": "Intrinsic value = goods value only, excluding separately stated shipping and insurance."
+    },
+    "Q_IOSS_2": {
+      "id": "Q_IOSS_2",
+      "question": "Are the goods subject to excise duty (alcohol, tobacco, mineral oils)?",
+      "yes": "RESULT_STANDARD_CUSTOMS",
+      "no": "Q_IOSS_3"
+    },
+    "Q_IOSS_3": {
+      "id": "Q_IOSS_3",
+      "question": "Is the entity (or marketplace) established in the EU?",
+      "yes": "RESULT_IOSS_DIRECT_REGISTRATION",
+      "no": "RESULT_IOSS_INTERMEDIARY"
+    },
+    "Q_IO_CHECK": {
+      "id": "Q_IO_CHECK",
+      "question": "Does the entity purchase goods from other EU MS (B2B) above CZK 326,000 per year, or receive B2B services from EU/non-EU suppliers with place of supply in CZ?",
+      "yes": "RESULT_IO_ALSO_REQUIRED",
+      "no": "RESULT_OSS_ONLY",
+      "note": "IO and OSS are independent obligations. Both can apply simultaneously."
+    }
+  },
+  "results": {
+    "RESULT_NO_OSS": {
+      "id": "RESULT_NO_OSS",
+      "label": "No OSS obligation",
+      "description": "Entity sells only domestically (CZ) or B2B to EU. No OSS registration needed. For B2B EU services: reverse charge applies via § 9 Act 235/2004 (not OSS).",
+      "actions": ["Continue with domestic CZ DPH DAP", "For B2B EU services: issue invoice without CZ DPH, include buyer VAT number, file souhrnné hlášení"],
+      "next_check": "Q_IO_CHECK"
+    },
+    "RESULT_CZ_DPH_OR_VOLUNTARY_OSS": {
+      "id": "RESULT_CZ_DPH_OR_VOLUNTARY_OSS",
+      "label": "Below EUR 10,000 threshold — CZ DPH applies (or voluntary OSS election)",
+      "description": "Entity may charge Czech DPH (currently 21%/12%) on all cross-border B2C supplies. No mandatory OSS registration. May voluntarily elect OSS if preferred (locks in for 2+ calendar years).",
+      "actions": ["Report cross-border B2C sales in standard CZ DAP", "Consider voluntary OSS if growth expected to exceed EUR 10,000 soon"],
+      "warning": "Monitor annual cumulative total. The threshold can be breached at any point in the year."
+    },
+    "RESULT_REGISTER_OSS_CZ": {
+      "id": "RESULT_REGISTER_OSS_CZ",
+      "label": "Register for OSS (Union scheme) with CZ Finanční správa",
+      "description": "Entity exceeds EUR 10,000 threshold. Must register for OSS or directly register in each destination MS. OSS (Union scheme via CZ) is the recommended path for multi-country EU B2C sellers.",
+      "actions": [
+        "Register at adisreg.financnisprava.cz (confirm current URL — Q-N2D5-002)",
+        "Open EUR bank account",
+        "Set up 343.OSS sub-account in accounting system",
+        "Configure e-shop checkout with per-country VAT rates",
+        "Set up quarterly OSS přiznání filing reminder"
+      ],
+      "filing": "Quarterly OSS přiznání, due last day of following month",
+      "payment": "EUR, same deadline as return"
+    },
+    "RESULT_OSS_REGISTERED": {
+      "id": "RESULT_OSS_REGISTERED",
+      "label": "Continue with existing OSS registration",
+      "description": "Entity already registered. File quarterly OSS přiznání with per-MS, per-rate breakdown.",
+      "actions": ["File quarterly", "Pay in EUR by deadline", "Maintain 10-year records per transaction"]
+    },
+    "RESULT_MIXED_DIRECT_REGISTRATION": {
+      "id": "RESULT_MIXED_DIRECT_REGISTRATION",
+      "label": "Mixed obligation: OSS for CZ-dispatched sales + direct registration in MS of warehouse",
+      "description": "Supplies from CZ warehouse: use OSS. Supplies from foreign warehouse (Amazon FBA, etc.): direct VAT registration required in that MS. OSS cannot cover supplies dispatched from outside CZ.",
+      "escalation": "Advisor consultation recommended — complexity high",
+      "actions": [
+        "Register OSS in CZ for CZ-dispatched B2C sales",
+        "Register for VAT directly in each MS where a warehouse is located",
+        "Segregate reporting by dispatch origin"
+      ]
+    },
+    "RESULT_STANDARD_CUSTOMS": {
+      "id": "RESULT_STANDARD_CUSTOMS",
+      "label": "Standard import customs procedure — IOSS not applicable",
+      "description": "Consignment value > EUR 150, or goods are excise goods. Standard import DPH collected at EU border by customs. No IOSS.",
+      "actions": ["Ensure customs documentation correct", "Import DPH included in cost basis if buyer is non-plátce"]
+    },
+    "RESULT_IOSS_DIRECT_REGISTRATION": {
+      "id": "RESULT_IOSS_DIRECT_REGISTRATION",
+      "label": "Register for IOSS with CZ Finanční správa (EU-established seller)",
+      "description": "Goods ≤ EUR 150 per consignment from outside EU to EU consumers. Register IOSS directly with CZ Finanční správa. Collect DPH at checkout at destination-country rate. Monthly IOSS return.",
+      "filing": "Monthly IOSS přiznání, due last day of following month",
+      "payment": "EUR, same deadline as return",
+      "actions": [
+        "Register at CZ Finanční správa IOSS portal",
+        "Set up 343.IOSS sub-account",
+        "Configure checkout for consumer-country DPH rate",
+        "Include IOSS number in all customs declarations"
+      ]
+    },
+    "RESULT_IOSS_INTERMEDIARY": {
+      "id": "RESULT_IOSS_INTERMEDIARY",
+      "label": "Non-EU seller: must use EU-established IOSS intermediary (*zprostředkovatel*)",
+      "description": "Non-EU sellers cannot register for IOSS directly. Must appoint an EU IOSS intermediary who registers in their MS and is jointly liable for DPH compliance.",
+      "escalation": "Advisor consultation required — select and appoint EU zprostředkovatel",
+      "actions": ["Find EU-established IOSS zprostředkovatel (fiscal representative)", "Sign intermediary agreement", "Provide all sales data to zprostředkovatel monthly"]
+    },
+    "RESULT_IO_ALSO_REQUIRED": {
+      "id": "RESULT_IO_ALSO_REQUIRED",
+      "label": "IO registration also required — independent of OSS",
+      "description": "Entity triggers IO status (EU goods pořízení > CZK 326,000 or B2B services from EU/non-EU). IO must be registered with Finanční správa separately from OSS.",
+      "actions": [
+        "Register as identifikovaná osoba (§ 6c Act 235/2004)",
+        "File IO samovyměření přiznání for inbound EU B2B transactions",
+        "Note: IO cannot deduct input DPH (only samovyměření, no nárok na odpočet)"
+      ]
+    },
+    "RESULT_OSS_ONLY": {
+      "id": "RESULT_OSS_ONLY",
+      "label": "OSS registration only — no IO obligation",
+      "description": "Entity needs OSS for outbound B2C sales but does not trigger IO threshold for inbound purchases.",
+      "actions": ["Proceed with OSS registration per RESULT_REGISTER_OSS_CZ"]
+    }
+  },
+  "b2b_digital_services": {
+    "_note": "B2B digital/TBE services are NOT part of OSS. They use reverse charge.",
+    "rule": "If customer provides a valid VAT number → B2B → reverse charge in destination MS → invoice without CZ DPH → include in souhrnné hlášení (SH). See W1.4-07-intracom.md.",
+    "legal_basis": "Act 235/2004 Sb. § 9 odst. 1 (B2B place of supply = customer country)"
+  },
+  "eu_vat_rate_note": "AI must NOT hardcode EU member state VAT rates. Use a maintained rate table (see 70-ai-platform/). Rates change by country and can be updated. Example rates at 2026-05-23: DE 19%, PL 23%, AT 20%, FR 20%, HU 27%, SE 25%, NL 21%."
+}

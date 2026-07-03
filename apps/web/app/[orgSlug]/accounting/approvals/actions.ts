@@ -5,6 +5,7 @@ import { z } from "zod"
 import {
   eq,
   executeRows,
+  lockPeriodInTx,
   sql,
   updateToolCallLogOutput,
   withAdminBypass,
@@ -133,6 +134,11 @@ export async function resolveHeldWrite(
         let applied: Record<string, unknown>
         switch (row.tool_name) {
           case "createAccountingEvent": {
+            await lockPeriodInTx(
+              db,
+              orgCtx.organizationId,
+              (fields as { periodId: string }).periodId,
+            )
             const ev = await createEvent(db, orgCtx, {
               ...fields,
               responsibleUserId: ctx.userId,
@@ -145,6 +151,11 @@ export async function resolveHeldWrite(
             break
           }
           case "captureAccountingDocument": {
+            await lockPeriodInTx(
+              db,
+              orgCtx.organizationId,
+              (fields as { periodId: string }).periodId,
+            )
             const doc = await captureDocument(
               db,
               orgCtx,
@@ -163,6 +174,11 @@ export async function resolveHeldWrite(
               kind?: unknown
               entry?: unknown
             }
+            await lockPeriodInTx(
+              db,
+              orgCtx.organizationId,
+              (entry as { periodId: string }).periodId,
+            )
             const posting = await post(db, orgCtx, {
               kind,
               entry: {

@@ -1,0 +1,252 @@
+{
+  "_meta": {
+    "title": "Inventory Method Selection Decision Tree",
+    "description": "AI-consumable decision tree for selecting Method A (perpetual) or Method B (periodic) inventory tracking, and inventory valuation method, for Czech accounting entities.",
+    "standard": "ČÚS 015 — Zásoby",
+    "decree": "Decree 500/2002 Sb. § 46–51",
+    "act": "Act 563/1991 Sb. § 25, § 26",
+    "last_verified": "2026-05-23",
+    "confidence": "medium",
+    "notes": [
+      "Method B is legally permitted for all entity sizes under ČÚS 015; size guidance below reflects professional best practice only.",
+      "FIFO and weighted-average are permitted; LIFO is explicitly prohibited.",
+      "Inventory write-downs (OP k zásobám) are never tax-deductible under Act 593/1992 § 27.",
+      "Advisor verification required before AI engine relies on this tree for client recommendations."
+    ]
+  },
+  "method_selector": {
+    "question": "Which inventory recording method does the entity use?",
+    "decision_key": "inventory_method",
+    "options": [
+      {
+        "id": "method_A",
+        "label": "Method A — Průběžné sledování (Perpetual)",
+        "conditions": [
+          "Entity has warehouse management system (WMS) or ERP",
+          "Entity is střední or velká účetní jednotka",
+          "Entity is audited",
+          "Entity needs real-time stock balances for management reporting",
+          "Entity has multiple warehouses or complex inventory flows"
+        ],
+        "trigger_accounts": {
+          "materials_transit": "111",
+          "materials_stock": "112",
+          "goods_transit": "131",
+          "goods_stock": "132",
+          "WIP": "121",
+          "semi_finished": "122",
+          "finished_goods": "123"
+        },
+        "purchase_flow_materials": [
+          {"step": 1, "description": "Invoice received", "MD": "111", "D": "321"},
+          {"step": 2, "description": "Freight capitalized", "MD": "111", "D": "321"},
+          {"step": 3, "description": "Goods received to stock", "MD": "112", "D": "111"},
+          {"step": 4, "description": "Consumption", "MD": "501", "D": "112"}
+        ],
+        "purchase_flow_goods": [
+          {"step": 1, "description": "Invoice received", "MD": "131", "D": "321"},
+          {"step": 2, "description": "Goods received to stock", "MD": "132", "D": "131"},
+          {"step": 3, "description": "Goods sold (COGS)", "MD": "504", "D": "132"},
+          {"step": 4, "description": "Revenue", "MD": "311", "D": "604"}
+        ],
+        "year_end_adjustments": [
+          {"description": "Manko (shortage)", "MD": "549", "D": "112_or_132"},
+          {"description": "Přebytek (surplus)", "MD": "112_or_132", "D": "648"}
+        ]
+      },
+      {
+        "id": "method_B",
+        "label": "Method B — Periodické sledování (Periodic)",
+        "conditions": [
+          "Entity is mikro or malá účetní jednotka",
+          "Entity has simple inventory operations without WMS",
+          "Entity conducts comprehensive year-end physical counts",
+          "Entity does not require mid-year balance sheet accuracy on inventory"
+        ],
+        "trigger_accounts": {
+          "materials_stock": "112",
+          "goods_stock": "132"
+        },
+        "purchase_flow_materials": [
+          {"step": 1, "description": "Invoice received — expensed immediately", "MD": "501", "D": "321"},
+          {"step": 2, "description": "Year-start: write off opening balance", "MD": "501", "D": "112"},
+          {"step": 3, "description": "Year-end: reinstate physical count value", "MD": "112", "D": "501"}
+        ],
+        "purchase_flow_goods": [
+          {"step": 1, "description": "Invoice received — expensed immediately", "MD": "504", "D": "321"},
+          {"step": 2, "description": "Year-start: write off opening balance", "MD": "504", "D": "132"},
+          {"step": 3, "description": "Year-end: reinstate physical count value", "MD": "132", "D": "504"}
+        ],
+        "year_end_adjustments": [
+          {"description": "Opening balance write-off (year-start)", "MD": "501_or_504", "D": "112_or_132"},
+          {"description": "Closing balance reinstatement from count", "MD": "112_or_132", "D": "501_or_504"}
+        ]
+      }
+    ]
+  },
+  "valuation_method_selector": {
+    "question": "Which unit-cost flow method does the entity apply to inventory consumption?",
+    "decision_key": "cost_flow_method",
+    "options": [
+      {
+        "id": "FIFO",
+        "label": "FIFO — First-In, First-Out",
+        "permitted": true,
+        "conditions": ["Goods are perishable or time-sensitive", "Tracking individual cost layers is practical"],
+        "note": "Oldest cost layers consumed first. Closing stock = most recent costs."
+      },
+      {
+        "id": "WA_continuous",
+        "label": "Vážený průměr průběžný (Continuous weighted average)",
+        "permitted": true,
+        "conditions": ["WMS or ERP supports real-time average recalculation after each receipt"],
+        "note": "Average cost recalculated after every receipt event."
+      },
+      {
+        "id": "WA_periodic",
+        "label": "Vážený průměr periodický (Periodic weighted average)",
+        "permitted": true,
+        "conditions": ["Entity recalculates average monthly or quarterly", "No WMS required"],
+        "note": "Average cost computed at end of each period (typically monthly)."
+      },
+      {
+        "id": "LIFO",
+        "label": "LIFO — Last-In, First-Out",
+        "permitted": false,
+        "note": "EXPLICITLY PROHIBITED under Czech accounting law. ČÚS 015 body 5.3 / Decree 500/2002 § 50."
+      }
+    ]
+  },
+  "own_production_valuation": {
+    "question": "What cost method is used for valuing own-production inventory (WIP, semi-finished, finished goods)?",
+    "decision_key": "production_cost_method",
+    "options": [
+      {
+        "id": "variable_cost",
+        "label": "Variable / direct cost method (přímé náklady)",
+        "permitted": true,
+        "minimum_required": true,
+        "includes": [
+          "Direct materials (112 consumption)",
+          "Direct labor (521)",
+          "Variable production overheads (502, 518 — variable portion)"
+        ],
+        "excludes": [
+          "Fixed manufacturing overhead",
+          "Administrative overhead",
+          "Selling overhead"
+        ]
+      },
+      {
+        "id": "full_cost",
+        "label": "Full absorption cost method (úplné vlastní náklady výroby)",
+        "permitted": true,
+        "minimum_required": false,
+        "includes": [
+          "All variable cost components (as above)",
+          "Fixed manufacturing overhead (factory depreciation, facility costs)",
+          "Production management salaries",
+          "Quality control costs (product-specific)"
+        ],
+        "excludes": [
+          "Selling overhead — always excluded",
+          "Administrative overhead — always excluded",
+          "Interest — excluded unless explicit entity-policy opt-in per Decree 500/2002 § 47"
+        ],
+        "note": "Fixed overhead allocation must use normal capacity base, not actual (idle capacity = period cost)."
+      }
+    ]
+  },
+  "inventory_impairment": {
+    "question": "When must an inventory write-down (opravná položka) be recognized?",
+    "trigger": "NRV (net realizable value) < Carrying cost",
+    "accounting_entry": {
+      "creation": {"MD": "559", "D": "191_or_192_or_193_or_194_or_196"},
+      "release": {"MD": "191_or_192_or_193_or_194_or_196", "D": "559"}
+    },
+    "tax_deductible": false,
+    "legal_basis": "Act 593/1992 § 27 — no zákonná opravná položka for zásoby",
+    "dppo_treatment": "Add back to tax base in DPPO return (non-deductible expense via 559)",
+    "accounts_map": {
+      "191": "Opravná položka k materiálu (112)",
+      "192": "Opravná položka k nedokončené výrobě (121)",
+      "193": "Opravná položka k polotovarům (122)",
+      "194": "Opravná položka k výrobkům (123)",
+      "196": "Opravná položka k zboží (132)"
+    }
+  },
+  "manko_tax_decision": {
+    "question": "Is an inventory shortage (manko) tax-deductible?",
+    "scenarios": [
+      {
+        "scenario": "Natural wastage within entity-defined norm (přirozené úbytky do normy)",
+        "deductible": true,
+        "posting": {"MD": "501", "D": "112"},
+        "legal_basis": "Act 586/1992 § 24 odst. 1 ZDP (generally deductible as spotřeba — business consumption within documented norms; NOT § 24 odst. 2 písm. l))",
+        "correction": "K2C.3 2026-05-24: within-norm wastage = spotřeba under § 24 odst. 1, not škoda under odst. 2 písm. l)"
+      },
+      {
+        "scenario": "Shortage exceeding natural wastage norm, cause unknown",
+        "deductible": false,
+        "posting": {"MD": "549", "D": "112"},
+        "legal_basis": "Act 586/1992 § 25 odst. 1 písm. n)"
+      },
+      {
+        "scenario": "Theft confirmed by police report — neznámý pachatel (unknown perpetrator)",
+        "deductible": true,
+        "posting": {"MD": "549", "D": "112"},
+        "legal_basis": "Act 586/1992 § 24 odst. 2 písm. l) — ztráty způsobené neznámým pachatelem dle potvrzení policie",
+        "note": "Requires police confirmation that perpetrator is unknown. Known-perpetrator theft does NOT qualify — perpetrator is liable for damages."
+      },
+      {
+        "scenario": "Theft by known perpetrator",
+        "deductible": false,
+        "posting": {"MD": "549", "D": "112"},
+        "legal_basis": "Act 586/1992 § 25 odst. 1 písm. n) — perpetrator should pay damages; not deductible as škoda",
+        "correction": "K2C.3 2026-05-24: known-perpetrator theft does not qualify under § 24 odst. 2 písm. l)"
+      },
+      {
+        "scenario": "Theft WITHOUT police report",
+        "deductible": false,
+        "posting": {"MD": "549", "D": "112"},
+        "legal_basis": "Act 586/1992 § 25 odst. 1 písm. n)"
+      },
+      {
+        "scenario": "Force majeure (živelná pohroma — fire, flood, etc.)",
+        "deductible": true,
+        "posting": {"MD": "549", "D": "112"},
+        "legal_basis": "Act 586/1992 § 24 odst. 2 písm. l) — škoda způsobená živelnou pohromou"
+      },
+      {
+        "scenario": "Employee liable, compensation agreed",
+        "deductible": "Deductible up to amount of compensation claim recognized",
+        "posting_shortage": {"MD": "549", "D": "112"},
+        "posting_claim": {"MD": "335", "D": "648"},
+        "legal_basis": "Act 586/1992 § 24 odst. 2 písm. l) (škoda with compensation arrangement)"
+      }
+    ]
+  },
+  "import_goods_dph": {
+    "question": "How is import DPH treated for goods from third countries?",
+    "scenarios": [
+      {
+        "entity_type": "plátce DPH",
+        "customs_duty": {"account": "131", "capitalizable": true},
+        "import_dph": {"account": "343", "capitalizable": false, "recoverable": true},
+        "dap_rows": {"base": "7", "input_credit": "43"}
+      },
+      {
+        "entity_type": "neplátce DPH",
+        "customs_duty": {"account": "131", "capitalizable": true},
+        "import_dph": {"account": "131", "capitalizable": true, "recoverable": false},
+        "note": "Both clo and import DPH flow into pořizovací cena"
+      },
+      {
+        "entity_type": "plátce DPH — EU IC acquisition",
+        "customs_duty": {"account": null, "note": "No customs duty for EU goods"},
+        "import_dph": {"account": null, "note": "Samovyměření — simultaneous 343 MD and D; net zero for full deduction plátce"},
+        "dap_rows": {"payable": "3", "input_credit": "43"}
+      }
+    ]
+  }
+}

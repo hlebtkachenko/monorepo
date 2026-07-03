@@ -18,6 +18,7 @@
  */
 
 import { sql } from "drizzle-orm"
+import { lockPeriodInTx } from "@workspace/db"
 import { rows } from "./sql"
 import type { RowExecutor } from "./sql"
 import { resolveAccountIds } from "./accounts"
@@ -31,6 +32,23 @@ export async function closePeriod(
   db: RowExecutor,
   periodId: string,
 ): Promise<void> {
+  // Serialize the close against a concurrent post to the SAME (org, period):
+  // take the per-(org, period) advisory lock on this tx BEFORE the close UPDATE,
+  // keyed identically to the write path (`lockPeriodInTx`, ADR-0028), so a
+  // roll-forward close cannot race an in-flight post. The closed-period guard is
+  // a BEFORE-INSERT trigger only — it cannot stop a close racing an already
+  // in-flight post. `db` is the withOrganization-bound tx (RowExecutor), so the
+  // xact-scoped lock holds until commit. Org is derived from the period row
+  // (RLS-scoped: the caller's tx sees only its own org).
+  const owner = await rows<{ organization_id: string }>(
+    db,
+    sql`SELECT organization_id::text AS organization_id
+          FROM accounting_period WHERE id = ${periodId}::uuid`,
+  )
+  const orgId = owner[0]?.organization_id
+  if (orgId) {
+    await lockPeriodInTx(db, orgId, periodId)
+  }
   await db.execute(
     sql`UPDATE accounting_period SET status = 'CLOSED', updated_at = now() WHERE id = ${periodId}::uuid`,
   )

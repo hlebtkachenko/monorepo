@@ -1,0 +1,333 @@
+{
+  "meta": {
+    "title": "Czech Insolvency Decision Tree",
+    "description": "Machine-readable decision tree for AI agent: debtor stage classification and creditor action selection",
+    "version": "1.0",
+    "created": "2026-05-24",
+    "originating_slot": "N4C.1",
+    "statutory_basis": "Act 182/2006 Sb. (Insolvenční zákon)",
+    "confidence": "medium",
+    "notes": "Some leaf-node conditions (e.g., oddlužení 5-year term, § 98 30-day deadline) pending advisor confirmation. See N4C.1-INDEX.md for open questions."
+  },
+  "debtor_stage_classifier": {
+    "description": "Given facts about the debtor, determine the current insolvency stage",
+    "start_node": "check_upadek",
+    "nodes": {
+      "check_upadek": {
+        "type": "decision",
+        "question": "Does the debtor meet the § 3 IZ úpadek conditions?",
+        "conditions": [
+          {
+            "condition": "multiple_creditors AND obligations_overdue_30_plus_days AND unable_to_pay",
+            "label": "Platební neschopnost (illiquidity úpadek)",
+            "next": "check_filing_status"
+          },
+          {
+            "condition": "multiple_creditors AND total_liabilities_exceed_assets",
+            "label": "Předlužení (over-indebtedness úpadek — typically legal entities)",
+            "next": "check_filing_status"
+          },
+          {
+            "condition": "threatened_inability_to_pay_foreseeable",
+            "label": "Hrozící úpadek (threatened insolvency — only debtor may file)",
+            "next": "stage_HROZICI"
+          },
+          {
+            "condition": "none_of_above",
+            "label": "No úpadek",
+            "next": "stage_SOLVENT"
+          }
+        ]
+      },
+      "check_filing_status": {
+        "type": "decision",
+        "question": "Has an insolvenční návrh been filed?",
+        "conditions": [
+          {
+            "condition": "no_filing_yet",
+            "label": "Mandatory filing obligation triggered for legal entities and OSVČ (§ 98 IZ)",
+            "next": "stage_PRE_FILING"
+          },
+          {
+            "condition": "filing_submitted",
+            "next": "check_court_decision"
+          }
+        ]
+      },
+      "check_court_decision": {
+        "type": "decision",
+        "question": "What has the court decided?",
+        "conditions": [
+          {
+            "condition": "proceedings_commenced_no_decision_yet",
+            "label": "Insolvenční řízení zahájeno — automatic stay of enforcement",
+            "next": "check_moratorium"
+          },
+          {
+            "condition": "court_declared_upadek",
+            "label": "Rozhodnutí o úpadku issued — správce appointed, claim filing deadline set",
+            "next": "check_resolution_method"
+          },
+          {
+            "condition": "petition_rejected",
+            "label": "Návrh odmítnut — no proceedings",
+            "next": "stage_SOLVENT"
+          }
+        ]
+      },
+      "check_moratorium": {
+        "type": "decision",
+        "question": "Is moratorium in force?",
+        "conditions": [
+          {
+            "condition": "moratorium_active",
+            "label": "Moratorium — enforcement suspended, debtor continues operations",
+            "next": "stage_MORATORIUM",
+            "statutory_ref": "§ 115–127a IZ"
+          },
+          {
+            "condition": "no_moratorium",
+            "next": "stage_RIZENI_PROBÍHA"
+          }
+        ]
+      },
+      "check_resolution_method": {
+        "type": "decision",
+        "question": "What resolution method was approved?",
+        "conditions": [
+          {
+            "condition": "konkurz_declared",
+            "label": "Prohlášení konkurzu — asset liquidation, going concern abandoned",
+            "next": "check_konkurz_phase",
+            "statutory_ref": "§ 244 IZ"
+          },
+          {
+            "condition": "reorganizace_approved",
+            "label": "Reorganizace — plan-based, business continues",
+            "next": "check_reorganizace_phase",
+            "statutory_ref": "§ 316 IZ",
+            "eligibility_check": {
+              "required_one_of": [
+                "annual_turnover_gte_50M_CZK",
+                "employees_gte_50",
+                "creditor_majority_pre_approved_plan"
+              ]
+            }
+          },
+          {
+            "condition": "oddluzeni_approved",
+            "label": "Oddlužení — personal bankruptcy for natural persons + eligible OSVČ",
+            "next": "check_oddluzeni_phase",
+            "statutory_ref": "§ 389 IZ"
+          }
+        ]
+      },
+      "check_konkurz_phase": {
+        "type": "decision",
+        "question": "What is the current phase of konkurz?",
+        "conditions": [
+          {
+            "condition": "estate_inventory_in_progress",
+            "next": "stage_KONKURZ_SOUPIS"
+          },
+          {
+            "condition": "asset_realization_in_progress",
+            "next": "stage_KONKURZ_ZPENEZNENI"
+          },
+          {
+            "condition": "distribution_order_issued",
+            "next": "stage_KONKURZ_ROZVRH"
+          },
+          {
+            "condition": "konkurz_terminated",
+            "next": "stage_KONKURZ_ZRUSEN"
+          }
+        ]
+      },
+      "check_reorganizace_phase": {
+        "type": "decision",
+        "question": "What is the current phase of reorganizace?",
+        "conditions": [
+          {
+            "condition": "plan_being_prepared",
+            "next": "stage_REORGANIZACE_PLAN"
+          },
+          {
+            "condition": "plan_approved_being_implemented",
+            "next": "stage_REORGANIZACE_PLNENI"
+          },
+          {
+            "condition": "plan_failed_conversion_to_konkurz",
+            "next": "check_konkurz_phase"
+          },
+          {
+            "condition": "plan_completed_successfully",
+            "next": "stage_REORGANIZACE_SPLNENA"
+          }
+        ]
+      },
+      "check_oddluzeni_phase": {
+        "type": "decision",
+        "question": "What is the current phase of oddlužení?",
+        "conditions": [
+          {
+            "condition": "payment_schedule_in_progress",
+            "next": "stage_ODDLUZENI_SPLATKY"
+          },
+          {
+            "condition": "asset_liquidation_in_progress",
+            "next": "stage_ODDLUZENI_LIQUIDACE"
+          },
+          {
+            "condition": "completed_discharge_granted",
+            "next": "stage_ODDLUZENI_OSVOBOZENI",
+            "statutory_ref": "§ 414 IZ"
+          }
+        ]
+      }
+    },
+    "terminal_stages": {
+      "stage_SOLVENT": { "label": "Solvent — no insolvency proceedings" },
+      "stage_HROZICI": { "label": "Hrozící úpadek — threatened insolvency; debtor may file preventively" },
+      "stage_PRE_FILING": { "label": "Úpadek established — mandatory filing obligation active (§ 98 IZ)" },
+      "stage_RIZENI_PROBÍHA": { "label": "Insolvenční řízení probíhá — proceedings active, awaiting court decision on úpadek" },
+      "stage_MORATORIUM": { "label": "Moratorium active — enforcement suspended; debtor operates normally" },
+      "stage_KONKURZ_SOUPIS": { "label": "Konkurz — soupis majetkové podstaty (estate inventory) in progress" },
+      "stage_KONKURZ_ZPENEZNENI": { "label": "Konkurz — zpeněžení majetkové podstaty (asset realization) in progress" },
+      "stage_KONKURZ_ROZVRH": { "label": "Konkurz — rozvrhové usnesení (distribution order) issued; payments to creditors" },
+      "stage_KONKURZ_ZRUSEN": { "label": "Konkurz ukončen — proceedings closed; unsatisfied claims survive (§ 244)" },
+      "stage_REORGANIZACE_PLAN": { "label": "Reorganizace — reorganizační plán being prepared; debtor in possession" },
+      "stage_REORGANIZACE_PLNENI": { "label": "Reorganizace — plan approved; implementation in progress; business continues" },
+      "stage_REORGANIZACE_SPLNENA": { "label": "Reorganizace — plan completed; debtor rehabilitated" },
+      "stage_ODDLUZENI_SPLATKY": { "label": "Oddlužení — splátkový kalendář (payment schedule) in progress" },
+      "stage_ODDLUZENI_LIQUIDACE": { "label": "Oddlužení — asset liquidation in progress" },
+      "stage_ODDLUZENI_OSVOBOZENI": { "label": "Oddlužení — completed; osvobození od zbytku dluhů (debt discharge) granted (§ 414 IZ)" }
+    }
+  },
+  "creditor_action_selector": {
+    "description": "Given the debtor's insolvency stage, determine the creditor's accounting and tax actions",
+    "start_node": "check_claim_filed",
+    "nodes": {
+      "check_claim_filed": {
+        "type": "decision",
+        "question": "Has the creditor filed a claim (přihláška pohledávky) in ISIR?",
+        "statutory_ref": "§ 173 IZ",
+        "conditions": [
+          {
+            "condition": "deadline_not_yet_passed AND not_filed",
+            "action": "FILE_CLAIM_IMMEDIATELY",
+            "urgency": "HIGH",
+            "note": "Late filing = zero satisfaction"
+          },
+          {
+            "condition": "deadline_passed AND not_filed",
+            "action": "CLAIM_LOST",
+            "urgency": "CRITICAL",
+            "note": "No recovery possible in proceedings; consider other legal routes"
+          },
+          {
+            "condition": "filed",
+            "next": "check_claim_recognized"
+          }
+        ]
+      },
+      "check_claim_recognized": {
+        "type": "decision",
+        "question": "Was the claim recognized (uznána) at přezkumné jednání?",
+        "conditions": [
+          {
+            "condition": "recognized",
+            "next": "check_op_status"
+          },
+          {
+            "condition": "contested_popřena",
+            "action": "FILE_INCIDENTNI_SPOR",
+            "deadline": "30 days from přezkumné jednání",
+            "urgency": "HIGH",
+            "note": "Must file incidental dispute (incidenční spor) within 30 days or claim is lost"
+          }
+        ]
+      },
+      "check_op_status": {
+        "type": "decision",
+        "question": "Has zákonná OP been created on this receivable?",
+        "conditions": [
+          {
+            "condition": "no_op_created AND receivable_eligible",
+            "action": "CREATE_ZAKONNA_OP",
+            "account_mapping": { "MD": "558", "D": "391" },
+            "statutory_ref": "Act 593/1992 § 8a or § 8c",
+            "note": "Create immediately — reduces taxable income in current year"
+          },
+          {
+            "condition": "op_created OR not_eligible",
+            "next": "check_dph_correction"
+          }
+        ]
+      },
+      "check_dph_correction": {
+        "type": "decision",
+        "question": "Is the creditor a plátce DPH AND was the original supply subject to DPH AND are the parties unrelated?",
+        "conditions": [
+          {
+            "condition": "all_yes AND konkurz_declared",
+            "action": "APPLY_DPH_CORRECTION",
+            "statutory_ref": "ZDPH § 46",
+            "mechanism": "Issue opravný daňový doklad; book MD 343 / D 648 (or 311)",
+            "warning": "§ 44 ZDPH REPEALED 2024-01-01 — use §§ 46–46a; transitional rules unclear — see AMBER-06",
+            "advisor_question": "Q-N4C1-009"
+          },
+          {
+            "condition": "related_parties OR not_platce OR supply_not_dph",
+            "action": "NO_DPH_CORRECTION_AVAILABLE"
+          },
+          {
+            "condition": "confirmed_eligible",
+            "next": "check_write_off"
+          }
+        ]
+      },
+      "check_write_off": {
+        "type": "decision",
+        "question": "Is write-off of the receivable justified? (insolvency trigger confirmed under § 24 odst. 2 písm. y) ZDP)",
+        "conditions": [
+          {
+            "condition": "konkurz_terminated_or_confirmed_no_recovery",
+            "action": "WRITE_OFF_RECEIVABLE",
+            "account_mapping_op_portion": { "MD": "391", "D": "311" },
+            "account_mapping_uncovered": { "MD": "546", "D": "311" },
+            "tax_status": "Daňově uznatelné — § 24 odst. 2 písm. y) ZDP",
+            "conditions_required": [
+              "debtor_in_upadek_from_insolvency_proceedings",
+              "OR_konkurz_terminated_for_insufficient_assets",
+              "OR_debtor_deceased",
+              "OR_legal_entity_ceased_no_successor"
+            ]
+          },
+          {
+            "condition": "proceedings_ongoing_uncertain_recovery",
+            "action": "MAINTAIN_RECEIVABLE_AND_OP",
+            "note": "Keep zákonná OP; monitor ISIR for distribution order"
+          }
+        ]
+      }
+    }
+  },
+  "open_questions": [
+    {
+      "id": "Q-N4C1-007",
+      "question": "Does přihlášení pohledávky in ISIR count as 'zahájení soudního řízení' for § 8a odst. 3 Act 593/1992 (100% OP from filing)?",
+      "impact": "If yes: creditor can create 100% zákonná OP on day of ISIR filing. If no: must wait 18/30 months unless separate court action filed."
+    },
+    {
+      "id": "Q-N4C1-009",
+      "question": "§ 44 ZDPH transitional provisions — do pre-2024 receivables use old § 44 or new §§ 46–46a?",
+      "impact": "Critical for receivables invoiced before 2024-01-01 where debtor only entered insolvency after that date."
+    },
+    {
+      "id": "Q-N4C1-024",
+      "question": "Is debt forgiven under reorganizace plan taxable income for the debtor (DPPO)?",
+      "impact": "If yes: reorganizace plan may trigger tax bill that undermines viability."
+    }
+  ]
+}

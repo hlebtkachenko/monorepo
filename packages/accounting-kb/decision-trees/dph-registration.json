@@ -1,0 +1,293 @@
+{
+  "_meta": {
+    "title": "R2B.1 — DPH Regime Decision Tree (REDO)",
+    "wave": "2B",
+    "researcher": "R2B.1",
+    "status": "redo",
+    "date": "2026-05-24",
+    "supersedes": "_wave-output/wave-01/W1.2/W1.2-transition-decision-tree.md (Part B and Part E — DPH portions)",
+    "law": "Act 235/2004 Sb. as amended by Act 461/2024 Sb., effective 2025-01-01",
+    "primary_source": "GFŘ Č.j. 11977/25/7100-30118-203500 (Tier A)",
+    "evidence_file": "_wave-output/wave-02/F2A.4-dph-registration-2025.md",
+    "all_thresholds": "CZK, 2026",
+    "confidence_overall": "HIGH — all structural changes confirmed from Tier A source",
+    "key_changes_from_original": [
+      "measurement_period: calendar year (was: rolling 12 months)",
+      "filing_deadline: 10 working days from breach DAY (was: 10 calendar days after month end)",
+      "standard_platce_date: 1 January of following year (was: 1st of 2nd month after breach)",
+      "second_threshold_CZK_2536500: added (was: missing)",
+      "implementing_act: Act 461/2024 Sb. (was: Act 349/2023 Sb. — wrong)"
+    ]
+  },
+
+  "dph_regime_classification": {
+    "actor": "any_taxable_person_CZ",
+    "measurement_period_note": "All obrat checks from 2025-01-01 use calendar year (Jan 1 – Dec 31). Resets to zero each January.",
+    "decision_tree": {
+      "start": "Q_CURRENT_STATUS",
+
+      "Q_CURRENT_STATUS": {
+        "question": "What is the entity's current DPH status?",
+        "platce": {
+          "next": "DEREGISTRATION_CHECK"
+        },
+        "identifikovana_osoba": {
+          "next": "Q_PLATCE_THRESHOLD_EXCEEDED"
+        },
+        "neplátce": {
+          "next": "Q_PLATCE_THRESHOLD_EXCEEDED"
+        }
+      },
+
+      "Q_PLATCE_THRESHOLD_EXCEEDED": {
+        "question": "Has calendar-year obrat (§ 4a Act 235/2004) exceeded CZK 2,536,500 in the current year?",
+        "yes": {
+          "outcome": "MANDATORY_PLATCE_IMMEDIATE",
+          "path": "threshold_2",
+          "next": "THRESHOLD_2_MECHANICS"
+        },
+        "no": "Q_STANDARD_THRESHOLD"
+      },
+
+      "Q_STANDARD_THRESHOLD": {
+        "question": "Has calendar-year obrat exceeded CZK 2,000,000 in the current year?",
+        "yes": "Q_EARLY_OPTIN",
+        "no": "Q_IO_EU_GOODS"
+      },
+
+      "Q_EARLY_OPTIN": {
+        "question": "Does the entity wish to become plátce from the next day after breach (§ 6 odst. 2 písm. a) opt-in)?",
+        "yes": {
+          "outcome": "MANDATORY_PLATCE_NEXT_DAY_OPTIN",
+          "path": "threshold_1_optin",
+          "condition": "Must cite § 6 odst. 2 písm. a) in registration form AND file within 10 working days of breach day",
+          "next": "THRESHOLD_1_OPTIN_MECHANICS"
+        },
+        "no": {
+          "outcome": "MANDATORY_PLATCE_JANUARY",
+          "path": "threshold_1_standard",
+          "next": "THRESHOLD_1_STANDARD_MECHANICS"
+        }
+      },
+
+      "Q_IO_EU_GOODS": {
+        "question": "Has cumulative value of goods acquired from EU member states in this calendar year exceeded CZK 326,000 (ex-tax)?",
+        "yes": {
+          "outcome": "IDENTIFIKOVANA_OSOBA",
+          "trigger": "eu_goods_acquisition",
+          "effective_from": "day_threshold_exceeded",
+          "registration_deadline": "15 calendar days from trigger",
+          "legal_basis": "§ 6c Act 235/2004",
+          "confidence": "HIGH"
+        },
+        "no": "Q_IO_EU_SERVICES"
+      },
+
+      "Q_IO_EU_SERVICES": {
+        "question": "Has the entity received a taxable B2B service from an EU-established person where place of supply is Czech Republic (§ 9 reverse charge)?",
+        "yes": {
+          "outcome": "IDENTIFIKOVANA_OSOBA",
+          "trigger": "eu_b2b_service_receipt",
+          "effective_from": "date_of_first_qualifying_service",
+          "registration_deadline": "15 calendar days from trigger",
+          "legal_basis": "§ 6b/§ 6h Act 235/2004 (approximate — primary text fetch pending)",
+          "confidence": "MEDIUM",
+          "open_question": "Q-20260523-004 — confirm no monetary threshold applies"
+        },
+        "no": "Q_VOLUNTARY_DPH"
+      },
+
+      "Q_VOLUNTARY_DPH": {
+        "question": "Does the entity wish to register voluntarily as plátce DPH?",
+        "yes": {
+          "outcome": "VOLUNTARY_PLATCE",
+          "effective_from": "date_in_registration_decision",
+          "legal_basis": "§ 94a Act 235/2004",
+          "confidence": "HIGH"
+        },
+        "no": {
+          "outcome": "NEPLÁTCE",
+          "note": "No DPH obligations on domestic supplies"
+        }
+      }
+    }
+  },
+
+  "threshold_1_standard_mechanics": {
+    "_comment": "Breach of CZK 2,000,000 — standard path (§ 6 odst. 1 Act 235/2004)",
+    "legal_basis": "§ 6 odst. 1 + § 94 Act 235/2004 as amended by Act 461/2024 Sb.",
+    "primary_source": "GFŘ Č.j. 11977/25, p. 2",
+    "gfr_quote": "Plátcem se osoba stane od 1. ledna kalendářního roku bezprostředně následujícího po kalendářním roce, ve kterém její obrat v tuzemsku překročil částku 2 000 000 Kč.",
+    "inputs_required": ["breach_date", "calendar_year_of_breach"],
+    "computation": {
+      "breach_year": "calendar_year_of_breach",
+      "den_platcovstvi": "January 1 of (breach_year + 1)",
+      "filing_deadline_start": "day_after_breach_date (§ 33 odst. 2 daňového řádu)",
+      "filing_deadline_days": "10 working days",
+      "filing_deadline_holiday_rule": "if last day is Saturday/Sunday/holiday, shift to next working day (§ 33 odst. 4 daňového řádu)"
+    },
+    "example": {
+      "breach_date": "2025-04-15",
+      "breach_year": 2025,
+      "den_platcovstvi": "2026-01-01",
+      "filing_deadline_starts": "2025-04-16",
+      "filing_deadline_ends_approx": "2025-04-30 (10 working days from 2025-04-16)"
+    },
+    "gap_period_note": "Entity remains neplátce from breach date through 2025-12-31. No DPH on supplies in this period. No retroactive DPH liability. This is intentional legislative design per § 6 odst. 1.",
+    "first_return_reclaim": "§ 79 Act 235/2004 — input DPH on stock on hand at den plátcovství is reclaimable in first DPH return",
+    "confidence": "HIGH"
+  },
+
+  "threshold_1_optin_mechanics": {
+    "_comment": "Optional early plátce from next day after CZK 2,000,000 breach (§ 6 odst. 2 písm. a)",
+    "legal_basis": "§ 6 odst. 2 písm. a) Act 235/2004 as amended by Act 461/2024 Sb.",
+    "primary_source": "GFŘ Č.j. 11977/25, p. 2",
+    "gfr_quote": "Rozhodnutí, že chce být plátcem již dnem následujícím po překročení částky 2 000 000 Kč, musí příslušná osoba sdělit správci daně ve včas podané přihlášce k registraci (tj. do 10 pracovních dnů ode dne překročení částky obratu).",
+    "inputs_required": ["breach_date"],
+    "computation": {
+      "den_platcovstvi": "breach_date + 1 calendar day",
+      "filing_deadline_start": "day_after_breach_date",
+      "filing_deadline_days": "10 working days",
+      "form_requirement": "Application must cite § 6 odst. 2 písm. a) Act 235/2004"
+    },
+    "late_filing_fallback": {
+      "rule": "If application is filed AFTER the 10-working-day window, the opt-in election is void. Entity defaults to § 6 odst. 1 — den plátcovství = 1 January of following year.",
+      "gfr_quote": "V případě pozdě podané přihlášky k registraci se tedy osoba stane plátcem až od 1. 1. následujícího kalendářního roku.",
+      "confidence": "HIGH"
+    },
+    "example": {
+      "breach_date": "2025-07-10",
+      "den_platcovstvi": "2025-07-11",
+      "filing_deadline_approx": "2025-07-25 (10 working days from 2025-07-11)"
+    },
+    "confidence": "HIGH"
+  },
+
+  "threshold_2_mechanics": {
+    "_comment": "Mandatory immediate plátce from next day after CZK 2,536,500 breach (§ 6 odst. 2 písm. b)",
+    "legal_basis": "§ 6 odst. 2 písm. b) Act 235/2004 as amended by Act 461/2024 Sb.",
+    "primary_source": "GFŘ Č.j. 11977/25, p. 3",
+    "gfr_quote": "Pokud výše obratu v tuzemsku překročí v příslušném kalendářním roce částku 2 536 500 Kč, stane se daná osoba plátcem dnem následujícím po překročení této částky.",
+    "threshold_origin": "EUR 100,000 EU SME regime cap converted to CZK",
+    "inputs_required": ["breach_date"],
+    "computation": {
+      "den_platcovstvi": "breach_date + 1 calendar day",
+      "filing_deadline_start": "day_after_breach_date",
+      "filing_deadline_days": "10 working days",
+      "form_field_06": "§ 6 odst. 2 písm. b) zákona o DPH"
+    },
+    "scenario_already_filed_threshold_1": {
+      "description": "Entity had already filed registration citing § 6 odst. 1 after exceeding CZK 2,000,000. Later exceeds CZK 2,536,500 before year end.",
+      "action": "Entity must file a NEW registration form citing § 6 odst. 2 písm. b). Den plátcovství becomes the next day after the CZK 2,536,500 breach — earlier than the originally registered 1 January.",
+      "gfr_quote": "Dané osobě vzniká povinnost podat v zákonné lhůtě novou přihlášku k registraci. Plátcem se stává ze zákona dříve než 1. 1. 2026.",
+      "confidence": "HIGH"
+    },
+    "example_from_gfr": {
+      "threshold_1_breach_date": "2025-04-15",
+      "threshold_1_registered_for": "2026-01-01",
+      "threshold_2_breach_date": "2025-06-16",
+      "den_platcovstvi": "2025-06-17"
+    },
+    "confidence": "HIGH"
+  },
+
+  "io_mechanics": {
+    "triggers": [
+      {
+        "id": "eu_goods",
+        "legal_basis": "§ 6c Act 235/2004",
+        "threshold_czk": 326000,
+        "measurement": "calendar year",
+        "effective_from": "day_threshold_exceeded",
+        "registration_deadline_days": 15,
+        "deadline_type": "calendar days",
+        "confidence": "HIGH"
+      },
+      {
+        "id": "eu_b2b_services",
+        "legal_basis": "§ 6b/§ 6h Act 235/2004 (primary text fetch pending)",
+        "threshold": "none — first qualifying receipt triggers",
+        "effective_from": "date_of_first_qualifying_service",
+        "registration_deadline_days": 15,
+        "deadline_type": "calendar days",
+        "confidence": "MEDIUM",
+        "open_question": "Q-20260523-004"
+      }
+    ],
+    "obligations": {
+      "dph_priznani": "filed when qualifying supply event occurs",
+      "souhrnne_hlaseni": "filed for intra-EU B2B services supplied",
+      "kontrolni_hlaseni": false,
+      "domestic_dph_on_sales": false,
+      "input_dph_reclaim": false
+    }
+  },
+
+  "deregistration": {
+    "conditions": [
+      "Entity has been plátce for at least 1 year (§ 107a Act 235/2004)",
+      "Calendar-year obrat in the preceding period has not exceeded CZK 2,000,000",
+      "OR: entity has ceased all business activity"
+    ],
+    "settlement_required": true,
+    "settlement_rule": "§ 79a Act 235/2004 — repay input DPH on held assets. Fixed assets: pro-rata by remaining useful life. Inventory and other assets: 100% repayment.",
+    "settlement_in_return": "Last DPH return as plátce",
+    "legal_basis": "§ 107a + § 79a Act 235/2004",
+    "confidence": "MEDIUM — § 107a and § 79a primary text fetch pending"
+  },
+
+  "gap_period_analysis": {
+    "_comment": "Reframing of Q-20260523-001 under post-2025 law",
+    "threshold_1_standard": {
+      "description": "Entity exceeds CZK 2,000,000 mid-year. Becomes plátce 1 January of following year.",
+      "supplies_before_den_platcovstvi": "Issued as neplátce — no DPH charged, no retroactive DPH liability.",
+      "supplies_from_den_platcovstvi": "Must include DPH at applicable rate.",
+      "input_reclaim_pre_registration": "Not available for pre-registration purchases.",
+      "input_reclaim_on_held_assets": "Available under § 79 for assets held at den plátcovství — first DPH return.",
+      "legislative_intent": "Intentional design. § 6 odst. 1 is explicitly prospective. No liability gap.",
+      "failure_to_register": "§ 107 Act 235/2004 — if entity fails to register, tax authority may assess DPH from the date entity should have become plátce. This is a penalty provision, not a retroactivity rule."
+    },
+    "threshold_2_immediate": {
+      "description": "Entity exceeds CZK 2,536,500. Becomes plátce next day.",
+      "supplies_before_breach_day": "Issued as neplátce — no DPH charged, no retroactive liability.",
+      "supplies_from_den_platcovstvi": "Must include DPH from the day following the breach.",
+      "cutoff": "Precise day-level cutoff. No ambiguity — all invoices on or after den plátcovství must carry DPH."
+    },
+    "resolution": "Q-20260523-001 RESOLVED. No retroactive DPH liability under either path. Gap period is intentional legislative design under Act 461/2024 Sb."
+  },
+
+  "pre_2025_transitional": {
+    "_comment": "For breaches that occurred up to 31.12.2024 — old rules apply",
+    "applies_when": "Breach of CZK 2,000,000 occurred in the period ending on or before 2024-12-31",
+    "measurement_period": "12 consecutive calendar months (rolling)",
+    "filing_deadline": "15 calendar days after end of breach month",
+    "den_platcovstvi": "1st day of 2nd calendar month after breach month",
+    "legal_basis": "§ 94 odst. 1 Act 235/2004 as effective up to 31.12.2024",
+    "primary_source": "GFŘ Č.j. 11977/25, p. 7",
+    "gfr_quote": "Překročí-li výše obratu osoby povinné k dani do 31. 12. 2024 za období 12 po sobě jdoucích kalendářních měsíců částku 2 000 000 Kč, postupuje podle právní úpravy účinné do 31. 12. 2024.",
+    "confidence": "HIGH"
+  },
+
+  "kh_sh_split_handling": {
+    "kh": {
+      "obligation": "plátce_only",
+      "covers_from": "den_platcovstvi",
+      "pre_registration_invoices": "never reported in KH regardless of issue date",
+      "confidence": "HIGH"
+    },
+    "sh": {
+      "io_obligation": "intra-EU B2B services supplied where recipient is EU VAT payer",
+      "platce_obligation": "intra-EU goods and intra-EU B2B services",
+      "mid_year_split": "SH periods split at transition date. IO-period SH and plátce-period SH are separate filings.",
+      "confidence": "MEDIUM"
+    }
+  },
+
+  "date_calculation_rules": {
+    "deadline_start": "Day AFTER the breach event (§ 33 odst. 2 daňového řádu)",
+    "weekend_holiday_shift": "If last day falls on Saturday, Sunday, or public holiday — shifts to next working day (§ 33 odst. 4 daňového řádu)",
+    "unit": "working days (pracovní dny) for plátce registration; calendar days for IO registration",
+    "primary_source": "GFŘ Č.j. 11977/25, p. 5 fn. 18",
+    "confidence": "HIGH"
+  }
+}

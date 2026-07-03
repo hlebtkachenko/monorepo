@@ -1,0 +1,320 @@
+{
+  "_meta": {
+    "title": "Opravné položky a rezervy — AI decision tree",
+    "version": "1.0",
+    "wave": "wave-02-N2D.6",
+    "last_updated": "2026-05-23",
+    "author": "wave-2d-N2D.6-sonnet",
+    "legal_basis": "Act 593/1992 Sb. §§ 8a, 8c; Act 586/1992 Sb. § 24(2)(i) + § 25(1)(n); Decree 500/2002 § 55",
+    "confidence": "medium",
+    "correction_note": "§ 8a thresholds REVERTED (C9 regression revert 2026-05-24): 50% at 18 months, 100% at 30 months. No 36-month tier exists. The C9 'correction' to 30/36 was itself erroneous.",
+    "instructions": "Traverse the tree by matching input conditions. Each leaf provides: op_percentage, tax_deductible, expense_account, liability_account, deferred_tax_asset."
+  },
+
+  "tree": {
+    "node": "root",
+    "question": "What is the item type?",
+    "branches": [
+      {
+        "condition": "item_type == 'pohledavka'",
+        "label": "Trade receivable (pohledávka z obchodního styku)",
+        "node": "pohledavka-branch",
+        "question": "Is the receivable from a business relationship (z obchodního styku) and included in taxable income when created?",
+        "branches": [
+          {
+            "condition": "from_business_relationship == true AND included_in_taxable_income == true",
+            "label": "Eligible for zákonná OP",
+            "node": "zakonna-op-pohledavka",
+            "question": "Is the receivable from a connected/related party (spojená osoba)?",
+            "branches": [
+              {
+                "condition": "related_party == true",
+                "label": "Related-party receivable — zákonná OP prohibited",
+                "leaf": true,
+                "result": {
+                  "op_type": "ucetni_only",
+                  "op_percentage": null,
+                  "comment": "§ 8a zákonná OP not available for connected persons. May create účetní OP (non-deductible) if NRV < carrying value.",
+                  "tax_deductible": false,
+                  "expense_account": "559",
+                  "liability_account": "391",
+                  "deferred_tax_asset": true,
+                  "deferred_tax_entry": "592/481",
+                  "legal_basis": "Act 593/1992 § 8a odst. 4",
+                  "confidence": "medium"
+                }
+              },
+              {
+                "condition": "related_party == false",
+                "label": "Arm's-length receivable",
+                "node": "arm-length-pohledavka",
+                "question": "Has the entity filed a court claim (soudní řízení) for this receivable?",
+                "branches": [
+                  {
+                    "condition": "court_proceedings_filed == true",
+                    "leaf": true,
+                    "result": {
+                      "op_type": "zakonna_8a_court",
+                      "op_percentage": 100,
+                      "comment": "§ 8a odst. 3 — 100% zákonná OP from date of court filing, regardless of overdue age.",
+                      "tax_deductible": true,
+                      "expense_account": "558",
+                      "liability_account": "391",
+                      "deferred_tax_asset": false,
+                      "legal_basis": "Act 593/1992 § 8a odst. 3",
+                      "confidence": "medium"
+                    }
+                  },
+                  {
+                    "condition": "court_proceedings_filed == false",
+                    "label": "Time-based § 8a or § 8c route",
+                    "node": "time-based-check",
+                    "question": "What is the nominal (rozvahová) value of the receivable?",
+                    "branches": [
+                      {
+                        "condition": "nominal_value_czk <= 50000",
+                        "label": "Small receivable (≤ CZK 50,000) — check § 8c",
+                        "node": "section-8c-branch",
+                        "question": "Is the receivable more than 12 months overdue?",
+                        "branches": [
+                          {
+                            "condition": "months_overdue > 12",
+                            "leaf": true,
+                            "result": {
+                              "op_type": "zakonna_8c",
+                              "op_percentage": 100,
+                              "comment": "§ 8c — 100% zákonná OP in one step. Max CZK 50,000 per receivable, >12 months overdue (threshold corrected K2C.3 2026-05-24).",
+                              "tax_deductible": true,
+                              "expense_account": "558",
+                              "liability_account": "391",
+                              "deferred_tax_asset": false,
+                              "legal_basis": "Act 593/1992 § 8c",
+                              "confidence": "medium"
+                            }
+                          },
+                          {
+                            "condition": "months_overdue <= 12",
+                            "leaf": true,
+                            "result": {
+                              "op_type": "ucetni_only_or_none",
+                              "op_percentage": null,
+                              "comment": "Not yet eligible for § 8c (< 12 months). May create účetní OP if NRV < carrying value (non-deductible).",
+                              "tax_deductible": false,
+                              "expense_account": "559",
+                              "liability_account": "391",
+                              "deferred_tax_asset": true,
+                              "deferred_tax_entry": "592/481",
+                              "legal_basis": "ČÚS 005",
+                              "confidence": "medium"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "condition": "nominal_value_czk > 50000",
+                        "label": "Larger receivable — § 8a time-based only",
+                        "node": "section-8a-time-branch",
+                        "question": "How many months overdue is the receivable?",
+                        "branches": [
+                          {
+                            "condition": "months_overdue <= 18",
+                            "leaf": true,
+                            "result": {
+                              "op_type": "ucetni_only_or_none",
+                              "op_percentage": null,
+                              "comment": "Not yet eligible for § 8a zákonná OP (< 18 months). May create účetní OP (non-deductible).",
+                              "tax_deductible": false,
+                              "expense_account": "559",
+                              "liability_account": "391",
+                              "deferred_tax_asset": true,
+                              "deferred_tax_entry": "592/481",
+                              "legal_basis": "ČÚS 005",
+                              "confidence": "medium"
+                            }
+                          },
+                          {
+                            "condition": "months_overdue > 18 AND months_overdue <= 30",
+                            "leaf": true,
+                            "result": {
+                              "op_type": "zakonna_8a_50pct",
+                              "op_percentage": 50,
+                              "comment": "§ 8a odst. 1 písm. b) — up to 50% zákonná OP. 18 months overdue (C9 regression reverted 2026-05-24). Maximum 50% of nominal value.",
+                              "tax_deductible": true,
+                              "expense_account": "558",
+                              "liability_account": "391",
+                              "deferred_tax_asset": false,
+                              "legal_basis": "Act 593/1992 § 8a odst. 1 písm. b)",
+                              "correction_applied": "K2C.3 C9 regression revert 2026-05-24: correct threshold is 18 months (not 30)",
+                              "confidence": "medium"
+                            }
+                          },
+                          {
+                            "condition": "months_overdue > 30",
+                            "leaf": true,
+                            "result": {
+                              "op_type": "zakonna_8a_100pct",
+                              "op_percentage": 100,
+                              "comment": "§ 8a odst. 1 písm. c) — up to 100% zákonná OP. More than 30 months overdue (C9 regression reverted 2026-05-24; no 36-month tier exists).",
+                              "tax_deductible": true,
+                              "expense_account": "558",
+                              "liability_account": "391",
+                              "deferred_tax_asset": false,
+                              "legal_basis": "Act 593/1992 § 8a odst. 1 písm. c)",
+                              "confidence": "medium"
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "condition": "from_business_relationship == false OR included_in_taxable_income == false",
+            "label": "Not eligible for zákonná OP (e.g., loan, equity injection, not taxable income source)",
+            "leaf": true,
+            "result": {
+              "op_type": "ucetni_only",
+              "op_percentage": null,
+              "comment": "No zákonná OP available. Účetní OP possible if NRV < carrying value — non-deductible.",
+              "tax_deductible": false,
+              "expense_account": "559",
+              "liability_account": "391",
+              "deferred_tax_asset": true,
+              "deferred_tax_entry": "592/481",
+              "legal_basis": "§ 8a conditions not met",
+              "confidence": "medium"
+            }
+          }
+        ]
+      },
+      {
+        "condition": "item_type == 'zasoba'",
+        "label": "Inventory (zásoba) — materiál, zboží, výrobky, WIP",
+        "node": "zasoba-branch",
+        "question": "Is the net realizable value (NRV) below the carrying cost?",
+        "branches": [
+          {
+            "condition": "nrv_below_cost == true",
+            "leaf": true,
+            "result": {
+              "op_type": "ucetni_zasoby",
+              "op_percentage": null,
+              "op_amount_formula": "porizovaci_cena - NRV",
+              "comment": "Inventory OP required per lower-of-cost-or-NRV. Account 19x depends on inventory type (191=materiál, 196=zboží, 192=WIP, 194=výrobky).",
+              "tax_deductible": false,
+              "expense_account": "559",
+              "liability_account": "19x_see_comment",
+              "liability_account_detail": {"materialAccount": "191", "wip": "192", "semifinished": "193", "finished": "194", "animals": "195", "goods": "196"},
+              "deferred_tax_asset": true,
+              "deferred_tax_entry": "592/481",
+              "legal_basis": "Act 563/1991 § 26 odst. 1; ČÚS 005",
+              "confidence": "medium"
+            }
+          },
+          {
+            "condition": "nrv_below_cost == false",
+            "leaf": true,
+            "result": {
+              "op_type": "none_required",
+              "comment": "NRV >= cost. No OP required. Review at next balance-sheet date.",
+              "tax_deductible": null,
+              "confidence": "high"
+            }
+          }
+        ]
+      },
+      {
+        "condition": "item_type == 'dhm_dnm'",
+        "label": "DHM or DNM — tangible or intangible fixed assets",
+        "node": "dhm-branch",
+        "question": "Is there evidence of permanent (trvalé) or temporary (přechodné) value impairment below net book value?",
+        "branches": [
+          {
+            "condition": "impairment_evidence == true",
+            "leaf": true,
+            "result": {
+              "op_type": "ucetni_dhm_dnm",
+              "op_percentage": null,
+              "op_amount_formula": "zustatkova_hodnota - recoverable_amount",
+              "comment": "DHM OP required. Account depends on asset type: 091=DNM, 092=DHM (land, buildings, SMV), 095=assets under construction, 097=pěstitelský celek, 098=základní stádo.",
+              "tax_deductible": false,
+              "expense_account": "559",
+              "liability_account": "09x_see_comment",
+              "liability_account_detail": {"dnm": "091", "dhm_general": "092", "assets_under_construction": "095", "plantations": "097", "livestock": "098"},
+              "deferred_tax_asset": true,
+              "deferred_tax_entry": "592/481",
+              "legal_basis": "Decree 500/2002 § 26; ČÚS 005",
+              "confidence": "medium"
+            }
+          },
+          {
+            "condition": "impairment_evidence == false",
+            "leaf": true,
+            "result": {
+              "op_type": "none_required",
+              "comment": "No evidence of impairment. No OP required. Review at next balance-sheet date.",
+              "tax_deductible": null,
+              "confidence": "high"
+            }
+          }
+        ]
+      },
+      {
+        "condition": "item_type == 'rezerva_oprava_dhm'",
+        "label": "Zákonná rezerva na opravy DHM (§ 7 Act 593/1992)",
+        "leaf": true,
+        "result": {
+          "op_type": "zakonna_rezerva_opravy",
+          "comment": "Annual creation: estimated cost ÷ number of periods. Requires: depreciation group 2-6, written repair plan, separate bank account deposit by filing deadline.",
+          "tax_deductible": true,
+          "expense_account": "552",
+          "liability_account": "451",
+          "deferred_tax_asset": false,
+          "dissolution_rule": "Dissolve when repair performed (neutral) or if kontrolní doba expires (taxable income)",
+          "legal_basis": "Act 593/1992 §§ 7 + 7a",
+          "confidence": "medium"
+        }
+      },
+      {
+        "condition": "item_type == 'ucetni_rezerva'",
+        "label": "Účetní (non-zákonná) rezerva — dovolená, bonusy, soudní spory, restrukturalizace",
+        "leaf": true,
+        "result": {
+          "op_type": "ucetni_rezerva",
+          "op_percentage": null,
+          "comment": "Non-deductible accounting reserve. Expense via 554 (or 521 for wage-related). Liability on 459. Creates deferred tax asset.",
+          "tax_deductible": false,
+          "expense_account": "554_or_521",
+          "expense_account_detail": {"dovolena": "521", "bonusy": "521", "soudniSpory": "549_or_546", "restrukturalizace": "554"},
+          "liability_account": "459",
+          "deferred_tax_asset": true,
+          "deferred_tax_entry": "592/481",
+          "legal_basis": "Decree 500/2002 § 55; ČÚS 004",
+          "confidence": "medium"
+        }
+      }
+    ]
+  },
+
+  "quick_reference_table": {
+    "title": "Přehled — OP a rezervy jedním pohledem",
+    "columns": ["Item", "§", "MD (expense)", "D (liability/OP)", "Tax deductible", "Deferred tax"],
+    "rows": [
+      ["Zákonná rezerva opravy DHM", "§ 7 Act 593/1992", "552", "451", "YES", "No"],
+      ["Zákonná OP pohledávka 50% (18+ months)", "§ 8a", "558", "391", "YES", "No"],
+      ["Zákonná OP pohledávka 100% (30+ months)", "§ 8a", "558", "391", "YES", "No"],
+      ["Zákonná OP pohledávka 100% (court)", "§ 8a odst. 3", "558", "391", "YES", "No"],
+      ["Zákonná OP pohledávka 100% (≤50k CZK, 12+ months)", "§ 8c", "558", "391", "YES", "No"],
+      ["Účetní rezerva — dovolená", "ČÚS 004", "521", "459", "NO", "YES 592/481"],
+      ["Účetní rezerva — bonusy", "ČÚS 004", "521", "459", "NO", "YES 592/481"],
+      ["Účetní rezerva — soudní spory", "ČÚS 004", "549/546", "459", "NO", "YES 592/481"],
+      ["Účetní rezerva — restrukturalizace", "ČÚS 004", "554", "459", "NO", "YES 592/481"],
+      ["Účetní OP zásoby", "ČÚS 005", "559", "19x", "NO", "YES 592/481"],
+      ["Účetní OP DHM/DNM", "ČÚS 005", "559", "09x", "NO", "YES 592/481"],
+      ["Účetní OP pohledávky (non-zákonná)", "ČÚS 005", "559", "391", "NO", "YES 592/481"]
+    ]
+  }
+}

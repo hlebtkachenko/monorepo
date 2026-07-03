@@ -1,0 +1,418 @@
+{
+  "schema_version": "1.0",
+  "generated_by": "wave-1a-W1.5-sonnet",
+  "generated_date": "2026-05-23",
+  "status": "corrected",
+  "corrected_by": "K2C.1-sonnet",
+  "corrected_at": "2026-05-23",
+  "jurisdiction": "CZ",
+  "legal_basis": {
+    "primary": ["Act 235/2004 Sb.", "Act 586/1992 Sb.", "Act 563/1991 Sb.", "Decree 500/2002 Sb."],
+    "standards": ["ČÚS 013", "ČÚS 015", "ČÚS 017", "ČÚS 019"]
+  },
+  "scenarios": [
+    {
+      "id": "FP-DOM-GOODS-PLATCE",
+      "title": "Domestic goods purchase — plátce buyer + plátce seller",
+      "file": "W1.5-predkontace-purchase-goods.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "seller_regime": "plátce",
+        "document": "faktura přijatá",
+        "transaction_type": "goods_domestic",
+        "vat_rate": "0.21"
+      },
+      "entries": [
+        { "step": 1, "description": "Cost of goods net", "MD": "504", "D": null, "amount": "net" },
+        { "step": 2, "description": "Input VAT", "MD": "343", "D": null, "amount": "vat" },
+        { "step": 3, "description": "Supplier payable", "MD": null, "D": "321", "amount": "gross" }
+      ],
+      "dap_row": "40",
+      "kh_section": "B2_or_B3",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 72-73", "Act 235/2004 § 102a"],
+      "confidence": "medium"
+    },
+    {
+      "id": "FP-DOM-GOODS-NEPLATCE",
+      "title": "Domestic goods purchase — neplátce buyer",
+      "file": "W1.5-predkontace-purchase-goods.md",
+      "pre_conditions": {
+        "buyer_regime": "neplátce",
+        "seller_regime": "plátce",
+        "document": "faktura přijatá",
+        "transaction_type": "goods_domestic"
+      },
+      "entries": [
+        { "step": 1, "description": "Full gross to cost (no VAT recovery)", "MD": "504", "D": null, "amount": "gross" },
+        { "step": 2, "description": "Supplier payable", "MD": null, "D": "321", "amount": "gross" }
+      ],
+      "dap_row": null,
+      "kh_section": null,
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 25 odst. 1 písm. a)"],
+      "confidence": "medium"
+    },
+    {
+      "id": "FP-DOM-MATERIAL-METHOD-A",
+      "title": "Material to stock — Method A (transit via account 111)",
+      "file": "W1.5-predkontace-purchase-goods.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "document": "faktura přijatá",
+        "transaction_type": "material_to_stock",
+        "inventory_method": "Method_A"
+      },
+      "entries": [
+        { "step": 1, "description": "FP receipt — transit account", "MD": "111", "D": null, "amount": "net" },
+        { "step": 2, "description": "Input VAT", "MD": "343", "D": null, "amount": "vat" },
+        { "step": 3, "description": "Supplier payable", "MD": null, "D": "321", "amount": "gross" },
+        { "step": 4, "description": "Stock receipt", "MD": "112", "D": "111", "amount": "net" },
+        { "step": 5, "description": "Issue to consumption", "MD": "501", "D": "112", "amount": "consumed_cost" }
+      ],
+      "dap_row": "40",
+      "kh_section": "B2_or_B3",
+      "sh_section": null,
+      "source_refs": ["ČÚS 015 body 3.1", "ČÚS 015 body 4.1"],
+      "confidence": "medium"
+    },
+    {
+      "id": "FP-DOM-MATERIAL-METHOD-B",
+      "title": "Material to stock — Method B (direct expense, year-end stock reconciliation)",
+      "file": "W1.5-predkontace-purchase-goods.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "document": "faktura přijatá",
+        "transaction_type": "material_to_stock",
+        "inventory_method": "Method_B"
+      },
+      "entries": [
+        { "step": 1, "description": "FP receipt — direct to expense", "MD": "501", "D": null, "amount": "net" },
+        { "step": 2, "description": "Input VAT", "MD": "343", "D": null, "amount": "vat" },
+        { "step": 3, "description": "Supplier payable", "MD": null, "D": "321", "amount": "gross" },
+        { "step": 4, "description": "Year-end: release opening stock", "MD": "501", "D": "112", "amount": "opening_stock" },
+        { "step": 5, "description": "Year-end: capitalize closing stock", "MD": "112", "D": "501", "amount": "closing_stock" }
+      ],
+      "dap_row": "40",
+      "kh_section": "B2_or_B3",
+      "sh_section": null,
+      "source_refs": ["ČÚS 015 body 5"],
+      "confidence": "medium"
+    },
+    {
+      "id": "FP-DOM-DHM-ACQUISITION",
+      "title": "Long-term tangible asset (DHM) acquisition — plátce buyer",
+      "file": "W1.5-predkontace-purchase-assets.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "document": "faktura přijatá",
+        "transaction_type": "fixed_asset_acquisition",
+        "asset_type": "DHM",
+        "capitalization_threshold_czk": 80000
+      },
+      "entries": [
+        { "step": 1, "description": "FP receipt — acquisition in transit", "MD": "042", "D": null, "amount": "net" },
+        { "step": 2, "description": "Input VAT", "MD": "343", "D": null, "amount": "vat" },
+        { "step": 3, "description": "Supplier payable", "MD": null, "D": "321", "amount": "gross" },
+        { "step": 4, "description": "Activation — zařazení do majetku", "MD": "022", "D": "042", "amount": "total_acquisition_cost" },
+        { "step": 5, "description": "Monthly accounting depreciation", "MD": "551", "D": "082", "amount": "monthly_depreciation" }
+      ],
+      "dap_row": "40",
+      "kh_section": "B2",
+      "sh_section": null,
+      "source_refs": ["ČÚS 013 body 3.1", "Act 586/1992 § 26 odst. 2"],
+      "confidence": "medium"
+    },
+    {
+      "id": "FP-EU-GOODS-INTRACOM-PLATCE",
+      "title": "EU intracom goods acquisition — plátce buyer (samovyměření)",
+      "file": "W1.5-predkontace-purchase-EU.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "seller_regime": "EU_VAT_registered",
+        "document": "EU supplier invoice (no CZ VAT)",
+        "transaction_type": "intracom_goods_acquisition",
+        "mechanism": "samovyměření_reverse_charge"
+      },
+      "entries": [
+        { "step": 1, "description": "Record payable at net EU price (in CZK at CNB rate)", "MD": "131", "D": "321", "amount": "net_czk_equivalent" },
+        { "step": 2, "description": "Self-assess output tax", "MD": "343_vstup", "D": "343_vystup", "amount": "cz_vat_21pct" }
+      ],
+      "dap_row": "3",
+      "dap_row_input": "43",
+      "kh_section": "A5",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 16 odst. 1", "Act 235/2004 § 25"],
+      "confidence": "medium"
+    },
+    {
+      "id": "FP-EU-GOODS-INTRACOM-IO",
+      "title": "EU intracom goods acquisition — identifikovaná osoba (no input deduction)",
+      "file": "W1.5-predkontace-purchase-EU.md",
+      "pre_conditions": {
+        "buyer_regime": "identifikovaná_osoba",
+        "seller_regime": "EU_VAT_registered",
+        "transaction_type": "intracom_goods_acquisition",
+        "input_deduction_right": false
+      },
+      "entries": [
+        { "step": 1, "description": "Record payable + Czech VAT as cost", "MD": "131_or_cost_account", "D": null, "amount": "net_plus_cz_vat" },
+        { "step": 2, "description": "Supplier payable", "MD": null, "D": "321", "amount": "net_eur_equivalent" },
+        { "step": 3, "description": "DPH duty (no offsetting input)", "MD": null, "D": "343_vystup", "amount": "cz_vat" }
+      ],
+      "dap_row": "3",
+      "dap_row_input": null,
+      "kh_section": "A5",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 72 odst. 2"],
+      "confidence": "medium"
+    },
+    {
+      "id": "FP-IMPORT-3RD-COUNTRY-PLATCE",
+      "title": "Import from 3rd country (non-EU) — plátce buyer",
+      "file": "W1.5-predkontace-purchase-EU.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "seller_origin": "non_EU",
+        "document": "celní deklarace (JSD) + foreign invoice",
+        "transaction_type": "import_goods"
+      },
+      "entries": [
+        { "step": 1, "description": "CIF cost to acquisition account", "MD": "042_or_111", "D": "321", "amount": "cif_net" },
+        { "step": 2, "description": "Customs duty to acquisition cost", "MD": "042_or_111", "D": "379_clo", "amount": "customs_duty" },
+        { "step": 3, "description": "Import DPH assessed by customs", "MD": "343_vstup", "D": "379_dph", "amount": "import_vat" },
+        { "step": 4, "description": "Pay customs authority (clo + DPH)", "MD": "379", "D": "221", "amount": "clo_plus_vat" }
+      ],
+      "dap_row": "7",
+      "dap_row_input": "43",
+      "kh_section": null,
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 23", "Act 235/2004 § 25"],
+      "confidence": "low"
+    },
+    {
+      "id": "FP-PDP-STAVEBNI-PRACE",
+      "title": "Domestic reverse charge (PDP) — stavební práce § 92e — buyer side",
+      "file": "W1.5-predkontace-purchase-PDP.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "seller_regime": "plátce",
+        "document": "faktura přijatá — no CZ VAT, note: Daň odvede zákazník",
+        "transaction_type": "PDP_construction_works",
+        "legal_basis": "Act 235/2004 § 92e"
+      },
+      "entries": [
+        { "step": 1, "description": "Record cost/asset at net", "MD": "511_or_042", "D": "321", "amount": "net" },
+        { "step": 2, "description": "Self-assess output VAT", "MD": "343_vstup", "D": "343_vystup", "amount": "cz_vat_21pct" }
+      ],
+      "dap_row": "10",
+      "dap_row_input": "43",
+      "kh_section": "B1",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 92a", "Act 235/2004 § 92e"],
+      "confidence": "medium"
+    },
+    {
+      "id": "ZALOH-ADVANCE-PAYMENT-PLATCE",
+      "title": "Advance payment made (záloha) — plátce buyer — with záloha tax document",
+      "file": "W1.5-predkontace-purchase-advances.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "seller_regime": "plátce",
+        "document": "daňový doklad k záloze",
+        "transaction_type": "advance_payment_made"
+      },
+      "entries": [
+        { "step": 1, "description": "Pay advance — no VAT yet", "MD": "314", "D": "221", "amount": "gross_advance" },
+        { "step": 2, "description": "Receive záloha tax document — claim input VAT", "MD": "343_vstup", "D": "314", "amount": "vat_from_advance_doc" },
+        { "step": 3, "description": "Final invoice — record net cost", "MD": "504_or_service_acct", "D": null, "amount": "total_net" },
+        { "step": 4, "description": "Clear záloha (advance + VAT portion)", "MD": null, "D": "314", "amount": "advance_net_balance" },
+        { "step": 5, "description": "Record remaining payable", "MD": null, "D": "321", "amount": "remaining_net" },
+        { "step": 6, "description": "Input VAT on remaining portion of final invoice", "MD": "343_vstup", "D": null, "amount": "remaining_vat" }
+      ],
+      "dap_row": "40",
+      "dap_row_input": "43",
+      "kh_section": "B2_or_B3",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 20a", "Act 235/2004 § 37a", "ČÚS 017 body 3.6"],
+      "confidence": "medium",
+      "advisor_questions": ["Q-20260523-009", "Q-20260523-010"]
+    },
+    {
+      "id": "FP-DOBROPIS-DOMESTIC-STANDARD",
+      "title": "Credit note received from supplier — domestic standard FP original",
+      "file": "W1.5-predkontace-purchase-advances.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "document": "opravný daňový doklad (ODD)",
+        "transaction_type": "credit_note_received_domestic"
+      },
+      "entries": [
+        { "step": 1, "description": "Reduce supplier payable (or create receivable)", "MD": "321", "D": null, "amount": "net_credit" },
+        { "step": 2, "description": "Reverse cost", "MD": null, "D": "501_or_504_or_518", "amount": "net_credit" },
+        { "step": 3, "description": "Reverse input VAT claimed", "MD": null, "D": "343_vstup", "amount": "vat_credit" }
+      ],
+      "dap_row": "40_negative",
+      "kh_section": "B2_negative",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 42", "Act 235/2004 § 45"],
+      "confidence": "medium"
+    },
+    {
+      "id": "CESTY-EMPLOYEE-ADVANCE-SETTLEMENT",
+      "title": "Business trip — employee advance + vyúčtování settlement",
+      "file": "W1.5-predkontace-purchase-advances.md",
+      "pre_conditions": {
+        "entity_type": "employer with employees",
+        "transaction_type": "business_travel_advance_settlement",
+        "legal_basis": "Act 262/2006 Sb. §§ 156–189"
+      },
+      "entries": [
+        { "step": 1, "description": "Advance to employee", "MD": "335", "D": "211_or_221", "amount": "advance" },
+        { "step": 2, "description": "Vyúčtování — book travel expense", "MD": "512", "D": null, "amount": "total_expense" },
+        { "step": 3, "description": "Clear advance", "MD": null, "D": "335", "amount": "advance" },
+        { "step": 4, "description": "Settle difference (refund to employee or collect from employee)", "MD_or_D": "333_or_335", "D_or_MD": "221", "amount": "difference" }
+      ],
+      "dap_row": null,
+      "kh_section": null,
+      "sh_section": null,
+      "source_refs": ["Act 262/2006 § 156–189"],
+      "confidence": "medium"
+    },
+    {
+      "id": "STRAVENKOVY-PAUSAL",
+      "title": "Stravenkový paušál — cash meal contribution to employees",
+      "file": "W1.5-predkontace-purchase-edge-cases.md",
+      "pre_conditions": {
+        "entity_type": "employer with employees",
+        "transaction_type": "meal_allowance_cash_contribution",
+        "legal_basis": "Act 586/1992 § 24 odst. 2 písm. j) bod 4"
+      },
+      "entries": [
+        { "step": 1, "description": "Accrue employer obligation", "MD": "528", "D": "333", "amount": "pausal_amount" },
+        { "step": 2, "description": "Pay to employee", "MD": "333", "D": "221", "amount": "pausal_amount" }
+      ],
+      "dap_row": null,
+      "kh_section": null,
+      "sh_section": null,
+      "source_refs": ["Act 586/1992 § 24 odst. 2 písm. j) bod 4", "Act 262/2006 § 236"],
+      "confidence": "low",
+      "advisor_questions": ["Q-20260523-012"]
+    },
+    {
+      "id": "REPREZENTACE-ENTERTAINMENT",
+      "title": "Representation/entertainment expense (non-deductible)",
+      "file": "W1.5-predkontace-purchase-edge-cases.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce_or_neplatce",
+        "transaction_type": "entertainment_representation",
+        "vat_deductible": false,
+        "income_tax_deductible": false
+      },
+      "entries": [
+        { "step": 1, "description": "Full gross to representation cost — no VAT recovery", "MD": "513", "D": "221_or_321", "amount": "gross" }
+      ],
+      "dap_row": null,
+      "kh_section": null,
+      "sh_section": null,
+      "source_refs": ["Act 586/1992 § 25 odst. 1 písm. t)", "Act 235/2004 § 72 odst. 4"],
+      "confidence": "medium"
+    },
+    {
+      "id": "PHM-NAKLADNI-100PCT",
+      "title": "Fuel (PHM) — commercial vehicle, 100% business use",
+      "file": "W1.5-predkontace-purchase-edge-cases.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "vehicle_type": "commercial_N1_or_higher",
+        "business_use_pct": 100
+      },
+      "entries": [
+        { "step": 1, "description": "Net fuel cost to consumption", "MD": "501", "D": null, "amount": "net" },
+        { "step": 2, "description": "Full input VAT", "MD": "343", "D": null, "amount": "vat_21pct" },
+        { "step": 3, "description": "Bank payment", "MD": null, "D": "221", "amount": "gross" }
+      ],
+      "dap_row": "40",
+      "kh_section": "B3_aggregate",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 72 odst. 1"],
+      "confidence": "medium"
+    },
+    {
+      "id": "PHM-OSOBNI-MIXED-USE",
+      "title": "Fuel (PHM) — M1 passenger car, mixed business/private use (proportional VAT)",
+      "file": "W1.5-predkontace-purchase-edge-cases.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "vehicle_type": "personal_M1",
+        "business_use_pct": "variable_by_log_or_80pct_default"
+      },
+      "entries": [
+        { "step": 1, "description": "Net × business% to 501", "MD": "501", "D": null, "amount": "net_x_business_pct" },
+        { "step": 2, "description": "Net × private% to non-deductible personal use expense", "MD": "513", "D": null, "amount": "net_x_private_pct" },
+        { "step": 3, "description": "Input VAT × business%", "MD": "343", "D": null, "amount": "vat_x_business_pct" },
+        { "step": 4, "description": "Bank payment", "MD": null, "D": "221", "amount": "gross" }
+      ],
+      "dap_row": "40_proportional",
+      "kh_section": "B3_aggregate",
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 75 odst. 2"],
+      "confidence": "medium",
+      "advisor_questions": ["Q-20260523-011"]
+    },
+    {
+      "id": "LEASING-OPERATIVNI",
+      "title": "Operating lease — periodic invoice (no capitalization)",
+      "file": "W1.5-predkontace-purchase-services.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce",
+        "document": "faktura přijatá — monthly lease invoice",
+        "transaction_type": "operating_lease",
+        "asset_capitalized": false
+      },
+      "entries": [
+        { "step": 1, "description": "Monthly lease expense", "MD": "518", "D": null, "amount": "net_monthly" },
+        { "step": 2, "description": "Input VAT", "MD": "343", "D": null, "amount": "vat_21pct" },
+        { "step": 3, "description": "Supplier payable", "MD": null, "D": "321", "amount": "gross" }
+      ],
+      "dap_row": "40",
+      "kh_section": "B2_or_B3",
+      "sh_section": null,
+      "source_refs": ["Act 586/1992 § 24 odst. 2 písm. h)"],
+      "confidence": "medium"
+    },
+    {
+      "id": "POJISTNE-PROPERTY",
+      "title": "Insurance premium — property/liability (VAT-exempt supply)",
+      "file": "W1.5-predkontace-purchase-services.md",
+      "pre_conditions": {
+        "buyer_regime": "plátce_or_neplatce",
+        "document": "pojistná smlouva / invoice from insurer",
+        "transaction_type": "insurance_premium",
+        "vat_on_supply": false
+      },
+      "entries": [
+        { "step": 1, "description": "Gross premium to operating costs", "MD": "548_or_568", "D": "221_or_321", "amount": "gross_premium" }
+      ],
+      "dap_row": null,
+      "kh_section": null,
+      "sh_section": null,
+      "source_refs": ["Act 235/2004 § 55"],
+      "confidence": "medium"
+    }
+  ],
+  "open_questions": [
+    "Q-20260523-001",
+    "Q-20260523-002",
+    "Q-20260523-003",
+    "Q-20260523-004",
+    "Q-20260523-005",
+    "Q-20260523-006",
+    "Q-20260523-007",
+    "Q-20260523-008",
+    "Q-20260523-009",
+    "Q-20260523-010",
+    "Q-20260523-011",
+    "Q-20260523-012"
+  ]
+}

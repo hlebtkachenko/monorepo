@@ -1,0 +1,215 @@
+{
+  "id": "likvidace-root",
+  "title": "Czech Company Wind-Down Decision Tree",
+  "version": "wave-4-N4C.2",
+  "last_verified": "2026-05-24",
+  "confidence": "medium",
+  "notes": "Decision tree covers voluntary likvidace vs konkurz selection, entry mechanics, and process flow. Account numbers in leaf nodes are unverified — see Q-LIK09.",
+
+  "root": {
+    "question": "Is the company able to pay all its debts from current or realizable assets?",
+    "yes": {
+      "label": "Solvent — use LIKVIDACE",
+      "next": "likvidace-trigger"
+    },
+    "no": {
+      "label": "Insolvent — use INSOLVENČNÍ ŘÍZENÍ (Act 182/2006 Sb.)",
+      "next": "insolvency-note"
+    }
+  },
+
+  "insolvency-note": {
+    "type": "terminal",
+    "label": "Konkurz / insolvency proceedings",
+    "notes": "Act 182/2006 Sb. (InsZ) governs. Court-supervised. Insolvenční správce appointed. Out of scope for this KB module — see separate coverage.",
+    "statutory_refs": ["Act 182/2006 Sb. § 3 (definition of úpadek)"]
+  },
+
+  "likvidace-trigger": {
+    "question": "What triggers the likvidace?",
+    "options": {
+      "voluntary_resolution": {
+        "label": "Voluntary valná hromada resolution to dissolve",
+        "next": "vstup-do-likvidace",
+        "notes": "s.r.o.: simple majority (or per společenská smlouva). a.s.: 2/3 majority + notářský zápis."
+      },
+      "court_order": {
+        "label": "Court order under ZOK § 93 (1-year inactivity, member conflicts, lost all authorizations)",
+        "next": "vstup-do-likvidace",
+        "notes": "Court typically appoints likvidátor under NOZ § 191."
+      },
+      "automatic": {
+        "label": "Expiry of term / purpose achieved (per společenská smlouva)",
+        "next": "vstup-do-likvidace",
+        "notes": "Dissolution date is the date specified or when purpose is achieved."
+      }
+    }
+  },
+
+  "vstup-do-likvidace": {
+    "type": "process",
+    "label": "Entry into likvidace — Day 0",
+    "statutory_refs": ["NOZ § 187 odst. 2", "ZÚ § 17", "NOZ § 199"],
+    "mandatory_actions": [
+      {
+        "action": "Append 'v likvidaci' to company name",
+        "deadline": "Immediately on Day 0",
+        "ref": "NOZ § 187 odst. 2"
+      },
+      {
+        "action": "File OR entry of vstup do likvidace",
+        "deadline": "Without unnecessary delay (Day 0–7)",
+        "ref": "NOZ § 187 odst. 2"
+      },
+      {
+        "action": "Close accounting books (mimořádná závěrka) on day BEFORE entry",
+        "deadline": "Day -1",
+        "ref": "ZÚ § 17"
+      },
+      {
+        "action": "Prepare zahajovací rozvaha v likvidaci + soupis jmění",
+        "deadline": "Day 0 — without delay",
+        "ref": "NOZ § 199 odst. 1"
+      },
+      {
+        "action": "Notify tax authority (finanční úřad) of vstup do likvidace",
+        "deadline": "Without delay",
+        "ref": "Standard tax obligation — primary source not confirmed"
+      }
+    ],
+    "next": "creditor-notification"
+  },
+
+  "creditor-notification": {
+    "type": "process",
+    "label": "Creditor notification — NOZ § 198",
+    "statutory_refs": ["NOZ § 198 odst. 1", "NOZ § 198 odst. 2"],
+    "steps": [
+      {
+        "step": 1,
+        "action": "Direct notification of all known creditors",
+        "ref": "NOZ § 198 odst. 1",
+        "quote": "Likvidátor oznámí vstup právnické osoby do likvidace všem známým věřitelům."
+      },
+      {
+        "step": 2,
+        "action": "First public notice publication (Obchodní věstník or equivalent)",
+        "timing": "Without unnecessary delay after vstup"
+      },
+      {
+        "step": 3,
+        "action": "Second public notice publication",
+        "timing": "At least 2 weeks after first publication",
+        "ref": "NOZ § 198 odst. 2"
+      },
+      {
+        "step": 4,
+        "action": "Creditor filing period opens — minimum 3 months from second publication",
+        "ref": "NOZ § 198 odst. 2",
+        "quote": "ve lhůtě, která nesmí být kratší než tři měsíce od druhého zveřejnění"
+      }
+    ],
+    "minimum_elapsed_time_days": 104,
+    "minimum_elapsed_time_notes": "14 days between publications + 90 days filing period = ~104 days minimum from first publication",
+    "next": "asset-realization"
+  },
+
+  "asset-realization": {
+    "type": "process",
+    "label": "Likvidace majetku — asset realization",
+    "statutory_refs": ["NOZ § 196 odst. 1"],
+    "sequence": [
+      "1. Collect outstanding receivables (pohledávky)",
+      "2. Realize financial assets (podíly, cenné papíry)",
+      "3. Sell movable fixed assets (DHM movité)",
+      "4. Sell real estate (nemovitosti) — allow 2-6 months",
+      "5. Sell inventory (zásoby)",
+      "6. Terminate contracts (leases, employees, services)",
+      "7. Write off irrecoverable items"
+    ],
+    "dph_note": "Company remains DPH plátce throughout; asset sales are taxable supplies at 21%/12%/0%. Real estate older than 5 years may be DPH-exempt.",
+    "solvency_check": {
+      "question": "During asset realization: is the company insolvent?",
+      "yes": {
+        "label": "Insolvency detected — NOZ § 200 mandatory",
+        "action": "File insolvency petition (insolvenční návrh) without delay",
+        "exception": "NOZ § 201 proportional distribution may apply for small deficient estates"
+      },
+      "no": {
+        "next": "creditor-settlement"
+      }
+    }
+  },
+
+  "creditor-settlement": {
+    "type": "process",
+    "label": "Settle all creditors",
+    "statutory_refs": ["NOZ § 206"],
+    "priority_in_deficient_estate": [
+      "1. Náklady likvidace (liquidation costs)",
+      "2. Pohledávky zaměstnanců (employee claims)",
+      "3. All other creditor claims — paid proportionally if insufficient"
+    ],
+    "condition_for_distribution": "ALL creditors who filed timely claims under NOZ § 198 must be satisfied (or secured) before any distribution to shareholders",
+    "quote": "Dokud nejsou uspokojena práva všech věřitelů, kteří své pohledávky přihlásili včas podle § 198, nelze vyplácet podíl na likvidačním zůstatku",
+    "next": "konec-likvidace"
+  },
+
+  "konec-likvidace": {
+    "type": "process",
+    "label": "End of likvidace",
+    "statutory_refs": ["NOZ § 205", "NOZ § 207", "ZOK § 94", "ZDP § 38m"],
+    "steps": [
+      {
+        "step": 1,
+        "action": "Prepare konečná zpráva, návrh na použití likvidačního zůstatku, konečná účetní závěrka",
+        "ref": "NOZ § 205 + ZOK § 94"
+      },
+      {
+        "step": 2,
+        "action": "Submit documents to valná hromada for approval",
+        "ref": "ZOK § 94"
+      },
+      {
+        "step": 3,
+        "action": "File final DPPO return (code H) for liquidation period",
+        "ref": "ZDP § 38m",
+        "deadline": "Within 3 months of period end"
+      },
+      {
+        "step": 4,
+        "action": "Obtain souhlas finančního úřadu (tax clearance) — confidence: medium",
+        "ref": "Practice requirement — primary source not confirmed"
+      },
+      {
+        "step": 5,
+        "action": "Distribute likvidační zůstatek to shareholders with srážková daň withholding",
+        "tax_rate": "15% on gross share minus nabývací cena podílu (if proven)",
+        "ref": "ZDP § 36 odst. 2 písm. f)"
+      },
+      {
+        "step": 6,
+        "action": "File OR výmaz petition within 30 days",
+        "deadline": "30 days from konec likvidace",
+        "ref": "NOZ § 207 odst. 2",
+        "quote": "Likvidátor podá do třiceti dnů od skončení likvidace návrh na výmaz právnické osoby z veřejného rejstříku."
+      },
+      {
+        "step": 7,
+        "action": "Preserve all records for 10 years from zánik",
+        "ref": "NOZ § 205 odst. 4"
+      }
+    ]
+  },
+
+  "likvidacni-zustatek-tax": {
+    "type": "reference",
+    "label": "Srážková daň on likvidační zůstatek distribution",
+    "rate": "15%",
+    "tax_base": "Gross distribution share MINUS nabývací cena podílu (acquisition cost, if proven to payer)",
+    "statutory_ref": "ZDP § 36 odst. 2 písm. f)",
+    "quote": "z podílu na likvidačním zůstatku... sníženého o nabývací cenu podílu na obchodní korporaci, je-li plátci poplatníkem prokázána",
+    "payer": "Company (plátce) withholds, remits, and files withholding return",
+    "psd_note": "EU PSD interaction for PO shareholders NOT confirmed — see Q-LIK06"
+  }
+}

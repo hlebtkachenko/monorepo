@@ -1778,7 +1778,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Identity",
           "route": "settings/identity",
           "icon": "IdCard",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -1788,7 +1788,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Periods & fiscal year",
           "route": "settings/periods",
           "icon": "CalendarClock",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -1798,7 +1798,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "VAT status",
           "route": "settings/vat-status",
           "icon": "ReceiptEuro",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -2025,7 +2025,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Data box",
           "route": "settings/data-box",
           "icon": "Mail",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []

@@ -50,6 +50,22 @@ export type { OrganizationScopedTable } from "./policies/rls"
 // Audit module
 export * from "./audit/index"
 
+// Marshrutizátor core (ADR-0028): per-(org, period) write serialization +
+// admission caps. `lockPeriodInTx` is wired into the accounting write gate + the
+// approve-replay lanes; `withPeriodLock` (own-tx form) + `closePeriod` locking
+// stay reusable for a future period-close endpoint.
+export { withPeriodLock, lockPeriodInTx, hashInt } from "./period-lock"
+export {
+  AdmissionController,
+  AdmissionRejected,
+  isBrainRuntimeActive,
+} from "./admission"
+export type {
+  AdmissionCaps,
+  AdmissionSlot,
+  AdmissionRejectReason,
+} from "./admission"
+
 // Drizzle helpers for consumers
 export { sql, eq, and, or, inArray, ne, isNull } from "drizzle-orm"
 

@@ -703,6 +703,16 @@ export class AppStack extends Stack {
         // Telegram dev-bot ingest (api 5xx capture + feedback ping + the
         // in-container pg-boss worker dead-letter ping). No-ops if unset.
         BOT_INGEST_URL: "https://bot.afframe.com/ingest",
+        // Brain write-lane kill-switch (EPIC-R admission, ADR-0028). Admission
+        // fails CLOSED: every /v1/accounting write 429s until this is truthy.
+        // Defaults OFF ("0") so the agent write path stays SAFELY closed until
+        // Brain launch (the web UI writes via Server Actions, not this API, so
+        // nothing user-facing is affected). The operator enables it per-env with
+        // NO code change: `cdk deploy -c brainRuntimeActive=1`. See GH #468.
+        BRAIN_RUNTIME_ACTIVE:
+          (this.node.tryGetContext("brainRuntimeActive") as
+            | string
+            | undefined) ?? "0",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),

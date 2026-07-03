@@ -25,6 +25,7 @@ export function answerPayload(ap: ApprovalRecord): {
   decision: string | null
   text: string | null
   asker: string | null
+  run_id: string | null
 } {
   return {
     id: ap.id,
@@ -32,6 +33,8 @@ export function answerPayload(ap: ApprovalRecord): {
     decision: ap.decision,
     text: ap.answerText,
     asker: ap.asker,
+    // Correlate the answer back to its originating agent run (the callbackUrl consumer reads this).
+    run_id: ap.runId,
   }
 }
 
@@ -76,11 +79,15 @@ export async function deliverAnswer(
 
   if (ap.resumeWorkflow && deps.dispatch) {
     try {
-      workflow = await deps.dispatch(ap.resumeWorkflow, "main", {
-        ask_id: payload.id,
-        decision: payload.decision ?? "",
-        text: payload.text ?? "",
-      })
+      workflow = await deps.dispatch(
+        ap.resumeWorkflow,
+        ap.resumeRef ?? "main",
+        {
+          ask_id: payload.id,
+          decision: payload.decision ?? "",
+          text: payload.text ?? "",
+        },
+      )
     } catch {
       workflow = false
     }

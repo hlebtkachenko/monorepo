@@ -12,6 +12,7 @@ export * from "./feature_flag"
 export * from "./impersonation"
 export * from "./organization"
 export * from "./organization_membership"
+export * from "./organization_provisioning"
 export * from "./permission_rule"
 export * from "./permission_template"
 export * from "./permissions_outbox"
@@ -40,6 +41,11 @@ export * from "./organization_business_activity"
 export * from "./accounting_period"
 export * from "./vat_status"
 export * from "./counterparty"
+
+// org config satellites (0042_org_config)
+export * from "./organization_authorized_person"
+export * from "./organization_tax_representative"
+export * from "./organization_oss_registration"
 
 // v2 accounting — capture core (0027)
 export * from "./number_series"

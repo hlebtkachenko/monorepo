@@ -30,6 +30,8 @@ export interface CompanyRow {
   fiscalYear: string
   /** Real: active organization members (avatars on the card). */
   members: CompanyMember[]
+  /** Real: organization.archived_at is set (drives the archive/unarchive row action). */
+  archived: boolean
   /** MOCK. */
   vatRegime: CompanyVatRegime
   /** MOCK. */

@@ -1,6 +1,6 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, isNull, isNotNull } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
 import {
@@ -41,13 +41,19 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function CompaniesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; archived?: string }>
 }) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect("/auth/login")
 
   const ctx = await getWorkspaceContext(session.user.id)
   if (!ctx.activeWorkspaceId) return null
+
+  const { error, archived } = await searchParams
+  // The list defaults to active books (`archived_at IS NULL`); `?archived=1`
+  // shows the archived ones. This is REAL isolation on `organization.archived_at`
+  // and is orthogonal to the mock status tabs (which filter `enrichCompanyMock`).
+  const showArchived = archived === "1"
 
   const activeWorkspaceId = ctx.activeWorkspaceId
   const companies = await withAdminBypass(async (db) => {
@@ -61,7 +67,14 @@ export default async function CompaniesPage({
         fiscalYearStartMonth: organization.fiscal_year_start_month,
       })
       .from(organization)
-      .where(eq(organization.workspace_id, activeWorkspaceId))
+      .where(
+        and(
+          eq(organization.workspace_id, activeWorkspaceId),
+          showArchived
+            ? isNotNull(organization.archived_at)
+            : isNull(organization.archived_at),
+        ),
+      )
       .orderBy(organization.legal_name)
 
     if (orgs.length === 0) return []
@@ -105,16 +118,20 @@ export default async function CompaniesPage({
       typeLabel: o.legalSubjectKind || o.personKind,
       fiscalYear: fiscalYearLabel(o.fiscalYearStartMonth),
       members: membersByCompany.get(o.id) ?? [],
+      archived: showArchived,
       ...enrichCompanyMock(o.id),
     }))
   })
 
-  const { error } = await searchParams
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined
 
   return (
     <CompaniesProvider>
-      <CompaniesView companies={companies} errorMessage={errorMessage} />
+      <CompaniesView
+        companies={companies}
+        errorMessage={errorMessage}
+        showArchived={showArchived}
+      />
     </CompaniesProvider>
   )
 }

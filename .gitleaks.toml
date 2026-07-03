@@ -228,9 +228,6 @@ regexes = [
   # form placeholder across the org-tier "new entity" pages). Not a real
   # account.
   '''CZ65[ ]?0800[ ]?0000[ ]?1920[ ]?0014[ ]?5399''',
-  # Fixture DIČ of the mock company "Kávová Zásoba s.r.o." used by the
-  # doklad demo data (apps/web/app/_components/doklad/data.ts).
-  '''CZ27604321''',
 ]
 
 stopwords = []

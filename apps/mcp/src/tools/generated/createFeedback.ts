@@ -31,7 +31,8 @@ export function registerCreateFeedback(
     async (args): Promise<CallToolResult> => {
       try {
         const body = args as unknown as components["schemas"]["CreateFeedbackRequest"]
-        const { data, error, response } = await client.POST("/v1/feedback", { body })
+        const init = { body }
+        const { data, error, response } = await client.POST("/v1/feedback", init)
         if (error) throw error
         if (!response.ok) {
           throw new Error(`Upstream HTTP ${response.status}`)

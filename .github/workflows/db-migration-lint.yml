@@ -70,9 +70,17 @@ jobs:
         #   CONCURRENTLY cannot run inside one. 0023 documents the trade-off
         #   inline (tables are tiny pre-v1; revisit before tool_call_log /
         #   auth_token grow — same revisit marker as require-timeout-settings).
+        # - ban-char-field: the accounting schema uses fixed-length codes where
+        #   char(N) is correct, not a mistake — char(3) is ISO-4217 currency +
+        #   3-digit directive codes, char(2) a generated group code. varchar
+        #   would add zero safety and edit reviewed migrations + the snapshot.
+        # - adding-field-with-default: fires on GENERATED-column additions in the
+        #   accounting migrations (projection columns). The warning is about
+        #   ACCESS EXCLUSIVE rewrite locks — moot pre-v1 on tiny tables inside the
+        #   runner's per-file transaction (revisit before those tables grow).
         run: |
           set -euo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
           squawk \
-            --exclude prefer-text-field,disallowed-unique-constraint,require-timeout-settings,ban-drop-column,ban-drop-table,ban-drop-not-null,prefer-bigint-over-int,prefer-bigint-over-smallint,constraint-missing-not-valid,adding-foreign-key-constraint,require-concurrent-index-creation,require-concurrent-index-deletion \
+            --exclude prefer-text-field,disallowed-unique-constraint,require-timeout-settings,ban-drop-column,ban-drop-table,ban-drop-not-null,prefer-bigint-over-int,prefer-bigint-over-smallint,constraint-missing-not-valid,adding-foreign-key-constraint,require-concurrent-index-creation,require-concurrent-index-deletion,ban-char-field,adding-field-with-default \
             packages/db/migrations/*.sql

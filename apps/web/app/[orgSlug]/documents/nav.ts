@@ -9,7 +9,7 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  */
 export function documentsNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "FolderBookmark", tba: true },
+    { label: "Overview", href: base, icon: "FolderBookmark" },
     { label: "Inbox", href: `${base}/inbox`, icon: "Inbox", tba: true },
     {
       label: "Invoices & vouchers",
@@ -23,7 +23,6 @@ export function documentsNav(base: string): SidebarNavEntry[] {
             {
               label: "Received",
               href: `${base}/invoices/received`,
-              tba: true,
             },
             { label: "Issued", href: `${base}/invoices/issued`, tba: true },
           ],

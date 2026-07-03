@@ -6,6 +6,18 @@
 extends: ["spectral:oas"]
 
 rules:
+  # Disable the upstream `duplicated-entry-in-enum` oas rule: it CRASHES (does
+  # not lint) on our valid OpenAPI 3.1 spec. Its JSONPath
+  #   $..[?(@property !== 'properties' && @ && @.enum)]
+  # is mis-compiled by the pinned nimma@0.2.3 (spectral-core's JSONPath engine)
+  # during recursive descent — the `@ &&` null-guard is dropped, so it evaluates
+  # `.enum` on any `null` node and throws "Cannot read properties of null
+  # (reading 'enum')". Our machine-generated spec (zod-to-openapi) legitimately
+  # emits `null` enum members and `example: null` for `.nullable()` fields, all
+  # valid 3.1. zod-to-openapi cannot emit duplicate enum entries, so the rule
+  # adds no value here. Remove once Spectral ships a nimma with the fix.
+  duplicated-entry-in-enum: off
+
   # House rule: every operation needs a stable operationId — public-API client
   # codegen keys off it. nestjs-zod / @nestjs/swagger generate one per route.
   afframe-operation-operationId:

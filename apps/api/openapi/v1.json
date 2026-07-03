@@ -1475,6 +1475,3128 @@
           "demoRoute"
         ],
         "description": "One content-panel layout archetype."
+      },
+      "JournalResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The period these lines belong to.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "postingId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Posting the line belongs to.",
+                  "example": "9c1e7a02-4b6d-4f18-9a3e-7d2c5b8f1e40"
+                },
+                "postingDate": {
+                  "type": "string",
+                  "description": "Posting date (ISO `YYYY-MM-DD`).",
+                  "example": "2025-03-14"
+                },
+                "isOpening": {
+                  "type": "boolean",
+                  "description": "True for 701 opening-balance postings carried into the period.",
+                  "example": false
+                },
+                "summaryDesignation": {
+                  "type": "string",
+                  "description": "Human designation of the summary record (doklad label).",
+                  "example": "FP2025/0042"
+                },
+                "summaryType": {
+                  "type": "string",
+                  "description": "Summary-record type (document class).",
+                  "example": "INVOICE_RECEIVED"
+                },
+                "accountingEventId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Originating accounting event.",
+                  "example": "1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+                },
+                "eventDescription": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Description of the originating accounting event (case).",
+                  "example": "Účtenka MOL — nafta služební vůz"
+                },
+                "counterpartyName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Counterparty (their side) of the originating event.",
+                  "example": "MOL Česká republika, s.r.o."
+                },
+                "lineId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Double-entry line id.",
+                  "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+                },
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Account the line posts to.",
+                  "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Syntetický/analytický account number (účtový rozvrh).",
+                  "example": "311000"
+                },
+                "accountName": {
+                  "type": "string",
+                  "description": "Account name from the účtový rozvrh.",
+                  "example": "Odběratelé"
+                },
+                "side": {
+                  "type": "string",
+                  "enum": [
+                    "DEBIT",
+                    "CREDIT"
+                  ],
+                  "description": "Side of the double entry — MD (DEBIT) or Dal (CREDIT).",
+                  "example": "DEBIT"
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Signed line amount as a decimal string in the accounting currency (CZK by default). Never a JS number.",
+                  "example": "12100.00"
+                }
+              },
+              "required": [
+                "postingId",
+                "postingDate",
+                "isOpening",
+                "summaryDesignation",
+                "summaryType",
+                "accountingEventId",
+                "eventDescription",
+                "counterpartyName",
+                "lineId",
+                "accountId",
+                "accountNumber",
+                "accountName",
+                "side",
+                "amount"
+              ],
+              "description": "One deník line — a single side of a double-entry posting."
+            },
+            "description": "Journal lines in chronological book order (§13)."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rows"
+        ],
+        "description": "Deník (chronological journal) for a period — the double-entry lines including 701 opening postings, in book order."
+      },
+      "JournalRow": {
+        "type": "object",
+        "properties": {
+          "postingId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Posting the line belongs to.",
+            "example": "9c1e7a02-4b6d-4f18-9a3e-7d2c5b8f1e40"
+          },
+          "postingDate": {
+            "type": "string",
+            "description": "Posting date (ISO `YYYY-MM-DD`).",
+            "example": "2025-03-14"
+          },
+          "isOpening": {
+            "type": "boolean",
+            "description": "True for 701 opening-balance postings carried into the period.",
+            "example": false
+          },
+          "summaryDesignation": {
+            "type": "string",
+            "description": "Human designation of the summary record (doklad label).",
+            "example": "FP2025/0042"
+          },
+          "summaryType": {
+            "type": "string",
+            "description": "Summary-record type (document class).",
+            "example": "INVOICE_RECEIVED"
+          },
+          "accountingEventId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Originating accounting event.",
+            "example": "1b2a3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+          },
+          "eventDescription": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Description of the originating accounting event (case).",
+            "example": "Účtenka MOL — nafta služební vůz"
+          },
+          "counterpartyName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Counterparty (their side) of the originating event.",
+            "example": "MOL Česká republika, s.r.o."
+          },
+          "lineId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Double-entry line id.",
+            "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Account the line posts to.",
+            "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Syntetický/analytický account number (účtový rozvrh).",
+            "example": "311000"
+          },
+          "accountName": {
+            "type": "string",
+            "description": "Account name from the účtový rozvrh.",
+            "example": "Odběratelé"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "description": "Side of the double entry — MD (DEBIT) or Dal (CREDIT).",
+            "example": "DEBIT"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Signed line amount as a decimal string in the accounting currency (CZK by default). Never a JS number.",
+            "example": "12100.00"
+          }
+        },
+        "required": [
+          "postingId",
+          "postingDate",
+          "isOpening",
+          "summaryDesignation",
+          "summaryType",
+          "accountingEventId",
+          "eventDescription",
+          "counterpartyName",
+          "lineId",
+          "accountId",
+          "accountNumber",
+          "accountName",
+          "side",
+          "amount"
+        ],
+        "description": "One deník line — a single side of a double-entry posting."
+      },
+      "LedgerResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The period these balances belong to.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Account id.",
+                  "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Account number (účtový rozvrh).",
+                  "example": "311000"
+                },
+                "accountName": {
+                  "type": "string",
+                  "description": "Account name.",
+                  "example": "Odběratelé — tuzemsko"
+                },
+                "nature": {
+                  "type": "string",
+                  "description": "Account nature (ASSET / LIABILITY / EQUITY / EXPENSE / REVENUE / CLOSING).",
+                  "example": "ASSET"
+                },
+                "normalBalance": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "DEBIT",
+                    "CREDIT",
+                    null
+                  ],
+                  "description": "Normal balance side, or null for accounts without one.",
+                  "example": "DEBIT"
+                },
+                "openingBalance": {
+                  "type": "string",
+                  "description": "Počáteční stav as a decimal string.",
+                  "example": "0.00"
+                },
+                "turnoverDebit": {
+                  "type": "string",
+                  "description": "Obrat MD (debit turnover) as a decimal string.",
+                  "example": "121000.00"
+                },
+                "turnoverCredit": {
+                  "type": "string",
+                  "description": "Obrat Dal (credit turnover) as a decimal string.",
+                  "example": "121000.00"
+                },
+                "closingBalance": {
+                  "type": "string",
+                  "description": "Konečný stav as a decimal string.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "accountId",
+                "accountNumber",
+                "accountName",
+                "nature",
+                "normalBalance",
+                "openingBalance",
+                "turnoverDebit",
+                "turnoverCredit",
+                "closingBalance"
+              ],
+              "description": "Per-account balance row from the read-model — počáteční stav, obraty MD/Dal, konečný stav."
+            },
+            "description": "Per-account balances, ordered by account number."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "accounts"
+        ],
+        "description": "Hlavní kniha / obratová předvaha — per-account opening | turnover | closing straight from the read-model."
+      },
+      "LedgerAccountRow": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Account id.",
+            "example": "bb22cc33-dd44-4e55-9f66-001122334455"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Account number (účtový rozvrh).",
+            "example": "311000"
+          },
+          "accountName": {
+            "type": "string",
+            "description": "Account name.",
+            "example": "Odběratelé — tuzemsko"
+          },
+          "nature": {
+            "type": "string",
+            "description": "Account nature (ASSET / LIABILITY / EQUITY / EXPENSE / REVENUE / CLOSING).",
+            "example": "ASSET"
+          },
+          "normalBalance": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "DEBIT",
+              "CREDIT",
+              null
+            ],
+            "description": "Normal balance side, or null for accounts without one.",
+            "example": "DEBIT"
+          },
+          "openingBalance": {
+            "type": "string",
+            "description": "Počáteční stav as a decimal string.",
+            "example": "0.00"
+          },
+          "turnoverDebit": {
+            "type": "string",
+            "description": "Obrat MD (debit turnover) as a decimal string.",
+            "example": "121000.00"
+          },
+          "turnoverCredit": {
+            "type": "string",
+            "description": "Obrat Dal (credit turnover) as a decimal string.",
+            "example": "121000.00"
+          },
+          "closingBalance": {
+            "type": "string",
+            "description": "Konečný stav as a decimal string.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "accountId",
+          "accountNumber",
+          "accountName",
+          "nature",
+          "normalBalance",
+          "openingBalance",
+          "turnoverDebit",
+          "turnoverCredit",
+          "closingBalance"
+        ],
+        "description": "Per-account balance row from the read-model — počáteční stav, obraty MD/Dal, konečný stav."
+      },
+      "OpenItemsResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Open-item id.",
+                  "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+                },
+                "counterpartyId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Counterparty (partner) id.",
+                  "example": "cc33dd44-ee55-4f66-9077-112233445566"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Receivable/payable account number.",
+                  "example": "311000"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "RECEIVABLE",
+                    "PAYABLE"
+                  ],
+                  "description": "Receivable or payable.",
+                  "example": "RECEIVABLE"
+                },
+                "variableSymbol": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Variabilní symbol, or null.",
+                  "example": "20250042"
+                },
+                "originalAmount": {
+                  "type": "string",
+                  "description": "Original amount (decimal string).",
+                  "example": "121000.00"
+                },
+                "settledAmount": {
+                  "type": "string",
+                  "description": "Settled amount so far (decimal string).",
+                  "example": "0.00"
+                },
+                "remainingAmount": {
+                  "type": "string",
+                  "description": "Remaining unsettled amount (decimal string).",
+                  "example": "121000.00"
+                },
+                "isSettled": {
+                  "type": "boolean",
+                  "description": "True once fully settled.",
+                  "example": false
+                },
+                "currencyCode": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code.",
+                  "example": "CZK"
+                },
+                "issueDate": {
+                  "type": "string",
+                  "description": "Issue date (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "dueDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Due date (YYYY-MM-DD), or null.",
+                  "example": "2025-04-13"
+                }
+              },
+              "required": [
+                "id",
+                "counterpartyId",
+                "accountNumber",
+                "direction",
+                "variableSymbol",
+                "originalAmount",
+                "settledAmount",
+                "remainingAmount",
+                "isSettled",
+                "currencyCode",
+                "issueDate",
+                "dueDate"
+              ],
+              "description": "An unsettled receivable or payable (open item)."
+            },
+            "description": "Open items matching the filters."
+          }
+        },
+        "required": [
+          "organizationId",
+          "items"
+        ],
+        "description": "Open items (saldokonto) — unsettled receivables/payables."
+      },
+      "OpenItemRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Open-item id.",
+            "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+          },
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Counterparty (partner) id.",
+            "example": "cc33dd44-ee55-4f66-9077-112233445566"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Receivable/payable account number.",
+            "example": "311000"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "RECEIVABLE",
+              "PAYABLE"
+            ],
+            "description": "Receivable or payable.",
+            "example": "RECEIVABLE"
+          },
+          "variableSymbol": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Variabilní symbol, or null.",
+            "example": "20250042"
+          },
+          "originalAmount": {
+            "type": "string",
+            "description": "Original amount (decimal string).",
+            "example": "121000.00"
+          },
+          "settledAmount": {
+            "type": "string",
+            "description": "Settled amount so far (decimal string).",
+            "example": "0.00"
+          },
+          "remainingAmount": {
+            "type": "string",
+            "description": "Remaining unsettled amount (decimal string).",
+            "example": "121000.00"
+          },
+          "isSettled": {
+            "type": "boolean",
+            "description": "True once fully settled.",
+            "example": false
+          },
+          "currencyCode": {
+            "type": "string",
+            "description": "ISO 4217 currency code.",
+            "example": "CZK"
+          },
+          "issueDate": {
+            "type": "string",
+            "description": "Issue date (YYYY-MM-DD).",
+            "example": "2025-03-14"
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Due date (YYYY-MM-DD), or null.",
+            "example": "2025-04-13"
+          }
+        },
+        "required": [
+          "id",
+          "counterpartyId",
+          "accountNumber",
+          "direction",
+          "variableSymbol",
+          "originalAmount",
+          "settledAmount",
+          "remainingAmount",
+          "isSettled",
+          "currencyCode",
+          "issueDate",
+          "dueDate"
+        ],
+        "description": "An unsettled receivable or payable (open item)."
+      },
+      "SaldokontoResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "partners": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "counterpartyId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Counterparty (partner) id.",
+                  "example": "cc33dd44-ee55-4f66-9077-112233445566"
+                },
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Receivable/payable account number.",
+                  "example": "311000"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "RECEIVABLE",
+                    "PAYABLE"
+                  ],
+                  "description": "Receivable or payable.",
+                  "example": "RECEIVABLE"
+                },
+                "openTotal": {
+                  "type": "string",
+                  "description": "Total open (unsettled) amount for the partner (decimal string).",
+                  "example": "121000.00"
+                }
+              },
+              "required": [
+                "counterpartyId",
+                "accountNumber",
+                "direction",
+                "openTotal"
+              ],
+              "description": "Per-partner open balance."
+            },
+            "description": "Per-partner open balances."
+          }
+        },
+        "required": [
+          "organizationId",
+          "partners"
+        ],
+        "description": "Saldokonto — per-partner open receivable/payable balances."
+      },
+      "SaldoPerPartnerRow": {
+        "type": "object",
+        "properties": {
+          "counterpartyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Counterparty (partner) id.",
+            "example": "cc33dd44-ee55-4f66-9077-112233445566"
+          },
+          "accountNumber": {
+            "type": "string",
+            "description": "Receivable/payable account number.",
+            "example": "311000"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "RECEIVABLE",
+              "PAYABLE"
+            ],
+            "description": "Receivable or payable.",
+            "example": "RECEIVABLE"
+          },
+          "openTotal": {
+            "type": "string",
+            "description": "Total open (unsettled) amount for the partner (decimal string).",
+            "example": "121000.00"
+          }
+        },
+        "required": [
+          "counterpartyId",
+          "accountNumber",
+          "direction",
+          "openTotal"
+        ],
+        "description": "Per-partner open balance."
+      },
+      "DphResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The period this return covers.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rows": {
+            "type": "object",
+            "properties": {
+              "r1_base": {
+                "type": "string",
+                "description": "ř.1 základ — dodání zboží/služeb 21 % (§13/§14).",
+                "example": "0.00"
+              },
+              "r1_dan": {
+                "type": "string",
+                "description": "ř.1 daň — 21 %.",
+                "example": "0.00"
+              },
+              "r2_base": {
+                "type": "string",
+                "description": "ř.2 základ — dodání 12 % (§13/§14, §47).",
+                "example": "0.00"
+              },
+              "r2_dan": {
+                "type": "string",
+                "description": "ř.2 daň — 12 %.",
+                "example": "0.00"
+              },
+              "r3_base": {
+                "type": "string",
+                "description": "ř.3 základ — pořízení zboží z EU, samovyměření 21 % (§16).",
+                "example": "0.00"
+              },
+              "r3_dan": {
+                "type": "string",
+                "description": "ř.3 daň.",
+                "example": "0.00"
+              },
+              "r4_base": {
+                "type": "string",
+                "description": "ř.4 základ — pořízení zboží z EU, samovyměření 12 %.",
+                "example": "0.00"
+              },
+              "r4_dan": {
+                "type": "string",
+                "description": "ř.4 daň.",
+                "example": "0.00"
+              },
+              "r10_base": {
+                "type": "string",
+                "description": "ř.10 základ — PDP odběratel 21 % (§92e).",
+                "example": "0.00"
+              },
+              "r10_dan": {
+                "type": "string",
+                "description": "ř.10 daň.",
+                "example": "0.00"
+              },
+              "r11_base": {
+                "type": "string",
+                "description": "ř.11 základ — PDP odběratel 12 %.",
+                "example": "0.00"
+              },
+              "r11_dan": {
+                "type": "string",
+                "description": "ř.11 daň.",
+                "example": "0.00"
+              },
+              "r25_base": {
+                "type": "string",
+                "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
+                "example": "0.00"
+              },
+              "r40_base": {
+                "type": "string",
+                "description": "ř.40 základ — odpočet na vstupu 21 % (§72-73).",
+                "example": "0.00"
+              },
+              "r40_dan": {
+                "type": "string",
+                "description": "ř.40 daň.",
+                "example": "0.00"
+              },
+              "r41_base": {
+                "type": "string",
+                "description": "ř.41 základ — odpočet na vstupu 12 %.",
+                "example": "0.00"
+              },
+              "r41_dan": {
+                "type": "string",
+                "description": "ř.41 daň.",
+                "example": "0.00"
+              },
+              "r43_base": {
+                "type": "string",
+                "description": "ř.43 základ — odpočet u samovyměření 21 % (§73/4).",
+                "example": "0.00"
+              },
+              "r43_dan": {
+                "type": "string",
+                "description": "ř.43 daň.",
+                "example": "0.00"
+              },
+              "r44_base": {
+                "type": "string",
+                "description": "ř.44 základ — odpočet u samovyměření 12 %.",
+                "example": "0.00"
+              },
+              "r44_dan": {
+                "type": "string",
+                "description": "ř.44 daň.",
+                "example": "0.00"
+              },
+              "r50_base": {
+                "type": "string",
+                "description": "ř.50 — osvobozená plnění (§51 a násl.).",
+                "example": "0.00"
+              },
+              "dan_na_vystupu": {
+                "type": "string",
+                "description": "Daň na výstupu celkem.",
+                "example": "0.00"
+              },
+              "odpocet": {
+                "type": "string",
+                "description": "Odpočet celkem.",
+                "example": "0.00"
+              },
+              "vlastni_dan": {
+                "type": "string",
+                "description": "Vlastní daň (+) / nadměrný odpočet (−).",
+                "example": "0.00"
+              }
+            },
+            "required": [
+              "r1_base",
+              "r1_dan",
+              "r2_base",
+              "r2_dan",
+              "r3_base",
+              "r3_dan",
+              "r4_base",
+              "r4_dan",
+              "r10_base",
+              "r10_dan",
+              "r11_base",
+              "r11_dan",
+              "r25_base",
+              "r40_base",
+              "r40_dan",
+              "r41_base",
+              "r41_dan",
+              "r43_base",
+              "r43_dan",
+              "r44_base",
+              "r44_dan",
+              "r50_base",
+              "dan_na_vystupu",
+              "odpocet",
+              "vlastni_dan"
+            ],
+            "description": "DPH přiznání line values."
+          },
+          "kh": {
+            "type": "object",
+            "properties": {
+              "a1_base": {
+                "type": "string",
+                "description": "A.1 základ — PDP dodavatel (ISSUED, REVERSE_CHARGE).",
+                "example": "0.00"
+              },
+              "a1_dan": {
+                "type": "string",
+                "description": "A.1 daň.",
+                "example": "0.00"
+              },
+              "a4_base": {
+                "type": "string",
+                "description": "A.4/A.5 základ — tuzemská výstupní plnění (ISSUED, STANDARD).",
+                "example": "0.00"
+              },
+              "a4_dan": {
+                "type": "string",
+                "description": "A.4/A.5 daň.",
+                "example": "0.00"
+              },
+              "b1_base": {
+                "type": "string",
+                "description": "B.1 základ — PDP odběratel samovyměření (RECEIVED, REVERSE_CHARGE).",
+                "example": "0.00"
+              },
+              "b1_dan": {
+                "type": "string",
+                "description": "B.1 daň.",
+                "example": "0.00"
+              },
+              "b2_base": {
+                "type": "string",
+                "description": "B.2/B.3 základ — tuzemská vstupní plnění (RECEIVED, STANDARD).",
+                "example": "0.00"
+              },
+              "b2_dan": {
+                "type": "string",
+                "description": "B.2/B.3 daň.",
+                "example": "0.00"
+              }
+            },
+            "required": [
+              "a1_base",
+              "a1_dan",
+              "a4_base",
+              "a4_dan",
+              "b1_base",
+              "b1_dan",
+              "b2_base",
+              "b2_dan"
+            ],
+            "description": "Kontrolní hlášení section totals."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rows",
+          "kh"
+        ],
+        "description": "DPH přiznání (VAT return) for the period — line values plus kontrolní hlášení section totals, computed from the posted facts."
+      },
+      "DphRows": {
+        "type": "object",
+        "properties": {
+          "r1_base": {
+            "type": "string",
+            "description": "ř.1 základ — dodání zboží/služeb 21 % (§13/§14).",
+            "example": "0.00"
+          },
+          "r1_dan": {
+            "type": "string",
+            "description": "ř.1 daň — 21 %.",
+            "example": "0.00"
+          },
+          "r2_base": {
+            "type": "string",
+            "description": "ř.2 základ — dodání 12 % (§13/§14, §47).",
+            "example": "0.00"
+          },
+          "r2_dan": {
+            "type": "string",
+            "description": "ř.2 daň — 12 %.",
+            "example": "0.00"
+          },
+          "r3_base": {
+            "type": "string",
+            "description": "ř.3 základ — pořízení zboží z EU, samovyměření 21 % (§16).",
+            "example": "0.00"
+          },
+          "r3_dan": {
+            "type": "string",
+            "description": "ř.3 daň.",
+            "example": "0.00"
+          },
+          "r4_base": {
+            "type": "string",
+            "description": "ř.4 základ — pořízení zboží z EU, samovyměření 12 %.",
+            "example": "0.00"
+          },
+          "r4_dan": {
+            "type": "string",
+            "description": "ř.4 daň.",
+            "example": "0.00"
+          },
+          "r10_base": {
+            "type": "string",
+            "description": "ř.10 základ — PDP odběratel 21 % (§92e).",
+            "example": "0.00"
+          },
+          "r10_dan": {
+            "type": "string",
+            "description": "ř.10 daň.",
+            "example": "0.00"
+          },
+          "r11_base": {
+            "type": "string",
+            "description": "ř.11 základ — PDP odběratel 12 %.",
+            "example": "0.00"
+          },
+          "r11_dan": {
+            "type": "string",
+            "description": "ř.11 daň.",
+            "example": "0.00"
+          },
+          "r25_base": {
+            "type": "string",
+            "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
+            "example": "0.00"
+          },
+          "r40_base": {
+            "type": "string",
+            "description": "ř.40 základ — odpočet na vstupu 21 % (§72-73).",
+            "example": "0.00"
+          },
+          "r40_dan": {
+            "type": "string",
+            "description": "ř.40 daň.",
+            "example": "0.00"
+          },
+          "r41_base": {
+            "type": "string",
+            "description": "ř.41 základ — odpočet na vstupu 12 %.",
+            "example": "0.00"
+          },
+          "r41_dan": {
+            "type": "string",
+            "description": "ř.41 daň.",
+            "example": "0.00"
+          },
+          "r43_base": {
+            "type": "string",
+            "description": "ř.43 základ — odpočet u samovyměření 21 % (§73/4).",
+            "example": "0.00"
+          },
+          "r43_dan": {
+            "type": "string",
+            "description": "ř.43 daň.",
+            "example": "0.00"
+          },
+          "r44_base": {
+            "type": "string",
+            "description": "ř.44 základ — odpočet u samovyměření 12 %.",
+            "example": "0.00"
+          },
+          "r44_dan": {
+            "type": "string",
+            "description": "ř.44 daň.",
+            "example": "0.00"
+          },
+          "r50_base": {
+            "type": "string",
+            "description": "ř.50 — osvobozená plnění (§51 a násl.).",
+            "example": "0.00"
+          },
+          "dan_na_vystupu": {
+            "type": "string",
+            "description": "Daň na výstupu celkem.",
+            "example": "0.00"
+          },
+          "odpocet": {
+            "type": "string",
+            "description": "Odpočet celkem.",
+            "example": "0.00"
+          },
+          "vlastni_dan": {
+            "type": "string",
+            "description": "Vlastní daň (+) / nadměrný odpočet (−).",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "r1_base",
+          "r1_dan",
+          "r2_base",
+          "r2_dan",
+          "r3_base",
+          "r3_dan",
+          "r4_base",
+          "r4_dan",
+          "r10_base",
+          "r10_dan",
+          "r11_base",
+          "r11_dan",
+          "r25_base",
+          "r40_base",
+          "r40_dan",
+          "r41_base",
+          "r41_dan",
+          "r43_base",
+          "r43_dan",
+          "r44_base",
+          "r44_dan",
+          "r50_base",
+          "dan_na_vystupu",
+          "odpocet",
+          "vlastni_dan"
+        ],
+        "description": "DPH přiznání line values."
+      },
+      "KontrolniHlaseniTotals": {
+        "type": "object",
+        "properties": {
+          "a1_base": {
+            "type": "string",
+            "description": "A.1 základ — PDP dodavatel (ISSUED, REVERSE_CHARGE).",
+            "example": "0.00"
+          },
+          "a1_dan": {
+            "type": "string",
+            "description": "A.1 daň.",
+            "example": "0.00"
+          },
+          "a4_base": {
+            "type": "string",
+            "description": "A.4/A.5 základ — tuzemská výstupní plnění (ISSUED, STANDARD).",
+            "example": "0.00"
+          },
+          "a4_dan": {
+            "type": "string",
+            "description": "A.4/A.5 daň.",
+            "example": "0.00"
+          },
+          "b1_base": {
+            "type": "string",
+            "description": "B.1 základ — PDP odběratel samovyměření (RECEIVED, REVERSE_CHARGE).",
+            "example": "0.00"
+          },
+          "b1_dan": {
+            "type": "string",
+            "description": "B.1 daň.",
+            "example": "0.00"
+          },
+          "b2_base": {
+            "type": "string",
+            "description": "B.2/B.3 základ — tuzemská vstupní plnění (RECEIVED, STANDARD).",
+            "example": "0.00"
+          },
+          "b2_dan": {
+            "type": "string",
+            "description": "B.2/B.3 daň.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "a1_base",
+          "a1_dan",
+          "a4_base",
+          "a4_dan",
+          "b1_base",
+          "b1_dan",
+          "b2_base",
+          "b2_dan"
+        ],
+        "description": "Kontrolní hlášení section totals."
+      },
+      "DppoResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "ucetniVysledek": {
+            "type": "string",
+            "description": "Účetní výsledek hospodaření.",
+            "example": "0.00"
+          },
+          "nedanoveNaklady": {
+            "type": "string",
+            "description": "Daňově neuznatelné náklady (§25).",
+            "example": "0.00"
+          },
+          "osvobozeneVynosy": {
+            "type": "string",
+            "description": "Osvobozené/nezdaňované výnosy.",
+            "example": "0.00"
+          },
+          "zakladDane": {
+            "type": "string",
+            "description": "Základ daně §23/1 (před §34).",
+            "example": "0.00"
+          },
+          "odpocetZtraty": {
+            "type": "string",
+            "description": "Odpočet daňové ztráty minulých let §34.",
+            "example": "0.00"
+          },
+          "zakladZaokrouhleny": {
+            "type": "string",
+            "description": "Zaokrouhlený základ daně.",
+            "example": "0.00"
+          },
+          "sazba": {
+            "type": "string",
+            "description": "Sazba daně.",
+            "example": "0.00"
+          },
+          "dan": {
+            "type": "string",
+            "description": "Daň.",
+            "example": "0.00"
+          },
+          "slevy": {
+            "type": "string",
+            "description": "Slevy na dani.",
+            "example": "0.00"
+          },
+          "danPoSlevach": {
+            "type": "string",
+            "description": "Daň po slevách.",
+            "example": "0.00"
+          },
+          "zalohy": {
+            "type": "string",
+            "description": "Zaplacené zálohy §38a.",
+            "example": "0.00"
+          },
+          "doplatek": {
+            "type": "string",
+            "description": "Doplatek (+) / přeplatek (−).",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "ucetniVysledek",
+          "nedanoveNaklady",
+          "osvobozeneVynosy",
+          "zakladDane",
+          "odpocetZtraty",
+          "zakladZaokrouhleny",
+          "sazba",
+          "dan",
+          "slevy",
+          "danPoSlevach",
+          "zalohy",
+          "doplatek"
+        ],
+        "description": "DPPO — corporate income tax computation for the period."
+      },
+      "EcSalesListResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "countryCode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Acquirer member state (ISO 3166-1 alpha-2).",
+                  "example": "DE"
+                },
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Acquirer VAT id (DIČ) incl. country prefix.",
+                  "example": "DE123456789"
+                },
+                "kodPlneni": {
+                  "type": "string",
+                  "description": "Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).",
+                  "example": "0"
+                },
+                "count": {
+                  "type": "integer",
+                  "description": "Počet plnění (distinct dokladů).",
+                  "example": 3
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Celková hodnota plnění (CZK, bez daně).",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "countryCode",
+                "taxId",
+                "kodPlneni",
+                "count",
+                "value"
+              ],
+              "description": "One souhrnné hlášení row (per partner + kód plnění)."
+            },
+            "description": "EU supply recap rows (§102)."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rows"
+        ],
+        "description": "Souhrnné hlášení — EU supplies recap for the period."
+      },
+      "EcSalesRow": {
+        "type": "object",
+        "properties": {
+          "countryCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Acquirer member state (ISO 3166-1 alpha-2).",
+            "example": "DE"
+          },
+          "taxId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Acquirer VAT id (DIČ) incl. country prefix.",
+            "example": "DE123456789"
+          },
+          "kodPlneni": {
+            "type": "string",
+            "description": "Kód plnění (0 goods / 1 transfer / 2 triangular / 3 service).",
+            "example": "0"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Počet plnění (distinct dokladů).",
+            "example": 3
+          },
+          "value": {
+            "type": "string",
+            "description": "Celková hodnota plnění (CZK, bez daně).",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "countryCode",
+          "taxId",
+          "kodPlneni",
+          "count",
+          "value"
+        ],
+        "description": "One souhrnné hlášení row (per partner + kód plnění)."
+      },
+      "ControlStatementResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "a1": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "A.1 — PDP dodavatel."
+          },
+          "a2": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "A.2 — EU acquisitions self-assessed."
+          },
+          "a4": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "A.4 — taxable supplies over threshold."
+          },
+          "a5": {
+            "type": "object",
+            "properties": {
+              "base": {
+                "type": "string",
+                "description": "Základ celkem.",
+                "example": "0.00"
+              },
+              "dan": {
+                "type": "string",
+                "description": "Daň celkem.",
+                "example": "0.00"
+              },
+              "count": {
+                "type": "integer",
+                "description": "Počet dokladů folded into the aggregate.",
+                "example": 12
+              }
+            },
+            "required": [
+              "base",
+              "dan",
+              "count"
+            ],
+            "description": "A.5 — taxable supplies under threshold (aggregate)."
+          },
+          "b1": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "B.1 — PDP odběratel self-assessed."
+          },
+          "b2": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taxId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "DIČ of the other party.",
+                  "example": "CZ12345678"
+                },
+                "doklad": {
+                  "type": "string",
+                  "description": "Evidenční číslo daňového dokladu.",
+                  "example": "FV2025/0042"
+                },
+                "dppd": {
+                  "type": "string",
+                  "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+                  "example": "2025-03-14"
+                },
+                "base21": {
+                  "type": "string",
+                  "description": "Základ, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "dan21": {
+                  "type": "string",
+                  "description": "Daň, 21 % bucket.",
+                  "example": "0.00"
+                },
+                "base12": {
+                  "type": "string",
+                  "description": "Základ, 12 % bucket.",
+                  "example": "0.00"
+                },
+                "dan12": {
+                  "type": "string",
+                  "description": "Daň, 12 % bucket.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "taxId",
+                "doklad",
+                "dppd",
+                "base21",
+                "dan21",
+                "base12",
+                "dan12"
+              ],
+              "description": "One kontrolní hlášení detail row (per doklad)."
+            },
+            "description": "B.2 — received supplies over threshold."
+          },
+          "b3": {
+            "type": "object",
+            "properties": {
+              "base": {
+                "type": "string",
+                "description": "Základ celkem.",
+                "example": "0.00"
+              },
+              "dan": {
+                "type": "string",
+                "description": "Daň celkem.",
+                "example": "0.00"
+              },
+              "count": {
+                "type": "integer",
+                "description": "Počet dokladů folded into the aggregate.",
+                "example": 12
+              }
+            },
+            "required": [
+              "base",
+              "dan",
+              "count"
+            ],
+            "description": "B.3 — received supplies under threshold (aggregate)."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "a1",
+          "a2",
+          "a4",
+          "a5",
+          "b1",
+          "b2",
+          "b3"
+        ],
+        "description": "Kontrolní hlášení — per-counterparty control statement (§101c-i)."
+      },
+      "KhRow": {
+        "type": "object",
+        "properties": {
+          "taxId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "DIČ of the other party.",
+            "example": "CZ12345678"
+          },
+          "doklad": {
+            "type": "string",
+            "description": "Evidenční číslo daňového dokladu.",
+            "example": "FV2025/0042"
+          },
+          "dppd": {
+            "type": "string",
+            "description": "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
+            "example": "2025-03-14"
+          },
+          "base21": {
+            "type": "string",
+            "description": "Základ, 21 % bucket.",
+            "example": "0.00"
+          },
+          "dan21": {
+            "type": "string",
+            "description": "Daň, 21 % bucket.",
+            "example": "0.00"
+          },
+          "base12": {
+            "type": "string",
+            "description": "Základ, 12 % bucket.",
+            "example": "0.00"
+          },
+          "dan12": {
+            "type": "string",
+            "description": "Daň, 12 % bucket.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "taxId",
+          "doklad",
+          "dppd",
+          "base21",
+          "dan21",
+          "base12",
+          "dan12"
+        ],
+        "description": "One kontrolní hlášení detail row (per doklad)."
+      },
+      "KhAggregate": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "type": "string",
+            "description": "Základ celkem.",
+            "example": "0.00"
+          },
+          "dan": {
+            "type": "string",
+            "description": "Daň celkem.",
+            "example": "0.00"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Počet dokladů folded into the aggregate.",
+            "example": 12
+          }
+        },
+        "required": [
+          "base",
+          "dan",
+          "count"
+        ],
+        "description": "Aggregated KH section (A.5 / B.3 — below the reporting threshold)."
+      },
+      "FinancialStatementsResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "aktiva": {
+            "type": "string",
+            "description": "Aktiva celkem.",
+            "example": "0.00"
+          },
+          "pasiva": {
+            "type": "string",
+            "description": "Pasiva celkem.",
+            "example": "0.00"
+          },
+          "naklady": {
+            "type": "string",
+            "description": "Náklady celkem.",
+            "example": "0.00"
+          },
+          "vynosy": {
+            "type": "string",
+            "description": "Výnosy celkem.",
+            "example": "0.00"
+          },
+          "vysledek": {
+            "type": "string",
+            "description": "Výsledek hospodaření.",
+            "example": "0.00"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "accountNumber": {
+                  "type": "string",
+                  "description": "Account number.",
+                  "example": "311000"
+                },
+                "nature": {
+                  "type": "string",
+                  "description": "Account nature.",
+                  "example": "ASSET"
+                },
+                "closingBalance": {
+                  "type": "string",
+                  "description": "Konečný stav.",
+                  "example": "0.00"
+                },
+                "balanceSheetLine": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Rozvaha line code, or null.",
+                  "example": "C.II.1"
+                },
+                "incomeStatementLine": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "VZZ line code, or null.",
+                  "example": "A.1"
+                }
+              },
+              "required": [
+                "accountNumber",
+                "nature",
+                "closingBalance",
+                "balanceSheetLine",
+                "incomeStatementLine"
+              ],
+              "description": "One závěrka account line mapped to statement lines."
+            },
+            "description": "Per-account closing balances mapped to statement lines."
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "aktiva",
+          "pasiva",
+          "naklady",
+          "vynosy",
+          "vysledek",
+          "lines"
+        ],
+        "description": "Účetní závěrka — rozvaha + VZZ totals plus per-account lines."
+      },
+      "StatementLineRow": {
+        "type": "object",
+        "properties": {
+          "accountNumber": {
+            "type": "string",
+            "description": "Account number.",
+            "example": "311000"
+          },
+          "nature": {
+            "type": "string",
+            "description": "Account nature.",
+            "example": "ASSET"
+          },
+          "closingBalance": {
+            "type": "string",
+            "description": "Konečný stav.",
+            "example": "0.00"
+          },
+          "balanceSheetLine": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rozvaha line code, or null.",
+            "example": "C.II.1"
+          },
+          "incomeStatementLine": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "VZZ line code, or null.",
+            "example": "A.1"
+          }
+        },
+        "required": [
+          "accountNumber",
+          "nature",
+          "closingBalance",
+          "balanceSheetLine",
+          "incomeStatementLine"
+        ],
+        "description": "One závěrka account line mapped to statement lines."
+      },
+      "StatementLayoutResponse": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opaque organization identifier (UUID)."
+          },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period covered.",
+            "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "rozsah": {
+            "type": "string",
+            "enum": [
+              "FULL",
+              "ABBREVIATED"
+            ],
+            "description": "Rozsah used.",
+            "example": "FULL"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "CZK",
+              "THOUSANDS"
+            ],
+            "description": "Presentation unit used.",
+            "example": "CZK"
+          },
+          "aktiva": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+                  "example": "B.II.1"
+                },
+                "depth": {
+                  "type": "integer",
+                  "description": "Nesting depth (1 = letter, 2 = roman, …).",
+                  "example": 3
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Rolled-up amount in the presentation unit.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "code",
+                "depth",
+                "amount"
+              ],
+              "description": "One formatted statement layout line."
+            },
+            "description": "Rozvaha — aktiva lines."
+          },
+          "aktivaTotal": {
+            "type": "string",
+            "description": "Aktiva celkem.",
+            "example": "0.00"
+          },
+          "pasiva": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+                  "example": "B.II.1"
+                },
+                "depth": {
+                  "type": "integer",
+                  "description": "Nesting depth (1 = letter, 2 = roman, …).",
+                  "example": 3
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Rolled-up amount in the presentation unit.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "code",
+                "depth",
+                "amount"
+              ],
+              "description": "One formatted statement layout line."
+            },
+            "description": "Rozvaha — pasiva lines."
+          },
+          "pasivaTotal": {
+            "type": "string",
+            "description": "Pasiva celkem.",
+            "example": "0.00"
+          },
+          "vzz": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+                  "example": "B.II.1"
+                },
+                "depth": {
+                  "type": "integer",
+                  "description": "Nesting depth (1 = letter, 2 = roman, …).",
+                  "example": 3
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Rolled-up amount in the presentation unit.",
+                  "example": "0.00"
+                }
+              },
+              "required": [
+                "code",
+                "depth",
+                "amount"
+              ],
+              "description": "One formatted statement layout line."
+            },
+            "description": "Výkaz zisku a ztráty lines."
+          },
+          "naklady": {
+            "type": "string",
+            "description": "Náklady celkem.",
+            "example": "0.00"
+          },
+          "vynosy": {
+            "type": "string",
+            "description": "Výnosy celkem.",
+            "example": "0.00"
+          },
+          "vysledek": {
+            "type": "string",
+            "description": "Výsledek hospodaření.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "organizationId",
+          "periodId",
+          "rozsah",
+          "unit",
+          "aktiva",
+          "aktivaTotal",
+          "pasiva",
+          "pasivaTotal",
+          "vzz",
+          "naklady",
+          "vynosy",
+          "vysledek"
+        ],
+        "description": "Formatted rozvaha + VZZ per Decree 500/2002 přílohy."
+      },
+      "LayoutLine": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Příloha line code (e.g. B, B.II, B.II.1).",
+            "example": "B.II.1"
+          },
+          "depth": {
+            "type": "integer",
+            "description": "Nesting depth (1 = letter, 2 = roman, …).",
+            "example": 3
+          },
+          "amount": {
+            "type": "string",
+            "description": "Rolled-up amount in the presentation unit.",
+            "example": "0.00"
+          }
+        },
+        "required": [
+          "code",
+          "depth",
+          "amount"
+        ],
+        "description": "One formatted statement layout line."
+      },
+      "ClassifyEventRequest": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "ISSUED"
+            ],
+            "description": "FP (RECEIVED / purchase) vs FV (ISSUED / sale).",
+            "example": "RECEIVED"
+          },
+          "supplyKind": {
+            "type": "string",
+            "enum": [
+              "GOODS",
+              "MATERIAL",
+              "SERVICES",
+              "UTILITY",
+              "RENT",
+              "INSURANCE",
+              "ASSET",
+              "ADVANCE",
+              "CREDIT_NOTE",
+              "OTHER"
+            ],
+            "description": "Kind of supply.",
+            "example": "SERVICES"
+          },
+          "jurisdiction": {
+            "type": "string",
+            "enum": [
+              "DOMESTIC",
+              "REVERSE_CHARGE",
+              "EU",
+              "IMPORT",
+              "EXEMPT",
+              "OUTSIDE_VAT"
+            ],
+            "description": "VAT jurisdiction.",
+            "example": "DOMESTIC"
+          },
+          "base": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Unsigned decimal amount as a string.",
+            "example": "12100.00"
+          },
+          "vat": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Unsigned decimal amount as a string.",
+            "example": "12100.00"
+          },
+          "vatRate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stated VAT rate.",
+            "example": "21"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217.",
+            "example": "CZK"
+          },
+          "fxRate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "FX rate if foreign currency.",
+            "example": "25.30"
+          },
+          "serviceWindow": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$"
+              },
+              "end": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "description": "Service window (ISO dates) — deferral split."
+          },
+          "periodEnd": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$",
+            "description": "Accounting period end (ISO).",
+            "example": "2025-12-31"
+          },
+          "durable": {
+            "type": "boolean",
+            "description": "Durable long-term asset?",
+            "example": false
+          },
+          "assetThreshold": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Unsigned decimal amount as a string.",
+            "example": "12100.00"
+          },
+          "acquisitionAccount": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 6,
+            "description": "042/041 for a capitalised asset.",
+            "example": "042"
+          },
+          "isCreditNote": {
+            "type": "boolean",
+            "description": "Credit note (§42) — flips sides.",
+            "example": false
+          }
+        },
+        "required": [
+          "direction",
+          "supplyKind",
+          "jurisdiction",
+          "base",
+          "vat",
+          "currency"
+        ],
+        "description": "Economic-event facts to classify into an accounting treatment."
+      },
+      "ClassifyEventResponse": {
+        "type": "object",
+        "properties": {
+          "vatMode": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "REVERSE_CHARGE",
+              "EXEMPT",
+              "OUTSIDE_VAT",
+              "IMPORT"
+            ],
+            "description": "VAT mode to stamp on the partial record.",
+            "example": "STANDARD"
+          },
+          "vatRate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rate to freeze (null for exempt/outside).",
+            "example": "21"
+          },
+          "scenario": {
+            "type": "string",
+            "description": "Předkontace scenario id.",
+            "example": "PURCHASE_SERVICE_STANDARD"
+          },
+          "accountOverrides": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Template→tenant account remap."
+          },
+          "saldoAccount": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "311",
+              "321",
+              null
+            ],
+            "description": "Open-item account, or null.",
+            "example": "321"
+          },
+          "capitalise": {
+            "type": "object",
+            "properties": {
+              "acquisitionAccount": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "acquisitionAccount"
+            ],
+            "description": "Route net to an acquisition account."
+          },
+          "deferral": {
+            "type": "object",
+            "properties": {
+              "bridge": {
+                "type": "string",
+                "enum": [
+                  "381",
+                  "384"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "bridge",
+              "reason"
+            ],
+            "description": "Defer the future part to a bridge account."
+          },
+          "reasoning": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Law-cited decision trail."
+          }
+        },
+        "required": [
+          "vatMode",
+          "vatRate",
+          "scenario",
+          "saldoAccount",
+          "reasoning"
+        ],
+        "description": "The accounting treatment decided from the facts (with reasoning)."
+      },
+      "NumberSeriesListResponse": {
+        "type": "object",
+        "properties": {
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Series id — reference by this in write bodies (seriesId).",
+                  "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+                },
+                "entityType": {
+                  "type": "string",
+                  "enum": [
+                    "EVENT",
+                    "DOCUMENT",
+                    "ASSET",
+                    "INVENTORY_COUNT"
+                  ],
+                  "description": "What the series numbers.",
+                  "example": "DOCUMENT"
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Company série label.",
+                  "example": "FP"
+                },
+                "pattern": {
+                  "type": "string",
+                  "description": "Designation format.",
+                  "example": "FP{YYYY}{NNNN}"
+                },
+                "nextNumber": {
+                  "type": "integer",
+                  "description": "Next sequence number.",
+                  "example": 43
+                }
+              },
+              "required": [
+                "id",
+                "entityType",
+                "code",
+                "pattern",
+                "nextNumber"
+              ],
+              "description": "A gapless number series."
+            },
+            "description": "The organization's number series."
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "description": "Number series available for write-body seriesId references."
+      },
+      "NumberSeriesRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Series id — reference by this in write bodies (seriesId).",
+            "example": "aa11bb22-cc33-4d44-9e55-ff6677889900"
+          },
+          "entityType": {
+            "type": "string",
+            "enum": [
+              "EVENT",
+              "DOCUMENT",
+              "ASSET",
+              "INVENTORY_COUNT"
+            ],
+            "description": "What the series numbers.",
+            "example": "DOCUMENT"
+          },
+          "code": {
+            "type": "string",
+            "description": "Company série label.",
+            "example": "FP"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Designation format.",
+            "example": "FP{YYYY}{NNNN}"
+          },
+          "nextNumber": {
+            "type": "integer",
+            "description": "Next sequence number.",
+            "example": 43
+          }
+        },
+        "required": [
+          "id",
+          "entityType",
+          "code",
+          "pattern",
+          "nextNumber"
+        ],
+        "description": "A gapless number series."
+      },
+      "CreateAccountingEventRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Účetní období."
+          },
+          "seriesId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "EVENT number series (see GET number-series)."
+          },
+          "partyId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "OUR side (counterparty row); null for internal."
+          },
+          "counterpartyId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "THEIR side (counterparty row)."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Case description.",
+            "example": "FP — nájem kanceláře"
+          },
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 10000,
+            "description": "Optional detail."
+          },
+          "occurredAt": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$",
+            "description": "Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period.",
+            "example": "2025-03-14"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          }
+        },
+        "required": [
+          "periodId",
+          "seriesId",
+          "description",
+          "occurredAt",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Create an accounting event (účetní případ). Tenant + responsible user are injected from the API-key principal — never from the body."
+      },
+      "CreateAccountingEventResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ],
+            "description": "applied = booked; held = queued for human review."
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "tool_call_log id when held."
+          },
+          "eventId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "designation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequenceNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-event result (applied or held)."
+      },
+      "CaptureAccountingDocumentRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seriesId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "DOCUMENT number series."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "RECEIVED_INVOICE",
+              "ISSUED_INVOICE",
+              "BANK_STATEMENT",
+              "INTERNAL",
+              "CASH_DOCUMENT",
+              "BATCH"
+            ]
+          },
+          "issuedAt": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$",
+            "description": "Okamžik vyhotovení (§11/1d) — ISO.",
+            "example": "2025-03-14"
+          },
+          "roundingAmount": {
+            "type": "string",
+            "pattern": "^-?\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "§37 doc-total rounding → 548/648.",
+            "example": "-500.00"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "eventId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "partials": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "baseAmount": {
+                        "type": "string",
+                        "pattern": "^-?\\d{1,15}(\\.\\d{1,4})?$",
+                        "description": "Signed decimal amount as a string.",
+                        "example": "-500.00"
+                      },
+                      "vatMode": {
+                        "type": "string",
+                        "enum": [
+                          "STANDARD",
+                          "REVERSE_CHARGE",
+                          "EXEMPT",
+                          "OUTSIDE_VAT",
+                          "IMPORT"
+                        ]
+                      },
+                      "vatRate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "vatAmount": {
+                        "type": "string",
+                        "pattern": "^-?\\d{1,15}(\\.\\d{1,4})?$",
+                        "description": "Signed decimal amount as a string.",
+                        "example": "-500.00"
+                      },
+                      "vatJurisdiction": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "DOMESTIC",
+                          "REVERSE_CHARGE",
+                          "EU",
+                          "IMPORT",
+                          "EXEMPT",
+                          "OUTSIDE_VAT",
+                          null
+                        ]
+                      },
+                      "vatDeductible": {
+                        "type": "boolean"
+                      },
+                      "advanceSettlement": {
+                        "type": "boolean"
+                      },
+                      "quantity": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "pattern": "^-?\\d{1,15}(\\.\\d{1,4})?$",
+                        "description": "Signed decimal amount as a string.",
+                        "example": "-500.00"
+                      },
+                      "measureUnit": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "unitPrice": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                        "description": "Unsigned decimal amount as a string.",
+                        "example": "12100.00"
+                      },
+                      "currencyCode": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      "fxRateKind": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "DAILY",
+                          "REAL",
+                          "FIXED",
+                          null
+                        ]
+                      },
+                      "fxRate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "pattern": "^(?!0+(\\.0+)?$)\\d{1,15}(\\.\\d{1,4})?$",
+                        "description": "Positive decimal amount as a string (nonzero).",
+                        "example": "25.30"
+                      },
+                      "vatFxRate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "pattern": "^(?!0+(\\.0+)?$)\\d{1,15}(\\.\\d{1,4})?$",
+                        "description": "Positive decimal amount as a string (nonzero).",
+                        "example": "25.30"
+                      }
+                    },
+                    "required": [
+                      "baseAmount",
+                      "vatMode",
+                      "currencyCode"
+                    ]
+                  },
+                  "minItems": 1,
+                  "maxItems": 50
+                }
+              },
+              "required": [
+                "eventId",
+                "partials"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          }
+        },
+        "required": [
+          "periodId",
+          "seriesId",
+          "type",
+          "issuedAt",
+          "lines",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Capture a summary document (doklad) with its lines/partials. Tenant + user injected."
+      },
+      "CaptureAccountingDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ]
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "summaryRecordId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "designation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequenceNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lines": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "individualRecordId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "partialRecordIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              },
+              "required": [
+                "individualRecordId",
+                "partialRecordIds"
+              ]
+            }
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Capture-document result (applied or held)."
+      },
+      "CreateAccountingPostingRequest": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "double",
+              "monetary"
+            ]
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "periodId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "summaryRecordId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "accountingEventId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "postingDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$",
+                    "description": "Datum (§5.2) — ISO date.",
+                    "example": "2025-03-14"
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "accountId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "side": {
+                          "type": "string",
+                          "enum": [
+                            "DEBIT",
+                            "CREDIT"
+                          ]
+                        },
+                        "amount": {
+                          "type": "string",
+                          "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                          "description": "Unsigned decimal amount as a string.",
+                          "example": "12100.00"
+                        },
+                        "partialRecordId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "accountId",
+                        "side",
+                        "amount"
+                      ]
+                    },
+                    "minItems": 2,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "periodId",
+                  "summaryRecordId",
+                  "accountingEventId",
+                  "postingDate",
+                  "lines"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "periodId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "summaryRecordId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "accountingEventId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "postingDate": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$",
+                    "description": "Datum (§5.2) — ISO date.",
+                    "example": "2025-03-14"
+                  },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "location": {
+                          "type": "string",
+                          "enum": [
+                            "CASH",
+                            "BANK"
+                          ]
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "INFLOW",
+                            "OUTFLOW"
+                          ]
+                        },
+                        "isTaxRelevant": {
+                          "type": "boolean"
+                        },
+                        "isClearing": {
+                          "type": "boolean"
+                        },
+                        "categoryId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "taxBase": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                          "description": "Unsigned decimal amount as a string.",
+                          "example": "12100.00"
+                        },
+                        "amount": {
+                          "type": "string",
+                          "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+                          "description": "Unsigned decimal amount as a string.",
+                          "example": "12100.00"
+                        },
+                        "partialRecordId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        }
+                      },
+                      "required": [
+                        "location",
+                        "direction",
+                        "isTaxRelevant",
+                        "amount"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "periodId",
+                  "summaryRecordId",
+                  "accountingEventId",
+                  "postingDate",
+                  "lines"
+                ]
+              }
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          }
+        },
+        "required": [
+          "kind",
+          "entry",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting. Tenant + responsible user injected; opening/correction/generated linkage is not client-settable."
+      },
+      "CreateAccountingPostingResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ]
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "postingId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lineIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-posting result (applied or held)."
       }
     },
     "parameters": {}
@@ -1715,6 +4837,976 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListArchetypesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/journal": {
+      "get": {
+        "operationId": "getAccountingJournal",
+        "summary": "Get journal (deník)",
+        "description": "Returns the deník — the double-entry postings of the given accounting period in chronological book order (§13), including 701 opening postings. Read-model view; organization-scoped (FORCE RLS) via the API key's own tenant.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's journal lines in book order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/ledger": {
+      "get": {
+        "operationId": "getAccountingLedger",
+        "summary": "Get general ledger / trial balance (hlavní kniha)",
+        "description": "Returns per-account opening balance | debit/credit turnover | closing balance for the period, straight from the read-model — the hlavní kniha and obratová předvaha. Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-account balances for the period.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/open-items": {
+      "get": {
+        "operationId": "getAccountingOpenItems",
+        "summary": "List open items (saldokonto)",
+        "description": "Returns unsettled receivables/payables (open items), optionally filtered by due date and direction. Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Only items due strictly before this ISO date (YYYY-MM-DD).",
+              "example": "2025-12-31"
+            },
+            "required": false,
+            "description": "Only items due strictly before this ISO date (YYYY-MM-DD).",
+            "name": "dueBefore",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RECEIVABLE",
+                "PAYABLE"
+              ],
+              "description": "Restrict to receivables or payables.",
+              "example": "RECEIVABLE"
+            },
+            "required": false,
+            "description": "Restrict to receivables or payables.",
+            "name": "direction",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Open items matching the filters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenItemsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/saldokonto": {
+      "get": {
+        "operationId": "getAccountingSaldokonto",
+        "summary": "Get per-partner saldo",
+        "description": "Returns per-partner open receivable/payable balances (saldokonto). Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-partner open balances.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaldokontoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/vat-return": {
+      "get": {
+        "operationId": "getAccountingVatReturn",
+        "summary": "Get VAT return (DPH přiznání)",
+        "description": "Computes the DPH přiznání line values and kontrolní hlášení section totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's VAT return + KH totals.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DphResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/corporate-income-tax": {
+      "get": {
+        "operationId": "getAccountingCorporateIncomeTax",
+        "summary": "Get corporate income tax (DPPO)",
+        "description": "Computes the DPPO base and tax (§23/1 base, §25 non-deductibles, §34 loss carry-forward, rate, zálohy §38a) for the period. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's corporate income tax computation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DppoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/ec-sales-list": {
+      "get": {
+        "operationId": "getAccountingEcSalesList",
+        "summary": "Get EC sales list (souhrnné hlášení)",
+        "description": "EU supplies recap (§102) for the period — per partner + kód plnění. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's EU supplies recap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EcSalesListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/control-statement": {
+      "get": {
+        "operationId": "getAccountingControlStatement",
+        "summary": "Get control statement (kontrolní hlášení)",
+        "description": "Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's control statement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlStatementResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/financial-statements": {
+      "get": {
+        "operationId": "getAccountingFinancialStatements",
+        "summary": "Get financial statements (účetní závěrka)",
+        "description": "Účetní závěrka totals (aktiva/pasiva/náklady/výnosy/výsledek) plus per-account closing balances mapped to statement lines. Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's financial statements.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialStatementsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/periods/{periodId}/outputs/statement-layout": {
+      "get": {
+        "operationId": "getAccountingStatementLayout",
+        "summary": "Get formatted statement layout (rozvaha / VZZ)",
+        "description": "Formatted rozvaha + výkaz zisku a ztráty per Decree 500/2002 přílohy (plný / zkrácený rozsah; celé Kč / v tisících). Organization-scoped.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+              "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+            },
+            "required": true,
+            "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
+            "name": "periodId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FULL",
+                "ABBREVIATED"
+              ],
+              "description": "Plný / zkrácený rozsah.",
+              "example": "FULL"
+            },
+            "required": false,
+            "description": "Plný / zkrácený rozsah.",
+            "name": "rozsah",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CZK",
+                "THOUSANDS"
+              ],
+              "description": "Presentation unit (celé Kč / v tisících).",
+              "example": "CZK"
+            },
+            "required": false,
+            "description": "Presentation unit (celé Kč / v tisících).",
+            "name": "unit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The period's formatted statement layout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementLayoutResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/classify": {
+      "post": {
+        "operationId": "classifyAccountingEvent",
+        "summary": "Classify an economic event",
+        "description": "Pure decision: given raw economic-event facts, returns the accounting treatment (VAT mode, předkontace scenario, capitalisation/deferral, open-item account) with a law-cited reasoning trail. No mutation, no tenant read — safe and repeatable.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassifyEventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The decided accounting treatment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassifyEventResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/number-series": {
+      "get": {
+        "operationId": "listAccountingNumberSeries",
+        "summary": "List number series",
+        "description": "Returns the organization's gapless number series (optionally filtered by entity type). Write bodies reference a series by `seriesId`; this is how an agent discovers those ids. Organization-scoped (FORCE RLS).",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EVENT",
+                "DOCUMENT",
+                "ASSET",
+                "INVENTORY_COUNT"
+              ],
+              "description": "Filter by entity type.",
+              "example": "DOCUMENT"
+            },
+            "required": false,
+            "description": "Filter by entity type.",
+            "name": "entityType",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organization's number series.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NumberSeriesListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/events": {
+      "post": {
+        "operationId": "createAccountingEvent",
+        "summary": "Create an accounting event",
+        "description": "Create an účetní případ. Gated: auto-applies (201) at/above the confidence threshold, otherwise held (202) for human review. Tenant + responsible user injected from the API-key principal.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountingEventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Event applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAccountingEventResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAccountingEventResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/documents": {
+      "post": {
+        "operationId": "captureAccountingDocument",
+        "summary": "Capture a summary document (doklad)",
+        "description": "Capture a doklad with its lines/partials. Gated (201 applied / 202 held). Tenant injected from the principal.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureAccountingDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptureAccountingDocumentResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptureAccountingDocumentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/postings": {
+      "post": {
+        "operationId": "createAccountingPosting",
+        "summary": "Post a posting (zaúčtování)",
+        "description": "Post a double-entry or monetary posting. Gated (201 applied / 202 held). Tenant + responsible user injected; opening/correction/generated linkage is not client-settable.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountingPostingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Posting applied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAccountingPostingResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAccountingPostingResponse"
                 }
               }
             }

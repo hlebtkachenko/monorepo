@@ -203,9 +203,9 @@ export async function runGatedWrite<T>(
             // Serialize concurrent writes to this (org, period) on the SAME
             // bound tx that holds the RLS GUCs (ADR-0028) — protects the
             // allocateNumber read-modify-write and orders same-period posts. The
-            // closePeriod-vs-post race is only fully closed once closePeriod
-            // takes this SAME lock (deferred: no live close caller yet). Held
-            // writes take no lock (they touch only the audit log, not the period).
+            // closePeriod takes this SAME lock (packages/accounting period.ts),
+            // so the close-vs-post race is closed on both sides. Held writes take
+            // no lock (they touch only the audit log, not the period).
             await lockPeriodInTx(db, principal.organizationId, opts.periodId)
             const result = await opts.run(db, {
               organizationId: principal.organizationId,

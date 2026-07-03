@@ -135,6 +135,8 @@ export class AccountingWritesController {
     // its own fx rate before it is tested (a large FX partial otherwise slips
     // under the ceiling and evades the hold). Rounding is already accounting
     // currency; posting amounts elsewhere are already accounting currency too.
+    // Float `Number()` math is fine here: this feeds the coarse screening
+    // ceiling only, never a booked amount (booked amounts use string-math).
     const toAccountingCurrency = (p: {
       baseAmount: string
       fxRate?: string | null

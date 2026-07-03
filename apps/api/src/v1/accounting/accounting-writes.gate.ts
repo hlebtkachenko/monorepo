@@ -138,6 +138,10 @@ export async function runGatedWrite<T>(
 
   try {
     const payloadHash = canonicalHash(body)
+    // Float `Number()` is intentional here: this is a coarse SCREENING check
+    // against the always-hold ceiling (~1e-10 relative error at 100k is
+    // immaterial to a hold decision), NEVER a booked amount. Any amount that is
+    // actually posted MUST go through the string-math `decimalToMinor` helper.
     const amountHold = opts.holdAmounts.some(
       (a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT,
     )

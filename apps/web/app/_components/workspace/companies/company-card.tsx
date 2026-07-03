@@ -45,6 +45,7 @@ const CARD_ARCHIVE_ERROR: Record<string, string> = {
   sessionExpired: "Your session expired. Please sign in again.",
   noActiveWorkspace: "No active workspace.",
   notFound: "That company could not be found.",
+  forbidden: "Only an owner or admin can archive a company.",
 }
 
 /** Grey rounded-square company mark (initial) — a stand-in until org logos land. */

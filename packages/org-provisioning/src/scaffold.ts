@@ -57,6 +57,22 @@ const NONPROFIT_FORMS: ReadonlySet<string> = new Set([
   "SVJ",
 ])
 
+/**
+ * Slugs the org-tier router reserves for its own top-level paths. A book minted
+ * at one of these would be unreachable at /{slug}, so pickUniqueSlug skips them.
+ * Mirrors RESERVED_SLUGS in apps/web/app/[orgSlug]/layout.tsx.
+ */
+const RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  "admin",
+  "api",
+  "app",
+  "auth",
+  "onboarding",
+  "workspace",
+  "_next",
+  "favicon.ico",
+])
+
 /** Default číselné řady aligned to the capture layer's document kinds. */
 const DEFAULT_NUMBER_SERIES = [
   { entityType: "EVENT", code: "UC", pattern: "UC{YYYY}{NNNNNN}" },
@@ -386,6 +402,8 @@ async function pickUniqueSlug(
 ): Promise<string> {
   for (let i = 0; i < 50; i++) {
     const candidate = i === 0 ? base : `${base}-${i + 1}`
+    // A reserved slug would be unreachable at /{slug}; try the next numbered form.
+    if (RESERVED_SLUGS.has(candidate)) continue
     const rows = await executeRows<{ id: string }>(
       db,
       sql`SELECT id FROM organization

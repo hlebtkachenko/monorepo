@@ -1,15 +1,13 @@
-export const metadata = {
-  title: "Inbox",
-}
+import { ModulePage } from "../../_components/module-page"
 
+export const metadata = { title: "Inbox" }
+
+/**
+ * Inbox — not yet a committed feature. The full mock feed UI (tabs, table,
+ * mark-as-read) was moved to `/workspace/demo-inbox` (dev-only) as a saved
+ * design reference; this stub keeps the real route + nav entry alive with a
+ * plain placeholder until a real notifications/invites data source lands.
+ */
 export default function WorkspaceInboxPage() {
-  return (
-    <div className="mx-auto max-w-3xl space-y-4 px-4 py-12">
-      <h1 className="text-2xl font-semibold">Inbox</h1>
-      <p className="text-sm text-muted-foreground">
-        Workspace-level notifications, invites, and system messages land here.
-        Stub for now.
-      </p>
-    </div>
-  )
+  return <ModulePage title="Inbox" description="Inbox is coming soon." />
 }

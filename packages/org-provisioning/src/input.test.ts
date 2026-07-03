@@ -1,18 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { ScaffoldInput, slugify } from "./input"
+import { ScaffoldInput } from "./input"
+
+// slugify has its own comprehensive suite in ./slug.test.ts.
 
 const WS = "00000000-0000-7000-8000-000000000001"
 const USER = "00000000-0000-7000-8000-000000000002"
-
-describe("slugify", () => {
-  it("lowercases and dash-joins", () => {
-    expect(slugify("Acme s.r.o.")).toBe("acme-s-r-o")
-  })
-  it("pads a too-short result", () => {
-    expect(slugify("A")).toBe("org")
-    expect(slugify("!!!")).toBe("org")
-  })
-})
 
 describe("ScaffoldInput", () => {
   it("applies defaults", () => {

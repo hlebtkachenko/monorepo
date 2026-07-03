@@ -19,8 +19,8 @@ export {
   ScaffoldInput,
   type ScaffoldInputRaw,
   type ScaffoldAddress,
-  slugify,
 } from "./input"
+export { slugify, isReservedSlug, RESERVED_SLUGS } from "./slug"
 export {
   deriveRegime,
   assertRegimeAllowed,

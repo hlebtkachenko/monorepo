@@ -40,8 +40,15 @@ const abs = (v: bigint): bigint => (v < 0n ? -v : v)
  */
 const CAPITALIZATION_EXPENSE_SYNTHETICS: ReadonlySet<string> = new Set([
   "501", // spotřeba materiálu
+  "502", // spotřeba energie
+  "503", // spotřeba ostatních neskladovatelných dodávek
+  "504", // prodané zboží
+  "505", // aktivace (rare, but a large debit here can hide an asset)
   "511", // opravy a udržování (can be a capitalizable technical improvement)
+  "512", // cestovné
+  "513", // náklady na reprezentaci
   "518", // ostatní služby
+  "548", // ostatní provozní náklady
 ])
 
 /** ±1 Kč (100 haléř): absorbs legitimate per-invoice VAT rounding, catches gross errors. */
@@ -115,41 +122,56 @@ export async function derivePostingVeto(
 }
 
 /**
- * Capture veto — fires `vat_mismatch` when a STANDARD-rate partial's declared
- * `vatAmount` diverges from `base * rate / 100` by more than the tolerance. The
- * domain stores `vatAmount` as given (it never re-derives it), so this is the
- * only server check of VAT arithmetic. Non-STANDARD modes (REVERSE_CHARGE /
- * EXEMPT / OUTSIDE_VAT / IMPORT) and partials without a declared vatAmount pass
- * through — their VAT lives on the recipient / is zero, not `base * rate`.
+ * Capture veto — the M-E positive-safety screen. HOLDS a partial the server
+ * cannot positively verify as safe (safe-direction: auto-apply only what it can
+ * screen). Fires:
+ *   - `unverified_vat_regime` — ANY non-STANDARD `vatMode` (REVERSE_CHARGE /
+ *     EXEMPT / OUTSIDE_VAT / IMPORT). The server cannot verify special-regime VAT
+ *     from the payload (a domestic supply mislabeled REVERSE_CHARGE looks
+ *     internally consistent), so it routes to human review instead of trusting
+ *     the claimed mode — closing the "claim a non-STANDARD mode to dodge the VAT
+ *     check" vector. (#464's evidence contract restores auto-apply for a
+ *     PROVEN-safe reverse-charge via a re-verifiable checklist.)
+ *   - `vat_amount_missing` — STANDARD + a nonzero rate but NO declared
+ *     `vatAmount` (unverifiable → hold).
+ *   - `vat_mismatch` — STANDARD + declared `vatAmount` off from `base * rate` by
+ *     > the tolerance. The domain stores `vatAmount` as given (never re-derives
+ *     it), so this is the only server check of VAT arithmetic.
+ * NOTE the irreducible residual (not closable here): a STANDARD supply with the
+ * WRONG rate but self-consistent arithmetic, or a sub-40k misclassification —
+ * caught downstream (VAT-return reconciliation) + by human review of held writes.
  */
 export function deriveCaptureVeto(
   lines: ReadonlyArray<Record<string, unknown>>,
 ): VetoResult {
+  const signals = new Set<string>()
   for (const line of lines ?? []) {
     const partials =
       (line["partials"] as ReadonlyArray<Record<string, unknown>>) ?? []
     for (const p of partials) {
-      if (p["vatMode"] !== "STANDARD") continue
-      const vatAmount = p["vatAmount"]
+      if (p["vatMode"] !== "STANDARD") {
+        signals.add("unverified_vat_regime")
+        continue
+      }
       const vatRate = p["vatRate"]
       const baseAmount = p["baseAmount"]
-      if (
-        typeof vatAmount !== "string" ||
-        typeof vatRate !== "string" ||
-        typeof baseAmount !== "string"
-      ) {
+      if (typeof vatRate !== "string" || typeof baseAmount !== "string")
+        continue
+      const rateScaled = decimalToMinor(vatRate)
+      const vatAmount = p["vatAmount"]
+      if (typeof vatAmount !== "string") {
+        // A nonzero STANDARD rate MUST carry a checkable vatAmount; missing one
+        // cannot be verified, so hold. (Rate 0 with no vatAmount is fine.)
+        if (rateScaled > 0n) signals.add("vat_amount_missing")
         continue
       }
       const baseMinor = abs(decimalToMinor(baseAmount))
       // rate "21.00" -> 2100 hundredths-of-a-percent; expected = base * rate/100.
-      const rateScaled = decimalToMinor(vatRate)
       const expected = (baseMinor * rateScaled + 5000n) / 10000n
       const actual = abs(decimalToMinor(vatAmount))
       const diff = actual > expected ? actual - expected : expected - actual
-      if (diff > VAT_TOLERANCE_MINOR) {
-        return { held: true, signals: ["vat_mismatch"] }
-      }
+      if (diff > VAT_TOLERANCE_MINOR) signals.add("vat_mismatch")
     }
   }
-  return NO_VETO
+  return signals.size > 0 ? { held: true, signals: [...signals] } : NO_VETO
 }

@@ -73,6 +73,18 @@ describe("derivePostingVeto — asset_vs_expense", () => {
     expect(veto.held).toBe(true)
   })
 
+  it("HOLDS a >=40k debit to 548 (widened capitalization-plausible set — M-E)", async () => {
+    const { db } = mkDb([{ id: "acc-548", number: "548" }])
+    const veto = await derivePostingVeto(db, "org-1", "double", {
+      lines: [
+        line("acc-548", "DEBIT", "50000.00"),
+        line("acc-321", "CREDIT", "50000.00"),
+      ],
+    })
+    expect(veto.held).toBe(true)
+    expect(veto.signals).toEqual(["asset_vs_expense"])
+  })
+
   it("passes MONETARY (cash-book) postings through untouched — no account lookup", async () => {
     const { db, where } = mkDb([])
     const veto = await derivePostingVeto(db, "org-1", "monetary", {
@@ -112,7 +124,7 @@ describe("deriveCaptureVeto — vat_mismatch", () => {
     expect(veto.held).toBe(false)
   })
 
-  it("passes REVERSE_CHARGE through (VAT is the recipient's, not base*rate)", () => {
+  it("HOLDS non-STANDARD VAT (REVERSE_CHARGE cannot be server-verified — M-E)", () => {
     const veto = deriveCaptureVeto([
       {
         partials: [
@@ -124,14 +136,38 @@ describe("deriveCaptureVeto — vat_mismatch", () => {
         ],
       },
     ])
-    expect(veto.held).toBe(false)
+    // Closes the "claim RC to dodge the VAT check" vector — routes to human review.
+    expect(veto.held).toBe(true)
+    expect(veto.signals).toEqual(["unverified_vat_regime"])
   })
 
-  it("passes a STANDARD partial with no declared vatAmount through", () => {
+  it("HOLDS EXEMPT / OUTSIDE_VAT / IMPORT the same way (M-E)", () => {
+    for (const mode of ["EXEMPT", "OUTSIDE_VAT", "IMPORT"]) {
+      const veto = deriveCaptureVeto([
+        { partials: [partial({ vatMode: mode })] },
+      ])
+      expect(veto.held).toBe(true)
+      expect(veto.signals).toEqual(["unverified_vat_regime"])
+    }
+  })
+
+  it("HOLDS a STANDARD partial with a nonzero rate but NO declared vatAmount (M-E)", () => {
     const veto = deriveCaptureVeto([
       {
         partials: [
           { baseAmount: "1000.00", vatMode: "STANDARD", vatRate: "21" },
+        ],
+      },
+    ])
+    expect(veto.held).toBe(true)
+    expect(veto.signals).toEqual(["vat_amount_missing"])
+  })
+
+  it("does NOT hold a STANDARD 0% partial with no vatAmount (rate 0 = 0 VAT)", () => {
+    const veto = deriveCaptureVeto([
+      {
+        partials: [
+          { baseAmount: "1000.00", vatMode: "STANDARD", vatRate: "0" },
         ],
       },
     ])

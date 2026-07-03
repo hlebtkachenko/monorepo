@@ -36,16 +36,10 @@ process.env["BETTER_AUTH_SECRET"] =
 // ---------------------------------------------------------------------------
 
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
-const RESERVED_SLUGS = new Set([
-  "admin",
-  "api",
-  "app",
-  "auth",
-  "onboarding",
-  "workspace",
-  "_next",
-  "favicon.ico",
-])
+// RESERVED_SLUGS is the shared org-provisioning set (the same one layout.tsx
+// guards against); imported dynamically since the package transitively pulls
+// @workspace/db.
+let RESERVED_SLUGS: (typeof import("@workspace/org-provisioning"))["RESERVED_SLUGS"]
 
 // ---------------------------------------------------------------------------
 // Replicate the resolveMembership DB query (the testable unit).
@@ -106,6 +100,7 @@ beforeAll(async () => {
   ;({ withAdminBypass } = await import("@workspace/db"))
   ;({ organization, organization_membership } =
     await import("@workspace/db/schema"))
+  ;({ RESERVED_SLUGS } = await import("@workspace/org-provisioning"))
   sql = adminClient()
   await truncateAll(sql)
 }, 30_000)

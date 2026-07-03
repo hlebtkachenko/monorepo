@@ -95,7 +95,6 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "taxes",
   "closing",
   "reports",
-  "assets",
   "bank",
   "cash",
   "chart",

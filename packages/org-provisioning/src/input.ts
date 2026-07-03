@@ -135,7 +135,11 @@ export function slugify(input: string): string {
   const slug = input
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    // Two anchored trims (not `/^-+|-+$/g`): the alternation form is a
+    // polynomial-ReDoS shape (CodeQL js/polynomial-redos); each anchored
+    // quantifier here backtracks linearly.
+    .replace(/^-+/, "")
+    .replace(/-+$/, "")
     .slice(0, 48)
   return slug.length < 2 ? "org" : slug
 }

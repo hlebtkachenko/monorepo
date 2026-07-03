@@ -12,7 +12,8 @@ export const metadata = { title: "Workspace billing — Billing entity" }
 
 /**
  * Billing entity — real billing entity (`workspace_billing`, which may not
- * exist yet → empty defaults). Reads via `withAdminBypass` + explicit id
+ * exist yet → empty defaults). Save upserts via `saveBillingEntityAction`
+ * (see `BillingEntityForm`). Reads via `withAdminBypass` + explicit id
  * predicate, consistent with the tier.
  */
 export default async function WorkspaceBillingEntityPage() {
@@ -41,18 +42,20 @@ export default async function WorkspaceBillingEntityPage() {
     return bill ?? null
   })
 
-  return (
-    <BillingEntityForm
-      entity={{
-        legalName: billing?.legalName ?? "",
-        taxId: billing?.taxId ?? "",
-        vatId: billing?.vatId ?? "",
-        addressStreet: billing?.addressStreet ?? "",
-        addressCity: billing?.addressCity ?? "",
-        addressZip: billing?.addressZip ?? "",
-        country: billing?.country ?? "",
-        billingEmail: billing?.billingEmail ?? "",
-      }}
-    />
-  )
+  const entity = {
+    legalName: billing?.legalName ?? "",
+    taxId: billing?.taxId ?? "",
+    vatId: billing?.vatId ?? "",
+    addressStreet: billing?.addressStreet ?? "",
+    addressCity: billing?.addressCity ?? "",
+    addressZip: billing?.addressZip ?? "",
+    country: billing?.country ?? "",
+    billingEmail: billing?.billingEmail ?? "",
+  }
+
+  // Keyed on the resolved values — see the identical comment in
+  // workspace/settings/page.tsx: the server normalizes (trim + uppercase
+  // country) on save, so a remount (not a resync effect) is what keeps the
+  // form's "dirty" state honest after `router.refresh()`.
+  return <BillingEntityForm key={JSON.stringify(entity)} entity={entity} />
 }

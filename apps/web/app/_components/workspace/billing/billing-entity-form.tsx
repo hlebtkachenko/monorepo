@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 
 import { ContentPanel, RecordWorkspace } from "@workspace/ui/blocks/app-content"
 import { Button } from "@workspace/ui/components/button"
@@ -15,15 +16,19 @@ import { Field, FieldLabel } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import { toast } from "@workspace/ui/components/sonner"
 
+import { saveBillingEntityAction } from "../../../workspace/billing/actions"
 import type { BillingEntity } from "./data"
 
 /**
  * Billing entity — the details printed on invoices (`workspace_billing`, which
- * may not exist yet → empty defaults). Save is a stub for v1. No portaled
- * header — the nav-derived "Billing entity" title is correct.
+ * may not exist yet → empty defaults). Save writes back through
+ * `saveBillingEntityAction` (upsert). No portaled header — the nav-derived
+ * "Billing entity" title is correct.
  */
 export function BillingEntityForm({ entity }: { entity: BillingEntity }) {
+  const router = useRouter()
   const [form, setForm] = React.useState(entity)
+  const [saving, setSaving] = React.useState(false)
   const set = (key: keyof BillingEntity) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
   const dirty = React.useMemo(
@@ -34,6 +39,20 @@ export function BillingEntityForm({ entity }: { entity: BillingEntity }) {
     [form, entity],
   )
 
+  async function onSave() {
+    setSaving(true)
+    const result = await saveBillingEntityAction(form)
+    setSaving(false)
+    if (result.ok) {
+      toast.success("Billing entity saved")
+      router.refresh()
+    } else {
+      toast.error("Could not save billing entity", {
+        description: "Try again in a moment.",
+      })
+    }
+  }
+
   return (
     <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
       <RecordWorkspace
@@ -43,17 +62,17 @@ export function BillingEntityForm({ entity }: { entity: BillingEntity }) {
             <Button
               variant="ghost"
               size="sm"
-              disabled={!dirty}
+              disabled={!dirty || saving}
               onClick={() => setForm(entity)}
             >
               Discard
             </Button>
             <Button
               size="sm"
-              disabled={!dirty}
-              onClick={() => toast.info("Saving is coming soon")}
+              disabled={!dirty || saving}
+              onClick={() => void onSave()}
             >
-              Save changes
+              {saving ? "Saving…" : "Save changes"}
             </Button>
           </>
         }

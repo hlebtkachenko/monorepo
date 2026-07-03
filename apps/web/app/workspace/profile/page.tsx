@@ -22,14 +22,16 @@ export default async function ProfilePage() {
     session.user.email,
   )
 
-  return (
-    <ProfileForm
-      profile={{
-        displayName: userName ?? session.user.name,
-        email: session.user.email,
-        image: userImage,
-        twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
-      }}
-    />
-  )
+  const profile = {
+    displayName: userName ?? session.user.name,
+    email: session.user.email,
+    image: userImage,
+    twoFactorEnabled: Boolean(session.user.twoFactorEnabled),
+  }
+
+  // Keyed on the resolved values — see the identical comment in
+  // workspace/settings/page.tsx: only `displayName` is server-normalized
+  // (`.trim()`), but keying the whole object is the same one-line fix and
+  // keeps this page consistent with its siblings.
+  return <ProfileForm key={JSON.stringify(profile)} profile={profile} />
 }

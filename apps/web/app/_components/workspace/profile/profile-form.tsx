@@ -36,6 +36,8 @@ import {
 } from "@workspace/ui/components/native-select"
 import { toast } from "@workspace/ui/components/sonner"
 
+import { saveDisplayNameAction } from "../../../workspace/profile/actions"
+
 export interface ProfileData {
   displayName: string
   email: string
@@ -45,20 +47,37 @@ export interface ProfileData {
 
 /**
  * Your profile — the Single archetype (stack) for the signed-in user's account.
- * Identity + preferences are display-real with a stub Save (v1, matches the tier
- * maturity); the two-factor section is FULLY REAL — it reads the live
- * `twoFactorEnabled` flag and links to the real `/auth/mfa/setup` flow.
+ * Display name writes back through `saveDisplayNameAction` (updates
+ * `app_user.name` + `display_name`); locale + theme are already fully real
+ * (cookie write + `next-themes`, untouched here). The two-factor section is
+ * FULLY REAL — it reads the live `twoFactorEnabled` flag and links to the
+ * real `/auth/mfa/setup` flow.
  *
  * No portaled `ContentHeader`: the nav-derived title ("Your profile") is
  * correct, so a custom header would only echo it.
  */
 export function ProfileForm({ profile }: { profile: ProfileData }) {
   const [displayName, setDisplayName] = React.useState(profile.displayName)
+  const [saving, setSaving] = React.useState(false)
   const dirty = displayName !== profile.displayName
 
   const router = useRouter()
   const locale = useLocale()
   const { theme = "system", setTheme } = useTheme()
+
+  async function onSave() {
+    setSaving(true)
+    const result = await saveDisplayNameAction({ displayName })
+    setSaving(false)
+    if (result.ok) {
+      toast.success("Profile saved")
+      router.refresh()
+    } else {
+      toast.error("Could not save profile", {
+        description: "Try again in a moment.",
+      })
+    }
+  }
 
   // Persist the chosen locale (NEXT_LOCALE cookie, 1y) + refresh so the
   // server re-resolves messages — same mechanism as the header account menu.
@@ -77,17 +96,17 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
             <Button
               variant="ghost"
               size="sm"
-              disabled={!dirty}
+              disabled={!dirty || saving}
               onClick={() => setDisplayName(profile.displayName)}
             >
               Discard
             </Button>
             <Button
               size="sm"
-              disabled={!dirty}
-              onClick={() => toast.info("Saving is coming soon")}
+              disabled={!dirty || saving}
+              onClick={() => void onSave()}
             >
-              Save changes
+              {saving ? "Saving…" : "Save changes"}
             </Button>
           </>
         }

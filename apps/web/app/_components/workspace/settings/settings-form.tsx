@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 
 import { ContentPanel, RecordWorkspace } from "@workspace/ui/blocks/app-content"
 import { Button } from "@workspace/ui/components/button"
@@ -16,6 +17,8 @@ import { Input } from "@workspace/ui/components/input"
 import { toast } from "@workspace/ui/components/sonner"
 import { Textarea } from "@workspace/ui/components/textarea"
 
+import { saveWorkspaceSettingsAction } from "../../../workspace/settings/actions"
+
 export interface WorkspaceSettings {
   displayName: string
   purpose: string
@@ -27,15 +30,16 @@ export interface WorkspaceSettings {
 /**
  * Workspace (firm) settings — the Single archetype in `stack` layout: one
  * centered form of grouped sections. Values are REAL (resolved server-side from
- * the `workspace` row); Save is a stub for v1 (a toast), matching the org tier's
- * mock maturity — persistence lands with the workspace write path later.
+ * the `workspace` row); Save writes back through `saveWorkspaceSettingsAction`.
  *
  * No portaled `ContentHeader`: the shell's nav-derived title ("General") is
  * correct here, so a custom header would only duplicate it. The section `<h2>`s
  * are the firm-identity/contact group labels, distinct from the page title.
  */
 export function SettingsForm({ settings }: { settings: WorkspaceSettings }) {
+  const router = useRouter()
   const [form, setForm] = React.useState(settings)
+  const [saving, setSaving] = React.useState(false)
   const set = (key: keyof WorkspaceSettings) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }))
   const dirty = React.useMemo(
@@ -46,6 +50,20 @@ export function SettingsForm({ settings }: { settings: WorkspaceSettings }) {
     [form, settings],
   )
 
+  async function onSave() {
+    setSaving(true)
+    const result = await saveWorkspaceSettingsAction(form)
+    setSaving(false)
+    if (result.ok) {
+      toast.success("Settings saved")
+      router.refresh()
+    } else {
+      toast.error("Could not save settings", {
+        description: "Try again in a moment.",
+      })
+    }
+  }
+
   return (
     <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
       <RecordWorkspace
@@ -55,17 +73,17 @@ export function SettingsForm({ settings }: { settings: WorkspaceSettings }) {
             <Button
               variant="ghost"
               size="sm"
-              disabled={!dirty}
+              disabled={!dirty || saving}
               onClick={() => setForm(settings)}
             >
               Discard
             </Button>
             <Button
               size="sm"
-              disabled={!dirty}
-              onClick={() => toast.info("Saving is coming soon")}
+              disabled={!dirty || saving}
+              onClick={() => void onSave()}
             >
-              Save changes
+              {saving ? "Saving…" : "Save changes"}
             </Button>
           </>
         }

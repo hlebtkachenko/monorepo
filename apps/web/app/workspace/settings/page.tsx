@@ -12,8 +12,9 @@ export const metadata = { title: "Workspace settings" }
 
 /**
  * Workspace (firm) settings — real values read from the active workspace's
- * `workspace` row. Save is a stub for v1 (see `SettingsForm`). Read via
- * `withAdminBypass` + explicit id predicate, consistent with the tier.
+ * `workspace` row. Save writes back via `saveWorkspaceSettingsAction` (see
+ * `SettingsForm`). Read via `withAdminBypass` + explicit id predicate,
+ * consistent with the tier.
  */
 export default async function WorkspaceSettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -38,15 +39,18 @@ export default async function WorkspaceSettingsPage() {
     return r ?? null
   })
 
-  return (
-    <SettingsForm
-      settings={{
-        displayName: row?.displayName ?? "",
-        purpose: row?.purpose ?? "",
-        contactEmail: row?.contactEmail ?? "",
-        contactPhone: row?.contactPhone ?? "",
-        website: row?.website ?? "",
-      }}
-    />
-  )
+  const settings = {
+    displayName: row?.displayName ?? "",
+    purpose: row?.purpose ?? "",
+    contactEmail: row?.contactEmail ?? "",
+    contactPhone: row?.contactPhone ?? "",
+    website: row?.website ?? "",
+  }
+
+  // Keyed on the resolved values: `SettingsForm`'s local edit state only
+  // initializes on mount, so after a save the server may return normalized
+  // values (trimmed) that differ from the client's raw input — without a
+  // fresh mount the form would spuriously stay "dirty". Remounting on
+  // change is simpler and safer than a resync effect.
+  return <SettingsForm key={JSON.stringify(settings)} settings={settings} />
 }

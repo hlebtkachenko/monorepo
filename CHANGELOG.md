@@ -6,6 +6,19 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.12.2] — 2026-07-03
+
+Patch release: the human half of the accounting write gate, API-key write scopes, and a repo-hygiene guard.
+
+### Added
+
+- **api**: held-writes review surface — `GET /v1/accounting/held-writes` lists the gated writes the confidence gate held for human review; `POST /v1/accounting/held-writes/{id}/resolve` approves (re-validates the stored payload against the original schema and executes it through the same domain path, with the approver as the responsible user) or rejects (audit-only). 404/409/403/422 seams covered; SDK + MCP regenerated (23 tools). The "Ke schválení" page gains Schválit a zaúčtovat / Zamítnout actions with an optional note. (#462)
+- **api**: `accounting:write` API-key scope enforced on the three accounting write mutations via `@RequireScopes` in ApiKeyGuard — 403 names the missing scope; keys with empty scopes pass as legacy full access (warn-logged) until issued keys carry scopes. (#462)
+
+### Fixed
+
+- **ci**: removed a `_junk/` file force-added to the tree by #444 and added a tracked-but-gitignored guard (`git ls-files -i -c --exclude-standard` must be empty) to the CI `changes` job and lefthook pre-commit — `.gitignore` only affects untracked files, so nothing previously stopped ignored paths from being committed. (#463)
+
 ## [v0.12.1] — 2026-07-03
 
 Patch release: Sidekick brand accent recolored to the shared purple token, UI-only, no runtime behavior change.

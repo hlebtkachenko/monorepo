@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
-import { Logo, getBuildVersion } from "@workspace/ui/brand-assets"
+import { getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 import {
   Card,
@@ -31,8 +31,9 @@ import {
  * rail/sidebar/chrome stay put while the page bodies under `/workspace/*` swap.
  *
  * There is no workspace switcher — a user operates one office (unlike the org
- * tier's multi-book switcher). The header's left slot carries the brand wordmark
- * (white, on the green office chrome) instead.
+ * tier's multi-book switcher). The rail carries a combined logomark+wordmark
+ * lockup instead (`WorkspaceShell`'s `logo` — white, on the green office
+ * chrome); the header's left slot is unused.
  *
  * A user with no active workspace membership can't be shown an office, so this
  * short-circuits to a centered empty state (with a sign-out affordance) instead
@@ -87,13 +88,6 @@ export default async function WorkspaceLayout({
 
   const header = (
     <AppHeader
-      leftContent={
-        <Logo
-          variant="wordmark"
-          tone="mono-light"
-          className="ml-1 h-[18px] w-auto"
-        />
-      }
       actions={
         <OrgHeaderActions
           userName={userName}

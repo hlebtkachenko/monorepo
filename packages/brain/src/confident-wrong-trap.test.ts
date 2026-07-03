@@ -21,8 +21,8 @@ import {
 // The Brain re-ingests the dump: the primary fact (the supplier invoice for the machine) PLUS the prior GL
 // row. The golden REQUIRES the Brain to FLAG-AND-DEFER, never to reproduce the prior's booking as a green.
 //
-// This pins the three landed controls end-to-end (their exact account codes come from #395/Fixture-1, but
-// the STRUCTURE — flag, don't auto-book — holds now):
+// This pins the three landed controls end-to-end (account codes are the Czech standard Decree-500 synthetics —
+// 042→022 capitalize a fixed asset, 501 the wrong "expensed" account, 321 the supplier):
 //   1. hard-class caps (M1)      — asset_vs_expense fires (amount >= threshold, unresolved) → sub-green.
 //   2. GLEntry-never-bookable (M1) — the Brain books from the invoice, never from the prior GL row.
 //   6. the trap fixture (this)    — the eval that proves 1+2 hold on a real systematic prior error.
@@ -68,8 +68,8 @@ const priorGl: GLEntry = {
   source_trust: "untrusted_prior",
   record_type: "gl_entry",
   date: "2025-03-10",
-  debit_account: "EXPENSE", // the prior error: expensed, not 042/022 capitalized (exact codes = #395)
-  credit_account: "SUPPLIER",
+  debit_account: "501", // the prior error: expensed to 501 (spotřeba) — should be capitalized 042 → 022
+  credit_account: "321", // dodavatelé (supplier)
   amount_minor: 5_000_000n,
   description: "CNC frézka",
   document_ref: "2025-114",

@@ -46,25 +46,19 @@ let withAdminBypass: (typeof import("@workspace/db"))["withAdminBypass"]
 let organization: (typeof import("@workspace/db/schema"))["organization"]
 let adminClient: (typeof import("@workspace/db/tests/fixtures"))["adminClient"]
 let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
+// The production helpers, imported dynamically (they transitively pull
+// @workspace/db, so must bind after globalSetup sets DATABASE_URL).
+let slugify: (typeof import("@workspace/org-provisioning"))["slugify"]
+let isReservedSlug: (typeof import("@workspace/org-provisioning"))["isReservedSlug"]
 
 // ---------------------------------------------------------------------------
 // Replicate private helpers from actions.ts (pin their contract)
 // ---------------------------------------------------------------------------
 
-/** Replica of the private slugify() in actions.ts. */
-function slugify(input: string): string {
-  const slug = input
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-  if (slug.length < 2) return "workspace"
-  return slug
-}
-
 /**
- * Replica of the private pickUniqueSlug() in actions.ts.
- * Uses the injected db handle so it can run inside withAdminBypass.
+ * Replica of the private pickUniqueSlug() in actions.ts (its DB query cannot be
+ * imported directly). Mirrors production including the reserved-slug skip; the
+ * shared `slugify` is used directly (not replicated).
  */
 const MAX_SLUG_ATTEMPTS = 50
 
@@ -75,6 +69,7 @@ async function pickUniqueSlug(
 ): Promise<string> {
   for (let i = 0; i < MAX_SLUG_ATTEMPTS; i++) {
     const candidate = i === 0 ? base : `${base}-${i + 1}`
+    if (isReservedSlug(candidate)) continue
     const [row] = await db
       .select({ id: organization.id })
       .from(organization)
@@ -94,6 +89,7 @@ beforeAll(async () => {
   ;({ adminClient, truncateAll } = await import("@workspace/db/tests/fixtures"))
   ;({ withAdminBypass } = await import("@workspace/db"))
   ;({ organization } = await import("@workspace/db/schema"))
+  ;({ slugify, isReservedSlug } = await import("@workspace/org-provisioning"))
   sql = adminClient()
   await truncateAll(sql)
 }, 30_000)
@@ -111,7 +107,7 @@ beforeEach(async () => {
 // Tests — slugify (pure unit)
 // ---------------------------------------------------------------------------
 
-describe("slugify (pure unit — replica of private helper)", () => {
+describe("slugify (shared @workspace/org-provisioning helper)", () => {
   it("lowercases and replaces non-alphanumeric runs with hyphens", () => {
     expect(slugify("Northwind Accounting")).toBe("northwind-accounting")
     expect(slugify("ACME Corp.")).toBe("acme-corp")
@@ -128,11 +124,12 @@ describe("slugify (pure unit — replica of private helper)", () => {
     expect(slugify(long)).toHaveLength(48)
   })
 
-  it("falls back to 'workspace' when result would be shorter than 2 chars", () => {
-    expect(slugify("A")).toBe("workspace")
-    expect(slugify("!")).toBe("workspace")
-    expect(slugify("")).toBe("workspace")
-    expect(slugify("1")).toBe("workspace") // single digit becomes 1-char slug
+  it("falls back to 'org' when result would be shorter than 3 chars", () => {
+    expect(slugify("A")).toBe("org")
+    expect(slugify("!")).toBe("org")
+    expect(slugify("")).toBe("org")
+    expect(slugify("1")).toBe("org") // single digit becomes a 1-char slug
+    expect(slugify("AB")).toBe("org") // two chars is still below the minimum
   })
 
   it("preserves digits in slug", () => {

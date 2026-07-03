@@ -7,6 +7,7 @@ import {
   organization,
   organization_membership,
 } from "@workspace/db/schema"
+import { RESERVED_SLUGS } from "@workspace/org-provisioning"
 import { getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 
@@ -37,16 +38,8 @@ const ROLE_LABELS: Record<ResolvedMembership["role"], string> = {
 // the storage rule exactly, and a wrong-length slug is treated the same
 // as a non-existent org (resolveMembership returns null).
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
-const RESERVED_SLUGS = new Set([
-  "admin",
-  "api",
-  "app",
-  "auth",
-  "onboarding",
-  "workspace",
-  "_next",
-  "favicon.ico",
-])
+// RESERVED_SLUGS is the shared org-provisioning policy (single source of truth) —
+// the same set pickUniqueSlug skips at creation time.
 
 /**
  * Organization-scoped layout.

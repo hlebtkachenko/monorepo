@@ -1,10 +1,6 @@
 import type { RailMenuEntry } from "@workspace/ui/blocks/app-rail"
 import type { BottomNavItem } from "@workspace/ui/blocks/app-shell"
-import type {
-  SidebarNavEntry,
-  SidebarNavPage,
-} from "@workspace/ui/blocks/app-sidebar"
-import { longestPrefixMatch } from "@workspace/ui/lib/active-path"
+import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
 
 /**
  * Workspace-surface nav, single source — the accountant-office hub. There is no
@@ -148,29 +144,4 @@ export function moduleKeyFromWorkspaceHref(href: string | undefined): string {
   return rest.replace(/^\//, "").split("/")[0] ?? ""
 }
 
-/** Flatten a sidebar tree to its `{ href, label }` leaves (pages + subpages). */
-function navLeaves(nav: SidebarNavEntry[]): { href: string; label: string }[] {
-  const out: { href: string; label: string }[] = []
-  for (const entry of nav) {
-    const pages: SidebarNavPage[] = "href" in entry ? [entry] : entry.pages
-    for (const page of pages) {
-      out.push({ href: page.href, label: page.label })
-      for (const sub of page.subpages ?? [])
-        out.push({ href: sub.href, label: sub.label })
-    }
-  }
-  return out
-}
-
-/** Title for the content-panel header: the active page's label (longest-prefix). */
-export function activeWorkspaceNavTitle(
-  nav: SidebarNavEntry[],
-  pathname: string | undefined,
-): string | undefined {
-  const leaves = navLeaves(nav)
-  const best = longestPrefixMatch(
-    leaves.map((leaf) => leaf.href),
-    pathname,
-  )
-  return leaves.find((leaf) => leaf.href === best)?.label
-}
+export { activeNavTitle as activeWorkspaceNavTitle } from "@workspace/ui/lib/active-path"

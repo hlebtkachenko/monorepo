@@ -7,12 +7,10 @@ import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
 import { app_user } from "@workspace/db/schema"
 
+import { type ActionResult } from "../../../lib/action-result"
 import { logServerError } from "../../../lib/log-server-error"
 
-export interface ActionResult {
-  ok: boolean
-  errorKey?: string
-}
+export type { ActionResult }
 
 const DisplayNameSchema = z.object({
   displayName: z

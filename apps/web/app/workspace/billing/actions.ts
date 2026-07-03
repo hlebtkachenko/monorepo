@@ -6,13 +6,11 @@ import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
 import { workspace_billing } from "@workspace/db/schema"
 
+import { type ActionResult } from "../../../lib/action-result"
 import { logServerError } from "../../../lib/log-server-error"
 import { getWorkspaceContext } from "../_lib/workspace-context"
 
-export interface ActionResult {
-  ok: boolean
-  errorKey?: string
-}
+export type { ActionResult }
 
 const BillingEntitySchema = z.object({
   legalName: z

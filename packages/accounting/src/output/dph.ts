@@ -84,7 +84,14 @@ export interface DphRows {
   r10_dan: Decimal
   r11_base: Decimal
   r11_dan: Decimal
-  /** ř.25 — PDP dodavatel (§92a): základ only, daň 0 (odvádí odběratel). */
+  /**
+   * ř.25 — domestic PDP dodavatel (§92a): základ only, daň 0 (odvádí odběratel).
+   * [#516] vat_jurisdiction IS DISTINCT FROM 'EU' — EU-marked issued reverse-charge
+   * (§64 goods → ř.20, §9(1) service → ř.21, both osvobozené s nárokem, daň 0) is
+   * NOT ř.25. The ř.20/21 osvobozená-plnění lines are a filed follow-up; omitting
+   * them does not move vlastní daň (daň 0 either way), and this PR keeps ř.25 + the
+   * KH A.1 checksum consistent (no EU leak).
+   */
   r25_base: Decimal
   /** ř.40/41 — odpočet daně na vstupu, 21 %/12 % (§72-73). */
   r40_base: Decimal
@@ -186,8 +193,11 @@ export async function buildDph(
         COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU' AND vat_rate = 12), 0)::numeric(19,4) AS r11_base,
         COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU' AND vat_rate = 12), 0)::numeric(19,4) AS r11_dan,
 
-        -- ř.25 — ISSUED, REVERSE_CHARGE (PDP dodavatel): základ only, daň odvádí odběratel
-        COALESCE(SUM(base) FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'REVERSE_CHARGE'), 0)::numeric(19,4) AS r25_base,
+        -- ř.25 — ISSUED, domestic §92 PDP dodavatel: základ only, daň odvádí odběratel.
+        -- [#516] jurisdiction IS DISTINCT FROM 'EU' — an EU-marked issued reverse-charge
+        -- supply (§64 goods / §9(1) service) is NOT a domestic §92 PDP supply; it is
+        -- osvobozené s nárokem (ř.20/21, a filed follow-up) + Souhrnné hlášení, never ř.25.
+        COALESCE(SUM(base) FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU'), 0)::numeric(19,4) AS r25_base,
 
         -- ř.40/41 — RECEIVED, STANDARD, 21%/12% (odpočet)
         COALESCE(SUM(base) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'STANDARD' AND vat_rate = 21), 0)::numeric(19,4) AS r40_base,
@@ -219,7 +229,10 @@ export async function buildDph(
         )::numeric(19,4) AS vlastni_dan,
 
         -- kontrolní hlášení — section totals (no per-counterparty breakdown; see module doc)
-        COALESCE(SUM(base) FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'REVERSE_CHARGE'), 0)::numeric(19,4) AS a1_base,
+        -- [#516] A.1 checksum mirrors the row-level A.1 filter (kontrolni-hlaseni.ts):
+        -- domestic §92 PDP only (jurisdiction IS DISTINCT FROM 'EU'), so the two A.1
+        -- numbers on the same filed KH agree; EU-marked issued RC is SH-only.
+        COALESCE(SUM(base) FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU'), 0)::numeric(19,4) AS a1_base,
         0::numeric(19,4) AS a1_dan,
         COALESCE(SUM(base) FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'STANDARD'), 0)::numeric(19,4) AS a4_base,
         COALESCE(SUM(dan)  FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'STANDARD'), 0)::numeric(19,4) AS a4_dan,

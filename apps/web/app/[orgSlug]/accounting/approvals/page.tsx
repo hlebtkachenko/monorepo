@@ -5,31 +5,11 @@ import type { HeldWriteListRow } from "../../../_components/held-writes/columns"
 import {
   fetchHeldWrites,
   getOrgAccountingContext,
-  type HeldWriteRow,
+  summarizeGatedPayload,
+  trimGatedTimestamp,
 } from "../../_lib/accounting-data"
 
 export const metadata = { title: "Ke schválení" }
-
-/** "YYYY-MM-DD HH:MM:SS+TZ" (Postgres text) → "YYYY-MM-DD HH:MM". */
-function trimTimestamp(value: string): string {
-  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(value)
-  return match ? `${match[1]} ${match[2]}` : value
-}
-
-/** Human one-liner from the gated payload — description when present. */
-function summarize(row: HeldWriteRow): string {
-  const input = row.input_json as Record<string, unknown> | null
-  if (input && typeof input["description"] === "string") {
-    return input["description"]
-  }
-  if (input && typeof input["type"] === "string") {
-    return String(input["type"])
-  }
-  if (input && typeof input["kind"] === "string") {
-    return `posting (${String(input["kind"])})`
-  }
-  return row.tool_name
-}
 
 /**
  * Held-writes review queue ("Ke schválení") — gated accounting writes the
@@ -53,8 +33,8 @@ export default async function ApprovalsPage({
     actor_kind: row.actor_kind,
     confidence: row.confidence,
     rationale: row.rationale,
-    created_at: trimTimestamp(row.created_at),
-    summary: summarize(row),
+    created_at: trimGatedTimestamp(row.created_at),
+    summary: summarizeGatedPayload(row),
     payload_json: JSON.stringify(row.input_json, null, 2),
   }))
 

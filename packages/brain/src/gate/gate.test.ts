@@ -6,7 +6,7 @@ import {
   coldStartModel,
   fitCalibration,
 } from "../confidence/calibration"
-import { firedHardClassSignals } from "../confidence/hard-class"
+import { firedHardClassSignals, HARD_CLASSES } from "../confidence/hard-class"
 import type { ScoreInputs } from "../confidence/score"
 import { TIER2_CAP_VALUES } from "../confidence/signals"
 import { scoreProposal, scoreProposalColdStart } from "./gate"
@@ -115,6 +115,114 @@ describe("scoreProposal — a block stays honest under a fitted model", () => {
     expect(d.cFinal).toBe(0) // ...but the block forces it to 0
     expect(d.isGreen).toBe(false)
     expect(d.needsReview).toBe(true)
+  })
+})
+
+// WP-CONF-CEIL — the POST-calibration hard-class ceiling. A fitted calibration can lift a capped C_raw above
+// green on outcome history; the ceiling clamps cFinal back to the fired hard class's Tier-2 cap so a
+// judgment-heavy hard class can NEVER auto-apply, no matter what the fit says.
+
+/**
+ * Build a FITTED calibration model whose map sends `atScore` to `toValue`. The PAV fit pools same-score
+ * {score, correct} pairs into one block whose y = the correct-rate; `toValue = correctCount / total`.
+ * e.g. 49 correct + 1 incorrect at score 0.6 => a block (x=0.6, y=0.98), so applyCalibration(0.6)=0.98.
+ */
+const fittedMapping = (atScore: number, toValue: number) => {
+  const total = 100
+  const correctCount = Math.round(toValue * total)
+  const pairs = Array.from({ length: total }, (_, i) => ({
+    score: atScore,
+    correct: i < correctCount,
+  }))
+  return fitCalibration(pairs, total)
+}
+
+describe("scoreProposal — post-calibration hard-class ceiling (WP-CONF-CEIL)", () => {
+  it("(a) a fitted map lifting 0.6->0.98 still keeps a fired hard class sub-green [G1-F1]", () => {
+    // asset_vs_expense caps C_raw at 0.6. A fitted calibration says score 0.6 is empirically 98% correct.
+    const model = fittedMapping(TIER2_CAP_VALUES.asset_vs_expense, 0.98)
+    expect(model.fitted).toBe(true)
+    // The map WOULD lift the capped C_raw above the 0.95 fitted green threshold...
+    expect(
+      applyCalibration(TIER2_CAP_VALUES.asset_vs_expense, model),
+    ).toBeGreaterThan(0.95)
+
+    const fired = firedHardClassSignals(["asset_vs_expense"], {}) // nothing resolves it
+    expect(fired).toEqual(["asset_vs_expense"])
+    const d = scoreProposal(maxedInputs(fired), model)
+    // ...but the POST-calibration ceiling clamps cFinal back to the hard-class cap.
+    expect(d.cRaw).toBe(TIER2_CAP_VALUES.asset_vs_expense)
+    expect(d.cFinal).toBe(TIER2_CAP_VALUES.asset_vs_expense)
+    expect(d.isGreen).toBe(false)
+    expect(d.needsReview).toBe(true)
+  })
+
+  it("(b) a NON-hard-class Tier-2 cap (vat_mismatch) is UNAFFECTED by the ceiling", () => {
+    // vat_mismatch caps C_raw at 0.8 but is NOT a hard class — the ceiling must not touch it; only the
+    // WP-D veto holds it on the live path. Its calibrated value passes straight through.
+    expect(HARD_CLASSES).not.toContain("vat_mismatch")
+    const model = fittedMapping(TIER2_CAP_VALUES.vat_mismatch, 0.98)
+    const calibrated = applyCalibration(TIER2_CAP_VALUES.vat_mismatch, model)
+    expect(calibrated).toBeGreaterThan(0.95)
+
+    const d = scoreProposal(maxedInputs(["vat_mismatch"]), model)
+    expect(d.cRaw).toBe(TIER2_CAP_VALUES.vat_mismatch)
+    expect(d.cFinal).toBe(calibrated) // no clamp — the ceiling does not cover vat_mismatch
+    expect(d.isGreen).toBe(true) // the fit lifts it green; only WP-D's veto holds it live
+  })
+
+  it("(c) an EMPTY hard-class intersection yields no clamp (cFinal === calibrated) [G3-R4]", () => {
+    // No fired hard class => minHardCap = 1.0 => cFinal is exactly the calibrated value.
+    const model = fittedMapping(0.9, 0.99)
+    const inputs = maxedInputs([]) // clean, cRaw high; no hard class in firedSignals
+    const d = scoreProposal(inputs, model)
+    expect(d.cFinal).toBe(applyCalibration(d.cRaw, model))
+    // Also holds when a non-hard-class cap fires (still empty hard-class intersection).
+    const d2 = scoreProposal(maxedInputs(["novel_ico"]), model)
+    expect(d2.cFinal).toBe(applyCalibration(d2.cRaw, model))
+  })
+
+  it("(d) a BLOCKED signal still forces cFinal=0 even with a fired hard class (no reorder)", () => {
+    // A fitted map that would lift cRaw=0 high; a block MUST dominate the ceiling composition.
+    const pairs = Array.from({ length: 12 }, () => ({
+      score: 0,
+      correct: true,
+    }))
+    const model = fitCalibration(pairs, 12)
+    expect(applyCalibration(0, model)).toBeGreaterThan(0)
+    // Both a Tier-1 block AND a hard class fire; the block short-circuit wins.
+    const d = scoreProposal(
+      maxedInputs(["no_source_doc", "asset_vs_expense"]),
+      model,
+    )
+    expect(d.blocked).toBe(true)
+    expect(d.cFinal).toBe(0)
+    expect(d.isGreen).toBe(false)
+    expect(d.needsReview).toBe(true)
+  })
+
+  it("(e) [G2-R2] the ceiling is COUPLED to HARD_CLASSES only — a future veto refactor cannot silently reopen the vat/RC lift", () => {
+    // Regression guard: every kind the ceiling clamps must be a hard class, and no non-hard-class Tier-2 cap
+    // may be clamped by it. This pins the ceiling's scope so widening HARD_CLASSES (or a veto refactor that
+    // reroutes vat_mismatch/reverse_charge_candidate through scoreProposal) can never lift them here.
+    const model = fittedMapping(0.6, 0.99) // maps every hard-class cap (all <= 0.7) above green
+    for (const kind of HARD_CLASSES) {
+      const d = scoreProposal(maxedInputs([kind]), model)
+      // Clamped to its own cap, sub-green — the ceiling holds it regardless of the fit.
+      expect(d.cFinal).toBe((TIER2_CAP_VALUES as Record<string, number>)[kind])
+      expect(d.isGreen).toBe(false)
+    }
+    // The non-hard-class caps the plan calls out as "calibration-liftable by design" are NOT clamped.
+    for (const kind of [
+      "vat_mismatch",
+      "reverse_charge_candidate",
+      "novel_bank_pattern",
+    ] as const) {
+      expect(HARD_CLASSES).not.toContain(kind)
+      const capModel = fittedMapping(TIER2_CAP_VALUES[kind], 0.98)
+      const d = scoreProposal(maxedInputs([kind]), capModel)
+      expect(d.cFinal).toBe(applyCalibration(d.cRaw, capModel)) // passes through, not clamped
+    }
   })
 })
 

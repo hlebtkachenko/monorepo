@@ -41,14 +41,13 @@ export const TIER2_CAP_VALUES = {
   // Prior-book re-derivation hard classes (2026-07-01). When re-deriving a booking (fresh OR from a prior
   // book) touches one of these judgment-heavy classes AND an objective infra check does NOT resolve it (e.g.
   // amount ≥ the DHM 40 000 Kč threshold, or a missing DUZP), the classifier fires the matching signal, so
-  // the RAW score (C_raw) is capped sub-green. AT COLD-START (identity calibration) that means green is
-  // unreachable and the item routes to the human — what makes "same confidence metric for the prior book"
-  // safe before any calibration is fitted. NOTE: a FITTED calibration can still lift a capped C_raw above
-  // green if outcome history shows those items empirically correct (calibration is meant to override the
-  // pre-cap on real evidence). Making the cap a hard post-calibration CEILING for these classes is the
-  // deferred WP-CONF-CEIL (its own advisor gate) — until then the cap is a cold-start floor, not an
-  // unconditional block. A prior-book DISAGREEMENT (Brain re-derivation != the prior GL row) reuses
-  // `multi_source_conflict` (0.75). Exact values pending the WP-CONF-CEIL gate; all are conservatively sub-green.
+  // the RAW score (C_raw) is capped sub-green. AT COLD-START (identity calibration) that alone means green is
+  // unreachable and the item routes to the human. WP-CONF-CEIL now makes these caps a hard POST-calibration
+  // CEILING: `scoreProposal` (gate.ts) clamps `cFinal = min(applyCalibration(cRaw), minHardCap)` where
+  // `minHardCap` is the lowest of the fired HARD_CLASSES caps below — so a FITTED calibration can NEVER lift a
+  // fired hard class above green, not just at cold start. (Other Tier-2 caps stay calibration-liftable by
+  // design and are held on the live path by the WP-D veto.) A prior-book DISAGREEMENT (Brain re-derivation !=
+  // the prior GL row) reuses `multi_source_conflict` (0.75). All hard-class values are conservatively sub-green.
   asset_vs_expense: 0.6, // 042/022 (capitalize) vs 501/518 (expense) — the classic prior error
   accrual_period_boundary: 0.65, // časové rozlišení 381/382/383/384 — event spans the period boundary
   reserve_or_impairment: 0.7, // rezervy / opravné položky — judgment + policy bound

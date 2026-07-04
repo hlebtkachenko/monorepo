@@ -1307,3 +1307,44 @@ describe("FX coherence", () => {
     expect(row?.currency_code).toBe("PLN")
   })
 })
+
+// ===========================================================================
+// supply_kind (migration 0043) — additive, nullable, CHECK-guarded. Absent /
+// NULL is the legacy behavior (souhrnné hlášení kód 0). SERVICES drives kód 3.
+// ===========================================================================
+describe("supply_kind (migration 0043)", () => {
+  const insSk = (id: string, supplyKind: string | null) =>
+    admin.unsafe(
+      `INSERT INTO partial_record (id, organization_id, individual_record_id, base_amount, vat_mode, vat_amount, currency_code, base_in_accounting_currency, vat_in_accounting_currency, supply_kind)
+       VALUES ('${id}'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'STANDARD', 0, 'CZK', 1000, 0, ${supplyKind ? `'${supplyKind}'` : "NULL"})`,
+    )
+
+  it("(SK1) the column exists and is nullable", async () => {
+    const [col] = await admin.unsafe<Array<{ is_nullable: string }>>(
+      `SELECT is_nullable FROM information_schema.columns WHERE table_name='partial_record' AND column_name='supply_kind'`,
+    )
+    expect(col?.is_nullable).toBe("YES")
+  })
+
+  it("(SK2) a NULL supply_kind is accepted (legacy / undistinguished)", async () => {
+    await insSk("00000000-0000-0000-0000-0000000ac001", null)
+    const [row] = await admin.unsafe<Array<{ supply_kind: string | null }>>(
+      `SELECT supply_kind FROM partial_record WHERE id = '00000000-0000-0000-0000-0000000ac001'::uuid`,
+    )
+    expect(row?.supply_kind).toBeNull()
+  })
+
+  it("(SK3) a valid SupplyKind (SERVICES) is accepted", async () => {
+    await insSk("00000000-0000-0000-0000-0000000ac002", "SERVICES")
+    const [row] = await admin.unsafe<Array<{ supply_kind: string | null }>>(
+      `SELECT supply_kind FROM partial_record WHERE id = '00000000-0000-0000-0000-0000000ac002'::uuid`,
+    )
+    expect(row?.supply_kind).toBe("SERVICES")
+  })
+
+  it("(SK4) an out-of-domain supply_kind is rejected by the CHECK", async () => {
+    await expect(
+      insSk("00000000-0000-0000-0000-0000000ac003", "BOGUS"),
+    ).rejects.toThrow(/partial_record_supply_kind_chk|supply_kind/i)
+  })
+})

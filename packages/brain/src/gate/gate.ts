@@ -18,14 +18,51 @@ import {
   greenThreshold,
   isGreen,
 } from "../confidence/calibration"
+import { HARD_CLASSES } from "../confidence/hard-class"
 import { computeCRaw, type ScoreInputs } from "../confidence/score"
 import { isBlockSignal, TIER2_CAP_VALUES, tierOf } from "../confidence/signals"
+
+/** The 5 hard-class kinds as a set, for the O(1) firedSignals intersection in the ceiling. */
+const HARD_CLASS_SET: ReadonlySet<string> = new Set<string>(HARD_CLASSES)
+
+/**
+ * WP-CONF-CEIL — the POST-calibration hard-class ceiling ([G1-F1] / [G2-Opus arithmetic]).
+ *
+ * `minHardCap = min(TIER2_CAP_VALUES[k])` over `k ∈ intersect(inputs.firedSignals, HARD_CLASSES)`.
+ * We derive the intersection from `inputs.firedSignals` (data the gate already holds) ∩ `HARD_CLASSES`.
+ * We deliberately do NOT call `firedHardClassSignals` — that resolver re-runs the firing predicate against
+ * facts the gate does not hold, so it would (wrongly) treat an absent amount/DUZP as unresolved. The gate
+ * only clamps classes the caller ALREADY decided to fire.
+ *
+ * An EMPTY intersection ⇒ `minHardCap = 1.0` (no clamp). Every hard class is a `TIER2_CAP_VALUES` key
+ * ([G3-R4]), so a fired hard class always resolves to a numeric cap.
+ *
+ * [G2-R2] The ceiling covers the 5 HARD_CLASSES ONLY. Other Tier-2 caps
+ * (`vat_mismatch` / `reverse_charge_candidate` / `novel_bank_pattern` / ...) stay calibration-liftable BY
+ * DESIGN — a fitted map may raise their capped C_raw above green on real outcome evidence. Those are held on
+ * the LIVE path by the independent WP-D veto (`deriveCaptureVeto`/`derivePostingVeto`), NOT by this ceiling.
+ * Never widen this to the non-hard-class caps: that would double-gate the veto's job and pin caps the fit is
+ * meant to override.
+ */
+function minHardCap(firedSignals: readonly string[]): number {
+  let cap = 1
+  for (const kind of firedSignals) {
+    if (HARD_CLASS_SET.has(kind)) {
+      const value = (TIER2_CAP_VALUES as Record<string, number>)[kind]!
+      if (value < cap) cap = value
+    }
+  }
+  return cap
+}
 
 /** The server-side decision a write endpoint acts on. Purely a function of `inputs` (+ the fixed model). */
 export interface GateDecision {
   /** C_raw from the D6 composition (0.0 if a Tier-1/Tier-3 block fired). */
   cRaw: number
-  /** C_final after the calibration map (identity at cold start); forced to 0.0 when `blocked`. */
+  /**
+   * C_final after the calibration map (identity at cold start), then clamped to the hard-class ceiling
+   * (`min` with the lowest fired-hard-class Tier-2 cap); forced to 0.0 when `blocked`.
+   */
   cFinal: number
   /** Reaches the green (fast-approve) lane under the model's active threshold. */
   isGreen: boolean
@@ -88,7 +125,15 @@ export function scoreProposal(
   // A block forces C to 0.0 unconditionally — never let a fitted calibration map lift a blocked
   // proposal's cRaw=0 into a non-zero cFinal / a green (it stays needsReview via `blocked`, but the
   // reported cFinal/isGreen must stay honest for any downstream that keys on them).
-  const cFinal = blocked ? 0 : applyCalibration(cRaw, model)
+  //
+  // Non-blocked path: apply the calibration map, THEN clamp to the hard-class ceiling POST-calibration
+  // (WP-CONF-CEIL, [G1-F1] / [G2-Opus]). A cRaw-side clamp would be a vacuous no-op — score.ts:105 already
+  // does `min(cCaps, composite)`, so cRaw is bounded below the cap before calibration; only a POST-calibration
+  // clamp survives a fitted map that would lift a judgment-heavy fired hard class above green. The block
+  // short-circuit is UNCHANGED and dominates the ceiling: a blocked signal still forces cFinal=0.
+  const cFinal = blocked
+    ? 0
+    : Math.min(applyCalibration(cRaw, model), minHardCap(inputs.firedSignals))
   const green = isGreen(cFinal, model)
   // A blocked or sub-green proposal always routes to a human.
   const needsReview = !green || blocked

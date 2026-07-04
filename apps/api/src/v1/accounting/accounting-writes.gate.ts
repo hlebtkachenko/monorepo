@@ -18,8 +18,11 @@ import {
   ValidationError,
 } from "@workspace/shared/errors"
 
+import type { GateDecision } from "@workspace/brain/gate"
+
 import { accountingAdmission } from "./admission.singleton"
 import type { VetoResult } from "./accounting-veto"
+import { evaluateEvidence, type EvidenceEnvelope } from "./evidence-gate"
 import { translateAccountingError } from "./accounting-error"
 
 // A non-finite override (e.g. "100 000" / "100,000" → NaN) would silently
@@ -74,6 +77,13 @@ export interface GatedWriteOptions<T> {
   confidence: number
   rationale: string
   conversationId?: string
+  /**
+   * The client's self-reported evidence envelope ([WP-D] #464). Scored SERVER-side
+   * via the fail-closed `evaluateEvidence` — the client claim is never consumed
+   * directly. Optional: a write with no envelope still runs the (degraded) score,
+   * so green stays unreachable at cold start regardless.
+   */
+  signals?: EvidenceEnvelope | null
   /** Decimal-string amounts tested against the always-hold ceiling. */
   holdAmounts: string[]
   /**
@@ -102,6 +112,13 @@ export interface GatedWriteOptions<T> {
 export async function runGatedWrite<T>(
   opts: GatedWriteOptions<T>,
   admission: AdmissionController = accountingAdmission,
+  // The server-side evidence scorer. Defaults to the fail-closed live scorer;
+  // injectable ONLY so a test can exercise the green auto-apply leg without a
+  // fabricated cFinal (mirrors the injectable `admission`). Production always
+  // uses `evaluateEvidence` — the client can never override it.
+  scoreEvidence: (
+    signals: EvidenceEnvelope | null | undefined,
+  ) => GateDecision = evaluateEvidence,
 ): Promise<GatedWriteResult> {
   const { principal, idempotencyKey, operationId, body } = opts
 
@@ -186,20 +203,49 @@ export async function runGatedWrite<T>(
             return { kind: "replay", prior }
           }
 
-          // The client's confidence is NECESSARY but not SUFFICIENT: an
-          // auto-apply candidate still runs the SERVER veto (M-B), which derives
-          // the dangerous hard-class / VAT signals from the payload and forces a
-          // HOLD if one fires — so a client cannot green a wrong booking by
-          // claiming confidence 1.0. Computed only when the write would otherwise
-          // auto-apply (a confidence/amount hold needs no veto lookup).
-          const autoApplyCandidate =
+          // [WP-D] Live auto-apply requires a THREE-WAY AND, each leg independent:
+          //   (1) client confidence >= threshold AND not an amount hold
+          //       (NECESSARY, never sufficient — the client scalar alone can never
+          //       green a write);
+          //   (2) the server VETO does not hold (`deriveCaptureVeto` /
+          //       `derivePostingVeto` — derives dangerous hard-class / VAT signals
+          //       from the payload; stays INDEPENDENT and is NEVER routed through
+          //       the score engine or calibration [G2-B1]);
+          //   (3) the server SCORE is green — `evaluateEvidence` degrades every
+          //       unverifiable client claim fail-closed and scores it server-side,
+          //       so a client cannot forge a green via the `signals` envelope. At
+          //       cold start green is structurally unreachable → everything HELD
+          //       ([G3-R1], the intended pre-launch posture).
+          // The veto + score are computed only when the write would otherwise
+          // auto-apply (a confidence/amount hold needs neither lookup).
+          const confidenceOk =
             opts.confidence >= AUTO_APPLY_THRESHOLD && !amountHold
           const veto: VetoResult =
-            autoApplyCandidate && opts.deriveVeto
+            confidenceOk && opts.deriveVeto
               ? await opts.deriveVeto(db)
               : { held: false, signals: [] }
+          // The server verdict is ALWAYS computed for the audit trail (persisted
+          // to output_json.serverGate); its `isGreen` gates auto-apply. Never a
+          // fabricated cFinal — this is the honest scoreProposal output.
+          const score = scoreEvidence(opts.signals)
+          const autoApply = confidenceOk && !veto.held && score.isGreen
+          // The combined server-gate audit record: the independent veto + the
+          // honest score verdict (cRaw/cFinal/isGreen/reasons/firedSignals). This
+          // is the `output_json.serverGate` payload — audit-only, stripped from
+          // the replay body.
+          const serverGate = {
+            veto,
+            score: {
+              cRaw: score.cRaw,
+              cFinal: score.cFinal,
+              isGreen: score.isGreen,
+              blocked: score.blocked,
+              firedSignals: score.firedSignals,
+              reasons: score.reasons,
+            },
+          }
 
-          if (autoApplyCandidate && !veto.held) {
+          if (autoApply) {
             // Serialize concurrent writes to this (org, period) on the SAME
             // bound tx that holds the RLS GUCs (ADR-0028) — protects the
             // allocateNumber read-modify-write and orders same-period posts. The
@@ -215,7 +261,7 @@ export async function runGatedWrite<T>(
             await updateToolCallLogOutput(db, {
               toolCallLogId: log.toolCallLogId,
               // `serverGate` is audit-only — stripped from the replay body.
-              output: { payloadHash, serverGate: veto, ...appliedBody },
+              output: { payloadHash, serverGate, ...appliedBody },
               autoApplied: true,
               rationale: opts.rationale,
             })
@@ -227,8 +273,9 @@ export async function runGatedWrite<T>(
             toolCallLogId: log.toolCallLogId,
             // Persist the FULL held body (incl. reviewId) so a same-key replay
             // returns the review handle, not a bare {status:"held"}. `serverGate`
-            // records WHY the server held (veto signals) for the audit trail.
-            output: { payloadHash, serverGate: veto, ...heldBody },
+            // records WHY the server held (veto signals + score verdict) for the
+            // audit trail.
+            output: { payloadHash, serverGate, ...heldBody },
             autoApplied: false,
             rationale: opts.rationale,
           })

@@ -4016,6 +4016,74 @@
             "type": "string",
             "format": "uuid",
             "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
           }
         },
         "required": [
@@ -4170,6 +4238,23 @@
                           null
                         ]
                       },
+                      "supplyKind": {
+                        "type": "string",
+                        "enum": [
+                          "GOODS",
+                          "MATERIAL",
+                          "SERVICES",
+                          "UTILITY",
+                          "RENT",
+                          "INSURANCE",
+                          "ASSET",
+                          "ADVANCE",
+                          "CREDIT_NOTE",
+                          "OTHER"
+                        ],
+                        "description": "Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> kód 0 (goods/undistinguished).",
+                        "example": "SERVICES"
+                      },
                       "vatDeductible": {
                         "type": "boolean"
                       },
@@ -4271,6 +4356,74 @@
             "type": "string",
             "format": "uuid",
             "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
           }
         },
         "required": [
@@ -4548,6 +4701,74 @@
             "type": "string",
             "format": "uuid",
             "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
           }
         },
         "required": [

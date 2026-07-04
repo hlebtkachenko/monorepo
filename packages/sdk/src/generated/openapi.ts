@@ -2816,6 +2816,43 @@ export interface components {
              * @description Audit-correlation id of the driving agent conversation.
              */
             conversationId?: string;
+            /** @description Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs. */
+            signals?: {
+                /**
+                 * @description Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example high_active
+                 * @enum {string}
+                 */
+                kbRule?: "constitution_safe" | "high_active" | "medium" | "low_mixed" | "none";
+                /**
+                 * @description Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.
+                 * @example 0.85
+                 */
+                extractionQuality?: number;
+                /**
+                 * @description Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example full
+                 * @enum {string}
+                 */
+                reconciliation?: "full" | "partial" | "none";
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                vatBaseMatchesNet?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                rcChecklistPassesOrNA?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                decree500Confirmed?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                periodConsistent?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                bankVsKsSsMatch?: boolean;
+                /**
+                 * @description Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.
+                 * @example [
+                 *       "novel_ico"
+                 *     ]
+                 */
+                capSignals?: string[];
+            } | null;
         };
         /** @description Create-event result (applied or held). */
         CreateAccountingEventResponse: {
@@ -2875,6 +2912,12 @@ export interface components {
                     vatAmount?: string;
                     /** @enum {string|null} */
                     vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | null;
+                    /**
+                     * @description Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> kód 0 (goods/undistinguished).
+                     * @example SERVICES
+                     * @enum {string}
+                     */
+                    supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
                     vatDeductible?: boolean;
                     advanceSettlement?: boolean;
                     /**
@@ -2918,6 +2961,43 @@ export interface components {
              * @description Audit-correlation id of the driving agent conversation.
              */
             conversationId?: string;
+            /** @description Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs. */
+            signals?: {
+                /**
+                 * @description Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example high_active
+                 * @enum {string}
+                 */
+                kbRule?: "constitution_safe" | "high_active" | "medium" | "low_mixed" | "none";
+                /**
+                 * @description Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.
+                 * @example 0.85
+                 */
+                extractionQuality?: number;
+                /**
+                 * @description Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example full
+                 * @enum {string}
+                 */
+                reconciliation?: "full" | "partial" | "none";
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                vatBaseMatchesNet?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                rcChecklistPassesOrNA?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                decree500Confirmed?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                periodConsistent?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                bankVsKsSsMatch?: boolean;
+                /**
+                 * @description Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.
+                 * @example [
+                 *       "novel_ico"
+                 *     ]
+                 */
+                capSignals?: string[];
+            } | null;
         };
         /** @description Capture-document result (applied or held). */
         CaptureAccountingDocumentResponse: {
@@ -3014,6 +3094,43 @@ export interface components {
              * @description Audit-correlation id of the driving agent conversation.
              */
             conversationId?: string;
+            /** @description Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs. */
+            signals?: {
+                /**
+                 * @description Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example high_active
+                 * @enum {string}
+                 */
+                kbRule?: "constitution_safe" | "high_active" | "medium" | "low_mixed" | "none";
+                /**
+                 * @description Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.
+                 * @example 0.85
+                 */
+                extractionQuality?: number;
+                /**
+                 * @description Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example full
+                 * @enum {string}
+                 */
+                reconciliation?: "full" | "partial" | "none";
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                vatBaseMatchesNet?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                rcChecklistPassesOrNA?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                decree500Confirmed?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                periodConsistent?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                bankVsKsSsMatch?: boolean;
+                /**
+                 * @description Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.
+                 * @example [
+                 *       "novel_ico"
+                 *     ]
+                 */
+                capSignals?: string[];
+            } | null;
         };
         /** @description Create-posting result (applied or held). */
         CreateAccountingPostingResponse: {

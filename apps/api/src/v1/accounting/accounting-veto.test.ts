@@ -173,4 +173,26 @@ describe("deriveCaptureVeto — vat_mismatch", () => {
     ])
     expect(veto.held).toBe(false)
   })
+
+  it("HOLDS a STANDARD partial with a null vatRate and no vatAmount ([G3-B1] blind spot)", () => {
+    // Without this rider a STANDARD + vatRate=null + no vatAmount payload slips the
+    // whole VAT screen and auto-applies on the client scalar. It must be HELD.
+    const veto = deriveCaptureVeto([
+      {
+        partials: [
+          { baseAmount: "1000.00", vatMode: "STANDARD", vatRate: null },
+        ],
+      },
+    ])
+    expect(veto.held).toBe(true)
+    expect(veto.signals).toEqual(["unverified_vat_regime"])
+  })
+
+  it("HOLDS a STANDARD partial with an ABSENT vatRate ([G3-B1] blind spot)", () => {
+    const veto = deriveCaptureVeto([
+      { partials: [{ baseAmount: "1000.00", vatMode: "STANDARD" }] },
+    ])
+    expect(veto.held).toBe(true)
+    expect(veto.signals).toEqual(["unverified_vat_regime"])
+  })
 })

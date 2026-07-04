@@ -29,6 +29,10 @@ import {
   GetInvoiceResponseSchema,
   CreateInvoiceRequestSchema,
   CreateInvoiceResponseSchema,
+  ListAccountsQuerySchema,
+  ListAccountsResponseSchema,
+  GetAccountResponseSchema,
+  UpdateAccountRequestSchema,
 } from "@workspace/shared/api"
 
 /**
@@ -111,4 +115,16 @@ export class CreateInvoiceRequestDto extends createZodDto(
 ) {}
 export class CreateInvoiceResponseDto extends createZodDto(
   CreateInvoiceResponseSchema,
+) {}
+export class ListAccountsQueryDto extends createZodDto(
+  ListAccountsQuerySchema,
+) {}
+export class ListAccountsResponseDto extends createZodDto(
+  ListAccountsResponseSchema,
+) {}
+export class GetAccountResponseDto extends createZodDto(
+  GetAccountResponseSchema,
+) {}
+export class UpdateAccountRequestDto extends createZodDto(
+  UpdateAccountRequestSchema,
 ) {}

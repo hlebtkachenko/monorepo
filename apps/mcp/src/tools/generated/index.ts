@@ -27,6 +27,8 @@ import { registerResolveAccountingHeldWrite } from "./resolveAccountingHeldWrite
 import { registerListInvoices } from "./listInvoices"
 import { registerCreateInvoice } from "./createInvoice"
 import { registerGetInvoice } from "./getInvoice"
+import { registerListAccounts } from "./listAccounts"
+import { registerGetAccount } from "./getAccount"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -55,6 +57,8 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerListInvoices(server, client)
   registerCreateInvoice(server, client)
   registerGetInvoice(server, client)
+  registerListAccounts(server, client)
+  registerGetAccount(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -84,4 +88,6 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "listInvoices",
   "createInvoice",
   "getInvoice",
+  "listAccounts",
+  "getAccount",
 ] as const

@@ -119,8 +119,11 @@ const tiers: Tier[] = [
     dir: join(APP_DIR, "workspace"),
     prefix: "/workspace",
     navPaths: navPathsFrom(wsHrefs, "/workspace"),
-    // Saved dev-only demo: the pre-stub Inbox mock UI, kept for reference.
-    hidden: new Set(["demo-inbox"]),
+    // demo-inbox: saved dev-only demo (pre-stub Inbox mock UI), kept for
+    // reference. organizations/new: the "add organization" create wizard —
+    // reached from a button (companies view), an action route with no
+    // sidebar-nav slot.
+    hidden: new Set(["demo-inbox", "organizations/new"]),
   },
 ]
 

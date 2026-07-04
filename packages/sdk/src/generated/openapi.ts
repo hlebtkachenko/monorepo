@@ -510,6 +510,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List chart of accounts
+         * @description Returns the organization's chart-of-accounts entries (účtový rozvrh), organization-scoped (FORCE RLS). Optionally filter by účetní období (`periodId`) and synthetic/analytical shape (`isSynthetic`). The chart exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.
+         */
+        get: operations["listAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an account
+         * @description Returns a single chart-of-accounts entry by id, organization-scoped (FORCE RLS). Returns 404 when the account does not exist within the authenticated tenant — cross-tenant existence is never leaked.
+         */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit an account
+         * @description Partially edits an account. Only the two operator-editable columns are accepted — `name` and `tracksOpenItems` (saldokonto). Structural and generated columns (number, nature, normalBalance, parent, the generated class/group/synthetic levels) are immutable through this surface: changing them retroactively reclassifies posted history. Requires the `accounting:write` scope. Returns 404 when the account is not visible to the authenticated tenant.
+         */
+        patch: operations["updateAccount"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1675,6 +1719,26 @@ export interface components {
                  */
                 r4_dan: string;
                 /**
+                 * @description ř.5 základ — přijetí služby dle §9/1 z EU, samovyměření 21 %.
+                 * @example 0.00
+                 */
+                r5_base: string;
+                /**
+                 * @description ř.5 daň.
+                 * @example 0.00
+                 */
+                r5_dan: string;
+                /**
+                 * @description ř.6 základ — přijetí služby dle §9/1 z EU, samovyměření 12 %.
+                 * @example 0.00
+                 */
+                r6_base: string;
+                /**
+                 * @description ř.6 daň.
+                 * @example 0.00
+                 */
+                r6_dan: string;
+                /**
                  * @description ř.10 základ — PDP odběratel 21 % (§92e).
                  * @example 0.00
                  */
@@ -1846,6 +1910,26 @@ export interface components {
              * @example 0.00
              */
             r4_dan: string;
+            /**
+             * @description ř.5 základ — přijetí služby dle §9/1 z EU, samovyměření 21 %.
+             * @example 0.00
+             */
+            r5_base: string;
+            /**
+             * @description ř.5 daň.
+             * @example 0.00
+             */
+            r5_dan: string;
+            /**
+             * @description ř.6 základ — přijetí služby dle §9/1 z EU, samovyměření 12 %.
+             * @example 0.00
+             */
+            r6_base: string;
+            /**
+             * @description ř.6 daň.
+             * @example 0.00
+             */
+            r6_dan: string;
             /**
              * @description ř.10 základ — PDP odběratel 21 % (§92e).
              * @example 0.00
@@ -3993,6 +4077,256 @@ export interface components {
                 partialRecordIds: string[];
             }[] | null;
         };
+        /** @description A chart-of-accounts entry (účet) within one accounting period. */
+        Account: {
+            /**
+             * Format: uuid
+             * @description Opaque account identifier (UUID).
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The chart (účtový rozvrh) this account belongs to.
+             * @example 0196f1de-0000-7000-8000-0000000000c1
+             */
+            chartId: string;
+            /**
+             * Format: uuid
+             * @description The účetní období the chart is scoped to. Accounts are minted fresh (new ids) each period when the chart is copied forward.
+             * @example 0196f1de-0000-7000-8000-0000000000d1
+             */
+            periodId: string;
+            /**
+             * Format: uuid
+             * @description The synthetic account this analytical account rolls up to (§16), or `null` for a synthetic account.
+             * @example null
+             */
+            parentId: string | null;
+            /**
+             * @description Account number: class/group/synthetic/analytical, e.g. `311.001`.
+             * @example 311.001
+             */
+            number: string;
+            /**
+             * @description Human-readable account name.
+             * @example Odběratelé — tuzemsko
+             */
+            name: string;
+            /**
+             * @description Account nature (ASSET | LIABILITY | EQUITY | EXPENSE | REVENUE | OFF_BALANCE).
+             * @example ASSET
+             */
+            nature: string;
+            /**
+             * @description The side that increases the account, or `null` where the sign flips (431, 481, FX accounts).
+             * @example DEBIT
+             * @enum {string|null}
+             */
+            normalBalance: "DEBIT" | "CREDIT" | null;
+            /**
+             * @description Whether this account is kept on saldokonto (per-open-item tracking). The one operator-chosen stored flag on an account.
+             * @example true
+             */
+            tracksOpenItems: boolean;
+            /**
+             * @description Účtová třída 0–9, generated from the leading digit of `number` (present for every account, including off-balance 8/9).
+             * @example 3
+             */
+            class: number | null;
+            /**
+             * @description Two-digit účtová skupina (generated), or `null` for off-balance classes 8/9.
+             * @example 31
+             */
+            groupCode: string | null;
+            /**
+             * @description Synthetic account code (generated from `number`): two digits for a group-level account (e.g. `31`), three otherwise (e.g. `311`).
+             * @example 311
+             */
+            syntheticCode: string;
+            /**
+             * @description `true` for a synthetic account, `false` for an analytical one (generated from `parentId`).
+             * @example false
+             */
+            isSynthetic: boolean;
+            /**
+             * @description Soft link to the 3-digit směrná-účtová-osnova catalogue code this account specializes, or `null`.
+             * @example 311
+             */
+            specializesDirectiveCode: string | null;
+        };
+        /** @description The organization's chart of accounts (organization-scoped, FORCE RLS). Empty for non-DOUBLE_ENTRY orgs (they keep no chart). */
+        ListAccountsResponse: {
+            /** @description Chart-of-accounts entries matching the filters. */
+            accounts: {
+                /**
+                 * Format: uuid
+                 * @description Opaque account identifier (UUID).
+                 */
+                id: string;
+                /**
+                 * Format: uuid
+                 * @description The chart (účtový rozvrh) this account belongs to.
+                 * @example 0196f1de-0000-7000-8000-0000000000c1
+                 */
+                chartId: string;
+                /**
+                 * Format: uuid
+                 * @description The účetní období the chart is scoped to. Accounts are minted fresh (new ids) each period when the chart is copied forward.
+                 * @example 0196f1de-0000-7000-8000-0000000000d1
+                 */
+                periodId: string;
+                /**
+                 * Format: uuid
+                 * @description The synthetic account this analytical account rolls up to (§16), or `null` for a synthetic account.
+                 * @example null
+                 */
+                parentId: string | null;
+                /**
+                 * @description Account number: class/group/synthetic/analytical, e.g. `311.001`.
+                 * @example 311.001
+                 */
+                number: string;
+                /**
+                 * @description Human-readable account name.
+                 * @example Odběratelé — tuzemsko
+                 */
+                name: string;
+                /**
+                 * @description Account nature (ASSET | LIABILITY | EQUITY | EXPENSE | REVENUE | OFF_BALANCE).
+                 * @example ASSET
+                 */
+                nature: string;
+                /**
+                 * @description The side that increases the account, or `null` where the sign flips (431, 481, FX accounts).
+                 * @example DEBIT
+                 * @enum {string|null}
+                 */
+                normalBalance: "DEBIT" | "CREDIT" | null;
+                /**
+                 * @description Whether this account is kept on saldokonto (per-open-item tracking). The one operator-chosen stored flag on an account.
+                 * @example true
+                 */
+                tracksOpenItems: boolean;
+                /**
+                 * @description Účtová třída 0–9, generated from the leading digit of `number` (present for every account, including off-balance 8/9).
+                 * @example 3
+                 */
+                class: number | null;
+                /**
+                 * @description Two-digit účtová skupina (generated), or `null` for off-balance classes 8/9.
+                 * @example 31
+                 */
+                groupCode: string | null;
+                /**
+                 * @description Synthetic account code (generated from `number`): two digits for a group-level account (e.g. `31`), three otherwise (e.g. `311`).
+                 * @example 311
+                 */
+                syntheticCode: string;
+                /**
+                 * @description `true` for a synthetic account, `false` for an analytical one (generated from `parentId`).
+                 * @example false
+                 */
+                isSynthetic: boolean;
+                /**
+                 * @description Soft link to the 3-digit směrná-účtová-osnova catalogue code this account specializes, or `null`.
+                 * @example 311
+                 */
+                specializesDirectiveCode: string | null;
+            }[];
+        };
+        /** @description A single chart-of-accounts entry. */
+        GetAccountResponse: {
+            /** @description A chart-of-accounts entry (účet) within one accounting period. */
+            account: {
+                /**
+                 * Format: uuid
+                 * @description Opaque account identifier (UUID).
+                 */
+                id: string;
+                /**
+                 * Format: uuid
+                 * @description The chart (účtový rozvrh) this account belongs to.
+                 * @example 0196f1de-0000-7000-8000-0000000000c1
+                 */
+                chartId: string;
+                /**
+                 * Format: uuid
+                 * @description The účetní období the chart is scoped to. Accounts are minted fresh (new ids) each period when the chart is copied forward.
+                 * @example 0196f1de-0000-7000-8000-0000000000d1
+                 */
+                periodId: string;
+                /**
+                 * Format: uuid
+                 * @description The synthetic account this analytical account rolls up to (§16), or `null` for a synthetic account.
+                 * @example null
+                 */
+                parentId: string | null;
+                /**
+                 * @description Account number: class/group/synthetic/analytical, e.g. `311.001`.
+                 * @example 311.001
+                 */
+                number: string;
+                /**
+                 * @description Human-readable account name.
+                 * @example Odběratelé — tuzemsko
+                 */
+                name: string;
+                /**
+                 * @description Account nature (ASSET | LIABILITY | EQUITY | EXPENSE | REVENUE | OFF_BALANCE).
+                 * @example ASSET
+                 */
+                nature: string;
+                /**
+                 * @description The side that increases the account, or `null` where the sign flips (431, 481, FX accounts).
+                 * @example DEBIT
+                 * @enum {string|null}
+                 */
+                normalBalance: "DEBIT" | "CREDIT" | null;
+                /**
+                 * @description Whether this account is kept on saldokonto (per-open-item tracking). The one operator-chosen stored flag on an account.
+                 * @example true
+                 */
+                tracksOpenItems: boolean;
+                /**
+                 * @description Účtová třída 0–9, generated from the leading digit of `number` (present for every account, including off-balance 8/9).
+                 * @example 3
+                 */
+                class: number | null;
+                /**
+                 * @description Two-digit účtová skupina (generated), or `null` for off-balance classes 8/9.
+                 * @example 31
+                 */
+                groupCode: string | null;
+                /**
+                 * @description Synthetic account code (generated from `number`): two digits for a group-level account (e.g. `31`), three otherwise (e.g. `311`).
+                 * @example 311
+                 */
+                syntheticCode: string;
+                /**
+                 * @description `true` for a synthetic account, `false` for an analytical one (generated from `parentId`).
+                 * @example false
+                 */
+                isSynthetic: boolean;
+                /**
+                 * @description Soft link to the 3-digit směrná-účtová-osnova catalogue code this account specializes, or `null`.
+                 * @example 311
+                 */
+                specializesDirectiveCode: string | null;
+            };
+        };
+        /** @description Partial edit of an account. At least one editable field must be provided (the api rejects an empty body with 422). */
+        UpdateAccountRequest: {
+            /**
+             * @description New account name.
+             * @example Odběratelé — EU
+             */
+            name?: string;
+            /**
+             * @description Whether to keep this account on saldokonto.
+             * @example true
+             */
+            tracksOpenItems?: boolean;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -4914,6 +5248,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetInvoiceResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAccounts: {
+        parameters: {
+            query?: {
+                /** @description Restrict to one účetní období. Omit to list every period's accounts the tenant can see. */
+                periodId?: string;
+                /** @description Filter to synthetic (`true`) or analytical (`false`) accounts only. */
+                isSynthetic?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The chart-of-accounts entries matching the filters. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAccountsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque account identifier (UUID). */
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetAccountResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    updateAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque account identifier (UUID). */
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetAccountResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

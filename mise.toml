@@ -1,6 +1,6 @@
 [tools]
 node          = "24"
-pnpm          = "11.0.9"
+pnpm          = "11.9.0"
 opentofu      = "1.8"
 awscli        = "2"
 granted       = "latest"

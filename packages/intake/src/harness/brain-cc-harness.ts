@@ -214,7 +214,7 @@ export class BrainHarnessNotWiredError extends Error {
   constructor(missing: readonly string[]) {
     super(
       "runLiveBrainSession is creds-gated and not yet wired. It requires a live Agent-SDK session " +
-        "(@anthropic-ai/agent-sdk — referenced in the runbook, NOT a dependency of this package) and a " +
+        "(@anthropic-ai/claude-agent-sdk — referenced in the runbook, NOT a dependency of this package) and a " +
         `deployed accounting MCP endpoint. Missing/unmet: ${missing.join(", ")}. ` +
         "See docs/runbooks/BRAIN-CC-HARNESS.md for the wiring + first-live-run procedure.",
     )

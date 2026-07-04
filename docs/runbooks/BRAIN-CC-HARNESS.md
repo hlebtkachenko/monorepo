@@ -75,7 +75,7 @@ invoice cannot add/remove/re-target a tool call, and cannot reach a denied tool 
 | `BRAIN_API_KEY`        | The Brain's server-authorized accounting API key. The principal resolves org server-side; tenancy is NEVER a tool input. |
 | `BRAIN_AGENT_SDK_AUTH` | Agent-SDK auth. Dev sessions use subscription auth; the Bedrock spike uses AWS creds + `effort:xhigh`.                   |
 
-The **Agent-SDK itself (`@anthropic-ai/agent-sdk`) is NOT a dependency of this repo** — it is referenced in
+The **Agent-SDK itself (`@anthropic-ai/claude-agent-sdk`) is NOT a dependency of this repo** — it is referenced in
 types + this runbook only. The scaffold composes our pieces and documents the SDK wiring; wiring the SDK in
 is the deploy-time step, and it should live in the harness/operator tooling that launches sessions, not as a
 runtime dependency of `@workspace/intake`.
@@ -94,7 +94,7 @@ exist); the API + MCP deployed; the Brain API key issued; Agent-SDK auth availab
 3. **Wire the Agent-SDK launch** (deploy-time, not in this scaffold): construct the CC session with
    `allowedTools = plan.loginPack.allowedTools`, `disallowedTools = plan.loginPack.disallowedTools`,
    `systemPrompt = plan.loginPack.system`, and the MCP server pointed at `BRAIN_MCP_ENDPOINT`. This is where
-   `@anthropic-ai/agent-sdk` is imported — outside this repo's runtime deps.
+   `@anthropic-ai/claude-agent-sdk` is imported — outside this repo's runtime deps.
 4. **Run the session** against the real tools. It reads structure/series, proposes the capture write, and the
    **server** gates it. Stamp `conversation_id = brain_run_id`.
 5. **Record the result** (`LiveBrainSessionResult`): the `brain_run_id`, whether the server APPLIED or HELD,
@@ -132,5 +132,5 @@ calibration fit, and M4 autonomous certification are all deploy-gated launch ste
 Per the repo's **Dependency Update Coverage Rule** (root `CLAUDE.md`): this scaffold adds **no new versioned
 dependency** — it composes existing workspace packages and adds no npm package, GitHub Action, Docker image,
 or pinned binary. So there is **nothing new to track** (neither a Dependabot entry nor a custom update-check
-workflow). When the harness/operator tooling later adds `@anthropic-ai/agent-sdk`, that npm dependency will be
+workflow). When the harness/operator tooling later adds `@anthropic-ai/claude-agent-sdk`, that npm dependency will be
 category 1 (Dependabot-covered) and needs no custom check.

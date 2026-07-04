@@ -6,6 +6,21 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.14.0] — 2026-07-04
+
+Minor release: **Afframe Brain v1** — the unprivileged Brain client on top of the v0.13.0 foundation, plus the server-side gate that closes the confident-wrong hole for good. The write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed); nothing user-facing changes until Brain launch. Every agent write is HELD at cold start — the live end-to-end run and the launch milestones (M-live → M2 → M3 → M4 → flip) remain ahead, tracked in EPIC #524.
+
+### Added
+
+- **api**: the **server-side evidence gate** — ends client-scalar-only auto-apply trust. Auto-apply now requires a three-way AND (client confidence ≥ threshold **AND** the independent server veto not held **AND** a server-side evidence score green). The client's self-reported `signals` are never consumed directly: every non-server-verifiable field degrades to its worst value and a structural `extraction_failed` block forces the score sub-green, so green is **unreachable at cold start** regardless of any fitted calibration → all writes HELD. Held-write resolve enforces author ≠ approver. (#520)
+- **brain / intake**: the unprivileged Brain client — a pure IR→capture adapter (rate-less / non-positive / NaN rows → `OUTSIDE_VAT` hold; money via string math, never `BigInt(Number())`), a per-tool MCP sandbox bound to the real accounting tools (DENY `resolve`/`list`-held: self-approval + injection surface), a post-calibration hard-class confidence ceiling (a fitted map cannot lift a capped class above green), isotonic calibration-refit machinery for M3 (≥10-run guard; not wired to the live path), and an honest creds-gated live-CC harness scaffold (never faked). (#520)
+- **accounting / db**: persist `supply_kind` (migration 0043, additive-nullable) so the Souhrnné hlášení emits the correct kód plnění (0 = goods §64, 3 = services §9/1) instead of hardcoding 0. (#520)
+- **web**: a read-only ingestion inbox — a Table archetype over `tool_call_log` surfacing the org's gated writes alongside the approvals queue (upload/OCR/extraction pipeline deferred to #518). (#520)
+
+### Changed
+
+- **brain**: the LOCKED `.brain/constitution.md` re-derived to the v1 **server-side HTTP boundary** (Hleb-ratified) — I1 (server-side `withOrganization` from the API-key principal), I4 (rollback unit = `tool_call_log` row + `conversation_id`; no per-row `brain_run_id` column), I5 (17 mutable / 6 append-only tables, three-way AND primary), I6 (held-write queue), I3/I10 + enforcement-map. (#520)
+
 ## [v0.13.0] — 2026-07-04
 
 Minor release: the Afframe Brain v1 **foundation** — the server-side safety spine that lets an unprivileged agent book accounting without ever auto-applying a wrong entry unreviewed. The v1 accounting write lane ships **OFF by default** (`BRAIN_RUNTIME_ACTIVE` fail-closed), so nothing user-facing changes until Brain launch. This is the foundation layer only; the actual Brain client + first end-to-end run (M1) and the milestones beyond remain ahead.

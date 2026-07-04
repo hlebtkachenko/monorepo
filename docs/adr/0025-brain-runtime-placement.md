@@ -25,6 +25,12 @@ in-process transaction; a worker owning the loop/heartbeat/budget) **does not ap
   A thin pg-boss supervisor lane that _launches + budgets_ CC sessions is an OPTIONAL robustness path (a
   v2/unattended concern), not v1-critical — v1 = Hleb driving sessions personally.
 
+The LOCKED `packages/brain/.brain/constitution.md` has followed: **I1/I5/I4/I10 are re-derived to this
+server-side HTTP boundary (landed, advisor-gated)** — I1 = server-side `withOrganization` from the
+API-key principal, I5 = the API request-schema is the PRIMARY boundary (the DB backstop is 17 mutable /
+6 append-only tables, #445), I4 = the `tool_call_log` row + `conversation_id` is the rollback unit (no
+per-row `brain_run_id` column). The in-process boundary they used to describe is no longer current.
+
 Brain-as-a-privileged-part-of-the-system (in-process, in-app chat for real customers) returns in **v2**. The
 original decision below is retained for history and describes that v2/worker shape.
 

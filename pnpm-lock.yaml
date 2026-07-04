@@ -887,6 +887,9 @@ importers:
       '@workspace/brain':
         specifier: workspace:*
         version: link:../brain
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../shared
       fast-xml-parser:
         specifier: ^5.9.3
         version: 5.9.3

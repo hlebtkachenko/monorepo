@@ -10,7 +10,7 @@
  *
  * No code changes elsewhere.
  */
-export const locales = ["en"] as const
+export const locales = ["en", "cs"] as const
 
 export type Locale = (typeof locales)[number]
 
@@ -22,6 +22,7 @@ export const defaultLocale: Locale = "en"
  */
 export const localeLabel: Record<Locale, string> = {
   en: "English",
+  cs: "Čeština",
 }
 
 export function isLocale(value: string | undefined | null): value is Locale {

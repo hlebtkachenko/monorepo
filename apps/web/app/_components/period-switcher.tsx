@@ -1,99 +1,75 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { PeriodSwitcher } from "@workspace/ui/blocks/app-header"
 
+import { setActivePeriodAction } from "../[orgSlug]/_lib/period-actions"
+import type { HeaderPeriod } from "../[orgSlug]/_lib/header-periods"
+
 /**
  * Accounting-period switcher surface wrapper — feeds the presentational
- * `PeriodSwitcher` (packages/ui) its data + holds the selection.
+ * `PeriodSwitcher` (packages/ui) its data + owns the (optimistic) selection.
  *
- * ── DATA SEAM (MOCK for visual review) ───────────────────────────────────
- * There is NO accounting-period backend yet: the schema has only
- * `organization.fiscal_year_start_month` (a single smallint), no per-period
- * records or closed/locked state. Wire real data here when the
- * `accounting_period` table exists (tracked in GitHub issue #406; backend in
- * PR #386 `ucetni_obdobi` → od/do/stav, superseded by the v2 line PR #395):
- *
- *  • periods  → one row per period for the org: id, start/end month + year
- *    (derived from `fiscal_year_start_month` + the period year), and a
- *    `closed` flag (period lock). Format with `toPeriod` below.
- *  • value / onValueChange → the active period; persist the choice (cookie /
- *    GUC) so it scopes the org's reads.
- *  • onAddPeriod → open the "create accounting period" flow.
+ * Real data seam: the org layout fetches the org's periods + the active id
+ * (server-side, org-scoped) and passes them in. Selection is persisted
+ * server-side in the `afframe_period` cookie via `setActivePeriodAction`; the
+ * handlers stay here in the client wrapper because functions are not
+ * serializable across the server→client boundary.
  */
-interface RawPeriod {
-  id: string
-  fromMonth: number
-  fromYear: number
-  toMonth: number
-  toYear: number
-  closed: boolean
-}
-
 const pad = (m: number) => String(m).padStart(2, "0")
 
 /**
- * Format a raw period into the switcher shape. `label` is the full
+ * Format a DB period row into the switcher shape. `label` is the full
  * `MM.YYYY – MM.YYYY` range (dropdown); `headerLabel` collapses to just the
  * year when the period is a full calendar year (Jan–Dec, same year), else the
  * full range — so the header trigger stays compact for the common case.
+ * `closed` is the period lock (`status !== "OPEN"`).
  */
-function toPeriod(p: RawPeriod) {
-  const label = `${pad(p.fromMonth)}.${p.fromYear} – ${pad(p.toMonth)}.${p.toYear}`
+function toPeriod(p: HeaderPeriod) {
+  const fromYear = Number(p.period_start.slice(0, 4))
+  const fromMonth = Number(p.period_start.slice(5, 7))
+  const toYear = Number(p.period_end.slice(0, 4))
+  const toMonth = Number(p.period_end.slice(5, 7))
+  const label = `${pad(fromMonth)}.${fromYear} – ${pad(toMonth)}.${toYear}`
   const isCalendarYear =
-    p.fromMonth === 1 && p.toMonth === 12 && p.fromYear === p.toYear
+    fromMonth === 1 && toMonth === 12 && fromYear === toYear
   return {
     id: p.id,
     label,
-    headerLabel: isCalendarYear ? String(p.fromYear) : label,
-    closed: p.closed,
+    headerLabel: isCalendarYear ? String(fromYear) : label,
+    closed: p.status !== "OPEN",
   }
 }
 
-const MOCK_PERIODS = (
-  [
-    {
-      id: "2026",
-      fromMonth: 1,
-      fromYear: 2026,
-      toMonth: 12,
-      toYear: 2026,
-      closed: false,
-    },
-    {
-      id: "2025",
-      fromMonth: 1,
-      fromYear: 2025,
-      toMonth: 12,
-      toYear: 2025,
-      closed: true,
-    },
-    {
-      id: "2024",
-      fromMonth: 1,
-      fromYear: 2024,
-      toMonth: 12,
-      toYear: 2024,
-      closed: true,
-    },
-  ] satisfies RawPeriod[]
-).map(toPeriod)
+export function PeriodSwitcherClient({
+  orgSlug,
+  periods,
+  activePeriodId,
+}: {
+  orgSlug: string
+  periods: HeaderPeriod[]
+  activePeriodId: string
+}) {
+  const router = useRouter()
+  const [value, setValue] = useState(activePeriodId)
 
-export function PeriodSwitcherClient() {
-  const [value, setValue] = useState("2026")
+  const items = periods.map(toPeriod)
+
+  function selectPeriod(id: string) {
+    setValue(id)
+    // Persist server-side; optimistic local state already updated the trigger.
+    void setActivePeriodAction(orgSlug, id)
+  }
 
   return (
     <PeriodSwitcher
-      periods={MOCK_PERIODS}
+      periods={items}
       value={value}
-      onValueChange={setValue}
-      onAddPeriod={() => {
-        // MOCK — wire the "create accounting period" flow here.
-      }}
-      onManagePeriods={() => {
-        // MOCK — wire the period-management surface here.
-      }}
+      onValueChange={selectPeriod}
+      onAddPeriod={() => router.push(`/${orgSlug}/settings/periods`)}
+      onManagePeriods={() => router.push(`/${orgSlug}/settings/periods`)}
     />
   )
 }

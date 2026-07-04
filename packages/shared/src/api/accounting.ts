@@ -309,6 +309,14 @@ export const DphRowsSchema = z
     r3_dan: dec("ř.3 daň."),
     r4_base: dec("ř.4 základ — pořízení zboží z EU, samovyměření 12 %."),
     r4_dan: dec("ř.4 daň."),
+    r5_base: dec(
+      "ř.5 základ — přijetí služby dle §9/1 z EU, samovyměření 21 %.",
+    ),
+    r5_dan: dec("ř.5 daň."),
+    r6_base: dec(
+      "ř.6 základ — přijetí služby dle §9/1 z EU, samovyměření 12 %.",
+    ),
+    r6_dan: dec("ř.6 daň."),
     r10_base: dec("ř.10 základ — PDP odběratel 21 % (§92e)."),
     r10_dan: dec("ř.10 daň."),
     r11_base: dec("ř.11 základ — PDP odběratel 12 %."),

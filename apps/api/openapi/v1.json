@@ -2235,6 +2235,26 @@
                 "description": "ř.4 daň.",
                 "example": "0.00"
               },
+              "r5_base": {
+                "type": "string",
+                "description": "ř.5 základ — přijetí služby dle §9/1 z EU, samovyměření 21 %.",
+                "example": "0.00"
+              },
+              "r5_dan": {
+                "type": "string",
+                "description": "ř.5 daň.",
+                "example": "0.00"
+              },
+              "r6_base": {
+                "type": "string",
+                "description": "ř.6 základ — přijetí služby dle §9/1 z EU, samovyměření 12 %.",
+                "example": "0.00"
+              },
+              "r6_dan": {
+                "type": "string",
+                "description": "ř.6 daň.",
+                "example": "0.00"
+              },
               "r10_base": {
                 "type": "string",
                 "description": "ř.10 základ — PDP odběratel 21 % (§92e).",
@@ -2330,6 +2350,10 @@
               "r3_dan",
               "r4_base",
               "r4_dan",
+              "r5_base",
+              "r5_dan",
+              "r6_base",
+              "r6_dan",
               "r10_base",
               "r10_dan",
               "r11_base",
@@ -2458,6 +2482,26 @@
             "description": "ř.4 daň.",
             "example": "0.00"
           },
+          "r5_base": {
+            "type": "string",
+            "description": "ř.5 základ — přijetí služby dle §9/1 z EU, samovyměření 21 %.",
+            "example": "0.00"
+          },
+          "r5_dan": {
+            "type": "string",
+            "description": "ř.5 daň.",
+            "example": "0.00"
+          },
+          "r6_base": {
+            "type": "string",
+            "description": "ř.6 základ — přijetí služby dle §9/1 z EU, samovyměření 12 %.",
+            "example": "0.00"
+          },
+          "r6_dan": {
+            "type": "string",
+            "description": "ř.6 daň.",
+            "example": "0.00"
+          },
           "r10_base": {
             "type": "string",
             "description": "ř.10 základ — PDP odběratel 21 % (§92e).",
@@ -2553,6 +2597,10 @@
           "r3_dan",
           "r4_base",
           "r4_dan",
+          "r5_base",
+          "r5_dan",
+          "r6_base",
+          "r6_dan",
           "r10_base",
           "r10_dan",
           "r11_base",

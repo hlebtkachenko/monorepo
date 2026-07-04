@@ -11,7 +11,7 @@
  * rationale.
  */
 
-import type { VatJurisdiction } from "./classify"
+import type { SupplyKind, VatJurisdiction } from "./classify"
 import type {
   periodStatus,
   summaryRecordType,
@@ -110,6 +110,13 @@ export interface PartialRecordInput {
    * Omit → NULL (legacy: a REVERSE_CHARGE receipt defaults to domestic ř.10/11).
    */
   vatJurisdiction?: VatJurisdiction | null
+  /**
+   * Kind of supply (ZDPH §64/§9) — GOODS/MATERIAL/SERVICES/UTILITY/RENT/
+   * INSURANCE/ASSET/ADVANCE/CREDIT_NOTE/OTHER. Drives the §102 souhrnné hlášení
+   * kód plnění (SERVICES → 3 service §9/1; else → 0 goods §64). Omit → NULL
+   * (legacy/undistinguished → kód 0).
+   */
+  supplyKind?: SupplyKind | null
   /** false → VAT folds into cost. Defaults true. */
   vatDeductible?: boolean
   /** daňový doklad k záloze (§37a). Defaults false. */

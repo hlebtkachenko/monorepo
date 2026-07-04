@@ -74,6 +74,7 @@ vi.mock("@workspace/db/schema", () => ({
     input_json: "tool_call_log.input_json",
     auto_applied: "tool_call_log.auto_applied",
     approved_by_user_id: "tool_call_log.approved_by_user_id",
+    user_id: "tool_call_log.user_id",
   },
 }))
 
@@ -365,6 +366,101 @@ describe("HeldWritesController", () => {
         }),
         approvedByUserId: APPROVER,
       })
+    })
+
+    it("[G2-R1] REJECTS approve when the approver is the author (author != approver)", async () => {
+      // The Brain's own user-bound key approving its OWN queued write is denied.
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A, AUTHOR))
+      const res = await supertest(app.getHttpServer())
+        .post(`/v1/accounting/held-writes/${HELD_A1}/resolve`)
+        .set("Authorization", "Bearer affk_live_author")
+        .send({ action: "approve" })
+        .expect(403)
+      expect(res.body.error.code).toBe("forbidden")
+      expect(createEventMock).not.toHaveBeenCalled()
+      expect(updateLogMock).not.toHaveBeenCalled()
+    })
+
+    it("[G2-R1] ALLOWS a DIFFERENT user to approve the same write", async () => {
+      // APPROVER != AUTHOR — the review passes.
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A, APPROVER))
+      createEventMock.mockResolvedValue({
+        eventId: "0196f1de-0000-7000-8000-000000000302",
+        designation: "UP2026002",
+        sequenceNumber: 2,
+      } as never)
+      const res = await supertest(app.getHttpServer())
+        .post(`/v1/accounting/held-writes/${HELD_A1}/resolve`)
+        .set("Authorization", "Bearer affk_live_reviewer")
+        .send({ action: "approve" })
+        .expect(200)
+      expect(res.body.resolution).toBe("approved")
+      expect(createEventMock).toHaveBeenCalledOnce()
+    })
+
+    it("[G2-R1] the AUTHOR may still REJECT their own write (reject is not a bypass)", async () => {
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A, AUTHOR))
+      const res = await supertest(app.getHttpServer())
+        .post(`/v1/accounting/held-writes/${HELD_A1}/resolve`)
+        .set("Authorization", "Bearer affk_live_author")
+        .send({ action: "reject" })
+        .expect(200)
+      expect(res.body).toEqual({ id: HELD_A1, resolution: "rejected" })
+      expect(createEventMock).not.toHaveBeenCalled()
+    })
+
+    it("[WP-D] approves a signals-carrying payload WITHOUT leaking signals into the domain input", async () => {
+      // A held payload that carries the [WP-D] evidence envelope must approve with
+      // `signals` STRIPPED (like confidence/rationale) — it is not domain data.
+      state.rows.push(
+        logRow({
+          id: "0196f1de-0000-7000-8000-000000000007",
+          input_json: {
+            ...VALID_EVENT_INPUT,
+            signals: { kbRule: "high_active", capSignals: ["novel_ico"] },
+          },
+        }),
+      )
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+      createEventMock.mockResolvedValue({
+        eventId: "0196f1de-0000-7000-8000-000000000303",
+        designation: "UP2026003",
+        sequenceNumber: 3,
+      } as never)
+      await supertest(app.getHttpServer())
+        .post(
+          "/v1/accounting/held-writes/0196f1de-0000-7000-8000-000000000007/resolve",
+        )
+        .set("Authorization", "Bearer affk_live_a")
+        .send({ action: "approve" })
+        .expect(200)
+      expect(createEventMock).toHaveBeenCalledOnce()
+      const [, , input] = createEventMock.mock.calls[0] as unknown as [
+        unknown,
+        unknown,
+        Record<string, unknown>,
+      ]
+      expect(input).not.toHaveProperty("signals")
+      expect(input).not.toHaveProperty("confidence")
+    })
+
+    it("[WP-D] approves a PRE-MIGRATION payload with NO signals (additive-optional, no 422)", async () => {
+      // VALID_EVENT_INPUT has no `signals` key. It must still re-validate against
+      // the CURRENT schema and apply — proving the new field is truly optional and
+      // does not brick pending held writes as 422.
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+      createEventMock.mockResolvedValue({
+        eventId: "0196f1de-0000-7000-8000-000000000304",
+        designation: "UP2026004",
+        sequenceNumber: 4,
+      } as never)
+      const res = await supertest(app.getHttpServer())
+        .post(`/v1/accounting/held-writes/${HELD_A1}/resolve`)
+        .set("Authorization", "Bearer affk_live_a")
+        .send({ action: "approve" })
+        .expect(200)
+      expect(res.body.resolution).toBe("approved")
+      expect(createEventMock).toHaveBeenCalledOnce()
     })
 
     it("404s on an unknown id", async () => {

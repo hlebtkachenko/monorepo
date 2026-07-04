@@ -10,7 +10,7 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
 export function documentsNav(base: string): SidebarNavEntry[] {
   return [
     { label: "Overview", href: base, icon: "FolderBookmark" },
-    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox", tba: true },
+    { label: "Inbox", href: `${base}/inbox`, icon: "Inbox" },
     {
       label: "Invoices & vouchers",
       pages: [

@@ -131,7 +131,10 @@ export async function derivePostingVeto(
  *     internally consistent), so it routes to human review instead of trusting
  *     the claimed mode — closing the "claim a non-STANDARD mode to dodge the VAT
  *     check" vector. (#464's evidence contract restores auto-apply for a
- *     PROVEN-safe reverse-charge via a re-verifiable checklist.)
+ *     PROVEN-safe reverse-charge via a re-verifiable checklist.) ALSO fires for a
+ *     STANDARD partial with a null/absent `vatRate` ([G3-B1]): with no rate the
+ *     VAT-arithmetic screen below cannot run, so a claimed STANDARD regime the
+ *     server cannot verify is held rather than auto-applied.
  *   - `vat_amount_missing` — STANDARD + a nonzero rate but NO declared
  *     `vatAmount` (unverifiable → hold).
  *   - `vat_mismatch` — STANDARD + declared `vatAmount` off from `base * rate` by
@@ -155,8 +158,16 @@ export function deriveCaptureVeto(
       }
       const vatRate = p["vatRate"]
       const baseAmount = p["baseAmount"]
-      if (typeof vatRate !== "string" || typeof baseAmount !== "string")
+      // [G3-B1] STANDARD with a null/absent rate is UNVERIFIABLE: with no rate the
+      // whole VAT-arithmetic screen (vat_amount_missing / vat_mismatch below) goes
+      // dark, so a STANDARD + vatRate=null + no vatAmount payload would otherwise
+      // slip the veto entirely and auto-apply on the client scalar. The domain
+      // accepts a null rate, so we cannot lean on it — HOLD as unverified regime.
+      if (typeof vatRate !== "string") {
+        signals.add("unverified_vat_regime")
         continue
+      }
+      if (typeof baseAmount !== "string") continue
       const rateScaled = decimalToMinor(vatRate)
       const vatAmount = p["vatAmount"]
       if (typeof vatAmount !== "string") {

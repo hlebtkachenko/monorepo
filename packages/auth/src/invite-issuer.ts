@@ -25,6 +25,57 @@ import {
 
 export const DEFAULT_INVITE_TTL_SECONDS = 60 * 60 * 24 * 7
 
+/**
+ * Name of the partial UNIQUE index (migration 0043) that guarantees at most one
+ * pending invite per (organization, lower(email)). Matched on the PG error's
+ * constraint_name so an unrelated unique violation (e.g. token_hash) is never
+ * mistaken for a duplicate invite.
+ */
+const PENDING_INVITE_UNIQUE_INDEX = "auth_token_pending_invite_unique"
+
+/**
+ * Thrown by {@link issueInvite} when a still-pending invite already exists for
+ * the same (organization, email). The DB partial unique index (migration 0043)
+ * is the authority; this is the typed, catchable surface callers get instead of
+ * a raw Postgres 23505. Callers that mean to replace an outstanding invite must
+ * `revokePendingInvites` first, then re-issue.
+ */
+export class DuplicatePendingInviteError extends Error {
+  constructor(
+    readonly organizationId: string,
+    readonly email: string,
+  ) {
+    super(
+      `A pending invite already exists for ${email} in organization ${organizationId}. ` +
+        "Revoke it before issuing a new one.",
+    )
+    this.name = "DuplicatePendingInviteError"
+  }
+}
+
+/**
+ * True iff `err` (or any error in its `cause` chain) is the Postgres unique
+ * violation on the pending-invite index. drizzle-orm wraps the driver error in
+ * a `DrizzleQueryError`, so the postgres-js `code` / `constraint_name` fields
+ * live on `.cause`, not the top-level thrown object — we walk the chain.
+ * Exported for the deterministic index/mapper test.
+ */
+export function isPendingInviteUniqueViolation(err: unknown): boolean {
+  for (let cur: unknown = err, depth = 0; cur != null && depth < 8; depth++) {
+    if (typeof cur === "object") {
+      const pg = cur as { code?: unknown; constraint_name?: unknown }
+      if (
+        pg.code === "23505" &&
+        pg.constraint_name === PENDING_INVITE_UNIQUE_INDEX
+      ) {
+        return true
+      }
+    }
+    cur = (cur as { cause?: unknown }).cause
+  }
+  return false
+}
+
 /** Roles the app accepts on an invite. Mirrors organization_membership.role. */
 export type InviteRole = "owner" | "admin" | "member" | "agent" | "guest"
 
@@ -99,21 +150,48 @@ export async function issueInvite(
         .limit(1)
       inviterDisplay = issuer?.display_name ?? issuer?.name ?? null
     }
+
+    // Pre-insert guard for the common (non-race) duplicate: an existing
+    // pending invite for the same (organization, email) is a clear error,
+    // not a silent second row. The partial unique index (migration 0043)
+    // closes the residual TOCTOU window between this read and the insert.
+    const [dup] = await db
+      .select({ id: auth_token.id })
+      .from(auth_token)
+      .where(
+        sql`${auth_token.kind} = 'inv' AND ${auth_token.status} = 'pending'
+            AND ${auth_token.payload} ->> 'organizationId' = ${org.id}
+            AND lower(${auth_token.payload} ->> 'email') = ${normalizedEmail}`,
+      )
+      .limit(1)
+    if (dup) throw new DuplicatePendingInviteError(org.id, normalizedEmail)
+
     return { orgRow: org, inviterName: inviterDisplay }
   })
 
-  const minted = await mintToken({
-    kind: "inv",
-    payload: {
-      email: normalizedEmail,
-      organizationId: orgRow.id,
-      workspaceId: orgRow.workspace_id,
-      role: input.role,
-      issuedByUserId: input.issuedByUserId,
-    },
-    ttlSeconds,
-    issuedToUserId: input.issuedByUserId ?? null,
-  })
+  let minted
+  try {
+    minted = await mintToken({
+      kind: "inv",
+      payload: {
+        email: normalizedEmail,
+        organizationId: orgRow.id,
+        workspaceId: orgRow.workspace_id,
+        role: input.role,
+        issuedByUserId: input.issuedByUserId,
+      },
+      ttlSeconds,
+      issuedToUserId: input.issuedByUserId ?? null,
+    })
+  } catch (err) {
+    // A concurrent issuer won the race and inserted the pending invite between
+    // our pre-check and this insert. The partial unique index rejected ours —
+    // surface the same typed error, never a raw Postgres 23505.
+    if (isPendingInviteUniqueViolation(err)) {
+      throw new DuplicatePendingInviteError(orgRow.id, normalizedEmail)
+    }
+    throw err
+  }
 
   const url = `${input.baseUrl}/auth/invite?token=${encodeURIComponent(minted.rawToken)}`
 

@@ -124,6 +124,264 @@ describe("issueInvite", () => {
       await sql.end({ timeout: 5 })
     }
   }, 120_000)
+
+  it("rejects a duplicate pending invite for the same (org, email) — exactly one row (#509)", async () => {
+    const { adminClient, seedWorkspaceWithOwner, truncateAll } =
+      await import("@workspace/db/tests/fixtures")
+    const { betterAuthSignUp } = await import("./test-support")
+    const { issueInvite, DuplicatePendingInviteError } =
+      await import("./invite-issuer")
+
+    const sql = adminClient()
+    try {
+      await truncateAll(sql)
+      const seed = await seedWorkspaceWithOwner(sql, {
+        signUp: betterAuthSignUp,
+        email: "dup-guard-owner@test.invalid",
+        password: "DupGuardPassw0rd!",
+      })
+
+      const base = {
+        organizationId: seed.organizationId,
+        role: "member" as const,
+        issuedByUserId: null,
+        baseUrl: "http://localhost:3000",
+        brandName: "TestBrand",
+        ttlSeconds: 3600,
+      }
+
+      await issueInvite({ email: "dup@test.invalid", ...base })
+
+      // Second sequential invite to the same recipient — case variant. issueInvite
+      // lowercases input, so the pre-insert SELECT catches this; the index's own
+      // lower() folding is proven directly in the "pending-invite unique index" block.
+      await expect(
+        issueInvite({ email: "DUP@test.INVALID", ...base }),
+      ).rejects.toBeInstanceOf(DuplicatePendingInviteError)
+
+      const rows = await sql<Array<{ id: string }>>`
+        SELECT id FROM auth_token
+         WHERE kind = 'inv' AND status = 'pending'
+           AND payload->>'organizationId' = ${seed.organizationId}
+           AND lower(payload->>'email') = 'dup@test.invalid'
+      `
+      expect(rows).toHaveLength(1)
+    } finally {
+      await sql.end({ timeout: 5 })
+    }
+  }, 120_000)
+
+  it("closes the concurrent double-invite race: one wins, one DuplicatePendingInviteError (#509)", async () => {
+    const { adminClient, seedWorkspaceWithOwner, truncateAll } =
+      await import("@workspace/db/tests/fixtures")
+    const { betterAuthSignUp } = await import("./test-support")
+    const { issueInvite, DuplicatePendingInviteError } =
+      await import("./invite-issuer")
+
+    const sql = adminClient()
+    try {
+      await truncateAll(sql)
+      const seed = await seedWorkspaceWithOwner(sql, {
+        signUp: betterAuthSignUp,
+        email: "race-owner@test.invalid",
+        password: "RacePassw0rd!",
+      })
+
+      const invite = () =>
+        issueInvite({
+          email: "race@test.invalid",
+          organizationId: seed.organizationId,
+          role: "member",
+          issuedByUserId: null,
+          baseUrl: "http://localhost:3000",
+          brandName: "TestBrand",
+          ttlSeconds: 3600,
+        })
+
+      // Fire both concurrently — issueInvite must yield exactly one winner and
+      // one typed DuplicatePendingInviteError, whichever guard rejects the loser
+      // (the pre-insert SELECT, or the index's 23505 mapped by the catch). The
+      // index-level guarantee is proven directly in the "pending-invite unique
+      // index" block; this asserts the caller-facing contract.
+      const settled = await Promise.allSettled([invite(), invite()])
+      const fulfilled = settled.filter((r) => r.status === "fulfilled")
+      const rejected = settled.filter((r) => r.status === "rejected")
+
+      expect(fulfilled).toHaveLength(1)
+      expect(rejected).toHaveLength(1)
+      expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+        DuplicatePendingInviteError,
+      )
+
+      const rows = await sql<Array<{ id: string }>>`
+        SELECT id FROM auth_token
+         WHERE kind = 'inv' AND status = 'pending'
+           AND payload->>'organizationId' = ${seed.organizationId}
+           AND lower(payload->>'email') = 'race@test.invalid'
+      `
+      expect(rows).toHaveLength(1)
+    } finally {
+      await sql.end({ timeout: 5 })
+    }
+  }, 120_000)
+
+  it("allows re-inviting the same (org, email) once the prior invite is revoked (#509)", async () => {
+    const { adminClient, seedWorkspaceWithOwner, truncateAll } =
+      await import("@workspace/db/tests/fixtures")
+    const { betterAuthSignUp } = await import("./test-support")
+    const { issueInvite, revokePendingInvites } =
+      await import("./invite-issuer")
+
+    const sql = adminClient()
+    try {
+      await truncateAll(sql)
+      const seed = await seedWorkspaceWithOwner(sql, {
+        signUp: betterAuthSignUp,
+        email: "reinvite-owner@test.invalid",
+        password: "ReinvitePassw0rd!",
+      })
+
+      const base = {
+        email: "reinvite@test.invalid",
+        organizationId: seed.organizationId,
+        role: "member" as const,
+        issuedByUserId: null,
+        baseUrl: "http://localhost:3000",
+        brandName: "TestBrand",
+        ttlSeconds: 3600,
+      }
+
+      await issueInvite(base)
+      await revokePendingInvites({
+        organizationId: seed.organizationId,
+        email: "reinvite@test.invalid",
+      })
+
+      // Revoke moves the prior invite out of 'pending', so both the pre-check
+      // and the index (which each only scope status='pending') let a fresh
+      // invite through. The index-only proof is in the direct block below.
+      const reissued = await issueInvite(base)
+      expect(reissued.inviteId).toBeTruthy()
+
+      const pending = await sql<Array<{ id: string }>>`
+        SELECT id FROM auth_token
+         WHERE kind = 'inv' AND status = 'pending'
+           AND payload->>'organizationId' = ${seed.organizationId}
+           AND lower(payload->>'email') = 'reinvite@test.invalid'
+      `
+      expect(pending).toHaveLength(1)
+    } finally {
+      await sql.end({ timeout: 5 })
+    }
+  }, 120_000)
+})
+
+// ---------------------------------------------------------------------------
+// pending-invite unique index — direct, index-level proofs (#509)
+//
+// These drive mintToken directly, bypassing issueInvite's pre-insert SELECT, so
+// the assertions exercise the partial UNIQUE index itself (migration 0043), not
+// the pre-check. Each uses a fresh random organizationId so it can't collide
+// with other tests' inv rows (no truncate needed). Payloads are free-form JSONB
+// (mintToken does no FK check on organizationId), so no org seed is required.
+// ---------------------------------------------------------------------------
+describe("pending-invite unique index (direct)", () => {
+  it("rejects a second pending invite for the same key; the mapper matches the drizzle-wrapped 23505", async () => {
+    const { randomUUID } = await import("node:crypto")
+    const { mintToken } = await import("./tokens/auth-token")
+    const { isPendingInviteUniqueViolation } = await import("./invite-issuer")
+    const { adminClient } = await import("@workspace/db/tests/fixtures")
+
+    const sql = adminClient()
+    try {
+      const org = randomUUID()
+      const payload = { organizationId: org, email: "idx@test.invalid" }
+      await mintToken({ kind: "inv", payload, ttlSeconds: 3600 })
+
+      let caught: unknown
+      try {
+        await mintToken({ kind: "inv", payload, ttlSeconds: 3600 })
+      } catch (e) {
+        caught = e
+      }
+
+      expect(caught).toBeDefined()
+      // The driver 23505 lives on `.cause` (drizzle wraps it) — the mapper walks
+      // the cause chain. A top-level-only check would return false here.
+      expect((caught as { code?: unknown }).code).toBeUndefined()
+      expect(isPendingInviteUniqueViolation(caught)).toBe(true)
+
+      // Negative cases: the mapper must NOT claim unrelated errors. A non-PG
+      // error is false; a 23505 on a DIFFERENT constraint (e.g. the token_hash
+      // unique) is false too, so it is never mis-mapped to a duplicate invite.
+      expect(isPendingInviteUniqueViolation(new Error("unrelated"))).toBe(false)
+      expect(
+        isPendingInviteUniqueViolation(
+          new Error("other", {
+            cause: {
+              code: "23505",
+              constraint_name: "auth_token_token_hash_key",
+            },
+          }),
+        ),
+      ).toBe(false)
+
+      const rows = await sql<Array<{ id: string }>>`
+        SELECT id FROM auth_token
+         WHERE kind = 'inv' AND status = 'pending'
+           AND payload->>'organizationId' = ${org}
+           AND lower(payload->>'email') = 'idx@test.invalid'
+      `
+      expect(rows).toHaveLength(1)
+    } finally {
+      await sql.end({ timeout: 5 })
+    }
+  }, 120_000)
+
+  it("folds email case in the index: a mixed-case payload collides with a lowercase one", async () => {
+    const { randomUUID } = await import("node:crypto")
+    const { mintToken } = await import("./tokens/auth-token")
+    const { isPendingInviteUniqueViolation } = await import("./invite-issuer")
+
+    const org = randomUUID()
+    await mintToken({
+      kind: "inv",
+      payload: { organizationId: org, email: "case@test.invalid" },
+      ttlSeconds: 3600,
+    })
+
+    let caught: unknown
+    try {
+      await mintToken({
+        kind: "inv",
+        payload: { organizationId: org, email: "CASE@TEST.INVALID" },
+        ttlSeconds: 3600,
+      })
+    } catch (e) {
+      caught = e
+    }
+    // Same key after lower() folding — the index rejects it even though the raw
+    // payload strings differ.
+    expect(isPendingInviteUniqueViolation(caught)).toBe(true)
+  }, 120_000)
+
+  it("scopes the index to pending: a revoked row does not block a fresh pending invite for the same key", async () => {
+    const { randomUUID } = await import("node:crypto")
+    const { mintToken, revokeTokenById } = await import("./tokens/auth-token")
+
+    const org = randomUUID()
+    const payload = { organizationId: org, email: "revoked-idx@test.invalid" }
+    const first = await mintToken({ kind: "inv", payload, ttlSeconds: 3600 })
+
+    // Move the first row out of 'pending' — the index's WHERE clause excludes it.
+    expect(await revokeTokenById(first.id)).toBe(true)
+
+    // A fresh pending invite for the same key now inserts without violating the
+    // index (proving the partial WHERE status='pending' scoping, at the index).
+    const second = await mintToken({ kind: "inv", payload, ttlSeconds: 3600 })
+    expect(second.id).toBeTruthy()
+    expect(second.id).not.toBe(first.id)
+  }, 120_000)
 })
 
 // ---------------------------------------------------------------------------
@@ -313,7 +571,7 @@ describe("readInviteByRawToken", () => {
 // revokePendingInvites
 // ---------------------------------------------------------------------------
 describe("revokePendingInvites", () => {
-  it("marks pending invites for (org, email) as revoked and returns count", async () => {
+  it("marks the pending invite for (org, email) as revoked and returns count", async () => {
     const { adminClient, seedWorkspaceWithOwner, truncateAll } =
       await import("@workspace/db/tests/fixtures")
     const { betterAuthSignUp } = await import("./test-support")
@@ -329,20 +587,13 @@ describe("revokePendingInvites", () => {
         password: "RevokeOwnerPassw0rd!",
       })
 
-      // Issue two invites to the same email in the same org.
+      // A single pending invite — the partial unique index (migration 0043)
+      // forbids a second pending row for the same (org, email), so at most one
+      // ever exists to revoke.
       await issueInvite({
         email: "multi-invite@test.invalid",
         organizationId: seed.organizationId,
         role: "member",
-        issuedByUserId: null,
-        baseUrl: "http://localhost:3000",
-        brandName: "TestBrand",
-        ttlSeconds: 3600,
-      })
-      await issueInvite({
-        email: "multi-invite@test.invalid",
-        organizationId: seed.organizationId,
-        role: "admin",
         issuedByUserId: null,
         baseUrl: "http://localhost:3000",
         brandName: "TestBrand",
@@ -354,16 +605,16 @@ describe("revokePendingInvites", () => {
         email: "multi-invite@test.invalid",
       })
 
-      expect(revokedCount).toBe(2)
+      expect(revokedCount).toBe(1)
 
-      // Confirm both rows are now 'revoked' in the DB.
+      // Confirm the row is now 'revoked' in the DB.
       const rows = await sql<Array<{ status: string }>>`
         SELECT status FROM auth_token
          WHERE kind = 'inv'
            AND payload->>'organizationId' = ${seed.organizationId}
            AND payload->>'email' = 'multi-invite@test.invalid'
       `
-      expect(rows).toHaveLength(2)
+      expect(rows).toHaveLength(1)
       for (const row of rows) {
         expect(row.status).toBe("revoked")
       }

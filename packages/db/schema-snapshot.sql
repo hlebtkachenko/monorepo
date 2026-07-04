@@ -3516,6 +3516,12 @@ CREATE INDEX auth_session_user_idx ON public.auth_session USING btree (user_id);
 CREATE INDEX auth_token_kind_issued_idx ON public.auth_token USING btree (kind, issued_at DESC);
 
 --
+-- Name: auth_token_pending_invite_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX auth_token_pending_invite_unique ON public.auth_token USING btree (((payload ->> 'organizationId'::text)), lower((payload ->> 'email'::text))) WHERE ((kind = 'inv'::text) AND (status = 'pending'::text));
+
+--
 -- Name: auth_token_status_expires_idx; Type: INDEX; Schema: public; Owner: -
 --
 

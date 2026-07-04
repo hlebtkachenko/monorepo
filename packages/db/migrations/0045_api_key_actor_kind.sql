@@ -1,4 +1,4 @@
--- 0044_api_key_actor_kind.sql
+-- 0045_api_key_actor_kind.sql
 --
 -- [#517] Server-side key CAPABILITY: mark each api_key as a `human` or `agent`
 -- actor so the held-write RESOLVE endpoint can DENY agent-actor keys entirely.

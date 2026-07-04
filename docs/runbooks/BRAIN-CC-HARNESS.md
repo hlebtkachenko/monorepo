@@ -91,7 +91,7 @@ runtime dependency of `@workspace/intake`.
 ## Provisioning the Brain API key ([#517] — required before any live run)
 
 The Brain's `BRAIN_API_KEY` MUST be issued as an **agent-actor** key. The server-side key capability
-(`api_key.actor_kind`, migration 0044) DENIES `actor_kind = 'agent'` keys on the held-write endpoints
+(`api_key.actor_kind`, migration 0045) DENIES `actor_kind = 'agent'` keys on the held-write endpoints
 (`GET /v1/accounting/held-writes` + `POST …/held-writes/:id/resolve`) entirely — an agent proposes gated
 writes but can never list or resolve the human review queue. The column defaults to `'human'`, so a key
 issued without this step would be able to resolve its own held writes (defeating the control). There is no

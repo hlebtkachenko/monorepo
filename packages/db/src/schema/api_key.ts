@@ -39,7 +39,7 @@ export const api_key = pgTable("api_key", {
   // `agent` (an autonomous Brain client). Agent keys are DENIED server-side on
   // the held-write resolve endpoint (they may propose writes, never approve
   // them). Default `human` keeps every pre-existing key fully capable; a Brain
-  // key is provisioned explicitly as `agent`. text+CHECK (migration 0044), not
+  // key is provisioned explicitly as `agent`. text+CHECK (migration 0045), not
   // a pgEnum, to stay additive + lock-light (mirrors supply_kind, 0043).
   actor_kind: text("actor_kind").notNull().default("human"),
   created_by_user_id: uuid("created_by_user_id").references(() => app_user.id),

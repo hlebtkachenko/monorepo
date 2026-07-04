@@ -232,16 +232,17 @@ describe("runLiveBrainSession (creds-gated)", () => {
     expect(message).toContain("@anthropic-ai/claude-agent-sdk")
   })
 
-  it("still fails loud even with all creds present (Agent-SDK wiring is the deploy-time step)", async () => {
-    // The honest gate: even a fully-provisioned env cannot make this run, because the SDK launch + MCP
-    // connection are not wired here. A silent success / fabricated result would be worse than none.
-    const fullEnv: Record<string, string> = {
-      [BRAIN_HARNESS_REQUIRED_ENV.runtimeActive]: "1",
-      [BRAIN_HARNESS_REQUIRED_ENV.liveEnabled]: "1",
-      [BRAIN_HARNESS_REQUIRED_ENV.mcpEndpoint]: "https://api.afframe.com/mcp",
-      [BRAIN_HARNESS_REQUIRED_ENV.apiKey]: "sk-test",
-      [BRAIN_HARNESS_REQUIRED_ENV.agentSdkAuth]: "token",
-    }
+  const fullEnv: Record<string, string> = {
+    [BRAIN_HARNESS_REQUIRED_ENV.runtimeActive]: "1",
+    [BRAIN_HARNESS_REQUIRED_ENV.liveEnabled]: "1",
+    [BRAIN_HARNESS_REQUIRED_ENV.mcpEndpoint]: "https://api.afframe.com/mcp",
+    [BRAIN_HARNESS_REQUIRED_ENV.apiKey]: "sk-test",
+    [BRAIN_HARNESS_REQUIRED_ENV.agentSdkAuth]: "token",
+  }
+
+  it("fails closed when the env is complete but NO launcher is injected", async () => {
+    // The SDK-backed launcher lives in operator tooling (apps/cli), never in this package, so with no
+    // launcher there is nothing to run — fail loud rather than fabricate a result.
     await expect(
       runLiveBrainSession({
         plan,
@@ -249,6 +250,63 @@ describe("runLiveBrainSession (creds-gated)", () => {
         readEnv: (name) => fullEnv[name],
       }),
     ).rejects.toBeInstanceOf(BrainHarnessNotWiredError)
+  })
+
+  it("never consults the launcher when the env/kill-switch gate is unmet (fail-closed ordering)", async () => {
+    // A launcher that would throw if invoked must NOT be reached when env is missing — the env gate runs
+    // FIRST, so a half-provisioned run can never open a session.
+    let launched = false
+    const throwingLauncher = {
+      launch: () => {
+        launched = true
+        throw new Error("launcher must not be called when env is unmet")
+      },
+    }
+    await expect(
+      runLiveBrainSession({
+        plan,
+        mcpEndpoint: "",
+        readEnv: () => undefined,
+        launcher: throwingLauncher,
+      }),
+    ).rejects.toBeInstanceOf(BrainHarnessNotWiredError)
+    expect(launched).toBe(false)
+  })
+
+  it("delegates to an injected launcher once env + kill-switch are satisfied", async () => {
+    // Real wiring: with full env + a launcher, the session runs and returns the launcher's result. The mock
+    // launcher stands in for the apps/cli SDK-backed one; it also asserts the config is derived from the plan.
+    const seen: Array<Record<string, unknown>> = []
+    const mockLauncher = {
+      launch: (options: {
+        systemPrompt: string
+        allowedTools: readonly string[]
+        disallowedTools: readonly string[]
+        mcpEndpoint: string
+        apiKey: string
+      }) => {
+        seen.push({ ...options })
+        return Promise.resolve({
+          brainRunId: "run-1",
+          applied: false,
+          serverGate: { held: true },
+        })
+      },
+    }
+    const result = await runLiveBrainSession({
+      plan,
+      mcpEndpoint: "https://api.afframe.com/mcp",
+      readEnv: (name) => fullEnv[name],
+      launcher: mockLauncher,
+    })
+    // The server holds at cold start → the run is HELD, not applied (never a fabricated green).
+    expect(result.applied).toBe(false)
+    expect(result.brainRunId).toBe("run-1")
+    // Config is derived from the INSPECTED plan + resolved creds, not from document content.
+    expect(seen[0]!["systemPrompt"]).toBe(plan.loginPack.system)
+    expect(seen[0]!["allowedTools"]).toEqual(plan.loginPack.allowedTools)
+    expect(seen[0]!["mcpEndpoint"]).toBe("https://api.afframe.com/mcp")
+    expect(seen[0]!["apiKey"]).toBe("sk-test")
   })
 
   it("flags the write-lane kill-switch as unmet when BRAIN_RUNTIME_ACTIVE is set but not '1'", async () => {

@@ -57,10 +57,18 @@ invoice cannot add/remove/re-target a tool call, and cannot reach a denied tool 
   maps the invoice via WP-A, and returns the ordered `mcp__afframe__*` tool-call plan + the sandbox policy +
   the capture request. Each planned call is tagged with the sandbox verdict (`isToolAllowed`), so the plan
   can never schedule a denied tool.
-- **`runLiveBrainSession(inputs): Promise<LiveBrainSessionResult>`** — CREDS-GATED. Reads the required env via
-  an injected `readEnv`, then throws `BrainHarnessNotWiredError` naming the exact missing env + pointing here.
-  It fails loud **even with all env present**, because the Agent-SDK launch + MCP connection are the
-  deploy-time wiring step (below). It never fabricates a result.
+- **`runLiveBrainSession(inputs): Promise<LiveBrainSessionResult>`** — CREDS-GATED, now WIRED to an injected
+  launcher. It (1) fails closed on the env/creds gate + the `BRAIN_RUNTIME_ACTIVE=1` write-lane kill-switch,
+  naming exactly what is unmet, BEFORE touching the launcher; then (2) if an `AgentSessionLauncher` was
+  injected, delegates to it with the session config derived from the inspected plan
+  (`plan.loginPack.system` / `allowedTools` / `disallowedTools` + `mcpEndpoint` + resolved `apiKey`). With no
+  launcher injected it fails loud. It never fabricates a result, and it never reaches a launcher on a
+  half-provisioned or kill-switch-off run.
+- **`AgentSessionLauncher` / `AgentSessionLaunchOptions`** — the seam between this package and the Agent-SDK
+  launch. The launcher OWNS the `@anthropic-ai/claude-agent-sdk` session and is INJECTED, so `@workspace/intake`
+  imports the SDK **nowhere** (not even `import type`). The SDK-backed launcher lives in operator tooling
+  (`apps/cli`, `private:true`); tests inject a mock. This is why the SDK is not — and must not become — a
+  dependency of `@workspace/intake`.
 - **`BRAIN_HARNESS_REQUIRED_ENV`** — the const naming every env the live run needs (kept in lockstep with the
   error message + this runbook).
 - **`BrainHarnessNotWiredError`** — the precise fail-loud error.
@@ -110,10 +118,33 @@ exist); the API + MCP deployed; the Brain API key issued; Agent-SDK auth availab
    (periodId / seriesId / eventId from `get_structure` + `list_accounting_number_series`). **Inspect** the
    plan: the tool sequence, the sandbox verdicts (all `allowed`), and the capture request (valid, tenancy-free).
    Never spend a live session on an unreviewed plan.
-3. **Wire the Agent-SDK launch** (deploy-time, not in this scaffold): construct the CC session with
-   `allowedTools = plan.loginPack.allowedTools`, `disallowedTools = plan.loginPack.disallowedTools`,
-   `systemPrompt = plan.loginPack.system`, and the MCP server pointed at `BRAIN_MCP_ENDPOINT`. This is where
-   `@anthropic-ai/claude-agent-sdk` is imported — outside this repo's runtime deps.
+3. **Provide the `AgentSessionLauncher`** (deploy-time; the ONE remaining deferred wire — needs the SDK +
+   live creds, so it cannot be unit-verified in this repo). Implement it in `apps/cli` (`private:true`, keeps
+   the SDK out of any published artifact), importing `@anthropic-ai/claude-agent-sdk` there and NOWHERE in
+   `@workspace/intake`. The launcher receives `AgentSessionLaunchOptions` (already derived from the inspected
+   plan) and constructs the CC session from them — no re-derivation:
+
+   ```ts
+   // apps/cli — the only place @anthropic-ai/claude-agent-sdk is imported.
+   import { query } from "@anthropic-ai/claude-agent-sdk"
+   import type { AgentSessionLauncher } from "@workspace/intake"
+
+   const sdkLauncher: AgentSessionLauncher = {
+     async launch(o) {
+       // systemPrompt = o.systemPrompt, allowedTools = o.allowedTools,
+       // disallowedTools = o.disallowedTools, MCP server pointed at o.mcpEndpoint
+       // authorized with o.apiKey; drive the session, then map the server's
+       // persisted tool_call_log.output_json.serverGate verdict into
+       // LiveBrainSessionResult { brainRunId, applied, serverGate }.
+       // (Exact SDK option names verified against the SDK version at wire time;
+       //  this call is UNTESTED-LIVE until real creds + a deployed MCP exist.)
+     },
+   }
+   ```
+
+   Then call `runLiveBrainSession({ plan, mcpEndpoint, readEnv, launcher: sdkLauncher })`. Until this launcher
+   is provided, `runLiveBrainSession` fails closed — the seam is wired and tested (mock launcher), only the
+   SDK body + the live run remain (tracked on #469).
 4. **Run the session** against the real tools. It reads structure/series, proposes the capture write, and the
    **server** gates it. Stamp `conversation_id = brain_run_id`.
 5. **Record the result** (`LiveBrainSessionResult`): the `brain_run_id`, whether the server APPLIED or HELD,
@@ -142,9 +173,18 @@ Run these once the harness is wired live:
 
 ## Deferred (creds/deploy-gated — track, never fake)
 
-The live E2E run itself (#469c execution), M2 supervised prod quarantine → promote, M3 real ≥10-run
-calibration fit, and M4 autonomous certification are all deploy-gated launch steps. See
-[`V1-DELIVERY-PLAN.md`](../../.context/afframe-brain/V1-DELIVERY-PLAN.md) §4.
+The seam is now wired + tested (`runLiveBrainSession` delegates to an injected `AgentSessionLauncher`, mock
+launcher in `brain-cc-harness.test.ts`). What remains is genuinely deploy-gated and needs live inputs, so
+building it now would ship unverifiable code:
+
+- the **SDK-backed `AgentSessionLauncher`** in `apps/cli` (the single `@anthropic-ai/claude-agent-sdk` import;
+  the drop-in recipe is in step 3 above) — needs the SDK + live creds to verify, so it stays on **#469**;
+- the **live E2E run** (#469c execution), which also needs the resolved `get_structure` uuids + the
+  provenance-checked login-pack section texts + the deployed MCP + `BRAIN_RUNTIME_ACTIVE=1`;
+- **M2** supervised-prod quarantine → promote, **M3** real ≥10-run calibration fit, **M4** autonomous
+  certification.
+
+See [`V1-DELIVERY-PLAN.md`](../../.context/afframe-brain/V1-DELIVERY-PLAN.md) §4.
 
 ## Dependency update tracking
 

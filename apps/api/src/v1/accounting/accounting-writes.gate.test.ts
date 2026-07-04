@@ -55,6 +55,7 @@ const principal = {
   organizationId: "org-1",
   workspaceId: "ws-1",
   scopes: [] as readonly string[],
+  actorKind: "human" as const,
 }
 
 type Ev = { eventId: string; designation: string; sequenceNumber: number }

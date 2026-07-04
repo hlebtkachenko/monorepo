@@ -209,12 +209,17 @@ function logRow(over: Partial<LogRow> & { id: string }): LogRow {
   }
 }
 
-function principalFor(orgId: string, userId: string | null = APPROVER) {
+function principalFor(
+  orgId: string,
+  userId: string | null = APPROVER,
+  actorKind: "human" | "agent" = "human",
+) {
   return {
     userId,
     organizationId: orgId,
     workspaceId: WORKSPACE,
     scopes: ["read", "write"] as const,
+    actorKind,
   }
 }
 
@@ -407,6 +412,34 @@ describe("HeldWritesController", () => {
         .expect(200)
       expect(res.body).toEqual({ id: HELD_A1, resolution: "rejected" })
       expect(createEventMock).not.toHaveBeenCalled()
+    })
+
+    it("[#517] DENIES an agent-actor key APPROVING (even a different author's write)", async () => {
+      // The durable server-side key capability: an `agent` key can propose gated
+      // writes but can NEVER resolve one — independent of, and stricter than, the
+      // author!=approver rider (here the agent is NOT the author, yet is denied).
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A, APPROVER, "agent"))
+      const res = await supertest(app.getHttpServer())
+        .post(`/v1/accounting/held-writes/${HELD_A1}/resolve`)
+        .set("Authorization", "Bearer affk_live_agent")
+        .send({ action: "approve" })
+        .expect(403)
+      expect(res.body.error.code).toBe("forbidden")
+      expect(createEventMock).not.toHaveBeenCalled()
+      expect(updateLogMock).not.toHaveBeenCalled()
+    })
+
+    it("[#517] DENIES an agent-actor key REJECTING (the endpoint is denied entirely)", async () => {
+      // Deny is total: an agent cannot even close a review by rejecting it — a
+      // human must resolve every held write.
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A, APPROVER, "agent"))
+      const res = await supertest(app.getHttpServer())
+        .post(`/v1/accounting/held-writes/${HELD_A1}/resolve`)
+        .set("Authorization", "Bearer affk_live_agent")
+        .send({ action: "reject" })
+        .expect(403)
+      expect(res.body.error.code).toBe("forbidden")
+      expect(updateLogMock).not.toHaveBeenCalled()
     })
 
     it("[WP-D] approves a signals-carrying payload WITHOUT leaking signals into the domain input", async () => {

@@ -149,6 +149,18 @@ export class HeldWritesController {
         "Resolving held writes requires a user-bound API key (approver)",
       )
     }
+    // [#517] Server-side key CAPABILITY: an `agent`-actor key is DENIED the
+    // resolve endpoint ENTIRELY (approve AND reject). An autonomous Brain client
+    // may propose gated writes, but a HUMAN must resolve them — this is the
+    // durable backstop the client sandbox's `resolve_accounting_held_write` deny
+    // only enforced client-side. Defense-in-depth: it runs before, and is
+    // independent of, the author!=approver rider below (which only blocks
+    // self-approval). A leaked or second agent key can no longer cross-approve.
+    if (principal.actorKind !== "human") {
+      throw new ForbiddenError(
+        "Agent-actor API keys cannot resolve held writes; a human reviewer must approve or reject",
+      )
+    }
     const userId = principal.userId
     const { action, note } = body as unknown as {
       action: "approve" | "reject"

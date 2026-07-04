@@ -136,6 +136,7 @@ function principalFor(orgId: string) {
     organizationId: orgId,
     workspaceId: "0196f1de-0000-7000-8000-0000000000bb",
     scopes: ["read"] as const,
+    actorKind: "human" as const,
   }
 }
 

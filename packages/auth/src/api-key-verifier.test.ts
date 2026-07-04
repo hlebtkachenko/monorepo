@@ -15,6 +15,7 @@ interface ApiKeyRow {
   workspaceId: string
   createdByUserId: string | null
   scopes: readonly string[]
+  actorKind: string
   expiresAt: Date | null
   revokedAt: Date | null
 }
@@ -63,6 +64,7 @@ function row(overrides: Partial<ApiKeyRow> = {}): ApiKeyRow {
     workspaceId: "ws-1",
     createdByUserId: "user-1",
     scopes: ["read"],
+    actorKind: "human",
     expiresAt: null,
     revokedAt: null,
     ...overrides,
@@ -106,8 +108,23 @@ describe("verifyApiKey", () => {
       organizationId: "org-1",
       workspaceId: "ws-1",
       scopes: ["read"],
+      actorKind: "human",
     })
     expect(updateWhere).toHaveBeenCalledTimes(1)
+  })
+
+  it("[#517] carries actorKind 'agent' for an agent-provisioned key", async () => {
+    mockRows = [row({ actorKind: "agent" })]
+    const principal = await verifyApiKey(VALID_KEY)
+    expect(principal?.actorKind).toBe("agent")
+  })
+
+  it("[#517] narrows any non-'human' actor_kind to 'agent' (fail-safe, less privileged)", async () => {
+    // A malformed / unexpected value must resolve to the DENIED kind, never
+    // silently grant the human resolve capability.
+    mockRows = [row({ actorKind: "something-unexpected" })]
+    const principal = await verifyApiKey(VALID_KEY)
+    expect(principal?.actorKind).toBe("agent")
   })
 
   it("still resolves the principal when the last_used_at touch fails", async () => {

@@ -66,9 +66,9 @@ invoice cannot add/remove/re-target a tool call, and cannot reach a denied tool 
   half-provisioned or kill-switch-off run.
 - **`AgentSessionLauncher` / `AgentSessionLaunchOptions`** — the seam between this package and the Agent-SDK
   launch. The launcher OWNS the `@anthropic-ai/claude-agent-sdk` session and is INJECTED, so `@workspace/intake`
-  imports the SDK **nowhere** (not even `import type`). The SDK-backed launcher lives in operator tooling
-  (`apps/cli`, `private:true`); tests inject a mock. This is why the SDK is not — and must not become — a
-  dependency of `@workspace/intake`.
+  imports the SDK **nowhere** (not even `import type`). The SDK-backed launcher belongs in operator tooling
+  (`apps/cli`, `private:true`) and is added with the first live run (step 3 below); tests inject a mock. This
+  is why the SDK is not — and must not become — a dependency of `@workspace/intake`.
 - **`BRAIN_HARNESS_REQUIRED_ENV`** — the const naming every env the live run needs (kept in lockstep with the
   error message + this runbook).
 - **`BrainHarnessNotWiredError`** — the precise fail-loud error.
@@ -131,10 +131,12 @@ exist); the API + MCP deployed; the Brain API key issued; Agent-SDK auth availab
 
    const sdkLauncher: AgentSessionLauncher = {
      async launch(o) {
-       // systemPrompt = o.systemPrompt, allowedTools = o.allowedTools,
-       // disallowedTools = o.disallowedTools, MCP server pointed at o.mcpEndpoint
-       // authorized with o.apiKey; drive the session, then map the server's
-       // persisted tool_call_log.output_json.serverGate verdict into
+       // systemPrompt = o.plan.loginPack.system, allowedTools =
+       // o.plan.loginPack.allowedTools, disallowedTools =
+       // o.plan.loginPack.disallowedTools (the plan is the single source of truth
+       // for the sandbox lists), MCP server pointed at o.mcpEndpoint authorized
+       // with o.apiKey; drive the session, then map the server's persisted
+       // tool_call_log.output_json.serverGate verdict into
        // LiveBrainSessionResult { brainRunId, applied, serverGate }.
        // (Exact SDK option names verified against the SDK version at wire time;
        //  this call is UNTESTED-LIVE until real creds + a deployed MCP exist.)

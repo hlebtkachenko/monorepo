@@ -114,14 +114,16 @@ async function reverseChargeRows(
   db: RowExecutor,
   periodId: string,
   type: string,
-  euFilter: "EU" | "DOMESTIC" | "ANY",
+  // Every caller MUST pick a jurisdiction. There is deliberately no unfiltered
+  // ("ANY") mode: that was the #516 leak that put EU-marked issued reverse-charge
+  // onto KH A.1, and dropping it from the union makes that regression
+  // unrepresentable — a new call site cannot reintroduce it.
+  euFilter: "EU" | "DOMESTIC",
 ): Promise<KhRow[]> {
   const jurisdiction =
     euFilter === "EU"
       ? sql`AND pr.vat_jurisdiction = 'EU'`
-      : euFilter === "DOMESTIC"
-        ? sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU'`
-        : sql``
+      : sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU'`
   // A.1 (ISSUED PDP dodavatel) carries no daň — the odběratel self-assesses; the
   // A.1 form has základ + kód only. On the received side the příjemce self-assesses.
   const dan = (rate: number) =>

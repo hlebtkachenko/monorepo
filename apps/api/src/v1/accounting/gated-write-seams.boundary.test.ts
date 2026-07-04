@@ -1,203 +1,99 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
 
+import ts from "typescript"
 import { describe, expect, it } from "vitest"
 
 /**
- * [#519] Boundary gate: no PRODUCTION call site overrides `runGatedWrite`'s
- * injectable test seams.
+ * [#519] Boundary gate: no PRODUCTION call site vacates `runGatedWrite`'s
+ * fail-closed admission / scoring seams.
  *
- * `runGatedWrite` (accounting-writes.gate.ts) exposes two params after the
- * options object PURELY as test seams:
- *   - 2nd `admission` (a permissive AdmissionController), and
- *   - 3rd `scoreEvidence` (a scorer that can green the third AND leg).
- * Both default to the fail-closed production values (`accountingAdmission`,
- * `evaluateEvidence`). TypeScript CANNOT tell a test caller from a production
- * one, so a future production caller that passed a permissive `scoreEvidence`
- * would silently VACATE the server-score leg of the auto-apply three-way AND
- * (`confidenceOk && !veto.held && score.isGreen`) — a confident-wrong hole.
+ * The primary defense is the TYPE SYSTEM: `runGatedWrite(opts)` takes exactly
+ * one parameter, so a production caller cannot pass a permissive `scoreEvidence`
+ * (it is a TS2554 compile error). The injectable seams live on a separate,
+ * exported-but-TEST-ONLY `runGatedWriteWithSeams(opts, admission, scoreEvidence)`.
  *
- * This test reads every non-test `.ts` under `apps/api/src`, finds every
- * `runGatedWrite(` CALL, and asserts each passes exactly ONE argument (the
- * options object). Any 2nd/3rd argument in production is a hard failure.
- *
- * Test files (`*.test.ts`) are exempt — they legitimately inject the seams.
+ * This test is the belt-and-braces residual: it walks the real TypeScript AST of
+ * every non-test source file under `apps/api/src` and asserts none of them
+ * IMPORT or CALL `runGatedWriteWithSeams` — the only remaining way a production
+ * caller could vacate the server-score leg of the auto-apply three-way AND. The
+ * defining module (`accounting-writes.gate.ts`, whose production wrapper legally
+ * delegates to the seam form) is exempt. Using the compiler's parser means
+ * comments, strings, regex literals, and template interpolations are handled
+ * correctly — no hand-rolled lexer to go silently blind.
  */
 
 const API_SRC = resolve(__dirname, "..", "..")
+const SEAM_FN = "runGatedWriteWithSeams"
+const DEFINER = "accounting-writes.gate.ts" // production wrapper + declaration live here
+const SEAM_TEST = "accounting-writes.gate.test.ts" // exercises the seam form (non-vacuous anchor)
 
-/** All `.ts` under `dir`, excluding `*.test.ts` and `node_modules`. */
-function collectSourceFiles(dir: string): string[] {
-  const out: string[] = []
-  for (const entry of readdirSync(dir)) {
-    if (entry === "node_modules") continue
-    const full = join(dir, entry)
-    if (statSync(full).isDirectory()) {
-      out.push(...collectSourceFiles(full))
-    } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) {
-      out.push(full)
+/** All `.ts` under `dir` (recursive), partitioned into test vs non-test. */
+function collectSources(dir: string): { test: string[]; prod: string[] } {
+  const test: string[] = []
+  const prod: string[] = []
+  const walk = (d: string) => {
+    for (const entry of readdirSync(d)) {
+      if (entry === "node_modules") continue
+      const full = join(d, entry)
+      if (statSync(full).isDirectory()) walk(full)
+      else if (entry.endsWith(".test.ts")) test.push(full)
+      else if (entry.endsWith(".ts")) prod.push(full)
     }
   }
-  return out
+  walk(dir)
+  return { test, prod }
 }
 
-/**
- * Blank out `//`+`/* *​/` comments and string / template-literal CONTENT,
- * preserving length + structural delimiters, so a `runGatedWrite(` mention
- * inside a comment or string (e.g. a docstring) is never scanned as a call.
- */
-function stripCommentsAndStrings(src: string): string {
-  const chars = src.split("")
-  const out: string[] = new Array(chars.length)
-  let i = 0
-  type Mode = "code" | "line" | "block" | "sq" | "dq" | "tpl"
-  let mode: Mode = "code"
-  while (i < chars.length) {
-    const c = chars[i]!
-    const next = chars[i + 1]
-    if (mode === "code") {
-      if (c === "/" && next === "/") {
-        mode = "line"
-        out[i] = " "
-        out[i + 1] = " "
-        i += 2
-        continue
-      }
-      if (c === "/" && next === "*") {
-        mode = "block"
-        out[i] = " "
-        out[i + 1] = " "
-        i += 2
-        continue
-      }
-      if (c === "'") mode = "sq"
-      else if (c === '"') mode = "dq"
-      else if (c === "`") mode = "tpl"
-      out[i] = c
-      i += 1
-      continue
-    }
-    if (mode === "line") {
-      if (c === "\n") {
-        mode = "code"
-        out[i] = c
-      } else {
-        out[i] = " "
-      }
-      i += 1
-      continue
-    }
-    if (mode === "block") {
-      if (c === "*" && next === "/") {
-        mode = "code"
-        out[i] = " "
-        out[i + 1] = " "
-        i += 2
-        continue
-      }
-      out[i] = c === "\n" ? c : " "
-      i += 1
-      continue
-    }
-    // string / template modes: blank content, keep the closing delimiter,
-    // honor backslash escapes.
-    if (c === "\\") {
-      out[i] = " "
-      out[i + 1] = " "
-      i += 2
-      continue
-    }
+/** Count IMPORTs + CALLs of `runGatedWriteWithSeams` via the real TS AST. The
+ * `function runGatedWriteWithSeams(...)` DECLARATION is neither, so it is not
+ * counted — the definer's own wrapper delegation IS a call and is why the
+ * definer file is exempted at the call site, not here. */
+function seamReferenceCount(file: string): number {
+  const sf = ts.createSourceFile(
+    file,
+    readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+  )
+  let count = 0
+  const visit = (node: ts.Node): void => {
     if (
-      (mode === "sq" && c === "'") ||
-      (mode === "dq" && c === '"') ||
-      (mode === "tpl" && c === "`")
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === SEAM_FN
     ) {
-      mode = "code"
-      out[i] = c
-    } else {
-      out[i] = c === "\n" ? c : " "
+      count++
+    } else if (ts.isImportSpecifier(node) && node.name.text === SEAM_FN) {
+      count++
     }
-    i += 1
+    ts.forEachChild(node, visit)
   }
-  return out.join("")
-}
-
-/**
- * Count top-level arguments to a call whose `(` is at `openParen` in `src`.
- * Depth-tracks `()[]{}`; a top-level comma separates arguments. Assumes `src`
- * is already comment/string-stripped. Returns 0 for an empty arg list.
- */
-function countCallArgs(src: string, openParen: number): number {
-  let depth = 0
-  let commas = 0
-  let sawArg = false
-  for (let i = openParen; i < src.length; i++) {
-    const c = src[i]!
-    if (c === "(" || c === "[" || c === "{") {
-      // A nested group opening INSIDE the call (e.g. the options `{`) is content.
-      if (depth >= 1) sawArg = true
-      depth++
-    } else if (c === ")" || c === "]" || c === "}") {
-      depth--
-      if (depth === 0) break
-    } else if (depth >= 1) {
-      if (c === "," && depth === 1) commas++
-      else if (!/\s/.test(c)) sawArg = true
-    }
-  }
-  if (!sawArg) return 0
-  return commas + 1
-}
-
-interface CallSite {
-  file: string
-  argCount: number
-}
-
-/** Every `runGatedWrite(...)` CALL (not the `function runGatedWrite<T>(` decl). */
-function findCallSites(file: string, cleaned: string): CallSite[] {
-  const sites: CallSite[] = []
-  // Calls carry an explicit type arg (`runGatedWrite<CapturedEvent>(`), so an
-  // optional `<...>` generic clause is allowed between the name and the `(`.
-  // The DECLARATION (`function runGatedWrite<T>(`) matches the same shape but is
-  // excluded by the preceding `function` keyword — else its 3 params would read
-  // as a 3-arg "call" and fail the invariant.
-  const re = /\brunGatedWrite\s*(?:<[^(){};]*>)?\s*\(/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(cleaned)) !== null) {
-    if (/\bfunction\s+$/.test(cleaned.slice(0, m.index))) continue
-    const openParen = m.index + m[0].length - 1
-    sites.push({ file, argCount: countCallArgs(cleaned, openParen) })
-  }
-  return sites
+  visit(sf)
+  return count
 }
 
 describe("[#519] runGatedWrite seam boundary", () => {
-  const files = collectSourceFiles(API_SRC)
-  const sites = files.flatMap((f) =>
-    findCallSites(f, stripCommentsAndStrings(readFileSync(f, "utf8"))),
-  )
+  const { test: testFiles, prod: prodFiles } = collectSources(API_SRC)
 
-  it("scans real production sources (non-vacuous)", () => {
-    // Must find the known production call sites — else the scanner silently
-    // matched nothing and the invariant below is vacuously green.
-    expect(files.length).toBeGreaterThan(0)
-    expect(sites.length).toBeGreaterThanOrEqual(3)
+  it("scans real sources and the AST detects the seam form (non-vacuous)", () => {
+    expect(prodFiles.length).toBeGreaterThan(0)
+    // The seam test must reference the seam form, proving the AST walk detects it.
+    const seamTest = testFiles.find((f) => f.endsWith(SEAM_TEST))
+    expect(seamTest).toBeDefined()
+    expect(seamReferenceCount(seamTest!)).toBeGreaterThanOrEqual(1)
   })
 
-  it("no production caller overrides admission / scoreEvidence", () => {
-    const offenders = sites.filter((s) => s.argCount !== 1)
+  it("no production source imports or calls the test-only seam form", () => {
+    const offenders = prodFiles
+      .filter((f) => !f.endsWith(DEFINER))
+      .filter((f) => seamReferenceCount(f) > 0)
+      .map((f) => f.replace(API_SRC, "apps/api/src/.."))
     expect(
       offenders,
-      `Production runGatedWrite call(s) pass a 2nd/3rd argument (admission / scoreEvidence). ` +
-        `Those seams are TEST-ONLY — a permissive scoreEvidence vacates the server-score leg of the ` +
-        `auto-apply AND. Remove the extra argument(s). Offenders: ` +
-        offenders
-          .map(
-            (o) =>
-              `${o.file.replace(API_SRC, "apps/api/src/..")} (${o.argCount} args)`,
-          )
-          .join(", "),
+      `Production source(s) reference ${SEAM_FN}, the TEST-ONLY seam form. A permissive ` +
+        `scoreEvidence there vacates the server-score leg of the auto-apply AND. Call ` +
+        `runGatedWrite (one arg, fail-closed defaults) instead. Offenders: ${offenders.join(", ")}`,
     ).toEqual([])
   })
 })

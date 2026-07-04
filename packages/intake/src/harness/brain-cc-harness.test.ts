@@ -279,11 +279,10 @@ describe("runLiveBrainSession (creds-gated)", () => {
     const seen: Array<Record<string, unknown>> = []
     const mockLauncher = {
       launch: (options: {
-        systemPrompt: string
-        allowedTools: readonly string[]
-        disallowedTools: readonly string[]
+        plan: { loginPack: { system: string; allowedTools: readonly string[] } }
         mcpEndpoint: string
         apiKey: string
+        agentSdkAuth: string
       }) => {
         seen.push({ ...options })
         return Promise.resolve({
@@ -302,11 +301,15 @@ describe("runLiveBrainSession (creds-gated)", () => {
     // The server holds at cold start → the run is HELD, not applied (never a fabricated green).
     expect(result.applied).toBe(false)
     expect(result.brainRunId).toBe("run-1")
-    // Config is derived from the INSPECTED plan + resolved creds, not from document content.
-    expect(seen[0]!["systemPrompt"]).toBe(plan.loginPack.system)
-    expect(seen[0]!["allowedTools"]).toEqual(plan.loginPack.allowedTools)
+    // The launcher receives the INSPECTED plan (single source of truth for the sandbox
+    // allow/deny lists) + resolved creds — never re-flattened, never document content.
+    expect(seen[0]!["plan"]).toBe(plan)
+    expect(
+      (seen[0]!["plan"] as { loginPack: { system: string } }).loginPack.system,
+    ).toBe(plan.loginPack.system)
     expect(seen[0]!["mcpEndpoint"]).toBe("https://api.afframe.com/mcp")
     expect(seen[0]!["apiKey"]).toBe("sk-test")
+    expect(seen[0]!["agentSdkAuth"]).toBe("token")
   })
 
   it("flags the write-lane kill-switch as unmet when BRAIN_RUNTIME_ACTIVE is set but not '1'", async () => {

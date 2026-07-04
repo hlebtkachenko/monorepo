@@ -52,6 +52,7 @@ import {
 
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
+import { RequireHumanActor } from "../../auth/require-human-actor.decorator"
 import {
   ListHeldWritesResponseDto,
   ResolveHeldWriteRequestDto,
@@ -74,6 +75,11 @@ import { translateAccountingError } from "./accounting-error"
 @ApiTags("Accounting")
 @ApiBearerAuth()
 @UseGuards(ApiKeyGuard)
+// [#517] The ENTIRE held-writes review surface is human-only: an agent key may
+// propose gated writes but can never list or resolve the queue. Declared once at
+// the class level so every current + future route inherits the deny (fail-closed
+// on a security boundary), enforced by ApiKeyGuard after the key resolves.
+@RequireHumanActor()
 @Controller({ path: "accounting", version: "1" })
 export class HeldWritesController {
   @Get("held-writes")
@@ -87,16 +93,7 @@ export class HeldWritesController {
   async listHeldWrites(
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<ListHeldWritesResponse> {
-    // [#517] Deny agent-actor keys the LIST too, mirroring the client sandbox
-    // (which denies both `list_accounting_held_writes` + `resolve_...`). The
-    // review queue exposes OTHER pending held payloads — a prompt-injection /
-    // exfiltration surface — so the server backstops the client-side deny
-    // rather than trusting it. An agent proposes writes; a human reviews them.
-    if (principal.actorKind !== "human") {
-      throw new ForbiddenError(
-        "Agent-actor API keys cannot list held writes; the review queue is human-only",
-      )
-    }
+    // Agent keys are denied this whole controller by `@RequireHumanActor()`.
     const rows = await withOrganization(
       principal.organizationId,
       principal.userId,
@@ -154,21 +151,12 @@ export class HeldWritesController {
     @Body() body: ResolveHeldWriteRequestDto,
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<ResolveHeldWriteResponse> {
+    // Agent keys are denied this whole controller by `@RequireHumanActor()`, so
+    // only a human key reaches here; the author≠approver rider below is the
+    // second, independent backstop (an approver may not approve their OWN write).
     if (principal.userId === null) {
       throw new ForbiddenError(
         "Resolving held writes requires a user-bound API key (approver)",
-      )
-    }
-    // [#517] Server-side key CAPABILITY: an `agent`-actor key is DENIED the
-    // resolve endpoint ENTIRELY (approve AND reject). An autonomous Brain client
-    // may propose gated writes, but a HUMAN must resolve them — this is the
-    // durable backstop the client sandbox's `resolve_accounting_held_write` deny
-    // only enforced client-side. Defense-in-depth: it runs before, and is
-    // independent of, the author!=approver rider below (which only blocks
-    // self-approval). A leaked or second agent key can no longer cross-approve.
-    if (principal.actorKind !== "human") {
-      throw new ForbiddenError(
-        "Agent-actor API keys cannot resolve held writes; a human reviewer must approve or reject",
       )
     }
     const userId = principal.userId

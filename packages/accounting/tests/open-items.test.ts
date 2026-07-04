@@ -592,7 +592,142 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
       expect(sh.rows[0]!.country_code).toBe("DE")
       expect(sh.rows[0]!.value).toBe("50000.0000")
       expect(sh.rows[0]!.count).toBe(1)
+      // no supply_kind on the partial → legacy kód 0 (goods §64), unchanged
       expect(sh.rows[0]!.kod_plneni).toBe("0")
+    })
+  })
+
+  it("reports an EU-marked SERVICES supply under kód 3 (§9/1)", async () => {
+    const s = await seedFull("2064-01-01", "2064-12-31")
+    await withOrganization(orgA, userId, async (db) => {
+      const cp = await createCounterparty(db, s.ctx, {
+        name: "Service Kunde GmbH",
+        taxId: "DE822345678",
+        countryCode: "DE",
+      })
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cp,
+        description: "EU služba",
+        occurredAt: "2064-05-01",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2064-05-01",
+        lines: [
+          {
+            eventId: ev.eventId,
+            partials: [
+              {
+                baseAmount: "30000.00",
+                vatMode: "EXEMPT",
+                vatJurisdiction: "EU",
+                supplyKind: "SERVICES",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      await postFromPredkontace(db, s.ctx, {
+        partialRecordId: doc.lines[0]!.partialRecordIds[0]!,
+        periodId: s.periodId,
+        scenario: "S-EU-GOODS-DELIVERY",
+        summaryRecordId: doc.summaryRecordId,
+        accountingEventId: ev.eventId,
+        postingDate: "2064-05-01",
+        responsibleUserId: userId,
+      })
+
+      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      expect(sh.rows).toHaveLength(1)
+      expect(sh.rows[0]!.tax_id).toBe("DE822345678")
+      expect(sh.rows[0]!.value).toBe("30000.0000")
+      // SERVICES supply_kind → kód 3 (poskytnutí služby §9/1)
+      expect(sh.rows[0]!.kod_plneni).toBe("3")
+    })
+  })
+
+  it("splits one partner's goods and services into two kód rows (0 + 3)", async () => {
+    const s = await seedFull("2065-01-01", "2065-12-31")
+    await withOrganization(orgA, userId, async (db) => {
+      const cp = await createCounterparty(db, s.ctx, {
+        name: "Mixed Kunde GmbH",
+        taxId: "DE833456789",
+        countryCode: "DE",
+      })
+      const goodsEv = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cp,
+        description: "EU zboží",
+        occurredAt: "2065-05-01",
+        responsibleUserId: userId,
+      })
+      const svcEv = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cp,
+        description: "EU služba",
+        occurredAt: "2065-06-01",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2065-05-01",
+        lines: [
+          {
+            eventId: goodsEv.eventId,
+            partials: [
+              {
+                baseAmount: "10000.00",
+                vatMode: "EXEMPT",
+                vatJurisdiction: "EU",
+                supplyKind: "GOODS",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+          {
+            eventId: svcEv.eventId,
+            partials: [
+              {
+                baseAmount: "7000.00",
+                vatMode: "EXEMPT",
+                vatJurisdiction: "EU",
+                supplyKind: "SERVICES",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      for (const [i, ev] of [goodsEv, svcEv].entries()) {
+        await postFromPredkontace(db, s.ctx, {
+          partialRecordId: doc.lines[i]!.partialRecordIds[0]!,
+          periodId: s.periodId,
+          scenario: "S-EU-GOODS-DELIVERY",
+          summaryRecordId: doc.summaryRecordId,
+          accountingEventId: ev.eventId,
+          postingDate: "2065-06-01",
+          responsibleUserId: userId,
+        })
+      }
+
+      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      // same partner, same doklad, two kód rows (goods 0, service 3)
+      expect(sh.rows).toHaveLength(2)
+      const byKod = Object.fromEntries(sh.rows.map((r) => [r.kod_plneni, r]))
+      expect(byKod["0"]!.value).toBe("10000.0000")
+      expect(byKod["3"]!.value).toBe("7000.0000")
+      expect(byKod["0"]!.tax_id).toBe("DE833456789")
+      expect(byKod["3"]!.tax_id).toBe("DE833456789")
     })
   })
 })

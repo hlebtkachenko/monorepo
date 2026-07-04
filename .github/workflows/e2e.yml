@@ -136,8 +136,8 @@ jobs:
       # tool-versions-check.yml (files an issue).
       - name: Pre-pull Postgres testcontainer image (digest-pinned, Docker Hub flakiness guard)
         env:
-          # postgres:18-alpine manifest-list digest, verified 2026-06-11.
-          POSTGRES_IMAGE_DIGEST: "sha256:96d56f7f57c6aacd1fcb908bc83b345ec5f83231ee486dd66a1baadce274db88"
+          # postgres:18-alpine manifest-list digest, verified 2026-07-04.
+          POSTGRES_IMAGE_DIGEST: "sha256:1b1689b20d16a014a3d195653381cf2caa75a41a92d93b255a9d6ea29fd353aa"
         run: |
           image="postgres:18-alpine"
           pinned="postgres@${POSTGRES_IMAGE_DIGEST}"

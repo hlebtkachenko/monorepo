@@ -276,6 +276,28 @@ describe("runGatedWrite", () => {
     expect(lockPeriod).not.toHaveBeenCalled()
   })
 
+  it("[#517] stamps an agent-key write as ai_on_behalf even with NO conversationId", async () => {
+    // The audit actor comes from the TAMPER-PROOF key capability: an agent key
+    // is always an AI actor regardless of the client-supplied (spoofable)
+    // conversationId, so an agent can never be logged as 'human'.
+    await runGatedWrite({
+      ...build({ confidence: 0.5 }),
+      principal: { ...principal, actorKind: "agent" },
+    })
+    expect(writeLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorKind: "ai_on_behalf" }),
+    )
+  })
+
+  it("[#517] stamps a bare human-key write (no conversationId) as human", async () => {
+    await runGatedWrite(build({ confidence: 0.5 }))
+    expect(writeLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorKind: "human" }),
+    )
+  })
+
   it("HOLDS an auto-apply-confidence write when the server veto fires, EVEN with a green score [G2-B1]", async () => {
     // Veto INDEPENDENCE: inject a GREEN server score so the ONLY thing that can
     // hold the write is the veto. A claimed-0.99 booking the server vetoes still

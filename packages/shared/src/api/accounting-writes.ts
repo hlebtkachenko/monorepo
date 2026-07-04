@@ -261,6 +261,99 @@ const CONVERSATION_ID = z.string().uuid().optional().openapi({
   description: "Audit-correlation id of the driving agent conversation.",
 })
 
+/**
+ * Structured evidence envelope (#464 evidence contract) — an OPTIONAL, additive
+ * TOP-LEVEL field on every write op. It carries the agent's SELF-REPORTED signals
+ * the server runs through its OWN confidence engine (`scoreProposal`).
+ *
+ * FAIL-CLOSED CONTRACT (server-enforced — the client cannot forge a green):
+ *   - The server NEVER consumes a client base-score / verify-bonus claim directly.
+ *     Every field here that the server cannot RE-VERIFY from data it holds is
+ *     degraded to its worst value before scoring: base-score claims → floor,
+ *     verify bonuses → false (no uplift). In v1 the server can re-verify almost
+ *     none of these, so effectively all are informational + degraded, and a
+ *     structural sub-green block is injected — green is UNREACHABLE at cold start
+ *     BY DESIGN (the write lane ships OFF; human review is the master gate).
+ *   - `capSignals` are Tier-2 CAP kinds that only ever LOWER trust; a client
+ *     assertion is honored FAIL-SAFE (accepted, never silently dropped) even
+ *     without server re-verification — a self-reported novelty can only hold, not
+ *     release, a write.
+ *   - This envelope is NOT domain data: it is stripped before the domain mutation
+ *     runs (on the live path and on held-write replay). The independent server
+ *     VETO (`deriveCaptureVeto`/`derivePostingVeto`) is AND-composed on top of the
+ *     score — it is never routed through this envelope.
+ */
+const EVIDENCE_SIGNALS = z
+  .object({
+    kbRule: z
+      .enum(["constitution_safe", "high_active", "medium", "low_mixed", "none"])
+      .optional()
+      .openapi({
+        description:
+          "Agent's claimed KB-rule confidence base. NOT server-verifiable in " +
+          "v1 → degraded to `none` before scoring.",
+        example: "high_active",
+      }),
+    extractionQuality: z
+      .number()
+      .min(0)
+      .max(1)
+      .optional()
+      .openapi({
+        description:
+          "Agent's claimed source extraction quality [0,1]. NOT server-verifiable " +
+          "in v1 → degraded to 0 before scoring.",
+        example: 0.85,
+      }),
+    reconciliation: z
+      .enum(["full", "partial", "none"])
+      .optional()
+      .openapi({
+        description:
+          "Agent's claimed reconciliation status. NOT server-verifiable in v1 → " +
+          "degraded to `none` before scoring.",
+        example: "full",
+      }),
+    vatBaseMatchesNet: z.boolean().optional().openapi({
+      description:
+        "Verify BONUS claim. NOT server-recomputed → no uplift (false).",
+    }),
+    rcChecklistPassesOrNA: z.boolean().optional().openapi({
+      description:
+        "Verify BONUS claim. NOT server-recomputed → no uplift (false).",
+    }),
+    decree500Confirmed: z.boolean().optional().openapi({
+      description:
+        "Verify BONUS claim. NOT server-recomputed → no uplift (false).",
+    }),
+    periodConsistent: z.boolean().optional().openapi({
+      description:
+        "Verify BONUS claim. NOT server-recomputed → no uplift (false).",
+    }),
+    bankVsKsSsMatch: z.boolean().optional().openapi({
+      description:
+        "Verify BONUS claim. NOT server-recomputed → no uplift (false).",
+    }),
+    capSignals: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        description:
+          "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, " +
+          "novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so " +
+          "they are honored fail-safe: an asserted cap can hold a write, never " +
+          "release one.",
+        example: ["novel_ico"],
+      }),
+  })
+  .openapi({
+    description:
+      "Optional evidence envelope the server scores through its own confidence " +
+      "engine (fail-closed: unverifiable claims are degraded, cap signals are " +
+      "honored). Not domain data — stripped before the domain mutation runs.",
+  })
+export type EvidenceSignals = z.infer<typeof EVIDENCE_SIGNALS>
+
 // --- POST /v1/accounting/events ---------------------------------------------
 export const CreateAccountingEventRequestSchema = z
   .object({
@@ -299,6 +392,7 @@ export const CreateAccountingEventRequestSchema = z
     confidence: CONFIDENCE,
     rationale: RATIONALE,
     conversationId: CONVERSATION_ID,
+    signals: EVIDENCE_SIGNALS.nullish(),
   })
   .openapi({
     description:
@@ -383,6 +477,7 @@ export const CaptureAccountingDocumentRequestSchema = z
     confidence: CONFIDENCE,
     rationale: RATIONALE,
     conversationId: CONVERSATION_ID,
+    signals: EVIDENCE_SIGNALS.nullish(),
   })
   .openapi({
     description:
@@ -470,6 +565,9 @@ export const CreateAccountingPostingRequestSchema = z
     confidence: CONFIDENCE,
     rationale: RATIONALE,
     conversationId: CONVERSATION_ID,
+    // TOP-LEVEL only — never inside `entry`. held-writes replay pulls only
+    // {kind, entry} for postings, so a top-level `signals` is safely dropped.
+    signals: EVIDENCE_SIGNALS.nullish(),
   })
   // Enforce the kind↔entry correlation a bare union can't: a `double` kind must
   // carry a double entry (and `monetary` a monetary entry). Without this the

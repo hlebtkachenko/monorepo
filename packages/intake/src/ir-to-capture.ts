@@ -8,8 +8,9 @@
 // Money: haléř (bigint minor units) → decimal string via `minorToDecimal` (single-source string math,
 // never BigInt(Number())). VAT: `baseAmount`/`vatAmount` come ONLY from the source-extracted IR
 // `vat_summary` (`base_minor` / `tax_minor`). We NEVER compute `base * rate` — that would make the
-// server's `vat_mismatch` veto verify the adapter against itself. When a summary row carries no tax
-// amount we emit the partial WITHOUT `vatAmount`, so the server's `vat_amount_missing` hold fires.
+// server's `vat_mismatch` veto verify the adapter against itself. A summary row always carries `tax_minor`
+// (parsers set 0n for a genuine zero), so `vatAmount` is the source tax verbatim; the server holds any
+// row whose tax is inconsistent with base*rate via `vat_mismatch`.
 //
 // SCOPE (v1): the STANDARD domestic case only. Reverse-charge / EXEMPT / IMPORT classification is
 // `classifyAccountingEvent`'s job on the server — this adapter never fabricates a special regime. And it
@@ -70,16 +71,16 @@ function partialFromVatRow(
   if (!(row.rate > 0)) {
     return partialWithoutRate(row.base_minor * sign, currencyCode)
   }
-  // [G1-F4] `vatAmount` is emitted ONLY when the source row actually carries a tax amount. When it does
-  // not (imperfect extraction dropped it), we leave `vatAmount` absent so the server's
-  // `vat_amount_missing` hold fires — we NEVER synthesize it from `base * rate`, which would make the
-  // server's `vat_mismatch` check verify the adapter against itself.
-  const hasTax = typeof row.tax_minor === "bigint"
+  // [G1-F4] `vatAmount` comes STRAIGHT from the source tax field (`tax_minor`), NEVER `base * rate` — a
+  // synthesized VAT would make the server's `vat_mismatch` check verify the adapter against itself. A
+  // VatSummaryRow always carries `tax_minor` (parsers set 0n for a genuine zero, they never drop it), so
+  // there is no "tax absent" case to defend here; a rate>0 row whose tax does not match base*rate is left
+  // as-is and the server holds it via `vat_mismatch`.
   return {
     baseAmount: minorToDecimal(row.base_minor * sign),
     vatMode: "STANDARD",
     vatRate: String(row.rate),
-    ...(hasTax ? { vatAmount: minorToDecimal(row.tax_minor * sign) } : {}),
+    vatAmount: minorToDecimal(row.tax_minor * sign),
     vatJurisdiction: "DOMESTIC",
     currencyCode,
   }

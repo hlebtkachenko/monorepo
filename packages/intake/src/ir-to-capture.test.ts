@@ -104,25 +104,21 @@ describe("invoiceToCapture", () => {
     expect(partial.vatAmount).toBe("-210.00")
   })
 
-  it("(d) emits NO vatAmount when the source tax field is absent — server holds via vat_amount_missing", () => {
-    // Imperfect extraction can drop the tax amount off a summary row (tax_minor absent at runtime, even
-    // though the IR type declares it required). The adapter must NOT synthesize it from base*rate; it
-    // leaves vatAmount off so the server's vat_amount_missing veto holds the write.
-    const rowWithoutTax = { rate: 21, base_minor: 100000n } as {
-      rate: number
-      base_minor: bigint
-      tax_minor: bigint
-    }
-    const withoutTax = invoiceToCapture(
-      invoice({ vat_summary: [rowWithoutTax] }),
+  it("(d) vatAmount is the source tax verbatim, never base*rate", () => {
+    // A row whose declared tax does NOT equal base*rate: the adapter must emit the SOURCE tax (50.00), never
+    // the computed base*rate (210.00). Synthesizing it would make the server's vat_mismatch check verify the
+    // adapter against itself instead of against the document; the mismatch here is what the server SHOULD see.
+    const request = invoiceToCapture(
+      invoice({
+        vat_summary: [{ rate: 21, base_minor: 100000n, tax_minor: 5000n }],
+      }),
       ctx,
     )
-    const partial = withoutTax.lines[0]!.partials[0]!
-    expect(partial.vatAmount).toBeUndefined()
-    expect(partial.baseAmount).toBe("1000.00")
-    // Still a valid request; the server (not the adapter) holds it via vat_amount_missing.
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatAmount).toBe("50.00")
+    expect(partial.vatAmount).not.toBe("210.00")
     expect(() =>
-      CaptureAccountingDocumentRequestSchema.parse(withoutTax),
+      CaptureAccountingDocumentRequestSchema.parse(request),
     ).not.toThrow()
   })
 

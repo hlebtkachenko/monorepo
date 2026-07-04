@@ -229,7 +229,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
       expect(message).toContain(envName)
     }
     expect(message).toContain("docs/runbooks/BRAIN-CC-HARNESS.md")
-    expect(message).toContain("@anthropic-ai/agent-sdk")
+    expect(message).toContain("@anthropic-ai/claude-agent-sdk")
   })
 
   it("still fails loud even with all creds present (Agent-SDK wiring is the deploy-time step)", async () => {

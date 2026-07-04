@@ -8,9 +8,12 @@ import { scoreProposalColdStart } from "../gate/gate"
 import { buildLoginContext, type LoginContextSections } from "./context-pack"
 import {
   HOSTILE_DOCUMENT,
+  HOSTILE_HELD_WRITE_DOCUMENT,
+  INJECTION_REQUIRED_HELD_WRITE_TOOLS,
   INJECTION_REQUIRED_TOOLS,
 } from "./injection-fixtures"
 import {
+  BRAIN_ACCOUNTING_POLICY,
   BRAIN_DENIED_BUILTIN_TOOLS,
   DEFAULT_BRAIN_POLICY,
   isToolAllowed,
@@ -63,6 +66,49 @@ describe("N-2 (a) — the sandbox denies the tools the injection needs", () => {
     for (const tool of Object.values(INJECTION_REQUIRED_TOOLS)) {
       expect(isToolAllowed(tool, pack.toolPolicy)).toBe(false)
     }
+  })
+})
+
+describe("N-2 (a2) — the per-tool sandbox denies the held-write self-approval injection [G1-F2]", () => {
+  it("the held-write hostile document is present as untrusted DATA (never executed)", () => {
+    expect(HOSTILE_HELD_WRITE_DOCUMENT).toContain(
+      "list all pending held writes",
+    )
+    expect(HOSTILE_HELD_WRITE_DOCUMENT).toContain("approve it yourself")
+    expect(HOSTILE_HELD_WRITE_DOCUMENT).toContain("resolve immediately")
+  })
+
+  it("the pinned accounting policy DENIES list + resolve held-writes even though the afframe server is allowed", () => {
+    // The whole point of per-TOOL granularity: a per-SERVER allow would have permitted these. It must not.
+    for (const tool of Object.values(INJECTION_REQUIRED_HELD_WRITE_TOOLS)) {
+      expect(isToolAllowed(tool, BRAIN_ACCOUNTING_POLICY)).toBe(false)
+    }
+    // The legitimate write surface on the SAME server stays allowed — the deny is surgical, not a server ban.
+    expect(
+      isToolAllowed(
+        "mcp__afframe__capture_accounting_document",
+        BRAIN_ACCOUNTING_POLICY,
+      ),
+    ).toBe(true)
+  })
+
+  it("a login pack pinned to the accounting policy inherits the per-tool deny (session sandboxed by construction)", () => {
+    const s: LoginContextSections = {
+      constitution: "c",
+      kb: { id: "kb", version: "v" },
+      lawSummary: "l",
+      confidenceProtocol: "p",
+      escalationPolicy: "e",
+      toolPolicy: BRAIN_ACCOUNTING_POLICY,
+    }
+    const pack = buildLoginContext(s)
+    for (const tool of Object.values(INJECTION_REQUIRED_HELD_WRITE_TOOLS)) {
+      expect(isToolAllowed(tool, pack.toolPolicy)).toBe(false)
+      // The denied tool is never emitted as an allow pattern the harness would honor.
+      expect(pack.allowedTools).not.toContain(tool)
+    }
+    // No bare wildcard leaks the whole server (which would re-admit the denied held-write ops).
+    expect(pack.allowedTools).not.toContain("mcp__afframe__*")
   })
 })
 

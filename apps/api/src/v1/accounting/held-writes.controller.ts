@@ -87,6 +87,16 @@ export class HeldWritesController {
   async listHeldWrites(
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<ListHeldWritesResponse> {
+    // [#517] Deny agent-actor keys the LIST too, mirroring the client sandbox
+    // (which denies both `list_accounting_held_writes` + `resolve_...`). The
+    // review queue exposes OTHER pending held payloads — a prompt-injection /
+    // exfiltration surface — so the server backstops the client-side deny
+    // rather than trusting it. An agent proposes writes; a human reviews them.
+    if (principal.actorKind !== "human") {
+      throw new ForbiddenError(
+        "Agent-actor API keys cannot list held writes; the review queue is human-only",
+      )
+    }
     const rows = await withOrganization(
       principal.organizationId,
       principal.userId,

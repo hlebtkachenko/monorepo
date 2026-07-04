@@ -296,6 +296,18 @@ describe("HeldWritesController", () => {
         .expect(401)
       expect(verifyApiKeyMock).not.toHaveBeenCalled()
     })
+
+    it("[#517] DENIES an agent-actor key from listing the review queue", async () => {
+      // The queue exposes other pending held payloads (an exfiltration surface);
+      // the client sandbox denies list_accounting_held_writes and the server
+      // backstops it.
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A, APPROVER, "agent"))
+      const res = await supertest(app.getHttpServer())
+        .get("/v1/accounting/held-writes")
+        .set("Authorization", "Bearer affk_live_agent")
+        .expect(403)
+      expect(res.body.error.code).toBe("forbidden")
+    })
   })
 
   describe("POST /v1/accounting/held-writes/:id/resolve", () => {

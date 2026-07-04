@@ -162,7 +162,17 @@ export async function runGatedWrite<T>(
     const amountHold = opts.holdAmounts.some(
       (a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT,
     )
-    const actorKind = opts.conversationId ? "ai_on_behalf" : "human"
+    // [#517] The audit actor is derived from the TAMPER-PROOF key capability
+    // first: an `agent` key is always an AI actor regardless of whether the
+    // request carries a `conversationId` (that flag is client-supplied and
+    // spoofable). A human key falls back to the conversationId heuristic
+    // (a human driving an AI assistant stamps `ai_on_behalf`).
+    const actorKind =
+      opts.principal.actorKind === "agent"
+        ? "ai_on_behalf"
+        : opts.conversationId
+          ? "ai_on_behalf"
+          : "human"
 
     type TxOutcome =
       | { kind: "replay"; prior: Record<string, unknown> }

@@ -80,6 +80,25 @@ types + this runbook only. The scaffold composes our pieces and documents the SD
 is the deploy-time step, and it should live in the harness/operator tooling that launches sessions, not as a
 runtime dependency of `@workspace/intake`.
 
+## Provisioning the Brain API key ([#517] — required before any live run)
+
+The Brain's `BRAIN_API_KEY` MUST be issued as an **agent-actor** key. The server-side key capability
+(`api_key.actor_kind`, migration 0044) DENIES `actor_kind = 'agent'` keys on the held-write endpoints
+(`GET /v1/accounting/held-writes` + `POST …/held-writes/:id/resolve`) entirely — an agent proposes gated
+writes but can never list or resolve the human review queue. The column defaults to `'human'`, so a key
+issued without this step would be able to resolve its own held writes (defeating the control). There is no
+public key-issuance API today, so provision the Brain key directly (bastion / `scripts/db-query.sh` write
+path) and set `actor_kind = 'agent'`:
+
+```sql
+INSERT INTO api_key (organization_id, workspace_id, name, prefix, key_hash, actor_kind)
+VALUES (:org_id, :workspace_id, 'afframe-brain', :prefix, :sha256_hex, 'agent');
+```
+
+Bind the Brain key to a user (`created_by_user_id`) that **authors nothing outside Brain runs** (the
+author≠approver rider is a second, independent backstop). Verify after issuance:
+`SELECT actor_kind FROM api_key WHERE name = 'afframe-brain';` MUST return `agent`.
+
 ## First-live-run procedure (deploy-time, creds-gated)
 
 Prereqs: #395 accounting write endpoints merged + `pnpm gen:all` run (the real `mcp__afframe__*` tool names

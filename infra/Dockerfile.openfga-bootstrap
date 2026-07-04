@@ -22,7 +22,7 @@
 
 ARG NODE_VERSION=24
 ARG OPENFGA_VERSION=v1.15.1
-ARG PNPM_VERSION=11.0.9
+ARG PNPM_VERSION=11.9.0
 
 # ---------- openfga-bin: extract the standalone OpenFGA server binary -------
 # The official image ships a static `/openfga` binary; we copy only that out.

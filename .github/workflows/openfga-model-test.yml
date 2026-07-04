@@ -43,10 +43,10 @@ jobs:
 
       - name: Download OpenFGA CLI
         env:
-          # SHA256 for fga_0.7.13_linux_amd64.tar.gz
-          # Source: https://github.com/openfga/cli/releases/download/v0.7.13/checksums.txt
-          FGA_CLI_VERSION: "0.7.13"
-          FGA_CLI_SHA256: "de043bdee6318680125ea1f6160422389ec254411ea23c170e92dc101952ae31"
+          # SHA256 for fga_0.7.17_linux_amd64.tar.gz
+          # Source: https://github.com/openfga/cli/releases/download/v0.7.17/checksums.txt
+          FGA_CLI_VERSION: "0.7.17"
+          FGA_CLI_SHA256: "1fd6c75811c0e650b9318e86c98a3083fcc568d08ddbfdf63b75b77408a51d3e"
         run: |
           set -euo pipefail
           curl -fsSL \

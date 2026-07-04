@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.10
 
 ARG NODE_VERSION=24
-ARG PNPM_VERSION=11.0.9
+ARG PNPM_VERSION=11.9.0
 
 # ---------- pruner ----------
 # turbo prune emits a minimal subtree: out/json (manifests + lockfile, for a

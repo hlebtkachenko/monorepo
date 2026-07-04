@@ -24,6 +24,10 @@ import {
   ResolveHeldWriteResponseSchema,
   SaldokontoResponseSchema,
   StatementLayoutResponseSchema,
+  ListAccountsQuerySchema,
+  ListAccountsResponseSchema,
+  GetAccountResponseSchema,
+  UpdateAccountRequestSchema,
 } from "@workspace/shared/api"
 
 /**
@@ -91,4 +95,16 @@ export class ResolveHeldWriteRequestDto extends createZodDto(
 ) {}
 export class ResolveHeldWriteResponseDto extends createZodDto(
   ResolveHeldWriteResponseSchema,
+) {}
+export class ListAccountsQueryDto extends createZodDto(
+  ListAccountsQuerySchema,
+) {}
+export class ListAccountsResponseDto extends createZodDto(
+  ListAccountsResponseSchema,
+) {}
+export class GetAccountResponseDto extends createZodDto(
+  GetAccountResponseSchema,
+) {}
+export class UpdateAccountRequestDto extends createZodDto(
+  UpdateAccountRequestSchema,
 ) {}

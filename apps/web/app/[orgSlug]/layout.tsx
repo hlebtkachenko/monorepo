@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { eq, and } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
@@ -18,6 +19,11 @@ import { PeriodSwitcherClient } from "../_components/period-switcher"
 import { OrgShell } from "../_components/org-shell"
 import { presignAvatarRead } from "../_lib/avatar-storage"
 import { getHeaderOrgData } from "./_lib/header-org"
+import {
+  getHeaderPeriods,
+  PERIOD_COOKIE,
+  resolveActivePeriodId,
+} from "./_lib/header-periods"
 import { getRequestSession } from "./_lib/request-session"
 
 // DB role enum → human-readable label rendered verbatim in the org switcher.
@@ -99,13 +105,19 @@ export default async function OrgLayout({
   // the session + a private-bucket avatar presign) and passed into the client
   // shell as a node. The header user + org-switcher data are independent reads,
   // so they run concurrently.
-  const [{ userName, userImage }, orgData] = await Promise.all([
+  const [{ userName, userImage }, orgData, periods] = await Promise.all([
     getHeaderUser(session.user.id, session.user.email),
     getHeaderOrgData({
       organizationId: membership.organizationId,
       userId: session.user.id,
     }),
+    getHeaderPeriods({ organizationId: membership.organizationId }),
   ])
+  const cookieStore = await cookies()
+  const activePeriodId = resolveActivePeriodId(
+    periods,
+    cookieStore.get(PERIOD_COOKIE)?.value,
+  )
   const header = (
     <AppHeader
       leftContent={
@@ -124,7 +136,12 @@ export default async function OrgLayout({
               href: `/${o.slug}`,
             }))}
           />
-          <PeriodSwitcherClient />
+          <PeriodSwitcherClient
+            key={membership.organizationId}
+            orgSlug={orgSlug}
+            periods={periods}
+            activePeriodId={activePeriodId ?? ""}
+          />
         </>
       }
       actions={

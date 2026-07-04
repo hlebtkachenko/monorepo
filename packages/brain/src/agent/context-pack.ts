@@ -16,8 +16,8 @@
 // signals (see ../gate/gate.ts). Writes go through the accounting API/MCP endpoint, never a raw DB path.
 
 import {
+  BRAIN_ACCOUNTING_POLICY,
   BRAIN_DENIED_BUILTIN_TOOLS,
-  DEFAULT_BRAIN_POLICY,
   type ToolAllowlistPolicy,
 } from "./sandbox"
 
@@ -45,8 +45,11 @@ export interface LoginContextSections {
   /** The escalation policy text (when + how to route to a human / the constrained advisor tool). */
   escalationPolicy: string
   /**
-   * The tool policy to embed. Defaults to `DEFAULT_BRAIN_POLICY` (a pure MCP client, no built-ins) when
-   * omitted, so a caller who supplies only the texts still gets a sandboxed pack.
+   * The tool policy to embed. Defaults to `BRAIN_ACCOUNTING_POLICY` (the pinned, per-TOOL real accounting
+   * allowlist on the `afframe` server: the 5 writes + report/read getters allowed, `resolve_accounting_held_write`
+   * + `list_accounting_held_writes` DENIED) when omitted, so a caller who supplies only the texts gets a pack
+   * that is BOTH sandboxed AND bound to the real tools by default (secure-and-functional). A caller may still
+   * pass a different policy (e.g. `DEFAULT_BRAIN_POLICY` for the coarse per-server-only shape).
    */
   toolPolicy?: ToolAllowlistPolicy
 }
@@ -94,12 +97,14 @@ function section(title: string, body: string): string {
 /**
  * Build the login-to-Brain context-pack. PURE: composes the injected section texts + the embedded tool
  * policy into a deterministic `LoginContextPack`. No I/O, no clock. The sandbox policy is ALWAYS present
- * and matches `sandbox.ts` (default `DEFAULT_BRAIN_POLICY`) so the session is sandboxed by construction.
+ * and matches `sandbox.ts` (default `BRAIN_ACCOUNTING_POLICY` — the pinned per-TOOL real accounting
+ * allowlist) so the session is sandboxed by construction AND bound to the real tools by default: the DENY of
+ * `resolve_accounting_held_write` / `list_accounting_held_writes` governs a real default session.
  */
 export function buildLoginContext(
   sections: LoginContextSections,
 ): LoginContextPack {
-  const policy = sections.toolPolicy ?? DEFAULT_BRAIN_POLICY
+  const policy = sections.toolPolicy ?? BRAIN_ACCOUNTING_POLICY
 
   // Sandboxed by construction: reject a policy whose allow-list overlaps the deny-list. A denied built-in
   // in `allowedBuiltinTools` would emit a self-contradictory pack (a tool listed as BOTH allowed and denied)
@@ -115,9 +120,16 @@ export function buildLoginContext(
     )
   }
 
-  // Allow patterns: one `mcp__<server>__*` glob per permitted MCP server, plus any explicit built-ins.
+  // Allow patterns, per permitted MCP server, plus any explicit built-ins. [G1-F2] When a server is narrowed
+  // by a per-tool allowlist, emit one exact `mcp__<server>__<tool>` pattern per allowed tool (so the harness
+  // itself denies the withheld tools, e.g. `resolve_accounting_held_write`); otherwise emit the coarse
+  // `mcp__<server>__*` wildcard (unchanged legacy behavior). The two must agree with `isToolAllowed`.
   const allowedTools = [
-    ...policy.allowedMcpServers.map((server) => `mcp__${server}__*`),
+    ...policy.allowedMcpServers.flatMap((server) => {
+      const perServerTools = policy.allowedMcpTools?.[server]
+      if (perServerTools === undefined) return [`mcp__${server}__*`]
+      return perServerTools.map((tool) => `mcp__${server}__${tool}`)
+    }),
     ...policy.allowedBuiltinTools,
   ]
   // Deny list: the named exfiltration / self-modification built-ins from N-1 (default-deny already

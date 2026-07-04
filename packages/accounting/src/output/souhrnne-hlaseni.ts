@@ -11,11 +11,17 @@
  *   2  dodání zboží prostřední osobou v třístranném obchodu (§17)
  *   3  poskytnutí služby s místem plnění v JČS dle §9/1 (reverse-charged service)
  *
- * v1 LIMITATION (flagged): goods (kód 0) vs service (kód 3) needs the SUPPLY KIND
- * on the captured fact, which partial_record does not carry (only jurisdiction) —
- * the same follow-up as DPH ř.5/6. Every EU-marked ISSUED supply is reported
- * under kód 0 (dodání zboží) until the supply kind is persisted; the value +
- * per-partner grouping + member-state VAT id are exact.
+ * Goods (kód 0) vs service (kód 3) is driven by the SUPPLY KIND persisted on the
+ * captured fact (partial_record.supply_kind, migration 0043): a SERVICES supply
+ * is reported under kód 3 (§9/1 reverse-charged service), everything else —
+ * including a NULL/undistinguished supply_kind (legacy rows) — under kód 0
+ * (dodání zboží §64). The kód is part of the grouping key, so one partner that
+ * receives both goods and services yields two lines (one per kód), as required.
+ *
+ * v1 LIMITATION (still flagged): kód 1 (přemístění majetku) and kód 2 (třístranný
+ * obchod §17) are NOT derivable from the supply kind alone (they need own-goods-
+ * transfer / triangular-trade facts) — those remain unsupported. DPH ř.5/6 EU-
+ * services split is the remaining related follow-up.
  *
  * Hodnota plnění is the base in accounting currency (CZK), no VAT (EU supplies are
  * osvobozené s nárokem). All money arithmetic in SQL (R13).
@@ -47,19 +53,23 @@ export interface SouhrnneHlaseni {
 
 /**
  * Build the souhrnné hlášení for a period from EU-marked ISSUED supplies, grouped
- * per counterparty VAT id + member state. Kód plnění defaults to 0 (goods §64) —
- * see the goods/service limitation in the module doc.
+ * per counterparty VAT id + member state + kód plnění. A SERVICES supply_kind
+ * maps to kód 3 (§9/1 service); everything else — including a NULL supply_kind —
+ * maps to kód 0 (goods §64), preserving the legacy behavior. See the module doc.
  */
 export async function buildSouhrnneHlaseni(
   db: RowExecutor,
   periodId: string,
 ): Promise<SouhrnneHlaseni> {
+  // SERVICES → kód 3 (§9/1); goods and any NULL/undistinguished supply → kód 0
+  // (§64). NULL falls to the ELSE branch, so legacy rows report kód 0 unchanged.
+  const kodPlneni = sql`CASE WHEN pr.supply_kind = 'SERVICES' THEN '3' ELSE '0' END`
   const shRows = await rows<ShRow>(
     db,
     sql`
       SELECT cp.country_code                                        AS country_code,
              cp.tax_id                                              AS tax_id,
-             '0'                                                    AS kod_plneni,
+             ${kodPlneni}                                           AS kod_plneni,
              COUNT(DISTINCT sr.id)::int                             AS count,
              COALESCE(SUM(pr.base_in_accounting_currency), 0)::numeric(19,4) AS value
         FROM partial_record pr
@@ -70,8 +80,8 @@ export async function buildSouhrnneHlaseni(
        WHERE sr.period_id = ${periodId}::uuid
          AND sr.type = 'ISSUED_INVOICE'
          AND pr.vat_jurisdiction = 'EU'
-       GROUP BY cp.country_code, cp.tax_id
-       ORDER BY cp.tax_id`,
+       GROUP BY cp.country_code, cp.tax_id, ${kodPlneni}
+       ORDER BY cp.tax_id, ${kodPlneni}`,
   )
   return { type: "SOUHRNNE_HLASENI", rows: shRows }
 }

@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./confidence": "./src/confidence/index.ts"
+    "./confidence": "./src/confidence/index.ts",
+    "./gate": "./src/gate/index.ts"
   },
   "scripts": {
     "build": "tsc",

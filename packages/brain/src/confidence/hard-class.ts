@@ -5,19 +5,29 @@
 // objective infra check does NOT resolve it. That is what makes "score the prior book with the same
 // confidence metric" safe — for an UNRESOLVED hard class the RAW score is capped sub-green, so AT COLD-START
 // green is unreachable and the item routes to the human; a class an objective check RESOLVES (amount below
-// the DHM threshold, a present tax-point) is scored normally. (Post-fit, a fitted calibration may lift a
-// capped C_raw above green on real outcome evidence; a hard post-calibration ceiling for these classes is
-// the deferred WP-CONF-CEIL — see the signals.ts note.)
+// the DHM threshold, a present tax-point) is scored normally. WP-CONF-CEIL now enforces these caps as a hard
+// POST-calibration CEILING in `scoreProposal` (gate.ts): `cFinal = min(applyCalibration(cRaw), minHardCap)`
+// over the fired HARD_CLASSES, so even a fitted calibration can NEVER lift a fired hard class above green.
+// The gate derives the intersection from `firedSignals ∩ HARD_CLASSES` and does NOT call this resolver (it
+// would re-run against facts the gate does not hold).
 
 import type { Tier2CapKind } from "./signals"
 
-/** The five prior-book hard classes (a subset of the Tier-2 cap kinds in signals.ts). */
-export type HardClass =
+/**
+ * The five prior-book hard classes. `Extract<Tier2CapKind, ...>` makes "is a subset of the Tier-2 cap kinds"
+ * a COMPILE-TIME fact: a member that is not a real cap kind resolves to `never` and breaks the build (which
+ * would break `HARD_CLASSES ... satisfies readonly HardClass[]` below). That is what lets `minHardCap` in
+ * gate.ts assert `TIER2_CAP_VALUES[kind]` is defined for a fired hard class — a mistyped hard class can never
+ * silently stop capping (the confident-wrong direction).
+ */
+export type HardClass = Extract<
+  Tier2CapKind,
   | "asset_vs_expense"
   | "accrual_period_boundary"
   | "reserve_or_impairment"
   | "dph_tax_point_timing"
   | "prior_without_source"
+>
 
 export const HARD_CLASSES = [
   "asset_vs_expense",

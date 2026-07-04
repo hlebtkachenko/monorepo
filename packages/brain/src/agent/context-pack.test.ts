@@ -6,6 +6,7 @@ import {
   type LoginContextSections,
 } from "./context-pack"
 import {
+  BRAIN_ACCOUNTING_POLICY,
   BRAIN_DENIED_BUILTIN_TOOLS,
   DEFAULT_BRAIN_POLICY,
   isToolAllowed,
@@ -46,16 +47,21 @@ describe("buildLoginContext — hard-rule preamble", () => {
 })
 
 describe("buildLoginContext — embedded sandbox policy", () => {
-  it("embeds the N-1 default policy so the session is sandboxed by construction", () => {
+  it("defaults to the pinned real accounting policy so the session is bound to the real tools + sandboxed", () => {
     const pack = buildLoginContext(sections())
-    expect(pack.toolPolicy).toEqual(DEFAULT_BRAIN_POLICY)
-    // Allow patterns are one mcp__<server>__* glob per permitted server (no built-ins by default).
-    expect(pack.allowedTools).toEqual([
-      "mcp__accounting__*",
-      "mcp__kb__*",
-      "mcp__intake__*",
-      "mcp__advisor__*",
-    ])
+    expect(pack.toolPolicy).toEqual(BRAIN_ACCOUNTING_POLICY)
+    // The default no-toolPolicy pack emits exact per-tool patterns for the 19 allowed afframe tools and
+    // NONE for the two DENIED held-write ops (the DENY governs a REAL default session, not a placeholder).
+    expect(pack.allowedTools).toContain("mcp__afframe__create_accounting_event")
+    expect(pack.allowedTools).toContain("mcp__afframe__get_accounting_journal")
+    expect(pack.allowedTools).toHaveLength(19)
+    expect(pack.allowedTools).not.toContain("mcp__afframe__*")
+    expect(pack.allowedTools).not.toContain(
+      "mcp__afframe__resolve_accounting_held_write",
+    )
+    expect(pack.allowedTools).not.toContain(
+      "mcp__afframe__list_accounting_held_writes",
+    )
   })
 
   it("carries the N-1 deny-list verbatim (the exfiltration / self-modification surface)", () => {
@@ -67,13 +73,45 @@ describe("buildLoginContext — embedded sandbox policy", () => {
     }
   })
 
-  it("the embedded policy round-trips through isToolAllowed (matches sandbox.ts exactly)", () => {
+  it("the embedded default policy round-trips through isToolAllowed (matches sandbox.ts exactly)", () => {
     const pack = buildLoginContext(sections())
-    expect(isToolAllowed("mcp__accounting__post", pack.toolPolicy)).toBe(true)
+    // A real allowed accounting write is permitted; the two held-write ops + exfil surface are not.
+    expect(
+      isToolAllowed("mcp__afframe__create_accounting_event", pack.toolPolicy),
+    ).toBe(true)
+    expect(
+      isToolAllowed(
+        "mcp__afframe__resolve_accounting_held_write",
+        pack.toolPolicy,
+      ),
+    ).toBe(false)
+    expect(
+      isToolAllowed(
+        "mcp__afframe__list_accounting_held_writes",
+        pack.toolPolicy,
+      ),
+    ).toBe(false)
     for (const denied of BRAIN_DENIED_BUILTIN_TOOLS) {
       expect(isToolAllowed(denied, pack.toolPolicy)).toBe(false)
     }
     expect(isToolAllowed("mcp__evil__exfil", pack.toolPolicy)).toBe(false)
+  })
+
+  it("honors an explicit legacy DEFAULT_BRAIN_POLICY override (coarse per-server-only, backward compat)", () => {
+    const pack = buildLoginContext({
+      ...sections(),
+      toolPolicy: DEFAULT_BRAIN_POLICY,
+    })
+    expect(pack.toolPolicy).toEqual(DEFAULT_BRAIN_POLICY)
+    // The legacy shape has no per-tool narrowing → one coarse wildcard per placeholder server.
+    expect(pack.allowedTools).toEqual([
+      "mcp__accounting__*",
+      "mcp__kb__*",
+      "mcp__intake__*",
+      "mcp__advisor__*",
+    ])
+    // A server with no per-tool list still allows all its tools (backward-compatible behavior).
+    expect(isToolAllowed("mcp__accounting__post", pack.toolPolicy)).toBe(true)
   })
 
   it("honors an explicit tool policy override", () => {
@@ -99,6 +137,62 @@ describe("buildLoginContext — embedded sandbox policy", () => {
         },
       }),
     ).toThrow(/denied built-in/)
+  })
+
+  it("emits exact per-tool allow patterns for a narrowed server, wildcard for an un-narrowed one [G1-F2]", () => {
+    const pack = buildLoginContext({
+      ...sections(),
+      toolPolicy: {
+        allowedMcpServers: ["afframe", "kb"],
+        allowedMcpTools: { afframe: ["create_accounting_event", "get_status"] },
+        allowedBuiltinTools: [],
+      },
+    })
+    // Narrowed server → one exact `mcp__afframe__<tool>` per allowed tool (no wildcard).
+    expect(pack.allowedTools).toEqual([
+      "mcp__afframe__create_accounting_event",
+      "mcp__afframe__get_status",
+      "mcp__kb__*", // un-narrowed server keeps the coarse wildcard
+    ])
+    // The emitted patterns agree with isToolAllowed: withheld tools are denied.
+    expect(
+      isToolAllowed("mcp__afframe__create_accounting_event", pack.toolPolicy),
+    ).toBe(true)
+    expect(
+      isToolAllowed(
+        "mcp__afframe__resolve_accounting_held_write",
+        pack.toolPolicy,
+      ),
+    ).toBe(false)
+  })
+
+  it("pins the real accounting allowlist: resolve/list-held withheld from allowedTools", () => {
+    const pack = buildLoginContext({
+      ...sections(),
+      toolPolicy: BRAIN_ACCOUNTING_POLICY,
+    })
+    expect(pack.allowedTools).toContain("mcp__afframe__create_accounting_event")
+    expect(pack.allowedTools).toContain("mcp__afframe__get_accounting_journal")
+    // The two DENIED held-write ops never appear as an allow pattern, and no bare wildcard leaks them in.
+    expect(pack.allowedTools).not.toContain("mcp__afframe__*")
+    expect(pack.allowedTools).not.toContain(
+      "mcp__afframe__resolve_accounting_held_write",
+    )
+    expect(pack.allowedTools).not.toContain(
+      "mcp__afframe__list_accounting_held_writes",
+    )
+    expect(
+      isToolAllowed(
+        "mcp__afframe__resolve_accounting_held_write",
+        pack.toolPolicy,
+      ),
+    ).toBe(false)
+    expect(
+      isToolAllowed(
+        "mcp__afframe__list_accounting_held_writes",
+        pack.toolPolicy,
+      ),
+    ).toBe(false)
   })
 })
 

@@ -297,7 +297,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Inbox",
           "route": "documents/inbox",
           "icon": "Inbox",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []

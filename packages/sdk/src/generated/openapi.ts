@@ -1673,6 +1673,26 @@ export interface components {
                  */
                 r4_dan: string;
                 /**
+                 * @description ř.5 základ — přijetí služby dle §9/1 z EU, samovyměření 21 %.
+                 * @example 0.00
+                 */
+                r5_base: string;
+                /**
+                 * @description ř.5 daň.
+                 * @example 0.00
+                 */
+                r5_dan: string;
+                /**
+                 * @description ř.6 základ — přijetí služby dle §9/1 z EU, samovyměření 12 %.
+                 * @example 0.00
+                 */
+                r6_base: string;
+                /**
+                 * @description ř.6 daň.
+                 * @example 0.00
+                 */
+                r6_dan: string;
+                /**
                  * @description ř.10 základ — PDP odběratel 21 % (§92e).
                  * @example 0.00
                  */
@@ -1844,6 +1864,26 @@ export interface components {
              * @example 0.00
              */
             r4_dan: string;
+            /**
+             * @description ř.5 základ — přijetí služby dle §9/1 z EU, samovyměření 21 %.
+             * @example 0.00
+             */
+            r5_base: string;
+            /**
+             * @description ř.5 daň.
+             * @example 0.00
+             */
+            r5_dan: string;
+            /**
+             * @description ř.6 základ — přijetí služby dle §9/1 z EU, samovyměření 12 %.
+             * @example 0.00
+             */
+            r6_base: string;
+            /**
+             * @description ř.6 daň.
+             * @example 0.00
+             */
+            r6_dan: string;
             /**
              * @description ř.10 základ — PDP odběratel 21 % (§92e).
              * @example 0.00

@@ -12,7 +12,9 @@
  * Přiznání rows covered (§ ZDPH references in comments below):
  *   ř.1/2   dodání zboží/služeb, plátce, 21%/12%  (ISSUED, STANDARD)
  *   ř.3/4   pořízení zboží z JČS — samovyměření 21%/12% (RECEIVED, REVERSE_CHARGE,
- *           vat_jurisdiction = 'EU', §16)
+ *           vat_jurisdiction = 'EU', supply_kind ≠ 'SERVICES', §16)
+ *   ř.5/6   přijetí služby dle §9/1 z JČS — samovyměření 21%/12% (RECEIVED,
+ *           REVERSE_CHARGE, vat_jurisdiction = 'EU', supply_kind = 'SERVICES')
  *   ř.10/11 PDP odběratel — samovyměření 21%/12%  (RECEIVED, REVERSE_CHARGE,
  *           domestic §92e — vat_jurisdiction ≠ 'EU')
  *   ř.25    PDP dodavatel — dodání v režimu přenesení (ISSUED, REVERSE_CHARGE);
@@ -27,9 +29,14 @@
  * (migration 0038). A RECEIVED REVERSE_CHARGE row with vat_jurisdiction = 'EU'
  * routes to ř.3/4; anything else (domestic PDP, or a legacy NULL) stays on
  * ř.10/11. Both remain fully deductible on ř.43/44, so vlastní daň is unchanged
- * by the split — only the form line differs. Remaining sub-split (ř.5/6 EU
- * SERVICES §9 vs ř.3/4 EU GOODS §16) needs the supply kind on the captured fact,
- * not just the jurisdiction — a documented follow-up.
+ * by the split — only the form line differs.
+ *
+ * The goods-vs-service sub-split within EU acquisitions (ř.3/4 §16 GOODS vs ř.5/6
+ * §9/1 SERVICES) is driven by partial_record.supply_kind (migration 0043): a
+ * RECEIVED REVERSE_CHARGE EU row with supply_kind = 'SERVICES' routes to ř.5/6,
+ * everything else (goods, or a legacy NULL) stays on ř.3/4. Consistent with the
+ * souhrnné hlášení kód-plnění mapping (SERVICES → 3). ř.5/6 is self-assessed and
+ * deductible on ř.43/44 exactly like ř.3/4, so vlastní daň is unaffected.
  *
  * Kontrolní hlášení: this module returns SECTION TOTALS only (A.1, A.4/A.5, B.1,
  * B.2/B.3) as a period-level checksum against the přiznání. The row-level,
@@ -51,12 +58,23 @@ export interface DphRows {
   r2_dan: Decimal
   /**
    * ř.3/4 — pořízení zboží z jiného členského státu, samovyměření 21 %/12 %
-   * (§16). RECEIVED + REVERSE_CHARGE + vat_jurisdiction = 'EU'.
+   * (§16). RECEIVED + REVERSE_CHARGE + vat_jurisdiction = 'EU' + supply_kind
+   * IS DISTINCT FROM 'SERVICES' (goods, or a legacy NULL supply_kind).
    */
   r3_base: Decimal
   r3_dan: Decimal
   r4_base: Decimal
   r4_dan: Decimal
+  /**
+   * ř.5/6 — přijetí služby s místem plnění dle §9/1 od osoby registrované v JČS,
+   * samovyměření 21 %/12 %. RECEIVED + REVERSE_CHARGE + vat_jurisdiction = 'EU' +
+   * supply_kind = 'SERVICES'. Same self-assessment convention as ř.3/4; both are
+   * deductible on ř.43/44, so vlastní daň is unaffected by the goods/service split.
+   */
+  r5_base: Decimal
+  r5_dan: Decimal
+  r6_base: Decimal
+  r6_dan: Decimal
   /**
    * ř.10/11 — PDP odběratel, samovyměření 21 %/12 % (§92e). Domestic reverse
    * charge only: RECEIVED + REVERSE_CHARGE with vat_jurisdiction ≠ 'EU' (a
@@ -87,9 +105,9 @@ export interface DphRows {
   r50_base: Decimal
   /**
    * daň na výstupu celkem = ISSUED STANDARD daň (r1+r2) + ALL self-assessed
-   * output daň on the received side (r3+r4 EU acquisition + r10+r11 domestic PDP).
-   * The self-assessed half is net-neutral against ř.43/44, so vlastní daň is
-   * unaffected by the EU/domestic split.
+   * output daň on the received side (r3+r4 EU goods + r5+r6 EU services + r10+r11
+   * domestic PDP). The self-assessed half is net-neutral against ř.43/44, so
+   * vlastní daň is unaffected by the EU/domestic + goods/service splits.
    */
   dan_na_vystupu: Decimal
   /** odpočet celkem = r40_dan + r41_dan + r43_dan + r44_dan. */
@@ -131,6 +149,7 @@ export async function buildDph(
                pr.vat_mode,
                pr.vat_rate,
                pr.vat_jurisdiction,
+               pr.supply_kind,
                pr.vat_deductible,
                pr.base_in_accounting_currency AS base,
                pr.vat_in_accounting_currency  AS dan,
@@ -147,11 +166,19 @@ export async function buildDph(
         COALESCE(SUM(base) FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'STANDARD' AND vat_rate = 12), 0)::numeric(19,4) AS r2_base,
         COALESCE(SUM(dan)  FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'STANDARD' AND vat_rate = 12), 0)::numeric(19,4) AS r2_dan,
 
-        -- ř.3/4 — RECEIVED, REVERSE_CHARGE, EU acquisition (§16), 21%/12% (samovyměření)
-        COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND vat_rate = 21), 0)::numeric(19,4) AS r3_base,
-        COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND vat_rate = 21), 0)::numeric(19,4) AS r3_dan,
-        COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND vat_rate = 12), 0)::numeric(19,4) AS r4_base,
-        COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND vat_rate = 12), 0)::numeric(19,4) AS r4_dan,
+        -- ř.3/4 — RECEIVED, REVERSE_CHARGE, EU acquisition of GOODS (§16), 21%/12% (samovyměření).
+        --         supply_kind IS DISTINCT FROM 'SERVICES' keeps goods + any NULL/undistinguished here.
+        COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 21), 0)::numeric(19,4) AS r3_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 21), 0)::numeric(19,4) AS r3_dan,
+        COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 12), 0)::numeric(19,4) AS r4_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 12), 0)::numeric(19,4) AS r4_dan,
+
+        -- ř.5/6 — RECEIVED, REVERSE_CHARGE, EU receipt of a SERVICE with place of supply §9/1, 21%/12% (samovyměření).
+        --         supply_kind = 'SERVICES' splits these out of ř.3/4 (goods).
+        COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'SERVICES' AND vat_rate = 21), 0)::numeric(19,4) AS r5_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'SERVICES' AND vat_rate = 21), 0)::numeric(19,4) AS r5_dan,
+        COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'SERVICES' AND vat_rate = 12), 0)::numeric(19,4) AS r6_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'SERVICES' AND vat_rate = 12), 0)::numeric(19,4) AS r6_dan,
 
         -- ř.10/11 — RECEIVED, REVERSE_CHARGE, domestic PDP §92e (jurisdiction ≠ EU; NULL legacy lands here), 21%/12%
         COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU' AND vat_rate = 21), 0)::numeric(19,4) AS r10_base,

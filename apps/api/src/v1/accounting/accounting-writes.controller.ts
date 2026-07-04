@@ -32,6 +32,7 @@ import {
   CreateAccountingPostingResponseDto,
 } from "../dto"
 import { deriveCaptureVeto, derivePostingVeto } from "./accounting-veto"
+import type { EvidenceEnvelope } from "./evidence-gate"
 import { runGatedWrite, type GatedWriteResult } from "./accounting-writes.gate"
 
 const IDEMPOTENCY_HEADER = {
@@ -78,11 +79,12 @@ export class AccountingWritesController {
     @Res({ passthrough: true }) res: Response,
     @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<Record<string, unknown>> {
-    const { confidence, rationale, conversationId, ...fields } =
+    const { confidence, rationale, conversationId, signals, ...fields } =
       body as unknown as CreateAccountingEventRequestDto & {
         confidence: number
         rationale: string
         conversationId?: string
+        signals?: EvidenceEnvelope | null
       }
     const result = await runGatedWrite<CapturedEvent>({
       principal,
@@ -93,6 +95,7 @@ export class AccountingWritesController {
       confidence,
       rationale,
       conversationId,
+      signals,
       holdAmounts: [],
       run: (db, ctx) =>
         createEvent(db, ctx, {
@@ -124,11 +127,12 @@ export class AccountingWritesController {
     @Res({ passthrough: true }) res: Response,
     @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<Record<string, unknown>> {
-    const { confidence, rationale, conversationId, ...fields } =
+    const { confidence, rationale, conversationId, signals, ...fields } =
       body as unknown as CaptureAccountingDocumentRequestDto & {
         confidence: number
         rationale: string
         conversationId?: string
+        signals?: EvidenceEnvelope | null
       }
     // The always-hold gate compares against a CZK ceiling, so each partial's
     // transaction-currency amount must be converted to accounting currency via
@@ -170,6 +174,7 @@ export class AccountingWritesController {
       confidence,
       rationale,
       conversationId,
+      signals,
       holdAmounts,
       deriveVeto: () =>
         Promise.resolve(
@@ -204,11 +209,12 @@ export class AccountingWritesController {
     @Res({ passthrough: true }) res: Response,
     @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<Record<string, unknown>> {
-    const { confidence, rationale, conversationId, kind, entry } =
+    const { confidence, rationale, conversationId, signals, kind, entry } =
       body as unknown as CreateAccountingPostingRequestDto & {
         confidence: number
         rationale: string
         conversationId?: string
+        signals?: EvidenceEnvelope | null
       }
     const holdAmounts = (
       (entry as { lines?: Array<{ amount: string }> }).lines ?? []
@@ -222,6 +228,7 @@ export class AccountingWritesController {
       confidence,
       rationale,
       conversationId,
+      signals,
       holdAmounts,
       deriveVeto: (db) =>
         derivePostingVeto(db, principal.organizationId, kind, entry),

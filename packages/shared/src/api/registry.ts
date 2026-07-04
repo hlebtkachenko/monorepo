@@ -77,6 +77,14 @@ import {
   StatementLayoutResponseSchema,
   StatementLineRowSchema,
 } from "./accounting"
+import {
+  AccountSchema,
+  GetAccountResponseSchema,
+  ListAccountsQuerySchema,
+  ListAccountsResponseSchema,
+  AccountIdParamSchema,
+  UpdateAccountRequestSchema,
+} from "./accounts"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
 
@@ -234,6 +242,19 @@ const ResolveHeldWriteRequest = registry.register(
 const ResolveHeldWriteResponse = registry.register(
   "ResolveHeldWriteResponse",
   ResolveHeldWriteResponseSchema,
+)
+registry.register("Account", AccountSchema)
+const ListAccountsResponse = registry.register(
+  "ListAccountsResponse",
+  ListAccountsResponseSchema,
+)
+const GetAccountResponse = registry.register(
+  "GetAccountResponse",
+  GetAccountResponseSchema,
+)
+const UpdateAccountRequest = registry.register(
+  "UpdateAccountRequest",
+  UpdateAccountRequestSchema,
 )
 
 /**
@@ -921,6 +942,81 @@ registry.registerPath({
   },
 })
 
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounts",
+  operationId: "listAccounts",
+  summary: "List chart of accounts",
+  description:
+    "Returns the organization's chart-of-accounts entries (účtový rozvrh), " +
+    "organization-scoped (FORCE RLS). Optionally filter by účetní období " +
+    "(`periodId`) and synthetic/analytical shape (`isSynthetic`). The chart " +
+    "exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs " +
+    "keep no chart and return an empty list.",
+  tags: ["Accounts"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: ListAccountsQuerySchema },
+  responses: {
+    "200": {
+      description: "The chart-of-accounts entries matching the filters.",
+      content: { "application/json": { schema: ListAccountsResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounts/{accountId}",
+  operationId: "getAccount",
+  summary: "Get an account",
+  description:
+    "Returns a single chart-of-accounts entry by id, organization-scoped " +
+    "(FORCE RLS). Returns 404 when the account does not exist within the " +
+    "authenticated tenant — cross-tenant existence is never leaked.",
+  tags: ["Accounts"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: AccountIdParamSchema },
+  responses: {
+    "200": {
+      description: "The requested account.",
+      content: { "application/json": { schema: GetAccountResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "patch",
+  path: "/v1/accounts/{accountId}",
+  operationId: "updateAccount",
+  summary: "Edit an account",
+  description:
+    "Partially edits an account. Only the two operator-editable columns are " +
+    "accepted — `name` and `tracksOpenItems` (saldokonto). Structural and " +
+    "generated columns (number, nature, normalBalance, parent, the generated " +
+    "class/group/synthetic levels) are immutable through this surface: " +
+    "changing them retroactively reclassifies posted history. Requires the " +
+    "`accounting:write` scope. Returns 404 when the account is not visible to " +
+    "the authenticated tenant.",
+  tags: ["Accounts"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    params: AccountIdParamSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: UpdateAccountRequest } },
+    },
+  },
+  responses: {
+    "200": {
+      description: "The updated account.",
+      content: { "application/json": { schema: GetAccountResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
 /**
  * Emit the full OpenAPI 3.1 document. The api process and the codegen
  * scripts both go through this single call — drop adapters here, not in
@@ -953,7 +1049,7 @@ registry.registerPath({
  * Documented in `docs/api/VERSIONING.md` and
  * `docs/conventions/ENDPOINT-ADDITION.md`.
  */
-export const API_VERSION = "1.0.0" as const
+export const API_VERSION = "1.1.0" as const
 
 /**
  * Returns the list of `servers` for the OpenAPI spec. The staging entry

@@ -6,6 +6,46 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.15.0] — 2026-07-05
+
+Minor release: the first public accounting **API surface** (`/v1/accounts`, `/v1/invoices`), Czech localization going live, and the accounting-period switcher wired to real data.
+
+### Added
+
+- **api**: `GET/POST /v1/invoices` — invoice CRUD over the posting model. Captures invoice-typed doklady (received → RECEIVED_INVOICE, issued → ISSUED_INVOICE) with their line/partial money decomposition; organization-scoped (FORCE RLS); runs through the server safety gate (201 apply / 202 hold), tenant + responsible user injected from the API-key principal, never the body. (#534)
+- **api**: `GET /v1/accounts` + admin edit — chart-of-accounts (účtový rozvrh) read, organization-scoped; the chart exists only for DOUBLE_ENTRY periods. (#529)
+- **web**: the app-shell accounting-period switcher wired to real `accounting_period` data — org-scoped read (newest-first, open/closed lock state), selection persisted server-side in the httpOnly `afframe_period` cookie. Replaces the mock. (#528)
+- **i18n**: the **Czech locale** promoted live (`cs.json`, full `en.json` parity including the createOrg onboarding surface with statutory accounting terminology); the footer locale picker (web + admin) now offers CZ. (#531)
+- **db**: pgTap RLS coverage for every FORCE-RLS table plus a shared vitest `globalSetup` factory across `@workspace/testcontainers`. (#542)
+
+### Changed
+
+- **accounting**: EU services received are split into DPH rows 5/6 (correct kód plnění per the reverse-charge rules) instead of collapsing into one row. (#539)
+
+### Fixed
+
+- **auth**: the invite duplicate-email race is closed with a partial unique index on the pending-invite token (migration 0044). (#530)
+
+## [v0.14.2] — 2026-07-05
+
+Patch release: dependency + documentation updates.
+
+### Changed
+
+- **deps**: openfga image pin `v1.17.1` → `v1.18.0` (constant-time preshared-key auth). The MySQL case-sensitivity CVEs + migration-008 lock window and the OIDC-audience enforcement do not apply here — the datastore is Postgres and the sidecar runs no OIDC authn. (#523)
+- **deps**: every workspace `eslint` specifier aligned to the pinned `^9.39.2` override (they advertised `^10.4.1`, which the override already overrode). Zero lockfile change; eslint still resolves to `v9.39.4`. (#521)
+- **docs**: the AI financial-agents plan rewritten from the stale BullMQ substrate to the shipped pg-boss lanes (ADR-0017); no BullMQ mention remains. (#522)
+
+## [v0.14.1] — 2026-07-05
+
+Patch release: CI + repo-tooling housekeeping.
+
+### Changed
+
+- **ci**: monthly tool-version pin refresh behind upstream drift (pnpm `packageManager`, CI tool binaries). (#526)
+- **ci**: knip config hardened + a dead admin barrel export removed. (#525)
+- **docs**: the `v0.14.0` changelog recorded (committed after the tag). (#538)
+
 ## [v0.14.0] — 2026-07-04
 
 Minor release: **Afframe Brain v1** — the unprivileged Brain client on top of the v0.13.0 foundation, plus the server-side gate that closes the confident-wrong hole for good. The write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed); nothing user-facing changes until Brain launch. Every agent write is HELD at cold start — the live end-to-end run and the launch milestones (M-live → M2 → M3 → M4 → flip) remain ahead, tracked in EPIC #524.

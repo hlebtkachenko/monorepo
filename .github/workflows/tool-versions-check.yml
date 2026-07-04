@@ -6,7 +6,8 @@ name: Tool versions check
 #
 #   pnpm        — root package.json `packageManager` (also synced into the 3
 #                 app Dockerfiles, infra/Dockerfile.openfga-bootstrap,
-#                 .devcontainer/Dockerfile — bump together)
+#                 .devcontainer/Dockerfile, mise.toml, and the
+#                 _deploy-aws.yml pnpm/action-setup `version` — bump together)
 #   gitleaks    — ci.yml GITLEAKS_VERSION
 #   infisical   — ci.yml INFISICAL_VERSION
 #   trufflehog  — ci.yml TRUFFLEHOG_VERSION
@@ -89,7 +90,7 @@ jobs:
 
           PNPM_CURRENT=$(node -p "require('./package.json').packageManager.split('@')[1]")
           PNPM_LATEST=$(curl -fsSL https://registry.npmjs.org/pnpm/latest | jq -r '.version')
-          compare "pnpm" "$PNPM_CURRENT" "$PNPM_LATEST" "package.json packageManager (+ 5 synced copies, see workflow header)"
+          compare "pnpm" "$PNPM_CURRENT" "$PNPM_LATEST" "package.json packageManager (+ 7 synced copies, see workflow header)"
 
           compare "gitleaks" \
             "$(grep -oP 'GITLEAKS_VERSION: "\K[0-9.]+' .github/workflows/ci.yml)" \

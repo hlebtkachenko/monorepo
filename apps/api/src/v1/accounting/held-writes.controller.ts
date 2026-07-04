@@ -166,6 +166,10 @@ export class HeldWritesController {
               input_json: tool_call_log.input_json,
               auto_applied: tool_call_log.auto_applied,
               approved_by_user_id: tool_call_log.approved_by_user_id,
+              // [G2-R1 rider] The original author — an approver may not approve
+              // their OWN held write (author != approver, closes agent
+              // self-approval even if a Brain key leaks).
+              user_id: tool_call_log.user_id,
             })
             .from(tool_call_log)
             .where(
@@ -181,6 +185,17 @@ export class HeldWritesController {
           }
           if (row.auto_applied || row.approved_by_user_id !== null) {
             throw new ConflictError("This write has already been resolved")
+          }
+
+          // [G2-R1 rider] author != approver: a held write can never be APPROVED
+          // by the same user that authored it. This is the only server-side
+          // backstop against agent self-approval this window — if the Brain's
+          // user-bound key leaks and calls resolve, it still cannot approve its
+          // OWN queued writes. (Reject is safe: closing a review is not a bypass.)
+          if (action === "approve" && row.user_id === userId) {
+            throw new ForbiddenError(
+              "A held write cannot be approved by its author; a different user must review it",
+            )
           }
 
           if (action === "reject") {
@@ -247,10 +262,15 @@ export class HeldWritesController {
       case "createAccountingEvent": {
         const parsed = CreateAccountingEventRequestSchema.safeParse(input)
         if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        // Strip the gate envelope (confidence/rationale/conversationId) AND the
+        // [WP-D] evidence `signals` — neither is domain data. `signals` must NOT
+        // reach `EventInput` (the cast is `as unknown`, so TS would not catch a
+        // leak — this strip is load-bearing).
         const {
           confidence: _c,
           rationale: _r,
           conversationId: _cv,
+          signals: _sig,
           ...fields
         } = parsed.data
         await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)
@@ -267,10 +287,14 @@ export class HeldWritesController {
       case "captureAccountingDocument": {
         const parsed = CaptureAccountingDocumentRequestSchema.safeParse(input)
         if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        // Same strip as events: the gate envelope + [WP-D] `signals` are not
+        // domain data. The `signals` strip is load-bearing (the cast to
+        // DocumentInput is `as unknown`, so TS cannot catch a leak).
         const {
           confidence: _c,
           rationale: _r,
           conversationId: _cv,
+          signals: _sig,
           ...fields
         } = parsed.data
         await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)

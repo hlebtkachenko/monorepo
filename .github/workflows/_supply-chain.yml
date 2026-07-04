@@ -128,8 +128,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
-          OSV_VERSION: "2.3.8"
-          OSV_CHECKSUM: "bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc"
+          OSV_VERSION: "2.4.0"
+          OSV_CHECKSUM: "15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0"
         run: |
           set -euo pipefail
           prev_tag=$(gh release list --limit 10 --exclude-drafts --json tagName --jq '.[].tagName' \

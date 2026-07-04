@@ -31,7 +31,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && rm -rf /var/lib/apt/lists/*
 
 # pnpm via corepack
-RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
+RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 
 # GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -71,10 +71,10 @@ RUN SYFT_VERSION=1.23.0 \
     && rm /tmp/syft.tar.gz
 
 # osv-scanner (CVE scan) — pinned version + checksum
-RUN OSV_VERSION=2.3.8 \
+RUN OSV_VERSION=2.4.0 \
     && CHECKSUM=$([ "${TARGETARCH}" = "arm64" ] \
-         && echo "8158b18edd2d03b1a30d905ca91b032bc62262167be8f206c27114f08823e27c" \
-         || echo "bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc") \
+         && echo "44e580752910f0ff36ec99aff59af20f65df1e859aa31e5605a8f0d055b496e9" \
+         || echo "15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0") \
     && curl -fsSL "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_${TARGETARCH}" -o /usr/local/bin/osv-scanner \
     && echo "${CHECKSUM}  /usr/local/bin/osv-scanner" | sha256sum -c - \
     && chmod +x /usr/local/bin/osv-scanner

@@ -141,6 +141,26 @@ export async function fetchChartAccounts(
   )
 }
 
+/** "YYYY-MM-DD HH:MM:SS+TZ" (Postgres text) -> "YYYY-MM-DD HH:MM". Shared by the held-writes + inbox pages. */
+export function trimGatedTimestamp(value: string): string {
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(value)
+  return match ? `${match[1]} ${match[2]}` : value
+}
+
+/** Human one-liner from a gated tool_call_log payload: description > type > posting-kind > tool name. */
+export function summarizeGatedPayload(row: {
+  tool_name: string
+  input_json: unknown
+}): string {
+  const input = row.input_json as Record<string, unknown> | null
+  if (input && typeof input["description"] === "string")
+    return input["description"]
+  if (input && typeof input["type"] === "string") return String(input["type"])
+  if (input && typeof input["kind"] === "string")
+    return `posting (${String(input["kind"])})`
+  return row.tool_name
+}
+
 export interface HeldWriteRow {
   id: string
   tool_name: string
@@ -169,6 +189,47 @@ export async function fetchHeldWrites(
           from tool_call_log
           where auto_applied = false and approved_by_user_id is null
           order by created_at desc`,
+    ),
+  )
+}
+
+export interface IngestionInboxRow {
+  id: string
+  tool_name: string
+  actor_kind: string
+  confidence: string | null
+  rationale: string | null
+  created_at: string
+  auto_applied: boolean
+  approved_by_user_id: string | null
+  /** `output_json.resolution` when resolved by a human ("approved"/"rejected"). */
+  resolution: string | null
+  /** Original gated payload — the page derives a one-line summary from it. */
+  input_json: unknown
+}
+
+/**
+ * Read-only ingestion overview — every gated write the org's brain runs land in
+ * `tool_call_log` (same source the approvals queue reads), here surfaced as a
+ * flat status feed regardless of outcome: auto-applied, held for review,
+ * approved, or rejected. No resolution actions live here; the inbox is a view,
+ * the approvals page owns the approve/reject flow.
+ */
+export async function fetchIngestionInbox(
+  ctx: OrgAccountingContext,
+): Promise<IngestionInboxRow[]> {
+  return withOrganization(ctx.organizationId, ctx.userId, (db) =>
+    executeRows<IngestionInboxRow>(
+      db,
+      sql`select id, tool_name, actor_kind::text as actor_kind,
+                 confidence::text as confidence, rationale,
+                 created_at::text as created_at, auto_applied,
+                 approved_by_user_id::text as approved_by_user_id,
+                 output_json->>'resolution' as resolution,
+                 input_json
+          from tool_call_log
+          order by created_at desc
+          limit 200`,
     ),
   )
 }

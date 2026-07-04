@@ -1,0 +1,270 @@
+import { describe, expect, it } from "vitest"
+
+import { CaptureAccountingDocumentRequestSchema } from "@workspace/shared/api"
+import type { Invoice } from "@workspace/brain"
+import {
+  BRAIN_ACCOUNTING_POLICY,
+  HOSTILE_DOCUMENT,
+  HOSTILE_HELD_WRITE_DOCUMENT,
+  INJECTION_REQUIRED_HELD_WRITE_TOOLS,
+  INJECTION_REQUIRED_TOOLS,
+  isToolAllowed,
+  type LoginContextSections,
+} from "@workspace/brain"
+
+import type { IrToCaptureContext } from "../ir-to-capture"
+import {
+  BrainHarnessNotWiredError,
+  BRAIN_HARNESS_REQUIRED_ENV,
+  planBrainDryRun,
+  runLiveBrainSession,
+  type BrainDryRunInputs,
+} from "./brain-cc-harness"
+
+// ── Shared fixtures ──────────────────────────────────────────────────────────
+
+const envelope = {
+  ir_id: "ir-1",
+  org_ref: "org-1",
+  source: "isdoc" as const,
+  source_locator: "dump/invoices/FP-0042.xml",
+  source_hash: "hash-1",
+  ingested_at: "2026-07-01T00:00:00.000Z",
+  confidence: 0.95,
+  needs_review: false,
+  raw: {},
+}
+
+// A minimal STANDARD domestic invoice. `over` lets the injection test tamper with the description ONLY.
+const invoice = (over: Partial<Invoice> = {}): Invoice => ({
+  ...envelope,
+  record_type: "invoice",
+  direction: "received",
+  doc_type: "invoice",
+  number: "FP-2025-0042",
+  issue_date: "2025-03-14",
+  currency: "CZK",
+  lines: [],
+  vat_summary: [{ rate: 21, base_minor: 100000n, tax_minor: 21000n }],
+  total_minor: 121000n,
+  ...over,
+})
+
+const sections: LoginContextSections = {
+  constitution: "I1..In (locked)",
+  kb: { id: "kb-build-1", version: "2026-07-01" },
+  lawSummary: "law digest",
+  confidenceProtocol: "server scores; the model never self-scores",
+  escalationPolicy: "route hard cases to the constrained advisor tool",
+}
+
+const captureContext: IrToCaptureContext = {
+  periodId: "00000000-0000-4000-8000-000000000001",
+  seriesId: "00000000-0000-4000-8000-000000000002",
+  eventId: "00000000-0000-4000-8000-000000000003",
+  confidence: 0.95,
+  rationale: "Standard domestic service invoice, VAT 21% deductible.",
+}
+
+const dryRunInputs = (
+  over: Partial<BrainDryRunInputs> = {},
+): BrainDryRunInputs => ({
+  invoice: invoice(),
+  sections,
+  captureContext,
+  ...over,
+})
+
+// ── planBrainDryRun — the creds-free half runs today ─────────────────────────
+
+describe("planBrainDryRun (creds-free)", () => {
+  it("composes the WP-B login pack + WP-A capture request into an inspectable plan", () => {
+    const plan = planBrainDryRun(dryRunInputs())
+
+    // WP-B: the login pack is present, sandboxed by construction, pinned to the accounting policy.
+    expect(plan.policy).toBe(BRAIN_ACCOUNTING_POLICY)
+    expect(plan.loginPack.toolPolicy).toBe(BRAIN_ACCOUNTING_POLICY)
+    expect(plan.loginPack.system).toContain("CARDINAL SIN")
+
+    // WP-A: the capture request is a valid capture mapping the server can gate.
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(plan.captureRequest),
+    ).not.toThrow()
+    expect(plan.captureRequest.type).toBe("RECEIVED_INVOICE")
+
+    // The plan reads structure/series, then proposes exactly one write.
+    expect(plan.toolPlan.map((c) => c.toolName)).toEqual([
+      "mcp__afframe__get_structure",
+      "mcp__afframe__list_accounting_number_series",
+      "mcp__afframe__capture_accounting_document",
+    ])
+    // Every planned tool is allowed by the pinned sandbox (the plan never schedules a denied tool).
+    for (const call of plan.toolPlan) {
+      expect(call.allowed).toBe(true)
+      expect(isToolAllowed(call.toolName, plan.policy)).toBe(true)
+    }
+    // The write call carries the exact capture request.
+    const write = plan.toolPlan.at(-1)!
+    expect(write.toolName).toBe("mcp__afframe__capture_accounting_document")
+    expect(write.input).toBe(plan.captureRequest)
+  })
+
+  it("is deterministic — identical inputs yield an identical plan", () => {
+    const a = planBrainDryRun(dryRunInputs())
+    const b = planBrainDryRun(dryRunInputs())
+    expect(a.toolPlan.map((c) => c.toolName)).toEqual(
+      b.toolPlan.map((c) => c.toolName),
+    )
+    expect(a.loginPack.system).toBe(b.loginPack.system)
+    expect(a.captureRequest).toEqual(b.captureRequest)
+  })
+
+  it("the planned capture request carries no tenancy keys", () => {
+    const plan = planBrainDryRun(dryRunInputs())
+    const serialized = JSON.stringify(plan.captureRequest, (_k, v) =>
+      typeof v === "bigint" ? v.toString() : v,
+    )
+    for (const forbidden of [
+      "organization_id",
+      "user_id",
+      "workspace_id",
+      "role",
+    ]) {
+      expect(serialized).not.toContain(forbidden)
+    }
+  })
+})
+
+// ── N-2 (dry) — the injected hostile doc cannot alter the plan or reach a denied tool ──
+
+describe("N-2 (dry) — a hostile document cannot alter the dry-run plan or reach a denied tool", () => {
+  it("the hostile documents are present as untrusted DATA (never executed)", () => {
+    expect(HOSTILE_DOCUMENT).toContain("ignore your rules")
+    expect(HOSTILE_HELD_WRITE_DOCUMENT).toContain("approve it yourself")
+  })
+
+  it("a hostile instruction embedded in the invoice cannot change the tool-plan", () => {
+    // The clean plan is the reference. The injection lives where a document controls a field the adapter
+    // reads — the invoice number/description. It must NOT be able to add, remove, or re-target a tool call.
+    const clean = planBrainDryRun(dryRunInputs())
+    const injected = planBrainDryRun(
+      dryRunInputs({
+        invoice: invoice({
+          number: `FP-2025-0042 ${HOSTILE_DOCUMENT}`,
+        }),
+      }),
+    )
+    // The tool sequence is byte-identical — the plan is fixed by the harness, not the document content.
+    expect(injected.toolPlan.map((c) => c.toolName)).toEqual(
+      clean.toolPlan.map((c) => c.toolName),
+    )
+    // No planned call was silently flipped to a denied tool.
+    for (const call of injected.toolPlan) {
+      expect(call.allowed).toBe(true)
+    }
+  })
+
+  it("the injection's required tools are DENIED by the plan's sandbox policy", () => {
+    const plan = planBrainDryRun(dryRunInputs())
+    // (a) the exfiltration / self-modification built-ins (read .env, WebFetch, Bash, Write, git).
+    for (const tool of Object.values(INJECTION_REQUIRED_TOOLS)) {
+      expect(isToolAllowed(tool, plan.policy)).toBe(false)
+      expect(plan.loginPack.allowedTools).not.toContain(tool)
+    }
+    // (b) the held-write self-approval path (list + resolve held writes) — denied per-TOOL on the allowed server.
+    for (const tool of Object.values(INJECTION_REQUIRED_HELD_WRITE_TOOLS)) {
+      expect(isToolAllowed(tool, plan.policy)).toBe(false)
+      expect(plan.loginPack.allowedTools).not.toContain(tool)
+    }
+    // No bare wildcard leaks the whole server (which would re-admit the denied held-write ops).
+    expect(plan.loginPack.allowedTools).not.toContain("mcp__afframe__*")
+  })
+
+  it("no denied tool can ever appear in a produced plan (structural blast-radius bound)", () => {
+    const injected = planBrainDryRun(
+      dryRunInputs({
+        invoice: invoice({ number: HOSTILE_DOCUMENT }),
+      }),
+    )
+    const denied = [
+      ...Object.values(INJECTION_REQUIRED_TOOLS),
+      ...Object.values(INJECTION_REQUIRED_HELD_WRITE_TOOLS),
+    ]
+    for (const call of injected.toolPlan) {
+      expect(denied).not.toContain(call.toolName)
+    }
+  })
+})
+
+// ── runLiveBrainSession — the creds-gated half fails loud, never fakes a run ──
+
+describe("runLiveBrainSession (creds-gated)", () => {
+  const plan = planBrainDryRun(dryRunInputs())
+
+  it("throws a precise requirements error when no creds/env are present", async () => {
+    await expect(
+      runLiveBrainSession({
+        plan,
+        mcpEndpoint: "",
+        readEnv: () => undefined,
+      }),
+    ).rejects.toBeInstanceOf(BrainHarnessNotWiredError)
+  })
+
+  it("the error names the exact missing env + points at the runbook", async () => {
+    let caught: unknown
+    try {
+      await runLiveBrainSession({
+        plan,
+        mcpEndpoint: "",
+        readEnv: () => undefined,
+      })
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(BrainHarnessNotWiredError)
+    const message = (caught as Error).message
+    // Every required env name is surfaced so the operator sees the full gap.
+    for (const envName of Object.values(BRAIN_HARNESS_REQUIRED_ENV)) {
+      expect(message).toContain(envName)
+    }
+    expect(message).toContain("docs/runbooks/BRAIN-CC-HARNESS.md")
+    expect(message).toContain("@anthropic-ai/claude-agent-sdk")
+  })
+
+  it("still fails loud even with all creds present (Agent-SDK wiring is the deploy-time step)", async () => {
+    // The honest gate: even a fully-provisioned env cannot make this run, because the SDK launch + MCP
+    // connection are not wired here. A silent success / fabricated result would be worse than none.
+    const fullEnv: Record<string, string> = {
+      [BRAIN_HARNESS_REQUIRED_ENV.runtimeActive]: "1",
+      [BRAIN_HARNESS_REQUIRED_ENV.liveEnabled]: "1",
+      [BRAIN_HARNESS_REQUIRED_ENV.mcpEndpoint]: "https://api.afframe.com/mcp",
+      [BRAIN_HARNESS_REQUIRED_ENV.apiKey]: "sk-test",
+      [BRAIN_HARNESS_REQUIRED_ENV.agentSdkAuth]: "token",
+    }
+    await expect(
+      runLiveBrainSession({
+        plan,
+        mcpEndpoint: "https://api.afframe.com/mcp",
+        readEnv: (name) => fullEnv[name],
+      }),
+    ).rejects.toBeInstanceOf(BrainHarnessNotWiredError)
+  })
+
+  it("flags the write-lane kill-switch as unmet when BRAIN_RUNTIME_ACTIVE is set but not '1'", async () => {
+    let caught: unknown
+    try {
+      await runLiveBrainSession({
+        plan,
+        mcpEndpoint: "https://api.afframe.com/mcp",
+        readEnv: (name) =>
+          name === BRAIN_HARNESS_REQUIRED_ENV.runtimeActive ? "0" : "x",
+      })
+    } catch (e) {
+      caught = e
+    }
+    expect((caught as Error).message).toContain(
+      `${BRAIN_HARNESS_REQUIRED_ENV.runtimeActive}=1`,
+    )
+  })
+})

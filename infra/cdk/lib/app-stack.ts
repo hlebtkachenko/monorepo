@@ -1124,7 +1124,7 @@ export class AppStack extends Stack {
     // an operator workstation against a port-forwarded RDS BEFORE the
     // first cdk deploy App-{env}; see docs/runbooks/AWS-SETUP.md.
     //
-    // openfga/openfga:v1.17.1 is a Chainguard distroless image — no
+    // openfga/openfga:v1.18.0 is a Chainguard distroless image — no
     // /bin/sh, no busybox. We pass URI + username/password as separate
     // env vars (OpenFGA's native config keys) instead of composing a URL
     // with a shell wrapper. The image's entrypoint is the `/openfga`
@@ -1137,7 +1137,7 @@ export class AppStack extends Stack {
     // mount (PR #77 pattern).
     const openfgaContainer = taskDef.addContainer("openfga", {
       containerName: "openfga",
-      image: ContainerImage.fromRegistry("openfga/openfga:v1.17.1"),
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.18.0"),
       essential: true,
       logging: LogDriver.awsLogs({
         streamPrefix: "openfga",
@@ -1305,7 +1305,7 @@ export class AppStack extends Stack {
 
     const openfgaMigrateContainer = taskDef.addContainer("openfga-migrate", {
       containerName: "openfga-migrate",
-      image: ContainerImage.fromRegistry("openfga/openfga:v1.17.1"),
+      image: ContainerImage.fromRegistry("openfga/openfga:v1.18.0"),
       essential: false,
       // Goose migration applier; first-deploy can take a few minutes
       // against a cold RDS. Match db-migrate's timeout.

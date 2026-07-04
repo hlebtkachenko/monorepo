@@ -24,6 +24,8 @@ import { registerCaptureAccountingDocument } from "./captureAccountingDocument"
 import { registerCreateAccountingPosting } from "./createAccountingPosting"
 import { registerListAccountingHeldWrites } from "./listAccountingHeldWrites"
 import { registerResolveAccountingHeldWrite } from "./resolveAccountingHeldWrite"
+import { registerListAccounts } from "./listAccounts"
+import { registerGetAccount } from "./getAccount"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -49,6 +51,8 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerCreateAccountingPosting(server, client)
   registerListAccountingHeldWrites(server, client)
   registerResolveAccountingHeldWrite(server, client)
+  registerListAccounts(server, client)
+  registerGetAccount(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -75,4 +79,6 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "createAccountingPosting",
   "listAccountingHeldWrites",
   "resolveAccountingHeldWrite",
+  "listAccounts",
+  "getAccount",
 ] as const

@@ -464,6 +464,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List invoices
+         * @description Returns the organization's invoices — `summary_record` rows of type RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — with rolled-up accounting-currency totals. Organization-scoped (FORCE RLS). Optionally filter by `direction` and `periodId`. An invoice is a voucher header, not a posting; use `GET /v1/accounting/periods/{id}/journal` for the journal bookings.
+         */
+        get: operations["listInvoices"];
+        put?: never;
+        /**
+         * Create an invoice
+         * @description Captures an invoice (invoice-typed doklad) with its lines/partials. The server pins summary_record_type from `direction` (received → RECEIVED_INVOICE, issued → ISSUED_INVOICE); tenant + responsible user are injected from the API-key principal — never the body. Each line references a pre-existing accounting event (`eventId`) — create those via `POST /v1/accounting/events` first; `seriesId` is a DOCUMENT number series (discover via `GET /v1/accounting/number-series`).
+         *
+         *     Distinct from `POST /v1/accounting/documents`, which captures a doklad of ANY summary_record_type; this operation is invoice-only. Runs through the same server safety gate: applies (201) or holds for human review (202) below the confidence threshold or above the always-hold amount. Requires the `accounting:write` scope and an `Idempotency-Key` header.
+         */
+        post: operations["createInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/{invoiceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an invoice
+         * @description Returns a single invoice with its individual-record lines and partial-record money decomposition, organization-scoped (FORCE RLS). Returns 404 when the invoice is not visible to the authenticated tenant.
+         */
+        get: operations["getInvoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/accounts": {
         parameters: {
             query?: never;
@@ -3350,6 +3396,687 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description A partial record (taxable-supply money row). */
+        InvoicePartial: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description Základ daně in the transaction currency, decimal string.
+             * @example 12100.00
+             */
+            baseAmount: string;
+            /**
+             * @description VAT rate (e.g. `21`), or `null` for OUTSIDE_VAT.
+             * @example 21
+             */
+            vatRate: string | null;
+            /**
+             * @description Daň in the transaction currency, decimal string.
+             * @example 2541.00
+             */
+            vatAmount: string;
+            /**
+             * @description VAT mode driving the posting.
+             * @enum {string}
+             */
+            vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+            /**
+             * @description Place-of-supply regime (DOMESTIC | REVERSE_CHARGE | EU | IMPORT | EXEMPT | OUTSIDE_VAT), or `null`.
+             * @example DOMESTIC
+             */
+            vatJurisdiction: string | null;
+            /**
+             * @description Whether input VAT is deductible (false folds into cost).
+             * @example true
+             */
+            vatDeductible: boolean;
+            /**
+             * @description Transaction currency (ISO 4217).
+             * @example CZK
+             */
+            currencyCode: string;
+            /**
+             * @description Frozen base converted to the accounting currency.
+             * @example 12100.00
+             */
+            baseInAccountingCurrency: string;
+            /**
+             * @description Frozen VAT converted to the accounting currency.
+             * @example 2541.00
+             */
+            vatInAccountingCurrency: string;
+            /** @example 1 */
+            quantity: string | null;
+            /** @example ks */
+            measureUnit: string | null;
+            /** @example 12100.00 */
+            unitPrice: string | null;
+        };
+        /** @description An invoice line (individual record). */
+        InvoiceLine: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The účetní případ (economic event) this line records.
+             */
+            accountingEventId: string;
+            description: string | null;
+            partials: {
+                /** Format: uuid */
+                id: string;
+                /**
+                 * @description Základ daně in the transaction currency, decimal string.
+                 * @example 12100.00
+                 */
+                baseAmount: string;
+                /**
+                 * @description VAT rate (e.g. `21`), or `null` for OUTSIDE_VAT.
+                 * @example 21
+                 */
+                vatRate: string | null;
+                /**
+                 * @description Daň in the transaction currency, decimal string.
+                 * @example 2541.00
+                 */
+                vatAmount: string;
+                /**
+                 * @description VAT mode driving the posting.
+                 * @enum {string}
+                 */
+                vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                /**
+                 * @description Place-of-supply regime (DOMESTIC | REVERSE_CHARGE | EU | IMPORT | EXEMPT | OUTSIDE_VAT), or `null`.
+                 * @example DOMESTIC
+                 */
+                vatJurisdiction: string | null;
+                /**
+                 * @description Whether input VAT is deductible (false folds into cost).
+                 * @example true
+                 */
+                vatDeductible: boolean;
+                /**
+                 * @description Transaction currency (ISO 4217).
+                 * @example CZK
+                 */
+                currencyCode: string;
+                /**
+                 * @description Frozen base converted to the accounting currency.
+                 * @example 12100.00
+                 */
+                baseInAccountingCurrency: string;
+                /**
+                 * @description Frozen VAT converted to the accounting currency.
+                 * @example 2541.00
+                 */
+                vatInAccountingCurrency: string;
+                /** @example 1 */
+                quantity: string | null;
+                /** @example ks */
+                measureUnit: string | null;
+                /** @example 12100.00 */
+                unitPrice: string | null;
+            }[];
+        };
+        /** @description An invoice (invoice-typed summary record) header. */
+        Invoice: {
+            /**
+             * Format: uuid
+             * @description Opaque invoice identifier (UUID).
+             */
+            id: string;
+            /**
+             * @description Invoice direction: `received` (faktura přijatá / purchase) or `issued` (faktura vydaná / sale).
+             * @example received
+             * @enum {string}
+             */
+            direction: "received" | "issued";
+            /**
+             * @description The underlying summary_record_type.
+             * @example RECEIVED_INVOICE
+             * @enum {string}
+             */
+            type: "RECEIVED_INVOICE" | "ISSUED_INVOICE";
+            /**
+             * Format: uuid
+             * @description The účetní období this invoice books into.
+             * @example 0196f1de-0000-7000-8000-0000000000d1
+             */
+            periodId: string;
+            /**
+             * @description Frozen Označení — the gapless government/audit document number.
+             * @example FP2025-00042
+             */
+            designation: string;
+            /**
+             * @description Gapless position within its number series.
+             * @example 42
+             */
+            sequenceNumber: number;
+            /**
+             * @description Okamžik vyhotovení (§11/1d) — ISO timestamp.
+             * @example 2025-03-14T00:00:00.000Z
+             */
+            issuedAt: string;
+            /**
+             * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
+             * @example 0.00
+             */
+            roundingAmount: string;
+            /**
+             * @description Sum of line bases in the accounting currency (frozen), decimal string.
+             * @example 12100.00
+             */
+            totalBase: string;
+            /**
+             * @description Sum of line VAT in the accounting currency (frozen), decimal string.
+             * @example 2541.00
+             */
+            totalVat: string;
+            /**
+             * @description Number of individual-record lines on the invoice.
+             * @example 1
+             */
+            lineCount: number;
+            /**
+             * @description When the voucher row was created — ISO timestamp.
+             * @example 2025-03-14T09:12:00.000Z
+             */
+            createdAt: string;
+        };
+        /** @description An invoice with its full line/partial detail. */
+        InvoiceDetail: {
+            /**
+             * Format: uuid
+             * @description Opaque invoice identifier (UUID).
+             */
+            id: string;
+            /**
+             * @description Invoice direction: `received` (faktura přijatá / purchase) or `issued` (faktura vydaná / sale).
+             * @example received
+             * @enum {string}
+             */
+            direction: "received" | "issued";
+            /**
+             * @description The underlying summary_record_type.
+             * @example RECEIVED_INVOICE
+             * @enum {string}
+             */
+            type: "RECEIVED_INVOICE" | "ISSUED_INVOICE";
+            /**
+             * Format: uuid
+             * @description The účetní období this invoice books into.
+             * @example 0196f1de-0000-7000-8000-0000000000d1
+             */
+            periodId: string;
+            /**
+             * @description Frozen Označení — the gapless government/audit document number.
+             * @example FP2025-00042
+             */
+            designation: string;
+            /**
+             * @description Gapless position within its number series.
+             * @example 42
+             */
+            sequenceNumber: number;
+            /**
+             * @description Okamžik vyhotovení (§11/1d) — ISO timestamp.
+             * @example 2025-03-14T00:00:00.000Z
+             */
+            issuedAt: string;
+            /**
+             * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
+             * @example 0.00
+             */
+            roundingAmount: string;
+            /**
+             * @description Sum of line bases in the accounting currency (frozen), decimal string.
+             * @example 12100.00
+             */
+            totalBase: string;
+            /**
+             * @description Sum of line VAT in the accounting currency (frozen), decimal string.
+             * @example 2541.00
+             */
+            totalVat: string;
+            /**
+             * @description Number of individual-record lines on the invoice.
+             * @example 1
+             */
+            lineCount: number;
+            /**
+             * @description When the voucher row was created — ISO timestamp.
+             * @example 2025-03-14T09:12:00.000Z
+             */
+            createdAt: string;
+            /** @description The invoice's individual-record lines with their partials. */
+            lines: {
+                /** Format: uuid */
+                id: string;
+                /**
+                 * Format: uuid
+                 * @description The účetní případ (economic event) this line records.
+                 */
+                accountingEventId: string;
+                description: string | null;
+                partials: {
+                    /** Format: uuid */
+                    id: string;
+                    /**
+                     * @description Základ daně in the transaction currency, decimal string.
+                     * @example 12100.00
+                     */
+                    baseAmount: string;
+                    /**
+                     * @description VAT rate (e.g. `21`), or `null` for OUTSIDE_VAT.
+                     * @example 21
+                     */
+                    vatRate: string | null;
+                    /**
+                     * @description Daň in the transaction currency, decimal string.
+                     * @example 2541.00
+                     */
+                    vatAmount: string;
+                    /**
+                     * @description VAT mode driving the posting.
+                     * @enum {string}
+                     */
+                    vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    /**
+                     * @description Place-of-supply regime (DOMESTIC | REVERSE_CHARGE | EU | IMPORT | EXEMPT | OUTSIDE_VAT), or `null`.
+                     * @example DOMESTIC
+                     */
+                    vatJurisdiction: string | null;
+                    /**
+                     * @description Whether input VAT is deductible (false folds into cost).
+                     * @example true
+                     */
+                    vatDeductible: boolean;
+                    /**
+                     * @description Transaction currency (ISO 4217).
+                     * @example CZK
+                     */
+                    currencyCode: string;
+                    /**
+                     * @description Frozen base converted to the accounting currency.
+                     * @example 12100.00
+                     */
+                    baseInAccountingCurrency: string;
+                    /**
+                     * @description Frozen VAT converted to the accounting currency.
+                     * @example 2541.00
+                     */
+                    vatInAccountingCurrency: string;
+                    /** @example 1 */
+                    quantity: string | null;
+                    /** @example ks */
+                    measureUnit: string | null;
+                    /** @example 12100.00 */
+                    unitPrice: string | null;
+                }[];
+            }[];
+        };
+        /** @description The organization's invoices (both directions), organization-scoped (FORCE RLS). */
+        ListInvoicesResponse: {
+            /** @description Invoice headers matching the filters, newest first. */
+            invoices: {
+                /**
+                 * Format: uuid
+                 * @description Opaque invoice identifier (UUID).
+                 */
+                id: string;
+                /**
+                 * @description Invoice direction: `received` (faktura přijatá / purchase) or `issued` (faktura vydaná / sale).
+                 * @example received
+                 * @enum {string}
+                 */
+                direction: "received" | "issued";
+                /**
+                 * @description The underlying summary_record_type.
+                 * @example RECEIVED_INVOICE
+                 * @enum {string}
+                 */
+                type: "RECEIVED_INVOICE" | "ISSUED_INVOICE";
+                /**
+                 * Format: uuid
+                 * @description The účetní období this invoice books into.
+                 * @example 0196f1de-0000-7000-8000-0000000000d1
+                 */
+                periodId: string;
+                /**
+                 * @description Frozen Označení — the gapless government/audit document number.
+                 * @example FP2025-00042
+                 */
+                designation: string;
+                /**
+                 * @description Gapless position within its number series.
+                 * @example 42
+                 */
+                sequenceNumber: number;
+                /**
+                 * @description Okamžik vyhotovení (§11/1d) — ISO timestamp.
+                 * @example 2025-03-14T00:00:00.000Z
+                 */
+                issuedAt: string;
+                /**
+                 * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
+                 * @example 0.00
+                 */
+                roundingAmount: string;
+                /**
+                 * @description Sum of line bases in the accounting currency (frozen), decimal string.
+                 * @example 12100.00
+                 */
+                totalBase: string;
+                /**
+                 * @description Sum of line VAT in the accounting currency (frozen), decimal string.
+                 * @example 2541.00
+                 */
+                totalVat: string;
+                /**
+                 * @description Number of individual-record lines on the invoice.
+                 * @example 1
+                 */
+                lineCount: number;
+                /**
+                 * @description When the voucher row was created — ISO timestamp.
+                 * @example 2025-03-14T09:12:00.000Z
+                 */
+                createdAt: string;
+            }[];
+        };
+        /** @description A single invoice with its lines. */
+        GetInvoiceResponse: {
+            /** @description An invoice with its full line/partial detail. */
+            invoice: {
+                /**
+                 * Format: uuid
+                 * @description Opaque invoice identifier (UUID).
+                 */
+                id: string;
+                /**
+                 * @description Invoice direction: `received` (faktura přijatá / purchase) or `issued` (faktura vydaná / sale).
+                 * @example received
+                 * @enum {string}
+                 */
+                direction: "received" | "issued";
+                /**
+                 * @description The underlying summary_record_type.
+                 * @example RECEIVED_INVOICE
+                 * @enum {string}
+                 */
+                type: "RECEIVED_INVOICE" | "ISSUED_INVOICE";
+                /**
+                 * Format: uuid
+                 * @description The účetní období this invoice books into.
+                 * @example 0196f1de-0000-7000-8000-0000000000d1
+                 */
+                periodId: string;
+                /**
+                 * @description Frozen Označení — the gapless government/audit document number.
+                 * @example FP2025-00042
+                 */
+                designation: string;
+                /**
+                 * @description Gapless position within its number series.
+                 * @example 42
+                 */
+                sequenceNumber: number;
+                /**
+                 * @description Okamžik vyhotovení (§11/1d) — ISO timestamp.
+                 * @example 2025-03-14T00:00:00.000Z
+                 */
+                issuedAt: string;
+                /**
+                 * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
+                 * @example 0.00
+                 */
+                roundingAmount: string;
+                /**
+                 * @description Sum of line bases in the accounting currency (frozen), decimal string.
+                 * @example 12100.00
+                 */
+                totalBase: string;
+                /**
+                 * @description Sum of line VAT in the accounting currency (frozen), decimal string.
+                 * @example 2541.00
+                 */
+                totalVat: string;
+                /**
+                 * @description Number of individual-record lines on the invoice.
+                 * @example 1
+                 */
+                lineCount: number;
+                /**
+                 * @description When the voucher row was created — ISO timestamp.
+                 * @example 2025-03-14T09:12:00.000Z
+                 */
+                createdAt: string;
+                /** @description The invoice's individual-record lines with their partials. */
+                lines: {
+                    /** Format: uuid */
+                    id: string;
+                    /**
+                     * Format: uuid
+                     * @description The účetní případ (economic event) this line records.
+                     */
+                    accountingEventId: string;
+                    description: string | null;
+                    partials: {
+                        /** Format: uuid */
+                        id: string;
+                        /**
+                         * @description Základ daně in the transaction currency, decimal string.
+                         * @example 12100.00
+                         */
+                        baseAmount: string;
+                        /**
+                         * @description VAT rate (e.g. `21`), or `null` for OUTSIDE_VAT.
+                         * @example 21
+                         */
+                        vatRate: string | null;
+                        /**
+                         * @description Daň in the transaction currency, decimal string.
+                         * @example 2541.00
+                         */
+                        vatAmount: string;
+                        /**
+                         * @description VAT mode driving the posting.
+                         * @enum {string}
+                         */
+                        vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                        /**
+                         * @description Place-of-supply regime (DOMESTIC | REVERSE_CHARGE | EU | IMPORT | EXEMPT | OUTSIDE_VAT), or `null`.
+                         * @example DOMESTIC
+                         */
+                        vatJurisdiction: string | null;
+                        /**
+                         * @description Whether input VAT is deductible (false folds into cost).
+                         * @example true
+                         */
+                        vatDeductible: boolean;
+                        /**
+                         * @description Transaction currency (ISO 4217).
+                         * @example CZK
+                         */
+                        currencyCode: string;
+                        /**
+                         * @description Frozen base converted to the accounting currency.
+                         * @example 12100.00
+                         */
+                        baseInAccountingCurrency: string;
+                        /**
+                         * @description Frozen VAT converted to the accounting currency.
+                         * @example 2541.00
+                         */
+                        vatInAccountingCurrency: string;
+                        /** @example 1 */
+                        quantity: string | null;
+                        /** @example ks */
+                        measureUnit: string | null;
+                        /** @example 12100.00 */
+                        unitPrice: string | null;
+                    }[];
+                }[];
+            };
+        };
+        /** @description Capture an invoice (invoice-typed doklad) with its lines/partials. The server derives summary_record_type from `direction`; tenant + user are injected from the principal. Applies (201) or holds for review (202). */
+        CreateInvoiceRequest: {
+            /**
+             * @description Invoice direction: `received` (faktura přijatá / purchase) or `issued` (faktura vydaná / sale).
+             * @example received
+             * @enum {string}
+             */
+            direction: "received" | "issued";
+            /**
+             * Format: uuid
+             * @description The účetní období to book into.
+             */
+            periodId: string;
+            /**
+             * Format: uuid
+             * @description DOCUMENT number series id.
+             */
+            seriesId: string;
+            /**
+             * @description Okamžik vyhotovení (§11/1d) — ISO.
+             * @example 2025-03-14
+             */
+            issuedAt: string;
+            /** @description §37 doc-total rounding → 548/648. */
+            roundingAmount?: string;
+            lines: {
+                /** Format: uuid */
+                eventId: string;
+                description?: string | null;
+                partials: {
+                    /**
+                     * @description Signed decimal amount as a string.
+                     * @example -500.00
+                     */
+                    baseAmount: string;
+                    /** @enum {string} */
+                    vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    vatRate?: string | null;
+                    /**
+                     * @description Signed decimal amount as a string.
+                     * @example -500.00
+                     */
+                    vatAmount?: string;
+                    /** @enum {string|null} */
+                    vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | null;
+                    /**
+                     * @description Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> kód 0 (goods/undistinguished).
+                     * @example SERVICES
+                     * @enum {string}
+                     */
+                    supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                    vatDeductible?: boolean;
+                    advanceSettlement?: boolean;
+                    /**
+                     * @description Signed decimal amount as a string.
+                     * @example -500.00
+                     */
+                    quantity?: string | null;
+                    measureUnit?: string | null;
+                    /**
+                     * @description Unsigned decimal amount as a string.
+                     * @example 12100.00
+                     */
+                    unitPrice?: string | null;
+                    currencyCode: string;
+                    /** @enum {string|null} */
+                    fxRateKind?: "DAILY" | "REAL" | "FIXED" | null;
+                    /**
+                     * @description Positive decimal amount as a string (nonzero).
+                     * @example 25.30
+                     */
+                    fxRate?: string | null;
+                    /**
+                     * @description Positive decimal amount as a string (nonzero).
+                     * @example 25.30
+                     */
+                    vatFxRate?: string | null;
+                }[];
+            }[];
+            /**
+             * @description Agent confidence [0,1]. At/above the server threshold the write auto-applies; below it is HELD for human review. Required.
+             * @example 0.95
+             */
+            confidence: number;
+            /**
+             * @description Why this invoice — persisted to the audit trail. Required.
+             * @example Domestic service invoice, VAT 21% deductible.
+             */
+            rationale: string;
+            /**
+             * Format: uuid
+             * @description Audit-correlation id of the driving agent conversation.
+             */
+            conversationId?: string;
+            /** @description Optional evidence envelope the server scores through its own confidence engine (fail-closed). Stripped before the domain write. */
+            signals?: {
+                /**
+                 * @description Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example high_active
+                 * @enum {string}
+                 */
+                kbRule?: "constitution_safe" | "high_active" | "medium" | "low_mixed" | "none";
+                /**
+                 * @description Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.
+                 * @example 0.85
+                 */
+                extractionQuality?: number;
+                /**
+                 * @description Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example full
+                 * @enum {string}
+                 */
+                reconciliation?: "full" | "partial" | "none";
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                vatBaseMatchesNet?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                rcChecklistPassesOrNA?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                decree500Confirmed?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                periodConsistent?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                bankVsKsSsMatch?: boolean;
+                /**
+                 * @description Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.
+                 * @example [
+                 *       "novel_ico"
+                 *     ]
+                 */
+                capSignals?: string[];
+            } | null;
+        };
+        /** @description Create-invoice result (applied or held). */
+        CreateInvoiceResponse: {
+            /**
+             * @description applied = booked; held = queued for human review.
+             * @enum {string}
+             */
+            status: "applied" | "held";
+            /**
+             * Format: uuid
+             * @description tool_call_log id when held.
+             */
+            reviewId?: string | null;
+            /**
+             * Format: uuid
+             * @description The created invoice id (summary_record id).
+             */
+            invoiceId?: string | null;
+            designation?: string | null;
+            sequenceNumber?: number | null;
+            lines?: {
+                /** Format: uuid */
+                individualRecordId: string;
+                partialRecordIds: string[];
+            }[] | null;
+        };
         /** @description A chart-of-accounts entry (účet) within one accounting period. */
         Account: {
             /**
@@ -4419,6 +5146,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolveHeldWriteResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listInvoices: {
+        parameters: {
+            query?: {
+                /** @description Restrict to received or issued invoices. */
+                direction?: "received" | "issued";
+                /** @description Restrict to one účetní období. */
+                periodId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invoice headers matching the filters. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListInvoicesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Idempotency key (1–255 chars); reuse on retry. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvoiceRequest"];
+            };
+        };
+        responses: {
+            /** @description The invoice was captured and booked. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateInvoiceResponse"];
+                };
+            };
+            /** @description The invoice was held for human review. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateInvoiceResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque invoice identifier (UUID). */
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested invoice with its lines. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetInvoiceResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

@@ -1,0 +1,442 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Res,
+  UseGuards,
+} from "@nestjs/common"
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger"
+import type { Response } from "express"
+import type {
+  GetInvoiceResponse,
+  Invoice,
+  InvoiceDirection,
+  InvoiceLine,
+  InvoicePartial,
+  ListInvoicesResponse,
+} from "@workspace/shared/api"
+import { NotFoundError } from "@workspace/shared/errors"
+import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
+import {
+  and,
+  eq,
+  inArray,
+  sql,
+  withOrganization,
+  type OrganizationBoundDb,
+} from "@workspace/db"
+import {
+  individual_record,
+  partial_record,
+  summary_record,
+} from "@workspace/db/schema"
+import {
+  captureDocument,
+  type CapturedDocument,
+  type DocumentInput,
+} from "@workspace/accounting"
+import { ApiKeyGuard } from "../../auth/api-key.guard"
+import { CurrentPrincipal } from "../../auth/principal.decorator"
+import { RequireScopes } from "../../auth/require-scopes.decorator"
+import { deriveCaptureVeto } from "../accounting/accounting-veto"
+import type { EvidenceEnvelope } from "../accounting/evidence-gate"
+import {
+  runGatedWrite,
+  type GatedWriteResult,
+} from "../accounting/accounting-writes.gate"
+import {
+  CreateInvoiceRequestDto,
+  CreateInvoiceResponseDto,
+  GetInvoiceResponseDto,
+  ListInvoicesQueryDto,
+  ListInvoicesResponseDto,
+} from "../dto"
+
+const INVOICE_TYPES = ["RECEIVED_INVOICE", "ISSUED_INVOICE"] as const
+type InvoiceType = (typeof INVOICE_TYPES)[number]
+
+const IDEMPOTENCY_HEADER = {
+  name: "Idempotency-Key",
+  required: true,
+  description:
+    "Client-generated key (1–255 chars); one per write intent, reused on retry.",
+}
+
+function directionOf(type: InvoiceType): InvoiceDirection {
+  return type === "RECEIVED_INVOICE" ? "received" : "issued"
+}
+function typeOf(direction: InvoiceDirection): InvoiceType {
+  return direction === "received" ? "RECEIVED_INVOICE" : "ISSUED_INVOICE"
+}
+
+/** Per-invoice rolled-up totals, computed in SQL (no JS money arithmetic — R13). */
+interface InvoiceTotals {
+  totalBase: string
+  totalVat: string
+  lineCount: number
+}
+
+/**
+ * `/v1/invoices` — the invoice resource over the posting model. An invoice is a
+ * `summary_record` whose `type` is RECEIVED_INVOICE / ISSUED_INVOICE, with its
+ * `individual_record` lines + `partial_record` money. Reads are a thin seam:
+ * principal from the API-key guard, direct Drizzle inside `withOrganization`
+ * (FORCE RLS), snake_case rows mapped to the camelCase public schema, amounts
+ * as decimal strings. A cross-tenant invoice is invisible under RLS → 404.
+ *
+ * Distinct from `POST /v1/accounting/documents` (captures any doklad type):
+ * `POST /v1/invoices` is invoice-only and pins the type from `direction`, but
+ * runs through the SAME server safety gate (`runGatedWrite`) so it never
+ * bypasses the Brain safety spine.
+ */
+@ApiTags("Invoices")
+@ApiBearerAuth()
+@UseGuards(ApiKeyGuard)
+@Controller({ path: "invoices", version: "1" })
+export class InvoicesController {
+  /** Aggregates base/VAT totals + line count per invoice, keyed by id. */
+  private async totalsFor(
+    db: OrganizationBoundDb,
+    invoiceIds: string[],
+  ): Promise<Map<string, InvoiceTotals>> {
+    const map = new Map<string, InvoiceTotals>()
+    if (invoiceIds.length === 0) return map
+    const rows = await db
+      .select({
+        invoiceId: individual_record.summary_record_id,
+        totalBase: sql<string>`coalesce(sum(${partial_record.base_in_accounting_currency}), 0)::text`,
+        totalVat: sql<string>`coalesce(sum(${partial_record.vat_in_accounting_currency}), 0)::text`,
+        lineCount: sql<number>`count(distinct ${individual_record.id})::int`,
+      })
+      .from(individual_record)
+      // LEFT join so a line with no partials still counts toward lineCount and
+      // contributes zero money (coalesced), keeping lineCount consistent with
+      // the detail `lines` array.
+      .leftJoin(
+        partial_record,
+        eq(partial_record.individual_record_id, individual_record.id),
+      )
+      .where(inArray(individual_record.summary_record_id, invoiceIds))
+      .groupBy(individual_record.summary_record_id)
+    for (const r of rows) {
+      map.set(r.invoiceId, {
+        totalBase: r.totalBase,
+        totalVat: r.totalVat,
+        lineCount: r.lineCount,
+      })
+    }
+    return map
+  }
+
+  private toInvoice(
+    r: {
+      id: string
+      type: string
+      period_id: string
+      designation: string
+      sequence_number: number
+      issued_at: Date
+      rounding_amount: string
+      created_at: Date
+    },
+    totals: InvoiceTotals | undefined,
+  ): Invoice {
+    const type = r.type as InvoiceType
+    return {
+      id: r.id,
+      direction: directionOf(type),
+      type,
+      periodId: r.period_id,
+      designation: r.designation,
+      sequenceNumber: r.sequence_number,
+      issuedAt: r.issued_at.toISOString(),
+      roundingAmount: r.rounding_amount,
+      totalBase: totals?.totalBase ?? "0",
+      totalVat: totals?.totalVat ?? "0",
+      lineCount: totals?.lineCount ?? 0,
+      createdAt: r.created_at.toISOString(),
+    }
+  }
+
+  private readonly headerProjection = {
+    id: summary_record.id,
+    type: summary_record.type,
+    period_id: summary_record.period_id,
+    designation: summary_record.designation,
+    sequence_number: summary_record.sequence_number,
+    issued_at: summary_record.issued_at,
+    rounding_amount: summary_record.rounding_amount,
+    created_at: summary_record.created_at,
+  } as const
+
+  @Get()
+  @ApiOperation({
+    summary: "List invoices",
+    description:
+      "Returns invoice-typed summary records with rolled-up totals. Filter by " +
+      "direction / periodId.",
+  })
+  @ApiQuery({
+    name: "direction",
+    required: false,
+    enum: ["received", "issued"],
+  })
+  @ApiQuery({ name: "periodId", required: false, format: "uuid" })
+  @ApiOkResponse({ type: ListInvoicesResponseDto })
+  async list(
+    @Query() query: ListInvoicesQueryDto,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<ListInvoicesResponse> {
+    const { direction, periodId } = query
+    const typeFilter: readonly InvoiceType[] = direction
+      ? [typeOf(direction)]
+      : INVOICE_TYPES
+    const filters = [
+      inArray(summary_record.type, [...typeFilter]),
+      periodId ? eq(summary_record.period_id, periodId) : undefined,
+    ].filter((f): f is NonNullable<typeof f> => f !== undefined)
+
+    return withOrganization(
+      principal.organizationId,
+      principal.userId,
+      async (db): Promise<ListInvoicesResponse> => {
+        const headers = await db
+          .select(this.headerProjection)
+          .from(summary_record)
+          .where(and(...filters))
+          .orderBy(
+            sql`${summary_record.issued_at} desc`,
+            sql`${summary_record.id} desc`,
+          )
+        const totals = await this.totalsFor(
+          db,
+          headers.map((h) => h.id),
+        )
+        return {
+          invoices: headers.map((h) => this.toInvoice(h, totals.get(h.id))),
+        }
+      },
+    )
+  }
+
+  @Get(":invoiceId")
+  @ApiOperation({
+    summary: "Get an invoice",
+    description: "Returns a single invoice with its lines and partials.",
+  })
+  @ApiParam({ name: "invoiceId", format: "uuid" })
+  @ApiOkResponse({ type: GetInvoiceResponseDto })
+  async get(
+    @Param("invoiceId", new ParseUUIDPipe()) invoiceId: string,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<GetInvoiceResponse> {
+    return withOrganization(
+      principal.organizationId,
+      principal.userId,
+      async (db): Promise<GetInvoiceResponse> => {
+        const headers = await db
+          .select(this.headerProjection)
+          .from(summary_record)
+          .where(
+            and(
+              eq(summary_record.id, invoiceId),
+              inArray(summary_record.type, [...INVOICE_TYPES]),
+            ),
+          )
+          .limit(1)
+        const header = headers[0]
+        if (!header) throw new NotFoundError("Invoice not found")
+
+        const lines = await db
+          .select({
+            id: individual_record.id,
+            accountingEventId: individual_record.accounting_event_id,
+            description: individual_record.description,
+          })
+          .from(individual_record)
+          .where(eq(individual_record.summary_record_id, invoiceId))
+          .orderBy(individual_record.created_at)
+
+        const lineIds = lines.map((l) => l.id)
+        const partials =
+          lineIds.length > 0
+            ? await db
+                .select({
+                  id: partial_record.id,
+                  individualRecordId: partial_record.individual_record_id,
+                  baseAmount: partial_record.base_amount,
+                  vatRate: partial_record.vat_rate,
+                  vatAmount: partial_record.vat_amount,
+                  vatMode: partial_record.vat_mode,
+                  vatJurisdiction: partial_record.vat_jurisdiction,
+                  vatDeductible: partial_record.vat_deductible,
+                  currencyCode: partial_record.currency_code,
+                  baseInAccountingCurrency:
+                    partial_record.base_in_accounting_currency,
+                  vatInAccountingCurrency:
+                    partial_record.vat_in_accounting_currency,
+                  quantity: partial_record.quantity,
+                  measureUnit: partial_record.measure_unit,
+                  unitPrice: partial_record.unit_price,
+                })
+                .from(partial_record)
+                .where(inArray(partial_record.individual_record_id, lineIds))
+                .orderBy(partial_record.created_at)
+            : []
+
+        const totals = await this.totalsFor(db, [invoiceId])
+
+        const partialsByLine = new Map<string, InvoicePartial[]>()
+        for (const p of partials) {
+          const list = partialsByLine.get(p.individualRecordId) ?? []
+          list.push({
+            id: p.id,
+            baseAmount: p.baseAmount,
+            vatRate: p.vatRate,
+            vatAmount: p.vatAmount,
+            vatMode: p.vatMode as InvoicePartial["vatMode"],
+            vatJurisdiction: p.vatJurisdiction,
+            vatDeductible: p.vatDeductible,
+            currencyCode: p.currencyCode,
+            baseInAccountingCurrency: p.baseInAccountingCurrency,
+            vatInAccountingCurrency: p.vatInAccountingCurrency,
+            quantity: p.quantity,
+            measureUnit: p.measureUnit,
+            unitPrice: p.unitPrice,
+          })
+          partialsByLine.set(p.individualRecordId, list)
+        }
+
+        const invoiceLines: InvoiceLine[] = lines.map((l) => ({
+          id: l.id,
+          accountingEventId: l.accountingEventId,
+          description: l.description,
+          partials: partialsByLine.get(l.id) ?? [],
+        }))
+
+        return {
+          invoice: {
+            ...this.toInvoice(header, totals.get(invoiceId)),
+            lines: invoiceLines,
+          },
+        }
+      },
+    )
+  }
+
+  private send(res: Response, r: GatedWriteResult): Record<string, unknown> {
+    res.status(r.httpStatus)
+    if (r.replayed) res.setHeader("Idempotent-Replayed", "true")
+    return r.body
+  }
+
+  @Post()
+  @RequireScopes("accounting:write")
+  @ApiOperation({
+    summary: "Create an invoice",
+    description:
+      "Captures an invoice-typed doklad. Server pins the type from " +
+      "`direction`; tenant + user injected from the principal. Applies (201) " +
+      "or holds for review (202). Distinct from POST /v1/accounting/documents.",
+  })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiResponse({ status: 201, type: CreateInvoiceResponseDto })
+  @ApiResponse({ status: 202, type: CreateInvoiceResponseDto })
+  async create(
+    @Body() body: CreateInvoiceRequestDto,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+    @Res({ passthrough: true }) res: Response,
+    @Headers("idempotency-key") idempotencyKey?: string,
+  ): Promise<Record<string, unknown>> {
+    const {
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      direction,
+      ...fields
+    } = body as unknown as CreateInvoiceRequestDto & {
+      confidence: number
+      rationale: string
+      conversationId?: string
+      signals?: EvidenceEnvelope | null
+      direction: InvoiceDirection
+    }
+    const type = typeOf(direction)
+
+    // Mirror the documents endpoint's always-hold screening: convert each
+    // partial's transaction-currency amount to accounting currency via its own
+    // fx rate before testing it against the CZK ceiling, so a large FX invoice
+    // cannot slip under the hold. Float math here feeds the coarse screen only,
+    // never a booked amount (booked amounts use string math in the domain).
+    const toAccountingCurrency = (p: {
+      baseAmount: string
+      fxRate?: string | null
+      vatAmount?: string | null
+      vatFxRate?: string | null
+    }): string[] => {
+      const baseCzk =
+        p.fxRate != null
+          ? String(Number(p.baseAmount) * Number(p.fxRate))
+          : p.baseAmount
+      if (p.vatAmount == null) return [baseCzk]
+      const vatRate = p.vatFxRate ?? p.fxRate
+      const vatCzk =
+        vatRate != null
+          ? String(Number(p.vatAmount) * Number(vatRate))
+          : p.vatAmount
+      return [baseCzk, vatCzk]
+    }
+    const holdAmounts = [
+      ...(fields.lines ?? []).flatMap((l) =>
+        (l.partials ?? []).flatMap(toAccountingCurrency),
+      ),
+      ...(fields.roundingAmount != null ? [fields.roundingAmount] : []),
+    ]
+
+    const result = await runGatedWrite<CapturedDocument>({
+      principal,
+      idempotencyKey,
+      operationId: "createInvoice",
+      body,
+      periodId: fields.periodId,
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      holdAmounts,
+      deriveVeto: () =>
+        Promise.resolve(
+          deriveCaptureVeto(
+            (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
+          ),
+        ),
+      run: (db, ctx) =>
+        captureDocument(db, ctx, {
+          ...fields,
+          type,
+        } as unknown as DocumentInput),
+      applied: (doc) => ({
+        invoiceId: doc.summaryRecordId,
+        designation: doc.designation,
+        sequenceNumber: doc.sequenceNumber,
+        lines: doc.lines,
+      }),
+    })
+    return this.send(res, result)
+  }
+}

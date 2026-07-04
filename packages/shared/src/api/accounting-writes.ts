@@ -296,7 +296,9 @@ const CONVERSATION_ID = z.string().uuid().optional().openapi({
  *     VETO (`deriveCaptureVeto`/`derivePostingVeto`) is AND-composed on top of the
  *     score — it is never routed through this envelope.
  */
-const EVIDENCE_SIGNALS = z
+// Exported so /v1/invoices reuses the exact evidence envelope the write gate
+// scores (single source of truth, zero drift).
+export const EVIDENCE_SIGNALS = z
   .object({
     kbRule: z
       .enum(["constitution_safe", "high_active", "medium", "low_mixed", "none"])
@@ -460,7 +462,9 @@ const PartialRecordSchema = z.object({
   vatFxRate: PositiveDecimal.nullish(),
 })
 
-const IndividualRecordSchema = z.object({
+// Exported so /v1/invoices can reuse the exact doklad line/partial shape its
+// create path feeds to `captureDocument` (single source of truth, zero drift).
+export const IndividualRecordSchema = z.object({
   eventId: z.string().uuid(),
   description: z.string().nullish(),
   partials: z.array(PartialRecordSchema).min(1).max(50),

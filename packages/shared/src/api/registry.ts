@@ -78,6 +78,18 @@ import {
   StatementLineRowSchema,
 } from "./accounting"
 import {
+  CreateInvoiceRequestSchema,
+  CreateInvoiceResponseSchema,
+  GetInvoiceResponseSchema,
+  InvoiceSchema,
+  InvoiceDetailSchema,
+  InvoiceIdParamSchema,
+  InvoiceLineSchema,
+  InvoicePartialSchema,
+  ListInvoicesQuerySchema,
+  ListInvoicesResponseSchema,
+} from "./invoices"
+import {
   AccountSchema,
   GetAccountResponseSchema,
   ListAccountsQuerySchema,
@@ -242,6 +254,26 @@ const ResolveHeldWriteRequest = registry.register(
 const ResolveHeldWriteResponse = registry.register(
   "ResolveHeldWriteResponse",
   ResolveHeldWriteResponseSchema,
+)
+registry.register("InvoicePartial", InvoicePartialSchema)
+registry.register("InvoiceLine", InvoiceLineSchema)
+registry.register("Invoice", InvoiceSchema)
+registry.register("InvoiceDetail", InvoiceDetailSchema)
+const ListInvoicesResponse = registry.register(
+  "ListInvoicesResponse",
+  ListInvoicesResponseSchema,
+)
+const GetInvoiceResponse = registry.register(
+  "GetInvoiceResponse",
+  GetInvoiceResponseSchema,
+)
+const CreateInvoiceRequest = registry.register(
+  "CreateInvoiceRequest",
+  CreateInvoiceRequestSchema,
+)
+const CreateInvoiceResponse = registry.register(
+  "CreateInvoiceResponse",
+  CreateInvoiceResponseSchema,
 )
 registry.register("Account", AccountSchema)
 const ListAccountsResponse = registry.register(
@@ -937,6 +969,91 @@ registry.registerPath({
     "200": {
       description: "The held write was resolved.",
       content: { "application/json": { schema: ResolveHeldWriteResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/invoices",
+  operationId: "listInvoices",
+  summary: "List invoices",
+  description:
+    "Returns the organization's invoices — `summary_record` rows of type " +
+    "RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — " +
+    "with rolled-up accounting-currency totals. Organization-scoped (FORCE " +
+    "RLS). Optionally filter by `direction` and `periodId`. An invoice is a " +
+    "voucher header, not a posting; use `GET /v1/accounting/periods/{id}/" +
+    "journal` for the journal bookings.",
+  tags: ["Invoices"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: ListInvoicesQuerySchema },
+  responses: {
+    "200": {
+      description: "Invoice headers matching the filters.",
+      content: { "application/json": { schema: ListInvoicesResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/invoices/{invoiceId}",
+  operationId: "getInvoice",
+  summary: "Get an invoice",
+  description:
+    "Returns a single invoice with its individual-record lines and " +
+    "partial-record money decomposition, organization-scoped (FORCE RLS). " +
+    "Returns 404 when the invoice is not visible to the authenticated tenant.",
+  tags: ["Invoices"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: InvoiceIdParamSchema },
+  responses: {
+    "200": {
+      description: "The requested invoice with its lines.",
+      content: { "application/json": { schema: GetInvoiceResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/invoices",
+  operationId: "createInvoice",
+  summary: "Create an invoice",
+  description:
+    "Captures an invoice (invoice-typed doklad) with its lines/partials. The " +
+    "server pins summary_record_type from `direction` (received → " +
+    "RECEIVED_INVOICE, issued → ISSUED_INVOICE); tenant + responsible user are " +
+    "injected from the API-key principal — never the body. Each line " +
+    "references a pre-existing accounting event (`eventId`) — create those via " +
+    "`POST /v1/accounting/events` first; `seriesId` is a DOCUMENT number series " +
+    "(discover via `GET /v1/accounting/number-series`).\n\n" +
+    "Distinct from `POST /v1/accounting/documents`, which captures a doklad of " +
+    "ANY summary_record_type; this operation is invoice-only. Runs through the " +
+    "same server safety gate: applies (201) or holds for human review (202) " +
+    "below the confidence threshold or above the always-hold amount. Requires " +
+    "the `accounting:write` scope and an `Idempotency-Key` header.",
+  tags: ["Invoices"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: { "application/json": { schema: CreateInvoiceRequest } },
+    },
+  },
+  responses: {
+    "201": {
+      description: "The invoice was captured and booked.",
+      content: { "application/json": { schema: CreateInvoiceResponse } },
+    },
+    "202": {
+      description: "The invoice was held for human review.",
+      content: { "application/json": { schema: CreateInvoiceResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

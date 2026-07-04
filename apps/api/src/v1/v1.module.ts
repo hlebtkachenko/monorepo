@@ -9,6 +9,7 @@ import { ZodValidationPipe } from "nestjs-zod"
 import { AccountingController } from "./accounting/accounting.controller"
 import { AccountingWritesController } from "./accounting/accounting-writes.controller"
 import { HeldWritesController } from "./accounting/held-writes.controller"
+import { InvoicesController } from "./invoices/invoices.controller"
 import { AccountsController } from "./accounts/accounts.controller"
 import { ApiKeyThrottlerGuard } from "./api-key-throttler.guard"
 import { DomainExceptionFilter } from "./domain-exception.filter"
@@ -51,6 +52,7 @@ import { StructureController } from "./structure/structure.controller"
     AccountingController,
     AccountingWritesController,
     HeldWritesController,
+    InvoicesController,
     AccountsController,
   ],
   providers: [
@@ -72,6 +74,7 @@ export class V1Module implements NestModule {
         AccountingController,
         AccountingWritesController,
         HeldWritesController,
+        InvoicesController,
         AccountsController,
       )
   }

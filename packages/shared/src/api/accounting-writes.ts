@@ -37,6 +37,19 @@ const VAT_JURISDICTION = z.enum([
   "EXEMPT",
   "OUTSIDE_VAT",
 ])
+/** Kind of supply — mirrors the accounting SupplyKind union (classify.ts). */
+const SUPPLY_KIND = z.enum([
+  "GOODS",
+  "MATERIAL",
+  "SERVICES",
+  "UTILITY",
+  "RENT",
+  "INSURANCE",
+  "ASSET",
+  "ADVANCE",
+  "CREDIT_NOTE",
+  "OTHER",
+])
 
 // ── classify (pure decision) ────────────────────────────────────────────────
 
@@ -429,6 +442,13 @@ const PartialRecordSchema = z.object({
   vatRate: z.string().nullish(),
   vatAmount: SignedDecimal.optional(),
   vatJurisdiction: VAT_JURISDICTION.nullish(),
+  supplyKind: SUPPLY_KIND.optional().openapi({
+    description:
+      "Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód " +
+      "plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> " +
+      "kód 0 (goods/undistinguished).",
+    example: "SERVICES",
+  }),
   vatDeductible: z.boolean().optional(),
   advanceSettlement: z.boolean().optional(),
   quantity: SignedDecimal.nullish(),

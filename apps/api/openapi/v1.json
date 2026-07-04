@@ -4238,6 +4238,23 @@
                           null
                         ]
                       },
+                      "supplyKind": {
+                        "type": "string",
+                        "enum": [
+                          "GOODS",
+                          "MATERIAL",
+                          "SERVICES",
+                          "UTILITY",
+                          "RENT",
+                          "INSURANCE",
+                          "ASSET",
+                          "ADVANCE",
+                          "CREDIT_NOTE",
+                          "OTHER"
+                        ],
+                        "description": "Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> kód 0 (goods/undistinguished).",
+                        "example": "SERVICES"
+                      },
                       "vatDeductible": {
                         "type": "boolean"
                       },

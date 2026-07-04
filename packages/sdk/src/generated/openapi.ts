@@ -2912,6 +2912,12 @@ export interface components {
                     vatAmount?: string;
                     /** @enum {string|null} */
                     vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | null;
+                    /**
+                     * @description Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> kód 0 (goods/undistinguished).
+                     * @example SERVICES
+                     * @enum {string}
+                     */
+                    supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
                     vatDeductible?: boolean;
                     advanceSettlement?: boolean;
                     /**

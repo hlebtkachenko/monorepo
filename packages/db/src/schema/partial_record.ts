@@ -46,6 +46,10 @@ export const partial_record = pgTable(
     // from ř.10/11 (domestic PDP) on the DPH return; NULL = legacy/undistinguished.
     // CHECK constraint lives in migration 0038, not this DSL.
     vat_jurisdiction: text("vat_jurisdiction"), // DOMESTIC|REVERSE_CHARGE|EU|IMPORT|EXEMPT|OUTSIDE_VAT
+    // Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění
+    // (SERVICES -> 3 service; else -> 0 goods). NULL = legacy/undistinguished
+    // (kód 0). CHECK constraint lives in migration 0043, not this DSL.
+    supply_kind: text("supply_kind"), // GOODS|MATERIAL|SERVICES|UTILITY|RENT|INSURANCE|ASSET|ADVANCE|CREDIT_NOTE|OTHER
     vat_deductible: boolean("vat_deductible").notNull().default(true), // false -> VAT folds into cost
     advance_settlement: boolean("advance_settlement").notNull().default(false), // daňový doklad k záloze (§37a)
     vat_amount: numeric("vat_amount", { precision: 19, scale: 4 })

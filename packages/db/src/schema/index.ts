@@ -82,3 +82,6 @@ export * from "./monetary_period_summary"
 
 // v2 accounting — output read surface (0033)
 export * from "./period_output"
+
+// Brain OCR template library — workspace-scoped learned state (0046)
+export * from "./ocr_extraction_template"

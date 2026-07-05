@@ -554,6 +554,70 @@ export interface paths {
         patch: operations["updateAccount"];
         trace?: never;
     };
+    "/v1/ocr-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List OCR extraction templates
+         * @description Returns the workspace's OCR extraction templates — the Brain's learned supplier invoice layouts, WORKSPACE-scoped (FORCE RLS) and shared across every organization in the accountant's office. Optionally filter by `supplierKey` and `docKind`. Both human and agent keys may read.
+         */
+        get: operations["listOcrTemplates"];
+        put?: never;
+        /**
+         * Create an OCR extraction template
+         * @description Creates a NEW, UNCONFIRMED template in the caller's workspace. The server pins `humanConfirmedAt` to null and `heldCount` to 0 — a fresh template is never auto-trusted; a human must confirm it via `POST /v1/ocr-templates/{id}/confirm`. Agent keys may create. Requires the `accounting:write` scope. The workspace comes from the API key.
+         */
+        post: operations["createOcrTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ocr-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Refine an OCR extraction template
+         * @description Refines an existing template (replacing its learned fields). A refine RE-OPENS the trust gate: the server resets `humanConfirmedAt` to null and bumps `version`, so a refined template must be re-confirmed by a human. Identity (`supplierKey` / `docKind`) is immutable through this surface. Agent keys may refine. Requires the `accounting:write` scope. Returns 404 when the template is not visible to the caller's workspace.
+         */
+        put: operations["updateOcrTemplate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ocr-templates/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an OCR extraction template
+         * @description Marks a template as human-confirmed (sets `humanConfirmedAt` to now). HUMAN-ACTOR ONLY: an agent-actor key is rejected with 403 — confirmation is the trust boundary that a human, not the Brain, must cross. Returns 404 when the template is not visible to the caller's workspace.
+         */
+        post: operations["confirmOcrTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3125,6 +3189,12 @@ export interface components {
                 }[];
             }[];
             /**
+             * Format: uuid
+             * @description OCR extraction template this capture was derived from (null for structured-export captures). NOT domain data — carried alongside the gate envelope so a future server veto leg can key off the template's confirmation state; it is stripped before the domain mutation runs.
+             * @example 0196f1de-0000-7000-8000-0000000000e1
+             */
+            templateId?: string | null;
+            /**
              * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
              * @example 0.95
              */
@@ -4381,6 +4451,255 @@ export interface components {
              */
             tracksOpenItems?: boolean;
         };
+        /** @description A workspace-shared OCR extraction template. Workspace-scoped (FORCE RLS) — shared across every organization in the office. */
+        OcrTemplate: {
+            /**
+             * Format: uuid
+             * @description Template id.
+             * @example 0196f1de-0000-7000-8000-0000000000e1
+             */
+            id: string;
+            /**
+             * @description Supplier identity the layout belongs to — an IČO or a normalized supplier name.
+             * @example 27082440
+             */
+            supplierKey: string;
+            /**
+             * @description Document kind this template extracts (e.g. invoice).
+             * @example RECEIVED_INVOICE
+             */
+            docKind: string;
+            /** @description Field → region map the extractor keys off (opaque Brain-owned JSON). */
+            locators: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Hash of the field-region geometry, used to re-detect layout drift. Null until first learned.
+             * @example sha256:9f2c…
+             */
+            layoutFingerprint: string | null;
+            /**
+             * @description When a human confirmed this template. NULL = unconfirmed (the trust gate); only a human-actor key may set it via the confirm endpoint.
+             * @example null
+             */
+            humanConfirmedAt: string | null;
+            /**
+             * @description How many captures derived from this template were HELD for review. A learning signal; not client-settable.
+             * @example 0
+             */
+            heldCount: number;
+            /**
+             * @description When a capture derived from this template was last rejected, or null.
+             * @example null
+             */
+            lastRejectAt: string | null;
+            /**
+             * @description Refinement version — bumped every time the template is refined (PUT).
+             * @example 1
+             */
+            version: number;
+            /**
+             * @description When the template was first learned.
+             * @example 2026-07-05T10:15:00.000Z
+             */
+            learnedAt: string;
+            /** @description Opaque Brain-owned provenance blob (how the template was learned). */
+            provenance: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * @description Row creation timestamp.
+             * @example 2026-07-05T10:15:00.000Z
+             */
+            createdAt: string;
+            /**
+             * @description Row last-update timestamp.
+             * @example 2026-07-05T10:15:00.000Z
+             */
+            updatedAt: string;
+        };
+        /** @description The workspace's OCR extraction templates (workspace-scoped, FORCE RLS). */
+        ListOcrTemplatesResponse: {
+            /** @description OCR templates in the caller's workspace matching filters. */
+            templates: {
+                /**
+                 * Format: uuid
+                 * @description Template id.
+                 * @example 0196f1de-0000-7000-8000-0000000000e1
+                 */
+                id: string;
+                /**
+                 * @description Supplier identity the layout belongs to — an IČO or a normalized supplier name.
+                 * @example 27082440
+                 */
+                supplierKey: string;
+                /**
+                 * @description Document kind this template extracts (e.g. invoice).
+                 * @example RECEIVED_INVOICE
+                 */
+                docKind: string;
+                /** @description Field → region map the extractor keys off (opaque Brain-owned JSON). */
+                locators: {
+                    [key: string]: unknown;
+                };
+                /**
+                 * @description Hash of the field-region geometry, used to re-detect layout drift. Null until first learned.
+                 * @example sha256:9f2c…
+                 */
+                layoutFingerprint: string | null;
+                /**
+                 * @description When a human confirmed this template. NULL = unconfirmed (the trust gate); only a human-actor key may set it via the confirm endpoint.
+                 * @example null
+                 */
+                humanConfirmedAt: string | null;
+                /**
+                 * @description How many captures derived from this template were HELD for review. A learning signal; not client-settable.
+                 * @example 0
+                 */
+                heldCount: number;
+                /**
+                 * @description When a capture derived from this template was last rejected, or null.
+                 * @example null
+                 */
+                lastRejectAt: string | null;
+                /**
+                 * @description Refinement version — bumped every time the template is refined (PUT).
+                 * @example 1
+                 */
+                version: number;
+                /**
+                 * @description When the template was first learned.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                learnedAt: string;
+                /** @description Opaque Brain-owned provenance blob (how the template was learned). */
+                provenance: {
+                    [key: string]: unknown;
+                } | null;
+                /**
+                 * @description Row creation timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                createdAt: string;
+                /**
+                 * @description Row last-update timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                updatedAt: string;
+            }[];
+        };
+        /** @description A single OCR extraction template. */
+        OcrTemplateResponse: {
+            /** @description A workspace-shared OCR extraction template. Workspace-scoped (FORCE RLS) — shared across every organization in the office. */
+            template: {
+                /**
+                 * Format: uuid
+                 * @description Template id.
+                 * @example 0196f1de-0000-7000-8000-0000000000e1
+                 */
+                id: string;
+                /**
+                 * @description Supplier identity the layout belongs to — an IČO or a normalized supplier name.
+                 * @example 27082440
+                 */
+                supplierKey: string;
+                /**
+                 * @description Document kind this template extracts (e.g. invoice).
+                 * @example RECEIVED_INVOICE
+                 */
+                docKind: string;
+                /** @description Field → region map the extractor keys off (opaque Brain-owned JSON). */
+                locators: {
+                    [key: string]: unknown;
+                };
+                /**
+                 * @description Hash of the field-region geometry, used to re-detect layout drift. Null until first learned.
+                 * @example sha256:9f2c…
+                 */
+                layoutFingerprint: string | null;
+                /**
+                 * @description When a human confirmed this template. NULL = unconfirmed (the trust gate); only a human-actor key may set it via the confirm endpoint.
+                 * @example null
+                 */
+                humanConfirmedAt: string | null;
+                /**
+                 * @description How many captures derived from this template were HELD for review. A learning signal; not client-settable.
+                 * @example 0
+                 */
+                heldCount: number;
+                /**
+                 * @description When a capture derived from this template was last rejected, or null.
+                 * @example null
+                 */
+                lastRejectAt: string | null;
+                /**
+                 * @description Refinement version — bumped every time the template is refined (PUT).
+                 * @example 1
+                 */
+                version: number;
+                /**
+                 * @description When the template was first learned.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                learnedAt: string;
+                /** @description Opaque Brain-owned provenance blob (how the template was learned). */
+                provenance: {
+                    [key: string]: unknown;
+                } | null;
+                /**
+                 * @description Row creation timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                createdAt: string;
+                /**
+                 * @description Row last-update timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                updatedAt: string;
+            };
+        };
+        /** @description Create a new UNCONFIRMED OCR template. `human_confirmed_at` (null) and `held_count` (0) are server-pinned; the workspace comes from the API key. */
+        CreateOcrTemplateRequest: {
+            /**
+             * @description Supplier identity — an IČO or normalized supplier name.
+             * @example 27082440
+             */
+            supplierKey: string;
+            /**
+             * @description Document kind this template extracts.
+             * @example RECEIVED_INVOICE
+             */
+            docKind: string;
+            /** @description Field → region map (opaque Brain-owned JSON). */
+            locators: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Hash of the field-region geometry (drift detection).
+             * @example sha256:9f2c…
+             */
+            layoutFingerprint?: string | null;
+            /** @description Opaque provenance blob. */
+            provenance?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** @description Refine an OCR template. RESETS `human_confirmed_at` to null and bumps `version` — a refined template must be re-confirmed by a human. */
+        UpdateOcrTemplateRequest: {
+            /** @description Replacement field → region map. */
+            locators?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Replacement layout fingerprint.
+             * @example sha256:aa11…
+             */
+            layoutFingerprint?: string | null;
+            /** @description Replacement provenance blob. */
+            provenance?: {
+                [key: string]: unknown;
+            } | null;
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -5395,6 +5714,129 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetAccountResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listOcrTemplates: {
+        parameters: {
+            query?: {
+                /** @description Filter to one supplier (IČO or normalized name). */
+                supplierKey?: string;
+                /** @description Filter to one document kind. */
+                docKind?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workspace's OCR templates matching the filters. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListOcrTemplatesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createOcrTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateOcrTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created (unconfirmed) template. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrTemplateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    updateOcrTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description OCR template id, resolved within the API key's workspace. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateOcrTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description The refined (now unconfirmed) template. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrTemplateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    confirmOcrTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description OCR template id, resolved within the API key's workspace. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The confirmed template. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OcrTemplateResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

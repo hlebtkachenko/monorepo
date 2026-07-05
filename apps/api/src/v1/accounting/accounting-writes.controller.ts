@@ -31,7 +31,11 @@ import {
   CreateAccountingPostingRequestDto,
   CreateAccountingPostingResponseDto,
 } from "../dto"
-import { deriveCaptureVeto, derivePostingVeto } from "./accounting-veto"
+import {
+  deriveCaptureVeto,
+  derivePostingVeto,
+  screenTemplateNovelty,
+} from "./accounting-veto"
 import type { EvidenceEnvelope } from "./evidence-gate"
 import { runGatedWrite, type GatedWriteResult } from "./accounting-writes.gate"
 
@@ -127,13 +131,20 @@ export class AccountingWritesController {
     @Res({ passthrough: true }) res: Response,
     @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<Record<string, unknown>> {
-    const { confidence, rationale, conversationId, signals, ...fields } =
-      body as unknown as CaptureAccountingDocumentRequestDto & {
-        confidence: number
-        rationale: string
-        conversationId?: string
-        signals?: EvidenceEnvelope | null
-      }
+    const {
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      templateId,
+      ...fields
+    } = body as unknown as CaptureAccountingDocumentRequestDto & {
+      confidence: number
+      rationale: string
+      conversationId?: string
+      signals?: EvidenceEnvelope | null
+      templateId?: string | null
+    }
     // The always-hold gate compares against a CZK ceiling, so each partial's
     // transaction-currency amount must be converted to accounting currency via
     // its own fx rate before it is tested (a large FX partial otherwise slips
@@ -175,6 +186,11 @@ export class AccountingWritesController {
       rationale,
       conversationId,
       signals,
+      // [WS-2] The OCR template this capture was derived from (null for
+      // structured-export captures). NOT domain data — destructured out of
+      // `fields` above so it never reaches `captureDocument`; persisted only
+      // with the gated write's audit `serverGate`.
+      templateId: templateId ?? null,
       holdAmounts,
       deriveVeto: () =>
         Promise.resolve(
@@ -182,6 +198,13 @@ export class AccountingWritesController {
             (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
           ),
         ),
+      // [WS-2] Server-derived template-novelty screen. The gate runs it in-tx only
+      // for an AGENT key with a `templateId` present (both re-checked gate-side);
+      // an UNCONFIRMED template forces the score sub-green (`novel_template`).
+      screenTemplateNovelty:
+        templateId != null
+          ? (db) => screenTemplateNovelty(db, templateId)
+          : undefined,
       run: (db, ctx) =>
         captureDocument(db, ctx, fields as unknown as DocumentInput),
       applied: (doc) => ({

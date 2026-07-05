@@ -14,6 +14,7 @@ import {
 } from "@/app/(gated)/_components"
 import { auditOnce } from "@/lib/admin-audit"
 
+import { IssueBrainAgentKeyButton } from "./_components/issue-brain-agent-key-button"
 import { RevokeApiKeyButton } from "./_components/revoke-api-key-button"
 
 export const metadata = { title: "API keys" }
@@ -278,6 +279,7 @@ export default async function ApiKeysPage({
       pagination={{ pageIndex, pageSize: PAGE_SIZE, totalRows: data.total }}
       pageHrefBuilder={buildPageHref}
       filters={<Filters schema={FILTER_SCHEMA} current={current} />}
+      toolbar={<IssueBrainAgentKeyButton />}
       auditPrefix="admin.dev.api_keys"
       emptyTitle="No API keys"
       emptyDescription="Try adjusting filters or wait for keys to be created."

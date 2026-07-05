@@ -29,6 +29,10 @@ export const ADMIN_CAPABILITIES: Record<string, ReadonlyArray<StaffRole>> = {
   // radius than inviting into an existing org, so support is excluded.
   "admin:signup_token": ["owner", "admin"],
   "admin:api_key.revoke": ["owner", "admin", "developer", "security"],
+  // Minting a WRITE-capable machine credential (an `agent`-actor Brain key) is
+  // higher blast radius than revoking one — narrower than revoke: no developer /
+  // security, owner + admin only. Wired into STEP_UP below.
+  "admin:api_key.create": ["owner", "admin"],
   "admin:session.revoke": ["owner", "admin", "security"],
   "admin:outbox.retry": ["owner", "admin", "developer"],
   "admin:role.write": ["owner"],

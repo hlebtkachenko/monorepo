@@ -23,6 +23,7 @@ import {
   isNull,
   lockPeriodInTx,
   sql,
+  unconfirmTemplateOnReject,
   updateToolCallLogOutput,
   withOrganization,
   type OrganizationBoundDb,
@@ -174,6 +175,10 @@ export class HeldWritesController {
             .select({
               tool_name: tool_call_log.tool_name,
               input_json: tool_call_log.input_json,
+              // [WS-2] The audit `serverGate` the gate persisted — carries the
+              // OCR `templateId` this write was derived from (NULL for
+              // structured-export writes). Read server-side only; never client input.
+              output_json: tool_call_log.output_json,
               auto_applied: tool_call_log.auto_applied,
               approved_by_user_id: tool_call_log.approved_by_user_id,
               // [G2-R1 rider] The original author — an approver may not approve
@@ -209,6 +214,18 @@ export class HeldWritesController {
           }
 
           if (action === "reject") {
+            // [WS-2] Reject-reset: a booking derived from an OCR template that a
+            // human rejects is evidence the template's locators produced a bad
+            // extraction. Un-confirm the template (human_confirmed_at → NULL,
+            // last_reject_at → now()) so the server novelty veto HOLDS every
+            // future capture from it until a human re-confirms. Workspace-scoped
+            // (resolves under this tx's app.workspace_id GUC). REJECT-ONLY —
+            // approve must never touch a template. Absent templateId → no-op.
+            // The same shared helper backs the web approvals reject path.
+            const templateId = ((
+              row.output_json as { serverGate?: { templateId?: unknown } }
+            )?.serverGate?.templateId ?? null) as string | null
+            await unconfirmTemplateOnReject(db, templateId)
             const [nowRow] = await executeRows<{ now: Date | string }>(
               db,
               sql`select now() as now`,
@@ -299,12 +316,15 @@ export class HeldWritesController {
         if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
         // Same strip as events: the gate envelope + [WP-D] `signals` are not
         // domain data. The `signals` strip is load-bearing (the cast to
-        // DocumentInput is `as unknown`, so TS cannot catch a leak).
+        // DocumentInput is `as unknown`, so TS cannot catch a leak). [WS-2]
+        // `templateId` is stripped too — it is audit-only (persisted with the
+        // original gated write) and must not reach `DocumentInput`.
         const {
           confidence: _c,
           rationale: _r,
           conversationId: _cv,
           signals: _sig,
+          templateId: _tpl,
           ...fields
         } = parsed.data
         await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)

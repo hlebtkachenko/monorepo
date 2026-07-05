@@ -72,6 +72,7 @@ vi.mock("@workspace/db/schema", () => ({
     rationale: "tool_call_log.rationale",
     created_at: "tool_call_log.created_at",
     input_json: "tool_call_log.input_json",
+    output_json: "tool_call_log.output_json",
     auto_applied: "tool_call_log.auto_applied",
     approved_by_user_id: "tool_call_log.approved_by_user_id",
     user_id: "tool_call_log.user_id",
@@ -149,6 +150,10 @@ vi.mock("@workspace/db", () => {
     withOrganization,
     lockPeriodInTx: vi.fn().mockResolvedValue(undefined),
     updateToolCallLogOutput: vi.fn().mockResolvedValue(undefined),
+    // [WS-2] Shared trust-state reset the reject branch calls. Spied so the tests
+    // assert it fires with the templateId read from output_json.serverGate (and
+    // NOT on approve / absent-template).
+    unconfirmTemplateOnReject: vi.fn().mockResolvedValue(undefined),
     executeRows: vi
       .fn()
       .mockResolvedValue([{ now: new Date("2026-07-03T10:00:00.000Z") }]),
@@ -166,6 +171,7 @@ const createEventMock = vi.mocked(accounting.createEvent)
 const captureDocumentMock = vi.mocked(accounting.captureDocument)
 const postMock = vi.mocked(accounting.post)
 const updateLogMock = vi.mocked(db.updateToolCallLogOutput)
+const unconfirmMock = vi.mocked(db.unconfirmTemplateOnReject)
 
 const ORG_A = "0196f1de-0000-7000-8000-00000000000a"
 const ORG_B = "0196f1de-0000-7000-8000-00000000000b"
@@ -251,6 +257,7 @@ describe("HeldWritesController", () => {
     captureDocumentMock.mockReset()
     postMock.mockReset()
     updateLogMock.mockClear()
+    unconfirmMock.mockClear()
     state.scopeCalls = []
     state.rows = [
       logRow({ id: HELD_A2, created_at: new Date("2026-07-02T08:00:00.000Z") }),
@@ -560,6 +567,78 @@ describe("HeldWritesController", () => {
         .expect(403)
       expect(res.body.error.code).toBe("forbidden")
       expect(createEventMock).not.toHaveBeenCalled()
+    })
+
+    it("[WS-2] a HUMAN reject of a capture with a templateId un-confirms that template", async () => {
+      // The templateId lives in the gate's audit `output_json.serverGate.templateId`
+      // (server-side, never client input). A reject must reset the template's trust
+      // state via the shared helper — the same reset the web approvals path uses.
+      const TPL = "0196f1de-0000-7000-8000-000000000abc"
+      state.rows.push(
+        logRow({
+          id: "0196f1de-0000-7000-8000-000000000010",
+          tool_name: "captureAccountingDocument",
+          output_json: {
+            status: "held",
+            payloadHash: "hash",
+            serverGate: { templateId: TPL, templateNovel: true },
+          },
+        }),
+      )
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+      await supertest(app.getHttpServer())
+        .post(
+          "/v1/accounting/held-writes/0196f1de-0000-7000-8000-000000000010/resolve",
+        )
+        .set("Authorization", "Bearer affk_live_a")
+        .send({ action: "reject", note: "Bad extraction" })
+        .expect(200)
+      expect(unconfirmMock).toHaveBeenCalledOnce()
+      expect(unconfirmMock).toHaveBeenCalledWith(expect.anything(), TPL)
+    })
+
+    it("[WS-2] APPROVE never touches the template trust state (even with a templateId on the row)", async () => {
+      // The controller reads serverGate.templateId ONLY in the reject branch. A
+      // schema-valid event payload whose audit row still carries a templateId
+      // proves approve resolves without calling the trust-state reset.
+      const TPL = "0196f1de-0000-7000-8000-000000000abd"
+      state.rows.push(
+        logRow({
+          id: "0196f1de-0000-7000-8000-000000000011",
+          output_json: {
+            status: "held",
+            payloadHash: "hash",
+            serverGate: { templateId: TPL, templateNovel: true },
+          },
+        }),
+      )
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+      createEventMock.mockResolvedValue({
+        eventId: "0196f1de-0000-7000-8000-000000000401",
+        designation: "UP2026099",
+        sequenceNumber: 9,
+      } as never)
+      await supertest(app.getHttpServer())
+        .post(
+          "/v1/accounting/held-writes/0196f1de-0000-7000-8000-000000000011/resolve",
+        )
+        .set("Authorization", "Bearer affk_live_a")
+        .send({ action: "approve" })
+        .expect(200)
+      expect(unconfirmMock).not.toHaveBeenCalled()
+    })
+
+    it("[WS-2] reject of a write with NO templateId is a helper no-op (called with null)", async () => {
+      // A structured-export write carries no serverGate.templateId → the helper is
+      // still invoked but with null, and it short-circuits (no-op) internally.
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+      await supertest(app.getHttpServer())
+        .post(`/v1/accounting/held-writes/${HELD_A1}/resolve`)
+        .set("Authorization", "Bearer affk_live_a")
+        .send({ action: "reject" })
+        .expect(200)
+      expect(unconfirmMock).toHaveBeenCalledOnce()
+      expect(unconfirmMock).toHaveBeenCalledWith(expect.anything(), null)
     })
 
     it("422s a stale stored payload instead of crashing the domain", async () => {

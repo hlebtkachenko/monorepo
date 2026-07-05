@@ -7,6 +7,7 @@ import {
   executeRows,
   lockPeriodInTx,
   sql,
+  unconfirmTemplateOnReject,
   updateToolCallLogOutput,
   withAdminBypass,
   withOrganization,
@@ -41,6 +42,11 @@ interface HeldLogRow {
   input_json: unknown
   auto_applied: boolean
   approved_by_user_id: string | null
+  /**
+   * [WS-2] OCR template this write was derived from, read from the gate's audit
+   * `output_json.serverGate.templateId` (NULL for structured-export writes).
+   */
+  template_id: string | null
 }
 
 /**
@@ -100,7 +106,8 @@ export async function resolveHeldWrite(
         const rows = await executeRows<HeldLogRow>(
           db,
           sql`select tool_name, input_json, auto_applied,
-                     approved_by_user_id::text as approved_by_user_id
+                     approved_by_user_id::text as approved_by_user_id,
+                     (output_json->'serverGate'->>'templateId') as template_id
               from tool_call_log
               where id = ${id}::uuid`,
         )
@@ -113,6 +120,17 @@ export async function resolveHeldWrite(
         }
 
         if (action === "reject") {
+          // [WS-2] Reject-reset: a booking derived from an OCR template that a
+          // reviewer rejects is evidence the template's locators produced a bad
+          // extraction. Un-confirm the template (human_confirmed_at → NULL) and
+          // stamp last_reject_at so the server veto HOLDS every future extraction
+          // from it until a human re-confirms via POST /v1/ocr-templates/:id/confirm.
+          // Shared helper, identical to the public API held-writes reject branch —
+          // both surfaces write the same trust-state so they can never diverge.
+          // Workspace-scoped: ocr_extraction_template's RLS keys on app.workspace_id,
+          // which withOrganization set on this tx (an RLS no-op for a foreign
+          // template). reject-ONLY; no template on the row → no-op.
+          await unconfirmTemplateOnReject(db, row.template_id)
           await updateToolCallLogOutput(db, {
             toolCallLogId: id,
             output: { resolution: "rejected", note: note ?? null },

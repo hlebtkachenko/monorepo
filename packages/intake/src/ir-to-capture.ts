@@ -25,7 +25,12 @@
 
 import type { CaptureAccountingDocumentRequest } from "@workspace/shared/api"
 import { minorToDecimal } from "@workspace/brain/confidence"
-import type { CashDocument, Invoice, VatSummaryRow } from "@workspace/brain"
+import type {
+  BankTransaction,
+  CashDocument,
+  Invoice,
+  VatSummaryRow,
+} from "@workspace/brain"
 
 /**
  * Harness-supplied context. The uuids the contract requires — `periodId`, `seriesId`, and each line's
@@ -167,6 +172,44 @@ export function cashDocumentToCapture(
       {
         eventId: ctx.eventId,
         description: cash.number,
+        partials,
+      },
+    ],
+    confidence: ctx.confidence,
+    rationale: ctx.rationale,
+    ...(ctx.conversationId ? { conversationId: ctx.conversationId } : {}),
+  }
+}
+
+/**
+ * IR BankTransaction → CaptureAccountingDocumentRequest (type BANK_STATEMENT).
+ *
+ * `amount_minor` is ALREADY SIGNED at the source (+ credit / in, − debit / out) — UNLIKE a CashDocument
+ * (magnitude + a separate `direction`). We therefore pass it through with its EXISTING sign and NEVER
+ * apply a direction-derived sign: multiplying by `direction` here would double-negate every debit.
+ *
+ * A bank line carries no VAT breakdown, so the whole (signed) amount becomes a single rate-less
+ * OUTSIDE_VAT partial via `partialWithoutRate` — we NEVER fabricate a VAT rate/amount. The server holds
+ * it via `unverified_vat_regime`; `classifyAccountingEvent` decides the regime.
+ */
+export function bankToCapture(
+  bank: BankTransaction,
+  ctx: IrToCaptureContext,
+): CaptureAccountingDocumentRequest {
+  // amount_minor is already signed (+ in / − out); pass it through verbatim — no direction sign.
+  const partials: CapturePartial[] = [
+    partialWithoutRate(bank.amount_minor, bank.currency),
+  ]
+
+  return {
+    periodId: ctx.periodId,
+    seriesId: ctx.seriesId,
+    type: "BANK_STATEMENT",
+    issuedAt: bank.booking_date,
+    lines: [
+      {
+        eventId: ctx.eventId,
+        description: bank.message ?? bank.counterparty?.name ?? undefined,
         partials,
       },
     ],

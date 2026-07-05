@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { OrganizationBoundDb } from "@workspace/db"
 
-import { deriveCaptureVeto, derivePostingVeto } from "./accounting-veto"
+import {
+  deriveCaptureVeto,
+  screenTemplateNovelty,
+  derivePostingVeto,
+} from "./accounting-veto"
 
 // A minimal drizzle-shaped stub: db.select({...}).from(account).where(pred)
 // resolves to the given account rows. `where` is a spy so we can assert the
@@ -13,6 +17,20 @@ function mkDb(accounts: Array<{ id: string; number: string }>) {
     select: () => ({ from: () => ({ where }) }),
   } as unknown as OrganizationBoundDb
   return { db, where }
+}
+
+// A drizzle-shaped stub for the template-novelty lookup:
+//   db.select({...}).from(t).where(pred).limit(1)  -> the template row (or none)
+//   db.update(t).set({...}).where(pred)            -> held_count bump (spied)
+function mkTemplateDb(row: { humanConfirmedAt: Date | null } | null) {
+  const limit = vi.fn().mockResolvedValue(row ? [row] : [])
+  const updateWhere = vi.fn().mockResolvedValue(undefined)
+  const set = vi.fn(() => ({ where: updateWhere }))
+  const db = {
+    select: () => ({ from: () => ({ where: () => ({ limit }) }) }),
+    update: () => ({ set }),
+  } as unknown as OrganizationBoundDb
+  return { db, limit, set, updateWhere }
 }
 
 const line = (accountId: string, side: "DEBIT" | "CREDIT", amount: string) => ({
@@ -194,5 +212,31 @@ describe("deriveCaptureVeto — vat_mismatch", () => {
     ])
     expect(veto.held).toBe(true)
     expect(veto.signals).toEqual(["unverified_vat_regime"])
+  })
+})
+
+describe("screenTemplateNovelty — unconfirmed OCR template", () => {
+  it("fires (novel) for an UNCONFIRMED template (human_confirmed_at IS NULL)", async () => {
+    const { db, limit, set } = mkTemplateDb({ humanConfirmedAt: null })
+    const r = await screenTemplateNovelty(db, "tpl-1")
+    expect(r).toBe(true)
+    expect(limit).toHaveBeenCalledOnce() // the lookup ran
+    expect(set).toHaveBeenCalledOnce() // held_count telemetry bumped on the hold
+  })
+
+  it("does NOT fire for a CONFIRMED template (human_confirmed_at set)", async () => {
+    const { db, set } = mkTemplateDb({ humanConfirmedAt: new Date() })
+    const r = await screenTemplateNovelty(db, "tpl-2")
+    expect(r).toBe(false)
+    expect(set).not.toHaveBeenCalled() // no hold => no held_count bump
+  })
+
+  it("does NOT fire when the template id resolves to NO row under RLS", async () => {
+    // A workspace-scoped id that RLS narrows to zero rows: this leg adds no hold
+    // (the omitted/absent-template fail-closed case is B2/M4 scope).
+    const { db, set } = mkTemplateDb(null)
+    const r = await screenTemplateNovelty(db, "tpl-missing")
+    expect(r).toBe(false)
+    expect(set).not.toHaveBeenCalled()
   })
 })

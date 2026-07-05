@@ -98,6 +98,8 @@
         "AFFRAME_PROFILE",
         "AFFRAME_MCP_URL",
         "BRAIN_MCP_ENDPOINT",
+        "BRAIN_API_KEY",
+        "BRAIN_AGENT_SDK_AUTH",
         "PUBLIC_API_URL"
       ]
     }

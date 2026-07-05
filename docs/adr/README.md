@@ -34,6 +34,7 @@ Decisions worth recording: the ones a future contributor (human or agent) would 
 | [0026](0026-brain-confidence-model.md)              | Afframe Brain confidence: infra-gated, calibrated, not model-verbalized    | Proposed                      |
 | [0027](0027-brain-learning-artifact-store.md)       | Afframe Brain learning artifacts: `.brain/` git tree, written via PR       | Proposed                      |
 | [0028](0028-brain-marshrutizator-isolation.md)      | Afframe Brain marshrutizátor: admission + per-(org,period) write isolation | Proposed                      |
+| [0029](0029-brain-learned-state-workspace-scoped.md) | Brain learned state (OCR templates, KB/memory-as-data) is workspace-scoped | Proposed                      |
 
 Append in commit order, never reshuffled. Numbers are immutable after merge.
 

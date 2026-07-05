@@ -14,7 +14,11 @@
 // so the default-deny sandbox cannot drift across the seam. `sandboxAllows` re-exposes the pinned
 // `isToolAllowed` for the launcher's belt-and-braces `canUseTool` gate.
 
-import { AFFRAME_MCP_SERVER, isToolAllowed } from "@workspace/brain"
+import {
+  AFFRAME_MCP_SERVER,
+  isToolAllowed,
+  type LoginContextPack,
+} from "@workspace/brain"
 import type {
   AgentSessionLaunchOptions,
   BrainDryRunPlan,
@@ -48,27 +52,42 @@ export interface BrainQueryOptions {
 }
 
 /**
- * Map the inspected launch options → the Agent-SDK query options. PURE. The tool lists + system prompt come
- * straight from `o.plan.loginPack` (single source of truth); the MCP server is the deployed endpoint keyed
- * under the exact `afframe` namespace so `mcp__afframe__*` resolves, authorized with the Brain's API key.
+ * Map a login pack + resolved creds → the Agent-SDK query options. PURE. The single source of truth for the
+ * option assembly shared by BOTH lanes (the accounting run lane and the extract lane): the tool lists +
+ * system prompt come straight from the pack (never re-derived); the MCP server is the deployed endpoint keyed
+ * under the exact `afframe` namespace so `mcp__afframe__*` resolves, authorized with the given key. Each lane
+ * keeps its OWN login pack (and therefore its own sandbox policy) — this only assembles the SDK options around
+ * whichever pack it is handed.
  */
-export function buildBrainQueryOptions(
-  o: AgentSessionLaunchOptions,
+export function buildQueryOptions(
+  loginPack: LoginContextPack,
+  mcpEndpoint: string,
+  apiKey: string,
 ): BrainQueryOptions {
   return {
-    systemPrompt: o.plan.loginPack.system,
-    allowedTools: [...o.plan.loginPack.allowedTools],
-    disallowedTools: [...o.plan.loginPack.disallowedTools],
+    systemPrompt: loginPack.system,
+    allowedTools: [...loginPack.allowedTools],
+    disallowedTools: [...loginPack.disallowedTools],
     mcpServers: {
       [AFFRAME_MCP_SERVER]: {
         type: "http",
-        url: o.mcpEndpoint,
-        headers: { Authorization: `Bearer ${o.apiKey}` },
+        url: mcpEndpoint,
+        headers: { Authorization: `Bearer ${apiKey}` },
       },
     },
     permissionMode: "default",
     settingSources: [],
   }
+}
+
+/**
+ * Map the inspected launch options → the Agent-SDK query options for the RUN lane. Thin wrapper over
+ * `buildQueryOptions`, reading the pack from the inspected plan (single source of truth) + the resolved creds.
+ */
+export function buildBrainQueryOptions(
+  o: AgentSessionLaunchOptions,
+): BrainQueryOptions {
+  return buildQueryOptions(o.plan.loginPack, o.mcpEndpoint, o.apiKey)
 }
 
 /**

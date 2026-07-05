@@ -36,6 +36,8 @@ export default async function ApprovalsPage({
     created_at: trimGatedTimestamp(row.created_at),
     summary: summarizeGatedPayload(row),
     payload_json: JSON.stringify(row.input_json, null, 2),
+    template_id: row.template_id,
+    template_confirmed: row.template_confirmed,
   }))
 
   return (

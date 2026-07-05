@@ -525,6 +525,18 @@ export const CaptureAccountingDocumentRequestSchema = z
       description: "§37 doc-total rounding → 548/648.",
     }),
     lines: z.array(IndividualRecordSchema).min(1).max(200),
+    templateId: z
+      .string()
+      .uuid()
+      .nullish()
+      .openapi({
+        description:
+          "OCR extraction template this capture was derived from (null for " +
+          "structured-export captures). NOT domain data — carried alongside the " +
+          "gate envelope so a future server veto leg can key off the template's " +
+          "confirmation state; it is stripped before the domain mutation runs.",
+        example: "0196f1de-0000-7000-8000-0000000000e1",
+      }),
     confidence: CONFIDENCE,
     rationale: RATIONALE,
     conversationId: CONVERSATION_ID,

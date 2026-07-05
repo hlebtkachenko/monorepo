@@ -33,6 +33,11 @@ import {
   ListAccountsResponseSchema,
   GetAccountResponseSchema,
   UpdateAccountRequestSchema,
+  ListOcrTemplatesQuerySchema,
+  ListOcrTemplatesResponseSchema,
+  OcrTemplateResponseSchema,
+  CreateOcrTemplateRequestSchema,
+  UpdateOcrTemplateRequestSchema,
 } from "@workspace/shared/api"
 
 /**
@@ -127,4 +132,19 @@ export class GetAccountResponseDto extends createZodDto(
 ) {}
 export class UpdateAccountRequestDto extends createZodDto(
   UpdateAccountRequestSchema,
+) {}
+export class ListOcrTemplatesQueryDto extends createZodDto(
+  ListOcrTemplatesQuerySchema,
+) {}
+export class ListOcrTemplatesResponseDto extends createZodDto(
+  ListOcrTemplatesResponseSchema,
+) {}
+export class OcrTemplateResponseDto extends createZodDto(
+  OcrTemplateResponseSchema,
+) {}
+export class CreateOcrTemplateRequestDto extends createZodDto(
+  CreateOcrTemplateRequestSchema,
+) {}
+export class UpdateOcrTemplateRequestDto extends createZodDto(
+  UpdateOcrTemplateRequestSchema,
 ) {}

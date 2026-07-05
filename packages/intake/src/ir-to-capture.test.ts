@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import { CaptureAccountingDocumentRequestSchema } from "@workspace/shared/api"
-import type { CashDocument, Invoice } from "@workspace/brain"
+import type { BankTransaction, CashDocument, Invoice } from "@workspace/brain"
+import { BOOKABLE_IR_RECORD_TYPES } from "@workspace/brain"
 
+import * as irToCapture from "./ir-to-capture"
 import {
+  bankToCapture,
   cashDocumentToCapture,
   invoiceToCapture,
   type IrToCaptureContext,
@@ -54,6 +57,22 @@ const cashDocument = (over: Partial<CashDocument> = {}): CashDocument => ({
   date: "2025-03-14",
   amount_minor: 50000n,
   currency: "CZK",
+  ...over,
+})
+
+// A minimal but complete IR BankTransaction. `amount_minor` is ALREADY SIGNED (+ credit / − debit);
+// per-test overrides set the sign under test.
+const bankTransaction = (
+  over: Partial<BankTransaction> = {},
+): BankTransaction => ({
+  ...envelope,
+  record_type: "bank_transaction",
+  account: { account: "123456789", bank_code: "0800" },
+  booking_date: "2025-03-14",
+  amount_minor: -50000n,
+  currency: "CZK",
+  direction: "debit",
+  message: "Platba dodavateli",
   ...over,
 })
 
@@ -211,5 +230,106 @@ describe("cashDocumentToCapture", () => {
         }
       }
     }
+  })
+})
+
+describe("bankToCapture", () => {
+  it("maps a bank line to a value that parses clean (round-trip)", () => {
+    const request = bankToCapture(bankTransaction(), ctx)
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+
+    expect(request.type).toBe("BANK_STATEMENT")
+    expect(request.periodId).toBe(ctx.periodId)
+    expect(request.seriesId).toBe(ctx.seriesId)
+    expect(request.issuedAt).toBe("2025-03-14")
+    expect(request.lines).toHaveLength(1)
+    expect(request.lines[0]!.eventId).toBe(ctx.eventId)
+    expect(request.lines[0]!.partials).toHaveLength(1)
+  })
+
+  it("a DEBIT (negative amount_minor) yields a NEGATIVE base + a single OUTSIDE_VAT partial", () => {
+    // amount_minor is ALREADY SIGNED (− debit); the adapter passes it through — no direction sign.
+    const request = bankToCapture(
+      bankTransaction({ amount_minor: -50000n, direction: "debit" }),
+      ctx,
+    )
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+    const partial = request.lines[0]!.partials[0]!
+    // −50000 haléř = −500.00 Kč. The sign is the SOURCE sign, NOT double-negated by direction.
+    expect(partial.baseAmount).toBe("-500.00")
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(request.lines[0]!.partials).toHaveLength(1)
+  })
+
+  it("a CREDIT (positive amount_minor) yields a POSITIVE base", () => {
+    const request = bankToCapture(
+      bankTransaction({
+        amount_minor: 50000n,
+        direction: "credit",
+        message: "Platba od odberatele",
+      }),
+      ctx,
+    )
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.baseAmount).toBe("500.00")
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+  })
+
+  it("never fabricates a VAT rate/amount — a bank line has no VAT breakdown", () => {
+    const request = bankToCapture(bankTransaction(), ctx)
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.vatMode).not.toBe("STANDARD")
+    expect(partial.vatRate).toBeUndefined()
+    expect(partial.vatAmount).toBeUndefined()
+    expect(partial.vatJurisdiction).toBeUndefined()
+  })
+
+  it("output carries no tenancy keys", () => {
+    const request = bankToCapture(bankTransaction(), ctx)
+    const serialized = JSON.stringify(request, (_key, value) =>
+      typeof value === "bigint" ? value.toString() : value,
+    )
+    for (const forbidden of [
+      "organization_id",
+      "user_id",
+      "workspace_id",
+      "role",
+    ]) {
+      expect(serialized).not.toContain(forbidden)
+    }
+  })
+})
+
+describe("GLEntry is never a booking source (Control 2)", () => {
+  it("exports no glToCapture / gl_entry adapter", () => {
+    // Belt-and-braces: the Brain re-derives postings from PRIMARY facts (invoice / bank / cash) and
+    // treats a prior accountant's journal row (GLEntry) as import/reconcile-only. This module must never
+    // grow a GLEntry booking adapter, so assert none exists on the module surface.
+    const exportNames = Object.keys(irToCapture)
+    for (const name of exportNames) {
+      expect(name.toLowerCase()).not.toContain("gl")
+    }
+    expect(exportNames).not.toContain("glToCapture")
+    expect(exportNames).not.toContain("glEntryToCapture")
+  })
+
+  it("the Control-2 bookable whitelist excludes gl_entry (invariant this adapter relies on)", () => {
+    // The three record types that HAVE a *ToCapture adapter are exactly the bookable whitelist — and
+    // gl_entry is not among them. If gl_entry ever entered the whitelist, this asserts loudly.
+    expect(BOOKABLE_IR_RECORD_TYPES).toEqual([
+      "invoice",
+      "bank_transaction",
+      "cash_document",
+    ])
+    expect(BOOKABLE_IR_RECORD_TYPES).not.toContain("gl_entry")
+    expect(BOOKABLE_IR_RECORD_TYPES).not.toContain("attachment")
   })
 })

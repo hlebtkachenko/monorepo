@@ -82,6 +82,38 @@ export type OrganizationScopedTable =
   (typeof ORGANIZATION_SCOPED_TABLES)[number]
 
 /**
+ * Names of WORKSPACE-scoped tables in the current schema.
+ *
+ * These isolate on `app.workspace_id` (the accountant's office), NOT
+ * `app.organization_id` (a single client book). A workspace-scoped row is
+ * shared across every organization in the office — a supplier's identity
+ * (counterparty) or the Brain's learned OCR layout (ocr_extraction_template)
+ * does not change per client book.
+ *
+ * Unlike the org-scoped set, these do NOT carry a single `organization_isolation`
+ * policy; each gets FOUR command-specific policies (SELECT / INSERT / UPDATE /
+ * DELETE) keyed on `workspace_id = NULLIF(current_setting('app.workspace_id',
+ * true), '')::uuid`, plus a composite UNIQUE(id, workspace_id) that closes the
+ * cross-workspace FK-bypass hole (Postgres FK checks run internal and skip RLS).
+ *
+ * Kept in sync with migrations that declare per-command `<table>_{select,insert,
+ * update,delete}` policies keyed on workspace_id:
+ *   - 0035_accounting_enforcement.sql §2 — counterparty
+ *   - 0047_ocr_extraction_template.sql   — ocr_extraction_template
+ *
+ * If you add a workspace-scoped table, add it here AND to a migration that
+ * creates its 4 command-specific policies with the NULLIF guard.
+ *
+ * See ADR-0029 "Brain learned state is workspace-scoped".
+ */
+export const WORKSPACE_SCOPED_TABLES = [
+  "counterparty",
+  "ocr_extraction_template",
+] as const
+
+export type WorkspaceScopedTable = (typeof WORKSPACE_SCOPED_TABLES)[number]
+
+/**
  * SQL block that enables and forces RLS on a single table with the standard
  * `organization_isolation` policy using the NULLIF guard pattern.
  *

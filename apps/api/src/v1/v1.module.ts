@@ -14,6 +14,7 @@ import { AccountsController } from "./accounts/accounts.controller"
 import { ApiKeyThrottlerGuard } from "./api-key-throttler.guard"
 import { DomainExceptionFilter } from "./domain-exception.filter"
 import { FeedbackController } from "./feedback/feedback.controller"
+import { OcrTemplatesController } from "./ocr-templates/ocr-templates.controller"
 import { OrganizationController } from "./organization/organization.controller"
 import { PingController } from "./ping/ping.controller"
 import { RequestIdMiddleware } from "./request-id.middleware"
@@ -54,6 +55,7 @@ import { StructureController } from "./structure/structure.controller"
     HeldWritesController,
     InvoicesController,
     AccountsController,
+    OcrTemplatesController,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ApiKeyThrottlerGuard },
@@ -76,6 +78,7 @@ export class V1Module implements NestModule {
         HeldWritesController,
         InvoicesController,
         AccountsController,
+        OcrTemplatesController,
       )
   }
 }

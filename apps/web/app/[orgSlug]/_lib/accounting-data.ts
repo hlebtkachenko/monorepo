@@ -171,11 +171,29 @@ export interface HeldWriteRow {
   created_at: string
   /** Original gated payload — shown to the reviewer verbatim. */
   input_json: unknown
+  /**
+   * [WS-2] OCR extraction template this write was derived from, read from the
+   * gate's audit `output_json.serverGate.templateId` (NULL for structured-export
+   * writes). The gate persists it there for every gated write; `input_json` also
+   * carries it on captures, but `serverGate` is the canonical, tool-agnostic slot.
+   */
+  template_id: string | null
+  /**
+   * Whether that template has been human-confirmed (`human_confirmed_at` set).
+   * Read from the workspace-scoped `ocr_extraction_template`, resolvable in this
+   * `withOrganization` tx. `false` when there is no template on the row OR the
+   * template row no longer exists — display gates on `template_id` being present.
+   */
+  template_confirmed: boolean
 }
 
 /**
  * Gated writes the confidence gate HELD (202) — the human review queue.
  * A held row has auto_applied = false and no approver yet.
+ *
+ * The template LEFT JOIN keys on the audit `serverGate.templateId` and reads the
+ * template's confirmation state so the reviewer sees which OCR template produced
+ * the booking (workspace-scoped table, resolvable under this tx's `app.workspace_id`).
  */
 export async function fetchHeldWrites(
   ctx: OrgAccountingContext,
@@ -183,12 +201,17 @@ export async function fetchHeldWrites(
   return withOrganization(ctx.organizationId, ctx.userId, (db) =>
     executeRows<HeldWriteRow>(
       db,
-      sql`select id, tool_name, idempotency_key, actor_kind::text as actor_kind,
-                 confidence::text as confidence, rationale,
-                 created_at::text as created_at, input_json
-          from tool_call_log
-          where auto_applied = false and approved_by_user_id is null
-          order by created_at desc`,
+      sql`select l.id, l.tool_name, l.idempotency_key,
+                 l.actor_kind::text as actor_kind,
+                 l.confidence::text as confidence, l.rationale,
+                 l.created_at::text as created_at, l.input_json,
+                 (l.output_json->'serverGate'->>'templateId') as template_id,
+                 (t.human_confirmed_at is not null) as template_confirmed
+          from tool_call_log l
+          left join ocr_extraction_template t
+            on t.id = (l.output_json->'serverGate'->>'templateId')::uuid
+          where l.auto_applied = false and l.approved_by_user_id is null
+          order by l.created_at desc`,
     ),
   )
 }

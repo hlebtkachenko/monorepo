@@ -12,11 +12,12 @@ import {
   type LoginContextSections,
 } from "@workspace/brain"
 
-import type { IrToCaptureContext } from "../ir-to-capture"
+import { invoiceToCapture, type IrToCaptureContext } from "../ir-to-capture"
 import {
   BrainHarnessNotWiredError,
   BRAIN_HARNESS_REQUIRED_ENV,
   planBrainDryRun,
+  planForCapture,
   runLiveBrainSession,
   type BrainDryRunInputs,
 } from "./brain-cc-harness"
@@ -132,6 +133,44 @@ describe("planBrainDryRun (creds-free)", () => {
     ]) {
       expect(serialized).not.toContain(forbidden)
     }
+  })
+})
+
+// ── planForCapture — the shared skeleton around ANY already-mapped capture request ──
+
+describe("planForCapture (shared skeleton, any record kind)", () => {
+  it("wraps a passed capture request in the same fixed login pack + read → propose tool sequence", () => {
+    const captureRequest = invoiceToCapture(invoice(), captureContext)
+    const plan = planForCapture(captureRequest, sections)
+
+    // The write body is the EXACT passed request — no re-derivation, no skeleton swap.
+    expect(plan.captureRequest).toBe(captureRequest)
+    expect(plan.policy).toBe(BRAIN_ACCOUNTING_POLICY)
+    // The fixed read → propose sequence is assembled around whatever request it is handed.
+    expect(plan.toolPlan.map((c) => c.toolName)).toEqual([
+      "mcp__afframe__get_structure",
+      "mcp__afframe__list_accounting_number_series",
+      "mcp__afframe__capture_accounting_document",
+    ])
+    // The write call carries the passed request verbatim (the operator-inspect-then-embed property).
+    const write = plan.toolPlan.at(-1)!
+    expect(write.toolName).toBe("mcp__afframe__capture_accounting_document")
+    expect(write.input).toBe(captureRequest)
+  })
+
+  it("planBrainDryRun is exactly planForCapture(invoiceToCapture(...)) — the thin wrapper", () => {
+    const inputs = dryRunInputs()
+    const viaWrapper = planBrainDryRun(inputs)
+    const viaShared = planForCapture(
+      invoiceToCapture(inputs.invoice, inputs.captureContext),
+      inputs.sections,
+    )
+    // Same tool sequence, same system prompt, same (deep-equal) capture body — the refactor is behavior-preserving.
+    expect(viaWrapper.toolPlan.map((c) => c.toolName)).toEqual(
+      viaShared.toolPlan.map((c) => c.toolName),
+    )
+    expect(viaWrapper.loginPack.system).toBe(viaShared.loginPack.system)
+    expect(viaWrapper.captureRequest).toEqual(viaShared.captureRequest)
   })
 })
 

@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest"
+import type { LoginContextSections } from "@workspace/brain"
+import {
+  assembleExtractPlan,
+  renderExtractPlan,
+  toDocumentBlock,
+  type ExtractContext,
+} from "./extract"
+
+const sections: LoginContextSections = {
+  constitution: "I1..In (locked)",
+  kb: { id: "kb-extract-1", version: "2026-07-05" },
+  lawSummary: "law digest",
+  confidenceProtocol: "server scores; the model never self-scores",
+  escalationPolicy: "route hard cases to a human",
+}
+const ctx: ExtractContext = { sections }
+
+describe("toDocumentBlock (file → content-block descriptor, NOT a Read)", () => {
+  it("maps a PDF to a base64 document block", () => {
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]) // "%PDF"
+    const block = toDocumentBlock("/tmp/faktura.pdf", bytes)
+    expect(block.kind).toBe("document")
+    expect(block.mediaType).toBe("application/pdf")
+    expect(block.sourceLabel).toBe("faktura.pdf")
+    // The bytes are carried IN the block as base64 — they never route through a Read tool.
+    expect(block.base64).toBe(Buffer.from(bytes).toString("base64"))
+  })
+
+  it("maps raster images to the right image media type", () => {
+    const png = toDocumentBlock("/tmp/scan.PNG", new Uint8Array([1, 2, 3]))
+    expect(png.kind).toBe("image")
+    expect(png.mediaType).toBe("image/png")
+    expect(toDocumentBlock("/tmp/a.jpg", new Uint8Array([1])).mediaType).toBe(
+      "image/jpeg",
+    )
+    expect(toDocumentBlock("/tmp/a.jpeg", new Uint8Array([1])).mediaType).toBe(
+      "image/jpeg",
+    )
+    expect(toDocumentBlock("/tmp/a.webp", new Uint8Array([1])).mediaType).toBe(
+      "image/webp",
+    )
+  })
+
+  it("throws loud on an unsupported (non-vision) type — steering to `brain book`", () => {
+    expect(() =>
+      toDocumentBlock("/tmp/export.xlsx", new Uint8Array([1])),
+    ).toThrow(/unsupported file type/)
+    expect(() => toDocumentBlock("/tmp/data.csv", new Uint8Array([1]))).toThrow(
+      /brain book/,
+    )
+  })
+})
+
+describe("assembleExtractPlan (creds-free — no network, no clock)", () => {
+  const block = toDocumentBlock(
+    "/tmp/faktura.pdf",
+    new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+  )
+
+  it("assembles the default-deny session config: ocr-template read/propose ONLY, Read absent", () => {
+    const plan = assembleExtractPlan(block, ctx, "27082440")
+    // Allow list is exactly the ocr-template read + propose pair.
+    expect(plan.allowedTools).toEqual([
+      "mcp__afframe__list_ocr_templates",
+      "mcp__afframe__create_ocr_template",
+    ])
+    // Read is NOT allowed; it IS on the deny list. No accounting write tool is allowed.
+    expect(plan.allowedTools).not.toContain("Read")
+    expect(plan.disallowedTools).toContain("Read")
+    expect(plan.allowedTools).not.toContain(
+      "mcp__afframe__capture_accounting_document",
+    )
+    expect(plan.allowedTools).not.toContain(
+      "mcp__afframe__confirm_ocr_template",
+    )
+  })
+
+  it("represents the file as a content block (kind + media type + byte count), bytes elided", () => {
+    const plan = assembleExtractPlan(block, ctx)
+    expect(plan.document).toEqual({
+      kind: "document",
+      mediaType: "application/pdf",
+      sourceLabel: "faktura.pdf",
+      byteCount: 4,
+    })
+    // The raw base64 bytes are NOT surfaced in the inspectable plan — only the count.
+    expect(JSON.stringify(plan.document)).not.toContain(block.base64)
+  })
+
+  it("carries the supplier hint into the kickoff, and demands provenance + a fingerprint", () => {
+    const plan = assembleExtractPlan(block, ctx, "27082440")
+    expect(plan.supplierHint).toBe("27082440")
+    expect(plan.kickoff).toContain("27082440")
+    expect(plan.kickoff.toLowerCase()).toContain("provenance")
+    expect(plan.kickoff.toLowerCase()).toContain("fingerprint")
+  })
+})
+
+describe("renderExtractPlan (--dry-run inspection — no creds)", () => {
+  it("states the file is a content block (NOT a Read) and shows the deny surface", () => {
+    // No env, no creds, no network — pure text assembly (the --dry-run half).
+    const plan = assembleExtractPlan(
+      toDocumentBlock(
+        "/tmp/faktura.pdf",
+        new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      ),
+      ctx,
+      "27082440",
+    )
+    const rendered = renderExtractPlan(plan)
+    expect(rendered).toContain("CONTENT BLOCK")
+    expect(rendered).toContain("NOT via a Read tool")
+    expect(rendered).toContain("NEVER books")
+    // The allowed pair + the denied Read + the denied write tools are all shown to the operator.
+    expect(rendered).toContain("mcp__afframe__list_ocr_templates")
+    expect(rendered).toContain("mcp__afframe__create_ocr_template")
+    expect(rendered).toContain("- Read")
+    expect(rendered).toContain("capture_accounting_document")
+    expect(rendered).toContain("confirm_ocr_template are DENIED")
+    // Provenance/fingerprint intent is visible in the kickoff echo.
+    expect(rendered.toLowerCase()).toContain("layout fingerprint")
+  })
+})

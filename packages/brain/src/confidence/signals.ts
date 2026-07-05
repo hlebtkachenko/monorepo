@@ -15,12 +15,27 @@ export const TIER1_BLOCK_KINDS = [
   "duplicate_key_collision",
 ] as const
 
+/**
+ * The Tier-3 DEFER kind an UNCONFIRMED OCR extraction template injects into the
+ * score. Its field-locators are untrusted, so any extraction derived from it
+ * cannot be scored — DEFER (cRaw=0), never trust. Server-DERIVED only (from
+ * `ocr_extraction_template.human_confirmed_at IS NULL`); a client can never
+ * assert it — a client-supplied kind that is not a recognized Tier-2 cap is
+ * dropped by `buildScoreInputs`. See the capture write gate.
+ *
+ * Exported as the SINGLE source of truth: the server veto (`accounting-veto.ts`)
+ * imports THIS const, so removing/renaming it here breaks the veto at compile
+ * time instead of silently letting a decoupled string literal go inert.
+ */
+export const NOVEL_TEMPLATE_KIND = "novel_template"
+
 /** Tier-3 defer signal kinds (force defer; treated as C -> 0.0 since the item cannot be scored). */
 export const TIER3_DEFER_KINDS = [
   "extraction_failed",
   "period_unknown",
   "budget_exceeded",
   "hitl_timeout",
+  NOVEL_TEMPLATE_KIND,
 ] as const
 
 /** spolek is FROZEN (starter scope = s.r.o. + OSVČ); spolek_scope forces defer (Tier-2 label, block effect). */

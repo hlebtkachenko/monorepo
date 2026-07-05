@@ -31,6 +31,13 @@ export interface HeldWriteListRow {
   summary: string
   /** Pretty-printed JSON of the original gated payload. */
   payload_json: string
+  /**
+   * [WS-2] OCR extraction template this write was derived from (audit
+   * `serverGate.templateId`), or null for structured-export writes.
+   */
+  template_id: string | null
+  /** Whether that template has been human-confirmed (only meaningful when `template_id` is set). */
+  template_confirmed: boolean
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -85,6 +92,38 @@ export function ConfidenceBadge({ confidence }: { confidence: string }) {
     >
       {percent} %
     </Badge>
+  )
+}
+
+/**
+ * [WS-2] OCR-template provenance for a held write: which learned template the
+ * booking was derived from, and whether a human has confirmed it. Rendered only
+ * when the write carries a template (structured-export writes have none). The id
+ * is shortened to its first segment — enough for a reviewer to recognise it — and
+ * the confirmation state is what a reviewer weighs before approving.
+ */
+function OcrTemplateBadge({
+  templateId,
+  confirmed,
+}: {
+  templateId: string
+  confirmed: boolean
+}) {
+  const short = templateId.split("-")[0] ?? templateId
+  return (
+    <span className="flex items-center gap-2">
+      <span className="font-mono text-xs">{short}</span>
+      <Badge
+        variant="secondary"
+        className={
+          confirmed
+            ? undefined
+            : "bg-destructive/10 text-destructive dark:bg-destructive/20"
+        }
+      >
+        {confirmed ? "potvrzeno" : "nepotvrzeno"}
+      </Badge>
+    </span>
   )
 }
 
@@ -310,6 +349,17 @@ export function HeldWriteDetail({
           }
         />
         <DetailField label="Zdůvodnění" value={row.rationale ?? "—"} />
+        {row.template_id ? (
+          <DetailField
+            label="OCR šablona"
+            value={
+              <OcrTemplateBadge
+                templateId={row.template_id}
+                confirmed={row.template_confirmed}
+              />
+            }
+          />
+        ) : null}
       </dl>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-muted-foreground">

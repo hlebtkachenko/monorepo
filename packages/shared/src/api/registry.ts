@@ -97,6 +97,15 @@ import {
   AccountIdParamSchema,
   UpdateAccountRequestSchema,
 } from "./accounts"
+import {
+  CreateOcrTemplateRequestSchema,
+  ListOcrTemplatesQuerySchema,
+  ListOcrTemplatesResponseSchema,
+  OcrTemplateIdParamSchema,
+  OcrTemplateResponseSchema,
+  OcrTemplateSchema,
+  UpdateOcrTemplateRequestSchema,
+} from "./ocr-templates"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
 
@@ -287,6 +296,23 @@ const GetAccountResponse = registry.register(
 const UpdateAccountRequest = registry.register(
   "UpdateAccountRequest",
   UpdateAccountRequestSchema,
+)
+registry.register("OcrTemplate", OcrTemplateSchema)
+const ListOcrTemplatesResponse = registry.register(
+  "ListOcrTemplatesResponse",
+  ListOcrTemplatesResponseSchema,
+)
+const OcrTemplateResponse = registry.register(
+  "OcrTemplateResponse",
+  OcrTemplateResponseSchema,
+)
+const CreateOcrTemplateRequest = registry.register(
+  "CreateOcrTemplateRequest",
+  CreateOcrTemplateRequestSchema,
+)
+const UpdateOcrTemplateRequest = registry.register(
+  "UpdateOcrTemplateRequest",
+  UpdateOcrTemplateRequestSchema,
 )
 
 /**
@@ -1134,6 +1160,108 @@ registry.registerPath({
   },
 })
 
+registry.registerPath({
+  method: "get",
+  path: "/v1/ocr-templates",
+  operationId: "listOcrTemplates",
+  summary: "List OCR extraction templates",
+  description:
+    "Returns the workspace's OCR extraction templates — the Brain's learned " +
+    "supplier invoice layouts, WORKSPACE-scoped (FORCE RLS) and shared across " +
+    "every organization in the accountant's office. Optionally filter by " +
+    "`supplierKey` and `docKind`. Both human and agent keys may read.",
+  tags: ["OCR Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: ListOcrTemplatesQuerySchema },
+  responses: {
+    "200": {
+      description: "The workspace's OCR templates matching the filters.",
+      content: { "application/json": { schema: ListOcrTemplatesResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/ocr-templates",
+  operationId: "createOcrTemplate",
+  summary: "Create an OCR extraction template",
+  description:
+    "Creates a NEW, UNCONFIRMED template in the caller's workspace. The " +
+    "server pins `humanConfirmedAt` to null and `heldCount` to 0 — a fresh " +
+    "template is never auto-trusted; a human must confirm it via " +
+    "`POST /v1/ocr-templates/{id}/confirm`. Agent keys may create. Requires " +
+    "the `accounting:write` scope. The workspace comes from the API key.",
+  tags: ["OCR Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: CreateOcrTemplateRequest } },
+    },
+  },
+  responses: {
+    "201": {
+      description: "The created (unconfirmed) template.",
+      content: { "application/json": { schema: OcrTemplateResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "put",
+  path: "/v1/ocr-templates/{id}",
+  operationId: "updateOcrTemplate",
+  summary: "Refine an OCR extraction template",
+  description:
+    "Refines an existing template (replacing its learned fields). A refine " +
+    "RE-OPENS the trust gate: the server resets `humanConfirmedAt` to null " +
+    "and bumps `version`, so a refined template must be re-confirmed by a " +
+    "human. Identity (`supplierKey` / `docKind`) is immutable through this " +
+    "surface. Agent keys may refine. Requires the `accounting:write` scope. " +
+    "Returns 404 when the template is not visible to the caller's workspace.",
+  tags: ["OCR Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    params: OcrTemplateIdParamSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: UpdateOcrTemplateRequest } },
+    },
+  },
+  responses: {
+    "200": {
+      description: "The refined (now unconfirmed) template.",
+      content: { "application/json": { schema: OcrTemplateResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/ocr-templates/{id}/confirm",
+  operationId: "confirmOcrTemplate",
+  summary: "Confirm an OCR extraction template",
+  description:
+    "Marks a template as human-confirmed (sets `humanConfirmedAt` to now). " +
+    "HUMAN-ACTOR ONLY: an agent-actor key is rejected with 403 — confirmation " +
+    "is the trust boundary that a human, not the Brain, must cross. Returns " +
+    "404 when the template is not visible to the caller's workspace.",
+  tags: ["OCR Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: OcrTemplateIdParamSchema },
+  responses: {
+    "200": {
+      description: "The confirmed template.",
+      content: { "application/json": { schema: OcrTemplateResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
 /**
  * Emit the full OpenAPI 3.1 document. The api process and the codegen
  * scripts both go through this single call — drop adapters here, not in
@@ -1243,6 +1371,12 @@ export function buildOpenApiDocument(): OpenAPIDocument {
         description:
           "Application information architecture — modules, pages, and layout " +
           "archetypes for agent discovery",
+      },
+      {
+        name: "OCR Templates",
+        description:
+          "Workspace-shared Brain OCR extraction templates (learned supplier " +
+          "invoice layouts)",
       },
     ],
   })

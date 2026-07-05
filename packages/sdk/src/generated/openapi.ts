@@ -2234,6 +2234,11 @@ export interface components {
                  */
                 dppd: string;
                 /**
+                 * @description §92 kód předmětu plnění — set on the domestic reverse-charge rows (A.1/B.1): 1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5. Null on A.2 (EU) and the STANDARD rows (A.4/B.2).
+                 * @example 4
+                 */
+                kod: string | null;
+                /**
                  * @description Základ, 21 % bucket.
                  * @example 0.00
                  */
@@ -2272,6 +2277,11 @@ export interface components {
                  */
                 dppd: string;
                 /**
+                 * @description §92 kód předmětu plnění — set on the domestic reverse-charge rows (A.1/B.1): 1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5. Null on A.2 (EU) and the STANDARD rows (A.4/B.2).
+                 * @example 4
+                 */
+                kod: string | null;
+                /**
                  * @description Základ, 21 % bucket.
                  * @example 0.00
                  */
@@ -2309,6 +2319,11 @@ export interface components {
                  * @example 2025-03-14
                  */
                 dppd: string;
+                /**
+                 * @description §92 kód předmětu plnění — set on the domestic reverse-charge rows (A.1/B.1): 1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5. Null on A.2 (EU) and the STANDARD rows (A.4/B.2).
+                 * @example 4
+                 */
+                kod: string | null;
                 /**
                  * @description Základ, 21 % bucket.
                  * @example 0.00
@@ -2366,6 +2381,11 @@ export interface components {
                  */
                 dppd: string;
                 /**
+                 * @description §92 kód předmětu plnění — set on the domestic reverse-charge rows (A.1/B.1): 1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5. Null on A.2 (EU) and the STANDARD rows (A.4/B.2).
+                 * @example 4
+                 */
+                kod: string | null;
+                /**
                  * @description Základ, 21 % bucket.
                  * @example 0.00
                  */
@@ -2403,6 +2423,11 @@ export interface components {
                  * @example 2025-03-14
                  */
                 dppd: string;
+                /**
+                 * @description §92 kód předmětu plnění — set on the domestic reverse-charge rows (A.1/B.1): 1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5. Null on A.2 (EU) and the STANDARD rows (A.4/B.2).
+                 * @example 4
+                 */
+                kod: string | null;
                 /**
                  * @description Základ, 21 % bucket.
                  * @example 0.00
@@ -2460,6 +2485,11 @@ export interface components {
              * @example 2025-03-14
              */
             dppd: string;
+            /**
+             * @description §92 kód předmětu plnění — set on the domestic reverse-charge rows (A.1/B.1): 1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5. Null on A.2 (EU) and the STANDARD rows (A.4/B.2).
+             * @example 4
+             */
+            kod: string | null;
             /**
              * @description Základ, 21 % bucket.
              * @example 0.00
@@ -2792,6 +2822,12 @@ export interface components {
              * @example false
              */
             isCreditNote?: boolean;
+            /**
+             * @description §92 kód předmětu plnění for a DOMESTIC reverse-charge supply (1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5). Only meaningful when jurisdiction = REVERSE_CHARGE; ignored otherwise.
+             * @example 4
+             * @enum {string}
+             */
+            commodityCode?: "1" | "3" | "4" | "5";
         };
         /** @description The accounting treatment decided from the facts (with reasoning). */
         ClassifyEventResponse: {
@@ -2831,6 +2867,12 @@ export interface components {
                 bridge: "381" | "384";
                 reason: string;
             };
+            /**
+             * @description §92 kód předmětu plnění to stamp on the partial record for kontrolní hlášení A.1/B.1; null unless this is a domestic reverse-charge supply.
+             * @example 4
+             * @enum {string|null}
+             */
+            commodityCode: "1" | "3" | "4" | "5" | null;
             /** @description Law-cited decision trail. */
             reasoning: string[];
         };
@@ -3048,6 +3090,12 @@ export interface components {
                      * @enum {string}
                      */
                     supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                    /**
+                     * @description §92 kód předmětu plnění for a DOMESTIC reverse-charge supply: 1 zlato §92b / 3 nemovitost §92d / 4 stavební-montážní §92e / 5 příloha 5 §92c. Drives the kontrolní hlášení A.1/B.1 kód. Optional; only meaningful on a domestic §92 PDP line (absent -> no kód). Distinct from supplyKind.
+                     * @example 4
+                     * @enum {string}
+                     */
+                    commodityCode?: "1" | "3" | "4" | "5";
                     vatDeductible?: boolean;
                     advanceSettlement?: boolean;
                     /**
@@ -3971,6 +4019,12 @@ export interface components {
                      * @enum {string}
                      */
                     supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                    /**
+                     * @description §92 kód předmětu plnění for a DOMESTIC reverse-charge supply: 1 zlato §92b / 3 nemovitost §92d / 4 stavební-montážní §92e / 5 příloha 5 §92c. Drives the kontrolní hlášení A.1/B.1 kód. Optional; only meaningful on a domestic §92 PDP line (absent -> no kód). Distinct from supplyKind.
+                     * @example 4
+                     * @enum {string}
+                     */
+                    commodityCode?: "1" | "3" | "4" | "5";
                     vatDeductible?: boolean;
                     advanceSettlement?: boolean;
                     /**

@@ -118,10 +118,12 @@ export {
   classifyEvent,
   classifyCashMovement,
   DEFAULT_ASSET_THRESHOLD,
+  SECTION_92_COMMODITY_CODES,
   type EconomicEvent,
   type PostingDecision,
   type SupplyKind,
   type VatJurisdiction,
+  type Section92CommodityCode,
   type CashMovement,
   type CashDecision,
 } from "./classify"

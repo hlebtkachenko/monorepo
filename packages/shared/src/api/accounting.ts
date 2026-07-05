@@ -464,6 +464,16 @@ export const KhRowSchema = z
       description: "DPPD — datum povinnosti přiznat daň (YYYY-MM-DD).",
       example: "2025-03-14",
     }),
+    kod: z
+      .string()
+      .nullable()
+      .openapi({
+        description:
+          "§92 kód předmětu plnění — set on the domestic reverse-charge rows " +
+          "(A.1/B.1): 1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5. " +
+          "Null on A.2 (EU) and the STANDARD rows (A.4/B.2).",
+        example: "4",
+      }),
     base21: dec("Základ, 21 % bucket."),
     dan21: dec("Daň, 21 % bucket."),
     base12: dec("Základ, 12 % bucket."),

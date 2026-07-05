@@ -1051,3 +1051,206 @@ describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
     })
   })
 })
+
+describe("[#516] KH kód předmětu plnění (§92 commodity)", () => {
+  it("emits the §92 kód on A.1/B.1, splits a mixed doklad per kód, and forces null on A.2/A.4/legacy", async () => {
+    const s = await seedFull("2072-01-01", "2072-12-31")
+    await withOrganization(orgA, userId, async (db) => {
+      const capture = async (
+        args: {
+          taxId: string
+          country: string
+          type: "ISSUED_INVOICE" | "RECEIVED_INVOICE"
+          day: string
+          desc: string
+        },
+        partials: Array<{
+          baseAmount: string
+          vatMode: "REVERSE_CHARGE" | "STANDARD"
+          vatJurisdiction?: "REVERSE_CHARGE" | "EU"
+          commodityCode?: "1" | "3" | "4" | "5"
+          vatAmount?: string
+        }>,
+      ) => {
+        const cp = await createCounterparty(db, s.ctx, {
+          name: args.desc,
+          taxId: args.taxId,
+          countryCode: args.country,
+        })
+        const ev = await createEvent(db, s.ctx, {
+          periodId: s.periodId,
+          seriesId: s.eventSeriesId,
+          counterpartyId: cp,
+          description: args.desc,
+          occurredAt: args.day,
+          responsibleUserId: userId,
+        })
+        await captureDocument(db, s.ctx, {
+          periodId: s.periodId,
+          seriesId: s.documentSeriesId,
+          type: args.type,
+          issuedAt: args.day,
+          lines: [
+            {
+              eventId: ev.eventId,
+              partials: partials.map((p) => ({
+                baseAmount: p.baseAmount,
+                vatRate: "21",
+                vatMode: p.vatMode,
+                vatJurisdiction: p.vatJurisdiction,
+                commodityCode: p.commodityCode,
+                vatAmount: p.vatAmount,
+                currencyCode: "CZK",
+              })),
+            },
+          ],
+        })
+      }
+
+      // (1) A.1 ISSUED domestic §92e reverse charge → kód "4".
+      await capture(
+        {
+          taxId: "CZ11110000",
+          country: "CZ",
+          type: "ISSUED_INVOICE",
+          day: "2072-03-01",
+          desc: "PDP stavba §92e",
+        },
+        [
+          {
+            baseAmount: "10000.00",
+            vatMode: "REVERSE_CHARGE",
+            vatJurisdiction: "REVERSE_CHARGE",
+            commodityCode: "4",
+          },
+        ],
+      )
+
+      // (2) A.1 ISSUED, one doklad mixing two §92 commodities (§92e + příloha 5)
+      //     → the kód is part of the grouping key, so this splits into two rows.
+      await capture(
+        {
+          taxId: "CZ22220000",
+          country: "CZ",
+          type: "ISSUED_INVOICE",
+          day: "2072-04-01",
+          desc: "PDP mixed §92e + příloha 5",
+        },
+        [
+          {
+            baseAmount: "8000.00",
+            vatMode: "REVERSE_CHARGE",
+            vatJurisdiction: "REVERSE_CHARGE",
+            commodityCode: "4",
+          },
+          {
+            baseAmount: "3000.00",
+            vatMode: "REVERSE_CHARGE",
+            vatJurisdiction: "REVERSE_CHARGE",
+            commodityCode: "5",
+          },
+        ],
+      )
+
+      // (3) A.1 legacy domestic RC, no commodity captured → kód null (backward compat).
+      await capture(
+        {
+          taxId: "CZ33330000",
+          country: "CZ",
+          type: "ISSUED_INVOICE",
+          day: "2072-05-01",
+          desc: "PDP legacy, no kód",
+        },
+        [{ baseAmount: "5000.00", vatMode: "REVERSE_CHARGE" }],
+      )
+
+      // (4) B.1 RECEIVED domestic §92c reverse charge → kód "5" + samovyměřená daň.
+      await capture(
+        {
+          taxId: "CZ44440000",
+          country: "CZ",
+          type: "RECEIVED_INVOICE",
+          day: "2072-06-01",
+          desc: "PDP šrot přijato §92c",
+        },
+        [
+          {
+            baseAmount: "5000.00",
+            vatMode: "REVERSE_CHARGE",
+            vatJurisdiction: "REVERSE_CHARGE",
+            commodityCode: "5",
+          },
+        ],
+      )
+
+      // (5) A.2 EU acquisition (no §92 kód — the DB CHECK forbids a code on an EU
+      //     line; see CC6). The emitter emits kód null for it naturally.
+      await capture(
+        {
+          taxId: "DE55550000",
+          country: "DE",
+          type: "RECEIVED_INVOICE",
+          day: "2072-07-01",
+          desc: "EU acquisition §16",
+        },
+        [
+          {
+            baseAmount: "3000.00",
+            vatMode: "REVERSE_CHARGE",
+            vatJurisdiction: "EU",
+          },
+        ],
+      )
+
+      // (6) A.4 STANDARD issued over the §101d threshold → no §92 kód.
+      await capture(
+        {
+          taxId: "CZ66660000",
+          country: "CZ",
+          type: "ISSUED_INVOICE",
+          day: "2072-08-01",
+          desc: "standard sale > 10k",
+        },
+        [
+          {
+            baseAmount: "20000.00",
+            vatMode: "STANDARD",
+            vatAmount: "4200.00",
+          },
+        ],
+      )
+
+      const kh = await buildKontrolniHlaseni(db, s.periodId)
+
+      // A.1 single §92e row → kód "4".
+      const a1_92e = kh.a1.find((r) => r.tax_id === "CZ11110000")
+      expect(a1_92e?.kod).toBe("4")
+      expect(a1_92e?.base21).toBe("10000.0000")
+
+      // A.1 mixed doklad splits into two rows, one per kód.
+      const mixed = kh.a1
+        .filter((r) => r.tax_id === "CZ22220000")
+        .sort((a, b) => (a.kod ?? "").localeCompare(b.kod ?? ""))
+      expect(mixed.map((r) => r.kod)).toEqual(["4", "5"])
+      expect(mixed.find((r) => r.kod === "4")?.base21).toBe("8000.0000")
+      expect(mixed.find((r) => r.kod === "5")?.base21).toBe("3000.0000")
+
+      // A.1 legacy row → kód null.
+      expect(kh.a1.find((r) => r.tax_id === "CZ33330000")?.kod).toBeNull()
+
+      // B.1 domestic §92c received → kód "5" + self-assessed 21 % daň.
+      const b1 = kh.b1.find((r) => r.tax_id === "CZ44440000")
+      expect(b1?.kod).toBe("5")
+      expect(b1?.base21).toBe("5000.0000")
+      expect(b1?.dan21).toBe("1050.0000")
+
+      // A.2 EU acquisition → kód null (no §92 kód on A.2).
+      const a2 = kh.a2.find((r) => r.tax_id === "DE55550000")
+      expect(a2?.kod).toBeNull()
+      expect(a2?.base21).toBe("3000.0000")
+
+      // A.4 standard → kód null.
+      expect(kh.a4.find((r) => r.tax_id === "CZ66660000")?.kod).toBeNull()
+    })
+  })
+})

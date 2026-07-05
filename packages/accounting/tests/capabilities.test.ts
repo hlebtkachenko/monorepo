@@ -172,6 +172,42 @@ describe("decision layer — the domain DECIDES from raw facts", () => {
     expect(d.vatMode).toBe("REVERSE_CHARGE")
   })
 
+  it("carries the §92 kód předmětu plnění on a DOMESTIC reverse charge (KH A.1/B.1)", () => {
+    const d = classifyEvent(
+      facts({
+        jurisdiction: "REVERSE_CHARGE",
+        vatRate: "21",
+        commodityCode: "4",
+      }),
+    )
+    expect(d.commodityCode).toBe("4")
+    expect(d.reasoning.some((r) => r.includes("kód předmětu plnění 4"))).toBe(
+      true,
+    )
+  })
+
+  it("drops the §92 kód for non-reverse-charge jurisdictions (gated, not persisted)", () => {
+    // EU reverse charge is souhrnné hlášení, not KH A.1/B.1 → no §92 kód.
+    const eu = classifyEvent(
+      facts({ jurisdiction: "EU", vatRate: "21", commodityCode: "4" }),
+    )
+    expect(eu.commodityCode).toBeNull()
+    expect(
+      eu.reasoning.some((r) =>
+        r.includes("applies only to a domestic reverse-charge"),
+      ),
+    ).toBe(true)
+
+    // A standard domestic supply likewise carries no §92 kód.
+    const std = classifyEvent(facts({ commodityCode: "1" }))
+    expect(std.commodityCode).toBeNull()
+  })
+
+  it("leaves the §92 kód null when the caller supplies none", () => {
+    const d = classifyEvent(facts({ jurisdiction: "REVERSE_CHARGE" }))
+    expect(d.commodityCode).toBeNull()
+  })
+
   it("routes neplátce → OUTSIDE_VAT, credit note → dobropis, EU → self-assessment", () => {
     expect(classifyEvent(facts({ jurisdiction: "OUTSIDE_VAT" })).scenario).toBe(
       "P-OUTSIDE-VAT",

@@ -6,6 +6,20 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.5] — 2026-07-05
+
+Patch release: the Afframe Brain **B1.5** pre-launch readiness bundle — OCR templates, a server-derived novelty veto, operator ergonomics, and the bank-statement booking adapter. The Brain write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed) and every agent write stays HELD — nothing user-facing changes. Cut as a patch by explicit decision even though the change carries a `feat` subject. Gated through three independent adversarial safety reviews (Fable 5 high + Opus 4.8 xhigh — GO/GO/GO, no confident-wrong path, safety spine byte-unchanged) and a thermo-nuclear code-quality review.
+
+### Added
+
+- **api**: `/v1/ocr-templates` — the workspace OCR-template library (migration 0047 `ocr_extraction_template`, workspace-scoped FORCE RLS mirroring `counterparty`). `GET` (agent + human read), `POST` propose-unconfirmed, `PUT` refine (resets `human_confirmed_at`, bumps version), and the human-only `POST :id/confirm` (`@RequireHumanActor()` + `accounting:write` — an agent key is denied the trust boundary). A new server-derived **`novel_template` Tier-3 veto**: an agent capture keyed to an *unconfirmed* template is forced HELD (the signal is injected in-tx server-side, so a client can neither forge nor omit it, and it is add-only in the write gate's three-way AND). `templateId` rides the capture contract as **audit-only** — persisted into the `serverGate` record and stripped before the domain mutation on both the capture and held-write replay paths. ADR-0029 records that Brain learned state is workspace-scoped. (#555, #518)
+- **cli**: `afframe brain extract <path>` — a LOCAL vision-OCR pre-pass that turns a PDF/image into an IR Invoice + field-level provenance + a layout fingerprint, and may propose an *unconfirmed* template. The file is fed to the model as an image/document **content block** (never via a `Read` tool); `allowedBuiltinTools` is empty and the MCP allowlist is the ocr-template read + propose pair ONLY, so a hostile document cannot steer a filesystem read or a book. `afframe brain book <folder>` walks a folder of structured exports into per-record capture plans for operator inspection before a live run. (#555, #469)
+- **admin**: an "Issue Brain agent key" action that hardcodes `actor_kind='agent'` (closing the self-approval lane — a mis-minted `human` key could otherwise cross-approve its own held writes), gated on the `admin:api_key.create` capability (owner + admin) with a password step-up; the audit log records the key id + name, never the secret. (#555)
+
+### Changed
+
+- **intake**: a `bankToCapture` adapter books a bank statement line as an OUTSIDE_VAT partial using its already-signed `amount_minor` verbatim (no double-negate, no fabricated VAT); GL entries stay non-bookable (import/reconcile-only). The held-write reject surface now un-confirms the source OCR template on both the web and API resolve paths (shared `unconfirmTemplateOnReject`), and the held-writes review UI surfaces the OCR-template provenance badge. (#555)
+
 ## [v0.16.4] — 2026-07-05
 
 Patch release: the Czech **Kontrolní hlášení** A.1/B.1 now emits the §92 "kód předmětu plnění" (domestic reverse-charge commodity code). Accounting-domain only; the Brain write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed) and every agent write stays HELD — nothing user-facing changes. Cut as a patch by explicit decision even though the change carries a `feat` subject.

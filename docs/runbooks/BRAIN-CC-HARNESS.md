@@ -172,17 +172,26 @@ Run these once the harness is wired live:
 5. **Bedrock `effort:xhigh` spike record** — record the Bedrock spike run (auth + latency + a
    representative `effort:xhigh` call) so v2's metered-billing path has a baseline. This is spike-and-record,
    not a gate.
+6. **A denied built-in is actually blocked live** — confirm the session cannot run `Read` / `Bash` /
+   `WebFetch` (they are stripped by `disallowedTools`, and `canUseTool` default-denies any that still reach
+   it). Belt-and-braces: the launcher's `canUseTool` fires + DENIES an off-list `afframe` tool (e.g.
+   `mcp__afframe__resolve_accounting_held_write`) — verify the deny is observed, not just assumed.
+7. **The session submits the inspected payload, not a fabricated one** — the kickoff embeds
+   `plan.captureRequest` verbatim (`buildBrainKickoff`), so the `capture_accounting_document` the server
+   receives matches the dry-run payload the operator inspected. Diff the two before trusting the run.
 
 ## Deferred (creds/deploy-gated — track, never fake)
 
-The seam is now wired + tested (`runLiveBrainSession` delegates to an injected `AgentSessionLauncher`, mock
-launcher in `brain-cc-harness.test.ts`). What remains is genuinely deploy-gated and needs live inputs, so
-building it now would ship unverifiable code:
+The seam is wired + tested (`runLiveBrainSession` delegates to an injected `AgentSessionLauncher`, mock
+launcher in `brain-cc-harness.test.ts`), and the **SDK-backed `AgentSessionLauncher` now exists** — it lives
+in `apps/cli/src/brain/` (`sdk-launcher.ts`, the single `@anthropic-ai/claude-agent-sdk` import repo-wide;
+pure config assembly + capture-result parsing in `session-config.ts`, unit-tested; operator entry
+`afframe brain run --inputs <file.json>` — `--dry-run` inspects the plan with no creds). What remains is
+genuinely deploy-gated and needs live inputs:
 
-- the **SDK-backed `AgentSessionLauncher`** in `apps/cli` (the single `@anthropic-ai/claude-agent-sdk` import;
-  the drop-in recipe is in step 3 above) — needs the SDK + live creds to verify, so it stays on **#469**;
-- the **live E2E run** (#469c execution), which also needs the resolved `get_structure` uuids + the
-  provenance-checked login-pack section texts + the deployed MCP + `BRAIN_RUNTIME_ACTIVE=1`;
+- the **live E2E run** (#469c execution), which needs the resolved `get_structure` uuids + the
+  provenance-checked login-pack section texts + the deployed MCP + `BRAIN_RUNTIME_ACTIVE=1` (the SDK
+  `query()` body in `sdk-launcher.ts` is the only UNTESTED-LIVE surface, marked as such);
 - **M2** supervised-prod quarantine → promote, **M3** real ≥10-run calibration fit, **M4** autonomous
   certification.
 

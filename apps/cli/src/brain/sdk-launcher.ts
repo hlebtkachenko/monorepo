@@ -1,0 +1,122 @@
+// #469 — the SDK-backed Brain `AgentSessionLauncher`.
+//
+// This is the ONE place `@anthropic-ai/claude-agent-sdk` is imported anywhere in the repo. It lives in
+// `apps/cli` (`private: true`) so the Agent SDK never enters a published artifact and never becomes a
+// dependency of `@workspace/intake` (the harness seam stays SDK-free — see docs/runbooks/BRAIN-CC-HARNESS.md).
+//
+// `runLiveBrainSession` (in @workspace/intake) fails closed on the creds + `BRAIN_RUNTIME_ACTIVE=1`
+// kill-switch BEFORE this launcher is ever consulted, so `launch()` only runs when the write lane is
+// deliberately ON and every cred is present. The launcher can only PROPOSE the capture write — the
+// server's three-way-AND gate holds every write at cold start; a client cannot force a green.
+//
+// UNTESTED-LIVE: the `query()` call + message walk are exercised only against a real Agent-SDK session and a
+// deployed accounting MCP endpoint (tracked on #469). Everything determinable without creds — the option
+// assembly, the default-deny sandbox decision, the capture-result parsing — is factored into the pure,
+// unit-tested `session-config.ts`, so this file is the thin, honest, deploy-gated shell around them.
+
+import {
+  query,
+  type CanUseTool,
+  type PermissionResult,
+} from "@anthropic-ai/claude-agent-sdk"
+import type {
+  AgentSessionLaunchOptions,
+  AgentSessionLauncher,
+  BrainDryRunPlan,
+  LiveBrainSessionResult,
+} from "@workspace/intake"
+import {
+  CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
+  buildBrainKickoff,
+  buildBrainQueryOptions,
+  buildBrainSessionEnv,
+  parseCaptureOutcome,
+  parseCaptureResultText,
+  readToolResultText,
+  sandboxAllows,
+} from "./session-config"
+
+/**
+ * DEFAULT-DENY permission gate, one of THREE independent sandbox layers (the other two are the login pack's
+ * `disallowedTools`, which strips the denied built-ins from context entirely, and its exact-name
+ * `allowedTools`, which only auto-allows the pinned accounting set). The SDK consults `canUseTool` only for
+ * permission-REQUIRING calls — an already-allowlisted or no-permission tool bypasses it — so this is the
+ * belt-and-braces layer, not the sole guard: any tool that DOES reach it is allowed only when the pinned
+ * per-TOOL `isToolAllowed` says so, and everything else (`resolve_accounting_held_write`,
+ * `list_accounting_held_writes`, an off-list `afframe` tool, a foreign server, an empty name) is denied.
+ */
+function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
+  return (toolName, input): Promise<PermissionResult> => {
+    if (sandboxAllows(toolName, plan)) {
+      return Promise.resolve({ behavior: "allow", updatedInput: input })
+    }
+    return Promise.resolve({
+      behavior: "deny",
+      message: `Brain sandbox denies ${toolName}: default-deny, not in the pinned accounting allowlist.`,
+    })
+  }
+}
+
+/**
+ * The SDK-backed launcher. Drives one headless Claude-Code session against the deployed MCP endpoint with the
+ * inspected plan's system prompt + sandbox lists, then maps the capture write's outcome into a
+ * `LiveBrainSessionResult`.
+ *
+ * `serverGate` here is the client-visible response body (`{ status, reviewId? }`) — the full persisted
+ * `tool_call_log.output_json.serverGate` verdict is audit-only and requires a separate operator read; that
+ * correlation (session_id ↔ conversation_id/brain_run_id) is established at wire time.
+ */
+export const sdkAgentSessionLauncher: AgentSessionLauncher = {
+  async launch(
+    options: AgentSessionLaunchOptions,
+  ): Promise<LiveBrainSessionResult> {
+    const queryOptions = buildBrainQueryOptions(options)
+
+    let sessionId = ""
+    let captureToolUseId: string | undefined
+    let captureResultRaw: unknown
+
+    for await (const message of query({
+      prompt: buildBrainKickoff(options.plan),
+      options: {
+        ...queryOptions,
+        canUseTool: makeCanUseTool(options.plan),
+        env: buildBrainSessionEnv(process.env, options.agentSdkAuth),
+      },
+    })) {
+      if (message.type === "assistant") {
+        for (const block of message.message.content) {
+          if (
+            block.type === "tool_use" &&
+            block.name === CAPTURE_ACCOUNTING_DOCUMENT_TOOL
+          ) {
+            captureToolUseId = block.id
+          }
+        }
+      } else if (message.type === "user") {
+        const content = message.message.content
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (
+              block.type === "tool_result" &&
+              block.tool_use_id === captureToolUseId
+            ) {
+              captureResultRaw = parseCaptureResultText(
+                readToolResultText(block.content),
+              )
+            }
+          }
+        }
+      } else if (message.type === "result") {
+        sessionId = message.session_id
+      }
+    }
+
+    const outcome = parseCaptureOutcome(captureResultRaw)
+    return {
+      brainRunId: sessionId,
+      applied: outcome.applied,
+      serverGate: outcome.raw,
+    }
+  },
+}

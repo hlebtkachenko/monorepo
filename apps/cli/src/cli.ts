@@ -3,6 +3,7 @@ import { stdin as input, stdout as output } from "node:process"
 import { Command, Option } from "commander"
 import { Afframe, AfframeApiError, RateLimitError } from "@afframe/sdk"
 import { clearProfile, loadConfig, saveProfile } from "./config"
+import { registerBrainCommand } from "./brain/command"
 
 const VERSION = "0.0.1"
 
@@ -262,6 +263,8 @@ function handleError(err: unknown, prefix: string): never {
   output.write(`${prefix}: ${(err as Error).message}\n`)
   process.exit(2)
 }
+
+registerBrainCommand(program)
 
 program.parseAsync().catch((err: unknown) => {
   output.write(`afframe: ${(err as Error).message}\n`)

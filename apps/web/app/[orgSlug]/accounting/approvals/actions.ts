@@ -41,6 +41,11 @@ interface HeldLogRow {
   input_json: unknown
   auto_applied: boolean
   approved_by_user_id: string | null
+  /**
+   * [WS-2] OCR template this write was derived from, read from the gate's audit
+   * `output_json.serverGate.templateId` (NULL for structured-export writes).
+   */
+  template_id: string | null
 }
 
 /**
@@ -100,7 +105,8 @@ export async function resolveHeldWrite(
         const rows = await executeRows<HeldLogRow>(
           db,
           sql`select tool_name, input_json, auto_applied,
-                     approved_by_user_id::text as approved_by_user_id
+                     approved_by_user_id::text as approved_by_user_id,
+                     (output_json->'serverGate'->>'templateId') as template_id
               from tool_call_log
               where id = ${id}::uuid`,
         )
@@ -113,6 +119,25 @@ export async function resolveHeldWrite(
         }
 
         if (action === "reject") {
+          // [WS-2] Reject-reset: a booking derived from an OCR template that a
+          // reviewer rejects is evidence the template's locators produced a bad
+          // extraction. Un-confirm the template (human_confirmed_at → NULL) and
+          // stamp last_reject_at so the server veto HOLDS every future extraction
+          // from it until a human re-confirms via POST /v1/ocr-templates/:id/confirm.
+          // Workspace-scoped: ocr_extraction_template's RLS keys on app.workspace_id,
+          // which withOrganization set on this tx, so the WHERE id = template_id
+          // update resolves (a template in another workspace is an RLS no-op).
+          // reject-ONLY — approve must NEVER confirm a template. No template on the
+          // row (structured-export write) → no-op.
+          if (row.template_id) {
+            await db.execute(
+              sql`update ocr_extraction_template
+                  set human_confirmed_at = null,
+                      last_reject_at = now(),
+                      updated_at = now()
+                  where id = ${row.template_id}::uuid`,
+            )
+          }
           await updateToolCallLogOutput(db, {
             toolCallLogId: id,
             output: { resolution: "rejected", note: note ?? null },

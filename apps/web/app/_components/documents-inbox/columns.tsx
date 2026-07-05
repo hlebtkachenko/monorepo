@@ -15,8 +15,6 @@ import {
   toolLabel,
 } from "../held-writes/columns"
 
-export { TOOL_OPTIONS } from "../held-writes/columns"
-
 /**
  * One gated write from `fetchIngestionInbox`, prepared by the inbox page for a
  * READ-ONLY overview. Every field is a plain serializable string derived on the

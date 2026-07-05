@@ -19,14 +19,13 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { Search } from "@workspace/ui/lib/icons"
 
-import { actorLabel, toolLabel } from "../held-writes/columns"
+import { actorLabel, toolLabel, TOOL_OPTIONS } from "../held-writes/columns"
 import { normalizeSearch } from "../_shared/accounting-format"
 import {
   buildInboxColumns,
   InboxDetail,
   statusLabel,
   STATUS_OPTIONS,
-  TOOL_OPTIONS,
   type InboxListRow,
 } from "./columns"
 

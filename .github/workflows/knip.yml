@@ -8,9 +8,9 @@
 # `changes` upstream and only runs when source/package.json/lockfile changes.
 # Docs-only PRs no longer pay the ~60-120s knip wall time.
 #
-# When the warn-only flag (continue-on-error: true) is removed and knip
-# becomes a real gate, this structure is unchanged — the shim still owns the
-# required-check name; the real job just stops being warn-only.
+# knip is now a real blocking gate (#527 removed the warn-only
+# continue-on-error): this shim structure is unchanged — the shim still owns the
+# required-check name; the real knip-run job is no longer warn-only.
 #
 # See Linear AFF-68 for the broader rollout.
 

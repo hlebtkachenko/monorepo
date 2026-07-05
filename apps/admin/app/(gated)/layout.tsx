@@ -29,7 +29,7 @@ import { SignOutButton } from "./sign-out-button"
  *      "Not authorized" page (NOT a redirect — a redirect to /auth/login
  *      after a successful login would loop).
  *
- * The login form itself ALSO runs `userIsAllowlisted` (see
+ * The login form itself ALSO runs `checkAllowlist` (see
  * `apps/admin/app/auth/login/check-allowlist-action.ts`) so a user signing
  * in via the form gets a clean error on the form instead of being bounced
  * here. This layout is the fail-safe for any other path (existing session

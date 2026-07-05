@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.4] — 2026-07-05
+
+Patch release: the Czech **Kontrolní hlášení** A.1/B.1 now emits the §92 "kód předmětu plnění" (domestic reverse-charge commodity code). Accounting-domain only; the Brain write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed) and every agent write stays HELD — nothing user-facing changes. Cut as a patch by explicit decision even though the change carries a `feat` subject.
+
+### Added
+
+- **accounting**: §92 kód předmětu plnění on kontrolní hlášení A.1 (dodavatel) / B.1 (odběratel). A new nullable `partial_record.commodity_code` (migration 0046 — codes `1` zlato §92b / `3` nemovitost §92d / `4` stavební-montážní §92e / `5` příloha 5 §92c) is threaded through the capture contract + the `classifyEvent` decision layer and emitted as `KhRow.kod`; a doklad mixing §92 commodities splits into a row per kód. Two DB CHECKs make an invalid state unrepresentable — an out-of-domain code, or a §92 kód on any line that is not a domestic reverse charge (`vat_mode = REVERSE_CHARGE AND vat_jurisdiction IS DISTINCT FROM 'EU'`) — so the emitter needs no read-side masking. Distinct from `supply_kind` (the souhrnné-hlášení kód 0/3). Gated through an adversarial safety review (Fable 5 high + Opus 4.8 xhigh — GO, no confident-wrong path, safety spine untouched) and a thermo-nuclear code-quality review (invalid state made unrepresentable, emitter simplified). (#516, #551)
+
 ## [v0.16.3] — 2026-07-05
 
 Patch release: internal Brain-launcher tooling + a dead-code sweep. The Brain write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed) and nothing user-facing changes — cut as a patch by explicit decision even though one change carries a `feat` subject.

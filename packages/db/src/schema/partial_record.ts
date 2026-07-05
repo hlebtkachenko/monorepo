@@ -50,6 +50,12 @@ export const partial_record = pgTable(
     // (SERVICES -> 3 service; else -> 0 goods). NULL = legacy/undistinguished
     // (kód 0). CHECK constraint lives in migration 0043, not this DSL.
     supply_kind: text("supply_kind"), // GOODS|MATERIAL|SERVICES|UTILITY|RENT|INSURANCE|ASSET|ADVANCE|CREDIT_NOTE|OTHER
+    // §92 kód předmětu plnění for kontrolní hlášení A.1/B.1 (domestic reverse
+    // charge): '1' zlato §92b / '3' nemovitost §92d / '4' stavební-montážní §92e
+    // / '5' příloha 5 §92c. NULL = not a §92 domestic PDP row (STANDARD/EU/
+    // legacy). DISTINCT from supply_kind (that is the souhrnné-hlášení kód 0/3).
+    // CHECK constraint lives in migration 0046, not this DSL.
+    commodity_code: text("commodity_code"), // 1|3|4|5
     vat_deductible: boolean("vat_deductible").notNull().default(true), // false -> VAT folds into cost
     advance_settlement: boolean("advance_settlement").notNull().default(false), // daňový doklad k záloze (§37a)
     vat_amount: numeric("vat_amount", { precision: 19, scale: 4 })

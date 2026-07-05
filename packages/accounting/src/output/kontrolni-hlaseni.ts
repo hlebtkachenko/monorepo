@@ -8,7 +8,8 @@
  *
  * Sections (2016+ KH structure):
  *   A.1  uskutečněná plnění v režimu PDP — DODAVATEL (§92); ISSUED REVERSE_CHARGE.
- *        Per doklad: DIČ odběratele, ev. číslo, DPPD, základ (daň odvádí odběratel).
+ *        Per doklad: DIČ odběratele, ev. číslo, DPPD, kód předmětu plnění (§92,
+ *        partial_record.commodity_code), základ (daň odvádí odběratel).
  *   A.2  přijatá plnění, kde daň přiznává příjemce z pořízení z EU / §108
  *        (RECEIVED REVERSE_CHARGE, vat_jurisdiction = 'EU'). Per doklad: DIČ
  *        dodavatele, ev. číslo, DPPD, základ + samovyměřená daň.
@@ -18,7 +19,7 @@
  *        SOUHRNNĚ (aggregate základ + daň).
  *   B.1  přijatá plnění v režimu PDP — ODBĚRATEL (§92, domestic); RECEIVED
  *        REVERSE_CHARGE, vat_jurisdiction ≠ 'EU'. Per doklad: DIČ dodavatele,
- *        ev. číslo, DPPD, základ + samovyměřená daň.
+ *        ev. číslo, DPPD, kód předmětu plnění (§92), základ + samovyměřená daň.
  *   B.2  přijatá zdanitelná plnění > 10 000 Kč vč. daně s DIČ (RECEIVED STANDARD).
  *        Per doklad: DIČ, ev. číslo, DPPD, základ+daň dle sazby.
  *   B.3  ostatní přijatá zdanitelná plnění (≤ 10 000 vč. daně) — SOUHRNNĚ.
@@ -47,6 +48,13 @@ export interface KhRow {
   doklad: string
   /** DPPD — datum povinnosti přiznat daň (≈ okamžik uskutečnění). */
   dppd: string
+  /**
+   * §92 kód předmětu plnění — set on the DOMESTIC reverse-charge rows (A.1
+   * dodavatel, B.1 odběratel): "1" zlato / "3" nemovitost / "4" stavební-
+   * montážní / "5" příloha 5. NULL on A.2 (EU acquisition) and on the STANDARD
+   * rows (A.4/B.2), which carry no §92 kód.
+   */
+  kod: string | null
   /** základ + daň, 21 % bucket. */
   base21: Decimal
   dan21: Decimal
@@ -124,6 +132,14 @@ async function reverseChargeRows(
     euFilter === "EU"
       ? sql`AND pr.vat_jurisdiction = 'EU'`
       : sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU'`
+  // §92 kód předmětu plnění is grouped and emitted unconditionally: the DB CHECK
+  // (partial_record_commodity_code_rc_chk, migration 0046) guarantees a non-NULL
+  // commodity_code only ever sits on a DOMESTIC reverse-charge line, so on the EU
+  // filter (A.2) every code is provably NULL — grouping by an all-NULL column is
+  // a no-op and kod comes out NULL, no read-side masking needed. On A.1/B.1 the
+  // kód is part of the grouping key, so a doklad mixing §92 commodities yields a
+  // row per kód.
+  //
   // A.1 (ISSUED PDP dodavatel) carries no daň — the odběratel self-assesses; the
   // A.1 form has základ + kód only. On the received side the příjemce self-assesses.
   const dan = (rate: number) =>
@@ -136,6 +152,7 @@ async function reverseChargeRows(
       SELECT sr.designation                                              AS doklad,
              MIN(ae.occurred_at)::date                                   AS dppd,
              cp.tax_id                                                   AS tax_id,
+             pr.commodity_code                                           AS kod,
              COALESCE(SUM(pr.base_in_accounting_currency) FILTER (WHERE pr.vat_rate = 21), 0)::numeric(19,4) AS base21,
              COALESCE(${dan(21)}, 0)::numeric(19,4) AS dan21,
              COALESCE(SUM(pr.base_in_accounting_currency) FILTER (WHERE pr.vat_rate = 12), 0)::numeric(19,4) AS base12,
@@ -149,7 +166,7 @@ async function reverseChargeRows(
          AND sr.type = ${type}
          AND pr.vat_mode = 'REVERSE_CHARGE'
          ${jurisdiction}
-       GROUP BY sr.designation, cp.tax_id
+       GROUP BY sr.designation, cp.tax_id, pr.commodity_code
        ORDER BY sr.designation`,
   )
 }
@@ -167,6 +184,7 @@ async function standardRowsOverThreshold(
       SELECT doklad,
              dppd,
              tax_id,
+             NULL::text AS kod,
              base21::numeric(19,4) AS base21,
              dan21::numeric(19,4)  AS dan21,
              base12::numeric(19,4) AS base12,

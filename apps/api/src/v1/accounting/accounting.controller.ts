@@ -359,6 +359,7 @@ export class AccountingController {
       tax_id: string | null
       doklad: string
       dppd: string
+      kod: string | null
       base21: string
       dan21: string
       base12: string
@@ -367,6 +368,7 @@ export class AccountingController {
       taxId: r.tax_id,
       doklad: r.doklad,
       dppd: r.dppd,
+      kod: r.kod,
       base21: r.base21,
       dan21: r.dan21,
       base12: r.base12,

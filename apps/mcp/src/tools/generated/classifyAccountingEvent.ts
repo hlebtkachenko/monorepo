@@ -21,6 +21,7 @@ const inputShape = {
   "assetThreshold": z.string().describe("Unsigned decimal amount as a string.").optional(),
   "acquisitionAccount": z.string().min(3).max(6).describe("042/041 for a capitalised asset.").optional(),
   "isCreditNote": z.boolean().describe("Credit note (§42) — flips sides.").optional(),
+  "commodityCode": z.enum(["1","3","4","5"]).describe("§92 kód předmětu plnění for a DOMESTIC reverse-charge supply (1 zlato / 3 nemovitost / 4 stavební-montážní / 5 příloha 5). Only meaningful when jurisdiction = REVERSE_CHARGE; ignored otherwise.").optional(),
 }
 
 export function registerClassifyAccountingEvent(

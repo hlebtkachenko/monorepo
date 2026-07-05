@@ -50,6 +50,12 @@ const SUPPLY_KIND = z.enum([
   "CREDIT_NOTE",
   "OTHER",
 ])
+/**
+ * §92 kód předmětu plnění — mirrors SECTION_92_COMMODITY_CODES (classify.ts):
+ * "1" zlato §92b / "3" nemovitost §92d / "4" stavební-montážní §92e / "5"
+ * příloha 5 §92c. Drives the kontrolní hlášení A.1/B.1 kód předmětu plnění.
+ */
+const COMMODITY_CODE = z.enum(["1", "3", "4", "5"])
 
 // ── classify (pure decision) ────────────────────────────────────────────────
 
@@ -135,6 +141,13 @@ export const ClassifyEventRequestSchema = z
       description: "Credit note (§42) — flips sides.",
       example: false,
     }),
+    commodityCode: COMMODITY_CODE.optional().openapi({
+      description:
+        "§92 kód předmětu plnění for a DOMESTIC reverse-charge supply (1 zlato " +
+        "/ 3 nemovitost / 4 stavební-montážní / 5 příloha 5). Only meaningful " +
+        "when jurisdiction = REVERSE_CHARGE; ignored otherwise.",
+      example: "4",
+    }),
   })
   .openapi({
     description:
@@ -172,6 +185,12 @@ export const ClassifyEventResponseSchema = z
       .object({ bridge: z.enum(["381", "384"]), reason: z.string() })
       .optional()
       .openapi({ description: "Defer the future part to a bridge account." }),
+    commodityCode: COMMODITY_CODE.nullable().openapi({
+      description:
+        "§92 kód předmětu plnění to stamp on the partial record for kontrolní " +
+        "hlášení A.1/B.1; null unless this is a domestic reverse-charge supply.",
+      example: "4",
+    }),
     reasoning: z
       .array(z.string())
       .openapi({ description: "Law-cited decision trail." }),
@@ -450,6 +469,14 @@ const PartialRecordSchema = z.object({
       "plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> " +
       "kód 0 (goods/undistinguished).",
     example: "SERVICES",
+  }),
+  commodityCode: COMMODITY_CODE.optional().openapi({
+    description:
+      "§92 kód předmětu plnění for a DOMESTIC reverse-charge supply: 1 zlato " +
+      "§92b / 3 nemovitost §92d / 4 stavební-montážní §92e / 5 příloha 5 §92c. " +
+      "Drives the kontrolní hlášení A.1/B.1 kód. Optional; only meaningful on a " +
+      "domestic §92 PDP line (absent -> no kód). Distinct from supplyKind.",
+    example: "4",
   }),
   vatDeductible: z.boolean().optional(),
   advanceSettlement: z.boolean().optional(),

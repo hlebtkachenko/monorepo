@@ -11,7 +11,11 @@
  * rationale.
  */
 
-import type { SupplyKind, VatJurisdiction } from "./classify"
+import type {
+  Section92CommodityCode,
+  SupplyKind,
+  VatJurisdiction,
+} from "./classify"
 import type {
   periodStatus,
   summaryRecordType,
@@ -117,6 +121,14 @@ export interface PartialRecordInput {
    * (legacy/undistinguished → kód 0).
    */
   supplyKind?: SupplyKind | null
+  /**
+   * §92 kód předmětu plnění for a DOMESTIC reverse-charge supply — "1" zlato
+   * §92b / "3" nemovitost §92d / "4" stavební-montážní §92e / "5" příloha 5
+   * §92c. Drives the kontrolní hlášení A.1/B.1 kód předmětu plnění. Omit → NULL
+   * (not a §92 domestic PDP row → no kód). Distinct from supplyKind (that is the
+   * souhrnné hlášení kód 0/3).
+   */
+  commodityCode?: Section92CommodityCode | null
   /** false → VAT folds into cost. Defaults true. */
   vatDeductible?: boolean
   /** daňový doklad k záloze (§37a). Defaults false. */

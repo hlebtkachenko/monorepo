@@ -1348,3 +1348,63 @@ describe("supply_kind (migration 0043)", () => {
     ).rejects.toThrow(/partial_record_supply_kind_chk|supply_kind/i)
   })
 })
+
+// ===========================================================================
+// commodity_code (migration 0046) — §92 kód předmětu plnění for kontrolní
+// hlášení A.1/B.1. Additive, nullable, CHECK-guarded to the domain 1/3/4/5.
+// NULL = not a §92 domestic PDP row. DISTINCT from supply_kind (souhrnné kód).
+// ===========================================================================
+describe("commodity_code (migration 0046)", () => {
+  const insCc = (id: string, commodityCode: string | null) =>
+    admin.unsafe(
+      `INSERT INTO partial_record (id, organization_id, individual_record_id, base_amount, vat_mode, vat_amount, currency_code, base_in_accounting_currency, vat_in_accounting_currency, commodity_code)
+       VALUES ('${id}'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'REVERSE_CHARGE', 0, 'CZK', 1000, 0, ${commodityCode ? `'${commodityCode}'` : "NULL"})`,
+    )
+
+  it("(CC1) the column exists and is nullable", async () => {
+    const [col] = await admin.unsafe<Array<{ is_nullable: string }>>(
+      `SELECT is_nullable FROM information_schema.columns WHERE table_name='partial_record' AND column_name='commodity_code'`,
+    )
+    expect(col?.is_nullable).toBe("YES")
+  })
+
+  it("(CC2) a NULL commodity_code is accepted (not a §92 domestic PDP row)", async () => {
+    await insCc("00000000-0000-0000-0000-0000000cc001", null)
+    const [row] = await admin.unsafe<Array<{ commodity_code: string | null }>>(
+      `SELECT commodity_code FROM partial_record WHERE id = '00000000-0000-0000-0000-0000000cc001'::uuid`,
+    )
+    expect(row?.commodity_code).toBeNull()
+  })
+
+  it("(CC3) a valid §92 kód (4 stavební-montážní) is accepted", async () => {
+    await insCc("00000000-0000-0000-0000-0000000cc002", "4")
+    const [row] = await admin.unsafe<Array<{ commodity_code: string | null }>>(
+      `SELECT commodity_code FROM partial_record WHERE id = '00000000-0000-0000-0000-0000000cc002'::uuid`,
+    )
+    expect(row?.commodity_code).toBe("4")
+  })
+
+  it("(CC4) an out-of-domain commodity_code is rejected by the CHECK", async () => {
+    await expect(
+      insCc("00000000-0000-0000-0000-0000000cc003", "2"),
+    ).rejects.toThrow(/partial_record_commodity_code_chk|commodity_code/i)
+  })
+
+  it("(CC5) a commodity_code on a non-reverse-charge line is rejected (§92 kód is PDP-only)", async () => {
+    await expect(
+      admin.unsafe(
+        `INSERT INTO partial_record (id, organization_id, individual_record_id, base_amount, vat_mode, vat_amount, currency_code, base_in_accounting_currency, vat_in_accounting_currency, commodity_code)
+         VALUES ('00000000-0000-0000-0000-0000000cc004'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'STANDARD', 0, 'CZK', 1000, 0, '4')`,
+      ),
+    ).rejects.toThrow(/partial_record_commodity_code_rc_chk|commodity_code/i)
+  })
+
+  it("(CC6) a commodity_code on an EU reverse-charge line is rejected (§92 kód is domestic-PDP-only; EU = souhrnné hlášení)", async () => {
+    await expect(
+      admin.unsafe(
+        `INSERT INTO partial_record (id, organization_id, individual_record_id, base_amount, vat_mode, vat_jurisdiction, vat_amount, currency_code, base_in_accounting_currency, vat_in_accounting_currency, commodity_code)
+         VALUES ('00000000-0000-0000-0000-0000000cc005'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'REVERSE_CHARGE', 'EU', 0, 'CZK', 1000, 0, '1')`,
+      ),
+    ).rejects.toThrow(/partial_record_commodity_code_rc_chk|commodity_code/i)
+  })
+})

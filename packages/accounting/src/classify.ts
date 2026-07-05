@@ -46,6 +46,18 @@ export type VatJurisdiction =
   | "EXEMPT" // §51/§70
   | "OUTSIDE_VAT" // neplátce supplier / mimo předmět
 
+/**
+ * §92 kód předmětu plnění (kontrolní hlášení A.1/B.1) — the commodity code a
+ * DOMESTIC reverse-charge supply reports on the control statement:
+ *   "1" zlato (§92b) / "3" nemovitost (§92d) / "4" stavební-montážní práce
+ *   (§92e) / "5" zboží dle přílohy č. 5 (§92c).
+ * The remaining KH codes (6, 7, 11–21 — §92da / §92ea / §92f příloha 6) are not
+ * modelled yet; extend this set, the migration 0046 CHECK, and the emitter
+ * together.
+ */
+export const SECTION_92_COMMODITY_CODES = ["1", "3", "4", "5"] as const
+export type Section92CommodityCode = (typeof SECTION_92_COMMODITY_CODES)[number]
+
 export interface EconomicEvent {
   direction: "RECEIVED" | "ISSUED" // FP (purchase) vs FV (sale)
   supplyKind: SupplyKind
@@ -68,6 +80,13 @@ export interface EconomicEvent {
   acquisitionAccount?: string
   /** true when totals are negative (credit note flips the sides). */
   isCreditNote?: boolean
+  /**
+   * §92 kód předmětu plnění for a DOMESTIC reverse-charge supply (kontrolní
+   * hlášení A.1/B.1): "1" zlato / "3" nemovitost / "4" stavební-montážní / "5"
+   * příloha 5. Only meaningful when jurisdiction = REVERSE_CHARGE; ignored
+   * (dropped to null) for any other jurisdiction.
+   */
+  commodityCode?: Section92CommodityCode | null
 }
 
 export interface PostingDecision {
@@ -85,6 +104,11 @@ export interface PostingDecision {
   capitalise?: { acquisitionAccount: string }
   /** DEFER: after posting, move the future part to a bridge account (381/384). */
   deferral?: { bridge: "381" | "384"; reason: string }
+  /**
+   * §92 kód předmětu plnění to stamp on the partial_record for kontrolní hlášení
+   * A.1/B.1; null unless this is a DOMESTIC reverse-charge (§92) supply.
+   */
+  commodityCode: Section92CommodityCode | null
   /** law-cited decision trail — WHY this treatment. */
   reasoning: string[]
 }
@@ -232,6 +256,25 @@ export function classifyEvent(ev: EconomicEvent): PostingDecision {
     reasoning.push(deferral.reason)
   }
 
+  // --- 6. §92 kód předmětu plnění (kontrolní hlášení A.1/B.1) — a commodity
+  // code only for a DOMESTIC reverse-charge supply (§92b-92e). An EU reverse
+  // charge (jurisdiction 'EU') is souhrnné hlášení, not KH A.1/B.1, so it
+  // carries no §92 kód; any other jurisdiction (STANDARD/IMPORT/EXEMPT) never
+  // does. Gate it here so the code is stamped only where the KH can report it.
+  let commodityCode: Section92CommodityCode | null = null
+  if (ev.commodityCode != null) {
+    if (ev.jurisdiction === "REVERSE_CHARGE") {
+      commodityCode = ev.commodityCode
+      reasoning.push(
+        `§92 ZDPH: domestic přenesená daňová povinnost → kód předmětu plnění ${commodityCode} on kontrolní hlášení A.1/B.1.`,
+      )
+    } else {
+      reasoning.push(
+        "§92 kód předmětu plnění applies only to a domestic reverse-charge (§92) supply → ignored for this jurisdiction.",
+      )
+    }
+  }
+
   return {
     vatMode,
     vatRate,
@@ -242,6 +285,7 @@ export function classifyEvent(ev: EconomicEvent): PostingDecision {
       ? { acquisitionAccount: ev.acquisitionAccount ?? "042" }
       : undefined,
     deferral,
+    commodityCode,
     reasoning,
   }
 }

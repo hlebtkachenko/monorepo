@@ -1973,6 +1973,29 @@ CREATE TABLE public.number_series (
 ALTER TABLE ONLY public.number_series FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: ocr_extraction_template; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ocr_extraction_template (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    supplier_key text NOT NULL,
+    doc_kind text NOT NULL,
+    locators jsonb NOT NULL,
+    layout_fingerprint text,
+    human_confirmed_at timestamp with time zone,
+    held_count integer DEFAULT 0 NOT NULL,
+    last_reject_at timestamp with time zone,
+    version integer DEFAULT 1 NOT NULL,
+    learned_at timestamp with time zone DEFAULT now() NOT NULL,
+    provenance jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.ocr_extraction_template FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: open_item; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3038,6 +3061,20 @@ ALTER TABLE ONLY public.number_series
 
 ALTER TABLE ONLY public.number_series
     ADD CONSTRAINT number_series_pkey PRIMARY KEY (id);
+
+--
+-- Name: ocr_extraction_template ocr_extraction_template_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ocr_extraction_template
+    ADD CONSTRAINT ocr_extraction_template_id_workspace_unique UNIQUE (id, workspace_id);
+
+--
+-- Name: ocr_extraction_template ocr_extraction_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ocr_extraction_template
+    ADD CONSTRAINT ocr_extraction_template_pkey PRIMARY KEY (id);
 
 --
 -- Name: open_item open_item_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4695,6 +4732,13 @@ ALTER TABLE ONLY public.number_series
     ADD CONSTRAINT number_series_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
 
 --
+-- Name: ocr_extraction_template ocr_extraction_template_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ocr_extraction_template
+    ADD CONSTRAINT ocr_extraction_template_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
 -- Name: open_item open_item_counterparty_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5333,6 +5377,36 @@ ALTER TABLE public.monetary_period_summary ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.number_series ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ocr_extraction_template; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ocr_extraction_template ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ocr_extraction_template ocr_extraction_template_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ocr_extraction_template_delete ON public.ocr_extraction_template FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ocr_extraction_template ocr_extraction_template_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ocr_extraction_template_insert ON public.ocr_extraction_template FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ocr_extraction_template ocr_extraction_template_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ocr_extraction_template_select ON public.ocr_extraction_template FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: ocr_extraction_template ocr_extraction_template_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ocr_extraction_template_update ON public.ocr_extraction_template FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: open_item; Type: ROW SECURITY; Schema: public; Owner: -

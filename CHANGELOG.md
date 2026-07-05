@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.1] — 2026-07-05
+
+Patch release: fix the release pipeline for GitHub immutable releases.
+
+### Fixed
+
+- **ci**: `release.yml` now creates the GitHub Release as a **draft**, lets the `build` (tarball), `slsa-provenance` (SLSA L3) and `supply-chain` (SBOM + cosign) jobs attach their assets to the mutable draft, and a new `publish-release` job flips it live only once every upload has landed. With release immutability enabled (a repo/org setting that flipped in around v0.14.0), the previous create-then-upload flow published the release immediately and every asset upload failed `HTTP 422: Cannot upload assets to an immutable release` — v0.14.0 through v0.16.0 shipped with zero assets. The SLSA generator now targets the draft via `draft-release: true` (without it its softprops step 404s the tag and forks a duplicate release). The five already-published empty releases are immutable and cannot be back-filled; this fixes it forward.
+
 ## [v0.16.0] — 2026-07-05
 
 Minor release: the Afframe Brain v1 launch **backstops** — the security + correctness guarantees that must be in place before the write lane is ever turned on. The write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed); nothing user-facing changes. Every change was gated through a 2× independent adversarial safety review (Fable 5 high + Opus 4.8 xhigh) and a Fable-5-high thermo-nuclear code-quality review — no confident-wrong path, safety spine untouched.

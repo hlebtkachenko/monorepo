@@ -97,6 +97,7 @@
         "AFFRAME_API_BASE",
         "AFFRAME_PROFILE",
         "AFFRAME_MCP_URL",
+        "BRAIN_MCP_ENDPOINT",
         "PUBLIC_API_URL"
       ]
     }

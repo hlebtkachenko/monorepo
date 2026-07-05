@@ -139,13 +139,12 @@ export const BRAIN_ACCOUNTING_READ_TOOLS = [
 /**
  * Tools on the `afframe` server the Brain is EXPLICITLY DENIED, even though the server is otherwise allowed:
  *
- * - `resolve_accounting_held_write` — [G3-R3] self-approval bypass. `POST /held-writes/:id/resolve` admits any
- *   user-bound API key as approver, is admission-exempt (no kill-switch, no confidence gate), and has NO
- *   server-side author≠approver check (see `apps/api/src/v1/accounting/held-writes.controller.ts:147-152`), so
- *   a vetoed HELD write could be self-approved by the very agent that authored it. This DENY is a CLIENT-SIDE
- *   sandbox backstop ONLY. The durable fix is a SERVER-SIDE key capability (agent keys denied on resolve
- *   entirely) — tracked as a GH issue; the Brain's API key stays server-authorized on the resolve endpoint
- *   until then, so this policy must not be relied on as the sole guard.
+ * - `resolve_accounting_held_write` — [G3-R3] self-approval bypass. `POST /held-writes/:id/resolve` is
+ *   admission-exempt (no kill-switch, no confidence gate). The DURABLE fix has LANDED: the server-side
+ *   key capability (`api_key.actor_kind`, migration 0045, #517/#543) DENIES the Brain's agent key on the
+ *   whole held-write surface via `@RequireHumanActor()` (`apps/api/src/auth/require-human-actor.decorator.ts`
+ *   + `api-key.guard.ts`), and the author≠approver rider is a second, independent backstop. This CLIENT-SIDE
+ *   DENY is now defense-in-depth on top of that server-side deny, not the sole guard.
  * - `list_accounting_held_writes` — exposes OTHER pending held payloads, a prompt-injection surface (an
  *   injected doc could read another tenant/run's held write and craft a matching approval).
  */

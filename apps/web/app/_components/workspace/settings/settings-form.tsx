@@ -57,6 +57,8 @@ export function SettingsForm({ settings }: { settings: WorkspaceSettings }) {
     if (result.ok) {
       toast.success("Settings saved")
       router.refresh()
+    } else if (result.errorKey === "forbidden") {
+      toast.error("You don't have permission to change this.")
     } else {
       toast.error("Could not save settings", {
         description: "Try again in a moment.",

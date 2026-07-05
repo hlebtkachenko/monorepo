@@ -4,7 +4,10 @@ import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { auth } from "@workspace/auth/server"
 
-import { getWorkspaceContext } from "../_lib/workspace-context"
+import {
+  getWorkspaceContext,
+  requireWorkspaceRole,
+} from "../_lib/workspace-context"
 import { setOrgArchived } from "./_lib/manage-orgs"
 
 export interface ArchiveResult {
@@ -28,8 +31,8 @@ async function archive(
 
   // Archiving/restoring a book is consequential office-level administration:
   // owner/admin only (a plain member cannot), matching the org settings gate.
-  if (ctx.current?.role !== "owner" && ctx.current?.role !== "admin")
-    return { ok: false, errorKey: "forbidden" }
+  const roleError = requireWorkspaceRole(ctx, ["owner", "admin"])
+  if (roleError) return roleError
 
   const done = await setOrgArchived(ctx.activeWorkspaceId, orgId, archived)
   if (!done) return { ok: false, errorKey: "notFound" }

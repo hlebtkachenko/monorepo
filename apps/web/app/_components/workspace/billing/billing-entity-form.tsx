@@ -46,6 +46,8 @@ export function BillingEntityForm({ entity }: { entity: BillingEntity }) {
     if (result.ok) {
       toast.success("Billing entity saved")
       router.refresh()
+    } else if (result.errorKey === "forbidden") {
+      toast.error("You don't have permission to change this.")
     } else {
       toast.error("Could not save billing entity", {
         description: "Try again in a moment.",

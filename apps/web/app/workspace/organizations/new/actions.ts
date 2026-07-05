@@ -9,7 +9,10 @@ import {
 } from "@workspace/org-provisioning"
 
 import { logServerError } from "../../../../lib/log-server-error"
-import { getWorkspaceContext } from "../../_lib/workspace-context"
+import {
+  getWorkspaceContext,
+  requireWorkspaceRole,
+} from "../../_lib/workspace-context"
 import { OrgWizardSchema, type OrgWizardInput } from "../_lib/wizard-schema"
 import { buildScaffoldInput } from "../_lib/build-scaffold-input"
 
@@ -82,6 +85,9 @@ export async function prefillOrgAction(ico: string): Promise<PrefillResultDto> {
  * Scaffold a new organization in the caller's active/owned workspace. The
  * workspace + owner are resolved server-side (never accepted from the client).
  * `idempotencyKey` is the wizard-session key so a retry replays.
+ * `requireWorkspaceRole` restricts this mutation to `owner`/`admin`; a
+ * `member` may not scaffold a new organization (consistent with the
+ * owner/admin-only archive gate in `../actions.ts`).
  */
 export async function createOrgAction(
   values: OrgWizardInput,
@@ -100,6 +106,9 @@ export async function createOrgAction(
     return { ok: false, errorKey: "noActiveWorkspace" }
   }
   const workspaceId = ctx.activeWorkspaceId
+
+  const roleError = requireWorkspaceRole(ctx, ["owner", "admin"])
+  if (roleError) return roleError
 
   try {
     const result = await scaffoldOrganization(

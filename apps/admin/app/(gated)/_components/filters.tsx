@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 
-export interface FilterField {
+interface FilterField {
   name: string
   label: string
   type: "search" | "select"

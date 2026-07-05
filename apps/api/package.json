@@ -13,15 +13,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@cerbos/core": "^0.31.0",
-    "@cerbos/grpc": "^0.27.1",
     "@nestjs/common": "^11.1.25",
     "@nestjs/core": "^11.1.25",
     "@nestjs/platform-express": "^11.1.25",
     "@nestjs/swagger": "^11.4.4",
     "@nestjs/throttler": "^6.5.0",
-    "@openfga/sdk": "^0.9.6",
-    "@openfga/syntax-transformer": "^0.2.1",
     "@scalar/nestjs-api-reference": "^1.2.3",
     "@sentry/node": "^10.57.0",
     "@workspace/accounting": "workspace:*",

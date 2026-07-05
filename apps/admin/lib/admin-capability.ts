@@ -36,8 +36,6 @@ export const ADMIN_CAPABILITIES: Record<string, ReadonlyArray<StaffRole>> = {
   "admin:kill_switch": ["owner"],
 }
 
-export type AdminCapability = keyof typeof ADMIN_CAPABILITIES
-
 /**
  * Returns the authed staff context if the user's staff role is in the
  * capability's allow-list. Otherwise throws `Error("forbidden: capability

@@ -15,14 +15,7 @@ import type { OnboardingRole } from "./role-types"
 import { projectStepForRole, stepsForRole } from "./steps"
 import { readOnboardingState } from "./state-cookie"
 
-export {
-  decideNextStep,
-  stepIndex,
-  stepPath,
-  STEP_ORDER,
-  TOTAL_STEPS,
-  type StepKey,
-} from "@workspace/shared/auth"
+export { stepPath, type StepKey } from "@workspace/shared/auth"
 
 /**
  * Compute the next-incomplete step for a user.

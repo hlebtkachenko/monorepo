@@ -8,9 +8,9 @@
 # `changes` upstream and only runs when source/package.json/lockfile changes.
 # Docs-only PRs no longer pay the ~60-120s knip wall time.
 #
-# When the warn-only flag (continue-on-error: true) is removed and knip
-# becomes a real gate, this structure is unchanged — the shim still owns the
-# required-check name; the real job just stops being warn-only.
+# knip is now a real blocking gate (#527 removed the warn-only
+# continue-on-error): this shim structure is unchanged — the shim still owns the
+# required-check name; the real knip-run job is no longer warn-only.
 #
 # See Linear AFF-68 for the broader rollout.
 
@@ -74,13 +74,11 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Run knip
-        # continue-on-error is intentional: knip has day-1 findings that require
-        # a dedicated dead-code cleanup pass (owner decision). The required status
-        # check on the main ruleset ensures the job runs and is visible on every
-        # PR that touches source, but the gate stays non-blocking until the
-        # cleanup is done. See docs/conventions/CI-POLICY.md for the full
-        # rationale (knip footnote).
-        continue-on-error: true
+        # Blocking gate (#527): the dedicated dead-code cleanup pass is done —
+        # unused deps removed, dead exports pruned, intentional false positives
+        # curated in knip.config.ts — so `pnpm knip` now exits clean. A regression
+        # (new unused file/dep/export) fails this required check. See
+        # docs/conventions/CI-POLICY.md for the full rationale (knip footnote).
         run: pnpm knip
 
   # Aggregation shim. `knip` is the REQUIRED status check name on the main

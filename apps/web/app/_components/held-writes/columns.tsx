@@ -33,7 +33,7 @@ export interface HeldWriteListRow {
   payload_json: string
 }
 
-export const TOOL_LABELS: Record<string, string> = {
+const TOOL_LABELS: Record<string, string> = {
   createAccountingEvent: "Účetní případ",
   captureAccountingDocument: "Doklad",
   createAccountingPosting: "Zápis",
@@ -66,7 +66,7 @@ export function formatCreatedAt(value: string): string {
 }
 
 /** Confidence decimal string ("0.6300") → integer percent (display only). */
-export function confidencePercent(confidence: string): number {
+function confidencePercent(confidence: string): number {
   const n = Number(confidence)
   return Number.isFinite(n) ? Math.round(n * 100) : 0
 }

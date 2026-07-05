@@ -24,9 +24,9 @@ export const VAT_REGIME_OPTIONS = [
   "IDENTIFIED_PERSON",
 ] as const
 export const SIZE_OPTIONS = ["MICRO", "SMALL", "MEDIUM", "LARGE"] as const
-export const ENTITY_KIND_OPTIONS = ["NEW_ENTITY", "MIGRATED_ENTITY"] as const
-export const FX_RATE_OPTIONS = ["DAILY", "REAL", "FIXED"] as const
-export const OSS_SCHEME_OPTIONS = ["UNION", "IMPORT"] as const
+const ENTITY_KIND_OPTIONS = ["NEW_ENTITY", "MIGRATED_ENTITY"] as const
+const FX_RATE_OPTIONS = ["DAILY", "REAL", "FIXED"] as const
+const OSS_SCHEME_OPTIONS = ["UNION", "IMPORT"] as const
 
 /** Legal forms seeded in 0025_accounting_reference_seed. */
 export const LEGAL_FORM_OPTIONS = [

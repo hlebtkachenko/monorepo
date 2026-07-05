@@ -15,7 +15,7 @@ import type { IconName } from "@workspace/ui/icon-packs"
 import { SidebarRow, activeHref } from "./sidebar-row"
 
 /** A clickable child link under a Page. No icon, indented. */
-export interface SidebarNavSubpage {
+interface SidebarNavSubpage {
   label: string
   href: string
   /** Trailing live count / label (e.g. unread count). Independent of `tba`. */

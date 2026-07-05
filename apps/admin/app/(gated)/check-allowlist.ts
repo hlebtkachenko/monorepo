@@ -79,11 +79,3 @@ export const checkAllowlist = cache(
     return { allowed: matchedId !== null, workspaceId: matchedId }
   },
 )
-
-/**
- * True when the user is an active member of at least one allowlisted
- * workspace. Convenience wrapper for callers that only need the boolean.
- */
-export async function userIsAllowlisted(userId: string): Promise<boolean> {
-  return (await checkAllowlist(userId)).allowed
-}

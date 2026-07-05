@@ -5,7 +5,7 @@
  * fetched server-side by the page and passed down as props.
  */
 
-export type AccountNature =
+type AccountNature =
   | "ASSET"
   | "LIABILITY"
   | "EQUITY"

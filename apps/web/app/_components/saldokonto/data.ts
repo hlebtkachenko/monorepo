@@ -7,7 +7,7 @@
  * (`app/[orgSlug]/_lib/accounting-data.ts`) and passed down as props.
  */
 
-export type OpenItemDirection = "RECEIVABLE" | "PAYABLE"
+type OpenItemDirection = "RECEIVABLE" | "PAYABLE"
 
 export interface OpenItemRow {
   id: string

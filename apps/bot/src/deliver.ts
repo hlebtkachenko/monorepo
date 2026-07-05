@@ -19,7 +19,7 @@ export interface DeliverResult {
 }
 
 /** The answer payload pushed to a callbackUrl / passed as workflow inputs. */
-export function answerPayload(ap: ApprovalRecord): {
+function answerPayload(ap: ApprovalRecord): {
   id: string
   kind: string
   decision: string | null

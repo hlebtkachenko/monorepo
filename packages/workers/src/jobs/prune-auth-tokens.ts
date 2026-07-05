@@ -29,7 +29,7 @@ import {
 import { logger } from "@workspace/observability"
 
 /** Default retention for terminal-state rows. ADR-0022 §"Consequences". */
-export const DEFAULT_RETENTION_DAYS = 90
+const DEFAULT_RETENTION_DAYS = 90
 
 export interface PruneAuthTokensResult {
   /** Rows transitioned pending → expired. */

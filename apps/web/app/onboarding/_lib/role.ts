@@ -6,8 +6,6 @@ import { readInviteClaims } from "./invite-cookie"
 import { readSignupClaims } from "./signup-cookie"
 import type { OnboardingRole } from "./role-types"
 
-export type { OnboardingRole } from "./role-types"
-
 export interface OnboardingRoleContext {
   role: OnboardingRole
   email: string

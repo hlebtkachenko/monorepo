@@ -23,7 +23,7 @@ export interface SignupClaims {
  * Written by the consume route alongside the opaque cookie. Contains
  * JSON-encoded SignupClaims so downstream reads avoid a DB lookup.
  */
-export const SIGNUP_PAYLOAD_COOKIE = "app-signup-payload"
+const SIGNUP_PAYLOAD_COOKIE = "app-signup-payload"
 
 export async function readSignupClaims(): Promise<SignupClaims | null> {
   const cookieStore = await cookies()

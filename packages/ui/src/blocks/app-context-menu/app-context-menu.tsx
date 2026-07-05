@@ -26,7 +26,6 @@ import {
 } from "./lib/capture-context"
 
 export type {
-  AppConfig,
   BugReportPayload,
   BugReportType,
   CapturedContext,

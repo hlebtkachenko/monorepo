@@ -19,8 +19,7 @@
   },
   "dependencies": {
     "@workspace/shared": "workspace:*",
-    "openapi-fetch": "^0.17.0",
-    "zod": "^4.4.3"
+    "openapi-fetch": "^0.17.0"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",

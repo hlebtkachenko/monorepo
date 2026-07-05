@@ -4,8 +4,8 @@ export type IssueSource =
   | "customer-request"
   | "agent"
   | "error"
-export type Risk = "blocking" | "high" | "medium" | "low"
-export type IssueArea =
+type Risk = "blocking" | "high" | "medium" | "low"
+type IssueArea =
   | "api"
   | "web"
   | "ci"

@@ -5,8 +5,8 @@
  * should be replaced by a live fetch + cache.
  */
 
-export type DomainEnv = "production" | "staging" | "shared"
-export type DomainRole =
+type DomainEnv = "production" | "staging" | "shared"
+type DomainRole =
   | "zone"
   | "web"
   | "api"

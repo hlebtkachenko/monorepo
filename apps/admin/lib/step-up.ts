@@ -85,7 +85,7 @@ export async function clearStepUpCookie(): Promise<void> {
  * `twofa` token satisfies a `password` requirement (twofa subsumes password
  * freshness).
  */
-export async function readFreshStepUp(
+async function readFreshStepUp(
   required: StepUpLevel,
 ): Promise<StepUpPayload | null> {
   const session = await auth.api.getSession({ headers: await headers() })

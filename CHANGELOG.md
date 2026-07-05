@@ -6,6 +6,23 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.0] — 2026-07-05
+
+Minor release: the Afframe Brain v1 launch **backstops** — the security + correctness guarantees that must be in place before the write lane is ever turned on. The write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed); nothing user-facing changes. Every change was gated through a 2× independent adversarial safety review (Fable 5 high + Opus 4.8 xhigh) and a Fable-5-high thermo-nuclear code-quality review — no confident-wrong path, safety spine untouched.
+
+### Added
+
+- **api**: server-side **agent-key capability** (`api_key.actor_kind`, migration 0045, default `human`). An `agent`-actor API key (an autonomous Brain client) may propose gated writes but is denied the entire held-write review surface — both `GET /v1/accounting/held-writes` and `POST …/held-writes/:id/resolve` — via a class-level `@RequireHumanActor()` guard, so a leaked or second agent key can never list or cross-approve the queue. The audit stamp (`tool_call_log.actor_kind`) derives from the tamper-proof key capability, not the spoofable `conversationId`. (#517)
+- **api**: the auto-apply write gate's injectable admission/scoring seams moved to a TEST-ONLY `runGatedWriteWithSeams`; production `runGatedWrite` takes exactly one argument, so overriding the fail-closed server-score leg of the three-way AND is now a **compile error** (with a TS-AST boundary test as belt-and-braces). (#519)
+
+### Changed
+
+- **intake**: the live-CC harness (`runLiveBrainSession`) is wired through an injectable `AgentSessionLauncher` seam — fail-closed on env + the `BRAIN_RUNTIME_ACTIVE=1` kill-switch before the launcher is consulted, with zero Agent-SDK dependency in `@workspace/intake`. The SDK-backed launcher + first live run stay deploy-gated (#469, M-live). (#543)
+
+### Fixed
+
+- **accounting**: an EU-marked issued reverse-charge supply (§9/1 service reverse-charged to the EU customer) no longer leaks onto Kontrolní hlášení A.1 — it belongs on Souhrnné hlášení only. KH A.1 + the DPH `a1_base`/`r25_base` checksums now filter domestic §92 PDP (`vat_jurisdiction IS DISTINCT FROM 'EU'`); the unfiltered mode that caused the leak was deleted from the type. (#516)
+
 ## [v0.15.0] — 2026-07-05
 
 Minor release: the first public accounting **API surface** (`/v1/accounts`, `/v1/invoices`), Czech localization going live, and the accounting-period switcher wired to real data.

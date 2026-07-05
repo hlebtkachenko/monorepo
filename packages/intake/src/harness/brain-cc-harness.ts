@@ -177,9 +177,44 @@ function tool<Input>(
 }
 
 /**
- * The inputs the live run needs. Typed so the shape is REAL (not vague) even though the body is gated: an
- * operator wiring the harness at deploy time fills exactly these. The dry-run plan is carried in so the live
- * run executes a plan an operator already inspected — it never re-plans from untrusted document content.
+ * The concrete session config a launcher receives, derived ENTIRELY from the inspected dry-run plan + the
+ * resolved creds — never from untrusted document content. The launcher constructs a Claude Code session from
+ * exactly these fields: the WP-B login pack's system prompt + concrete allow/deny tool lists, the deployed
+ * MCP endpoint, and the Brain's API key. `plan` is carried so the launcher can drive/verify the fixed tool
+ * sequence. This shape is Agent-SDK-agnostic on purpose: it names WHAT a session needs, not the SDK API.
+ */
+export interface AgentSessionLaunchOptions {
+  /**
+   * The inspected dry-run plan the session executes against the real tools. The launcher reads the WP-B login
+   * pack's system prompt + concrete allow/deny tool lists from `plan.loginPack.{system,allowedTools,
+   * disallowedTools}` DIRECTLY — a single source of truth, so the safety-critical sandbox deny-list cannot
+   * diverge across the seam (the type makes a contradictory payload unrepresentable).
+   */
+  plan: BrainDryRunPlan
+  /** The deployed accounting MCP endpoint URL. */
+  mcpEndpoint: string
+  /** The Brain's server-authorized accounting API key (resolves org server-side; never a tool input). */
+  apiKey: string
+  /** Agent-SDK auth token (subscription for dev; AWS creds for the Bedrock spike). */
+  agentSdkAuth: string
+}
+
+/**
+ * The seam between the creds-gated harness gate (this package) and the Agent-SDK launch (operator tooling).
+ * A launcher OWNS the `@anthropic-ai/claude-agent-sdk` session — it is injected so `@workspace/intake` NEVER
+ * imports the SDK (not even `import type`), keeping the SDK out of this package's dependency graph. The
+ * SDK-backed launcher belongs in `apps/cli` (to be added with the first live run); tests inject a mock.
+ * `runLiveBrainSession` only reaches a launcher AFTER the env + kill-switch gate passes, so a launcher can
+ * never run a write lane the server has OFF.
+ */
+export interface AgentSessionLauncher {
+  launch(options: AgentSessionLaunchOptions): Promise<LiveBrainSessionResult>
+}
+
+/**
+ * The inputs the live run needs. Typed so the shape is REAL (not vague): an operator wiring the harness at
+ * deploy time fills exactly these. The dry-run plan is carried in so the live run executes a plan an operator
+ * already inspected — it never re-plans from untrusted document content.
  */
 export interface LiveBrainSessionInputs {
   /** The dry-run plan (from `planBrainDryRun`) the live session executes against the real tools. */
@@ -191,6 +226,12 @@ export interface LiveBrainSessionInputs {
    * testable and the module stays pure-by-default. Returns the value or `undefined` when unset.
    */
   readEnv: (name: string) => string | undefined
+  /**
+   * The Agent-SDK session launcher (operator-tooling-supplied). OPTIONAL: when absent the run fails closed
+   * with `BrainHarnessNotWiredError`. There is deliberately NO default launcher in this package — the
+   * SDK-backed one lives in `apps/cli`, so `@workspace/intake` carries no SDK dependency.
+   */
+  launcher?: AgentSessionLauncher
 }
 
 /**
@@ -213,9 +254,9 @@ export interface LiveBrainSessionResult {
 export class BrainHarnessNotWiredError extends Error {
   constructor(missing: readonly string[]) {
     super(
-      "runLiveBrainSession is creds-gated and not yet wired. It requires a live Agent-SDK session " +
-        "(@anthropic-ai/claude-agent-sdk — referenced in the runbook, NOT a dependency of this package) and a " +
-        `deployed accounting MCP endpoint. Missing/unmet: ${missing.join(", ")}. ` +
+      "runLiveBrainSession cannot run: its creds/kill-switch gate is unmet or no Agent-SDK session launcher " +
+        "was injected (the @anthropic-ai/claude-agent-sdk-backed launcher lives in apps/cli — NOT a dependency of " +
+        `@workspace/intake). Missing/unmet: ${missing.join(", ")}. ` +
         "See docs/runbooks/BRAIN-CC-HARNESS.md for the wiring + first-live-run procedure.",
     )
     this.name = "BrainHarnessNotWiredError"
@@ -223,25 +264,31 @@ export class BrainHarnessNotWiredError extends Error {
 }
 
 /**
- * CREDS-GATED live-run entry point. It does NOT fake a session: it fails loud with a precise requirements
- * error until (a) the required env is present AND (b) the Agent-SDK wiring lands at deploy time.
+ * CREDS-GATED live-run entry point. It NEVER fakes a session and NEVER runs a write lane the server holds OFF:
  *
- * Even once the env is present this still throws `BrainHarnessNotWiredError` — the Agent-SDK launch + the
- * MCP connection are the deploy-time wiring step (documented in the runbook), and shipping a body that
- * silently no-ops or fabricates a result would be WORSE than none (the cardinal sin: confident-wrong). The
- * env check runs first so the failure names precisely which creds are still missing, guiding the operator.
+ *   1. It fails closed on the env/creds gate + the `BRAIN_RUNTIME_ACTIVE=1` write-lane kill-switch FIRST,
+ *      before touching the launcher, naming exactly what is missing.
+ *   2. Only then, if an `AgentSessionLauncher` was injected, does it delegate — handing the launcher the
+ *      session config derived from the inspected dry-run plan. If no launcher was injected it fails closed
+ *      (the SDK-backed launcher lives in `apps/cli`, so this package pulls in no SDK dependency).
+ *
+ * This is real wiring, not a stub: with a launcher + full env it launches the session and returns its
+ * result; with anything unmet it fails loud. The SERVER gate still holds every write at cold start — the
+ * launcher can only PROPOSE, never force a green (the auto-apply lane's three-way AND is server-side).
  */
 export async function runLiveBrainSession(
   inputs: LiveBrainSessionInputs,
 ): Promise<LiveBrainSessionResult> {
   const missing: string[] = []
 
-  // Fail-closed env gate. Every name is required for a real session; a missing one is named explicitly.
-  for (const [, envName] of Object.entries(BRAIN_HARNESS_REQUIRED_ENV)) {
-    if (!inputs.readEnv(envName)) missing.push(`env ${envName}`)
+  // Fail-closed env gate. Read each required name ONCE into `values`; a missing one is named explicitly.
+  const values: Record<string, string | undefined> = {}
+  for (const envName of Object.values(BRAIN_HARNESS_REQUIRED_ENV)) {
+    values[envName] = inputs.readEnv(envName)
+    if (!values[envName]) missing.push(`env ${envName}`)
   }
   // The write-lane kill-switch must be explicitly ON — a set-but-not-"1" value is still closed.
-  if (inputs.readEnv(BRAIN_HARNESS_REQUIRED_ENV.runtimeActive) !== "1") {
+  if (values[BRAIN_HARNESS_REQUIRED_ENV.runtimeActive] !== "1") {
     missing.push(
       `${BRAIN_HARNESS_REQUIRED_ENV.runtimeActive}=1 (write lane OFF)`,
     )
@@ -249,10 +296,32 @@ export async function runLiveBrainSession(
   if (!inputs.mcpEndpoint)
     missing.push("deployed MCP endpoint (inputs.mcpEndpoint)")
 
-  // The Agent-SDK launch + MCP connection are not wired here (deploy-time step). Fail loud UNCONDITIONALLY,
-  // reporting whatever env is still missing so the operator sees the full gap. Never a silent stub.
-  missing.push(
-    "Agent-SDK session launch + MCP connection (deploy-time wiring — see runbook)",
-  )
-  throw new BrainHarnessNotWiredError(missing)
+  // Fail closed on env/kill-switch BEFORE the launcher is ever consulted — a launcher must never see a
+  // half-provisioned run, and the write lane must be explicitly ON.
+  if (missing.length > 0) throw new BrainHarnessNotWiredError(missing)
+
+  // No launcher injected = not wired. The SDK-backed launcher belongs in operator tooling (apps/cli), never
+  // in this package, so `@workspace/intake` carries no SDK dependency. Fail loud rather than fabricate a result.
+  if (!inputs.launcher) {
+    throw new BrainHarnessNotWiredError([
+      "Agent-SDK session launcher (inject an AgentSessionLauncher; the @anthropic-ai/claude-agent-sdk-backed one belongs in apps/cli)",
+    ])
+  }
+
+  // Narrow the two creds from the already-read `values` (no `!` casts, no re-read). The loop above guarantees
+  // they are present — this guard is the type-level proof and also defends against a non-deterministic readEnv.
+  const apiKey = values[BRAIN_HARNESS_REQUIRED_ENV.apiKey]
+  const agentSdkAuth = values[BRAIN_HARNESS_REQUIRED_ENV.agentSdkAuth]
+  if (!apiKey || !agentSdkAuth) {
+    throw new BrainHarnessNotWiredError(["env re-read returned empty creds"])
+  }
+
+  // Env is complete + the kill-switch is ON + a launcher is present. Hand the launcher the INSPECTED plan
+  // (it reads the login pack's system prompt + allow/deny lists directly) + endpoint + creds, and delegate.
+  return inputs.launcher.launch({
+    plan: inputs.plan,
+    mcpEndpoint: inputs.mcpEndpoint,
+    apiKey,
+    agentSdkAuth,
+  })
 }

@@ -14,6 +14,7 @@ import {
 } from "@workspace/auth/api-key-verifier"
 
 import { REQUIRED_SCOPES_KEY } from "./require-scopes.decorator"
+import { REQUIRE_HUMAN_ACTOR_KEY } from "./require-human-actor.decorator"
 
 /** Express request after a successful ApiKeyGuard pass. */
 export interface AuthedRequest extends Request {
@@ -51,8 +52,31 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException("Invalid or expired API key")
     }
     this.enforceScopes(context, principal)
+    this.enforceHumanActor(context, principal)
     req.principal = principal
     return true
+  }
+
+  /**
+   * [#517] Enforce `@RequireHumanActor()`: a route/controller so marked rejects
+   * any non-`human` actor key with 403. The invariant lives declaratively on the
+   * controller, so future routes inherit it instead of re-checking `actorKind`
+   * inline. `principal.actorKind` is narrowed fail-safe in the verifier (any
+   * non-`human` value resolves to `agent`), so this deny is total.
+   */
+  private enforceHumanActor(
+    context: ExecutionContext,
+    principal: ApiKeyPrincipal,
+  ): void {
+    const humanOnly = this.reflector.getAllAndOverride<boolean>(
+      REQUIRE_HUMAN_ACTOR_KEY,
+      [context.getHandler(), context.getClass()],
+    )
+    if (humanOnly && principal.actorKind !== "human") {
+      throw new ForbiddenException(
+        "Agent-actor API keys cannot access the held-write review surface; a human reviewer is required",
+      )
+    }
   }
 
   private enforceScopes(

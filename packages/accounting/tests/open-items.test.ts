@@ -914,3 +914,140 @@ describe("TODO-4 — bank-line decision (classifyCashMovement)", () => {
     ).toBe("low")
   })
 })
+
+describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
+  it("keeps domestic §92 + legacy-NULL issued PDP on A.1, routes EU-marked issued RC to SH only", async () => {
+    const s = await seedFull("2071-01-01", "2071-12-31")
+    await withOrganization(orgA, userId, async (db) => {
+      // (1) Domestic §92 PDP dodavatel — jurisdiction 'REVERSE_CHARGE' → stays on A.1.
+      const cpCz = await createCounterparty(db, s.ctx, {
+        name: "Stavby CZ s.r.o.",
+        taxId: "CZ12345678",
+        countryCode: "CZ",
+      })
+      const evCz = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cpCz,
+        description: "PDP stavba §92e",
+        occurredAt: "2071-05-01",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2071-05-01",
+        lines: [
+          {
+            eventId: evCz.eventId,
+            partials: [
+              {
+                baseAmount: "20000.00",
+                vatRate: "21",
+                vatMode: "REVERSE_CHARGE",
+                vatJurisdiction: "REVERSE_CHARGE",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      // (2) Legacy-NULL jurisdiction issued RC — NULL IS DISTINCT FROM 'EU' → stays on A.1.
+      const cpCz2 = await createCounterparty(db, s.ctx, {
+        name: "Kovošrot CZ s.r.o.",
+        taxId: "CZ87654321",
+        countryCode: "CZ",
+      })
+      const evCz2 = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cpCz2,
+        description: "PDP šrot §92c (legacy, no jurisdiction)",
+        occurredAt: "2071-06-01",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2071-06-01",
+        lines: [
+          {
+            eventId: evCz2.eventId,
+            partials: [
+              {
+                baseAmount: "15000.00",
+                vatRate: "21",
+                vatMode: "REVERSE_CHARGE",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      // (3) EU-marked issued RC (§9/1 service reverse-charged to the EU customer) —
+      // belongs on Souhrnné hlášení only, NOT on KH A.1 (the [#516] leak).
+      const cpEu = await createCounterparty(db, s.ctx, {
+        name: "Kunde GmbH",
+        taxId: "DE811234567",
+        countryCode: "DE",
+      })
+      const evEu = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cpEu,
+        description: "EU služba §9/1",
+        occurredAt: "2071-07-01",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2071-07-01",
+        lines: [
+          {
+            eventId: evEu.eventId,
+            partials: [
+              {
+                baseAmount: "30000.00",
+                vatRate: "21",
+                vatMode: "REVERSE_CHARGE",
+                vatJurisdiction: "EU",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const a1TaxIds = kh.a1.map((r) => r.tax_id)
+      // both domestic §92 rows present on A.1; the EU-marked row is absent.
+      expect(a1TaxIds).toContain("CZ12345678")
+      expect(a1TaxIds).toContain("CZ87654321")
+      expect(a1TaxIds).not.toContain("DE811234567")
+      expect(kh.a1.find((r) => r.tax_id === "CZ12345678")!.base21).toBe(
+        "20000.0000",
+      )
+      expect(kh.a1.find((r) => r.tax_id === "CZ87654321")!.base21).toBe(
+        "15000.0000",
+      )
+
+      // the EU-marked issued RC appears on Souhrnné hlášení (kód 0, no supply_kind).
+      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      const shEu = sh.rows.find((r) => r.tax_id === "DE811234567")
+      expect(shEu?.value).toBe("30000.0000")
+      expect(sh.rows.some((r) => r.tax_id === "CZ12345678")).toBe(false)
+
+      // DPH: the A.1 checksum + ř.25 exclude the EU base (20000 + 15000 = 35000),
+      // so the two A.1 numbers on the filed KH agree and ř.25 carries no EU leak.
+      const dph = await buildDph(db, s.periodId)
+      expect(dph.kh.a1_base).toBe("35000.0000")
+      expect(dph.rows.r25_base).toBe("35000.0000")
+    })
+  })
+})

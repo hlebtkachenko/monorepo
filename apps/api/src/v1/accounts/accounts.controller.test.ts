@@ -206,6 +206,7 @@ function principalFor(orgId: string, scopes: readonly string[] = []) {
     organizationId: orgId,
     workspaceId: "0196f1de-0000-7000-8000-0000000000bb",
     scopes,
+    actorKind: "human" as const,
   }
 }
 

@@ -330,15 +330,17 @@ export async function seedApiKey(
   sql: postgres.Sql,
   orgId: string,
   workspaceId: string,
+  actorKind: "human" | "agent" = "human",
 ): Promise<string> {
   const [row] = await sql<Array<{ id: string }>>`
-    INSERT INTO api_key (organization_id, workspace_id, name, prefix, key_hash)
+    INSERT INTO api_key (organization_id, workspace_id, name, prefix, key_hash, actor_kind)
     VALUES (
       ${orgId}::uuid,
       ${workspaceId}::uuid,
       'rls-test-key',
       'affk_test_xxxx',
-      ${"hash-" + Math.random().toString(36).slice(2) + Date.now().toString(36)}
+      ${"hash-" + Math.random().toString(36).slice(2) + Date.now().toString(36)},
+      ${actorKind}
     )
     RETURNING id
   `

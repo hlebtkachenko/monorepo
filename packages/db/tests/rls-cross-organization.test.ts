@@ -259,4 +259,43 @@ describe("RLS cross-organization isolation", () => {
       expect(rows.every((r) => r.id !== orgBId)).toBe(true)
     })
   })
+
+  describe("[#517] api_key.actor_kind capability column", () => {
+    let orgAId: string
+    let workspaceId: string
+
+    beforeAll(async () => {
+      const seed = await seedTwoOrganizations(adminSql)
+      orgAId = seed.orgAId
+      workspaceId = seed.workspaceId
+    })
+
+    it("defaults actor_kind to 'human' when the column is omitted on insert", async () => {
+      const [row] = await adminSql<Array<{ actor_kind: string }>>`
+        INSERT INTO api_key (organization_id, workspace_id, name, prefix, key_hash)
+        VALUES (${orgAId}::uuid, ${workspaceId}::uuid, 'defaults-human', 'affk_test_h',
+          ${"hash-h-" + Math.random().toString(36).slice(2)})
+        RETURNING actor_kind
+      `
+      expect(row?.actor_kind).toBe("human")
+    })
+
+    it("persists an 'agent' actor_kind (the Brain-key provisioning value)", async () => {
+      const id = await seedApiKey(adminSql, orgAId, workspaceId, "agent")
+      const [row] = await adminSql<Array<{ actor_kind: string }>>`
+        SELECT actor_kind FROM api_key WHERE id = ${id}::uuid
+      `
+      expect(row?.actor_kind).toBe("agent")
+    })
+
+    it("rejects an out-of-domain actor_kind (CHECK constraint)", async () => {
+      await expect(
+        adminSql`
+          INSERT INTO api_key (organization_id, workspace_id, name, prefix, key_hash, actor_kind)
+          VALUES (${orgAId}::uuid, ${workspaceId}::uuid, 'bad-kind', 'affk_test_x',
+            ${"hash-x-" + Math.random().toString(36).slice(2)}, 'robot')
+        `,
+      ).rejects.toThrow()
+    })
+  })
 })

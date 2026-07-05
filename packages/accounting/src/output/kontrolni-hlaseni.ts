@@ -105,22 +105,25 @@ function standardDokladCte(periodId: string, type: string) {
 
 /**
  * Reverse-charge doklad rows (A.1 issued PDP, A.2 EU acquisition, B.1 domestic
- * PDP received): base + self-assessed daň per rate per doklad. `euOnly` selects
- * A.2 (jurisdiction = 'EU') vs B.1 (domestic, jurisdiction ≠ 'EU'); ignored for
- * the ISSUED side (A.1, daň 0).
+ * PDP received): base + self-assessed daň per rate per doklad. `euFilter` selects
+ * A.2 (jurisdiction = 'EU') vs B.1/A.1 (domestic, jurisdiction IS DISTINCT FROM
+ * 'EU'). A.1 uses `DOMESTIC` ([#516]) so EU-marked issued reverse-charge supplies
+ * (SH-only) do not leak onto the KH; the ISSUED side still carries daň 0.
  */
 async function reverseChargeRows(
   db: RowExecutor,
   periodId: string,
   type: string,
-  euFilter: "EU" | "DOMESTIC" | "ANY",
+  // Every caller MUST pick a jurisdiction. There is deliberately no unfiltered
+  // ("ANY") mode: that was the #516 leak that put EU-marked issued reverse-charge
+  // onto KH A.1, and dropping it from the union makes that regression
+  // unrepresentable — a new call site cannot reintroduce it.
+  euFilter: "EU" | "DOMESTIC",
 ): Promise<KhRow[]> {
   const jurisdiction =
     euFilter === "EU"
       ? sql`AND pr.vat_jurisdiction = 'EU'`
-      : euFilter === "DOMESTIC"
-        ? sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU'`
-        : sql``
+      : sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU'`
   // A.1 (ISSUED PDP dodavatel) carries no daň — the odběratel self-assesses; the
   // A.1 form has základ + kód only. On the received side the příjemce self-assesses.
   const dan = (rate: number) =>
@@ -203,7 +206,14 @@ export async function buildKontrolniHlaseni(
   periodId: string,
 ): Promise<KontrolniHlaseni> {
   const [a1, a2, a4, a5, b1, b2, b3] = await Promise.all([
-    reverseChargeRows(db, periodId, "ISSUED_INVOICE", "ANY"),
+    // [#516] A.1 = domestic §92 PDP dodavatel ONLY. An EU-marked ISSUED
+    // reverse-charge supply (a §9/1 service reverse-charged to the EU customer)
+    // belongs on Souhrnné hlášení (kód 3), never on KH A.1 — `DOMESTIC`
+    // (vat_jurisdiction IS DISTINCT FROM 'EU') keeps the real §92 rows
+    // (jurisdiction 'REVERSE_CHARGE' / legacy NULL) and drops only 'EU'. The
+    // souhrnné-hlášení emitter already reports those EU rows, so `ANY` here
+    // double-reported them onto the KH. Symmetric with B.1 (RECEIVED domestic).
+    reverseChargeRows(db, periodId, "ISSUED_INVOICE", "DOMESTIC"),
     reverseChargeRows(db, periodId, "RECEIVED_INVOICE", "EU"),
     standardRowsOverThreshold(db, periodId, "ISSUED_INVOICE"),
     standardAggregate(db, periodId, "ISSUED_INVOICE"),

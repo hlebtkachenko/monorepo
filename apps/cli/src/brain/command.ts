@@ -18,6 +18,12 @@ import {
   type BrainDryRunInputs,
 } from "@workspace/intake"
 import { assembleBookPlan, renderBookPlan, type BookContext } from "./book"
+import {
+  assembleExtractPlan,
+  renderExtractPlan,
+  toDocumentBlock,
+  type ExtractContext,
+} from "./extract"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
 export function registerBrainCommand(program: Command): void {
@@ -143,6 +149,108 @@ export function registerBrainCommand(program: Command): void {
         }
       },
     )
+
+  brain
+    .command("extract")
+    .description(
+      "LOCAL vision-OCR pre-pass: read a PDF/image and produce an IR Invoice + field-level provenance + a " +
+        "layout fingerprint, using the workspace OCR template library. It runs OUTSIDE the booking sandbox and " +
+        "NEVER books. The file is fed to the model as an image/document CONTENT BLOCK (not a Read tool). " +
+        "--dry-run assembles + prints the session config only, no creds.",
+    )
+    .argument(
+      "<path>",
+      "The local PDF or image (png/jpg/jpeg/gif/webp) to extract",
+    )
+    .requiredOption(
+      "--context <path>",
+      "Path to a JSON file: { sections } (the login-pack safety spine; extract needs NO tenancy context)",
+    )
+    .option(
+      "--supplier <key>",
+      "Optional supplier hint (IČO or normalized name) to narrow the template lookup",
+    )
+    .option(
+      "--dry-run",
+      "Assemble + print the extract session config only; contact no endpoint (no creds needed)",
+    )
+    .option(
+      "--live",
+      "Actually run the extract session against the deployed MCP endpoint (needs creds)",
+    )
+    .action(
+      async (
+        path: string,
+        opts: {
+          context: string
+          supplier?: string
+          dryRun?: boolean
+          live?: boolean
+        },
+      ) => {
+        const ctx = readExtractContext(opts.context)
+        // Read the target file's bytes HERE (trusted CLI code) and turn them into a content-block descriptor.
+        // The bytes ride in the message content, NEVER through a Read tool — the extract session has none.
+        const document = toDocumentBlock(
+          path,
+          new Uint8Array(readFileSync(path)),
+        )
+        const plan = assembleExtractPlan(document, ctx, opts.supplier)
+
+        // Always PRINT the assembled session config first (default-deny tool lists, the content-block fact,
+        // the fixed kickoff), so an operator sees exactly what a live run would do before it runs.
+        output.write(renderExtractPlan(plan))
+
+        if (!opts.live || opts.dryRun) return
+
+        // Lazy-load the SDK-backed launcher only when actually running live (mirrors `run` / `book`).
+        const { sdkExtractSession } = await import("./sdk-launcher")
+        const mcpEndpoint = process.env.BRAIN_MCP_ENDPOINT ?? ""
+        const apiKey = process.env.BRAIN_API_KEY ?? ""
+        const agentSdkAuth = process.env.BRAIN_AGENT_SDK_AUTH ?? ""
+        const missing = [
+          ["BRAIN_MCP_ENDPOINT", mcpEndpoint],
+          ["BRAIN_API_KEY", apiKey],
+          ["BRAIN_AGENT_SDK_AUTH", agentSdkAuth],
+        ]
+          .filter(([, value]) => !value)
+          .map(([name]) => name)
+        if (missing.length > 0) {
+          // Fail-closed: name exactly which creds are unmet, exit non-zero, no stack.
+          output.write(
+            `brain extract blocked: missing ${missing.join(", ")}. Set them (workspace OCR-template key) to run live.\n`,
+          )
+          process.exit(1)
+        }
+
+        const result = await sdkExtractSession({
+          session: { sections: ctx.sections, supplierHint: opts.supplier },
+          mcpEndpoint,
+          apiKey,
+          agentSdkAuth,
+          document,
+        })
+        output.write(
+          `\n[extract session ${result.sessionId}]\n${result.report}\n`,
+        )
+      },
+    )
+}
+
+/** Read + shallow-validate the operator-supplied `extract` context: JUST the login-pack sections (no tenancy). */
+function readExtractContext(path: string): ExtractContext {
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("sections" in parsed)
+  ) {
+    throw new Error(
+      `--context file ${path} must be a JSON object with key: sections`,
+    )
+  }
+  const obj = parsed as Record<string, unknown>
+  return { sections: obj.sections } as ExtractContext
 }
 
 /** Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context. */

@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.2] — 2026-07-05
+
+Patch release: version the agent safety + code-quality gates in the repo (tooling only; no product/app change).
+
+### Changed
+
+- **governance**: the Brain safety gate (`.claude/workflows/brain-gate.js` — two independent top-tier reviewers, Fable 5 high + Opus 4.8 xhigh, that adversarially hunt confident-wrong paths + safety-invariant violations, then synthesize a ruling) and the thermo-nuclear code-quality gate (`.claude/workflows/thermo-review.js` + the `.claude/skills/thermo-nuclear-code-quality-review/` methodology) are now tracked in the repo instead of workspace-local + gitignored, so every clone/worktree has them. `.gitignore` surgically un-ignores only those two workflow scripts (everything else under `.claude/workflows/` stays local scratch); `packages/brain/CLAUDE.md` points every Brain agent at the mandatory gate. (#546)
+
 ## [v0.16.1] — 2026-07-05
 
 Patch release: fix the release pipeline for GitHub immutable releases.

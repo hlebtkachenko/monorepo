@@ -40,6 +40,10 @@
     {
       "name": "Structure",
       "description": "Application information architecture — modules, pages, and layout archetypes for agent discovery"
+    },
+    {
+      "name": "OCR Templates",
+      "description": "Workspace-shared Brain OCR extraction templates (learned supplier invoice layouts)"
     }
   ],
   "components": {
@@ -4478,6 +4482,15 @@
             "minItems": 1,
             "maxItems": 200
           },
+          "templateId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "OCR extraction template this capture was derived from (null for structured-export captures). NOT domain data — carried alongside the gate envelope so a future server veto leg can key off the template's confirmation state; it is stripped before the domain mutation runs.",
+            "example": "0196f1de-0000-7000-8000-0000000000e1"
+          },
           "confidence": {
             "type": "number",
             "minimum": 0,
@@ -6815,6 +6828,400 @@
           }
         },
         "description": "Partial edit of an account. At least one editable field must be provided (the api rejects an empty body with 422)."
+      },
+      "OcrTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Template id.",
+            "example": "0196f1de-0000-7000-8000-0000000000e1"
+          },
+          "supplierKey": {
+            "type": "string",
+            "description": "Supplier identity the layout belongs to — an IČO or a normalized supplier name.",
+            "example": "27082440"
+          },
+          "docKind": {
+            "type": "string",
+            "description": "Document kind this template extracts (e.g. invoice).",
+            "example": "RECEIVED_INVOICE"
+          },
+          "locators": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Field → region map the extractor keys off (opaque Brain-owned JSON)."
+          },
+          "layoutFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Hash of the field-region geometry, used to re-detect layout drift. Null until first learned.",
+            "example": "sha256:9f2c…"
+          },
+          "humanConfirmedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a human confirmed this template. NULL = unconfirmed (the trust gate); only a human-actor key may set it via the confirm endpoint.",
+            "example": null
+          },
+          "heldCount": {
+            "type": "integer",
+            "description": "How many captures derived from this template were HELD for review. A learning signal; not client-settable.",
+            "example": 0
+          },
+          "lastRejectAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When a capture derived from this template was last rejected, or null.",
+            "example": null
+          },
+          "version": {
+            "type": "integer",
+            "description": "Refinement version — bumped every time the template is refined (PUT).",
+            "example": 1
+          },
+          "learnedAt": {
+            "type": "string",
+            "description": "When the template was first learned.",
+            "example": "2026-07-05T10:15:00.000Z"
+          },
+          "provenance": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "Opaque Brain-owned provenance blob (how the template was learned)."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Row creation timestamp.",
+            "example": "2026-07-05T10:15:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Row last-update timestamp.",
+            "example": "2026-07-05T10:15:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "supplierKey",
+          "docKind",
+          "locators",
+          "layoutFingerprint",
+          "humanConfirmedAt",
+          "heldCount",
+          "lastRejectAt",
+          "version",
+          "learnedAt",
+          "provenance",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A workspace-shared OCR extraction template. Workspace-scoped (FORCE RLS) — shared across every organization in the office."
+      },
+      "ListOcrTemplatesResponse": {
+        "type": "object",
+        "properties": {
+          "templates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Template id.",
+                  "example": "0196f1de-0000-7000-8000-0000000000e1"
+                },
+                "supplierKey": {
+                  "type": "string",
+                  "description": "Supplier identity the layout belongs to — an IČO or a normalized supplier name.",
+                  "example": "27082440"
+                },
+                "docKind": {
+                  "type": "string",
+                  "description": "Document kind this template extracts (e.g. invoice).",
+                  "example": "RECEIVED_INVOICE"
+                },
+                "locators": {
+                  "type": "object",
+                  "additionalProperties": {},
+                  "description": "Field → region map the extractor keys off (opaque Brain-owned JSON)."
+                },
+                "layoutFingerprint": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Hash of the field-region geometry, used to re-detect layout drift. Null until first learned.",
+                  "example": "sha256:9f2c…"
+                },
+                "humanConfirmedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "When a human confirmed this template. NULL = unconfirmed (the trust gate); only a human-actor key may set it via the confirm endpoint.",
+                  "example": null
+                },
+                "heldCount": {
+                  "type": "integer",
+                  "description": "How many captures derived from this template were HELD for review. A learning signal; not client-settable.",
+                  "example": 0
+                },
+                "lastRejectAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "When a capture derived from this template was last rejected, or null.",
+                  "example": null
+                },
+                "version": {
+                  "type": "integer",
+                  "description": "Refinement version — bumped every time the template is refined (PUT).",
+                  "example": 1
+                },
+                "learnedAt": {
+                  "type": "string",
+                  "description": "When the template was first learned.",
+                  "example": "2026-07-05T10:15:00.000Z"
+                },
+                "provenance": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "additionalProperties": {},
+                  "description": "Opaque Brain-owned provenance blob (how the template was learned)."
+                },
+                "createdAt": {
+                  "type": "string",
+                  "description": "Row creation timestamp.",
+                  "example": "2026-07-05T10:15:00.000Z"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "description": "Row last-update timestamp.",
+                  "example": "2026-07-05T10:15:00.000Z"
+                }
+              },
+              "required": [
+                "id",
+                "supplierKey",
+                "docKind",
+                "locators",
+                "layoutFingerprint",
+                "humanConfirmedAt",
+                "heldCount",
+                "lastRejectAt",
+                "version",
+                "learnedAt",
+                "provenance",
+                "createdAt",
+                "updatedAt"
+              ],
+              "description": "A workspace-shared OCR extraction template. Workspace-scoped (FORCE RLS) — shared across every organization in the office."
+            },
+            "description": "OCR templates in the caller's workspace matching filters."
+          }
+        },
+        "required": [
+          "templates"
+        ],
+        "description": "The workspace's OCR extraction templates (workspace-scoped, FORCE RLS)."
+      },
+      "OcrTemplateResponse": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Template id.",
+                "example": "0196f1de-0000-7000-8000-0000000000e1"
+              },
+              "supplierKey": {
+                "type": "string",
+                "description": "Supplier identity the layout belongs to — an IČO or a normalized supplier name.",
+                "example": "27082440"
+              },
+              "docKind": {
+                "type": "string",
+                "description": "Document kind this template extracts (e.g. invoice).",
+                "example": "RECEIVED_INVOICE"
+              },
+              "locators": {
+                "type": "object",
+                "additionalProperties": {},
+                "description": "Field → region map the extractor keys off (opaque Brain-owned JSON)."
+              },
+              "layoutFingerprint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Hash of the field-region geometry, used to re-detect layout drift. Null until first learned.",
+                "example": "sha256:9f2c…"
+              },
+              "humanConfirmedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When a human confirmed this template. NULL = unconfirmed (the trust gate); only a human-actor key may set it via the confirm endpoint.",
+                "example": null
+              },
+              "heldCount": {
+                "type": "integer",
+                "description": "How many captures derived from this template were HELD for review. A learning signal; not client-settable.",
+                "example": 0
+              },
+              "lastRejectAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When a capture derived from this template was last rejected, or null.",
+                "example": null
+              },
+              "version": {
+                "type": "integer",
+                "description": "Refinement version — bumped every time the template is refined (PUT).",
+                "example": 1
+              },
+              "learnedAt": {
+                "type": "string",
+                "description": "When the template was first learned.",
+                "example": "2026-07-05T10:15:00.000Z"
+              },
+              "provenance": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": {},
+                "description": "Opaque Brain-owned provenance blob (how the template was learned)."
+              },
+              "createdAt": {
+                "type": "string",
+                "description": "Row creation timestamp.",
+                "example": "2026-07-05T10:15:00.000Z"
+              },
+              "updatedAt": {
+                "type": "string",
+                "description": "Row last-update timestamp.",
+                "example": "2026-07-05T10:15:00.000Z"
+              }
+            },
+            "required": [
+              "id",
+              "supplierKey",
+              "docKind",
+              "locators",
+              "layoutFingerprint",
+              "humanConfirmedAt",
+              "heldCount",
+              "lastRejectAt",
+              "version",
+              "learnedAt",
+              "provenance",
+              "createdAt",
+              "updatedAt"
+            ],
+            "description": "A workspace-shared OCR extraction template. Workspace-scoped (FORCE RLS) — shared across every organization in the office."
+          }
+        },
+        "required": [
+          "template"
+        ],
+        "description": "A single OCR extraction template."
+      },
+      "CreateOcrTemplateRequest": {
+        "type": "object",
+        "properties": {
+          "supplierKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Supplier identity — an IČO or normalized supplier name.",
+            "example": "27082440"
+          },
+          "docKind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Document kind this template extracts.",
+            "example": "RECEIVED_INVOICE"
+          },
+          "locators": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Field → region map (opaque Brain-owned JSON)."
+          },
+          "layoutFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255,
+            "description": "Hash of the field-region geometry (drift detection).",
+            "example": "sha256:9f2c…"
+          },
+          "provenance": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "Opaque provenance blob."
+          }
+        },
+        "required": [
+          "supplierKey",
+          "docKind",
+          "locators"
+        ],
+        "description": "Create a new UNCONFIRMED OCR template. `human_confirmed_at` (null) and `held_count` (0) are server-pinned; the workspace comes from the API key."
+      },
+      "UpdateOcrTemplateRequest": {
+        "type": "object",
+        "properties": {
+          "locators": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Replacement field → region map."
+          },
+          "layoutFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255,
+            "description": "Replacement layout fingerprint.",
+            "example": "sha256:aa11…"
+          },
+          "provenance": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "Replacement provenance blob."
+          }
+        },
+        "description": "Refine an OCR template. RESETS `human_confirmed_at` to null and bumps `version` — a refined template must be re-confirmed by a human."
       }
     },
     "parameters": {}
@@ -8544,6 +8951,260 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetAccountResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/ocr-templates": {
+      "get": {
+        "operationId": "listOcrTemplates",
+        "summary": "List OCR extraction templates",
+        "description": "Returns the workspace's OCR extraction templates — the Brain's learned supplier invoice layouts, WORKSPACE-scoped (FORCE RLS) and shared across every organization in the accountant's office. Optionally filter by `supplierKey` and `docKind`. Both human and agent keys may read.",
+        "tags": [
+          "OCR Templates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Filter to one supplier (IČO or normalized name).",
+              "example": "27082440"
+            },
+            "required": false,
+            "description": "Filter to one supplier (IČO or normalized name).",
+            "name": "supplierKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Filter to one document kind.",
+              "example": "RECEIVED_INVOICE"
+            },
+            "required": false,
+            "description": "Filter to one document kind.",
+            "name": "docKind",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's OCR templates matching the filters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListOcrTemplatesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createOcrTemplate",
+        "summary": "Create an OCR extraction template",
+        "description": "Creates a NEW, UNCONFIRMED template in the caller's workspace. The server pins `humanConfirmedAt` to null and `heldCount` to 0 — a fresh template is never auto-trusted; a human must confirm it via `POST /v1/ocr-templates/{id}/confirm`. Agent keys may create. Requires the `accounting:write` scope. The workspace comes from the API key.",
+        "tags": [
+          "OCR Templates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOcrTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created (unconfirmed) template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrTemplateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/ocr-templates/{id}": {
+      "put": {
+        "operationId": "updateOcrTemplate",
+        "summary": "Refine an OCR extraction template",
+        "description": "Refines an existing template (replacing its learned fields). A refine RE-OPENS the trust gate: the server resets `humanConfirmedAt` to null and bumps `version`, so a refined template must be re-confirmed by a human. Identity (`supplierKey` / `docKind`) is immutable through this surface. Agent keys may refine. Requires the `accounting:write` scope. Returns 404 when the template is not visible to the caller's workspace.",
+        "tags": [
+          "OCR Templates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "OCR template id, resolved within the API key's workspace.",
+              "example": "0196f1de-0000-7000-8000-0000000000e1"
+            },
+            "required": true,
+            "description": "OCR template id, resolved within the API key's workspace.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOcrTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The refined (now unconfirmed) template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrTemplateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/ocr-templates/{id}/confirm": {
+      "post": {
+        "operationId": "confirmOcrTemplate",
+        "summary": "Confirm an OCR extraction template",
+        "description": "Marks a template as human-confirmed (sets `humanConfirmedAt` to now). HUMAN-ACTOR ONLY: an agent-actor key is rejected with 403 — confirmation is the trust boundary that a human, not the Brain, must cross. Returns 404 when the template is not visible to the caller's workspace.",
+        "tags": [
+          "OCR Templates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "OCR template id, resolved within the API key's workspace.",
+              "example": "0196f1de-0000-7000-8000-0000000000e1"
+            },
+            "required": true,
+            "description": "OCR template id, resolved within the API key's workspace.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The confirmed template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrTemplateResponse"
                 }
               }
             }

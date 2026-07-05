@@ -84,6 +84,14 @@ export interface GatedWriteOptions<T> {
    * so green stays unreachable at cold start regardless.
    */
   signals?: EvidenceEnvelope | null
+  /**
+   * [WS-2] OCR extraction template this capture was derived from (`null`/absent
+   * for structured-export captures). NOT domain data — it never reaches the
+   * domain mutation; it is persisted with the gated write (audit `serverGate`)
+   * and passed to `deriveVeto` so a future server veto leg can key off the
+   * template's confirmation state. Optional: ops with no template omit it.
+   */
+  templateId?: string | null
   /** Decimal-string amounts tested against the always-hold ceiling. */
   holdAmounts: string[]
   /**
@@ -261,6 +269,11 @@ export async function runGatedWriteWithSeams<T>(
               firedSignals: score.firedSignals,
               reasons: score.reasons,
             },
+            // [WS-2] The OCR template the capture was derived from, persisted with
+            // the gated write so a future server veto leg (template not
+            // human-confirmed → hold) can key off it. Audit-only, stripped from
+            // the replay body like the rest of `serverGate`.
+            templateId: opts.templateId ?? null,
           }
 
           if (autoApply) {

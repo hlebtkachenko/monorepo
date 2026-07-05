@@ -299,12 +299,15 @@ export class HeldWritesController {
         if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
         // Same strip as events: the gate envelope + [WP-D] `signals` are not
         // domain data. The `signals` strip is load-bearing (the cast to
-        // DocumentInput is `as unknown`, so TS cannot catch a leak).
+        // DocumentInput is `as unknown`, so TS cannot catch a leak). [WS-2]
+        // `templateId` is stripped too — it is audit-only (persisted with the
+        // original gated write) and must not reach `DocumentInput`.
         const {
           confidence: _c,
           rationale: _r,
           conversationId: _cv,
           signals: _sig,
+          templateId: _tpl,
           ...fields
         } = parsed.data
         await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)

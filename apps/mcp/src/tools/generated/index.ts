@@ -29,6 +29,9 @@ import { registerCreateInvoice } from "./createInvoice"
 import { registerGetInvoice } from "./getInvoice"
 import { registerListAccounts } from "./listAccounts"
 import { registerGetAccount } from "./getAccount"
+import { registerListOcrTemplates } from "./listOcrTemplates"
+import { registerCreateOcrTemplate } from "./createOcrTemplate"
+import { registerConfirmOcrTemplate } from "./confirmOcrTemplate"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -59,6 +62,9 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerGetInvoice(server, client)
   registerListAccounts(server, client)
   registerGetAccount(server, client)
+  registerListOcrTemplates(server, client)
+  registerCreateOcrTemplate(server, client)
+  registerConfirmOcrTemplate(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -90,4 +96,7 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "getInvoice",
   "listAccounts",
   "getAccount",
+  "listOcrTemplates",
+  "createOcrTemplate",
+  "confirmOcrTemplate",
 ] as const

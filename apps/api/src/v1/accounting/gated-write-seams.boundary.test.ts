@@ -15,17 +15,19 @@ import { describe, expect, it } from "vitest"
  *
  * This test is the belt-and-braces residual: it walks the real TypeScript AST of
  * every non-test source file under `apps/api/src` and asserts none of them
- * IMPORT or CALL `runGatedWriteWithSeams` — the only remaining way a production
- * caller could vacate the server-score leg of the auto-apply three-way AND. The
- * defining module (`accounting-writes.gate.ts`, whose production wrapper legally
- * delegates to the seam form) is exempt. Using the compiler's parser means
- * comments, strings, regex literals, and template interpolations are handled
- * correctly — no hand-rolled lexer to go silently blind.
+ * REFERENCE `runGatedWriteWithSeams` — the only remaining way a production caller
+ * could vacate the server-score leg of the auto-apply three-way AND. It counts
+ * every `Identifier` with that exact text, so it catches a direct call, a direct
+ * or ALIASED import (`{ runGatedWriteWithSeams as x }`), a NAMESPACE-property call
+ * (`import * as g; g.runGatedWriteWithSeams(...)`), and a re-export alike — any
+ * occurrence is fail-closed. The declaration lives only in the exempted definer
+ * (`accounting-writes.gate.ts`, whose production wrapper legally delegates), so an
+ * identifier occurrence in any OTHER production file is a real reference.
  */
 
 const API_SRC = resolve(__dirname, "..", "..")
 const SEAM_FN = "runGatedWriteWithSeams"
-const DEFINER = "accounting-writes.gate.ts" // production wrapper + declaration live here
+const DEFINER = "accounting-writes.gate.ts" // declaration + production wrapper delegation live here
 const SEAM_TEST = "accounting-writes.gate.test.ts" // exercises the seam form (non-vacuous anchor)
 
 /** All `.ts` under `dir` (recursive), partitioned into test vs non-test. */
@@ -45,49 +47,47 @@ function collectSources(dir: string): { test: string[]; prod: string[] } {
   return { test, prod }
 }
 
-/** Count IMPORTs + CALLs of `runGatedWriteWithSeams` via the real TS AST. The
- * `function runGatedWriteWithSeams(...)` DECLARATION is neither, so it is not
- * counted — the definer's own wrapper delegation IS a call and is why the
- * definer file is exempted at the call site, not here. */
-function seamReferenceCount(file: string): number {
+/**
+ * Count every `Identifier` named `runGatedWriteWithSeams` in `source` via the real
+ * TS AST. This is deliberately maximal: an import (default or aliased — the
+ * `propertyName` identifier carries the imported name), a namespace property
+ * access, a re-export specifier, and a direct call ALL surface the identifier, so
+ * no import/reference form can evade it. Comments, strings, and regex literals are
+ * not identifiers, so they never false-positive.
+ */
+function seamIdentifierCount(source: string, fileName: string): number {
   const sf = ts.createSourceFile(
-    file,
-    readFileSync(file, "utf8"),
+    fileName,
+    source,
     ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
   )
   let count = 0
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === SEAM_FN
-    ) {
-      count++
-    } else if (ts.isImportSpecifier(node) && node.name.text === SEAM_FN) {
-      count++
-    }
+    if (ts.isIdentifier(node) && node.text === SEAM_FN) count++
     ts.forEachChild(node, visit)
   }
   visit(sf)
   return count
 }
 
+const countInFile = (file: string): number =>
+  seamIdentifierCount(readFileSync(file, "utf8"), file)
+
 describe("[#519] runGatedWrite seam boundary", () => {
   const { test: testFiles, prod: prodFiles } = collectSources(API_SRC)
 
   it("scans real sources and the AST detects the seam form (non-vacuous)", () => {
     expect(prodFiles.length).toBeGreaterThan(0)
-    // The seam test must reference the seam form, proving the AST walk detects it.
     const seamTest = testFiles.find((f) => f.endsWith(SEAM_TEST))
     expect(seamTest).toBeDefined()
-    expect(seamReferenceCount(seamTest!)).toBeGreaterThanOrEqual(1)
+    expect(countInFile(seamTest!)).toBeGreaterThanOrEqual(1)
   })
 
-  it("no production source imports or calls the test-only seam form", () => {
+  it("no production source references the test-only seam form", () => {
     const offenders = prodFiles
       .filter((f) => !f.endsWith(DEFINER))
-      .filter((f) => seamReferenceCount(f) > 0)
+      .filter((f) => countInFile(f) > 0)
       .map((f) => f.replace(API_SRC, "apps/api/src/.."))
     expect(
       offenders,
@@ -95,5 +95,37 @@ describe("[#519] runGatedWrite seam boundary", () => {
         `scoreEvidence there vacates the server-score leg of the auto-apply AND. Call ` +
         `runGatedWrite (one arg, fail-closed defaults) instead. Offenders: ${offenders.join(", ")}`,
     ).toEqual([])
+  })
+
+  // Prove the detector cannot be evaded by an obfuscated reference form — every
+  // import/call shape that reaches the seam form must be caught (fixtures, not
+  // real files, so the scan above stays truthful).
+  it("detects every reference form (direct, aliased, namespace, re-export)", () => {
+    const positives: Record<string, string> = {
+      "direct call": `import { runGatedWriteWithSeams } from "./g"\nrunGatedWriteWithSeams(o, a, s)`,
+      "aliased import + call": `import { runGatedWriteWithSeams as rgw } from "./g"\nrgw(o, a, s)`,
+      "namespace property call": `import * as g from "./g"\ng.runGatedWriteWithSeams(o, a, s)`,
+      "re-export": `export { runGatedWriteWithSeams } from "./g"`,
+      "reference in a string is ignored (not an identifier)": `const s = "runGatedWriteWithSeams"`,
+    }
+    expect(
+      seamIdentifierCount(positives["direct call"]!, "f.ts"),
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      seamIdentifierCount(positives["aliased import + call"]!, "f.ts"),
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      seamIdentifierCount(positives["namespace property call"]!, "f.ts"),
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      seamIdentifierCount(positives["re-export"]!, "f.ts"),
+    ).toBeGreaterThanOrEqual(1)
+    // A string literal must NOT count — no false positive from prose/data.
+    expect(
+      seamIdentifierCount(
+        positives["reference in a string is ignored (not an identifier)"]!,
+        "f.ts",
+      ),
+    ).toBe(0)
   })
 })

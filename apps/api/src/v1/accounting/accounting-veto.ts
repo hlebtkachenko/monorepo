@@ -1,6 +1,7 @@
 import {
   decimalToMinor,
   firedHardClassSignals,
+  NOVEL_TEMPLATE_KIND,
 } from "@workspace/brain/confidence"
 import {
   and,
@@ -217,25 +218,31 @@ export function deriveCaptureVeto(
  * and the table's workspace RLS policies key on that GUC — so a workspace-scoped
  * read of the template inside the org tx sees exactly this workspace's rows.
  *
- * Returns `{ novel: true }` when the template is present + unconfirmed (fires
- * `novel_template`); `{ novel: false }` when it is confirmed OR not found (a
- * template id that resolves to no row under this workspace's RLS cannot be
- * positively confirmed, but it also carries no extraction to hold here — the
+ * Returns `true` when the template is present + unconfirmed (fires
+ * `novel_template`); `false` when it is confirmed OR not found (a template id
+ * that resolves to no row under this workspace's RLS cannot be positively
+ * confirmed, but it also carries no extraction to hold here — the
  * omitted/absent-template fail-closed case is a documented B2/M4 precondition,
- * out of B1.5 scope). Optionally bumps `held_count` for telemetry on each hold.
+ * out of B1.5 scope).
+ *
+ * NAME is honest about the WRITE: this is not a pure read like its
+ * `deriveCaptureVeto`/`derivePostingVeto` siblings — it bumps `held_count` in-tx
+ * for telemetry on each hold it forces.
  */
-export interface TemplateNoveltyResult {
-  /** True => the template is unconfirmed; fire `novel_template` into the score. */
-  readonly novel: boolean
-}
 
-/** The Tier-3 DEFER signal an unconfirmed OCR template injects into the score. */
-export const NOVEL_TEMPLATE_SIGNAL = "novel_template"
+/**
+ * The Tier-3 DEFER signal an unconfirmed OCR template injects into the score.
+ * Re-exported from the brain taxonomy's `NOVEL_TEMPLATE_KIND` (the single source
+ * of truth in `packages/brain/src/confidence/signals.ts`), NOT a decoupled
+ * literal: removing/renaming the taxonomy entry breaks this — and the veto — at
+ * compile time instead of silently going inert.
+ */
+export const NOVEL_TEMPLATE_SIGNAL = NOVEL_TEMPLATE_KIND
 
-export async function deriveTemplateNovelty(
+export async function screenTemplateNovelty(
   db: OrganizationBoundDb,
   templateId: string,
-): Promise<TemplateNoveltyResult> {
+): Promise<boolean> {
   // Workspace-scoped read; resolves under the org tx's app.workspace_id GUC (see
   // the doc comment). RLS narrows to this workspace's templates.
   const rows = await db
@@ -250,7 +257,7 @@ export async function deriveTemplateNovelty(
   const row = rows[0]
   // Not found under this workspace's RLS, or already human-confirmed → this leg
   // adds no hold. (Absent/omitted-template fail-closed is B2/M4 scope.)
-  if (!row || row.humanConfirmedAt !== null) return { novel: false }
+  if (!row || row.humanConfirmedAt !== null) return false
 
   // Telemetry: bump held_count on each hold this leg forces. Same predicate
   // (unconfirmed) so we never inflate the counter for a confirmed template.
@@ -264,5 +271,5 @@ export async function deriveTemplateNovelty(
       ),
     )
 
-  return { novel: true }
+  return true
 }

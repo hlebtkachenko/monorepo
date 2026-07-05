@@ -21,11 +21,7 @@ import {
 import type { GateDecision } from "@workspace/brain/gate"
 
 import { accountingAdmission } from "./admission.singleton"
-import {
-  NOVEL_TEMPLATE_SIGNAL,
-  type TemplateNoveltyResult,
-  type VetoResult,
-} from "./accounting-veto"
+import { NOVEL_TEMPLATE_SIGNAL, type VetoResult } from "./accounting-veto"
 import { evaluateEvidence, type EvidenceEnvelope } from "./evidence-gate"
 import { translateAccountingError } from "./accounting-error"
 
@@ -108,15 +104,16 @@ export interface GatedWriteOptions<T> {
   /**
    * [WS-2 / B1.5] Server-DERIVED template-novelty screen. Reads the referenced
    * OCR template IN-TX (workspace-scoped, resolves under the org tx's
-   * `app.workspace_id`); when the template is UNCONFIRMED it returns `novel:true`
+   * `app.workspace_id`); when the template is UNCONFIRMED it returns `true`
    * so the gate injects `novel_template` (a Tier-3 DEFER) into the SCORE's
    * `firedSignals`, forcing `cRaw=0` → HELD regardless of any calibration. This is
    * NOT a client signal (a client-asserted `novel_template` is dropped by
    * `buildScoreInputs`) — it composes into the three-way AND as an added hold, it
    * can never release a write. Optional: only the capture path wires it, and it is
-   * run ONLY for an AGENT key with a `templateId` present.
+   * run ONLY for an AGENT key with a `templateId` present. NAME is honest about
+   * the in-tx `held_count` bump the screen performs (not a pure read).
    */
-  deriveTemplateNovelty?: (db: OrgTx) => Promise<TemplateNoveltyResult>
+  screenTemplateNovelty?: (db: OrgTx) => Promise<boolean>
   /** Run the domain mutation. Only called when the write auto-applies. */
   run: (
     db: OrgTx,
@@ -278,13 +275,13 @@ export async function runGatedWriteWithSeams<T>(
           // so it composes into the AND as an ADDED hold, never a release. Read
           // in-tx even for non-auto-apply candidates so the score is honest, but
           // skipped when there is nothing to hold (human key, or no template).
-          const templateNovelty: TemplateNoveltyResult =
+          const templateNovel: boolean =
             principal.actorKind === "agent" &&
             opts.templateId &&
-            opts.deriveTemplateNovelty
-              ? await opts.deriveTemplateNovelty(db)
-              : { novel: false }
-          const serverDerivedSignals: string[] = templateNovelty.novel
+            opts.screenTemplateNovelty
+              ? await opts.screenTemplateNovelty(db)
+              : false
+          const serverDerivedSignals: string[] = templateNovel
             ? [NOVEL_TEMPLATE_SIGNAL]
             : []
           // The server verdict is ALWAYS computed for the audit trail (persisted
@@ -314,7 +311,7 @@ export async function runGatedWriteWithSeams<T>(
             // the replay body like the rest of `serverGate`. `templateNovel`
             // records whether the server-derived screen fired `novel_template`.
             templateId: opts.templateId ?? null,
-            templateNovel: templateNovelty.novel,
+            templateNovel,
           }
 
           if (autoApply) {

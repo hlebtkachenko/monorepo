@@ -50,6 +50,9 @@ export type { OrganizationScopedTable } from "./policies/rls"
 // Audit module
 export * from "./audit/index"
 
+// Accounting-domain DB helpers (trust-state writes shared across surfaces)
+export { unconfirmTemplateOnReject } from "./accounting/ocr-template-trust"
+
 // Marshrutizátor core (ADR-0028): per-(org, period) write serialization +
 // admission caps. `lockPeriodInTx` is wired into the accounting write gate + the
 // approve-replay lanes; `withPeriodLock` (own-tx form) + `closePeriod` locking

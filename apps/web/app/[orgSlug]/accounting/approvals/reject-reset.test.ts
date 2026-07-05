@@ -7,17 +7,21 @@
  * (`last_reject_at` = now()) — future extractions from it are then HELD again by
  * the server veto until a human re-confirms via POST /v1/ocr-templates/:id/confirm.
  *
- * The reject-reset lives inline in `resolveHeldWrite`
+ * The reject-reset lives in `resolveHeldWrite`
  * (app/[orgSlug]/accounting/approvals/actions.ts) inside its `withOrganization`
- * transaction. Driving the full server action here would require standing up a
- * Next request scope (getRequestSession → next/headers + Better Auth, plus
- * revalidatePath → next/cache), which the action's session plumbing is already
- * covered for elsewhere. Following the repo convention (see
- * app/[orgSlug]/resolve-membership.test.ts), this test exercises the exact SQL
- * the action runs — the read of `serverGate.templateId` and the reject-reset
- * UPDATE — inside a real `withOrganization` tx against the PG18 testcontainer,
- * so the load-bearing behavior (RLS resolution under app.workspace_id,
- * reject-only, no-op when absent) is pinned against the live schema.
+ * transaction, delegating the trust-state write to the SHARED
+ * `unconfirmTemplateOnReject` helper (`@workspace/db`) — the same helper the
+ * public API held-writes reject branch calls, so the two surfaces cannot diverge.
+ * Driving the full server action here would require standing up a Next request
+ * scope (getRequestSession → next/headers + Better Auth, plus revalidatePath →
+ * next/cache), which the action's session plumbing is already covered for
+ * elsewhere. Following the repo convention (see
+ * app/[orgSlug]/resolve-membership.test.ts), this test exercises the exact
+ * primitives the action runs — the read of `serverGate.templateId` and the
+ * shared reject-reset helper — inside a real `withOrganization` tx against the
+ * PG18 testcontainer, so the load-bearing behavior (RLS resolution under
+ * app.workspace_id, reject-only, no-op when absent) is pinned against the live
+ * schema.
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
@@ -31,6 +35,7 @@ let withOrganization: (typeof import("@workspace/db"))["withOrganization"]
 let executeRows: (typeof import("@workspace/db"))["executeRows"]
 let sqlTag: (typeof import("@workspace/db"))["sql"]
 let updateToolCallLogOutput: (typeof import("@workspace/db"))["updateToolCallLogOutput"]
+let unconfirmTemplateOnReject: (typeof import("@workspace/db"))["unconfirmTemplateOnReject"]
 
 let adminClient: (typeof import("@workspace/db/tests/fixtures"))["adminClient"]
 let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
@@ -38,9 +43,10 @@ let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
 let sql: postgres.Sql
 
 /**
- * The reject leg of `resolveHeldWrite`, replicated verbatim so the test pins the
- * exact SQL the action runs. Reads `template_id` from the audit
- * `output_json.serverGate.templateId`, resets the template only when present,
+ * The reject leg of `resolveHeldWrite`, replicated so the test pins the exact
+ * primitives the action runs. Reads `template_id` from the audit
+ * `output_json.serverGate.templateId`, then calls the SHARED
+ * `unconfirmTemplateOnReject` helper (the same one the action + API both use),
  * then marks the log row rejected — all in ONE `withOrganization` tx.
  */
 async function rejectHeldWrite(input: {
@@ -67,15 +73,7 @@ async function rejectHeldWrite(input: {
       return { ok: false, error: "already resolved" }
     }
 
-    if (row.template_id) {
-      await db.execute(
-        sqlTag`update ocr_extraction_template
-               set human_confirmed_at = null,
-                   last_reject_at = now(),
-                   updated_at = now()
-               where id = ${row.template_id}::uuid`,
-      )
-    }
+    await unconfirmTemplateOnReject(db, row.template_id)
     await updateToolCallLogOutput(db, {
       toolCallLogId: input.toolCallLogId,
       output: { resolution: "rejected", note: null },
@@ -111,6 +109,7 @@ beforeAll(async () => {
     executeRows,
     sql: sqlTag,
     updateToolCallLogOutput,
+    unconfirmTemplateOnReject,
   } = await import("@workspace/db"))
   sql = adminClient()
   await truncateAll(sql)

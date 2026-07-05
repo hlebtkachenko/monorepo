@@ -469,8 +469,8 @@ describe("runGatedWrite", () => {
   // as an added hold. The scorer honors the injected signal so these prove the
   // gate threaded it into the score, and the hold has no client input.
   const agentPrincipal = { ...principal, actorKind: "agent" as const }
-  const novelTemplate = () => Promise.resolve({ novel: true })
-  const confirmedTemplate = () => Promise.resolve({ novel: false })
+  const novelTemplate = () => Promise.resolve(true)
+  const confirmedTemplate = () => Promise.resolve(false)
 
   it("HOLDS an AGENT capture on an UNCONFIRMED template even when the score would be green (server-derived, no client signal)", async () => {
     // No `signals` envelope at all — the hold cannot come from a client capSignal.
@@ -482,7 +482,7 @@ describe("runGatedWrite", () => {
         principal: agentPrincipal,
         templateId: "tpl-unconfirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        deriveTemplateNovelty: novelTemplate,
+        screenTemplateNovelty: novelTemplate,
       },
       admitting,
       templateAwareScorer,
@@ -525,7 +525,7 @@ describe("runGatedWrite", () => {
         principal: agentPrincipal,
         templateId: "tpl-confirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        deriveTemplateNovelty: confirmedTemplate,
+        screenTemplateNovelty: confirmedTemplate,
       },
       admitting,
       templateAwareScorer,
@@ -546,7 +546,7 @@ describe("runGatedWrite", () => {
 
   it("does NOT run the template-novelty leg for a HUMAN key (the veto is agent-scoped)", async () => {
     // A human-key capture with an UNCONFIRMED template: the leg is skipped, so the
-    // write auto-applies. `deriveTemplateNovelty` must never be invoked.
+    // write auto-applies. `screenTemplateNovelty` must never be invoked.
     const derive = vi.fn(novelTemplate)
     const run = vi.fn().mockResolvedValue({
       eventId: "ev-h",
@@ -559,7 +559,7 @@ describe("runGatedWrite", () => {
         principal, // human key
         templateId: "tpl-unconfirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        deriveTemplateNovelty: derive,
+        screenTemplateNovelty: derive,
       },
       admitting,
       templateAwareScorer,
@@ -592,7 +592,7 @@ describe("runGatedWrite", () => {
         principal: agentPrincipal,
         templateId: null,
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        deriveTemplateNovelty: derive,
+        screenTemplateNovelty: derive,
       },
       admitting,
       templateAwareScorer,

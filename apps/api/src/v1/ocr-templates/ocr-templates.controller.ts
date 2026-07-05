@@ -57,45 +57,49 @@ import {
  * and only a HUMAN-actor key may set it via the confirm endpoint
  * (`@RequireHumanActor()` on that method — an agent key is 403).
  */
+/**
+ * The projected `ocr_extraction_template` row this controller reads. The
+ * Drizzle `timestamp` columns yield `Date` (never a string), so the mapper below
+ * only ever calls `.toISOString()` + a null passthrough — no `Date | string`
+ * coercion is needed.
+ */
+interface TemplateRow {
+  id: string
+  supplierKey: string
+  docKind: string
+  locators: unknown
+  layoutFingerprint: string | null
+  humanConfirmedAt: Date | null
+  heldCount: number
+  lastRejectAt: Date | null
+  version: number
+  learnedAt: Date
+  provenance: unknown
+  createdAt: Date
+  updatedAt: Date
+}
+
 @ApiTags("OCR Templates")
 @ApiBearerAuth()
 @UseGuards(ApiKeyGuard)
 @Controller({ path: "ocr-templates", version: "1" })
 export class OcrTemplatesController {
   /** Maps a projected `ocr_extraction_template` row to the public shape. */
-  private toTemplate(r: {
-    id: string
-    supplierKey: string
-    docKind: string
-    locators: unknown
-    layoutFingerprint: string | null
-    humanConfirmedAt: Date | string | null
-    heldCount: number
-    lastRejectAt: Date | string | null
-    version: number
-    learnedAt: Date | string
-    provenance: unknown
-    createdAt: Date | string
-    updatedAt: Date | string
-  }): OcrTemplate {
-    const iso = (v: Date | string): string =>
-      v instanceof Date ? v.toISOString() : String(v)
-    const isoNullable = (v: Date | string | null): string | null =>
-      v === null ? null : iso(v)
+  private toTemplate(r: TemplateRow): OcrTemplate {
     return {
       id: r.id,
       supplierKey: r.supplierKey,
       docKind: r.docKind,
       locators: r.locators as Record<string, unknown>,
       layoutFingerprint: r.layoutFingerprint,
-      humanConfirmedAt: isoNullable(r.humanConfirmedAt),
+      humanConfirmedAt: r.humanConfirmedAt?.toISOString() ?? null,
       heldCount: r.heldCount,
-      lastRejectAt: isoNullable(r.lastRejectAt),
+      lastRejectAt: r.lastRejectAt?.toISOString() ?? null,
       version: r.version,
-      learnedAt: iso(r.learnedAt),
+      learnedAt: r.learnedAt.toISOString(),
       provenance: (r.provenance as Record<string, unknown> | null) ?? null,
-      createdAt: iso(r.createdAt),
-      updatedAt: iso(r.updatedAt),
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
     }
   }
 
@@ -183,7 +187,7 @@ export class OcrTemplatesController {
   ): Promise<OcrTemplateResponse> {
     const userId = this.requireUser(principal)
     const { supplierKey, docKind, locators, layoutFingerprint, provenance } =
-      body as unknown as CreateOcrTemplateRequestDto
+      body
     const row = await withWorkspace(
       principal.workspaceId,
       userId,
@@ -230,8 +234,7 @@ export class OcrTemplatesController {
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<OcrTemplateResponse> {
     const userId = this.requireUser(principal)
-    const { locators, layoutFingerprint, provenance } =
-      body as unknown as UpdateOcrTemplateRequestDto
+    const { locators, layoutFingerprint, provenance } = body
     const patch: Record<string, unknown> = {
       // A refine always re-opens the trust gate and bumps the version.
       human_confirmed_at: null,
@@ -261,8 +264,11 @@ export class OcrTemplatesController {
 
   @Post(":id/confirm")
   @HttpCode(200)
+  @RequireScopes("accounting:write")
   // [WS-5] Confirmation is the trust boundary a HUMAN must cross, not the Brain:
-  // an agent-actor key is rejected with 403 (enforced by ApiKeyGuard).
+  // an agent-actor key is rejected with 403 (enforced by ApiKeyGuard). The
+  // accounting:write scope (like the other write endpoints) additionally blocks a
+  // read-only human key from confirming a template.
   @RequireHumanActor()
   @ApiOperation({
     summary: "Confirm an OCR extraction template",

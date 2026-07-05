@@ -4,7 +4,7 @@ import type { OrganizationBoundDb } from "@workspace/db"
 
 import {
   deriveCaptureVeto,
-  deriveTemplateNovelty,
+  screenTemplateNovelty,
   derivePostingVeto,
 } from "./accounting-veto"
 
@@ -215,19 +215,19 @@ describe("deriveCaptureVeto — vat_mismatch", () => {
   })
 })
 
-describe("deriveTemplateNovelty — unconfirmed OCR template", () => {
+describe("screenTemplateNovelty — unconfirmed OCR template", () => {
   it("fires (novel) for an UNCONFIRMED template (human_confirmed_at IS NULL)", async () => {
     const { db, limit, set } = mkTemplateDb({ humanConfirmedAt: null })
-    const r = await deriveTemplateNovelty(db, "tpl-1")
-    expect(r.novel).toBe(true)
+    const r = await screenTemplateNovelty(db, "tpl-1")
+    expect(r).toBe(true)
     expect(limit).toHaveBeenCalledOnce() // the lookup ran
     expect(set).toHaveBeenCalledOnce() // held_count telemetry bumped on the hold
   })
 
   it("does NOT fire for a CONFIRMED template (human_confirmed_at set)", async () => {
     const { db, set } = mkTemplateDb({ humanConfirmedAt: new Date() })
-    const r = await deriveTemplateNovelty(db, "tpl-2")
-    expect(r.novel).toBe(false)
+    const r = await screenTemplateNovelty(db, "tpl-2")
+    expect(r).toBe(false)
     expect(set).not.toHaveBeenCalled() // no hold => no held_count bump
   })
 
@@ -235,8 +235,8 @@ describe("deriveTemplateNovelty — unconfirmed OCR template", () => {
     // A workspace-scoped id that RLS narrows to zero rows: this leg adds no hold
     // (the omitted/absent-template fail-closed case is B2/M4 scope).
     const { db, set } = mkTemplateDb(null)
-    const r = await deriveTemplateNovelty(db, "tpl-missing")
-    expect(r.novel).toBe(false)
+    const r = await screenTemplateNovelty(db, "tpl-missing")
+    expect(r).toBe(false)
     expect(set).not.toHaveBeenCalled()
   })
 })

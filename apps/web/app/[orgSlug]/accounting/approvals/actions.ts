@@ -7,6 +7,7 @@ import {
   executeRows,
   lockPeriodInTx,
   sql,
+  unconfirmTemplateOnReject,
   updateToolCallLogOutput,
   withAdminBypass,
   withOrganization,
@@ -124,20 +125,12 @@ export async function resolveHeldWrite(
           // extraction. Un-confirm the template (human_confirmed_at → NULL) and
           // stamp last_reject_at so the server veto HOLDS every future extraction
           // from it until a human re-confirms via POST /v1/ocr-templates/:id/confirm.
+          // Shared helper, identical to the public API held-writes reject branch —
+          // both surfaces write the same trust-state so they can never diverge.
           // Workspace-scoped: ocr_extraction_template's RLS keys on app.workspace_id,
-          // which withOrganization set on this tx, so the WHERE id = template_id
-          // update resolves (a template in another workspace is an RLS no-op).
-          // reject-ONLY — approve must NEVER confirm a template. No template on the
-          // row (structured-export write) → no-op.
-          if (row.template_id) {
-            await db.execute(
-              sql`update ocr_extraction_template
-                  set human_confirmed_at = null,
-                      last_reject_at = now(),
-                      updated_at = now()
-                  where id = ${row.template_id}::uuid`,
-            )
-          }
+          // which withOrganization set on this tx (an RLS no-op for a foreign
+          // template). reject-ONLY; no template on the row → no-op.
+          await unconfirmTemplateOnReject(db, row.template_id)
           await updateToolCallLogOutput(db, {
             toolCallLogId: id,
             output: { resolution: "rejected", note: note ?? null },

@@ -110,10 +110,16 @@ jobs:
           if [[ "${GITHUB_REF_NAME}" =~ -rc\. ]]; then
             PRERELEASE_FLAG="--prerelease"
           fi
+          # Create as a DRAFT: with release immutability enabled (repo/org
+          # setting), a published release locks its assets instantly, so the
+          # slsa-provenance + supply-chain jobs below could not attach their
+          # artifacts. The draft stays mutable; the publish-release job flips
+          # it live only after every upload has landed. See ADR / RELEASES.md.
           if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             gh release create "${GITHUB_REF_NAME}" \
               --title "${GITHUB_REF_NAME}" \
               --generate-notes \
+              --draft \
               ${PRERELEASE_FLAG}
           fi
           gh release upload "${GITHUB_REF_NAME}" \
@@ -132,6 +138,10 @@ jobs:
     with:
       base64-subjects: ${{ needs.build.outputs.hashes }}
       upload-assets: true
+      # Attach the provenance to the DRAFT release (see the build job note).
+      # Without this the generator's softprops step 404s looking up the tag as
+      # a published release and creates a duplicate release instead.
+      draft-release: true
       provenance-name: web-${{ github.ref_name }}.intoto.jsonl
 
   # SBOM + L2 provenance + cosign + license check via the shared orchestrator.
@@ -155,3 +165,38 @@ jobs:
       package-name: web
       version: ${{ github.ref_name }}
       release-mode: true
+
+  # Flip the draft live only after the tarball (build), SLSA provenance
+  # (slsa-provenance) and SBOM + cosign bundles (supply-chain) have all landed.
+  # `needs` on the two reusable-workflow calls waits for every internal job, so
+  # publishing here means all uploads finished. Immutability locks assets at
+  # this point — publishing an incomplete release is unrecoverable — so verify
+  # the core tarball is attached before the flip; a missing asset leaves the
+  # release as a fixable draft instead.
+  publish-release:
+    needs: [build, slsa-provenance, supply-chain]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Verify assets then publish the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ASSETS=$(gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name')
+          echo "Draft assets on ${GITHUB_REF_NAME}:"
+          echo "${ASSETS}"
+          if ! grep -qF "${{ needs.build.outputs.tarball-name }}" <<<"${ASSETS}"; then
+            echo "::error::Draft ${GITHUB_REF_NAME} is missing the web tarball; leaving as draft."
+            exit 1
+          fi
+          gh release edit "${GITHUB_REF_NAME}" --draft=false
+          echo "Published ${GITHUB_REF_NAME}."

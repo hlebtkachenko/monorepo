@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.15.1] — 2026-07-05
+
+Patch release: fix the release pipeline for GitHub immutable releases.
+
+### Fixed
+
+- **ci**: `release.yml` now creates the GitHub Release as a **draft**, lets the `build` (tarball), `slsa-provenance` (SLSA L3) and `supply-chain` (SBOM + cosign) jobs attach their assets to the mutable draft, and a new `publish-release` job flips it live only once every upload has landed. With release immutability enabled (a repo/org setting that flipped in around v0.14.0), the previous create-then-upload flow published the release immediately and every asset upload failed `HTTP 422: Cannot upload assets to an immutable release` — v0.14.0 through v0.15.0 shipped with zero assets. The SLSA generator now targets the draft via `draft-release: true` (without it its softprops step 404s the tag and forks a duplicate release). The four already-published empty releases are immutable and cannot be back-filled; this fixes it forward.
+
 ## [v0.15.0] — 2026-07-05
 
 Minor release: the first public accounting **API surface** (`/v1/accounts`, `/v1/invoices`), Czech localization going live, and the accounting-period switcher wired to real data.

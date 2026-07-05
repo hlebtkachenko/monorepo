@@ -4,6 +4,12 @@ The Afframe Brain (Track B). Read `.context/afframe-brain/AFFRAME-BRAIN-EXECUTOR
 the approved build plan before non-trivial work. Track the build in
 `.context/afframe-brain/PROGRESS.md`; gate every WP through `scripts/brain-build/` (the BGTG).
 
+**Adversarial safety gate (mandatory):** gate EVERY change to the Brain / accounting-write-gate / safety
+spine through `.claude/workflows/brain-gate.js` (two independent top-tier reviewers — Fable 5 high + Opus
+4.8 xhigh — hunt confident-wrong paths + safety-invariant violations, then synthesize) and verify it green
+BEFORE Hleb reviews: `Workflow({ scriptPath: ".claude/workflows/brain-gate.js", args: "<brief + questions>" })`.
+The companion `.claude/workflows/thermo-review.js` is the Fable-5-high code-quality gate.
+
 ## Hard safety invariants
 
 > **v1 = a Claude Code CLIENT of the system (MCP/HTTP, unprivileged)** — see

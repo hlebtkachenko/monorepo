@@ -43,6 +43,14 @@ _junk/
 .claude/*
 !.claude/skills/
 .claude/skills/*/state/
+# Versioned agent gate workflows: the Brain safety gate + the thermo code-quality
+# gate are durable, project-relevant tooling (not per-session scratch), so these
+# two specific scripts are tracked. Everything else under .claude/workflows/ stays
+# local-only (re-ignored below).
+!.claude/workflows/
+.claude/workflows/*
+!.claude/workflows/brain-gate.js
+!.claude/workflows/thermo-review.js
 
 # Agent planning artifacts (not used in this repo; if an agent
 # writes here, the contents belong in a Linear issue or .claude/ — not git)

@@ -36,27 +36,27 @@ export type CommandRunContext = {
   currentTheme: string | undefined
 }
 
-export type CommandModifier = "meta" | "shift" | "alt"
+type CommandModifier = "meta" | "shift" | "alt"
 
 export interface CommandShortcut {
   mods: ReadonlyArray<CommandModifier>
   key: string
 }
 
-export interface SubcommandPickPrompt {
+interface SubcommandPickPrompt {
   kind: "pick"
   key: string
   fetch: () => Promise<Array<{ id: string; label: string; sublabel?: string }>>
 }
 
-export interface SubcommandInputPrompt {
+interface SubcommandInputPrompt {
   kind: "input"
   key: string
   placeholder: string
   validate?: (v: string) => string | null
 }
 
-export interface SubcommandConfirmPrompt {
+interface SubcommandConfirmPrompt {
   kind: "confirm"
   title: string
   description: string

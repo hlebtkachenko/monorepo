@@ -7,7 +7,7 @@ import { Button } from "@workspace/ui/components/button"
 
 type ReportState = "idle" | "sending" | "sent" | "failed"
 
-export interface ErrorReportPayload {
+interface ErrorReportPayload {
   message: string
   digest: string | null
   stack: string | null

@@ -18,10 +18,6 @@ const money = new Intl.NumberFormat("cs-CZ", {
   maximumFractionDigits: 2,
 })
 
-const moneyWhole = new Intl.NumberFormat("cs-CZ", {
-  maximumFractionDigits: 0,
-})
-
 /** Parse a domain `Decimal` string to a JS number — DISPLAY ONLY. */
 export function decimalToNumber(value: Decimal): number {
   const n = Number(value)
@@ -36,11 +32,6 @@ export function formatDecimal(value: Decimal): string {
 /** Format a plain number as a cs-CZ amount with 2 decimals + " Kč". */
 export function formatAmount(value: number): string {
   return `${money.format(value)} Kč`
-}
-
-/** Format a plain number as a cs-CZ whole-Kč amount + " Kč". */
-export function formatWhole(value: number): string {
-  return `${moneyWhole.format(value)} Kč`
 }
 
 /** Format an ISO date (`2026-06-01`) as a cs-CZ medium date. Local-parsed. */

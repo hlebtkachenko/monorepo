@@ -8,15 +8,15 @@ import { SecurityStack } from "../lib/security-stack.js"
 
 export const TEST_ACCOUNT = "123456789012"
 export const TEST_REGION = "eu-central-1"
-export const TEST_DOMAIN = "test.example.com"
+const TEST_DOMAIN = "test.example.com"
 // Deliberately NOT a subdomain of TEST_DOMAIN — proves adminDomain is an
 // independent value, not derived from the web domain.
-export const TEST_ADMIN_DOMAIN = "admin-console.example.net"
+const TEST_ADMIN_DOMAIN = "admin-console.example.net"
 // Deliberately on neither TEST_DOMAIN nor TEST_ADMIN_DOMAIN — proves the
 // mail-from address is plumbed independently (a separate Resend-verified
 // domain in real life).
-export const TEST_MAIL_FROM_ADDRESS = "no-reply@mail.example.org"
-export const TEST_ENV_NAME = "test"
+const TEST_MAIL_FROM_ADDRESS = "no-reply@mail.example.org"
+const TEST_ENV_NAME = "test"
 
 interface BuiltApp {
   readonly app: App
@@ -27,12 +27,6 @@ interface BuiltApp {
   readonly observability: ObservabilityStack
   readonly backup: BackupStack
 }
-
-// SSM SecureString parameter names that AppStack hardcodes per envName.
-// Exported so tests can pin assertions against the exact name strings.
-export const TEST_TUNNEL_TOKEN_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/cloudflare-tunnel-token`
-export const TEST_BETTER_AUTH_SECRET_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/better-auth-secret`
-export const TEST_RESEND_API_KEY_SSM_NAME = `/monorepo/${TEST_ENV_NAME}/resend-api-key`
 
 export function buildTestApp(envName: string = TEST_ENV_NAME): BuiltApp {
   const app = new App({

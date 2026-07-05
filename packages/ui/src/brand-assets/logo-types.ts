@@ -25,7 +25,7 @@ export type LogoTone = LogoToneExplicit | LogoToneSugar
 
 export type LogoPathRole = "mark" | "text"
 
-export interface LogoPath {
+interface LogoPath {
   d: string
   role: LogoPathRole
 }

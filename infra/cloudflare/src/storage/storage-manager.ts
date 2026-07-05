@@ -49,7 +49,7 @@ export class StorageManager {
   }
 }
 
-export class InvalidStorageError extends Error {
+class InvalidStorageError extends Error {
   constructor(message: string) {
     super(message)
   }

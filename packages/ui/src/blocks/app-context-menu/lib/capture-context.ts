@@ -20,12 +20,6 @@ const PAYLOAD_VERSION = 1
 
 /* ── domain types ──────────────────────────────────────────────────── */
 
-export type PayloadKind =
-  | "sidekick.ask"
-  | "agent.copy_path"
-  | "docs.search"
-  | "bug.report"
-
 export interface ElementInfo {
   tag: string
   data_slot: string | null
@@ -79,7 +73,7 @@ export interface ScopeInfo {
   user?: { id?: string; email?: string }
 }
 
-export interface DOMRectLite {
+interface DOMRectLite {
   top: number
   left: number
   width: number

@@ -15,7 +15,7 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `test`                                                | required                     | required                    |
 | `build`                                               | required                     | required                    |
 | `ci` (aggregation shim)                               | required                     | required                    |
-| `knip` (dead-code)                                    | required, warn-only [^1]     | required                    |
+| `knip` (dead-code)                                    | required, blocking [^1]      | required                    |
 | `check` (paired-files)                                | required                     | required                    |
 | `boundaries` (import boundaries)                      | required                     | required                    |
 | `e2e` (Playwright auth flows)                         | advisory, path-filtered      | required (via shim)         |
@@ -40,7 +40,7 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `size-cap` (PR size limit)                            | required                     | required                    |
 | Mutation testing (Stryker)                            | advisory, nightly            | advisory, nightly           |
 
-[^1]: `knip` is a REQUIRED status check on the `main` ruleset (the job must run and be visible on every PR), but `.github/workflows/knip.yml` uses `continue-on-error: true` on the run step, making it warn-only today. This is intentional: knip found day-1 findings across 101k LOC that require a dedicated owner decision and cleanup pass — silently failing PRs that don't touch dead code would be noise, not signal. Once a dedicated dead-code cleanup issue lands and knip is clean, remove `continue-on-error: true` to make the gate real.
+[^1]: `knip` is a REQUIRED status check on the `main` ruleset (the job must run and be visible on every PR). The dedicated dead-code cleanup pass (#527) is complete — unused dependencies removed, dead exports pruned, and only genuine false positives (string-path child processes, CDK lambda assets, playwright e2e entries whose config knip cannot load, config-only dep refs, the ADR-0018 authz scaffolds) curated in `knip.config.ts` — so `continue-on-error: true` was removed and knip is now a **blocking** gate: a new unused file/dep/export fails the check. Keep the `knip.config.ts` ignore list tight; silencing a real finding there defeats the gate.
 
 [^2]: `license-check` is implemented at `.github/workflows/_supply-chain.yml:138-167` using `scripts/license-check.mjs` (default-deny posture; allows MIT/Apache-2.0/BSD/ISC/MPL-2.0/etc., denies GPL/AGPL/LGPL). Runs on `release.yml`. Promote to required after one green release cycle.
 

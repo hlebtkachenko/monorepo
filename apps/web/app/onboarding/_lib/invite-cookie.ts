@@ -16,7 +16,7 @@ import type { InviteRecord, InviteRole } from "@workspace/auth/invite-issuer"
  *                       don't need a DB round-trip.
  */
 
-export const INVITE_PAYLOAD_COOKIE = "app-invite-payload"
+const INVITE_PAYLOAD_COOKIE = "app-invite-payload"
 
 interface PersistedInvitePayload {
   kind: "invite"

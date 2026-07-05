@@ -21,7 +21,7 @@ import { createHash } from "node:crypto"
 
 import { withAdminBypass, auth_token } from "@workspace/db"
 import type { AuthTokenEnv, AuthTokenKind } from "@workspace/db/schema"
-import { eq, sql } from "drizzle-orm"
+import { sql } from "drizzle-orm"
 
 import {
   computeChecksum,
@@ -452,20 +452,4 @@ export async function extendAuthTokenExpiry(opts: {
   const row = rows[0]
   if (!row) return null
   return row.expires_at
-}
-
-/** Mark a row by id as consumed without going through the raw-token path.
- *  Used only by admin tooling and tests; the regular consume flow MUST go
- *  through `consumeToken` to enforce the format + checksum gate. */
-export async function _consumeByIdForAdminToolingOnly(
-  id: string,
-): Promise<boolean> {
-  const rows = await withAdminBypass(async (db) => {
-    return await db
-      .update(auth_token)
-      .set({ status: "consumed", consumed_at: sql`now()` })
-      .where(eq(auth_token.id, id))
-      .returning({ id: auth_token.id })
-  })
-  return rows.length > 0
 }

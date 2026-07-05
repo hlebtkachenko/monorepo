@@ -5,7 +5,7 @@
 
 const API = "https://api.github.com"
 
-export interface WorkflowRun {
+interface WorkflowRun {
   id: number
   name: string
   status: string
@@ -16,7 +16,7 @@ export interface WorkflowRun {
   createdAt: string
 }
 
-export interface PullRequest {
+interface PullRequest {
   number: number
   title: string
   htmlUrl: string
@@ -24,14 +24,14 @@ export interface PullRequest {
   user: string
 }
 
-export interface RunJob {
+interface RunJob {
   name: string
   conclusion: string | null
   htmlUrl: string
   failedSteps: string[]
 }
 
-export interface CommitInfo {
+interface CommitInfo {
   /** Short 7-char sha — the rollback image tag is `sha-<short>`. */
   short: string
   /** First line of the commit message. */

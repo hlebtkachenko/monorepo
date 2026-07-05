@@ -20,8 +20,8 @@ export interface CliConfig {
   profile: string
 }
 
-export const CONFIG_DIR = join(homedir(), ".config", "afframe")
-export const CONFIG_PATH = join(CONFIG_DIR, "config.toml")
+const CONFIG_DIR = join(homedir(), ".config", "afframe")
+const CONFIG_PATH = join(CONFIG_DIR, "config.toml")
 
 const DEFAULT_BASE = "https://api.afframe.com"
 

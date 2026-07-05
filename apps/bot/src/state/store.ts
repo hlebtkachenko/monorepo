@@ -9,7 +9,7 @@ export interface DedupRecord {
   lastSeen: number
 }
 
-export type ApprovalKind = "choice" | "text"
+type ApprovalKind = "choice" | "text"
 
 export interface ApprovalRecord {
   id: string
@@ -50,7 +50,7 @@ export interface SnoozeRecord {
   acked: boolean
 }
 
-export type DispatchStatus = "pending" | "fired" | "cancelled" | "expired"
+type DispatchStatus = "pending" | "fired" | "cancelled" | "expired"
 
 export interface DispatchRecord {
   token: string

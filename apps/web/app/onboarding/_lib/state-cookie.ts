@@ -38,7 +38,7 @@ import { sql } from "drizzle-orm"
  * `decideNextStep` and routes fresh signups straight to /password.
  */
 
-export interface OnboardingStateClaims {
+interface OnboardingStateClaims {
   kind: "onboarding-state"
   profile?: {
     firstName: string

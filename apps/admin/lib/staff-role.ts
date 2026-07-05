@@ -10,7 +10,7 @@ import {
   type StaffRole,
 } from "@workspace/db/schema"
 
-export { STAFF_ROLES, type StaffRole }
+export type { StaffRole }
 
 /**
  * Returns the user's admin staff role. Missing row → `"guest"` (minimal
@@ -34,6 +34,6 @@ export const getStaffRole = cache(
   },
 )
 
-export function isStaffRole(v: unknown): v is StaffRole {
+function isStaffRole(v: unknown): v is StaffRole {
   return typeof v === "string" && STAFF_ROLES.includes(v as StaffRole)
 }

@@ -15,7 +15,7 @@ import {
   toolLabel,
 } from "../held-writes/columns"
 
-export { TOOL_OPTIONS, toolLabel } from "../held-writes/columns"
+export { TOOL_OPTIONS } from "../held-writes/columns"
 
 /**
  * One gated write from `fetchIngestionInbox`, prepared by the inbox page for a
@@ -40,7 +40,7 @@ export interface InboxListRow {
 
 export type InboxStatus = "applied" | "held" | "approved" | "rejected"
 
-export const STATUS_LABELS: Record<InboxStatus, string> = {
+const STATUS_LABELS: Record<InboxStatus, string> = {
   applied: "Zaúčtováno",
   held: "Ke schválení",
   approved: "Schváleno",
@@ -56,7 +56,7 @@ export const STATUS_OPTIONS = (Object.keys(STATUS_LABELS) as InboxStatus[]).map(
 )
 
 /** Badge tinted by ingestion outcome: held reads as pending, rejected as risky. */
-export function StatusBadge({ status }: { status: InboxStatus }) {
+function StatusBadge({ status }: { status: InboxStatus }) {
   const tone =
     status === "rejected"
       ? "bg-destructive/10 text-destructive dark:bg-destructive/20"

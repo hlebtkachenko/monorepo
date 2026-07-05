@@ -3,7 +3,7 @@ import { ListResultWithMetadata } from "../storage"
 import { isDateOlderThan } from "../utils/date"
 
 // Cursor size should be kept below 1000 to avoid limits on bulk operations
-export const CURSOR_SIZE = 500
+const CURSOR_SIZE = 500
 
 class R2KeysForDeletion {
   keys: string[] = []

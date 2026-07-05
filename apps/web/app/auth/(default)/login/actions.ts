@@ -9,8 +9,6 @@ import {
   consumeLoginEmail,
 } from "@workspace/auth/login-flow"
 
-export type { IdentifyEmailResult } from "@workspace/auth/login-flow"
-
 export async function identifyEmailAction(input: {
   email: string
 }): Promise<{ ok: boolean; errorKey?: string }> {

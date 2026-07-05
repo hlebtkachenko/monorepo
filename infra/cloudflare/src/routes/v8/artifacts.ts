@@ -5,7 +5,7 @@ import { cache } from "hono/cache"
 import { Hono } from "hono/tiny"
 import * as v from "valibot"
 
-export const DEFAULT_TEAM_ID = "team_default_team"
+const DEFAULT_TEAM_ID = "team_default_team"
 
 // Route - /v8/artifacts
 export const artifactRouter = new Hono<{ Bindings: Env }>()

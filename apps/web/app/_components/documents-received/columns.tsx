@@ -31,7 +31,7 @@ export interface DocumentRow {
   counterparty_name: string | null
 }
 
-export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   RECEIVED_INVOICE: "Faktura přijatá",
   ISSUED_INVOICE: "Faktura vydaná",
   BANK_STATEMENT: "Bankovní výpis",

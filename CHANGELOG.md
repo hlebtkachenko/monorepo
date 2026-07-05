@@ -6,6 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.3] — 2026-07-05
+
+Patch release: internal Brain-launcher tooling + a dead-code sweep. The Brain write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed) and nothing user-facing changes — cut as a patch by explicit decision even though one change carries a `feat` subject.
+
+### Added
+
+- **brain**: the SDK-backed `AgentSessionLauncher` lands in `apps/cli` (`private: true`) — the sole `@anthropic-ai/claude-agent-sdk` import in the repo. It wires the deploy-gated live-session seam behind `afframe brain run --inputs <file>` (`--dry-run` inspects the plan with no creds; the live path stays fail-closed on the env + `BRAIN_RUNTIME_ACTIVE=1` kill-switch). Pure config assembly + capture-result parsing live in `session-config.ts` (unit-tested); the `query()` body is the only untested-live surface, marked as such. Gated through two independent adversarial safety reviews (Fable 5 high + Opus 4.8 xhigh) — no confident-wrong path, safety spine byte-unchanged. (#469, #549)
+
+### Changed
+
+- **chore**: dead-code cleanup pass across the repo, and `knip` flipped from advisory to a **blocking required check** so unused exports/files fail CI going forward. (#548)
+
 ## [v0.16.2] — 2026-07-05
 
 Patch release: version the agent safety + code-quality gates in the repo (tooling only; no product/app change).

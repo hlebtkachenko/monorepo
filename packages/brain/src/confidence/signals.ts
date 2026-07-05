@@ -21,6 +21,12 @@ export const TIER3_DEFER_KINDS = [
   "period_unknown",
   "budget_exceeded",
   "hitl_timeout",
+  // An OCR extraction template that a human has not yet CONFIRMED. Its field-locators
+  // are untrusted, so any extraction derived from it cannot be scored — DEFER (cRaw=0),
+  // never trust. Server-DERIVED only (from `ocr_extraction_template.human_confirmed_at`
+  // IS NULL); a client can never assert it — a client-supplied kind that is not a
+  // recognized Tier-2 cap is dropped by `buildScoreInputs`. See the capture write gate.
+  "novel_template",
 ] as const
 
 /** spolek is FROZEN (starter scope = s.r.o. + OSVČ); spolek_scope forces defer (Tier-2 label, block effect). */

@@ -108,3 +108,37 @@ describe("evaluateEvidence — post-fit guard [WP-A-gate]", () => {
     expect(d.isGreen).toBe(false)
   })
 })
+
+describe("evidence gate — server-derived novel_template signal [WS-2]", () => {
+  it("threads a SERVER-derived novel_template into firedSignals (never from the client envelope)", () => {
+    // A client can only assert Tier-2 caps via capSignals; novel_template is a
+    // Tier-3 DEFER, so a client-asserted one is DROPPED — only the server's second
+    // argument threads it in.
+    const clientAsserted = buildScoreInputs({ capSignals: ["novel_template"] })
+    expect(clientAsserted.firedSignals).not.toContain("novel_template")
+
+    const serverInjected = buildScoreInputs(undefined, ["novel_template"])
+    expect(serverInjected.firedSignals).toContain("novel_template")
+  })
+
+  it("novel_template stays sub-green under a FITTED calibration model (Tier-3 forces cRaw=0)", () => {
+    // Even isolating from the always-on extraction_failed block, a fired
+    // novel_template is itself a Tier-3 DEFER: cRaw=0, blocked, and a fitted map
+    // that would lift a 0 above green cannot release it.
+    const inputs = buildScoreInputs(undefined, ["novel_template"])
+    expect(inputs.firedSignals).toContain("novel_template")
+    const model = fittedMapping(0, 0.99)
+    expect(applyCalibration(0, model)).toBeGreaterThan(0.95)
+    const d = scoreProposal(inputs, model)
+    expect(d.blocked).toBe(true)
+    expect(d.cFinal).toBe(0)
+    expect(d.isGreen).toBe(false)
+  })
+
+  it("evaluateEvidence with a server-derived novel_template is held (needsReview)", () => {
+    const d = evaluateEvidence(undefined, ["novel_template"])
+    expect(d.isGreen).toBe(false)
+    expect(d.needsReview).toBe(true)
+    expect(d.firedSignals).toContain("novel_template")
+  })
+})

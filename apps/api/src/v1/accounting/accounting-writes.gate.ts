@@ -21,7 +21,11 @@ import {
 import type { GateDecision } from "@workspace/brain/gate"
 
 import { accountingAdmission } from "./admission.singleton"
-import type { VetoResult } from "./accounting-veto"
+import {
+  NOVEL_TEMPLATE_SIGNAL,
+  type TemplateNoveltyResult,
+  type VetoResult,
+} from "./accounting-veto"
 import { evaluateEvidence, type EvidenceEnvelope } from "./evidence-gate"
 import { translateAccountingError } from "./accounting-error"
 
@@ -101,6 +105,18 @@ export interface GatedWriteOptions<T> {
    * no payload-derivable signal (e.g. createEvent) omit it.
    */
   deriveVeto?: (db: OrgTx) => Promise<VetoResult>
+  /**
+   * [WS-2 / B1.5] Server-DERIVED template-novelty screen. Reads the referenced
+   * OCR template IN-TX (workspace-scoped, resolves under the org tx's
+   * `app.workspace_id`); when the template is UNCONFIRMED it returns `novel:true`
+   * so the gate injects `novel_template` (a Tier-3 DEFER) into the SCORE's
+   * `firedSignals`, forcing `cRaw=0` → HELD regardless of any calibration. This is
+   * NOT a client signal (a client-asserted `novel_template` is dropped by
+   * `buildScoreInputs`) — it composes into the three-way AND as an added hold, it
+   * can never release a write. Optional: only the capture path wires it, and it is
+   * run ONLY for an AGENT key with a `templateId` present.
+   */
+  deriveTemplateNovelty?: (db: OrgTx) => Promise<TemplateNoveltyResult>
   /** Run the domain mutation. Only called when the write auto-applies. */
   run: (
     db: OrgTx,
@@ -137,7 +153,10 @@ export async function runGatedWrite<T>(
 export async function runGatedWriteWithSeams<T>(
   opts: GatedWriteOptions<T>,
   admission: AdmissionController,
-  scoreEvidence: (signals: EvidenceEnvelope | null | undefined) => GateDecision,
+  scoreEvidence: (
+    signals: EvidenceEnvelope | null | undefined,
+    serverDerivedSignals?: readonly string[],
+  ) => GateDecision,
 ): Promise<GatedWriteResult> {
   const { principal, idempotencyKey, operationId, body } = opts
 
@@ -250,10 +269,30 @@ export async function runGatedWriteWithSeams<T>(
             confidenceOk && opts.deriveVeto
               ? await opts.deriveVeto(db)
               : { held: false, signals: [] }
+          // [WS-2 / B1.5] Server-DERIVED template-novelty screen. Run ONLY for an
+          // AGENT key (tamper-proof capability, NOT the conversationId-broadened
+          // actorKind) with a templateId present. When the referenced OCR template
+          // is UNCONFIRMED it injects `novel_template` (Tier-3 DEFER) into the
+          // SCORE's firedSignals → forces cRaw=0 → HELD regardless of calibration.
+          // Server-side + unconditional (a client can neither forge nor omit it),
+          // so it composes into the AND as an ADDED hold, never a release. Read
+          // in-tx even for non-auto-apply candidates so the score is honest, but
+          // skipped when there is nothing to hold (human key, or no template).
+          const templateNovelty: TemplateNoveltyResult =
+            principal.actorKind === "agent" &&
+            opts.templateId &&
+            opts.deriveTemplateNovelty
+              ? await opts.deriveTemplateNovelty(db)
+              : { novel: false }
+          const serverDerivedSignals: string[] = templateNovelty.novel
+            ? [NOVEL_TEMPLATE_SIGNAL]
+            : []
           // The server verdict is ALWAYS computed for the audit trail (persisted
           // to output_json.serverGate); its `isGreen` gates auto-apply. Never a
-          // fabricated cFinal — this is the honest scoreProposal output.
-          const score = scoreEvidence(opts.signals)
+          // fabricated cFinal — this is the honest scoreProposal output. The
+          // server-derived signals (e.g. novel_template) are injected here, so an
+          // unconfirmed template blocks the score itself, not just the AND result.
+          const score = scoreEvidence(opts.signals, serverDerivedSignals)
           const autoApply = confidenceOk && !veto.held && score.isGreen
           // The combined server-gate audit record: the independent veto + the
           // honest score verdict (cRaw/cFinal/isGreen/reasons/firedSignals). This
@@ -270,10 +309,12 @@ export async function runGatedWriteWithSeams<T>(
               reasons: score.reasons,
             },
             // [WS-2] The OCR template the capture was derived from, persisted with
-            // the gated write so a future server veto leg (template not
-            // human-confirmed → hold) can key off it. Audit-only, stripped from
-            // the replay body like the rest of `serverGate`.
+            // the gated write so the template-novelty leg (template not
+            // human-confirmed → hold) can be audited. Audit-only, stripped from
+            // the replay body like the rest of `serverGate`. `templateNovel`
+            // records whether the server-derived screen fired `novel_template`.
             templateId: opts.templateId ?? null,
+            templateNovel: templateNovelty.novel,
           }
 
           if (autoApply) {

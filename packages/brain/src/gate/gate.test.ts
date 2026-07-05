@@ -8,7 +8,12 @@ import {
 } from "../confidence/calibration"
 import { firedHardClassSignals, HARD_CLASSES } from "../confidence/hard-class"
 import type { ScoreInputs } from "../confidence/score"
-import { TIER2_CAP_VALUES } from "../confidence/signals"
+import {
+  isBlockSignal,
+  TIER2_CAP_VALUES,
+  TIER3_DEFER_KINDS,
+  tierOf,
+} from "../confidence/signals"
 import { scoreProposal, scoreProposalColdStart } from "./gate"
 
 // The gate is the SERVER-side scoring seam a write endpoint calls. These tests pin the four load-bearing
@@ -223,6 +228,46 @@ describe("scoreProposal — post-calibration hard-class ceiling (WP-CONF-CEIL)",
       const d = scoreProposal(maxedInputs([kind]), capModel)
       expect(d.cFinal).toBe(applyCalibration(d.cRaw, capModel)) // passes through, not clamped
     }
+  })
+})
+
+// novel_template — the OCR-template leg of the confident-wrong defense. It is a Tier-3 DEFER kind, so a fired
+// `novel_template` forces cRaw=0 (calibration-INDEPENDENT), HELD no matter what a fitted map would say. These
+// pin that property at the pure-engine level; the server injection point + agent scoping is exercised in
+// apps/api's accounting-writes.gate.test.ts.
+
+describe("scoreProposal — novel_template (Tier-3 DEFER) forces cRaw=0", () => {
+  it("novel_template is a Tier-3 DEFER block kind", () => {
+    expect(TIER3_DEFER_KINDS).toContain("novel_template")
+    expect(tierOf("novel_template")).toBe(3)
+    expect(isBlockSignal("novel_template")).toBe(true)
+  })
+
+  it("a fired novel_template blocks: cRaw=0, sub-green, needsReview", () => {
+    const d = scoreProposalColdStart(maxedInputs(["novel_template"]))
+    expect(d.blocked).toBe(true)
+    expect(d.cRaw).toBe(0)
+    expect(d.cFinal).toBe(0)
+    expect(d.isGreen).toBe(false)
+    expect(d.needsReview).toBe(true)
+    expect(d.reasons).toContain("blocked: novel_template")
+  })
+
+  it("stays sub-green under a FITTED calibration that would lift cRaw=0 to ~0.99", () => {
+    // A fitted (N>=10) map whose history says score 0 was always correct maps 0 -> ~1.0. The Tier-3 block
+    // short-circuit forces cFinal=0 regardless, so an unconfirmed template can NEVER be lifted green.
+    const pairs = Array.from({ length: 12 }, () => ({
+      score: 0,
+      correct: true,
+    }))
+    const model = fitCalibration(pairs, 12)
+    expect(model.fitted).toBe(true)
+    expect(applyCalibration(0, model)).toBeGreaterThan(0.95) // the map WOULD lift a 0...
+    const d = scoreProposal(maxedInputs(["novel_template"]), model)
+    expect(d.blocked).toBe(true)
+    expect(d.cFinal).toBe(0) // ...but the Tier-3 block forces it to 0
+    expect(d.isGreen).toBe(false)
+    expect(d.needsReview).toBe(true)
   })
 })
 

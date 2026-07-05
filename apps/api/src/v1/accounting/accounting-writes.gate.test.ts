@@ -121,6 +121,27 @@ const decision = (isGreen: boolean): GateDecision => ({
 })
 const greenScorer = () => decision(true)
 
+// A scorer that HONORS the server-derived signals the gate threads in. It is
+// GREEN unless the gate injected `novel_template` (a Tier-3 DEFER) — then it is a
+// blocked, sub-green decision. This proves the gate actually threads the
+// server-derived template-novelty signal INTO the score (not merely the AND
+// result), and that the hold comes from the SERVER, not any client capSignal.
+const templateAwareScorer = (
+  _signals: unknown,
+  serverDerivedSignals: readonly string[] = [],
+): GateDecision =>
+  serverDerivedSignals.includes("novel_template")
+    ? {
+        cRaw: 0,
+        cFinal: 0,
+        isGreen: false,
+        needsReview: true,
+        blocked: true,
+        firedSignals: ["extraction_failed", "novel_template"],
+        reasons: ["blocked: novel_template"],
+      }
+    : decision(true)
+
 describe("runGatedWrite", () => {
   beforeEach(() => {
     writeLog.mockReset()
@@ -255,7 +276,11 @@ describe("runGatedWrite", () => {
       },
     } as unknown as AdmissionController
     await expect(
-      runGatedWriteWithSeams(build({ confidence: 0.95 }), rejecting, greenScorer),
+      runGatedWriteWithSeams(
+        build({ confidence: 0.95 }),
+        rejecting,
+        greenScorer,
+      ),
     ).rejects.toBeInstanceOf(RateLimitedError)
     expect(withOrg).not.toHaveBeenCalled()
   })
@@ -436,5 +461,144 @@ describe("runGatedWrite", () => {
         }),
       }),
     )
+  })
+
+  // [WS-2 / B1.5] The server-DERIVED OCR-template-novelty leg. An unconfirmed
+  // template forces `novel_template` (Tier-3 DEFER) INTO the score → HELD. It is
+  // server-side (not a client capSignal), agent-scoped, and composes into the AND
+  // as an added hold. The scorer honors the injected signal so these prove the
+  // gate threaded it into the score, and the hold has no client input.
+  const agentPrincipal = { ...principal, actorKind: "agent" as const }
+  const novelTemplate = () => Promise.resolve({ novel: true })
+  const confirmedTemplate = () => Promise.resolve({ novel: false })
+
+  it("HOLDS an AGENT capture on an UNCONFIRMED template even when the score would be green (server-derived, no client signal)", async () => {
+    // No `signals` envelope at all — the hold cannot come from a client capSignal.
+    // The scorer is green UNLESS the gate injects `novel_template`; the veto is clear.
+    const run = vi.fn()
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, run }),
+        principal: agentPrincipal,
+        templateId: "tpl-unconfirmed",
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        deriveTemplateNovelty: novelTemplate,
+      },
+      admitting,
+      templateAwareScorer,
+    )
+    expect(res.httpStatus).toBe(202)
+    expect(res.body).toMatchObject({ status: "held" })
+    expect(run).not.toHaveBeenCalled()
+    // The honest score (blocked by the server-injected novel_template) is persisted,
+    // and the audit records the template was novel.
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoApplied: false,
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({
+            templateId: "tpl-unconfirmed",
+            templateNovel: true,
+            score: expect.objectContaining({
+              isGreen: false,
+              blocked: true,
+              firedSignals: expect.arrayContaining(["novel_template"]),
+            }),
+          }),
+        }),
+      }),
+    )
+  })
+
+  it("does NOT get the novel_template hold when the AGENT capture references a CONFIRMED template", async () => {
+    // Same green scorer + clear veto, but the template is confirmed → no
+    // server-derived signal → the write auto-applies (201).
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-c",
+      designation: "FP-c",
+      sequenceNumber: 4,
+    })
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, run }),
+        principal: agentPrincipal,
+        templateId: "tpl-confirmed",
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        deriveTemplateNovelty: confirmedTemplate,
+      },
+      admitting,
+      templateAwareScorer,
+    )
+    expect(res.httpStatus).toBe(201)
+    expect(res.body).toMatchObject({ status: "applied" })
+    expect(run).toHaveBeenCalledOnce()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoApplied: true,
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({ templateNovel: false }),
+        }),
+      }),
+    )
+  })
+
+  it("does NOT run the template-novelty leg for a HUMAN key (the veto is agent-scoped)", async () => {
+    // A human-key capture with an UNCONFIRMED template: the leg is skipped, so the
+    // write auto-applies. `deriveTemplateNovelty` must never be invoked.
+    const derive = vi.fn(novelTemplate)
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-h",
+      designation: "FP-h",
+      sequenceNumber: 5,
+    })
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, run }),
+        principal, // human key
+        templateId: "tpl-unconfirmed",
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        deriveTemplateNovelty: derive,
+      },
+      admitting,
+      templateAwareScorer,
+    )
+    expect(derive).not.toHaveBeenCalled()
+    expect(res.httpStatus).toBe(201)
+    expect(res.body).toMatchObject({ status: "applied" })
+    expect(run).toHaveBeenCalledOnce()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({ templateNovel: false }),
+        }),
+      }),
+    )
+  })
+
+  it("does NOT run the template-novelty leg for an AGENT key with NO templateId", async () => {
+    // Omitted templateId is out of scope (B2/M4 fail-closed): the leg is skipped.
+    const derive = vi.fn(novelTemplate)
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-n",
+      designation: "FP-n",
+      sequenceNumber: 6,
+    })
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, run }),
+        principal: agentPrincipal,
+        templateId: null,
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        deriveTemplateNovelty: derive,
+      },
+      admitting,
+      templateAwareScorer,
+    )
+    expect(derive).not.toHaveBeenCalled()
+    expect(res.httpStatus).toBe(201)
+    expect(run).toHaveBeenCalledOnce()
   })
 })

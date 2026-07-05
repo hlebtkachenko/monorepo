@@ -2,8 +2,15 @@ import {
   decimalToMinor,
   firedHardClassSignals,
 } from "@workspace/brain/confidence"
-import { and, eq, inArray, type OrganizationBoundDb } from "@workspace/db"
-import { account } from "@workspace/db/schema"
+import {
+  and,
+  eq,
+  inArray,
+  isNull,
+  type OrganizationBoundDb,
+  sql,
+} from "@workspace/db"
+import { account, ocr_extraction_template } from "@workspace/db/schema"
 
 /**
  * The SERVER-side confidence veto (closes the confident-wrong hole in #462's
@@ -185,4 +192,77 @@ export function deriveCaptureVeto(
     }
   }
   return signals.size > 0 ? { held: true, signals: [...signals] } : NO_VETO
+}
+
+/**
+ * [WS-2 / B1.5] The server-DERIVED template-novelty screen — the OCR-template leg
+ * of the confident-wrong defense.
+ *
+ * An OCR extraction template whose field-locators a human has NOT yet confirmed
+ * (`ocr_extraction_template.human_confirmed_at IS NULL`) is UNTRUSTED: an
+ * extraction derived from it may silently mis-book. So when an AGENT capture
+ * references such a template, the server injects `novel_template` (a Tier-3 DEFER
+ * kind) into the SCORE's `firedSignals`, forcing `cRaw = 0` — HELD regardless of
+ * any fitted calibration map.
+ *
+ * SERVER-DERIVED, not a client signal: the novelty is read from the DB row inside
+ * the write's own transaction, never from the client envelope. A client CANNOT
+ * forge it (a Tier-3 kind is not a Tier-2 cap, so `buildScoreInputs` drops it if
+ * asserted) and — once `templateId` is present — CANNOT omit it either (the server
+ * looks it up unconditionally). This is why it is a real HELD, not a client hint.
+ *
+ * The lookup is WORKSPACE-scoped: `ocr_extraction_template` is shared across the
+ * office's orgs (ADR-0029). It resolves under RLS here because the enclosing
+ * `withOrganization` tx ALSO sets `app.workspace_id` (derived from the org row),
+ * and the table's workspace RLS policies key on that GUC — so a workspace-scoped
+ * read of the template inside the org tx sees exactly this workspace's rows.
+ *
+ * Returns `{ novel: true }` when the template is present + unconfirmed (fires
+ * `novel_template`); `{ novel: false }` when it is confirmed OR not found (a
+ * template id that resolves to no row under this workspace's RLS cannot be
+ * positively confirmed, but it also carries no extraction to hold here — the
+ * omitted/absent-template fail-closed case is a documented B2/M4 precondition,
+ * out of B1.5 scope). Optionally bumps `held_count` for telemetry on each hold.
+ */
+export interface TemplateNoveltyResult {
+  /** True => the template is unconfirmed; fire `novel_template` into the score. */
+  readonly novel: boolean
+}
+
+/** The Tier-3 DEFER signal an unconfirmed OCR template injects into the score. */
+export const NOVEL_TEMPLATE_SIGNAL = "novel_template"
+
+export async function deriveTemplateNovelty(
+  db: OrganizationBoundDb,
+  templateId: string,
+): Promise<TemplateNoveltyResult> {
+  // Workspace-scoped read; resolves under the org tx's app.workspace_id GUC (see
+  // the doc comment). RLS narrows to this workspace's templates.
+  const rows = await db
+    .select({
+      id: ocr_extraction_template.id,
+      humanConfirmedAt: ocr_extraction_template.human_confirmed_at,
+    })
+    .from(ocr_extraction_template)
+    .where(eq(ocr_extraction_template.id, templateId))
+    .limit(1)
+
+  const row = rows[0]
+  // Not found under this workspace's RLS, or already human-confirmed → this leg
+  // adds no hold. (Absent/omitted-template fail-closed is B2/M4 scope.)
+  if (!row || row.humanConfirmedAt !== null) return { novel: false }
+
+  // Telemetry: bump held_count on each hold this leg forces. Same predicate
+  // (unconfirmed) so we never inflate the counter for a confirmed template.
+  await db
+    .update(ocr_extraction_template)
+    .set({ held_count: sql`${ocr_extraction_template.held_count} + 1` })
+    .where(
+      and(
+        eq(ocr_extraction_template.id, templateId),
+        isNull(ocr_extraction_template.human_confirmed_at),
+      ),
+    )
+
+  return { novel: true }
 }

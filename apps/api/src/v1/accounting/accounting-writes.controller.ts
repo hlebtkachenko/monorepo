@@ -31,7 +31,11 @@ import {
   CreateAccountingPostingRequestDto,
   CreateAccountingPostingResponseDto,
 } from "../dto"
-import { deriveCaptureVeto, derivePostingVeto } from "./accounting-veto"
+import {
+  deriveCaptureVeto,
+  derivePostingVeto,
+  deriveTemplateNovelty,
+} from "./accounting-veto"
 import type { EvidenceEnvelope } from "./evidence-gate"
 import { runGatedWrite, type GatedWriteResult } from "./accounting-writes.gate"
 
@@ -194,6 +198,13 @@ export class AccountingWritesController {
             (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
           ),
         ),
+      // [WS-2] Server-derived template-novelty screen. The gate runs it in-tx only
+      // for an AGENT key with a `templateId` present (both re-checked gate-side);
+      // an UNCONFIRMED template forces the score sub-green (`novel_template`).
+      deriveTemplateNovelty:
+        templateId != null
+          ? (db) => deriveTemplateNovelty(db, templateId)
+          : undefined,
       run: (db, ctx) =>
         captureDocument(db, ctx, fields as unknown as DocumentInput),
       applied: (doc) => ({

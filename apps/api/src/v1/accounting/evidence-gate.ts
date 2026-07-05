@@ -30,6 +30,12 @@ import type { EvidenceSignals } from "@workspace/shared/api"
  * When a future version can server-RE-VERIFY extraction (and the other base-score
  * facts), the degradation drops away and the third AND leg becomes reachable —
  * the leg is never vacuous.
+ *
+ * [WS-2] The scorer also accepts `serverDerivedSignals`: infra-signal kinds the
+ * SERVER injects (never the client) — e.g. `novel_template` when a capture
+ * references an unconfirmed OCR template. These only ADD a hold to the score; a
+ * client cannot forge one (a Tier-3 kind is not a Tier-2 cap, so it is dropped if
+ * asserted via `capSignals`).
  */
 
 /**
@@ -60,11 +66,20 @@ const UNVERIFIED_EXTRACTION_SIGNAL = "extraction_failed"
  * always injected (green unreachable regardless of any calibration map). Only
  * self-reported CAP signals survive — honored fail-safe (they only LOWER trust).
  *
+ * `serverDerivedSignals` are infra-signal kinds the SERVER (never the client)
+ * injects into `firedSignals` — e.g. `novel_template` when the capture references
+ * an unconfirmed OCR template (see the capture write gate). They are the ONLY way
+ * a non-cap kind (a Tier-3 DEFER like `novel_template`) reaches the score: a
+ * client-supplied kind that is not a recognized Tier-2 cap is dropped below, so a
+ * client can never forge — nor omit, once the server derives it — this hold. Only
+ * ever ADDS a signal, so it can hold a write, never release one.
+ *
  * Exported so the post-fit guard test can prove these inputs stay sub-green even
  * under a FITTED calibration model ([WP-A-gate]).
  */
 export function buildScoreInputs(
   envelope: EvidenceEnvelope | null | undefined,
+  serverDerivedSignals: readonly string[] = [],
 ): ScoreInputs {
   // Self-reported CAP signals: honored fail-safe. Only recognized Tier-2 cap
   // kinds are threaded (an unknown kind is a no-cap in `capFromSignals`, so we
@@ -78,7 +93,11 @@ export function buildScoreInputs(
   // them in v1, so they contribute nothing (floor base, no bonus). The structural
   // `extraction_failed` block forces green unreachable regardless.
   return {
-    firedSignals: [UNVERIFIED_EXTRACTION_SIGNAL, ...assertedCaps],
+    firedSignals: [
+      UNVERIFIED_EXTRACTION_SIGNAL,
+      ...assertedCaps,
+      ...serverDerivedSignals,
+    ],
     kbRule: "none", // degraded (client kbRule claim NOT server-verifiable)
     verify: {}, // degraded (all five verify bonuses NOT server-recomputed)
     extractionQuality: 0, // degraded (NOT server-verifiable)
@@ -90,12 +109,19 @@ export function buildScoreInputs(
  * Build `ScoreInputs` from the (optional) client envelope FAIL-CLOSED, then score
  * server-side against the cold-start model. Returns the honest server verdict.
  *
+ * `serverDerivedSignals` are threaded through `buildScoreInputs` — SERVER-injected
+ * infra signals (e.g. `novel_template`), never client claims. They can only lower
+ * the verdict.
+ *
  * The verdict's `isGreen` is the THIRD leg of the live auto-apply AND (the other
  * two being the client confidence threshold and the independent server veto).
  * With v1 degradation `isGreen` is always false — everything is HELD.
  */
 export function evaluateEvidence(
   envelope: EvidenceEnvelope | null | undefined,
+  serverDerivedSignals: readonly string[] = [],
 ): GateDecision {
-  return scoreProposalColdStart(buildScoreInputs(envelope))
+  return scoreProposalColdStart(
+    buildScoreInputs(envelope, serverDerivedSignals),
+  )
 }

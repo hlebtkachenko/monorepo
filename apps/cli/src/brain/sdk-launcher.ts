@@ -45,24 +45,39 @@ import {
 } from "./extract-config"
 
 /**
- * DEFAULT-DENY permission gate, one of THREE independent sandbox layers (the other two are the login pack's
- * `disallowedTools`, which strips the denied built-ins from context entirely, and its exact-name
- * `allowedTools`, which only auto-allows the pinned accounting set). The SDK consults `canUseTool` only for
- * permission-REQUIRING calls — an already-allowlisted or no-permission tool bypasses it — so this is the
- * belt-and-braces layer, not the sole guard: any tool that DOES reach it is allowed only when the pinned
- * per-TOOL `isToolAllowed` says so, and everything else (`resolve_accounting_held_write`,
- * `list_accounting_held_writes`, an off-list `afframe` tool, a foreign server, an empty name) is denied.
+ * DEFAULT-DENY permission gate factory shared by BOTH lanes. It builds a `canUseTool` that allows a call only
+ * when the lane's own `allows(toolName)` predicate (a pinned `isToolAllowed` against that lane's policy) says
+ * so, and denies everything else with the lane's own `denyMessage(toolName)`.
+ *
+ * This is one of THREE independent sandbox layers (the other two are the login pack's `disallowedTools`,
+ * which strips the denied built-ins from context entirely, and its exact-name `allowedTools`, which only
+ * auto-allows the pinned set). The SDK consults `canUseTool` only for permission-REQUIRING calls — an
+ * already-allowlisted or no-permission tool bypasses it — so this is the belt-and-braces layer, not the sole
+ * guard: any tool that DOES reach it is allowed only when the lane's per-TOOL policy says so.
  */
-function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
+function makeSandboxGate(
+  allows: (toolName: string) => boolean,
+  denyMessage: (toolName: string) => string,
+): CanUseTool {
   return (toolName, input): Promise<PermissionResult> => {
-    if (sandboxAllows(toolName, plan)) {
+    if (allows(toolName)) {
       return Promise.resolve({ behavior: "allow", updatedInput: input })
     }
-    return Promise.resolve({
-      behavior: "deny",
-      message: `Brain sandbox denies ${toolName}: default-deny, not in the pinned accounting allowlist.`,
-    })
+    return Promise.resolve({ behavior: "deny", message: denyMessage(toolName) })
   }
+}
+
+/**
+ * The RUN lane's default-deny gate: allowed only when the pinned per-TOOL `isToolAllowed` against the plan's
+ * accounting policy says so; everything else (`resolve_accounting_held_write`, `list_accounting_held_writes`,
+ * an off-list `afframe` tool, a foreign server, an empty name) is denied.
+ */
+function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
+  return makeSandboxGate(
+    (toolName) => sandboxAllows(toolName, plan),
+    (toolName) =>
+      `Brain sandbox denies ${toolName}: default-deny, not in the pinned accounting allowlist.`,
+  )
 }
 
 /**
@@ -139,15 +154,11 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
 
 /** DEFAULT-DENY permission gate for the extract lane — allows only the ocr-template read + propose pair. */
 function makeExtractCanUseTool(): CanUseTool {
-  return (toolName, input): Promise<PermissionResult> => {
-    if (extractSandboxAllows(toolName)) {
-      return Promise.resolve({ behavior: "allow", updatedInput: input })
-    }
-    return Promise.resolve({
-      behavior: "deny",
-      message: `Brain extract sandbox denies ${toolName}: default-deny, only the ocr-template read/propose tools are allowed (this lane never books).`,
-    })
-  }
+  return makeSandboxGate(
+    extractSandboxAllows,
+    (toolName) =>
+      `Brain extract sandbox denies ${toolName}: default-deny, only the ocr-template read/propose tools are allowed (this lane never books).`,
+  )
 }
 
 /** The inputs the SDK-backed extract launcher needs: the fixed session inputs + creds + the document block. */

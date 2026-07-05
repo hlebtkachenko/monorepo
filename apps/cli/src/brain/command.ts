@@ -237,40 +237,46 @@ export function registerBrainCommand(program: Command): void {
     )
 }
 
-/** Read + shallow-validate the operator-supplied `extract` context: JUST the login-pack sections (no tenancy). */
-function readExtractContext(path: string): ExtractContext {
+/**
+ * Read + shallow-validate an operator-supplied JSON context file at a SYSTEM BOUNDARY. It fails LOUD on a
+ * non-object or any missing required key (naming the flag + the exact key list), then picks ONLY the required
+ * keys — any extra key in the file (e.g. a `policy` widening attempt) is DROPPED, never carried through. This
+ * is the single parametric reader all three operator inputs share; each caller passes its flag label + the
+ * keys it needs and gets back an object of exactly those keys, typed to the caller's shape.
+ */
+function readContextFile<K extends string>(
+  path: string,
+  flag: string,
+  requiredKeys: readonly K[],
+): Record<K, unknown> {
   const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    !("sections" in parsed)
-  ) {
+  const missing =
+    typeof parsed !== "object" || parsed === null
+      ? [...requiredKeys]
+      : requiredKeys.filter((key) => !(key in parsed))
+  if (missing.length > 0) {
+    const label = requiredKeys.length === 1 ? "key" : "keys"
     throw new Error(
-      `--context file ${path} must be a JSON object with key: sections`,
+      `${flag} file ${path} must be a JSON object with ${label}: ${requiredKeys.join(", ")}`,
     )
   }
   const obj = parsed as Record<string, unknown>
-  return { sections: obj.sections } as ExtractContext
+  const picked = {} as Record<K, unknown>
+  for (const key of requiredKeys) picked[key] = obj[key]
+  return picked
+}
+
+/** Read + shallow-validate the operator-supplied `extract` context: JUST the login-pack sections (no tenancy). */
+function readExtractContext(path: string): ExtractContext {
+  return readContextFile(path, "--context", ["sections"]) as ExtractContext
 }
 
 /** Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context. */
 function readBookContext(path: string): BookContext {
-  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    !("sections" in parsed) ||
-    !("captureContext" in parsed)
-  ) {
-    throw new Error(
-      `--context file ${path} must be a JSON object with keys: sections, captureContext`,
-    )
-  }
-  const obj = parsed as Record<string, unknown>
-  return {
-    sections: obj.sections,
-    captureContext: obj.captureContext,
-  } as BookContext
+  return readContextFile(path, "--context", [
+    "sections",
+    "captureContext",
+  ]) as BookContext
 }
 
 /**
@@ -299,29 +305,16 @@ async function confirmLiveRun(count: number): Promise<boolean> {
 
 /**
  * Read + shallow-validate the operator-supplied plan inputs. Only `invoice` / `sections` / `captureContext`
- * are carried through — an optional `policy` (or any other key) in the file is DROPPED, so the pinned
- * `BRAIN_ACCOUNTING_POLICY` (the default `planBrainDryRun` applies) can never be widened from the inputs
- * file. Note the tool lists are ALSO server-side-defended: `resolve_accounting_held_write` /
- * `list_accounting_held_writes` are denied for the Brain's agent key via `@RequireHumanActor()` (#517); this
- * pin closes the last client-side widening seam.
+ * are carried through (the shared `readContextFile` picks EXACTLY the required keys) — an optional `policy`
+ * (or any other key) in the file is DROPPED, so the pinned `BRAIN_ACCOUNTING_POLICY` (the default
+ * `planBrainDryRun` applies) can never be widened from the inputs file. Note the tool lists are ALSO
+ * server-side-defended: `resolve_accounting_held_write` / `list_accounting_held_writes` are denied for the
+ * Brain's agent key via `@RequireHumanActor()` (#517); this pin closes the last client-side widening seam.
  */
 function readInputs(path: string): BrainDryRunInputs {
-  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    !("invoice" in parsed) ||
-    !("sections" in parsed) ||
-    !("captureContext" in parsed)
-  ) {
-    throw new Error(
-      `--inputs file ${path} must be a JSON object with keys: invoice, sections, captureContext`,
-    )
-  }
-  const obj = parsed as Record<string, unknown>
-  return {
-    invoice: obj.invoice,
-    sections: obj.sections,
-    captureContext: obj.captureContext,
-  } as BrainDryRunInputs
+  return readContextFile(path, "--inputs", [
+    "invoice",
+    "sections",
+    "captureContext",
+  ]) as BrainDryRunInputs
 }

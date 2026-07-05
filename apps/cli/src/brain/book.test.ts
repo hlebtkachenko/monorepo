@@ -110,6 +110,17 @@ describe("assembleBookPlan (creds-free folder → capture plan)", () => {
     const bankWrite = bank.plan.toolPlan.at(-1)!
     expect(bankWrite.input).toBe(bank.plan.captureRequest)
 
+    // FIX 1: every record kind shares ONE skeleton (login pack + policy + read tool sequence) assembled by
+    // `planForCapture` — only the write body differs. No PLACEHOLDER_INVOICE, no string-match toolPlan swap.
+    expect(bank.plan.loginPack.system).toBe(invoice.plan.loginPack.system)
+    expect(bank.plan.policy).toBe(invoice.plan.policy)
+    expect(bank.plan.toolPlan.map((c) => c.toolName)).toEqual(
+      invoice.plan.toolPlan.map((c) => c.toolName),
+    )
+    // The bank write body is the bankToCapture adapter's output (a BANK_STATEMENT), never an invoice skeleton.
+    expect(bank.plan.captureRequest.type).toBe("BANK_STATEMENT")
+    expect(bankWrite.toolName).toBe("mcp__afframe__capture_accounting_document")
+
     // The GLEntry the Pohoda export also produced is SKIPPED (never a booking source).
     expect(book.skips.map((s) => s.recordType)).toEqual(["gl_entry"])
     expect(book.skips[0]!.reason).toContain("never a booking source")

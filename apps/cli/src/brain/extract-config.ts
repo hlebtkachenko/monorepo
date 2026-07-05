@@ -32,6 +32,7 @@ import {
   type LoginContextSections,
   type ToolAllowlistPolicy,
 } from "@workspace/brain"
+import { buildQueryOptions, type BrainQueryOptions } from "./session-config"
 
 /** The workspace OCR-template READ tool (`mcp__afframe__list_ocr_templates`). */
 export const LIST_OCR_TEMPLATES_TOOL = `mcp__${AFFRAME_MCP_SERVER}__list_ocr_templates`
@@ -101,29 +102,6 @@ export interface ExtractSessionInputs {
 }
 
 /**
- * The concrete extract-session configuration passed to `query()`, minus the SDK-only callbacks (`canUseTool`)
- * and the auth env, which the launcher attaches. A structural subset of the SDK `Options` type — kept SDK-free
- * so it is unit-testable and the SDK cannot leak into this module's dependency graph.
- */
-export interface ExtractQueryOptions {
-  /** The login-pack system prompt — the session boots sandboxed by construction (extract policy). */
-  systemPrompt: string
-  /** The per-TOOL `mcp__afframe__*` allowlist — exactly the ocr-template read + propose pair. */
-  allowedTools: string[]
-  /** The denied built-ins (verbatim from the login pack — the exfiltration / self-modification surface). */
-  disallowedTools: string[]
-  /** The single `afframe` server pointed at the deployed MCP endpoint + authorized with the workspace key. */
-  mcpServers: Record<
-    string,
-    { type: "http"; url: string; headers: Record<string, string> }
-  >
-  /** Never `bypassPermissions` — decisions route through the launcher's `canUseTool`. */
-  permissionMode: "default"
-  /** Empty → NO filesystem settings (no CLAUDE.md / project config) leak into the extract session. */
-  settingSources: []
-}
-
-/**
  * The login pack an extract session boots with, always under `BRAIN_EXTRACT_POLICY`. PURE. Exposed on its own
  * so the launcher AND the `--dry-run` inspector share one source of truth for the sandbox lists + system
  * prompt (no re-derivation across the seam).
@@ -138,30 +116,18 @@ export function buildExtractLoginPack(
 }
 
 /**
- * Map the extract inputs + resolved creds → the Agent-SDK query options. PURE. The tool lists + system prompt
- * come straight from the extract login pack (single source of truth); the MCP server is the deployed endpoint
- * keyed under the exact `afframe` namespace so `mcp__afframe__*` resolves, authorized with the workspace key.
+ * Map the extract inputs + resolved creds → the Agent-SDK query options for the EXTRACT lane. Thin wrapper
+ * over the shared `buildQueryOptions`, feeding it the extract login pack (single source of truth for the
+ * ocr-read/propose sandbox lists + system prompt) + the resolved creds. The extract lane keeps its OWN pack
+ * (`BRAIN_EXTRACT_POLICY`), so its sandbox stays byte-identical to before — only the SDK-options assembly is
+ * shared with the run lane.
  */
 export function buildExtractQueryOptions(
   inputs: ExtractSessionInputs,
   mcpEndpoint: string,
   apiKey: string,
-): ExtractQueryOptions {
-  const loginPack = buildExtractLoginPack(inputs)
-  return {
-    systemPrompt: loginPack.system,
-    allowedTools: [...loginPack.allowedTools],
-    disallowedTools: [...loginPack.disallowedTools],
-    mcpServers: {
-      [AFFRAME_MCP_SERVER]: {
-        type: "http",
-        url: mcpEndpoint,
-        headers: { Authorization: `Bearer ${apiKey}` },
-      },
-    },
-    permissionMode: "default",
-    settingSources: [],
-  }
+): BrainQueryOptions {
+  return buildQueryOptions(buildExtractLoginPack(inputs), mcpEndpoint, apiKey)
 }
 
 /**

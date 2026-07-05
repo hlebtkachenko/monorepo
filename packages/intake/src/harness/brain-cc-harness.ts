@@ -108,35 +108,38 @@ export interface BrainDryRunInputs {
 }
 
 /**
- * Build the creds-free dry-run plan for a single-invoice Brain session.
+ * Build the creds-free dry-run plan for ONE ALREADY-MAPPED capture request. This is the SINGLE source of
+ * truth for the login pack + the fixed read → propose tool sequence across every record kind (invoice /
+ * bank / cash): the caller maps the IR record to a `CaptureAccountingDocumentRequest` via the right WP-A
+ * adapter, and this assembles the plan the live session would drive with THAT request as the write body.
  *
  * PURE. It (1) assembles the login pack via WP-B `buildLoginContext` (which embeds the sandbox policy and
- * fails closed on a self-contradictory policy), (2) maps the invoice to a capture request via the WP-A
- * adapter (which fabricates no VAT and emits no tenancy keys), and (3) returns the ordered tool-call plan
- * the live session would execute, each call tagged with whether the sandbox allows it. NO live session is
- * launched and NO MCP endpoint is contacted — this is the plan, not the run.
+ * fails closed on a self-contradictory policy), and (2) returns the ordered tool-call plan the live session
+ * would execute, each call tagged with whether the sandbox allows it. NO live session is launched and NO MCP
+ * endpoint is contacted — this is the plan, not the run.
  *
  * The plan a live run derives from this is DECIDED by the sandbox + the server gate, never by a document:
  * the tool set is fixed here (read structure/series → propose the capture write), and the write is HELD or
  * applied by the SERVER gate over infra signals, never by the model's verbalized confidence.
  */
-export function planBrainDryRun(inputs: BrainDryRunInputs): BrainDryRunPlan {
-  const policy = inputs.policy ?? BRAIN_ACCOUNTING_POLICY
+export function planForCapture(
+  captureRequest: CaptureAccountingDocumentRequest,
+  sections: LoginContextSections,
+  policyOverride?: ToolAllowlistPolicy,
+): BrainDryRunPlan {
+  const policy = policyOverride ?? BRAIN_ACCOUNTING_POLICY
 
   // WP-B: assemble the login pack under this policy. `buildLoginContext` throws if the policy allows a
   // denied built-in (fail-closed), so a broken sandbox can never reach the plan.
   const loginPack = buildLoginContext({
-    ...inputs.sections,
+    ...sections,
     toolPolicy: policy,
   })
 
-  // WP-A: map the IR invoice to the capture write request the server gates. Tenancy-free by construction.
-  const captureRequest = invoiceToCapture(inputs.invoice, inputs.captureContext)
-
-  // The fixed tool-call plan for a single-invoice session. The reads locate the tenant-side rows the write
-  // references (the harness supplies the resolved uuids in `captureContext`); the write is the only mutation
-  // and it is subject to the SERVER gate. Every tool name is the real `mcp__afframe__<tool>` name so the
-  // sandbox decision is asserted verbatim, not approximated.
+  // The fixed tool-call plan for a single-document session. The reads locate the tenant-side rows the write
+  // references (the harness supplies the resolved uuids in the capture request); the write is the only
+  // mutation and it is subject to the SERVER gate. Every tool name is the real `mcp__afframe__<tool>` name so
+  // the sandbox decision is asserted verbatim, not approximated.
   const toolPlan: PlannedToolCall[] = [
     tool(
       "mcp__afframe__get_structure",
@@ -159,6 +162,19 @@ export function planBrainDryRun(inputs: BrainDryRunInputs): BrainDryRunPlan {
   ]
 
   return { loginPack, policy, toolPlan, captureRequest }
+}
+
+/**
+ * Build the creds-free dry-run plan for a single-INVOICE Brain session — the thin wrapper that maps the IR
+ * invoice through the WP-A adapter (which fabricates no VAT and emits no tenancy keys) and defers the login
+ * pack + tool sequence to `planForCapture`. Its public behavior/signature is unchanged.
+ */
+export function planBrainDryRun(inputs: BrainDryRunInputs): BrainDryRunPlan {
+  return planForCapture(
+    invoiceToCapture(inputs.invoice, inputs.captureContext),
+    inputs.sections,
+    inputs.policy,
+  )
 }
 
 /** Build one `PlannedToolCall`, tagging it with the sandbox verdict for `toolName`. */

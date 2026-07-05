@@ -15,12 +15,12 @@
 import { basename, extname } from "node:path"
 import type { LoginContextSections } from "@workspace/brain"
 import {
-  BRAIN_EXTRACT_POLICY,
   buildExtractKickoff,
   buildExtractLoginPack,
   type ExtractDocumentBlock,
   type ExtractSessionInputs,
 } from "./extract-config"
+import { indent } from "./render"
 
 /** The operator-supplied context an `extract` run needs: JUST the login-pack safety spine — NO tenancy keys. */
 export interface ExtractContext {
@@ -165,12 +165,4 @@ export function renderExtractPlan(plan: ExtractPlan): string {
   lines.push("Kickoff (fixed task — document content is untrusted data):")
   lines.push(indent(plan.kickoff, 2))
   return lines.join("\n") + "\n"
-}
-
-function indent(text: string, spaces: number): string {
-  const pad = " ".repeat(spaces)
-  return text
-    .split("\n")
-    .map((line) => pad + line)
-    .join("\n")
 }

@@ -18,10 +18,11 @@ import {
   bankToCapture,
   cashDocumentToCapture,
   detectFormat,
+  invoiceToCapture,
   parseCsv,
   parsePohodaDataPack,
   parseXlsx,
-  planBrainDryRun,
+  planForCapture,
   type BrainDryRunPlan,
   type IrToCaptureContext,
   type ParseContext,
@@ -36,6 +37,7 @@ import {
   type IrRecord,
   type LoginContextSections,
 } from "@workspace/brain"
+import { indent } from "./render"
 
 /**
  * The operator-supplied context a `book` run needs, mirroring the `--inputs` shape `brain run` consumes:
@@ -105,6 +107,16 @@ const UNWIRED_FORMAT_REASON: Record<string, string> = {
   unknown: "unrecognized format — not a structured accounting export",
 }
 
+/**
+ * The `ParseContext.orgRef` value stamped onto every record `book` produces. `book` has NO org ref to give:
+ * the org is resolved SERVER-side from the API-key principal at write time (never a client input), and the
+ * operator `--context` carries only period/series/event uuids — none of them an org. `orgRef` lands verbatim
+ * in each IR record's provenance (`org_ref`) and feeds the content-addressed `ir_id` hash, so it must be an
+ * HONEST, non-tenant sentinel — NOT an accounting-period uuid masquerading as an org ref. This clearly-labeled
+ * placeholder says exactly that: these records were assembled client-side by `book`, org unresolved.
+ */
+const BOOK_ORG_REF = "book:org-unresolved"
+
 /** List every file under `folder` recursively, returning absolute paths. Directories are descended, not booked. */
 function walkFiles(folder: string): string[] {
   const out: string[] = []
@@ -117,71 +129,23 @@ function walkFiles(folder: string): string[] {
 }
 
 /**
- * Assemble the `BrainDryRunPlan` a live run drives for one BOOKABLE record. An invoice goes straight through
- * `planBrainDryRun` (which wires `invoiceToCapture`). A bank/cash record maps via its own adapter, then
- * borrows an invoice plan's login pack + policy + fixed read→propose toolPlan and re-points the write call to
- * the record-type-matched capture request — one source of truth for the sandbox + tool sequence across all
- * three record kinds, only the write body differs.
+ * Assemble the `BrainDryRunPlan` a live run drives for one BOOKABLE record. Every record kind maps to its
+ * capture request through the record-type-matched WP-A adapter (`invoiceToCapture` / `bankToCapture` /
+ * `cashDocumentToCapture`), then `planForCapture` assembles the login pack + fixed read→propose toolPlan
+ * around that request — one source of truth for the sandbox + tool sequence across all three record kinds,
+ * only the write body differs.
  */
 function planForRecord(
   record: BookableRecord,
   ctx: BookContext,
 ): BrainDryRunPlan {
-  if (isInvoice(record)) {
-    return planBrainDryRun({
-      invoice: record,
-      sections: ctx.sections,
-      captureContext: ctx.captureContext,
-    })
-  }
+  const captureRequest = isInvoice(record)
+    ? invoiceToCapture(record, ctx.captureContext)
+    : isBankTransaction(record)
+      ? bankToCapture(record, ctx.captureContext)
+      : cashDocumentToCapture(record, ctx.captureContext)
 
-  const captureRequest = isBankTransaction(record)
-    ? bankToCapture(record, ctx.captureContext)
-    : cashDocumentToCapture(record, ctx.captureContext)
-
-  // Borrow an invoice plan's skeleton (login pack + policy + toolPlan) via the placeholder, then swap in this
-  // record's captureRequest so the plan an operator inspects carries the bank/cash write body, never an
-  // invoice's. The placeholder-derived captureRequest is discarded — it never reaches the returned plan.
-  const skeleton = planBrainDryRun({
-    invoice: PLACEHOLDER_INVOICE,
-    sections: ctx.sections,
-    captureContext: ctx.captureContext,
-  })
-  return {
-    ...skeleton,
-    captureRequest,
-    toolPlan: skeleton.toolPlan.map((call) =>
-      call.toolName === "mcp__afframe__capture_accounting_document"
-        ? { ...call, input: captureRequest }
-        : call,
-    ),
-  }
-}
-
-/**
- * A minimal placeholder invoice used ONLY to borrow `planBrainDryRun`'s login pack + toolPlan skeleton for a
- * non-invoice record — its produced captureRequest is DISCARDED and replaced by the record-type-matched
- * adapter's output in `planForRecord`. It never reaches a plan the operator inspects.
- */
-const PLACEHOLDER_INVOICE = {
-  ir_id: "book-skeleton",
-  org_ref: "book",
-  source: "csv" as const,
-  source_locator: "book/skeleton",
-  source_hash: "book",
-  ingested_at: "1970-01-01T00:00:00.000Z",
-  confidence: 1,
-  needs_review: false,
-  raw: {},
-  record_type: "invoice" as const,
-  direction: "received" as const,
-  doc_type: "invoice" as const,
-  number: "SKELETON",
-  issue_date: "1970-01-01",
-  currency: "CZK",
-  lines: [],
-  vat_summary: [],
-  total_minor: 0n,
+  return planForCapture(captureRequest, ctx.sections)
 }
 
 /**
@@ -218,7 +182,7 @@ export function assembleBookPlan(
     }
 
     const parseContext: ParseContext = {
-      orgRef: ctx.captureContext.periodId,
+      orgRef: BOOK_ORG_REF,
       sourcePath: rel,
       ingestedAt,
     }
@@ -304,12 +268,4 @@ export function renderBookPlan(book: BookPlan, ctx: BookContext): string {
 /** JSON.stringify replacer that renders bigint minor-unit fields as strings (a capture request carries none, defensive). */
 function bigintReplacer(_key: string, value: unknown): unknown {
   return typeof value === "bigint" ? value.toString() : value
-}
-
-function indent(text: string, spaces: number): string {
-  const pad = " ".repeat(spaces)
-  return text
-    .split("\n")
-    .map((line) => pad + line)
-    .join("\n")
 }

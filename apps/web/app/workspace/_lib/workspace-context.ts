@@ -9,10 +9,11 @@ import {
   workspace_membership,
 } from "@workspace/db/schema"
 
+import { type ActionResult } from "../../../lib/action-result"
 import { presignAvatarRead } from "../../_lib/avatar-storage"
 import { readActiveWorkspaceCookie } from "../../onboarding/_lib/active-workspace-cookie"
 
-type WorkspaceRole = "owner" | "admin" | "member"
+export type WorkspaceRole = "owner" | "admin" | "member"
 
 interface WorkspaceSummary {
   id: string
@@ -120,6 +121,30 @@ export async function getWorkspaceContext(
     current,
     hasNoWorkspace: false,
   }
+}
+
+/**
+ * Role gate for mutating workspace-tier server actions. Mirrors the
+ * semantics of the DB's SECURITY DEFINER helpers
+ * (`app_is_workspace_admin`/`app_is_workspace_owner` in
+ * `packages/db/migrations/0005_workspace.sql`) at the app layer: actions
+ * call this AFTER the `activeWorkspaceId` fence, passing the roles allowed
+ * to perform the mutation. Returns the shared `ActionResult` failure shape
+ * when the caller's role for `current` isn't in `allowedRoles`, or `null`
+ * when the caller may proceed.
+ *
+ * Takes the already-resolved `WorkspaceContext` (from `getWorkspaceContext`)
+ * rather than re-querying — `current.role` is already the active
+ * membership's role for `activeWorkspaceId`.
+ */
+export function requireWorkspaceRole(
+  ctx: Pick<WorkspaceContext, "current">,
+  allowedRoles: readonly WorkspaceRole[],
+): ActionResult | null {
+  if (!ctx.current || !allowedRoles.includes(ctx.current.role)) {
+    return { ok: false, errorKey: "forbidden" }
+  }
+  return null
 }
 
 /**

@@ -8,7 +8,10 @@ import { workspace_billing } from "@workspace/db/schema"
 
 import { type ActionResult } from "../../../lib/action-result"
 import { logServerError } from "../../../lib/log-server-error"
-import { getWorkspaceContext } from "../_lib/workspace-context"
+import {
+  getWorkspaceContext,
+  requireWorkspaceRole,
+} from "../_lib/workspace-context"
 
 const BillingEntitySchema = z.object({
   legalName: z
@@ -51,7 +54,8 @@ export type BillingEntityInput = z.infer<typeof BillingEntitySchema>
  * Save the workspace billing entity — upserts `workspace_billing` (the row
  * may not exist yet), keyed on the server-resolved active workspace id, never
  * a client-supplied one. `withAdminBypass` + explicit predicate, same trap as
- * every other workspace-tier write in this tier.
+ * every other workspace-tier write in this tier. `requireWorkspaceRole`
+ * restricts this mutation to `owner`/`admin`; a `member` is denied.
  */
 export async function saveBillingEntityAction(
   input: BillingEntityInput,
@@ -69,6 +73,9 @@ export async function saveBillingEntityAction(
     return { ok: false, errorKey: "noActiveWorkspace" }
   }
   const workspaceId = ctx.activeWorkspaceId
+
+  const roleError = requireWorkspaceRole(ctx, ["owner", "admin"])
+  if (roleError) return roleError
 
   try {
     await withAdminBypass(async (db) => {

@@ -9,7 +9,10 @@ import { workspace } from "@workspace/db/schema"
 
 import { type ActionResult } from "../../../lib/action-result"
 import { logServerError } from "../../../lib/log-server-error"
-import { getWorkspaceContext } from "../_lib/workspace-context"
+import {
+  getWorkspaceContext,
+  requireWorkspaceRole,
+} from "../_lib/workspace-context"
 
 const SettingsSchema = z.object({
   displayName: z
@@ -35,6 +38,8 @@ export type SettingsInput = z.infer<typeof SettingsSchema>
  * `withAdminBypass` + explicit `eq(workspace.id, ...)` predicate, same trap
  * as the read in `page.tsx` — `withWorkspace` would clear
  * `app.organization_id` and is not needed for a workspace-scoped write.
+ * `requireWorkspaceRole` restricts this mutation to `owner`/`admin`; a
+ * `member` is denied.
  */
 export async function saveWorkspaceSettingsAction(
   input: SettingsInput,
@@ -52,6 +57,9 @@ export async function saveWorkspaceSettingsAction(
     return { ok: false, errorKey: "noActiveWorkspace" }
   }
   const workspaceId = ctx.activeWorkspaceId
+
+  const roleError = requireWorkspaceRole(ctx, ["owner", "admin"])
+  if (roleError) return roleError
 
   try {
     await withAdminBypass(async (db) => {

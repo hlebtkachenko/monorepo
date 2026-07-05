@@ -111,14 +111,25 @@ export interface GatedWriteOptions<T> {
  */
 export async function runGatedWrite<T>(
   opts: GatedWriteOptions<T>,
-  admission: AdmissionController = accountingAdmission,
-  // The server-side evidence scorer. Defaults to the fail-closed live scorer;
-  // injectable ONLY so a test can exercise the green auto-apply leg without a
-  // fabricated cFinal (mirrors the injectable `admission`). Production always
-  // uses `evaluateEvidence` — the client can never override it.
-  scoreEvidence: (
-    signals: EvidenceEnvelope | null | undefined,
-  ) => GateDecision = evaluateEvidence,
+): Promise<GatedWriteResult> {
+  // Production entry: EXACTLY one parameter, so no caller can override the
+  // fail-closed admission / scoring seams. The invariant is enforced by the
+  // TYPE SYSTEM — a production caller trying to pass a permissive scorer is a
+  // TS2554 compile error, strictly stronger than a source scan ([#519]).
+  return runGatedWriteWithSeams(opts, accountingAdmission, evaluateEvidence)
+}
+
+/**
+ * TEST-ONLY seam form. The injectable `admission` + `scoreEvidence` let a test
+ * exercise the admission / auto-apply legs without a fabricated cFinal. NEVER
+ * call this from production code — call {@link runGatedWrite}. The #519 boundary
+ * test asserts no non-test file references this symbol, so the server-score leg
+ * of the three-way AND can never be vacated by a real caller.
+ */
+export async function runGatedWriteWithSeams<T>(
+  opts: GatedWriteOptions<T>,
+  admission: AdmissionController,
+  scoreEvidence: (signals: EvidenceEnvelope | null | undefined) => GateDecision,
 ): Promise<GatedWriteResult> {
   const { principal, idempotencyKey, operationId, body } = opts
 
@@ -162,7 +173,14 @@ export async function runGatedWrite<T>(
     const amountHold = opts.holdAmounts.some(
       (a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT,
     )
-    const actorKind = opts.conversationId ? "ai_on_behalf" : "human"
+    // [#517] The actor is AI if EITHER the tamper-proof key capability says so
+    // (an `agent` key, authoritative + unspoofable) OR the client-supplied
+    // conversationId heuristic does (a human driving an AI assistant). Only a
+    // bare human key with no conversation stamps `human`.
+    const actorKind =
+      principal.actorKind === "agent" || opts.conversationId
+        ? "ai_on_behalf"
+        : "human"
 
     type TxOutcome =
       | { kind: "replay"; prior: Record<string, unknown> }

@@ -43,6 +43,7 @@ function principalWithScopes(scopes: string[]) {
     organizationId: "org-1",
     workspaceId: "ws-1",
     scopes,
+    actorKind: "human" as const,
   }
 }
 

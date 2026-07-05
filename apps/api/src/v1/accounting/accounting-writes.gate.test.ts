@@ -42,7 +42,7 @@ vi.mock("@workspace/db", () => {
 })
 
 const db = await import("@workspace/db")
-const { runGatedWrite, canonicalHash } =
+const { runGatedWrite, runGatedWriteWithSeams, canonicalHash } =
   await import("./accounting-writes.gate")
 
 const writeLog = vi.mocked(db.writeToolCallLog)
@@ -50,11 +50,19 @@ const updateLog = vi.mocked(db.updateToolCallLogOutput)
 const withOrg = vi.mocked(db.withOrganization)
 const lockPeriod = vi.mocked(db.lockPeriodInTx)
 
+// A permissive admission for the TEST-ONLY seam form (mirrors the mocked
+// singleton's always-admit behavior). Seam tests call `runGatedWriteWithSeams`
+// with an explicit admission + scorer; production code uses `runGatedWrite`.
+const admitting = {
+  acquire: () => ({ release: () => {} }),
+} as unknown as AdmissionController
+
 const principal = {
   userId: "user-1" as string | null,
   organizationId: "org-1",
   workspaceId: "ws-1",
   scopes: [] as readonly string[],
+  actorKind: "human" as const,
 }
 
 type Ev = { eventId: string; designation: string; sequenceNumber: number }
@@ -150,9 +158,9 @@ describe("runGatedWrite", () => {
     })
     // The green server score is INJECTED — the real scorer is fail-closed and
     // never green at cold start (that is the fail-closed-cold-start test below).
-    const res = await runGatedWrite(
+    const res = await runGatedWriteWithSeams(
       build({ confidence: 0.95, run }),
-      undefined,
+      admitting,
       greenScorer,
     )
     expect(res.httpStatus).toBe(201)
@@ -247,7 +255,7 @@ describe("runGatedWrite", () => {
       },
     } as unknown as AdmissionController
     await expect(
-      runGatedWrite(build({ confidence: 0.95 }), rejecting),
+      runGatedWriteWithSeams(build({ confidence: 0.95 }), rejecting, greenScorer),
     ).rejects.toBeInstanceOf(RateLimitedError)
     expect(withOrg).not.toHaveBeenCalled()
   })
@@ -258,9 +266,9 @@ describe("runGatedWrite", () => {
       designation: "FP2",
       sequenceNumber: 2,
     })
-    await runGatedWrite(
+    await runGatedWriteWithSeams(
       build({ confidence: 0.95, run }),
-      undefined,
+      admitting,
       greenScorer,
     )
     expect(lockPeriod).toHaveBeenCalledWith(expect.anything(), "org-1", "p-1")
@@ -275,18 +283,40 @@ describe("runGatedWrite", () => {
     expect(lockPeriod).not.toHaveBeenCalled()
   })
 
+  it("[#517] stamps an agent-key write as ai_on_behalf even with NO conversationId", async () => {
+    // The audit actor comes from the TAMPER-PROOF key capability: an agent key
+    // is always an AI actor regardless of the client-supplied (spoofable)
+    // conversationId, so an agent can never be logged as 'human'.
+    await runGatedWrite({
+      ...build({ confidence: 0.5 }),
+      principal: { ...principal, actorKind: "agent" },
+    })
+    expect(writeLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorKind: "ai_on_behalf" }),
+    )
+  })
+
+  it("[#517] stamps a bare human-key write (no conversationId) as human", async () => {
+    await runGatedWrite(build({ confidence: 0.5 }))
+    expect(writeLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorKind: "human" }),
+    )
+  })
+
   it("HOLDS an auto-apply-confidence write when the server veto fires, EVEN with a green score [G2-B1]", async () => {
     // Veto INDEPENDENCE: inject a GREEN server score so the ONLY thing that can
     // hold the write is the veto. A claimed-0.99 booking the server vetoes still
     // holds — the veto is AND-composed, never routed through the score engine.
     const run = vi.fn()
-    const res = await runGatedWrite(
+    const res = await runGatedWriteWithSeams(
       {
         ...build({ confidence: 0.99, run }),
         deriveVeto: () =>
           Promise.resolve({ held: true, signals: ["asset_vs_expense"] }),
       },
-      undefined,
+      admitting,
       greenScorer,
     )
     expect(res.httpStatus).toBe(202)
@@ -313,7 +343,7 @@ describe("runGatedWrite", () => {
     // even when the server score is green (a fitted map would lift it). The veto
     // is independent — it is NOT routed through scoreProposal/calibration.
     const run = vi.fn()
-    const res = await runGatedWrite(
+    const res = await runGatedWriteWithSeams(
       {
         ...build({ confidence: 0.99, run }),
         deriveVeto: () =>
@@ -333,7 +363,7 @@ describe("runGatedWrite", () => {
             ]),
           ),
       },
-      undefined,
+      admitting,
       greenScorer,
     )
     expect(res.httpStatus).toBe(202)
@@ -359,12 +389,12 @@ describe("runGatedWrite", () => {
       designation: "FP-ok",
       sequenceNumber: 3,
     })
-    const res = await runGatedWrite(
+    const res = await runGatedWriteWithSeams(
       {
         ...build({ confidence: 0.99, run }),
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
       },
-      undefined,
+      admitting,
       greenScorer,
     )
     expect(res.httpStatus).toBe(201)

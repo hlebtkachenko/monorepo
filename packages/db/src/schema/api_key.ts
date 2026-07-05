@@ -35,6 +35,18 @@ export const api_key = pgTable("api_key", {
     .array()
     .notNull()
     .default(sql`'{}'::text[]`),
+  // Actor capability of the key: `human` (a person acting through the API) or
+  // `agent` (an autonomous Brain client). Agent keys are DENIED server-side on
+  // the held-write resolve endpoint (they may propose writes, never approve
+  // them). Default `human` keeps every pre-existing key fully capable; a Brain
+  // key is provisioned explicitly as `agent`. text+CHECK (migration 0045), not
+  // a pgEnum, to stay additive + lock-light (mirrors supply_kind, 0043). The
+  // `enum` annotation mirrors the CHECK domain into the inferred TS type; the
+  // verifier's runtime fail-safe narrowing (api-key-verifier.ts) stays the
+  // boundary defense and must never be replaced by the type alone.
+  actor_kind: text("actor_kind", { enum: ["human", "agent"] })
+    .notNull()
+    .default("human"),
   created_by_user_id: uuid("created_by_user_id").references(() => app_user.id),
   last_used_at: timestamp("last_used_at", { withTimezone: true }),
   expires_at: timestamp("expires_at", { withTimezone: true }),

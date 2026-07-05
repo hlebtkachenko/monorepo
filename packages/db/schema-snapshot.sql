@@ -1532,7 +1532,9 @@ CREATE TABLE public.api_key (
     expires_at timestamp with time zone,
     revoked_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    actor_kind text DEFAULT 'human'::text NOT NULL,
+    CONSTRAINT api_key_actor_kind_chk CHECK ((actor_kind = ANY (ARRAY['human'::text, 'agent'::text])))
 );
 
 ALTER TABLE ONLY public.api_key FORCE ROW LEVEL SECURITY;

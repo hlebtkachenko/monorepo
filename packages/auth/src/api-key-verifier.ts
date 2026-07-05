@@ -18,6 +18,14 @@ export interface ApiKeyPrincipal {
   readonly workspaceId: string
   /** Coarse capability scopes carried by the key (api_key.scopes). */
   readonly scopes: readonly string[]
+  /**
+   * Actor capability of the key ([#517]). `human` = a person acting through the
+   * API (may resolve held writes); `agent` = an autonomous Brain client (may
+   * propose gated writes, but is DENIED on the held-write resolve endpoint
+   * server-side). Narrowed fail-safe from `api_key.actor_kind`: any value other
+   * than the exact `human` resolves to `agent` (the less-privileged kind).
+   */
+  readonly actorKind: "human" | "agent"
 }
 
 /**
@@ -47,6 +55,7 @@ export async function verifyApiKey(
         workspaceId: api_key.workspace_id,
         createdByUserId: api_key.created_by_user_id,
         scopes: api_key.scopes,
+        actorKind: api_key.actor_kind,
         expiresAt: api_key.expires_at,
         revokedAt: api_key.revoked_at,
       })
@@ -83,5 +92,9 @@ export async function verifyApiKey(
     organizationId: match.organizationId,
     workspaceId: match.workspaceId,
     scopes: match.scopes,
+    // Fail-safe narrowing: only the exact `human` grants the human capability;
+    // any other value (incl. an unexpected one) resolves to `agent`, the
+    // less-privileged kind that is denied held-write resolve.
+    actorKind: match.actorKind === "human" ? "human" : "agent",
   }
 }

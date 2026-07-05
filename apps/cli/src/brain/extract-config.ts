@@ -50,7 +50,7 @@ export const CAPTURE_ACCOUNTING_DOCUMENT_TOOL = `mcp__${AFFRAME_MCP_SERVER}__cap
  * new unconfirmed template. Both are non-booking. `confirm_ocr_template` is deliberately absent — confirming
  * a template is a human-actor trust boundary, never the extractor's to cross.
  */
-export const EXTRACT_ALLOWED_OCR_TOOLS = [
+const EXTRACT_ALLOWED_OCR_TOOLS = [
   "list_ocr_templates",
   "create_ocr_template",
 ] as const

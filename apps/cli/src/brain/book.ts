@@ -51,7 +51,7 @@ export interface BookContext {
 }
 
 /** One bookable record, mapped to its capture request + the assembled plan the live run would execute. */
-export interface BookPlanEntry {
+interface BookPlanEntry {
   /** The provenance locator of the IR record this plan books (so the operator can trace it to a source). */
   sourceLocator: string
   /** The IR record kind (`invoice` / `bank_transaction` / `cash_document`). */
@@ -61,7 +61,7 @@ export interface BookPlanEntry {
 }
 
 /** A record the parsers surfaced that `book` deliberately does NOT book, with the reason. */
-export interface BookSkip {
+interface BookSkip {
   sourceLocator: string
   recordType: IrRecord["record_type"]
   /** Why it was skipped (a GLEntry / Attachment is never a booking source — control 2). */
@@ -69,7 +69,7 @@ export interface BookSkip {
 }
 
 /** A file in the folder `book` could not turn into a bookable plan (unknown / unsupported format). */
-export interface BookFileNote {
+interface BookFileNote {
   path: string
   message: string
 }

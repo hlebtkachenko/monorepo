@@ -167,11 +167,6 @@ export function renderExtractPlan(plan: ExtractPlan): string {
   return lines.join("\n") + "\n"
 }
 
-/** Whether the assembled plan's policy is the pinned extract policy (echoed for a quick sanity assertion). */
-export function extractPolicyName(): string {
-  return `afframe:${BRAIN_EXTRACT_POLICY.allowedMcpTools?.[BRAIN_EXTRACT_POLICY.allowedMcpServers[0]!]?.join(", ")}`
-}
-
 function indent(text: string, spaces: number): string {
   const pad = " ".repeat(spaces)
   return text

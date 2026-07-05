@@ -8,7 +8,8 @@
 // LAZILY, inside the live branch, so `--dry-run` and every non-Brain command start without pulling in the SDK.
 
 import { readFileSync } from "node:fs"
-import { stdout as output } from "node:process"
+import { createInterface } from "node:readline/promises"
+import { stdin as input, stdout as output } from "node:process"
 import type { Command } from "commander"
 import {
   BrainHarnessNotWiredError,
@@ -16,6 +17,7 @@ import {
   runLiveBrainSession,
   type BrainDryRunInputs,
 } from "@workspace/intake"
+import { assembleBookPlan, renderBookPlan, type BookContext } from "./book"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
 export function registerBrainCommand(program: Command): void {
@@ -64,6 +66,127 @@ export function registerBrainCommand(program: Command): void {
         throw err
       }
     })
+
+  brain
+    .command("book")
+    .description(
+      "Parse a folder of structured accounting exports into a capture plan, print it for inspection, and " +
+        "(with --live + confirmation) book each document. --dry-run assembles + prints only, no creds. " +
+        "NOTE: periodId/seriesId/eventId are OPERATOR-SUPPLIED via --context (like `brain run`), NOT MCP-resolved.",
+    )
+    .argument(
+      "<folder>",
+      "Folder of structured accounting exports (csv / xlsx / Pohoda dataPack XML)",
+    )
+    .requiredOption(
+      "--context <path>",
+      "Path to a JSON file: { sections, captureContext } (same shape as `brain run` --inputs, minus invoice)",
+    )
+    .option(
+      "--dry-run",
+      "Assemble + print the capture plan only; contact no endpoint (no creds needed)",
+    )
+    .option(
+      "--yes",
+      "Skip the interactive confirmation prompt on a --live run (non-interactive operators)",
+    )
+    .action(
+      async (
+        folder: string,
+        opts: { context: string; dryRun?: boolean; yes?: boolean },
+      ) => {
+        const ctx = readBookContext(opts.context)
+        const book = assembleBookPlan(folder, ctx, new Date().toISOString())
+
+        // Always PRINT the assembled plan first (the operator-inspects-then-verbatim-embed property): the
+        // ordered captureRequest bodies + the operator-supplied ids + skips + warnings, before anything runs.
+        output.write(renderBookPlan(book, ctx))
+
+        if (opts.dryRun) return
+
+        if (book.entries.length === 0) {
+          output.write("brain book: no bookable documents to run.\n")
+          return
+        }
+
+        // --live: the plan is printed above; require an explicit confirmation before any live session, so
+        // nothing auto-resolved (periodId/seriesId/eventId) or auto-assembled is embedded without a human OK.
+        const confirmed =
+          opts.yes || (await confirmLiveRun(book.entries.length))
+        if (!confirmed) {
+          output.write("brain book: aborted, no live run.\n")
+          return
+        }
+
+        // Lazy-load the SDK-backed launcher only when actually running live (mirrors `brain run`).
+        const { sdkAgentSessionLauncher } = await import("./sdk-launcher")
+        for (const [index, entry] of book.entries.entries()) {
+          output.write(
+            `\n[${index + 1}/${book.entries.length}] ${entry.recordType} — ${entry.sourceLocator}\n`,
+          )
+          try {
+            const result = await runLiveBrainSession({
+              plan: entry.plan,
+              mcpEndpoint: process.env.BRAIN_MCP_ENDPOINT ?? "",
+              readEnv: (name) => process.env[name],
+              launcher: sdkAgentSessionLauncher,
+            })
+            output.write(JSON.stringify(result, null, 2) + "\n")
+          } catch (err) {
+            if (err instanceof BrainHarnessNotWiredError) {
+              // Fail-closed: name exactly what is unmet, stop the batch, exit non-zero, no stack.
+              output.write(`brain book blocked: ${err.message}\n`)
+              process.exit(1)
+            }
+            throw err
+          }
+        }
+      },
+    )
+}
+
+/** Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context. */
+function readBookContext(path: string): BookContext {
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("sections" in parsed) ||
+    !("captureContext" in parsed)
+  ) {
+    throw new Error(
+      `--context file ${path} must be a JSON object with keys: sections, captureContext`,
+    )
+  }
+  const obj = parsed as Record<string, unknown>
+  return {
+    sections: obj.sections,
+    captureContext: obj.captureContext,
+  } as BookContext
+}
+
+/**
+ * The live-run confirmation gate. It PROMPTS (Accept/decline) on a TTY after the plan is printed; a
+ * non-interactive invocation with no `--yes` is treated as DECLINE (fail-safe — never auto-run live without
+ * an explicit operator OK). Returns true only on an explicit yes.
+ */
+async function confirmLiveRun(count: number): Promise<boolean> {
+  if (!input.isTTY) {
+    output.write(
+      "brain book: non-interactive and no --yes — refusing to run live without confirmation.\n",
+    )
+    return false
+  }
+  const rl = createInterface({ input, output })
+  const answer = (
+    await rl.question(
+      `Run ${count} live booking session(s) with the plan above? [y/N]: `,
+    )
+  )
+    .trim()
+    .toLowerCase()
+  rl.close()
+  return answer === "y" || answer === "yes"
 }
 
 /**

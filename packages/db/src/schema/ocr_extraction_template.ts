@@ -1,12 +1,12 @@
 /**
  * ocr_extraction_template — workspace-shared Brain OCR template library.
  *
- * Mirrors: packages/db/migrations/0046_ocr_extraction_template.sql
+ * Mirrors: packages/db/migrations/0047_ocr_extraction_template.sql
  *
  * WORKSPACE-scoped (NOT organization-scoped): a supplier's invoice layout is a
  * workspace fact — it does not change per client book, so one learned template
  * is shared across every org in the office. 4 command-specific RLS policies on
- * workspace_id land in 0046, so this table is intentionally absent from
+ * workspace_id land in 0047, so this table is intentionally absent from
  * ORGANIZATION_SCOPED_TABLES and present in WORKSPACE_SCOPED_TABLES.
  * UNIQUE(id, workspace_id) is the composite-FK target for org-tier tables that
  * may later reference a template, closing the cross-workspace FK-bypass hole via

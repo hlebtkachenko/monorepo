@@ -99,7 +99,7 @@ export type OrganizationScopedTable =
  * Kept in sync with migrations that declare per-command `<table>_{select,insert,
  * update,delete}` policies keyed on workspace_id:
  *   - 0035_accounting_enforcement.sql §2 — counterparty
- *   - 0046_ocr_extraction_template.sql   — ocr_extraction_template
+ *   - 0047_ocr_extraction_template.sql   — ocr_extraction_template
  *
  * If you add a workspace-scoped table, add it here AND to a migration that
  * creates its 4 command-specific policies with the NULLIF guard.

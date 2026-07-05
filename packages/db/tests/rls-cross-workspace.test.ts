@@ -4,7 +4,7 @@
  * The Brain OCR template library is WORKSPACE-scoped (ADR-0029): a supplier's
  * learned invoice layout is shared across every org in the accountant's office,
  * so isolation is on `app.workspace_id`, not `app.organization_id`. This verifies
- * the four command-specific policies (0046):
+ * the four command-specific policies (0047):
  *   - A template inserted under workspace A is not visible to a session scoped
  *     to workspace B (SELECT leak)
  *   - Workspace B cannot UPDATE / DELETE workspace A's template (row invisible,

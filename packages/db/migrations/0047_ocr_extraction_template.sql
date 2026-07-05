@@ -1,4 +1,4 @@
--- 0046_ocr_extraction_template.sql
+-- 0047_ocr_extraction_template.sql
 --
 -- Brain OCR template library — the tenancy foundation.
 --

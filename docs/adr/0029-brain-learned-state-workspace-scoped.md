@@ -30,7 +30,7 @@ knowledge.
 
 Anything the Brain **learns or remembers** is **workspace-scoped**: isolated on the GUC
 `app.workspace_id` under FORCE RLS, shared across every organization in the workspace, and **not**
-organization-scoped. The OCR template library (`ocr_extraction_template`, migration 0046) is the
+organization-scoped. The OCR template library (`ocr_extraction_template`, migration 0047) is the
 first instance and sets the pattern for future learned state (KB-as-data, memory-as-data).
 
 Mechanically this **mirrors `counterparty` exactly** (the existing workspace-scoped table): a
@@ -84,7 +84,7 @@ Follow-up work required:
 
 - [ADR-0010](0010-multi-tenant-rls.md) (FORCE RLS), [ADR-0028](0028-brain-marshrutizator-isolation.md)
   (Brain client isolation at the API front door)
-- Code anchor: `packages/db/migrations/0046_ocr_extraction_template.sql`,
+- Code anchor: `packages/db/migrations/0047_ocr_extraction_template.sql`,
   `packages/db/src/schema/ocr_extraction_template.ts`,
   `packages/db/src/policies/rls.ts` (`WORKSPACE_SCOPED_TABLES`),
   `packages/db/tests/rls-cross-workspace.test.ts`

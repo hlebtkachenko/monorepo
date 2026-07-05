@@ -70,6 +70,7 @@ export type StepUpActionKey =
   | "impersonation.start"
   | "flag.kill_switch"
   | "invites.signup_token"
+  | "api_key.create"
 
 export const STEP_UP: Record<string, StepUpLevel> = {
   // Page paths
@@ -82,6 +83,9 @@ export const STEP_UP: Record<string, StepUpLevel> = {
   "impersonation.start": "password",
   "flag.kill_switch": "twofa",
   "invites.signup_token": "password",
+  // Minting a live `agent`-actor Brain key is a write-capable credential — a
+  // fresh re-auth is required at action entry, like the signup-token mint.
+  "api_key.create": "password",
 }
 
 /**

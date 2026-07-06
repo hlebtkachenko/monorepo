@@ -27,6 +27,7 @@ import {
   type VetoResult,
 } from "./accounting-veto"
 import { evaluateEvidence, type EvidenceEnvelope } from "./evidence-gate"
+import { buildShadowScore } from "./shadow-score"
 import { translateAccountingError } from "./accounting-error"
 
 // A non-finite override (e.g. "100 000" / "100,000" → NaN) would silently
@@ -318,6 +319,19 @@ export async function runGatedWriteWithSeams<T>(
           // unconfirmed template blocks the score itself, not just the AND result.
           const score = scoreEvidence(opts.signals, serverDerivedSignals)
           const autoApply = confidenceOk && !veto.held && score.isGreen
+          // [W1.5] SHADOW score — a SECOND, PURE scoring pass for M3 calibration,
+          // persisted at `serverGate.shadow` (jsonb, no migration). It is
+          // AUDIT-ONLY telemetry, NEVER referenced by `autoApply` (the enforced
+          // three-way AND above is unchanged) — the enforced `score` keeps its
+          // `extraction_failed` cold-start floor; the shadow drops it to yield a
+          // real non-zero server-derivable x for the future refit. See
+          // shadow-score.ts. Computed from the SAME serverDerivedSignals so the
+          // honored caps + server holds are reflected on both lanes.
+          const shadow = buildShadowScore(
+            opts.body,
+            opts.signals,
+            serverDerivedSignals,
+          )
           // The combined server-gate audit record: the independent veto + the
           // honest score verdict (cRaw/cFinal/isGreen/reasons/firedSignals). This
           // is the `output_json.serverGate` payload — audit-only, stripped from
@@ -332,6 +346,8 @@ export async function runGatedWriteWithSeams<T>(
               firedSignals: score.firedSignals,
               reasons: score.reasons,
             },
+            // [W1.5] Pure instrumentation for M3 — NEVER read for a decision.
+            shadow,
             // [WS-2] The OCR template the capture was derived from, persisted with
             // the gated write so the template-novelty leg (template not
             // human-confirmed → hold) can be audited. Audit-only, stripped from

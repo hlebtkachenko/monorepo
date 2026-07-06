@@ -205,7 +205,7 @@ operator-supplied uuids + the server-gate envelope:
     "eventId": "…uuid…", // accounting-event uuid the line hangs off
     "confidence": 0.5, // client scalar — NECESSARY, never sufficient
     "rationale": "…", // why this booking
-    "conversationId": "…", // REQUIRED for the agent key (see §4 below)
+    "conversationId": "…uuid…", // REQUIRED for the agent key, MUST be a UUID (see §4 below)
     // templateId / signals / extractionMethod are set by the bridge, not here
   },
 }
@@ -214,10 +214,17 @@ operator-supplied uuids + the server-gate envelope:
 ### Supplying `conversationId`
 
 The agent key logs as `actor_kind='ai_on_behalf'`, which **requires a `conversationId` on every capture** — omit
-it and the server returns **422** ("conversationId is required for a user-bound agent key"). It is **audit
-correlation only** (session_id ↔ conversation_id / brain_run_id). Supply it in the `captureContext` block of the
-book `--context` file (`conversationId` above). The adapter emits it into the capture request only when present,
-so a session without one is a fail-loud 422, not a silent 500.
+it and the server returns **422** ("conversationId is required for a user-bound agent key"). **It MUST be a
+UUID** (`conversation_id` is a `uuid` column; the server schema is `z.string().uuid()`) — a non-UUID value
+(e.g. `m2-2026-07-07-01`) is rejected **400 "Validation failed"**, not accepted. Generate one with `uuidgen`
+or `python3 -c "import uuid;print(uuid.uuid4())"` and reuse the SAME UUID for every write in a session. It is
+**audit correlation only** (session_id ↔ conversation_id / brain_run_id). Supply it in the `captureContext`
+block of the book `--context` file (`conversationId` above). The adapter emits it into the capture request only
+when present, so a session without one is a fail-loud 422, not a silent 500.
+
+> **Contract drift (found live 2026-07-07):** the generated MCP tool schema declares `conversationId` as a
+> plain `z.string()` (the codegen drops the `.uuid()` format), while the server enforces `z.string().uuid()`.
+> Always pass a UUID until the codegen fidelity is fixed (tracked as a follow-up).
 
 ---
 

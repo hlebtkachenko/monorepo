@@ -328,17 +328,51 @@ describe("runGatedWrite", () => {
     expect(lockPeriod).not.toHaveBeenCalled()
   })
 
-  it("[#517] stamps an agent-key write as ai_on_behalf even with NO conversationId", async () => {
+  it("[#517] stamps an agent-key write as ai_on_behalf (conversationId present)", async () => {
     // The audit actor comes from the TAMPER-PROOF key capability: an agent key
     // is always an AI actor regardless of the client-supplied (spoofable)
     // conversationId, so an agent can never be logged as 'human'.
     await runGatedWrite({
-      ...build({ confidence: 0.5 }),
+      ...build({ confidence: 0.5, conversationId: "conv-1" }),
       principal: { ...principal, actorKind: "agent" },
     })
     expect(writeLog).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ actorKind: "ai_on_behalf" }),
+    )
+  })
+
+  it("[W1.2] rejects a user-bound agent key with NO conversationId as 422 (not 500), before opening a tx", async () => {
+    // An `ai_on_behalf` audit row requires both userId and conversationId
+    // (packages/db validateActorKind). A user-bound AGENT key that omits
+    // conversationId used to stamp ai_on_behalf with a null conversationId,
+    // making writeToolCallLog throw a plain Error deep in the write path (500).
+    // It must surface as a clean 4xx at the boundary BEFORE the write path runs.
+    await expect(
+      runGatedWrite({
+        ...build({ confidence: 0.5, conversationId: undefined }),
+        principal: { ...principal, actorKind: "agent" },
+      }),
+    ).rejects.toBeInstanceOf(ValidationError)
+    // The invariant is surfaced BEFORE the transaction / write log ever runs.
+    expect(withOrg).not.toHaveBeenCalled()
+    expect(writeLog).not.toHaveBeenCalled()
+  })
+
+  it("[W1.2] a user-bound agent key WITH a conversationId still books normally (happy path)", async () => {
+    // Same agent principal, but conversationId present → the guard is a no-op
+    // and the write proceeds through writeToolCallLog as ai_on_behalf.
+    const res = await runGatedWrite({
+      ...build({ confidence: 0.5, conversationId: "conv-1" }),
+      principal: { ...principal, actorKind: "agent" },
+    })
+    expect(res.httpStatus).toBe(202)
+    expect(writeLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        actorKind: "ai_on_behalf",
+        conversationId: "conv-1",
+      }),
     )
   })
 
@@ -505,7 +539,7 @@ describe("runGatedWrite", () => {
     const run = vi.fn()
     const res = await runGatedWriteWithSeams(
       {
-        ...build({ confidence: 0.99, run }),
+        ...build({ confidence: 0.99, conversationId: "conv-1", run }),
         principal: agentPrincipal,
         templateId: "tpl-unconfirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
@@ -548,7 +582,7 @@ describe("runGatedWrite", () => {
     })
     const res = await runGatedWriteWithSeams(
       {
-        ...build({ confidence: 0.99, run }),
+        ...build({ confidence: 0.99, conversationId: "conv-1", run }),
         principal: agentPrincipal,
         templateId: "tpl-confirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
@@ -617,7 +651,7 @@ describe("runGatedWrite", () => {
     })
     const res = await runGatedWriteWithSeams(
       {
-        ...build({ confidence: 0.99, run }),
+        ...build({ confidence: 0.99, conversationId: "conv-1", run }),
         principal: agentPrincipal,
         templateId: null,
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
@@ -653,7 +687,7 @@ describe("runGatedWrite", () => {
     const run = vi.fn()
     const res = await runGatedWriteWithSeams(
       {
-        ...build({ confidence: 0.99, run }),
+        ...build({ confidence: 0.99, conversationId: "conv-1", run }),
         principal: agentPrincipal,
         templateId: null, // OMITTED — the exact bypass #554 closes
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
@@ -693,7 +727,7 @@ describe("runGatedWrite", () => {
     })
     const res = await runGatedWriteWithSeams(
       {
-        ...build({ confidence: 0.99, run }),
+        ...build({ confidence: 0.99, conversationId: "conv-1", run }),
         principal: agentPrincipal,
         templateId: null,
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),

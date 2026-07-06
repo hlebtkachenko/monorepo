@@ -215,6 +215,22 @@ export async function runGatedWriteWithSeams<T>(
         ? "ai_on_behalf"
         : "human"
 
+    // [W1.2] An `ai_on_behalf` audit row REQUIRES both userId and
+    // conversationId (packages/db `validateActorKind`). userId is guaranteed
+    // non-null above; conversationId is the client's responsibility. A
+    // user-bound AGENT key (`actorKind === "agent"`) that OMITS conversationId
+    // would stamp `ai_on_behalf` with a null conversationId, and
+    // `writeToolCallLog` would throw a plain Error deep in the write path — a
+    // 500 for a client mistake. Surface it as a 4xx at the request boundary,
+    // BEFORE the transaction opens. The invariant is unchanged; only its
+    // transport is (500 → 422). A human key that supplies a conversationId
+    // always has one here by construction, so this only guards the agent case.
+    if (actorKind === "ai_on_behalf" && !opts.conversationId) {
+      throw new ValidationError(
+        "conversationId is required for a user-bound agent key",
+      )
+    }
+
     type TxOutcome =
       | { kind: "replay"; prior: Record<string, unknown> }
       | { kind: "applied"; body: Record<string, unknown> }

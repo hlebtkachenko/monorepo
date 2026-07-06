@@ -21,6 +21,7 @@ import {
   type EventInput,
   type PostInput,
 } from "@workspace/accounting"
+import { stripGateEnvelope } from "@workspace/shared/api"
 
 import { getOrgAccountingContext } from "../../_lib/accounting-data"
 
@@ -139,15 +140,16 @@ export async function resolveHeldWrite(
           return { ok: true }
         }
 
-        // Approve: strip the gate-only fields and replay the original payload
+        // Approve: peel the gate envelope off and replay the original payload
         // through the SAME domain mapping the API controller uses, with the
-        // approving user as the responsible person.
-        const {
-          confidence: _confidence,
-          rationale: _rationale,
-          conversationId: _conversationId,
-          ...fields
-        } = (row.input_json ?? {}) as Record<string, unknown>
+        // approving user as the responsible person. `stripGateEnvelope` is the
+        // single source of truth shared with the two API paths (the capture
+        // controller and the API held-write resolve), so all three re-run paths
+        // hand `captureDocument` the identical field set — no surface can drift a
+        // gate key in or out. None of the peeled fields is domain data.
+        const fields = stripGateEnvelope(
+          (row.input_json ?? {}) as Record<string, unknown>,
+        )
 
         let applied: Record<string, unknown>
         switch (row.tool_name) {

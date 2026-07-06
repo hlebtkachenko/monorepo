@@ -142,6 +142,26 @@ const templateAwareScorer = (
       }
     : decision(true)
 
+// [#554] A scorer that HONORS the OCR fail-closed signal: GREEN unless the gate
+// injected `unverified_template` (a Tier-3 DEFER) — then blocked, sub-green. Proves
+// the gate threads the server-derived OCR signal INTO the score, and that the hold
+// comes from the SERVER, never a client input.
+const ocrAwareScorer = (
+  _signals: unknown,
+  serverDerivedSignals: readonly string[] = [],
+): GateDecision =>
+  serverDerivedSignals.includes("unverified_template")
+    ? {
+        cRaw: 0,
+        cFinal: 0,
+        isGreen: false,
+        needsReview: true,
+        blocked: true,
+        firedSignals: ["extraction_failed", "unverified_template"],
+        reasons: ["blocked: unverified_template"],
+      }
+    : decision(true)
+
 describe("runGatedWrite", () => {
   beforeEach(() => {
     writeLog.mockReset()
@@ -463,14 +483,21 @@ describe("runGatedWrite", () => {
     )
   })
 
-  // [WS-2 / B1.5] The server-DERIVED OCR-template-novelty leg. An unconfirmed
-  // template forces `novel_template` (Tier-3 DEFER) INTO the score → HELD. It is
-  // server-side (not a client capSignal), agent-scoped, and composes into the AND
-  // as an added hold. The scorer honors the injected signal so these prove the
-  // gate threaded it into the score, and the hold has no client input.
+  // [WS-2 / B1.5 / #554] The server-DERIVED OCR-template basis leg — ONE seam
+  // returning {templateNovel, ocrUnverified}. `templateNovel` (found + unconfirmed)
+  // forces `novel_template`; `ocrUnverified` (OCR + no confirmed template basis)
+  // forces `unverified_template`. Both are Tier-3 DEFER kinds the gate threads INTO
+  // the score → HELD. Server-side (not a client capSignal), agent-scoped, add-only.
+  // The scorers honor the injected signals so these prove the gate threaded them in.
   const agentPrincipal = { ...principal, actorKind: "agent" as const }
-  const novelTemplate = () => Promise.resolve(true)
-  const confirmedTemplate = () => Promise.resolve(false)
+  const novelBasis = () =>
+    Promise.resolve({ templateNovel: true, ocrUnverified: false })
+  const confirmedBasis = () =>
+    Promise.resolve({ templateNovel: false, ocrUnverified: false })
+  const ocrUnverifiedBasis = () =>
+    Promise.resolve({ templateNovel: false, ocrUnverified: true })
+  const clearBasis = () =>
+    Promise.resolve({ templateNovel: false, ocrUnverified: false })
 
   it("HOLDS an AGENT capture on an UNCONFIRMED template even when the score would be green (server-derived, no client signal)", async () => {
     // No `signals` envelope at all — the hold cannot come from a client capSignal.
@@ -482,7 +509,7 @@ describe("runGatedWrite", () => {
         principal: agentPrincipal,
         templateId: "tpl-unconfirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        screenTemplateNovelty: novelTemplate,
+        screenTemplateBasis: novelBasis,
       },
       admitting,
       templateAwareScorer,
@@ -525,7 +552,7 @@ describe("runGatedWrite", () => {
         principal: agentPrincipal,
         templateId: "tpl-confirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        screenTemplateNovelty: confirmedTemplate,
+        screenTemplateBasis: confirmedBasis,
       },
       admitting,
       templateAwareScorer,
@@ -544,10 +571,10 @@ describe("runGatedWrite", () => {
     )
   })
 
-  it("does NOT run the template-novelty leg for a HUMAN key (the veto is agent-scoped)", async () => {
+  it("does NOT run the basis leg for a HUMAN key (the veto is agent-scoped)", async () => {
     // A human-key capture with an UNCONFIRMED template: the leg is skipped, so the
-    // write auto-applies. `screenTemplateNovelty` must never be invoked.
-    const derive = vi.fn(novelTemplate)
+    // write auto-applies. `screenTemplateBasis` must never be invoked.
+    const basis = vi.fn(novelBasis)
     const run = vi.fn().mockResolvedValue({
       eventId: "ev-h",
       designation: "FP-h",
@@ -559,12 +586,12 @@ describe("runGatedWrite", () => {
         principal, // human key
         templateId: "tpl-unconfirmed",
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        screenTemplateNovelty: derive,
+        screenTemplateBasis: basis,
       },
       admitting,
       templateAwareScorer,
     )
-    expect(derive).not.toHaveBeenCalled()
+    expect(basis).not.toHaveBeenCalled()
     expect(res.httpStatus).toBe(201)
     expect(res.body).toMatchObject({ status: "applied" })
     expect(run).toHaveBeenCalledOnce()
@@ -578,9 +605,11 @@ describe("runGatedWrite", () => {
     )
   })
 
-  it("does NOT run the template-novelty leg for an AGENT key with NO templateId", async () => {
-    // Omitted templateId is out of scope (B2/M4 fail-closed): the leg is skipped.
-    const derive = vi.fn(novelTemplate)
+  it("RUNS the basis leg for an AGENT key with NO templateId (the #554 OCR fail-closed path) and auto-applies when it returns clear", async () => {
+    // Post-merge the single seam is invoked for any agent capture (the OCR
+    // fail-closed leg must run even with no templateId). A `clear` result (e.g. a
+    // structured capture with no basis) fires neither signal → auto-applies.
+    const basis = vi.fn(clearBasis)
     const run = vi.fn().mockResolvedValue({
       eventId: "ev-n",
       designation: "FP-n",
@@ -592,12 +621,120 @@ describe("runGatedWrite", () => {
         principal: agentPrincipal,
         templateId: null,
         deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
-        screenTemplateNovelty: derive,
+        screenTemplateBasis: basis,
       },
       admitting,
       templateAwareScorer,
     )
-    expect(derive).not.toHaveBeenCalled()
+    expect(basis).toHaveBeenCalledOnce()
+    expect(res.httpStatus).toBe(201)
+    expect(run).toHaveBeenCalledOnce()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoApplied: true,
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({
+            templateNovel: false,
+            ocrUnverified: false,
+          }),
+        }),
+      }),
+    )
+  })
+
+  // [#554] The OCR fail-closed leg of the same seam. An `extraction_method: "ocr"`
+  // capture that OMITS (or forges) its templateId is HELD via the server-derived
+  // `unverified_template` signal — closing the omitted-templateId novelty BYPASS.
+  // Structured captures are unaffected. Agent-scoped; the hold has no client input.
+  it("[#554] HOLDS an AGENT OCR capture with NO templateId even when the score would be green (server-derived, no client signal)", async () => {
+    // No `signals` envelope: the hold cannot come from a client capSignal. The
+    // scorer is green UNLESS the gate injects `unverified_template`; the veto is clear.
+    const run = vi.fn()
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, run }),
+        principal: agentPrincipal,
+        templateId: null, // OMITTED — the exact bypass #554 closes
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        screenTemplateBasis: ocrUnverifiedBasis,
+      },
+      admitting,
+      ocrAwareScorer,
+    )
+    expect(res.httpStatus).toBe(202)
+    expect(res.body).toMatchObject({ status: "held" })
+    expect(run).not.toHaveBeenCalled()
+    // The honest score (blocked by the server-injected unverified_template) is
+    // persisted, and the audit records the OCR leg fired.
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoApplied: false,
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({
+            ocrUnverified: true,
+            score: expect.objectContaining({
+              isGreen: false,
+              blocked: true,
+              firedSignals: expect.arrayContaining(["unverified_template"]),
+            }),
+          }),
+        }),
+      }),
+    )
+  })
+
+  it("[#554] does NOT get the OCR hold for a STRUCTURED capture (seam returns clear → auto-applies)", async () => {
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-s",
+      designation: "FP-s",
+      sequenceNumber: 7,
+    })
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, run }),
+        principal: agentPrincipal,
+        templateId: null,
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        screenTemplateBasis: clearBasis, // structured → no hold
+      },
+      admitting,
+      ocrAwareScorer,
+    )
+    expect(res.httpStatus).toBe(201)
+    expect(res.body).toMatchObject({ status: "applied" })
+    expect(run).toHaveBeenCalledOnce()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoApplied: true,
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({ ocrUnverified: false }),
+        }),
+      }),
+    )
+  })
+
+  it("[#554] does NOT run the seam for a HUMAN key (agent-scoped)", async () => {
+    const screen = vi.fn(ocrUnverifiedBasis)
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-hu",
+      designation: "FP-hu",
+      sequenceNumber: 8,
+    })
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, run }),
+        principal, // human key
+        templateId: null,
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        screenTemplateBasis: screen,
+      },
+      admitting,
+      ocrAwareScorer,
+    )
+    expect(screen).not.toHaveBeenCalled()
     expect(res.httpStatus).toBe(201)
     expect(run).toHaveBeenCalledOnce()
   })

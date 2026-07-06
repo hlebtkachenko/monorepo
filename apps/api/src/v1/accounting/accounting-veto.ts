@@ -2,7 +2,9 @@ import {
   decimalToMinor,
   firedHardClassSignals,
   NOVEL_TEMPLATE_KIND,
+  UNVERIFIED_TEMPLATE_KIND,
 } from "@workspace/brain/confidence"
+import type { ExtractionMethod } from "@workspace/shared/api"
 import {
   and,
   eq,
@@ -196,41 +198,6 @@ export function deriveCaptureVeto(
 }
 
 /**
- * [WS-2 / B1.5] The server-DERIVED template-novelty screen — the OCR-template leg
- * of the confident-wrong defense.
- *
- * An OCR extraction template whose field-locators a human has NOT yet confirmed
- * (`ocr_extraction_template.human_confirmed_at IS NULL`) is UNTRUSTED: an
- * extraction derived from it may silently mis-book. So when an AGENT capture
- * references such a template, the server injects `novel_template` (a Tier-3 DEFER
- * kind) into the SCORE's `firedSignals`, forcing `cRaw = 0` — HELD regardless of
- * any fitted calibration map.
- *
- * SERVER-DERIVED, not a client signal: the novelty is read from the DB row inside
- * the write's own transaction, never from the client envelope. A client CANNOT
- * forge it (a Tier-3 kind is not a Tier-2 cap, so `buildScoreInputs` drops it if
- * asserted) and — once `templateId` is present — CANNOT omit it either (the server
- * looks it up unconditionally). This is why it is a real HELD, not a client hint.
- *
- * The lookup is WORKSPACE-scoped: `ocr_extraction_template` is shared across the
- * office's orgs (ADR-0029). It resolves under RLS here because the enclosing
- * `withOrganization` tx ALSO sets `app.workspace_id` (derived from the org row),
- * and the table's workspace RLS policies key on that GUC — so a workspace-scoped
- * read of the template inside the org tx sees exactly this workspace's rows.
- *
- * Returns `true` when the template is present + unconfirmed (fires
- * `novel_template`); `false` when it is confirmed OR not found (a template id
- * that resolves to no row under this workspace's RLS cannot be positively
- * confirmed, but it also carries no extraction to hold here — the
- * omitted/absent-template fail-closed case is a documented B2/M4 precondition,
- * out of B1.5 scope).
- *
- * NAME is honest about the WRITE: this is not a pure read like its
- * `deriveCaptureVeto`/`derivePostingVeto` siblings — it bumps `held_count` in-tx
- * for telemetry on each hold it forces.
- */
-
-/**
  * The Tier-3 DEFER signal an unconfirmed OCR template injects into the score.
  * Re-exported from the brain taxonomy's `NOVEL_TEMPLATE_KIND` (the single source
  * of truth in `packages/brain/src/confidence/signals.ts`), NOT a decoupled
@@ -239,12 +206,94 @@ export function deriveCaptureVeto(
  */
 export const NOVEL_TEMPLATE_SIGNAL = NOVEL_TEMPLATE_KIND
 
-export async function screenTemplateNovelty(
+/**
+ * The Tier-3 DEFER signal an OCR capture injects when the server cannot tie it to
+ * a CONFIRMED template (see {@link screenTemplateBasis}). Re-exported from the
+ * brain taxonomy's `UNVERIFIED_TEMPLATE_KIND` (single source of truth), NOT a
+ * decoupled literal.
+ */
+export const UNVERIFIED_TEMPLATE_SIGNAL = UNVERIFIED_TEMPLATE_KIND
+
+/** What the OCR-template basis screen decided — the two add-only hold signals. */
+export interface TemplateBasisResult {
+  /**
+   * `true` when the capture references a template ROW that a human has NOT yet
+   * confirmed (`human_confirmed_at IS NULL`) → injects `novel_template`.
+   */
+  readonly templateNovel: boolean
+  /**
+   * `true` when an OCR capture cannot be positively tied to ANY confirmed
+   * template basis (templateId absent, or resolving to no row under RLS) →
+   * injects `unverified_template`.
+   */
+  readonly ocrUnverified: boolean
+}
+
+/**
+ * [WS-2 / B1.5 / #554] The server-DERIVED OCR-template basis screen — the
+ * OCR-template leg of the confident-wrong defense, in ONE row fetch.
+ *
+ * An OCR extraction template whose field-locators a human has NOT yet confirmed
+ * (`ocr_extraction_template.human_confirmed_at IS NULL`) is UNTRUSTED, and an OCR
+ * capture the server cannot tie to a CONFIRMED template basis at all is equally
+ * untrusted. Both force the SCORE sub-green (`cRaw = 0` → HELD regardless of any
+ * fitted calibration map) via a Tier-3 DEFER signal the gate injects into the
+ * score's `firedSignals`. The two outcomes are DISJOINT — a given capture fires at
+ * most one — and are computed from a SINGLE `{id, human_confirmed_at}` fetch:
+ *
+ *   - templateId present + row found + `human_confirmed_at IS NULL` →
+ *     `templateNovel` (bumps `held_count` in-tx for telemetry).
+ *   - templateId present + row found + confirmed → neither (auto-apply-eligible).
+ *   - (templateId ABSENT, or resolving to NO row under RLS) → `ocrUnverified` iff
+ *     the capture IS OCR. A MISSING `extractionMethod` is fail-closed to `"ocr"`
+ *     (the most conservative case) so an agent cannot OMIT the discriminator to
+ *     dodge the screen; a `structured`/`manual` capture with no confirmed template
+ *     basis simply fires nothing (that path does not carry an OCR extraction).
+ *
+ * SERVER-DERIVED, never a client signal: the row is read inside the write's own
+ * transaction, never from the client envelope. A client CANNOT forge either signal
+ * (a Tier-3 kind is not a Tier-2 cap, so `buildScoreInputs` drops it if asserted)
+ * nor OMIT its way past `ocrUnverified` (a missing `extraction_method` and a
+ * missing/foreign `templateId` both fail CLOSED). Both are add-only: they compose
+ * into the three-way AND as an added hold and can never release a write.
+ *
+ * The lookup is WORKSPACE-scoped: `ocr_extraction_template` is shared across the
+ * office's orgs (ADR-0029). It resolves under RLS here because the enclosing
+ * `withOrganization` tx ALSO sets `app.workspace_id` (derived from the org row),
+ * and the table's workspace RLS policies key on that GUC — so a workspace-scoped
+ * read of the template inside the org tx sees exactly this workspace's rows.
+ *
+ * NAME is honest about the WRITE: this is not a pure read like its
+ * `deriveCaptureVeto`/`derivePostingVeto` siblings — it bumps `held_count` in-tx
+ * for telemetry on each `templateNovel` hold it forces.
+ *
+ * HONEST on what this does NOT close: the DECLARED `extractionMethod` value is
+ * client-supplied and NOT server-verifiable in v1. A client that labels an
+ * actually-OCR capture as `"structured"`/`"manual"` skips the `ocrUnverified` leg
+ * undetectably — only the field's ABSENCE is checkable. Structured captures on
+ * `/v1/invoices` are also not screened here (that path does not wire this seam).
+ * Both are residual route-arounds that must be closed before the cold-start
+ * `extraction_failed` floor is lifted (W3.3b) — tracked as a B2/M4 floor-lift
+ * precondition. This leg only closes the OMITTED/foreign-templateId bypass; it is
+ * not a substitute for verified extraction telemetry.
+ */
+export async function screenTemplateBasis(
   db: OrganizationBoundDb,
-  templateId: string,
-): Promise<boolean> {
-  // Workspace-scoped read; resolves under the org tx's app.workspace_id GUC (see
-  // the doc comment). RLS narrows to this workspace's templates.
+  extractionMethod: ExtractionMethod | null | undefined,
+  templateId: string | null | undefined,
+): Promise<TemplateBasisResult> {
+  // Fail-closed on a missing discriminator: an absent method is treated as "ocr"
+  // (the most conservative case) so an agent cannot omit it to dodge the screen.
+  const isOcr = extractionMethod == null || extractionMethod === "ocr"
+
+  // No templateId at all → nothing to fetch. An OCR capture with no template basis
+  // is `unverified_template`; a structured/manual one carries no OCR extraction.
+  if (templateId == null) {
+    return { templateNovel: false, ocrUnverified: isOcr }
+  }
+
+  // ONE workspace-scoped fetch of {id, human_confirmed_at}; RLS narrows to this
+  // workspace's templates (see the doc comment on app.workspace_id).
   const rows = await db
     .select({
       id: ocr_extraction_template.id,
@@ -255,12 +304,18 @@ export async function screenTemplateNovelty(
     .limit(1)
 
   const row = rows[0]
-  // Not found under this workspace's RLS, or already human-confirmed → this leg
-  // adds no hold. (Absent/omitted-template fail-closed is B2/M4 scope.)
-  if (!row || row.humanConfirmedAt !== null) return false
+  // Resolves to no row under this workspace's RLS (forged/foreign/nonexistent) →
+  // the same `ocrUnverified` fail-closed case as an absent templateId.
+  if (!row) {
+    return { templateNovel: false, ocrUnverified: isOcr }
+  }
+  // Row found + already human-confirmed → trusted, no hold on either leg.
+  if (row.humanConfirmedAt !== null) {
+    return { templateNovel: false, ocrUnverified: false }
+  }
 
-  // Telemetry: bump held_count on each hold this leg forces. Same predicate
-  // (unconfirmed) so we never inflate the counter for a confirmed template.
+  // Row found + unconfirmed → `novel_template`. Telemetry: bump held_count on the
+  // hold. Same predicate (unconfirmed) so we never inflate it for a confirmed one.
   await db
     .update(ocr_extraction_template)
     .set({ held_count: sql`${ocr_extraction_template.held_count} + 1` })
@@ -271,5 +326,5 @@ export async function screenTemplateNovelty(
       ),
     )
 
-  return true
+  return { templateNovel: true, ocrUnverified: false }
 }

@@ -321,6 +321,12 @@ export const DphRowsSchema = z
     r10_dan: dec("ř.10 daň."),
     r11_base: dec("ř.11 základ — PDP odběratel 12 %."),
     r11_dan: dec("ř.11 daň."),
+    r20_base: dec(
+      "ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.",
+    ),
+    r21_base: dec(
+      "ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.",
+    ),
     r25_base: dec("ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel."),
     r40_base: dec("ř.40 základ — odpočet na vstupu 21 % (§72-73)."),
     r40_dan: dec("ř.40 daň."),

@@ -161,6 +161,12 @@ export const ClassifyEventResponseSchema = z
       description: "VAT mode to stamp on the partial record.",
       example: "STANDARD",
     }),
+    vatJurisdiction: VAT_JURISDICTION.openapi({
+      description:
+        "vat_jurisdiction to stamp on the capture partial — splits an EU supply " +
+        "(ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
+      example: "EU",
+    }),
     vatRate: z.string().nullable().openapi({
       description: "Rate to freeze (null for exempt/outside).",
       example: "21",

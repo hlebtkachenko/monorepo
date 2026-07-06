@@ -19,8 +19,11 @@ export BRAIN_RUNTIME_ACTIVE="1"
 # --- Explicit opt-in that live creds are present and you intend a real session. ---
 export BRAIN_LIVE="1"
 
-# --- The deployed accounting MCP endpoint URL. ---
-export BRAIN_MCP_ENDPOINT="https://api.afframe.com/mcp"
+# --- The deployed REST API BASE URL (NOT an /mcp path). ---
+# The CLI spawns a LOCAL stdio MCP bridge (the `@afframe/mcp` server run via `tsx` from inside this monorepo —
+# no build step) which reaches prod as an ordinary outbound HTTPS client at this base (its `AFFRAME_API_BASE`).
+# The var name is kept `BRAIN_MCP_ENDPOINT` for continuity; only its meaning is the REST base.
+export BRAIN_MCP_ENDPOINT="https://api.afframe.com"
 
 # --- The RAW agent key issued via admin -> Platform -> API keys -> "Issue Brain agent key". ---
 # actor_kind='agent', user-bound. Resolves org + workspace + responsible user server-side. Shown once.

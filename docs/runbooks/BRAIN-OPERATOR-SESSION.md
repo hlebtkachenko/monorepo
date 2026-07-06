@@ -46,15 +46,21 @@ path the harness scaffold uses; a real document goes through `extract` → `book
 
 Before a session runs live, all of these must be true:
 
-1. **Production is deployed** and the accounting MCP endpoint answers (`BRAIN_MCP_ENDPOINT`, e.g.
-   `https://api.afframe.com/mcp`).
-2. **The write lane is ON.** The server admission controller rejects every accounting write with **429** unless
+1. **Production is deployed** and the REST API answers (`curl {BRAIN_MCP_ENDPOINT}/api/health` → 200).
+   `BRAIN_MCP_ENDPOINT` is the deployed REST API **base URL**, e.g. `https://api.afframe.com` — NOT an `/mcp`
+   path. The CLI itself runs a LOCAL stdio MCP bridge (`@afframe/mcp` via `tsx`) that talks to this base as an
+   ordinary outbound HTTPS client; there is no hosted MCP server to reach.
+2. **Run the CLI from inside the monorepo** (with dependencies installed). The bridge runs the `@afframe/mcp`
+   TypeScript server directly under `tsx` — no build step — and resolves `apps/mcp/src/server.ts` +
+   `apps/mcp/node_modules/.bin/tsx` by absolute path. (Override with `BRAIN_MCP_SERVER_JS` / `BRAIN_MCP_TSX_BIN`
+   if you relocate them.)
+3. **The write lane is ON.** The server admission controller rejects every accounting write with **429** unless
    the runtime kill-switch is active — the client-side `runLiveBrainSession` refuses to even open a session
    unless `BRAIN_RUNTIME_ACTIVE=1` (see [§7](#7-troubleshooting)). It is fail-closed OFF by default.
-3. **The target org is scaffolded with accounting structure** — at minimum an open **accounting period** and a
+4. **The target org is scaffolded with accounting structure** — at minimum an open **accounting period** and a
    **DOCUMENT number series**. `brain book` does NOT resolve these; the operator supplies `periodId` /
    `seriesId` / `eventId` verbatim in the `--context` file (they name tenant-side rows, `NOT MCP-resolved`).
-4. **A user-bound agent key is issued** for that org (next section).
+5. **A user-bound agent key is issued** for that org (next section).
 
 ---
 
@@ -92,13 +98,13 @@ missing one is now a clean **422**, not a 500).
 `brain extract --live` and the `brain book` / `brain run` live loop read these env vars. Names are taken
 verbatim from the code — do not invent flags.
 
-| Env var                | Read by                                                                   | What it is                                                                                                                                                                                     |
-| ---------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BRAIN_RUNTIME_ACTIVE` | `runLiveBrainSession` gate (`packages/intake/.../brain-cc-harness.ts:45`) | **The write-lane kill-switch. MUST be exactly `"1"`.** A set-but-not-`1` value is still closed. Gates `brain book` / `brain run` live.                                                         |
-| `BRAIN_LIVE`           | same gate (`:47`)                                                         | Explicit opt-in that live creds are present and you intend a real session. Any non-empty value passes; unset fails closed.                                                                     |
-| `BRAIN_MCP_ENDPOINT`   | `command.ts:186`, gate (`:49`)                                            | The deployed accounting MCP endpoint URL (e.g. `https://api.afframe.com/mcp`).                                                                                                                 |
-| `BRAIN_API_KEY`        | `command.ts:187`, gate (`:51`)                                            | The **raw agent key** issued in §2. Resolves org + workspace + responsible user server-side from the principal; never a tool input.                                                            |
-| `BRAIN_AGENT_SDK_AUTH` | `command.ts:188`, gate (`:53`)                                            | Agent-SDK auth token. A subscription-auth token for dev sessions (left to the CLI's own credential resolution); an API key (`sk-…`) is force-fed as `ANTHROPIC_API_KEY` to the SDK subprocess. |
+| Env var                | Read by                                                                   | What it is                                                                                                                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BRAIN_RUNTIME_ACTIVE` | `runLiveBrainSession` gate (`packages/intake/.../brain-cc-harness.ts:45`) | **The write-lane kill-switch. MUST be exactly `"1"`.** A set-but-not-`1` value is still closed. Gates `brain book` / `brain run` live.                                                                                                              |
+| `BRAIN_LIVE`           | same gate (`:47`)                                                         | Explicit opt-in that live creds are present and you intend a real session. Any non-empty value passes; unset fails closed.                                                                                                                          |
+| `BRAIN_MCP_ENDPOINT`   | `command.ts:186`, gate (`:49`)                                            | The deployed REST API **base URL** (e.g. `https://api.afframe.com`) — NOT an `/mcp` path. The CLI spawns a LOCAL stdio MCP bridge (`@afframe/mcp` via `tsx`) that reaches prod at this base (its `AFFRAME_API_BASE`). Var name kept for continuity. |
+| `BRAIN_API_KEY`        | `command.ts:187`, gate (`:51`)                                            | The **raw agent key** issued in §2. Resolves org + workspace + responsible user server-side from the principal; never a tool input.                                                                                                                 |
+| `BRAIN_AGENT_SDK_AUTH` | `command.ts:188`, gate (`:53`)                                            | Agent-SDK auth token. A subscription-auth token for dev sessions (left to the CLI's own credential resolution); an API key (`sk-…`) is force-fed as `ANTHROPIC_API_KEY` to the SDK subprocess.                                                      |
 
 Notes on scope:
 

@@ -16,9 +16,9 @@
     "routes": "bash scripts/routes.sh status"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260615.1",
+    "@cloudflare/workers-types": "^4.20260629.1",
     "@workspace/typescript-config": "workspace:*",
     "typescript": "^6.0.3",
-    "wrangler": "^4.98.0"
+    "wrangler": "^4.105.0"
   }
 }

@@ -43,7 +43,7 @@ export function registerBrainCommand(program: Command): void {
   brain
     .command("run")
     .description(
-      "Run one live Brain booking session against the deployed MCP endpoint. " +
+      "Run one live Brain booking session against the deployed REST API (via a local stdio MCP bridge). " +
         "Needs BRAIN_RUNTIME_ACTIVE=1 + creds; --dry-run inspects the plan with no creds.",
     )
     .requiredOption(
@@ -154,7 +154,7 @@ export function registerBrainCommand(program: Command): void {
     )
     .option(
       "--live",
-      "Actually run the extract session against the deployed MCP endpoint (needs creds)",
+      "Actually run the extract session against the deployed REST API via a local stdio MCP bridge (needs creds)",
     )
     .action(
       async (

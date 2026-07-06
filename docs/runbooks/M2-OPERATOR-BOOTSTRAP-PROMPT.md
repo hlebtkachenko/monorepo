@@ -88,8 +88,10 @@ STEP 3 — Ensure a bookable accounting EVENT exists, and get its eventId.
     is none yet. Creating an event is itself a gated write: at cold start it returns 202 HELD, so it does NOT
     immediately yield an eventId — I must approve the held event in the web queue first.
   - So: propose ONE accounting event for the document(s) I am about to give you (ask me for its designation/date if
-    needed), supplying a `conversationId` (any stable session string, e.g. `m2-<date>-01`) because a user-bound
-    agent key logs as `ai_on_behalf` and REQUIRES one. Report the 202 + reviewId.
+    needed), supplying a `conversationId` that MUST be a UUID (generate one, e.g. `uuidgen` or
+    `python3 -c "import uuid;print(uuid.uuid4())"`) — a non-UUID value is rejected 400 by the server. A user-bound
+    agent key logs as `ai_on_behalf` and REQUIRES a conversationId; reuse the SAME UUID for every write this
+    session (audit correlation). Report the 202 + reviewId.
   - Then tell me to approve that held event at:  https://app.afframe.com/{orgSlug}/accounting/approvals
     After I approve, read back the now-existing eventId (via the server, using the key) and carry it forward.
   - A cold-start event-create MUST return 202 HELD. The server injects an unconditional `extraction_failed`

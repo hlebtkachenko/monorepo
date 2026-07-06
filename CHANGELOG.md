@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.6] — 2026-07-06
+
+Patch release: fix the create-organization wizard being unscrollable on short viewports.
+
+### Fixed
+
+- **web**: the "Organization details" wizard (`/workspace/organizations/new`) is now scrollable. The app-shell main body is `overflow-hidden` by design (each page owns its inner scroll), but the wizard page rendered plain flow content with no scroll region, so on a short viewport the lower fields + the submit button were clipped with no scrollbar — the form could not be completed. Wrapped the wizard in an `h-full overflow-y-auto` region. (#561)
+
 ## [v0.16.5] — 2026-07-05
 
 Patch release: the Afframe Brain **B1.5** pre-launch readiness bundle — OCR templates, a server-derived novelty veto, operator ergonomics, and the bank-statement booking adapter. The Brain write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed) and every agent write stays HELD — nothing user-facing changes. Cut as a patch by explicit decision even though the change carries a `feat` subject. Gated through three independent adversarial safety reviews (Fable 5 high + Opus 4.8 xhigh — GO/GO/GO, no confident-wrong path, safety spine byte-unchanged) and a thermo-nuclear code-quality review.

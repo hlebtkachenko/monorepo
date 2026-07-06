@@ -21,7 +21,11 @@ import {
 import type { GateDecision } from "@workspace/brain/gate"
 
 import { accountingAdmission } from "./admission.singleton"
-import { NOVEL_TEMPLATE_SIGNAL, type VetoResult } from "./accounting-veto"
+import {
+  NOVEL_TEMPLATE_SIGNAL,
+  UNVERIFIED_TEMPLATE_SIGNAL,
+  type VetoResult,
+} from "./accounting-veto"
 import { evaluateEvidence, type EvidenceEnvelope } from "./evidence-gate"
 import { translateAccountingError } from "./accounting-error"
 
@@ -102,18 +106,23 @@ export interface GatedWriteOptions<T> {
    */
   deriveVeto?: (db: OrgTx) => Promise<VetoResult>
   /**
-   * [WS-2 / B1.5] Server-DERIVED template-novelty screen. Reads the referenced
-   * OCR template IN-TX (workspace-scoped, resolves under the org tx's
-   * `app.workspace_id`); when the template is UNCONFIRMED it returns `true`
-   * so the gate injects `novel_template` (a Tier-3 DEFER) into the SCORE's
-   * `firedSignals`, forcing `cRaw=0` → HELD regardless of any calibration. This is
-   * NOT a client signal (a client-asserted `novel_template` is dropped by
-   * `buildScoreInputs`) — it composes into the three-way AND as an added hold, it
-   * can never release a write. Optional: only the capture path wires it, and it is
-   * run ONLY for an AGENT key with a `templateId` present. NAME is honest about
-   * the in-tx `held_count` bump the screen performs (not a pure read).
+   * [WS-2 / B1.5 / #554] Server-DERIVED OCR-template basis screen. Reads the
+   * referenced OCR template IN-TX (workspace-scoped, resolves under the org tx's
+   * `app.workspace_id`) in ONE fetch and returns the two add-only hold signals:
+   * `templateNovel` (found + unconfirmed → `novel_template`, bumps `held_count`)
+   * and `ocrUnverified` (OCR capture with no confirmed template basis → absent or
+   * foreign templateId → `unverified_template`). The gate injects the fired signals
+   * into the SCORE's `firedSignals`, forcing `cRaw=0` → HELD regardless of any
+   * calibration. Neither is a client signal (a client-asserted Tier-3 kind is
+   * dropped by `buildScoreInputs`) — they compose into the three-way AND as added
+   * holds, never a release. Optional: only the capture path wires it, and it is run
+   * ONLY for an AGENT key. NAME is honest about the in-tx `held_count` bump the
+   * screen performs on a novel hold (not a pure read).
    */
-  screenTemplateNovelty?: (db: OrgTx) => Promise<boolean>
+  screenTemplateBasis?: (db: OrgTx) => Promise<{
+    templateNovel: boolean
+    ocrUnverified: boolean
+  }>
   /** Run the domain mutation. Only called when the write auto-applies. */
   run: (
     db: OrgTx,
@@ -206,6 +215,22 @@ export async function runGatedWriteWithSeams<T>(
         ? "ai_on_behalf"
         : "human"
 
+    // [W1.2] An `ai_on_behalf` audit row REQUIRES both userId and
+    // conversationId (packages/db `validateActorKind`). userId is guaranteed
+    // non-null above; conversationId is the client's responsibility. A
+    // user-bound AGENT key (`actorKind === "agent"`) that OMITS conversationId
+    // would stamp `ai_on_behalf` with a null conversationId, and
+    // `writeToolCallLog` would throw a plain Error deep in the write path — a
+    // 500 for a client mistake. Surface it as a 4xx at the request boundary,
+    // BEFORE the transaction opens. The invariant is unchanged; only its
+    // transport is (500 → 422). A human key that supplies a conversationId
+    // always has one here by construction, so this only guards the agent case.
+    if (actorKind === "ai_on_behalf" && !opts.conversationId) {
+      throw new ValidationError(
+        "conversationId is required for a user-bound agent key",
+      )
+    }
+
     type TxOutcome =
       | { kind: "replay"; prior: Record<string, unknown> }
       | { kind: "applied"; body: Record<string, unknown> }
@@ -266,24 +291,26 @@ export async function runGatedWriteWithSeams<T>(
             confidenceOk && opts.deriveVeto
               ? await opts.deriveVeto(db)
               : { held: false, signals: [] }
-          // [WS-2 / B1.5] Server-DERIVED template-novelty screen. Run ONLY for an
-          // AGENT key (tamper-proof capability, NOT the conversationId-broadened
-          // actorKind) with a templateId present. When the referenced OCR template
-          // is UNCONFIRMED it injects `novel_template` (Tier-3 DEFER) into the
-          // SCORE's firedSignals → forces cRaw=0 → HELD regardless of calibration.
-          // Server-side + unconditional (a client can neither forge nor omit it),
-          // so it composes into the AND as an ADDED hold, never a release. Read
-          // in-tx even for non-auto-apply candidates so the score is honest, but
-          // skipped when there is nothing to hold (human key, or no template).
-          const templateNovel: boolean =
-            principal.actorKind === "agent" &&
-            opts.templateId &&
-            opts.screenTemplateNovelty
-              ? await opts.screenTemplateNovelty(db)
-              : false
-          const serverDerivedSignals: string[] = templateNovel
-            ? [NOVEL_TEMPLATE_SIGNAL]
-            : []
+          // [WS-2 / B1.5 / #554] Server-DERIVED OCR-template basis screen. Run ONLY
+          // for an AGENT key (tamper-proof capability, NOT the conversationId-
+          // broadened actorKind). ONE in-tx fetch yields both add-only hold signals:
+          // `templateNovel` (found + unconfirmed → `novel_template`) and
+          // `ocrUnverified` (OCR capture with no confirmed template basis — the
+          // omitted/foreign-templateId bypass #554 closes → `unverified_template`).
+          // The two are DISJOINT (a capture fires at most one). Each fired signal is
+          // injected into the SCORE's firedSignals → forces cRaw=0 → HELD regardless
+          // of calibration. Server-side + fail-closed (a client can neither forge
+          // nor omit past them), so they compose into the AND as ADDED holds, never
+          // a release. Read in-tx even for non-auto-apply candidates so the score is
+          // honest; skipped for a human key (nothing to hold).
+          const { templateNovel, ocrUnverified } =
+            principal.actorKind === "agent" && opts.screenTemplateBasis
+              ? await opts.screenTemplateBasis(db)
+              : { templateNovel: false, ocrUnverified: false }
+          const serverDerivedSignals: string[] = [
+            ...(templateNovel ? [NOVEL_TEMPLATE_SIGNAL] : []),
+            ...(ocrUnverified ? [UNVERIFIED_TEMPLATE_SIGNAL] : []),
+          ]
           // The server verdict is ALWAYS computed for the audit trail (persisted
           // to output_json.serverGate); its `isGreen` gates auto-apply. Never a
           // fabricated cFinal — this is the honest scoreProposal output. The
@@ -312,6 +339,9 @@ export async function runGatedWriteWithSeams<T>(
             // records whether the server-derived screen fired `novel_template`.
             templateId: opts.templateId ?? null,
             templateNovel,
+            // [#554] Records whether the OCR fail-closed leg fired
+            // `unverified_template` (OCR capture with no confirmed template basis).
+            ocrUnverified,
           }
 
           if (autoApply) {

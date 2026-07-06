@@ -41,6 +41,7 @@ import {
   CaptureAccountingDocumentRequestSchema,
   CreateAccountingEventRequestSchema,
   CreateAccountingPostingRequestSchema,
+  stripGateEnvelope,
   type ListHeldWritesResponse,
   type ResolveHeldWriteResponse,
 } from "@workspace/shared/api"
@@ -314,19 +315,14 @@ export class HeldWritesController {
       case "captureAccountingDocument": {
         const parsed = CaptureAccountingDocumentRequestSchema.safeParse(input)
         if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        // Same strip as events: the gate envelope + [WP-D] `signals` are not
-        // domain data. The `signals` strip is load-bearing (the cast to
-        // DocumentInput is `as unknown`, so TS cannot catch a leak). [WS-2]
-        // `templateId` is stripped too — it is audit-only (persisted with the
-        // original gated write) and must not reach `DocumentInput`.
-        const {
-          confidence: _c,
-          rationale: _r,
-          conversationId: _cv,
-          signals: _sig,
-          templateId: _tpl,
-          ...fields
-        } = parsed.data
+        // Peel the gate envelope (confidence / rationale / conversationId /
+        // [WP-D] signals / [WS-2] templateId / [#554] extractionMethod) — none is
+        // domain data. `stripGateEnvelope` is the single source of truth shared
+        // with the API capture controller and the web replay path, so all three
+        // re-run paths hand `captureDocument` the exact same field set. The strip
+        // is load-bearing: the cast to DocumentInput is `as unknown`, so TS cannot
+        // catch a leaked gate field.
+        const fields = stripGateEnvelope(parsed.data)
         await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)
         const doc = await captureDocument(
           db,

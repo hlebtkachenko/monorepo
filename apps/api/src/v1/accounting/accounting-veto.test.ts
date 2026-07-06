@@ -4,7 +4,7 @@ import type { OrganizationBoundDb } from "@workspace/db"
 
 import {
   deriveCaptureVeto,
-  screenTemplateNovelty,
+  screenTemplateBasis,
   derivePostingVeto,
 } from "./accounting-veto"
 
@@ -19,9 +19,12 @@ function mkDb(accounts: Array<{ id: string; number: string }>) {
   return { db, where }
 }
 
-// A drizzle-shaped stub for the template-novelty lookup:
+// A drizzle-shaped stub for the OCR-template basis lookup:
 //   db.select({...}).from(t).where(pred).limit(1)  -> the template row (or none)
 //   db.update(t).set({...}).where(pred)            -> held_count bump (spied)
+// `limit` is a spy so we can assert the lookup is SKIPPED when there is no
+// templateId to resolve; `set` is a spy so we can assert held_count bumps ONLY on
+// a novel (unconfirmed) hold. Pass `undefined` to model no fetch expected.
 function mkTemplateDb(row: { humanConfirmedAt: Date | null } | null) {
   const limit = vi.fn().mockResolvedValue(row ? [row] : [])
   const updateWhere = vi.fn().mockResolvedValue(undefined)
@@ -215,28 +218,75 @@ describe("deriveCaptureVeto — vat_mismatch", () => {
   })
 })
 
-describe("screenTemplateNovelty — unconfirmed OCR template", () => {
-  it("fires (novel) for an UNCONFIRMED template (human_confirmed_at IS NULL)", async () => {
+describe("screenTemplateBasis — merged novelty + #554 OCR fail-closed", () => {
+  // ── novelty leg (templateId present, row found) ──────────────────────────
+  it("fires templateNovel for an UNCONFIRMED template (human_confirmed_at IS NULL)", async () => {
     const { db, limit, set } = mkTemplateDb({ humanConfirmedAt: null })
-    const r = await screenTemplateNovelty(db, "tpl-1")
-    expect(r).toBe(true)
-    expect(limit).toHaveBeenCalledOnce() // the lookup ran
+    const r = await screenTemplateBasis(db, "ocr", "tpl-1")
+    expect(r).toEqual({ templateNovel: true, ocrUnverified: false })
+    expect(limit).toHaveBeenCalledOnce() // the single lookup ran
     expect(set).toHaveBeenCalledOnce() // held_count telemetry bumped on the hold
   })
 
   it("does NOT fire for a CONFIRMED template (human_confirmed_at set)", async () => {
     const { db, set } = mkTemplateDb({ humanConfirmedAt: new Date() })
-    const r = await screenTemplateNovelty(db, "tpl-2")
-    expect(r).toBe(false)
+    const r = await screenTemplateBasis(db, "ocr", "tpl-2")
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: false })
     expect(set).not.toHaveBeenCalled() // no hold => no held_count bump
   })
 
-  it("does NOT fire when the template id resolves to NO row under RLS", async () => {
-    // A workspace-scoped id that RLS narrows to zero rows: this leg adds no hold
-    // (the omitted/absent-template fail-closed case is B2/M4 scope).
-    const { db, set } = mkTemplateDb(null)
-    const r = await screenTemplateNovelty(db, "tpl-missing")
-    expect(r).toBe(false)
+  it("the novelty leg is method-agnostic: a STRUCTURED capture with an unconfirmed template still fires templateNovel", async () => {
+    // Novelty is about the referenced row, not the extraction method — preserved
+    // from the pre-merge behavior (the controller wired this leg for any capture).
+    const { db, set } = mkTemplateDb({ humanConfirmedAt: null })
+    const r = await screenTemplateBasis(db, "structured", "tpl-1")
+    expect(r).toEqual({ templateNovel: true, ocrUnverified: false })
+    expect(set).toHaveBeenCalledOnce()
+  })
+
+  // ── #554 OCR fail-closed leg (no confirmed template basis) ───────────────
+  it("fires ocrUnverified for an OCR capture with NO templateId (the omitted-template BYPASS)", async () => {
+    // No template basis at all + no lookup needed → fail-closed hold.
+    const { db, limit, set } = mkTemplateDb(null)
+    const r = await screenTemplateBasis(db, "ocr", null)
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: true })
+    expect(limit).not.toHaveBeenCalled() // nothing to resolve
+    expect(set).not.toHaveBeenCalled() // no confirmed row to attribute a bump to
+  })
+
+  it("fires ocrUnverified for an OCR capture whose templateId resolves to NO row under RLS (forged/foreign)", async () => {
+    const { db, limit, set } = mkTemplateDb(null)
+    const r = await screenTemplateBasis(db, "ocr", "tpl-foreign")
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: true })
+    expect(limit).toHaveBeenCalledOnce() // the resolve ran
     expect(set).not.toHaveBeenCalled()
+  })
+
+  it("fail-closes a MISSING extraction_method to 'ocr' (agent cannot omit its way past)", async () => {
+    // undefined/null method + no templateId → treated as ocr → ocrUnverified HOLD.
+    const { db: db1 } = mkTemplateDb(null)
+    expect(await screenTemplateBasis(db1, undefined, null)).toEqual({
+      templateNovel: false,
+      ocrUnverified: true,
+    })
+    const { db: db2 } = mkTemplateDb(null)
+    expect(await screenTemplateBasis(db2, null, null)).toEqual({
+      templateNovel: false,
+      ocrUnverified: true,
+    })
+  })
+
+  it("does NOT fire for a STRUCTURED capture with no template basis — no lookup, no hold", async () => {
+    const { db, limit } = mkTemplateDb(null)
+    const r = await screenTemplateBasis(db, "structured", null)
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: false })
+    expect(limit).not.toHaveBeenCalled()
+  })
+
+  it("does NOT fire ocrUnverified for a MANUAL capture (short-circuits with no templateId)", async () => {
+    const { db, limit } = mkTemplateDb(null)
+    const r = await screenTemplateBasis(db, "manual", null)
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: false })
+    expect(limit).not.toHaveBeenCalled() // no templateId → no resolve
   })
 })

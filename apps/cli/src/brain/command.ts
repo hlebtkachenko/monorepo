@@ -238,6 +238,39 @@ export function registerBrainCommand(program: Command): void {
 }
 
 /**
+ * [W1.3] Factory for a JSON reviver that reconstructs the IR money fields as `bigint`. Every IR money
+ * value (`total_minor`, `unit_price_minor`, `base_minor`, `tax_minor`, `amount_minor`, …) is a `bigint` of
+ * minor units (haléř for CZK) in TypeScript, but `JSON.parse` has no bigint literal, so a `--inputs`/
+ * `--context` file carries each as the SAME representation the platform uses for Money over the wire: an
+ * integer minor-unit STRING (`packages/shared` `MoneySchema` — "sent over the wire as a string to avoid JSON
+ * float precision loss on amounts larger than 2^53 minor units"), reconstructed here via `BigInt(...)`
+ * exactly as every IR parser builds them (`tabular.ts`, `pohoda.ts`). Without this, a `_minor` value
+ * arrives as a `number` (silent precision loss past 2^53, and a type mismatch against the `bigint` field)
+ * — which is why `brain run --inputs` broke on money fields while `brain book` (tabular, never JSON) did not.
+ *
+ * Keyed on the `_minor` suffix so it only ever touches money fields; a plain integer number is tolerated
+ * (coerced via its exact string) so a hand-written fixture with `1000` works, but a non-integer or a
+ * malformed string fails LOUD at the boundary rather than silently truncating a booked amount. The `flag`
+ * is threaded from the caller so the boundary error names the ACTUAL flag (`--inputs` or `--context`), not
+ * a hardcoded one — the same reviver backs every operator JSON file.
+ */
+function reviveMinorBigints(
+  flag: string,
+): (key: string, value: unknown) => unknown {
+  return (key, value) => {
+    if (!key.endsWith("_minor")) return value
+    if (typeof value === "bigint") return value
+    if (typeof value === "string" && /^-?\d+$/.test(value)) return BigInt(value)
+    if (typeof value === "number" && Number.isSafeInteger(value))
+      return BigInt(value)
+    throw new Error(
+      `${flag}: money field "${key}" must be an integer minor-unit value ` +
+        `(string preferred, e.g. "150000"), got ${JSON.stringify(value)}`,
+    )
+  }
+}
+
+/**
  * Read + shallow-validate an operator-supplied JSON context file at a SYSTEM BOUNDARY. It fails LOUD on a
  * non-object or any missing required key (naming the flag + the exact key list), then picks ONLY the required
  * keys — any extra key in the file (e.g. a `policy` widening attempt) is DROPPED, never carried through. This
@@ -249,7 +282,10 @@ function readContextFile<K extends string>(
   flag: string,
   requiredKeys: readonly K[],
 ): Record<K, unknown> {
-  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
+  const parsed: unknown = JSON.parse(
+    readFileSync(path, "utf8"),
+    reviveMinorBigints(flag),
+  )
   const missing =
     typeof parsed !== "object" || parsed === null
       ? [...requiredKeys]
@@ -311,7 +347,7 @@ async function confirmLiveRun(count: number): Promise<boolean> {
  * server-side-defended: `resolve_accounting_held_write` / `list_accounting_held_writes` are denied for the
  * Brain's agent key via `@RequireHumanActor()` (#517); this pin closes the last client-side widening seam.
  */
-function readInputs(path: string): BrainDryRunInputs {
+export function readInputs(path: string): BrainDryRunInputs {
   return readContextFile(path, "--inputs", [
     "invoice",
     "sections",

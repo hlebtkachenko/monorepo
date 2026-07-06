@@ -6,6 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.7] — 2026-07-06
+
+Patch release: wire the dead "Add company" buttons, and add an operator input to enable the Brain write lane per-env at deploy time.
+
+### Fixed
+
+- **web**: the three "Add company" buttons (companies table toolbar, cards toolbar, and cards empty-state) toasted "coming soon" instead of opening the create-org wizard, even though the wizard (`/workspace/organizations/new`) is fully wired. They now link to it, matching the header "New company" button. Also wired the org-header "Contact us" item to `mailto:` support. (#563)
+
+### Changed
+
+- **ci**: `_deploy-aws.yml` gains an optional `brain_runtime_active` input, passed through to CDK as `-c brainRuntimeActive=<value>` (ADR-0028). Empty leaves the fail-closed default (OFF); an explicit `1` enables the `/v1/accounting` write admission lane on the target env. This is the documented, no-code-change way to turn the Brain write lane on per-env (writes still stay HELD at cold start). (#563)
+
 ## [v0.16.6] — 2026-07-06
 
 Patch release: fix the create-organization wizard being unscrollable on short viewports.

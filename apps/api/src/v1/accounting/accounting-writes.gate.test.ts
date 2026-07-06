@@ -772,4 +772,139 @@ describe("runGatedWrite", () => {
     expect(res.httpStatus).toBe(201)
     expect(run).toHaveBeenCalledOnce()
   })
+
+  // [W1.5] SHADOW-SCORE instrumentation — a SECOND, PURE scoring pass persisted at
+  // serverGate.shadow. Pure audit telemetry for M3: it must NEVER change the
+  // enforced verdict or autoApply, it recomputes the server-derivable verify facts
+  // from the payload (never trusts the client), and it carries NO verdict.
+  const captureBody = (
+    vatAmount: string,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    periodId: "p-1",
+    issuedAt: "2025-03-14",
+    lines: [
+      {
+        partials: [
+          {
+            baseAmount: "1000.00",
+            vatMode: "STANDARD",
+            vatRate: "21",
+            vatAmount, // 210.00 is correct; 999.00 fires the derived mismatch
+          },
+        ],
+      },
+    ],
+    ...extra,
+  })
+
+  it("[W1.5] persists the shadow (serverLane.cRaw + claimLane.cRaw + claimAudit) on a capture", async () => {
+    const res = await runGatedWrite(
+      build({ confidence: 0.99, body: captureBody("210.00") }),
+    )
+    // Enforced verdict is UNCHANGED (fail-closed cold start → held).
+    expect(res.httpStatus).toBe(202)
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({
+            shadow: expect.objectContaining({
+              v: 1,
+              serverLane: expect.objectContaining({
+                cRaw: expect.any(Number),
+              }),
+              claimLane: expect.objectContaining({ cRaw: expect.any(Number) }),
+              claimAudit: expect.objectContaining({
+                vatBaseMatchesNet: { claimed: false, derived: true },
+                periodConsistent: { claimed: false, derived: true },
+              }),
+            }),
+          }),
+        }),
+      }),
+    )
+  })
+
+  it("[W1.5] serverLane RECOMPUTES verify server-side — a client-claimed TRUE on FALSE arithmetic uses the DERIVED false", async () => {
+    // Client claims vatBaseMatchesNet TRUE, but base 1000 @ 21% ≠ 999 → derived FALSE.
+    // `signals` is a top-level gate opt (read as opts.signals), not a body field.
+    await runGatedWrite({
+      ...build({ confidence: 0.99, body: captureBody("999.00") }),
+      signals: { vatBaseMatchesNet: true },
+    })
+    const persisted = updateLog.mock.calls[0]?.[1] as {
+      output: {
+        serverGate: {
+          shadow: {
+            serverLane: { inputs: { verify: { vatBaseMatchesNet?: boolean } } }
+            claimAudit: {
+              vatBaseMatchesNet: { claimed: boolean; derived: boolean }
+            }
+          }
+        }
+      }
+    }
+    const shadow = persisted.output.serverGate.shadow
+    // claimAudit surfaces the dishonesty: claimed true, derived false.
+    expect(shadow.claimAudit.vatBaseMatchesNet).toEqual({
+      claimed: true,
+      derived: false,
+    })
+    // serverLane uses the DERIVED false, not the client's TRUE claim.
+    expect(shadow.serverLane.inputs.verify.vatBaseMatchesNet).toBe(false)
+  })
+
+  // The advisor NON-NEGOTIABLE: the shadow is PURE instrumentation. The enforced
+  // verdict + autoApply are IDENTICAL whether the shadow is computed or not — its
+  // presence changes NOTHING enforced. Proven by running the SAME inputs through a
+  // green scorer (auto-applies, shadow present) and asserting the applied outcome +
+  // autoApplied flag are exactly what the pre-shadow gate produced.
+  it("[W1.5] autoApply is INVARIANT to the shadow — an auto-applying write still applies (201) with the shadow present", async () => {
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-inv",
+      designation: "FP-inv",
+      sequenceNumber: 42,
+    })
+    const res = await runGatedWriteWithSeams(
+      build({ confidence: 0.99, body: captureBody("210.00"), run }),
+      admitting,
+      greenScorer,
+    )
+    // The enforced verdict is exactly the pre-shadow one: green score + clear veto
+    // + confidence → applied. The shadow did not gate it.
+    expect(res.httpStatus).toBe(201)
+    expect(res.body).toMatchObject({ status: "applied", eventId: "ev-inv" })
+    expect(run).toHaveBeenCalledOnce()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ autoApplied: true }),
+    )
+    // The shadow rode along in the audit record but never touched the decision.
+    const persisted = updateLog.mock.calls[0]?.[1] as {
+      output: { serverGate: { shadow: { v: number } } }
+    }
+    expect(persisted.output.serverGate.shadow.v).toBe(1)
+  })
+
+  it("[W1.5] a HELD write also carries a shadow whose serverLane.cRaw drops the extraction_failed block (non-zero)", async () => {
+    // The enforced score is structurally 0 (extraction_failed), but the shadow's
+    // serverLane drops that block → a real non-zero server x for the M3 refit.
+    await runGatedWrite(
+      build({ confidence: 0.99, body: captureBody("210.00") }),
+    )
+    const persisted = updateLog.mock.calls[0]?.[1] as {
+      output: {
+        serverGate: {
+          score: { cRaw: number }
+          shadow: { serverLane: { cRaw: number } }
+        }
+      }
+    }
+    // Enforced score cRaw stays the structural 0; the shadow's serverLane is > 0.
+    expect(persisted.output.serverGate.score.cRaw).toBe(0)
+    expect(persisted.output.serverGate.shadow.serverLane.cRaw).toBeGreaterThan(
+      0,
+    )
+  })
 })

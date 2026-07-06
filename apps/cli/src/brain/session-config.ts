@@ -28,11 +28,11 @@ import type {
 export const CAPTURE_ACCOUNTING_DOCUMENT_TOOL = `mcp__${AFFRAME_MCP_SERVER}__capture_accounting_document`
 
 /**
- * The LOCAL stdio MCP bridge spawn descriptor: the node binary + the absolute path to the built `@afframe/mcp`
- * stdio server entrypoint. Resolved by the impure launcher (never here — this module stays env-free) and
- * threaded in, so the bridge's command/args/env are fixed by trusted CLI code, never by the model or a
- * document. Brain v1 keeps the whole agent runtime LOCAL on the operator's machine; the bridge reaches prod
- * only as an ordinary outbound HTTPS client to the deployed REST API (Fargate is only the SERVER).
+ * The LOCAL stdio MCP bridge spawn descriptor: the `tsx` runner + the args that run the `@afframe/mcp` stdio
+ * server SOURCE. Resolved by the impure launcher (never here — this module stays env-free) and threaded in, so
+ * the bridge's command/args/env are fixed by trusted CLI code, never by the model or a document. Brain v1 keeps
+ * the whole agent runtime LOCAL on the operator's machine; the bridge reaches prod only as an ordinary outbound
+ * HTTPS client to the deployed REST API (Fargate is only the SERVER).
  */
 export interface McpBridgeSpawn {
   /** The executable that runs the local stdio MCP server (an absolute path to the `tsx` runner). */

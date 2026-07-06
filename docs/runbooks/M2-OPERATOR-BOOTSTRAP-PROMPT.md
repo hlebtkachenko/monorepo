@@ -92,8 +92,11 @@ STEP 3 — Ensure a bookable accounting EVENT exists, and get its eventId.
     agent key logs as `ai_on_behalf` and REQUIRES one. Report the 202 + reviewId.
   - Then tell me to approve that held event at:  https://app.afframe.com/{orgSlug}/accounting/approvals
     After I approve, read back the now-existing eventId (via the server, using the key) and carry it forward.
-  - If, in practice, the very first event applies (201) instead of holding, just use the returned eventId — either
-    outcome is fine; adapt to what the server actually returns and tell me which happened.
+  - A cold-start event-create MUST return 202 HELD. The server injects an unconditional `extraction_failed`
+    floor on every write at cold start, so green is structurally unreachable — a **201 applied is impossible**.
+    If the server ever returns 201 for this at cold start, STOP: that contradicts the gate floor and can only
+    mean the gate is broken (a confident-wrong write). Do NOT use the eventId, do NOT proceed — report the 201
+    to me immediately as a gate anomaly.
 
 STEP 4 — Ask me for the documents.
   - Ask me to drop the source files (PDF / image invoices, or a folder of structured Pohoda/csv/xlsx exports) into
@@ -144,7 +147,9 @@ Begin at STEP 0. Narrate what you are doing at each step, and pause for me at ev
   validated end-to-end against deployed prod (init OK, 31 tools served incl. `capture_accounting_document`, and a
   bad key returns a real `401 [unauthorized]`). The ONLY un-run step is a real agent key producing a real HELD
   write — Hleb-gated (key issuance = admin UI + step-up), which is exactly the supervised W1.7/M2 loop.
-- **The one empirical unknown, called out in Step 3:** whether the _first_ `createEvent` on a fresh org returns
-  202 HELD (needs approval before its `eventId` exists) or 201 applied. The gate math says HELD (the cold-start
-  degraded score is never green); the prompt is written to handle either outcome and to report which actually
-  happened. Confirm this on the first real run.
+- **No 201 at cold start — it is an alarm, not an unknown.** The `extraction_failed` floor fires
+  **unconditionally** on every write (incl. `createEvent`), so a cold-start write is structurally required to be
+  **202 HELD**; a 201 applied is impossible unless the gate is broken. Step 3 instructs the session to STOP and
+  report a cold-start 201 as a confident-wrong gate anomaly, never to work past it. The only real dependency is
+  sequencing: the held event must be human-approved before its `eventId` exists for a document capture to
+  reference it.

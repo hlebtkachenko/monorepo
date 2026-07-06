@@ -1823,6 +1823,16 @@ export interface components {
                  */
                 r11_dan: string;
                 /**
+                 * @description ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.
+                 * @example 0.00
+                 */
+                r20_base: string;
+                /**
+                 * @description ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.
+                 * @example 0.00
+                 */
+                r21_base: string;
+                /**
                  * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
                  * @example 0.00
                  */
@@ -2014,6 +2024,16 @@ export interface components {
              * @example 0.00
              */
             r11_dan: string;
+            /**
+             * @description ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.
+             * @example 0.00
+             */
+            r20_base: string;
+            /**
+             * @description ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.
+             * @example 0.00
+             */
+            r21_base: string;
             /**
              * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
              * @example 0.00
@@ -2901,6 +2921,12 @@ export interface components {
              * @enum {string}
              */
             vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+            /**
+             * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
+             * @example EU
+             * @enum {string}
+             */
+            vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
             /**
              * @description Rate to freeze (null for exempt/outside).
              * @example 21

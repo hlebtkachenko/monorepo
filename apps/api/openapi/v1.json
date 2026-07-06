@@ -2279,6 +2279,16 @@
                 "description": "ř.11 daň.",
                 "example": "0.00"
               },
+              "r20_base": {
+                "type": "string",
+                "description": "ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.",
+                "example": "0.00"
+              },
+              "r21_base": {
+                "type": "string",
+                "description": "ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.",
+                "example": "0.00"
+              },
               "r25_base": {
                 "type": "string",
                 "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
@@ -2362,6 +2372,8 @@
               "r10_dan",
               "r11_base",
               "r11_dan",
+              "r20_base",
+              "r21_base",
               "r25_base",
               "r40_base",
               "r40_dan",
@@ -2526,6 +2538,16 @@
             "description": "ř.11 daň.",
             "example": "0.00"
           },
+          "r20_base": {
+            "type": "string",
+            "description": "ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.",
+            "example": "0.00"
+          },
+          "r21_base": {
+            "type": "string",
+            "description": "ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.",
+            "example": "0.00"
+          },
           "r25_base": {
             "type": "string",
             "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
@@ -2609,6 +2631,8 @@
           "r10_dan",
           "r11_base",
           "r11_dan",
+          "r20_base",
+          "r21_base",
           "r25_base",
           "r40_base",
           "r40_dan",
@@ -3880,6 +3904,19 @@
             "description": "VAT mode to stamp on the partial record.",
             "example": "STANDARD"
           },
+          "vatJurisdiction": {
+            "type": "string",
+            "enum": [
+              "DOMESTIC",
+              "REVERSE_CHARGE",
+              "EU",
+              "IMPORT",
+              "EXEMPT",
+              "OUTSIDE_VAT"
+            ],
+            "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
+            "example": "EU"
+          },
           "vatRate": {
             "type": [
               "string",
@@ -3970,6 +4007,7 @@
         },
         "required": [
           "vatMode",
+          "vatJurisdiction",
           "vatRate",
           "scenario",
           "saldoAccount",

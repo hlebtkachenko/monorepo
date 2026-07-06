@@ -1,6 +1,7 @@
 "use client"
 
 import type { Table } from "@tanstack/react-table"
+import Link from "next/link"
 
 import { ContentToolbar } from "@workspace/ui/blocks/app-content"
 import { Button } from "@workspace/ui/components/button"
@@ -8,7 +9,6 @@ import {
   DataTableColumnManager,
   DataTableMultiSort,
 } from "@workspace/ui/components/data-table"
-import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { ToolbarSearch } from "../_shared/toolbar-search"
@@ -23,8 +23,8 @@ export interface CompaniesTableToolbarProps {
 /**
  * Companies table toolbar — Left: a universal search (status is filtered by the
  * shared header tabs, not a duplicate control here). Right: the column manager,
- * multi-sort, and a primary "Add company" action (stub; self-service org
- * creation isn't wired, so it toasts for now).
+ * multi-sort, and a primary "Add company" action linking to the create-org
+ * wizard (`/workspace/organizations/new`).
  */
 export function CompaniesTableToolbar({
   table,
@@ -47,9 +47,11 @@ export function CompaniesTableToolbar({
         <>
           <DataTableColumnManager table={table} />
           <DataTableMultiSort table={table} />
-          <Button size="sm" onClick={() => toast("Add company — coming soon")}>
-            <PlusIcon />
-            Add company
+          <Button asChild size="sm">
+            <Link href="/workspace/organizations/new">
+              <PlusIcon />
+              Add company
+            </Link>
           </Button>
         </>
       }

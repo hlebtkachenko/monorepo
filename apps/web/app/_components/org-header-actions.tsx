@@ -15,7 +15,11 @@ import {
 } from "@workspace/i18n/config"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { BrandName, SidekickMark } from "@workspace/ui/brand-assets"
+import {
+  BRAND_SUPPORT_EMAIL,
+  BrandName,
+  SidekickMark,
+} from "@workspace/ui/brand-assets"
 import {
   BugReportDialog,
   buildBugReport,
@@ -194,7 +198,10 @@ export function OrgHeaderActions({
           sideOffset={MENU_GAP}
           className={HEADER_MENU}
         >
-          {/* TODO(org-header): wire real destinations/handlers — placeholders. */}
+          {/* TODO(org-header): Documentation/Knowledge base/What's new/Status
+              stay placeholders until docs.afframe.com + status.afframe.com are
+              live (verified 404/down 2026-07-06) — wiring them now would send
+              users to dead pages. "Contact us" needs no site, so it is wired. */}
           <DropdownMenuItem>
             <DocsIcon />
             Documentation
@@ -205,9 +212,11 @@ export function OrgHeaderActions({
             Knowledge base
             <ExternalIcon className="ml-auto size-3" />
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <ContactIcon />
-            Contact us
+          <DropdownMenuItem asChild>
+            <a href={`mailto:${BRAND_SUPPORT_EMAIL}`}>
+              <ContactIcon />
+              Contact us
+            </a>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>

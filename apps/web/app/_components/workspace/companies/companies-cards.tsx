@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 
 import { ContentPanel, ContentToolbar } from "@workspace/ui/blocks/app-content"
 import { Button } from "@workspace/ui/components/button"
@@ -10,7 +11,6 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
-import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { ToolbarSearch } from "../_shared/toolbar-search"
@@ -52,12 +52,11 @@ export function CompaniesCards({ companies }: { companies: CompanyRow[] }) {
             />
           }
           right={
-            <Button
-              size="sm"
-              onClick={() => toast("Add company — coming soon")}
-            >
-              <PlusIcon />
-              Add company
+            <Button asChild size="sm">
+              <Link href="/workspace/organizations/new">
+                <PlusIcon />
+                Add company
+              </Link>
             </Button>
           }
         />
@@ -75,12 +74,11 @@ export function CompaniesCards({ companies }: { companies: CompanyRow[] }) {
               </EmptyDescription>
             </EmptyHeader>
             {isFiltered ? null : (
-              <Button
-                size="sm"
-                onClick={() => toast("Add company — coming soon")}
-              >
-                <PlusIcon />
-                Add company
+              <Button asChild size="sm">
+                <Link href="/workspace/organizations/new">
+                  <PlusIcon />
+                  Add company
+                </Link>
               </Button>
             )}
           </Empty>

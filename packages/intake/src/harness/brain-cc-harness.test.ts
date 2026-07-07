@@ -274,7 +274,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
   const fullEnv: Record<string, string> = {
     [BRAIN_HARNESS_REQUIRED_ENV.runtimeActive]: "1",
     [BRAIN_HARNESS_REQUIRED_ENV.liveEnabled]: "1",
-    [BRAIN_HARNESS_REQUIRED_ENV.mcpEndpoint]: "https://api.afframe.com/mcp",
+    [BRAIN_HARNESS_REQUIRED_ENV.mcpEndpoint]: "https://api.afframe.com",
     [BRAIN_HARNESS_REQUIRED_ENV.apiKey]: "sk-test",
     [BRAIN_HARNESS_REQUIRED_ENV.agentSdkAuth]: "token",
   }
@@ -285,7 +285,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
     await expect(
       runLiveBrainSession({
         plan,
-        mcpEndpoint: "https://api.afframe.com/mcp",
+        mcpEndpoint: "https://api.afframe.com",
         readEnv: (name) => fullEnv[name],
       }),
     ).rejects.toBeInstanceOf(BrainHarnessNotWiredError)
@@ -333,7 +333,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
     }
     const result = await runLiveBrainSession({
       plan,
-      mcpEndpoint: "https://api.afframe.com/mcp",
+      mcpEndpoint: "https://api.afframe.com",
       readEnv: (name) => fullEnv[name],
       launcher: mockLauncher,
     })
@@ -346,7 +346,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
     expect(
       (seen[0]!["plan"] as { loginPack: { system: string } }).loginPack.system,
     ).toBe(plan.loginPack.system)
-    expect(seen[0]!["mcpEndpoint"]).toBe("https://api.afframe.com/mcp")
+    expect(seen[0]!["mcpEndpoint"]).toBe("https://api.afframe.com")
     expect(seen[0]!["apiKey"]).toBe("sk-test")
     expect(seen[0]!["agentSdkAuth"]).toBe("token")
   })
@@ -356,7 +356,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
     try {
       await runLiveBrainSession({
         plan,
-        mcpEndpoint: "https://api.afframe.com/mcp",
+        mcpEndpoint: "https://api.afframe.com",
         readEnv: (name) =>
           name === BRAIN_HARNESS_REQUIRED_ENV.runtimeActive ? "0" : "x",
       })

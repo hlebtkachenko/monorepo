@@ -2,8 +2,10 @@
  * Souhrnné hlášení (§102 ZDPH) — the recapitulative statement of intra-Community
  * supplies. A plátce who supplies goods/services to a VAT-registered person in
  * another member state files it per counterparty VAT id + kód plnění. Built from
- * the EU-marked ISSUED partial_records (vat_jurisdiction = 'EU', migration 0038)
- * joined to the counterparty tax identity (migration 0039).
+ * the ISSUED reverse-charge EU partial_records (vat_mode = 'REVERSE_CHARGE' +
+ * vat_jurisdiction = 'EU', migration 0038 — the shared ISSUED_EU_SUPPLY predicate,
+ * identical to the DPH ř.20/21 filter) joined to the counterparty tax identity
+ * (migration 0039). §102(1) is a B2B intra-Community obligation only.
  *
  * Kód plnění (Pokyny k SH):
  *   0  dodání zboží do JČS osobě registrované k dani (§64) — the default
@@ -31,6 +33,7 @@ import { sql } from "drizzle-orm"
 import { rows } from "../sql"
 import type { RowExecutor } from "../sql"
 import type { Decimal } from "../types"
+import { ISSUED_EU_SUPPLY_SH } from "./eu-supply-predicate"
 
 /** One souhrnné-hlášení line: member state + VAT id + kód + count + value. */
 export interface ShRow {
@@ -78,8 +81,11 @@ export async function buildSouhrnneHlaseni(
         JOIN accounting_event ae ON ae.id = ir.accounting_event_id
         LEFT JOIN counterparty cp ON cp.id = ae.counterparty_id
        WHERE sr.period_id = ${periodId}::uuid
-         AND sr.type = 'ISSUED_INVOICE'
-         AND pr.vat_jurisdiction = 'EU'
+         -- Shared issued-EU predicate (§102(1) B2B intracom): ISSUED + REVERSE_CHARGE
+         -- + vat_jurisdiction 'EU' — identical to the DPH ř.20/21 filter, so SH and
+         -- ř.20+ř.21 cannot diverge (#541). The vat_mode gate also excludes a
+         -- STANDARD+EU distance sale / OUTSIDE_VAT+EU §10 service from the recap.
+         AND ${ISSUED_EU_SUPPLY_SH}
        GROUP BY cp.country_code, cp.tax_id, ${kodPlneni}
        ORDER BY cp.tax_id, ${kodPlneni}`,
   )

@@ -568,7 +568,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
             partials: [
               {
                 baseAmount: "50000.00",
-                vatMode: "EXEMPT",
+                vatMode: "REVERSE_CHARGE",
                 vatJurisdiction: "EU",
                 currencyCode: "CZK",
               },
@@ -624,7 +624,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
             partials: [
               {
                 baseAmount: "30000.00",
-                vatMode: "EXEMPT",
+                vatMode: "REVERSE_CHARGE",
                 vatJurisdiction: "EU",
                 supplyKind: "SERVICES",
                 currencyCode: "CZK",
@@ -687,7 +687,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
             partials: [
               {
                 baseAmount: "10000.00",
-                vatMode: "EXEMPT",
+                vatMode: "REVERSE_CHARGE",
                 vatJurisdiction: "EU",
                 supplyKind: "GOODS",
                 currencyCode: "CZK",
@@ -699,7 +699,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
             partials: [
               {
                 baseAmount: "7000.00",
-                vatMode: "EXEMPT",
+                vatMode: "REVERSE_CHARGE",
                 vatJurisdiction: "EU",
                 supplyKind: "SERVICES",
                 currencyCode: "CZK",

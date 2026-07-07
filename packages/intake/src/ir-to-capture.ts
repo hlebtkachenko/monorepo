@@ -23,7 +23,10 @@
 // those are server-injected from the API-key principal. This module emits only @workspace/shared request
 // DTOs and never imports @workspace/accounting.
 
-import type { CaptureAccountingDocumentRequest } from "@workspace/shared/api"
+import type {
+  CaptureAccountingDocumentRequest,
+  GateEnvelope,
+} from "@workspace/shared/api"
 import { minorToDecimal } from "@workspace/brain/confidence"
 import type {
   BankTransaction,
@@ -33,29 +36,55 @@ import type {
 } from "@workspace/brain"
 
 /**
+ * The gate-envelope fields every adapter stamps on its capture request — the `confidence` / `rationale` /
+ * `conversationId` / `signals` / `templateId` / `extractionMethod` shape. SINGLE-SOURCED from the request
+ * DTO's own `GateEnvelope` keyset (defined ONCE in `packages/shared/src/api/accounting-writes.ts`, whose
+ * whole purpose is no-drift), so this can never diverge from the contract. See `GATE_ENVELOPE` there for the
+ * per-field meaning (`extractionMethod` = the #554 client-declared discriminator; `templateId` = the matched
+ * OCR template; `signals` = the #464 evidence envelope). NONE is domain data — the server strips the whole
+ * envelope before the domain mutation.
+ */
+type CaptureGateEnvelope = Pick<
+  CaptureAccountingDocumentRequest,
+  keyof GateEnvelope
+>
+
+/**
  * Harness-supplied context. The uuids the contract requires — `periodId`, `seriesId`, and each line's
  * `eventId` — are NOT derivable from the IR (they name tenant-side rows the Brain discovers via read
- * tools), so they come in here alongside the server-gate envelope (`confidence` / `rationale` /
- * optional `conversationId`). NOT tenant data: no organization_id / user_id / workspace_id / role.
+ * tools), so they come in here alongside the whole server-gate envelope (`CaptureGateEnvelope`, single-
+ * sourced from the request DTO). NOT tenant data: no organization_id / user_id / workspace_id / role.
  */
-export interface IrToCaptureContext {
+export interface IrToCaptureContext extends CaptureGateEnvelope {
   /** Účetní období uuid (from getStructure / listAccountingNumberSeries). */
   periodId: string
   /** DOCUMENT number-series uuid (from listAccountingNumberSeries). */
   seriesId: string
   /** Accounting-event uuid this document's single line hangs off of. */
   eventId: string
-  /** Agent confidence [0,1] — the server-gate scalar (NECESSARY, not sufficient). */
-  confidence: number
-  /** Why this write — persisted to the audit trail. */
-  rationale: string
-  /** Optional audit-correlation id of the driving conversation. */
-  conversationId?: string
 }
 
 /** A CaptureAccountingDocumentRequest partial (line-item). Derived, not re-imported, to avoid a public export dep. */
 type CapturePartial =
   CaptureAccountingDocumentRequest["lines"][number]["partials"][number]
+
+/**
+ * Build the server-gate envelope every adapter stamps on its capture — the SINGLE source of truth so the
+ * invoice / cash / bank paths can never drift a gate field. `confidence` + `rationale` are always present;
+ * every optional field (`conversationId` / `extractionMethod` / `templateId` / `signals`) is emitted ONLY
+ * when the context supplied it, so an unset field is omitted, never sent as `undefined`. NONE is domain
+ * data — the server strips the whole envelope before the domain mutation.
+ */
+function gateEnvelope(ctx: IrToCaptureContext): CaptureGateEnvelope {
+  return {
+    confidence: ctx.confidence,
+    rationale: ctx.rationale,
+    ...(ctx.conversationId ? { conversationId: ctx.conversationId } : {}),
+    ...(ctx.extractionMethod ? { extractionMethod: ctx.extractionMethod } : {}),
+    ...(ctx.templateId != null ? { templateId: ctx.templateId } : {}),
+    ...(ctx.signals ? { signals: ctx.signals } : {}),
+  }
+}
 
 /**
  * Map one IR VAT-summary row to a capture partial. `sign` (+1 / -1) flips base + tax for a credit note.
@@ -137,9 +166,7 @@ export function invoiceToCapture(
         partials,
       },
     ],
-    confidence: ctx.confidence,
-    rationale: ctx.rationale,
-    ...(ctx.conversationId ? { conversationId: ctx.conversationId } : {}),
+    ...gateEnvelope(ctx),
   }
 }
 
@@ -175,9 +202,7 @@ export function cashDocumentToCapture(
         partials,
       },
     ],
-    confidence: ctx.confidence,
-    rationale: ctx.rationale,
-    ...(ctx.conversationId ? { conversationId: ctx.conversationId } : {}),
+    ...gateEnvelope(ctx),
   }
 }
 
@@ -213,8 +238,6 @@ export function bankToCapture(
         partials,
       },
     ],
-    confidence: ctx.confidence,
-    rationale: ctx.rationale,
-    ...(ctx.conversationId ? { conversationId: ctx.conversationId } : {}),
+    ...gateEnvelope(ctx),
   }
 }

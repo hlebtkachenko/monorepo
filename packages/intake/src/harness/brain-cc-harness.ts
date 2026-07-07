@@ -10,8 +10,9 @@
 //     (`invoiceToCapture`), and returns the EXACT tool-call plan + the sandbox policy the live session would
 //     use. This is the creds-free half of the E2E: a caller can inspect precisely what a live run would do.
 //
-//   - `runLiveBrainSession` — CREDS-GATED. It launches a real Claude Code session (Agent-SDK), connects to
-//     the deployed accounting MCP endpoint, and drives the session against the real tools + the server gate.
+//   - `runLiveBrainSession` — CREDS-GATED. It launches a real Claude Code session (Agent-SDK), which spawns a
+//     LOCAL stdio MCP bridge pointed at the deployed REST API, and drives the session against the real tools +
+//     the server gate.
 //     It is NOT wired here and does NOT fake runnability: it THROWS a precise "requires <exact creds/env>"
 //     error until the harness is wired at deploy time. See `docs/runbooks/BRAIN-CC-HARNESS.md`.
 //
@@ -45,7 +46,11 @@ export const BRAIN_HARNESS_REQUIRED_ENV = {
   runtimeActive: "BRAIN_RUNTIME_ACTIVE",
   /** Explicit opt-in that live creds are present + the operator intends a real session. */
   liveEnabled: "BRAIN_LIVE",
-  /** The deployed accounting MCP endpoint URL (e.g. https://api.afframe.com/mcp). */
+  /**
+   * The deployed REST API base URL (e.g. https://api.afframe.com). Consumed by the LOCAL stdio MCP bridge the
+   * CLI spawns (as its `AFFRAME_API_BASE`) — the Brain reaches prod as an ordinary outbound HTTPS client, not
+   * a hosted MCP endpoint. Var name kept as `BRAIN_MCP_ENDPOINT`; only its meaning is now the REST base.
+   */
   mcpEndpoint: "BRAIN_MCP_ENDPOINT",
   /** The Brain's server-authorized accounting API key (principal → org, server-injected tenancy). */
   apiKey: "BRAIN_API_KEY",
@@ -207,7 +212,7 @@ export interface AgentSessionLaunchOptions {
    * diverge across the seam (the type makes a contradictory payload unrepresentable).
    */
   plan: BrainDryRunPlan
-  /** The deployed accounting MCP endpoint URL. */
+  /** The deployed REST API base URL (e.g. https://api.afframe.com), consumed by the local stdio MCP bridge. */
   mcpEndpoint: string
   /** The Brain's server-authorized accounting API key (resolves org server-side; never a tool input). */
   apiKey: string
@@ -235,7 +240,7 @@ export interface AgentSessionLauncher {
 export interface LiveBrainSessionInputs {
   /** The dry-run plan (from `planBrainDryRun`) the live session executes against the real tools. */
   plan: BrainDryRunPlan
-  /** The deployed accounting MCP endpoint URL. */
+  /** The deployed REST API base URL (e.g. https://api.afframe.com), consumed by the local stdio MCP bridge. */
   mcpEndpoint: string
   /**
    * A resolver for the required env/creds. Injected (not read from `process.env` directly) so the gate is
@@ -310,7 +315,7 @@ export async function runLiveBrainSession(
     )
   }
   if (!inputs.mcpEndpoint)
-    missing.push("deployed MCP endpoint (inputs.mcpEndpoint)")
+    missing.push("deployed REST API base URL (inputs.mcpEndpoint)")
 
   // Fail closed on env/kill-switch BEFORE the launcher is ever consulted — a launcher must never see a
   // half-provisioned run, and the write lane must be explicitly ON.

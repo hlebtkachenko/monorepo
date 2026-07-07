@@ -37,6 +37,27 @@ const VAT_JURISDICTION = z.enum([
   "EXEMPT",
   "OUTSIDE_VAT",
 ])
+/**
+ * How the capture was produced — a CLIENT-DECLARED discriminator that drives the
+ * OCR novelty fail-closed leg. `"ocr"` (vision/OCR extraction from a PDF/image) is
+ * the untrusted path: an OCR capture the server cannot tie to a CONFIRMED template
+ * is HELD. `"structured"` (parsed from a Pohoda XML/xlsx/csv export) and
+ * `"manual"` (hand-entered) are not screened by that leg.
+ *
+ * HONEST on what is verifiable: only the field's ABSENCE is server-checkable. A
+ * MISSING value is fail-closed to the MOST conservative case (`"ocr"`), so an
+ * agent cannot OMIT its way past the screen. But the DECLARED value is NOT
+ * server-verifiable in v1 — a client that labels an actually-OCR capture as
+ * `"structured"`/`"manual"` to skip the leg is UNDETECTABLE (no server-side
+ * extraction telemetry to cross-check). So this discriminator must NOT be treated
+ * as verified extraction telemetry: it may not lift the cold-start
+ * `extraction_failed` floor. Closing the lying-client route-around is a B2/M4
+ * floor-lift precondition (tracked follow-up), not something this leg achieves.
+ *
+ * Gate-only + audit — stripped before the domain mutation, never persisted as a
+ * business field.
+ */
+const EXTRACTION_METHOD = z.enum(["structured", "ocr", "manual"])
 /** Kind of supply — mirrors the accounting SupplyKind union (classify.ts). */
 const SUPPLY_KIND = z.enum([
   "GOODS",
@@ -160,6 +181,12 @@ export const ClassifyEventResponseSchema = z
     vatMode: VAT_MODE.openapi({
       description: "VAT mode to stamp on the partial record.",
       example: "STANDARD",
+    }),
+    vatJurisdiction: VAT_JURISDICTION.openapi({
+      description:
+        "vat_jurisdiction to stamp on the capture partial — splits an EU supply " +
+        "(ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
+      example: "EU",
     }),
     vatRate: z.string().nullable().openapi({
       description: "Rate to freeze (null for exempt/outside).",
@@ -293,6 +320,19 @@ const CONVERSATION_ID = z.string().uuid().optional().openapi({
   description: "Audit-correlation id of the driving agent conversation.",
 })
 
+const TEMPLATE_ID = z
+  .string()
+  .uuid()
+  .nullish()
+  .openapi({
+    description:
+      "OCR extraction template this capture was derived from (null for " +
+      "structured-export captures). NOT domain data — carried alongside the " +
+      "gate envelope so a future server veto leg can key off the template's " +
+      "confirmation state; it is stripped before the domain mutation runs.",
+    example: "0196f1de-0000-7000-8000-0000000000e1",
+  })
+
 /**
  * Structured evidence envelope (#464 evidence contract) — an OPTIONAL, additive
  * TOP-LEVEL field on every write op. It carries the agent's SELF-REPORTED signals
@@ -387,6 +427,68 @@ export const EVIDENCE_SIGNALS = z
       "honored). Not domain data — stripped before the domain mutation runs.",
   })
 export type EvidenceSignals = z.infer<typeof EVIDENCE_SIGNALS>
+
+/** The `extractionMethod` field schema (see `EXTRACTION_METHOD`). */
+const EXTRACTION_METHOD_FIELD = EXTRACTION_METHOD.optional().openapi({
+  description:
+    "CLIENT-DECLARED discriminator of how this capture was produced: " +
+    "'structured' (parsed from a Pohoda XML/xlsx/csv export), 'ocr' " +
+    "(vision/OCR extraction from a PDF/image), or 'manual' (hand-entered). " +
+    "NOT domain data. It drives the OCR fail-closed leg: an 'ocr' capture the " +
+    "server cannot tie to a CONFIRMED template is HELD. Optional; only the " +
+    "field's ABSENCE is server-checkable, so a MISSING value is fail-closed " +
+    "to the most conservative case ('ocr') and an agent cannot OMIT its way " +
+    "past the screen. The DECLARED value is not server-verifiable in v1 (a " +
+    "false 'structured'/'manual' label is undetectable), so it is not treated " +
+    "as verified extraction telemetry. Stripped before the domain mutation.",
+  example: "structured",
+})
+
+/**
+ * The server-gate envelope — the gate-only + audit fields the capture request
+ * carries ALONGSIDE its domain data. Defined ONCE and spread into
+ * `CaptureAccountingDocumentRequestSchema` so the field schemas, `GATE_ENVELOPE_KEYS`,
+ * and `stripGateEnvelope` can never drift: `confidence`/`rationale` drive the
+ * auto-apply/hold decision, `conversationId` is audit correlation, `signals` is the
+ * (#464) evidence envelope, and `templateId`/`extractionMethod` feed the OCR-template
+ * basis screen. NONE is domain data — every one is stripped before the domain
+ * mutation runs (on the live path, on API held-write replay, and on the web replay).
+ */
+export const GATE_ENVELOPE = {
+  confidence: CONFIDENCE,
+  rationale: RATIONALE,
+  conversationId: CONVERSATION_ID,
+  signals: EVIDENCE_SIGNALS.nullish(),
+  templateId: TEMPLATE_ID,
+  extractionMethod: EXTRACTION_METHOD_FIELD,
+} as const
+
+/** The exact key set `stripGateEnvelope` removes — the keys of {@link GATE_ENVELOPE}. */
+export const GATE_ENVELOPE_KEYS = Object.keys(
+  GATE_ENVELOPE,
+) as (keyof typeof GATE_ENVELOPE)[]
+
+/** The gate-envelope fields, as a type — the shape `stripGateEnvelope` peels off. */
+export type GateEnvelope = {
+  [K in keyof typeof GATE_ENVELOPE]: z.infer<(typeof GATE_ENVELOPE)[K]>
+}
+
+/**
+ * Peel the gate envelope off a stored/live capture payload, returning ONLY the
+ * domain fields `captureDocument` consumes. The single source of truth for all
+ * three re-run paths (the API capture controller, the API held-write resolve, and
+ * the web approvals replay) so they hand `captureDocument` the identical field set
+ * — no path can silently drift a key in or out. Non-mutating (returns a fresh
+ * object); tolerant of extra/absent keys (an events/postings payload simply has
+ * none of the capture-only keys to remove).
+ */
+export function stripGateEnvelope<T extends Record<string, unknown>>(
+  payload: T,
+): Omit<T, keyof typeof GATE_ENVELOPE> {
+  const rest = { ...payload }
+  for (const key of GATE_ENVELOPE_KEYS) delete rest[key]
+  return rest as Omit<T, keyof typeof GATE_ENVELOPE>
+}
 
 // --- POST /v1/accounting/events ---------------------------------------------
 export const CreateAccountingEventRequestSchema = z
@@ -525,22 +627,10 @@ export const CaptureAccountingDocumentRequestSchema = z
       description: "§37 doc-total rounding → 548/648.",
     }),
     lines: z.array(IndividualRecordSchema).min(1).max(200),
-    templateId: z
-      .string()
-      .uuid()
-      .nullish()
-      .openapi({
-        description:
-          "OCR extraction template this capture was derived from (null for " +
-          "structured-export captures). NOT domain data — carried alongside the " +
-          "gate envelope so a future server veto leg can key off the template's " +
-          "confirmation state; it is stripped before the domain mutation runs.",
-        example: "0196f1de-0000-7000-8000-0000000000e1",
-      }),
-    confidence: CONFIDENCE,
-    rationale: RATIONALE,
-    conversationId: CONVERSATION_ID,
-    signals: EVIDENCE_SIGNALS.nullish(),
+    // The gate-only + audit fields (confidence / rationale / conversationId /
+    // signals / templateId / extractionMethod), defined ONCE in GATE_ENVELOPE and
+    // stripped before the domain mutation via `stripGateEnvelope`.
+    ...GATE_ENVELOPE,
   })
   .openapi({
     description:
@@ -549,6 +639,8 @@ export const CaptureAccountingDocumentRequestSchema = z
 export type CaptureAccountingDocumentRequest = z.infer<
   typeof CaptureAccountingDocumentRequestSchema
 >
+/** The server-verifiable extraction discriminator (see `EXTRACTION_METHOD`). */
+export type ExtractionMethod = z.infer<typeof EXTRACTION_METHOD>
 
 export const CaptureAccountingDocumentResponseSchema = z
   .object({

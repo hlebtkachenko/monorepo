@@ -98,6 +98,8 @@
         "AFFRAME_PROFILE",
         "AFFRAME_MCP_URL",
         "BRAIN_MCP_ENDPOINT",
+        "BRAIN_MCP_SERVER_JS",
+        "BRAIN_MCP_TSX_BIN",
         "BRAIN_API_KEY",
         "BRAIN_AGENT_SDK_AUTH",
         "PUBLIC_API_URL"

@@ -37,16 +37,23 @@ function stubPlan(): BrainDryRunPlan {
 function launchOptions(): AgentSessionLaunchOptions {
   return {
     plan: stubPlan(),
-    mcpEndpoint: "https://api.afframe.com/mcp",
+    // Now the deployed REST API BASE (consumed by the local stdio bridge as AFFRAME_API_BASE), not an /mcp URL.
+    mcpEndpoint: "https://api.afframe.com",
     apiKey: "affk_live_secret",
     agentSdkAuth: "sk-ant-test",
   }
 }
 
+// A stub of the launcher-resolved local stdio MCP bridge (tsx runner + the @afframe/mcp server source).
+const BRIDGE = {
+  command: "/repo/apps/mcp/node_modules/.bin/tsx",
+  args: ["/repo/apps/mcp/src/server.ts"],
+}
+
 describe("buildBrainQueryOptions", () => {
   it("maps the login pack + creds verbatim into the SDK query options", () => {
     const o = launchOptions()
-    const cfg = buildBrainQueryOptions(o)
+    const cfg = buildBrainQueryOptions(o, BRIDGE)
 
     expect(cfg.systemPrompt).toBe(o.plan.loginPack.system)
     expect(cfg.allowedTools).toEqual([...o.plan.loginPack.allowedTools])
@@ -57,7 +64,7 @@ describe("buildBrainQueryOptions", () => {
   })
 
   it("allowlist carries the capture tool and never the held-write ops; denylist carries the built-ins", () => {
-    const cfg = buildBrainQueryOptions(launchOptions())
+    const cfg = buildBrainQueryOptions(launchOptions(), BRIDGE)
     expect(cfg.allowedTools).toContain(CAPTURE_ACCOUNTING_DOCUMENT_TOOL)
     expect(cfg.allowedTools).toContain("mcp__afframe__get_structure")
     expect(cfg.allowedTools).not.toContain(
@@ -69,19 +76,29 @@ describe("buildBrainQueryOptions", () => {
     expect(cfg.disallowedTools).toContain("Bash")
   })
 
-  it("points the afframe MCP server at the endpoint with the Brain key, http transport", () => {
-    const cfg = buildBrainQueryOptions(launchOptions())
+  it("points the afframe MCP server at a local stdio bridge: key in env (not argv), REST base pinned", () => {
+    const cfg = buildBrainQueryOptions(launchOptions(), BRIDGE)
     expect(cfg.mcpServers).toEqual({
       afframe: {
-        type: "http",
-        url: "https://api.afframe.com/mcp",
-        headers: { Authorization: "Bearer affk_live_secret" },
+        type: "stdio",
+        command: "/repo/apps/mcp/node_modules/.bin/tsx",
+        args: ["/repo/apps/mcp/src/server.ts"],
+        env: {
+          AFFRAME_API_KEY: "affk_live_secret",
+          AFFRAME_API_BASE: "https://api.afframe.com",
+        },
+        alwaysLoad: true,
       },
     })
+    // Security invariant: the secret rides in env, NEVER in argv (argv is world-readable via `ps`).
+    expect(cfg.mcpServers.afframe!.args.join(" ")).not.toContain(
+      "affk_live_secret",
+    )
+    expect(cfg.mcpServers.afframe!.env.AFFRAME_API_KEY).toBe("affk_live_secret")
   })
 
   it("never bypasses permissions and loads no filesystem settings", () => {
-    const cfg = buildBrainQueryOptions(launchOptions())
+    const cfg = buildBrainQueryOptions(launchOptions(), BRIDGE)
     expect(cfg.permissionMode).toBe("default")
     expect(cfg.permissionMode).not.toBe("bypassPermissions")
     expect(cfg.settingSources).toEqual([])

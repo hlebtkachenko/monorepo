@@ -32,7 +32,11 @@ import {
   type LoginContextSections,
   type ToolAllowlistPolicy,
 } from "@workspace/brain"
-import { buildQueryOptions, type BrainQueryOptions } from "./session-config"
+import {
+  buildQueryOptions,
+  type BrainQueryOptions,
+  type McpBridgeSpawn,
+} from "./session-config"
 
 /** The workspace OCR-template READ tool (`mcp__afframe__list_ocr_templates`). */
 export const LIST_OCR_TEMPLATES_TOOL = `mcp__${AFFRAME_MCP_SERVER}__list_ocr_templates`
@@ -124,10 +128,16 @@ export function buildExtractLoginPack(
  */
 export function buildExtractQueryOptions(
   inputs: ExtractSessionInputs,
-  mcpEndpoint: string,
+  bridge: McpBridgeSpawn,
+  apiBase: string,
   apiKey: string,
 ): BrainQueryOptions {
-  return buildQueryOptions(buildExtractLoginPack(inputs), mcpEndpoint, apiKey)
+  return buildQueryOptions(
+    buildExtractLoginPack(inputs),
+    bridge,
+    apiBase,
+    apiKey,
+  )
 }
 
 /**

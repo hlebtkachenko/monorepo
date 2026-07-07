@@ -1823,6 +1823,16 @@ export interface components {
                  */
                 r11_dan: string;
                 /**
+                 * @description ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.
+                 * @example 0.00
+                 */
+                r20_base: string;
+                /**
+                 * @description ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.
+                 * @example 0.00
+                 */
+                r21_base: string;
+                /**
                  * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
                  * @example 0.00
                  */
@@ -2014,6 +2024,16 @@ export interface components {
              * @example 0.00
              */
             r11_dan: string;
+            /**
+             * @description ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.
+             * @example 0.00
+             */
+            r20_base: string;
+            /**
+             * @description ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.
+             * @example 0.00
+             */
+            r21_base: string;
             /**
              * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
              * @example 0.00
@@ -2902,6 +2922,12 @@ export interface components {
              */
             vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
             /**
+             * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
+             * @example EU
+             * @enum {string}
+             */
+            vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+            /**
              * @description Rate to freeze (null for exempt/outside).
              * @example 21
              */
@@ -3189,12 +3215,6 @@ export interface components {
                 }[];
             }[];
             /**
-             * Format: uuid
-             * @description OCR extraction template this capture was derived from (null for structured-export captures). NOT domain data — carried alongside the gate envelope so a future server veto leg can key off the template's confirmation state; it is stripped before the domain mutation runs.
-             * @example 0196f1de-0000-7000-8000-0000000000e1
-             */
-            templateId?: string | null;
-            /**
              * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
              * @example 0.95
              */
@@ -3246,6 +3266,18 @@ export interface components {
                  */
                 capSignals?: string[];
             } | null;
+            /**
+             * Format: uuid
+             * @description OCR extraction template this capture was derived from (null for structured-export captures). NOT domain data — carried alongside the gate envelope so a future server veto leg can key off the template's confirmation state; it is stripped before the domain mutation runs.
+             * @example 0196f1de-0000-7000-8000-0000000000e1
+             */
+            templateId?: string | null;
+            /**
+             * @description CLIENT-DECLARED discriminator of how this capture was produced: 'structured' (parsed from a Pohoda XML/xlsx/csv export), 'ocr' (vision/OCR extraction from a PDF/image), or 'manual' (hand-entered). NOT domain data. It drives the OCR fail-closed leg: an 'ocr' capture the server cannot tie to a CONFIRMED template is HELD. Optional; only the field's ABSENCE is server-checkable, so a MISSING value is fail-closed to the most conservative case ('ocr') and an agent cannot OMIT its way past the screen. The DECLARED value is not server-verifiable in v1 (a false 'structured'/'manual' label is undetectable), so it is not treated as verified extraction telemetry. Stripped before the domain mutation.
+             * @example structured
+             * @enum {string}
+             */
+            extractionMethod?: "structured" | "ocr" | "manual";
         };
         /** @description Capture-document result (applied or held). */
         CaptureAccountingDocumentResponse: {

@@ -29,6 +29,23 @@ export const TIER1_BLOCK_KINDS = [
  */
 export const NOVEL_TEMPLATE_KIND = "novel_template"
 
+/**
+ * The Tier-3 DEFER kind an OCR capture injects when the server cannot tie it to a
+ * CONFIRMED extraction template — the `templateId` is absent OR resolves to no row
+ * under this workspace's RLS. Unlike `novel_template` (a template that EXISTS but
+ * is not yet human-confirmed), this fires when there is NO confirmed template basis
+ * at all, so an `extraction_method: "ocr"` capture that omits/forges its template
+ * cannot bypass the novelty hold. Server-DERIVED only (from `extraction_method` +
+ * the absence of a confirmed template row); a client can never assert it (a kind
+ * that is not a recognized Tier-2 cap is dropped by `buildScoreInputs`). See the
+ * capture write gate's OCR fail-closed leg.
+ *
+ * Exported as the SINGLE source of truth, same as `NOVEL_TEMPLATE_KIND`: the
+ * server veto imports THIS const, so removing/renaming it here breaks the veto at
+ * compile time instead of letting a decoupled literal go inert.
+ */
+export const UNVERIFIED_TEMPLATE_KIND = "unverified_template"
+
 /** Tier-3 defer signal kinds (force defer; treated as C -> 0.0 since the item cannot be scored). */
 export const TIER3_DEFER_KINDS = [
   "extraction_failed",
@@ -36,6 +53,7 @@ export const TIER3_DEFER_KINDS = [
   "budget_exceeded",
   "hitl_timeout",
   NOVEL_TEMPLATE_KIND,
+  UNVERIFIED_TEMPLATE_KIND,
 ] as const
 
 /** spolek is FROZEN (starter scope = s.r.o. + OSVČ); spolek_scope forces defer (Tier-2 label, block effect). */

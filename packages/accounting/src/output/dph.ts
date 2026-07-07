@@ -17,6 +17,12 @@
  *           REVERSE_CHARGE, vat_jurisdiction = 'EU', supply_kind = 'SERVICES')
  *   ř.10/11 PDP odběratel — samovyměření 21%/12%  (RECEIVED, REVERSE_CHARGE,
  *           domestic §92e — vat_jurisdiction ≠ 'EU')
+ *   ř.20    dodání zboží do JČS (ISSUED, REVERSE_CHARGE, vat_jurisdiction = 'EU',
+ *           supply_kind ≠ 'SERVICES', §64); osvobozeno s nárokem, základ only, daň 0.
+ *           V souhrnném hlášení kód "0"; NENÍ v kontrolním hlášení.
+ *   ř.21    poskytnutí služby s místem plnění v JČS dle §9/1 (ISSUED,
+ *           REVERSE_CHARGE, vat_jurisdiction = 'EU', supply_kind = 'SERVICES');
+ *           základ only, daň 0. V souhrnném hlášení kód "3"; NENÍ v KH.
  *   ř.25    PDP dodavatel — dodání v režimu přenesení (ISSUED, REVERSE_CHARGE);
  *           základ only, daň 0 (odvádí odběratel, §92a)
  *   ř.40/41 odpočet daně na vstupu 21%/12%        (RECEIVED, STANDARD)
@@ -48,6 +54,7 @@ import { sql } from "drizzle-orm"
 import { one } from "../sql"
 import type { RowExecutor } from "../sql"
 import type { Decimal } from "../types"
+import { ISSUED_EU_SUPPLY_DPH } from "./eu-supply-predicate"
 
 export interface DphRows {
   /** ř.1 — dodání zboží/služeb, plátce, 21 % (§13/§14). */
@@ -85,12 +92,26 @@ export interface DphRows {
   r11_base: Decimal
   r11_dan: Decimal
   /**
+   * ř.20 — dodání zboží do jiného členského státu (§64): ISSUED + REVERSE_CHARGE +
+   * vat_jurisdiction = 'EU' + supply_kind IS DISTINCT FROM 'SERVICES' (goods, or a
+   * legacy NULL supply_kind — mirrors the received-side ř.3/4 goods default).
+   * Osvobozené plnění s nárokem na odpočet → základ only, no daň. Reported in the
+   * souhrnné hlášení (kód 0), never in kontrolní hlášení.
+   */
+  r20_base: Decimal
+  /**
+   * ř.21 — poskytnutí služby s místem plnění v JČS dle §9/1 osobě registrované k
+   * dani v JČS: ISSUED + REVERSE_CHARGE + vat_jurisdiction = 'EU' + supply_kind =
+   * 'SERVICES'. Reverse-charged to the EU customer → základ only, no Czech daň.
+   * Reported in the souhrnné hlášení (kód 3), never in kontrolní hlášení.
+   */
+  r21_base: Decimal
+  /**
    * ř.25 — domestic PDP dodavatel (§92a): základ only, daň 0 (odvádí odběratel).
-   * [#516] vat_jurisdiction IS DISTINCT FROM 'EU' — EU-marked issued reverse-charge
-   * (§64 goods → ř.20, §9(1) service → ř.21, both osvobozené s nárokem, daň 0) is
-   * NOT ř.25. The ř.20/21 osvobozená-plnění lines are a filed follow-up; omitting
-   * them does not move vlastní daň (daň 0 either way), and this PR keeps ř.25 + the
-   * KH A.1 checksum consistent (no EU leak).
+   * [#516/#541] vat_jurisdiction IS DISTINCT FROM 'EU' — an EU-marked issued
+   * reverse-charge supply (§64 goods → ř.20, §9(1) service → ř.21, both osvobozené
+   * s nárokem, daň 0) is NOT a domestic §92 PDP and is excluded here. Keeps ř.25 +
+   * the KH A.1 checksum consistent (no EU leak); the EU bases now land on ř.20/21.
    */
   r25_base: Decimal
   /** ř.40/41 — odpočet daně na vstupu, 21 %/12 % (§72-73). */
@@ -193,10 +214,19 @@ export async function buildDph(
         COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU' AND vat_rate = 12), 0)::numeric(19,4) AS r11_base,
         COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU' AND vat_rate = 12), 0)::numeric(19,4) AS r11_dan,
 
+        -- ř.20 — ISSUED, REVERSE_CHARGE, EU delivery of GOODS (§64), osvobozeno s nárokem: základ only, no daň.
+        --        Shared ISSUED_EU_SUPPLY predicate (identical to the souhrnné hlášení gate, so SH ≡ ř.20+ř.21).
+        --        supply_kind IS DISTINCT FROM 'SERVICES' keeps goods + any NULL/undistinguished here (mirrors ř.3/4).
+        COALESCE(SUM(base) FILTER (WHERE ${ISSUED_EU_SUPPLY_DPH} AND supply_kind IS DISTINCT FROM 'SERVICES'), 0)::numeric(19,4) AS r20_base,
+
+        -- ř.21 — ISSUED, REVERSE_CHARGE, EU supply of a SERVICE with place of supply §9/1: základ only, no daň.
+        --        supply_kind = 'SERVICES' splits these out of ř.20 (goods).
+        COALESCE(SUM(base) FILTER (WHERE ${ISSUED_EU_SUPPLY_DPH} AND supply_kind = 'SERVICES'), 0)::numeric(19,4) AS r21_base,
+
         -- ř.25 — ISSUED, domestic §92 PDP dodavatel: základ only, daň odvádí odběratel.
-        -- [#516] jurisdiction IS DISTINCT FROM 'EU' — an EU-marked issued reverse-charge
-        -- supply (§64 goods / §9(1) service) is NOT a domestic §92 PDP supply; it is
-        -- osvobozené s nárokem (ř.20/21, a filed follow-up) + Souhrnné hlášení, never ř.25.
+        -- [#516/#541] jurisdiction IS DISTINCT FROM 'EU' — an EU-marked issued reverse-charge
+        -- supply (§64 goods → ř.20 / §9(1) service → ř.21) is NOT a domestic §92 PDP supply; it is
+        -- osvobozené s nárokem (ř.20/21) + Souhrnné hlášení, never ř.25.
         COALESCE(SUM(base) FILTER (WHERE type = 'ISSUED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction IS DISTINCT FROM 'EU'), 0)::numeric(19,4) AS r25_base,
 
         -- ř.40/41 — RECEIVED, STANDARD, 21%/12% (odpočet)
@@ -211,8 +241,11 @@ export async function buildDph(
         COALESCE(SUM(base)              FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible AND vat_rate = 12), 0)::numeric(19,4) AS r44_base,
         COALESCE(SUM(self_assessed_dan) FILTER (WHERE type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible AND vat_rate = 12), 0)::numeric(19,4) AS r44_dan,
 
-        -- ř.50 — EXEMPT, both sides
-        COALESCE(SUM(base) FILTER (WHERE vat_mode = 'EXEMPT'), 0)::numeric(19,4) AS r50_base,
+        -- ř.50 — EXEMPT, both sides. [#541] belt-and-braces: exclude vat_jurisdiction 'EU'
+        -- so an EXEMPT+EU row can never masquerade as §51 exempt-without-deduction here
+        -- (unreachable once the capture guard + REVERSE_CHARGE normalization land, but defends
+        -- any future/legacy EXEMPT+EU from double-counting against the ř.20/21 osvobozeno-s-nárokem).
+        COALESCE(SUM(base) FILTER (WHERE vat_mode = 'EXEMPT' AND vat_jurisdiction IS DISTINCT FROM 'EU'), 0)::numeric(19,4) AS r50_base,
 
         -- totals: daň na výstupu / odpočet (incl. deductible samovyměření) / vlastní daň
         (COALESCE(SUM(dan)              FILTER (WHERE type = 'ISSUED_INVOICE'   AND vat_mode = 'STANDARD'),      0)

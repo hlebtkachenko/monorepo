@@ -2,9 +2,15 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import type { LoginContextSections } from "@workspace/brain"
+import type { Invoice, LoginContextSections } from "@workspace/brain"
 import type { IrToCaptureContext } from "@workspace/intake"
-import { assembleBookPlan, renderBookPlan, type BookContext } from "./book"
+import {
+  assembleBookPlan,
+  assembleOcrCapturePlan,
+  renderBookPlan,
+  renderOcrCapturePlan,
+  type BookContext,
+} from "./book"
 
 // The operator-supplied context — the SAME shape `brain run` consumes, minus the invoice (which `book`
 // parses from the folder). `sections` is the login-pack safety spine; `captureContext` carries the
@@ -100,6 +106,10 @@ describe("assembleBookPlan (creds-free folder → capture plan)", () => {
     expect(invoice.plan.captureRequest.lines[0]!.eventId).toBe(
       captureContext.eventId,
     )
+    // A structured export is stamped extractionMethod:"structured" — the honest source marker, so these
+    // captures are NOT mislabeled as OCR by omission (which would fail-close them to HELD via the #554 leg).
+    expect(invoice.plan.captureRequest.extractionMethod).toBe("structured")
+    expect(bank.plan.captureRequest.extractionMethod).toBe("structured")
     // The plan still drives the fixed read → propose tool sequence (shared skeleton across record kinds).
     expect(invoice.plan.toolPlan.map((c) => c.toolName)).toEqual([
       "mcp__afframe__get_structure",
@@ -165,5 +175,113 @@ describe("assembleBookPlan (creds-free folder → capture plan)", () => {
     } finally {
       rmSync(empty, { recursive: true, force: true })
     }
+  })
+})
+
+// [W1.4] The OCR extract→book bridge — the seam that lets a REAL PDF invoice flow into the HELD write loop.
+// A `brain extract` vision-OCR pre-pass produces this IR Invoice; the bridge maps it to an "ocr" capture.
+const provenance = {
+  ir_id: "ir-ocr-1",
+  org_ref: "book:org-unresolved",
+  source: "pdf" as const,
+  source_locator: "faktura-2025-0042.pdf",
+  source_hash: "hash-pdf-1",
+  ingested_at: "2026-07-06T00:00:00.000Z",
+  confidence: 0.82,
+  needs_review: true,
+  raw: {},
+}
+
+const extractedInvoice = (over: Partial<Invoice> = {}): Invoice => ({
+  ...provenance,
+  record_type: "invoice",
+  direction: "received",
+  doc_type: "invoice",
+  number: "FP-2025-0042",
+  issue_date: "2025-03-14",
+  currency: "CZK",
+  lines: [],
+  vat_summary: [{ rate: 21, base_minor: 100000n, tax_minor: 21000n }],
+  total_minor: 121000n,
+  ...over,
+})
+
+describe("assembleOcrCapturePlan (extract→book bridge — PDF → ocr capture) [W1.4]", () => {
+  // The operator BookContext (same shape a folder book uses) — the OCR bridge takes the extracted invoice as
+  // a separate first arg and forces extractionMethod:"ocr" itself, so the context carries only the uuids +
+  // gate envelope (conversationId always present, templateId/signals per test).
+  const bookCtx = (
+    captureOver: Partial<IrToCaptureContext> = {},
+  ): BookContext => ({
+    sections,
+    captureContext: {
+      ...captureContext,
+      conversationId: "0196f1de-0000-7000-8000-0000000000c0",
+      ...captureOver,
+    },
+  })
+
+  it("builds a capture with extractionMethod:'ocr' + conversationId + the matched templateId + signals", () => {
+    const plan = assembleOcrCapturePlan(
+      extractedInvoice(),
+      bookCtx({
+        templateId: "0196f1de-0000-7000-8000-0000000000e1",
+        signals: { extractionQuality: 0.82, capSignals: ["novel_ico"] },
+      }),
+    )
+    const request = plan.captureRequest
+    // The W1.4 acceptance: a PDF path yields extractionMethod:"ocr" (the honest source marker) + a
+    // conversationId (agent captures require it) + the matched templateId + the extract's evidence signals.
+    expect(request.extractionMethod).toBe("ocr")
+    expect(request.conversationId).toBe("0196f1de-0000-7000-8000-0000000000c0")
+    expect(request.templateId).toBe("0196f1de-0000-7000-8000-0000000000e1")
+    expect(request.signals).toEqual({
+      extractionQuality: 0.82,
+      capSignals: ["novel_ico"],
+    })
+    expect(request.type).toBe("RECEIVED_INVOICE")
+    // The bridge still drives the SAME fixed read → propose tool sequence (nothing bypasses the server gate).
+    expect(plan.toolPlan.map((c) => c.toolName)).toEqual([
+      "mcp__afframe__get_structure",
+      "mcp__afframe__list_accounting_number_series",
+      "mcp__afframe__capture_accounting_document",
+    ])
+  })
+
+  it("FORCES extractionMethod:'ocr' even if the operator context tried to soften it to 'structured'", () => {
+    // A PDF was read by vision-OCR — the source-honesty marker cannot be downgraded from the file's true path.
+    const plan = assembleOcrCapturePlan(
+      extractedInvoice(),
+      bookCtx({ extractionMethod: "structured" }),
+    )
+    expect(plan.captureRequest.extractionMethod).toBe("ocr")
+  })
+
+  it("omits templateId when NO workspace template matched (server then fail-closes the OCR capture to HELD)", () => {
+    const plan = assembleOcrCapturePlan(extractedInvoice(), bookCtx())
+    // No templateId → the server's unverified_template leg holds the write for human review. Absent, not null.
+    expect("templateId" in plan.captureRequest).toBe(false)
+    expect(plan.captureRequest.extractionMethod).toBe("ocr")
+  })
+
+  it("renders the OCR-basis facts (extractionMethod=ocr + template state) for operator inspection", () => {
+    const withTemplate = renderOcrCapturePlan(
+      assembleOcrCapturePlan(
+        extractedInvoice(),
+        bookCtx({ templateId: "0196f1de-0000-7000-8000-0000000000e1" }),
+      ),
+      extractedInvoice(),
+    )
+    expect(withTemplate).toContain("extractionMethod = ocr")
+    expect(withTemplate).toContain("faktura-2025-0042.pdf")
+    expect(withTemplate).toContain("0196f1de-0000-7000-8000-0000000000e1")
+
+    const noTemplate = renderOcrCapturePlan(
+      assembleOcrCapturePlan(extractedInvoice(), bookCtx()),
+      extractedInvoice(),
+    )
+    // With no template the operator sees the fail-closed-to-HELD note plainly.
+    expect(noTemplate).toContain("none matched")
+    expect(noTemplate).toContain("HELD")
   })
 })

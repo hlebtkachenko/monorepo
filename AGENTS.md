@@ -103,6 +103,7 @@ Agent-specific runbooks live in `docs/runbooks/`:
 
 - `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the four-archetype catalog (Table / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the dev-only `/demo-*` routes as living examples
 - `DB-ACCESS.md`: operator DB access — `scripts/db-query.sh` (fast ~2s reads via ECS Exec) vs the EC2 bastion (`staging-bastion-migrate.sh`) for raw write SQL
+- `BRAIN-OPERATOR-SESSION.md`: how Hleb starts a live Brain session and pushes a real org's docs through the HELD write loop — issue the `actor_kind='agent'` key, the exact env vars (`mlive.example.sh` template), the `brain extract` → `brain book` command sequence, and the `/{orgSlug}/accounting/approvals` review gate
 - `SHOWCASE.md`: instructions for adding component demos to the showcase page
 - `COMPONENT-MIGRATION.md`: workflow for adding non-shadcn components from external registries
 

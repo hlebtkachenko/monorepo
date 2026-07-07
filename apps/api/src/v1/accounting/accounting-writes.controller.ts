@@ -34,8 +34,9 @@ import {
 import {
   deriveCaptureVeto,
   derivePostingVeto,
-  screenTemplateNovelty,
+  screenTemplateBasis,
 } from "./accounting-veto"
+import { stripGateEnvelope, type GateEnvelope } from "@workspace/shared/api"
 import type { EvidenceEnvelope } from "./evidence-gate"
 import { runGatedWrite, type GatedWriteResult } from "./accounting-writes.gate"
 
@@ -131,20 +132,23 @@ export class AccountingWritesController {
     @Res({ passthrough: true }) res: Response,
     @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<Record<string, unknown>> {
+    // The gate-only + audit fields the gate consumes (values), typed from the
+    // single-source GATE_ENVELOPE shape. `signals` is widened to the server-side
+    // `EvidenceEnvelope` the gate scores.
     const {
       confidence,
       rationale,
       conversationId,
-      signals,
       templateId,
-      ...fields
-    } = body as unknown as CaptureAccountingDocumentRequestDto & {
-      confidence: number
-      rationale: string
-      conversationId?: string
-      signals?: EvidenceEnvelope | null
-      templateId?: string | null
-    }
+      extractionMethod,
+    } = body as unknown as GateEnvelope
+    const signals = (body as unknown as { signals?: EvidenceEnvelope | null })
+      .signals
+    // Peel the gate envelope off so the domain mutation sees ONLY domain fields —
+    // the same strip the two held-write replay paths use (single source of truth).
+    const fields = stripGateEnvelope(
+      body as unknown as Record<string, unknown>,
+    ) as unknown as CaptureAccountingDocumentRequestDto
     // The always-hold gate compares against a CZK ceiling, so each partial's
     // transaction-currency amount must be converted to accounting currency via
     // its own fx rate before it is tested (a large FX partial otherwise slips
@@ -198,13 +202,15 @@ export class AccountingWritesController {
             (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
           ),
         ),
-      // [WS-2] Server-derived template-novelty screen. The gate runs it in-tx only
-      // for an AGENT key with a `templateId` present (both re-checked gate-side);
-      // an UNCONFIRMED template forces the score sub-green (`novel_template`).
-      screenTemplateNovelty:
-        templateId != null
-          ? (db) => screenTemplateNovelty(db, templateId)
-          : undefined,
+      // [WS-2 / B1.5 / #554] Server-derived OCR-template basis screen. Always wired
+      // for the capture path (the gate runs it in-tx only for an AGENT key). ONE
+      // fetch yields both holds: an UNCONFIRMED template forces the score sub-green
+      // (`novel_template`); an OCR capture with no confirmed template basis (OMITTED
+      // or foreign templateId — the bypass #554 closes) forces it sub-green
+      // (`unverified_template`). A MISSING `extractionMethod` is treated as "ocr"
+      // (most conservative) inside `screenTemplateBasis`.
+      screenTemplateBasis: (db) =>
+        screenTemplateBasis(db, extractionMethod, templateId ?? null),
       run: (db, ctx) =>
         captureDocument(db, ctx, fields as unknown as DocumentInput),
       applied: (doc) => ({

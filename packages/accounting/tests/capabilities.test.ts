@@ -220,6 +220,32 @@ describe("decision layer — the domain DECIDES from raw facts", () => {
     )
   })
 
+  it("carries vat_jurisdiction verbatim so an EU supply is never persisted NULL (#541)", () => {
+    // The EU issued supply collapses to vatMode REVERSE_CHARGE (same as a domestic
+    // §92 PDP), so the jurisdiction is the ONLY discriminator that keeps it off ř.25
+    // + KH A.1 and on ř.20/21 + souhrnné hlášení. It must round-trip, never NULL.
+    const euIssued = classifyEvent(
+      facts({ direction: "ISSUED", jurisdiction: "EU", vatRate: "21" }),
+    )
+    expect(euIssued.vatMode).toBe("REVERSE_CHARGE")
+    expect(euIssued.vatJurisdiction).toBe("EU")
+
+    // Domestic §92 PDP also captures as REVERSE_CHARGE but must stay DOMESTIC-side.
+    const domesticPdp = classifyEvent(
+      facts({ direction: "ISSUED", jurisdiction: "REVERSE_CHARGE" }),
+    )
+    expect(domesticPdp.vatMode).toBe("REVERSE_CHARGE")
+    expect(domesticPdp.vatJurisdiction).toBe("REVERSE_CHARGE")
+
+    // Every other jurisdiction round-trips too — the column is never left unset.
+    expect(
+      classifyEvent(facts({ jurisdiction: "DOMESTIC" })).vatJurisdiction,
+    ).toBe("DOMESTIC")
+    expect(
+      classifyEvent(facts({ jurisdiction: "IMPORT" })).vatJurisdiction,
+    ).toBe("IMPORT")
+  })
+
   it("compares the service window by DATE part, not raw strings (mixed formats)", () => {
     // ends INSIDE the period, but stated as a timestamp — a raw string compare
     // would see "2026-12-31T09:00" > "2026-12-31" and wrongly defer

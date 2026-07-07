@@ -6,14 +6,50 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.8] — 2026-07-06
+
+Patch release: Afframe Brain **M1 operator onramp + write-path instrumentation** — a server-verifiable extraction-method OCR fail-closed leg, the extract→book PDF bridge, and shadow-score calibration instrumentation — plus a statutory reverse-charge / issued-EU DPH fix. The Brain write lane stays HELD at cold start; nothing auto-applies. Gated through adversarial `brain-gate` + thermo-nuclear reviews, and (for the accounting fix) two independent statutory-VAT advisors.
+
+### Fixed
+
+- **accounting**: an ISSUED intra-EU supply was misrouted onto the domestic §92 reverse-charge DPH rows (ř.25 + KH A.1) instead of the intra-community lines (ř.20 goods §64 / ř.21 services §9/1), and was unreachable end-to-end because the předkontace catalogue welded the scenario to `EXEMPT` while `decideVat` emits `REVERSE_CHARGE` (the posting expander threw on the mismatch). Normalizes issued-EU to `REVERSE_CHARGE + vat_jurisdiction='EU'`, adds ř.20/21, single-sources one predicate shared by the DPH rows and the souhrnné hlášení so they cannot diverge, and rejects an `EXEMPT`+EU issued capture at the capture boundary. Export (§66 vývoz) sibling + place-of-supply ř.12/13 tracked as #566 / #540. (#567)
+- **api**: a user-bound agent key that omitted `conversationId` returned a 500; it now returns a clean 422 at the write boundary. (#568)
+- **cli**: `brain run --inputs` broke on bigint money fields; a `_minor`-keyed reviver reconstructs them per the Money-as-string wire convention (fails loud past 2^53). (#568)
+
+### Added
+
+- **api**: server-verifiable `extraction_method` on the capture contract + a server-derived OCR fail-closed leg — an `ocr` capture with no confirmed template basis (templateId absent or unresolvable under RLS) is forced HELD, closing the omitted/foreign-`templateId` novelty bypass (#554). Add-only, agent-key-scoped, merged with the existing novelty veto into one `screenTemplateBasis`. The lying-`structured`-label + unscreened `/v1/invoices` route-arounds are tracked as floor-lift preconditions in #565. (#568)
+- **cli**: `brain book <pdf|image> --extracted <ir.json>` — the extract→book bridge routes an OCR-extracted invoice into a live capture (`extraction_method: "ocr"`, carries the matched `templateId`); the structured folder path now honestly stamps `"structured"`. Deliberately no auto-parse of the untrusted extract free-text into a booking (one-command chain tracked #570). (#571)
+- **api**: shadow-score instrumentation — each agent write persists a `serverGate.shadow` (audit-only, never enforces) for M3 calibration: a server-derivable `serverLane`, a client `claimLane` (diagnostic), and a per-write `claimAudit`. The enforced score + three-way AND are byte-identical; a hardened two-leg AST boundary test forbids any production read of `.shadow` (gate included) or wiring it into `autoApply`. Calibration-safety guards tracked #569. (#572)
+
+## [v0.16.7] — 2026-07-06
+
+Patch release: wire the dead "Add company" buttons, and add an operator input to enable the Brain write lane per-env at deploy time.
+
+### Fixed
+
+- **web**: the three "Add company" buttons (companies table toolbar, cards toolbar, and cards empty-state) toasted "coming soon" instead of opening the create-org wizard, even though the wizard (`/workspace/organizations/new`) is fully wired. They now link to it, matching the header "New company" button. Also wired the org-header "Contact us" item to `mailto:` support. (#563)
+
+### Changed
+
+- **ci**: `_deploy-aws.yml` gains an optional `brain_runtime_active` input, passed through to CDK as `-c brainRuntimeActive=<value>` (ADR-0028). Empty leaves the fail-closed default (OFF); an explicit `1` enables the `/v1/accounting` write admission lane on the target env. This is the documented, no-code-change way to turn the Brain write lane on per-env (writes still stay HELD at cold start). (#563)
+
+## [v0.16.6] — 2026-07-06
+
+Patch release: fix the create-organization wizard being unscrollable on short viewports.
+
+### Fixed
+
+- **web**: the "Organization details" wizard (`/workspace/organizations/new`) is now scrollable. The app-shell main body is `overflow-hidden` by design (each page owns its inner scroll), but the wizard page rendered plain flow content with no scroll region, so on a short viewport the lower fields + the submit button were clipped with no scrollbar — the form could not be completed. Wrapped the wizard in an `h-full overflow-y-auto` region. (#561)
+
 ## [v0.16.5] — 2026-07-05
 
 Patch release: the Afframe Brain **B1.5** pre-launch readiness bundle — OCR templates, a server-derived novelty veto, operator ergonomics, and the bank-statement booking adapter. The Brain write lane still ships **OFF** (`BRAIN_RUNTIME_ACTIVE` fail-closed) and every agent write stays HELD — nothing user-facing changes. Cut as a patch by explicit decision even though the change carries a `feat` subject. Gated through three independent adversarial safety reviews (Fable 5 high + Opus 4.8 xhigh — GO/GO/GO, no confident-wrong path, safety spine byte-unchanged) and a thermo-nuclear code-quality review.
 
 ### Added
 
-- **api**: `/v1/ocr-templates` — the workspace OCR-template library (migration 0047 `ocr_extraction_template`, workspace-scoped FORCE RLS mirroring `counterparty`). `GET` (agent + human read), `POST` propose-unconfirmed, `PUT` refine (resets `human_confirmed_at`, bumps version), and the human-only `POST :id/confirm` (`@RequireHumanActor()` + `accounting:write` — an agent key is denied the trust boundary). A new server-derived **`novel_template` Tier-3 veto**: an agent capture keyed to an *unconfirmed* template is forced HELD (the signal is injected in-tx server-side, so a client can neither forge nor omit it, and it is add-only in the write gate's three-way AND). `templateId` rides the capture contract as **audit-only** — persisted into the `serverGate` record and stripped before the domain mutation on both the capture and held-write replay paths. ADR-0029 records that Brain learned state is workspace-scoped. (#555, #518)
-- **cli**: `afframe brain extract <path>` — a LOCAL vision-OCR pre-pass that turns a PDF/image into an IR Invoice + field-level provenance + a layout fingerprint, and may propose an *unconfirmed* template. The file is fed to the model as an image/document **content block** (never via a `Read` tool); `allowedBuiltinTools` is empty and the MCP allowlist is the ocr-template read + propose pair ONLY, so a hostile document cannot steer a filesystem read or a book. `afframe brain book <folder>` walks a folder of structured exports into per-record capture plans for operator inspection before a live run. (#555, #469)
+- **api**: `/v1/ocr-templates` — the workspace OCR-template library (migration 0047 `ocr_extraction_template`, workspace-scoped FORCE RLS mirroring `counterparty`). `GET` (agent + human read), `POST` propose-unconfirmed, `PUT` refine (resets `human_confirmed_at`, bumps version), and the human-only `POST :id/confirm` (`@RequireHumanActor()` + `accounting:write` — an agent key is denied the trust boundary). A new server-derived **`novel_template` Tier-3 veto**: an agent capture keyed to an _unconfirmed_ template is forced HELD (the signal is injected in-tx server-side, so a client can neither forge nor omit it, and it is add-only in the write gate's three-way AND). `templateId` rides the capture contract as **audit-only** — persisted into the `serverGate` record and stripped before the domain mutation on both the capture and held-write replay paths. ADR-0029 records that Brain learned state is workspace-scoped. (#555, #518)
+- **cli**: `afframe brain extract <path>` — a LOCAL vision-OCR pre-pass that turns a PDF/image into an IR Invoice + field-level provenance + a layout fingerprint, and may propose an _unconfirmed_ template. The file is fed to the model as an image/document **content block** (never via a `Read` tool); `allowedBuiltinTools` is empty and the MCP allowlist is the ocr-template read + propose pair ONLY, so a hostile document cannot steer a filesystem read or a book. `afframe brain book <folder>` walks a folder of structured exports into per-record capture plans for operator inspection before a live run. (#555, #469)
 - **admin**: an "Issue Brain agent key" action that hardcodes `actor_kind='agent'` (closing the self-approval lane — a mis-minted `human` key could otherwise cross-approve its own held writes), gated on the `admin:api_key.create` capability (owner + admin) with a password step-up; the audit log records the key id + name, never the secret. (#555)
 
 ### Changed

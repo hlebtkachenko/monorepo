@@ -196,6 +196,24 @@ const VALID_EVENT_INPUT = {
   rationale: "Vendor unclear",
 }
 
+/** A stored capture payload that still validates against the current schema. */
+const VALID_CAPTURE_INPUT = {
+  periodId: "0196f1de-0000-7000-8000-000000000101",
+  seriesId: "0196f1de-0000-7000-8000-000000000102",
+  type: "RECEIVED_INVOICE",
+  issuedAt: "2025-03-14",
+  lines: [
+    {
+      eventId: "0196f1de-0000-7000-8000-000000000401",
+      partials: [
+        { baseAmount: "1000.00", vatMode: "STANDARD", currencyCode: "CZK" },
+      ],
+    },
+  ],
+  confidence: 0.6,
+  rationale: "Vendor unclear",
+}
+
 function logRow(over: Partial<LogRow> & { id: string }): LogRow {
   return {
     organization_id: ORG_A,
@@ -492,6 +510,47 @@ describe("HeldWritesController", () => {
         unknown,
         Record<string, unknown>,
       ]
+      expect(input).not.toHaveProperty("signals")
+      expect(input).not.toHaveProperty("confidence")
+    })
+
+    it("[#554] approves a stored capture WITHOUT leaking templateId or extractionMethod into the domain input", async () => {
+      // A held capture whose stored payload carries the gate-only templateId +
+      // extractionMethod must approve with BOTH stripped (symmetric with the API
+      // capture controller and the web replay path) — neither is domain data.
+      state.rows.push(
+        logRow({
+          id: "0196f1de-0000-7000-8000-000000000020",
+          tool_name: "captureAccountingDocument",
+          input_json: {
+            ...VALID_CAPTURE_INPUT,
+            templateId: "0196f1de-0000-7000-8000-0000000000e1",
+            extractionMethod: "ocr",
+          },
+        }),
+      )
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+      captureDocumentMock.mockResolvedValue({
+        summaryRecordId: "0196f1de-0000-7000-8000-000000000501",
+        designation: "FP2026001",
+        sequenceNumber: 1,
+        lines: [],
+      } as never)
+      await supertest(app.getHttpServer())
+        .post(
+          "/v1/accounting/held-writes/0196f1de-0000-7000-8000-000000000020/resolve",
+        )
+        .set("Authorization", "Bearer affk_live_a")
+        .send({ action: "approve" })
+        .expect(200)
+      expect(captureDocumentMock).toHaveBeenCalledOnce()
+      const [, , input] = captureDocumentMock.mock.calls[0] as unknown as [
+        unknown,
+        unknown,
+        Record<string, unknown>,
+      ]
+      expect(input).not.toHaveProperty("templateId")
+      expect(input).not.toHaveProperty("extractionMethod")
       expect(input).not.toHaveProperty("signals")
       expect(input).not.toHaveProperty("confidence")
     })

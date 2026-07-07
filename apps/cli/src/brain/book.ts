@@ -22,6 +22,7 @@ import {
   parseCsv,
   parsePohodaDataPack,
   parseXlsx,
+  planBrainDryRun,
   planForCapture,
   type BrainDryRunPlan,
   type IrToCaptureContext,
@@ -34,6 +35,7 @@ import {
   isBookableSource,
   isInvoice,
   type BookableRecord,
+  type Invoice,
   type IrRecord,
   type LoginContextSections,
 } from "@workspace/brain"
@@ -139,11 +141,19 @@ function planForRecord(
   record: BookableRecord,
   ctx: BookContext,
 ): BrainDryRunPlan {
+  // A folder of structured exports is, by definition, a STRUCTURED source. Stamp `extractionMethod:
+  // "structured"` HONESTLY (unless the operator context already declared it), so these captures are not
+  // mislabeled as OCR by omission — the OCR fail-closed leg (#554) then screens only the genuine `book <pdf>`
+  // OCR path below, never a Pohoda/xlsx/csv export.
+  const captureContext: IrToCaptureContext = {
+    extractionMethod: "structured",
+    ...ctx.captureContext,
+  }
   const captureRequest = isInvoice(record)
-    ? invoiceToCapture(record, ctx.captureContext)
+    ? invoiceToCapture(record, captureContext)
     : isBankTransaction(record)
-      ? bankToCapture(record, ctx.captureContext)
-      : cashDocumentToCapture(record, ctx.captureContext)
+      ? bankToCapture(record, captureContext)
+      : cashDocumentToCapture(record, captureContext)
 
   return planForCapture(captureRequest, ctx.sections)
 }
@@ -262,6 +272,69 @@ export function renderBookPlan(book: BookPlan, ctx: BookContext): string {
     }
   }
 
+  return lines.join("\n") + "\n"
+}
+
+/**
+ * [W1.4] The OCR extract→book bridge — the smallest seam that lets a REAL PDF invoice flow into the HELD
+ * write loop. A `brain extract` vision-OCR pre-pass produces the IR Invoice (+ field-level provenance + the
+ * matched OCR template, if any); this hands that IR to the SAME `planBrainDryRun` (single-invoice) path the
+ * `brain run` command uses, but with the gate envelope stamped for the OCR path:
+ *
+ *   - `extractionMethod` is FORCED to `"ocr"` (spread AFTER the operator context, so it can never be softened
+ *     back to `"structured"`) — the source-honesty marker for a vision-OCR read.
+ *   - `templateId` is carried through from the operator context: present ONLY when extraction matched a
+ *     workspace OCR template. When it is absent (or resolves to no CONFIRMED row server-side), the server
+ *     fail-closes the `"ocr"` capture to HELD via the `unverified_template` leg (#554) — the write is held for
+ *     human review, never auto-applied.
+ *   - `signals` / `confidence` are carried verbatim from the extraction (never forged; degraded server-side).
+ *
+ * PURE of network + creds: `planBrainDryRun` maps the IR through the WP-A adapter and assembles the login
+ * pack + fixed read→propose tool plan under the pinned `BRAIN_ACCOUNTING_POLICY` — the SAME `BrainDryRunPlan`
+ * a live run drives. No booking here — the live capture (and the server gate) still hold every write.
+ */
+export function assembleOcrCapturePlan(
+  invoice: Invoice,
+  ctx: BookContext,
+): BrainDryRunPlan {
+  return planBrainDryRun({
+    invoice,
+    sections: ctx.sections,
+    // Force the OCR discriminator on this path — the file was read by vision-OCR, so `"ocr"` is the honest
+    // marker regardless of what the operator context declared. templateId / signals / the uuids ride through.
+    captureContext: { ...ctx.captureContext, extractionMethod: "ocr" },
+  })
+}
+
+/**
+ * Render the assembled OCR capture plan for operator inspection — the verbatim `captureRequest` body a live
+ * `--live` run would embed, with the OCR-basis facts (extractionMethod + whether a template was matched)
+ * stated plainly so nothing about the fail-closed decision is silent. This is the text `book <pdf> --dry-run`
+ * prints and `--live` prints BEFORE the confirmation gate.
+ */
+export function renderOcrCapturePlan(
+  plan: BrainDryRunPlan,
+  invoice: Invoice,
+): string {
+  const templateId = plan.captureRequest.templateId
+  const lines: string[] = []
+  lines.push(
+    "Afframe brain book <pdf> — OCR extract→book capture plan (inspect before running live).",
+  )
+  lines.push("")
+  lines.push("Extracted from a vision-OCR pre-pass (extractionMethod = ocr):")
+  lines.push(`  source   = ${invoice.source_locator}`)
+  lines.push(`  document = ${invoice.number} (${invoice.direction})`)
+  lines.push(
+    `  template = ${
+      templateId != null
+        ? `${templateId} (matched — server checks it is CONFIRMED)`
+        : "(none matched — server fail-closes this OCR capture to HELD)"
+    }`,
+  )
+  lines.push("")
+  lines.push("Capture request the live session would embed:")
+  lines.push(indent(JSON.stringify(plan.captureRequest, bigintReplacer, 2), 2))
   return lines.join("\n") + "\n"
 }
 

@@ -21,9 +21,14 @@ export default async function NewOrganizationPage() {
   const ctx = await getWorkspaceContext(session.user.id)
   if (!ctx.activeWorkspaceId) redirect("/workspace")
 
+  // The app-shell main body is `overflow-hidden` by design (pages own their
+  // inner scroll — see AppShell). This wizard is plain flow content, so it needs
+  // its own scroll region or it gets clipped with no scrollbar on short viewports.
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      <CreateOrgWizard />
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <CreateOrgWizard />
+      </div>
     </div>
   )
 }

@@ -27,6 +27,11 @@ on:
         required: false
         type: string
         default: ""
+      brain_runtime_active:
+        description: "Brain write-lane kill-switch (ADR-0028). Empty = leave at the CDK default (OFF/'0'). Set '1' to ENABLE the /v1/accounting write admission lane on the target env (writes still HELD at cold start). Passed to cdk as -c brainRuntimeActive=<value>."
+        required: false
+        type: string
+        default: ""
     outputs:
       deployed:
         description: "Whether the deploy step actually ran"
@@ -61,6 +66,11 @@ on:
         default: false
       build_version:
         description: "Override BUILD_VERSION baked into the image. Empty = auto-detect (git tag at HEAD, else short SHA). Set for hotfix relabel only."
+        required: false
+        type: string
+        default: ""
+      brain_runtime_active:
+        description: "Brain write-lane kill-switch (ADR-0028). Empty = leave at CDK default (OFF/'0'). Set '1' to ENABLE the /v1/accounting write admission lane (writes still HELD at cold start)."
         required: false
         type: string
         default: ""
@@ -710,9 +720,9 @@ jobs:
           audience: sts.amazonaws.com
           role-duration-seconds: 3600
 
-      - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
-      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - id: ecr
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
@@ -739,7 +749,7 @@ jobs:
           fi
 
       - name: Build + push ${{ matrix.service }} image
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: apps/${{ matrix.service }}/Dockerfile
@@ -926,6 +936,10 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
       STACK_SCOPE: ${{ inputs.stack }}
+      # Brain write-lane kill-switch (ADR-0028). Empty = leave at CDK default
+      # (OFF). '1' enables the /v1/accounting write admission lane. Consumed as
+      # an env var (never inlined into the run script) to stay injection-safe.
+      BRAIN_RUNTIME_ACTIVE_INPUT: ${{ inputs.brain_runtime_active }}
       # Tag resolution priority (decided by detect-changes):
       #   1. inputs.image_tag_override (operator pin)
       #   2. SSM last-deployed tag when no app source changed (changeset-aware
@@ -1053,11 +1067,11 @@ jobs:
       # have no Docker assets at all).
       - name: Docker QEMU (arm64 cross-build on amd64 runners)
         if: env.STACK_SCOPE != 'infra-only'
-        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - name: Docker Buildx (enables gha cache + multi-arch)
         if: env.STACK_SCOPE != 'infra-only'
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       # NOTE: ECR login + the 3 image builds + the CVE gate moved to the
       # parallel `build-images` matrix job above. This deploy job only runs
@@ -1296,6 +1310,17 @@ jobs:
             app-only)   STACKS=("App-${ENV_NAME}") ;;
             *) echo "::error::Unknown stack scope: $STACK_SCOPE"; exit 1 ;;
           esac
+
+          # Brain write-lane kill-switch passthrough (ADR-0028). Built as an
+          # array so an UNSET input adds no arg (CDK keeps its "0"/OFF default);
+          # only an explicit input (e.g. "1") passes -c brainRuntimeActive=<v> to
+          # BOTH the prod diff-guard and the deploy. Read from the step env, never
+          # inlined, so it is injection-safe.
+          BRAIN_CTX=()
+          if [ -n "${BRAIN_RUNTIME_ACTIVE_INPUT:-}" ]; then
+            BRAIN_CTX=(--context "brainRuntimeActive=${BRAIN_RUNTIME_ACTIVE_INPUT}")
+            echo "Brain write-lane: -c brainRuntimeActive=${BRAIN_RUNTIME_ACTIVE_INPUT}"
+          fi
           # --exclusively: do not deploy stacks not named in STACKS[] just
           # because they are upstream dependencies that happen to be dirty.
           # --concurrency 3: Security, Observability, Backup are App-stack
@@ -1345,7 +1370,8 @@ jobs:
               --context "imageTag=${IMAGE_TAG}" \
               --context "webImageTag=${IMAGE_TAG_WEB}" \
               --context "apiImageTag=${IMAGE_TAG_API}" \
-              --context "adminImageTag=${IMAGE_TAG_ADMIN}" 2>&1 | tee "$DIFF_FILE" || true
+              --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
+              "${BRAIN_CTX[@]}" 2>&1 | tee "$DIFF_FILE" || true
             STATEFUL_TYPES='AWS::(RDS::DB(Instance|Cluster|ClusterParameterGroup|ParameterGroup|SubnetGroup)|S3::Bucket|KMS::Key|SecretsManager::Secret|IAM::(Role|User)|DynamoDB::Table|EFS::FileSystem)'
             # `[~] <Type> <LogicalId> <PhysicalId> replace` = REPLACE-on-Update
             # `[+] <Type>` = CREATE of a new logical id (catches typo'd renames
@@ -1381,6 +1407,7 @@ jobs:
             --context "webImageTag=${IMAGE_TAG_WEB}" \
             --context "apiImageTag=${IMAGE_TAG_API}" \
             --context "adminImageTag=${IMAGE_TAG_ADMIN}" \
+            "${BRAIN_CTX[@]}" \
             --require-approval=never
 
       # Subscribe operator email to the 3 alert SNS topics. CDK does NOT

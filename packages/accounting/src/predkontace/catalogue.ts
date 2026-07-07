@@ -159,7 +159,15 @@ export const SALES_SCENARIOS: readonly PredkontaceScenario[] = [
     label:
       "FV — intra-EU supply of goods to a VAT-registered acquirer (§64, zero-rated)",
     documentSide: "SALES",
-    vatMode: "EXEMPT",
+    // REVERSE_CHARGE — an issued §64 EU supply captures as REVERSE_CHARGE +
+    // vat_jurisdiction='EU' (the mode decideVat emits, classify.ts), so this
+    // scenario's vat_mode must match or expand.ts throws on the mismatch (#541).
+    // The POSTINGS stay base-only (311/604 net, NO 343 daň leg): the expander is
+    // driven by `entries`, not by vatMode — an issued EU supply is osvobozeno s
+    // nárokem, no output VAT (unlike a RECEIVED reverse-charge, which self-
+    // assesses on 343↔343). The §66 export sibling (S-EXPORT) is a separate
+    // vatMode conflation tracked in GH #566, out of scope here.
+    vatMode: "REVERSE_CHARGE",
     legalBasis: [`${ZDPH} §64`, `${ZDPH} §102`],
     confidence: "high",
     dapRow: "20",

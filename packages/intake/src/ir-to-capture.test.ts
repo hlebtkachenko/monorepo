@@ -308,6 +308,67 @@ describe("bankToCapture", () => {
   })
 })
 
+describe("gate envelope threading (extractionMethod / templateId / signals) — the W1.4 OCR-basis fields", () => {
+  it("threads extractionMethod:'ocr' + a matched templateId + signals + conversationId onto the capture (the OCR path)", () => {
+    const request = invoiceToCapture(invoice(), {
+      ...ctx,
+      extractionMethod: "ocr",
+      templateId: "0196f1de-0000-7000-8000-0000000000e1",
+      conversationId: "0196f1de-0000-7000-8000-0000000000c0",
+      signals: { extractionQuality: 0.85, capSignals: ["novel_ico"] },
+    })
+    // Still a valid capture request with the whole gate envelope present.
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+    expect(request.extractionMethod).toBe("ocr")
+    expect(request.templateId).toBe("0196f1de-0000-7000-8000-0000000000e1")
+    expect(request.conversationId).toBe("0196f1de-0000-7000-8000-0000000000c0")
+    expect(request.signals).toEqual({
+      extractionQuality: 0.85,
+      capSignals: ["novel_ico"],
+    })
+  })
+
+  it("sets extractionMethod:'structured' for a structured-export capture", () => {
+    const request = invoiceToCapture(invoice(), {
+      ...ctx,
+      extractionMethod: "structured",
+    })
+    expect(request.extractionMethod).toBe("structured")
+    // No template on a structured export → templateId omitted (not sent as null/undefined).
+    expect("templateId" in request).toBe(false)
+  })
+
+  it("OMITS every optional gate field when the context did not supply it (absent, never undefined)", () => {
+    const request = invoiceToCapture(invoice(), ctx)
+    expect("extractionMethod" in request).toBe(false)
+    expect("templateId" in request).toBe(false)
+    expect("signals" in request).toBe(false)
+    expect("conversationId" in request).toBe(false)
+    // A missing extractionMethod is the server's fail-closed-to-'ocr' input — the client must not forge one.
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+  })
+
+  it("threads the gate envelope through the bank + cash adapters too (one source of truth)", () => {
+    const bank = bankToCapture(bankTransaction(), {
+      ...ctx,
+      extractionMethod: "structured",
+    })
+    expect(bank.extractionMethod).toBe("structured")
+
+    const cash = cashDocumentToCapture(cashDocument(), {
+      ...ctx,
+      extractionMethod: "ocr",
+      templateId: "0196f1de-0000-7000-8000-0000000000e2",
+    })
+    expect(cash.extractionMethod).toBe("ocr")
+    expect(cash.templateId).toBe("0196f1de-0000-7000-8000-0000000000e2")
+  })
+})
+
 describe("GLEntry is never a booking source (Control 2)", () => {
   it("exports no glToCapture / gl_entry adapter", () => {
     // Belt-and-braces: the Brain re-derives postings from PRIMARY facts (invoice / bank / cash) and

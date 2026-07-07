@@ -42,6 +42,15 @@ const SUPPORTED_MEDIA: Record<
 }
 
 /**
+ * True when `path`'s extension is a supported vision-OCR media type (a PDF or a raster scan) — the same
+ * `SUPPORTED_MEDIA` keyset `toDocumentBlock` maps. Exported as the single source of truth so `brain book`
+ * can decide "is this a PDF/image?" without re-mirroring the extension list.
+ */
+export function isVisionMediaPath(path: string): boolean {
+  return extname(path).slice(1).toLowerCase() in SUPPORTED_MEDIA
+}
+
+/**
  * Resolve the operator-named file's bytes → the content-block descriptor the extract session feeds the model.
  * PURE of the filesystem: the caller reads the bytes (trusted CLI code) and passes them in; this maps the
  * extension to the SDK media type and base64-encodes. Throws on an unsupported type (a `.docx` / `.xlsx` is

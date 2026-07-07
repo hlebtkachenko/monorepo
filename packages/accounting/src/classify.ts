@@ -92,6 +92,17 @@ export interface EconomicEvent {
 export interface PostingDecision {
   /** vat_mode to stamp on the partial_record. */
   vatMode: VatMode
+  /**
+   * vat_jurisdiction to stamp on the partial_record — the place-of-supply
+   * discriminator (§16/§64/§92/§102). Carried through from the event's
+   * jurisdiction so it is ALWAYS persisted (never NULL): the output filters need
+   * it to split an EU supply (ř.20/21 issued, ř.3-6 received, souhrnné hlášení)
+   * from a domestic §92 PDP (ř.25 issued, ř.10/11 received, KH A.1/B.1). vatMode
+   * alone cannot tell them apart — both an EU supply and a domestic §92 PDP
+   * capture as REVERSE_CHARGE — so the jurisdiction is the discriminator (#516,
+   * #541), consistent with the received-side ř.3/4-vs-ř.10/11 split.
+   */
+  vatJurisdiction: VatJurisdiction
   /** rate to freeze (null for exempt/outside). */
   vatRate: string | null
   /** předkontace scenario id from the core catalogue. */
@@ -277,6 +288,9 @@ export function classifyEvent(ev: EconomicEvent): PostingDecision {
 
   return {
     vatMode,
+    // Persist the event's place-of-supply verbatim so an EU supply is never
+    // stamped NULL and can be split from a domestic §92 PDP downstream (#541).
+    vatJurisdiction: ev.jurisdiction,
     vatRate,
     scenario,
     accountOverrides: Object.keys(overrides).length ? overrides : undefined,

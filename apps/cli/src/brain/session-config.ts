@@ -28,10 +28,24 @@ import type {
 export const CAPTURE_ACCOUNTING_DOCUMENT_TOOL = `mcp__${AFFRAME_MCP_SERVER}__capture_accounting_document`
 
 /**
+ * The LOCAL stdio MCP bridge spawn descriptor: the `tsx` runner + the args that run the `@afframe/mcp` stdio
+ * server SOURCE. Resolved by the impure launcher (never here — this module stays env-free) and threaded in, so
+ * the bridge's command/args/env are fixed by trusted CLI code, never by the model or a document. Brain v1 keeps
+ * the whole agent runtime LOCAL on the operator's machine; the bridge reaches prod only as an ordinary outbound
+ * HTTPS client to the deployed REST API (Fargate is only the SERVER).
+ */
+export interface McpBridgeSpawn {
+  /** The executable that runs the local stdio MCP server (an absolute path to the `tsx` runner). */
+  command: string
+  /** The args for `command` — the absolute path to the `@afframe/mcp` stdio entrypoint (`apps/mcp/src/server.ts`). */
+  args: string[]
+}
+
+/**
  * The concrete session configuration passed to `query()`, minus the SDK-only callbacks (`canUseTool`) and
  * the auth env, which the launcher attaches. A structural subset of the SDK `Options` type — kept SDK-free
  * so it is unit-testable and the SDK cannot leak into this module's dependency graph. The `mcpServers` value
- * shape mirrors the Agent-SDK's `McpHttpServerConfig` (inlined so this module carries no SDK dependency).
+ * shape mirrors the Agent-SDK's `McpStdioServerConfig` (inlined so this module carries no SDK dependency).
  */
 export interface BrainQueryOptions {
   /** The WP-B login pack system prompt — the session boots sandboxed by construction. */
@@ -40,10 +54,24 @@ export interface BrainQueryOptions {
   allowedTools: string[]
   /** The denied built-ins (verbatim from the login pack). */
   disallowedTools: string[]
-  /** The single `afframe` server pointed at the deployed MCP endpoint + authorized with the Brain key. */
+  /**
+   * The single `afframe` server, run as a LOCAL stdio subprocess of the Brain session (the Agent SDK spawns +
+   * manages it). It reaches prod as an ordinary outbound HTTPS client to the deployed REST API — the same
+   * surface the CLI already uses, so this adds NO new network attack surface. The agent key rides in the
+   * child's `env` (`AFFRAME_API_KEY`), NEVER in `args` (argv is world-readable via `ps`); `AFFRAME_API_BASE`
+   * pins the REST base so a stray shell var cannot redirect the write lane to the wrong environment. Bearer
+   * auth + server-side tenancy injection are unchanged — the transport swap does not touch the write gate.
+   */
   mcpServers: Record<
     string,
-    { type: "http"; url: string; headers: Record<string, string> }
+    {
+      type: "stdio"
+      command: string
+      args: string[]
+      env: Record<string, string>
+      /** Always include the `afframe` tools in the turn-1 prompt (not deferred behind tool-search) — the fixed booking procedure calls them immediately. */
+      alwaysLoad: boolean
+    }
   >
   /** Never `bypassPermissions` — decisions route through the launcher's `canUseTool`. */
   permissionMode: "default"
@@ -52,16 +80,17 @@ export interface BrainQueryOptions {
 }
 
 /**
- * Map a login pack + resolved creds → the Agent-SDK query options. PURE. The single source of truth for the
- * option assembly shared by BOTH lanes (the accounting run lane and the extract lane): the tool lists +
- * system prompt come straight from the pack (never re-derived); the MCP server is the deployed endpoint keyed
- * under the exact `afframe` namespace so `mcp__afframe__*` resolves, authorized with the given key. Each lane
- * keeps its OWN login pack (and therefore its own sandbox policy) — this only assembles the SDK options around
- * whichever pack it is handed.
+ * Map a login pack + the resolved bridge + creds → the Agent-SDK query options. PURE. The single source of
+ * truth for the option assembly shared by BOTH lanes (the accounting run lane and the extract lane): the tool
+ * lists + system prompt come straight from the pack (never re-derived); the MCP server is the LOCAL stdio
+ * bridge keyed under the exact `afframe` namespace so `mcp__afframe__*` resolves, authorized with the given
+ * key + pointed at the deployed REST `apiBase`. Each lane keeps its OWN login pack (and therefore its own
+ * sandbox policy) — this only assembles the SDK options around whichever pack it is handed.
  */
 export function buildQueryOptions(
   loginPack: LoginContextPack,
-  mcpEndpoint: string,
+  bridge: McpBridgeSpawn,
+  apiBase: string,
   apiKey: string,
 ): BrainQueryOptions {
   return {
@@ -70,9 +99,11 @@ export function buildQueryOptions(
     disallowedTools: [...loginPack.disallowedTools],
     mcpServers: {
       [AFFRAME_MCP_SERVER]: {
-        type: "http",
-        url: mcpEndpoint,
-        headers: { Authorization: `Bearer ${apiKey}` },
+        type: "stdio",
+        command: bridge.command,
+        args: bridge.args,
+        env: { AFFRAME_API_KEY: apiKey, AFFRAME_API_BASE: apiBase },
+        alwaysLoad: true,
       },
     },
     permissionMode: "default",
@@ -81,13 +112,15 @@ export function buildQueryOptions(
 }
 
 /**
- * Map the inspected launch options → the Agent-SDK query options for the RUN lane. Thin wrapper over
- * `buildQueryOptions`, reading the pack from the inspected plan (single source of truth) + the resolved creds.
+ * Map the inspected launch options + the resolved bridge → the Agent-SDK query options for the RUN lane. Thin
+ * wrapper over `buildQueryOptions`, reading the pack from the inspected plan (single source of truth) + the
+ * resolved creds. `o.mcpEndpoint` carries the deployed REST API BASE URL, consumed by the local stdio bridge.
  */
 export function buildBrainQueryOptions(
   o: AgentSessionLaunchOptions,
+  bridge: McpBridgeSpawn,
 ): BrainQueryOptions {
-  return buildQueryOptions(o.plan.loginPack, o.mcpEndpoint, o.apiKey)
+  return buildQueryOptions(o.plan.loginPack, bridge, o.mcpEndpoint, o.apiKey)
 }
 
 /**

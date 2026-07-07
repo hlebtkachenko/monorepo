@@ -6,6 +6,27 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.9] — 2026-07-07
+
+Patch release: dependency maintenance sweep plus the local stdio MCP bridge that lets the live Brain loop connect. Cut as a patch by explicit decision even though it bundles a `feat` subject (#575). No user-facing product change; the Brain write lane stays HELD.
+
+### Added
+
+- **cli**: a local stdio MCP bridge so the live Brain loop can connect (v1) — the `afframe` CLI exposes the Brain MCP surface over a local stdio transport, unblocking the local-Claude-Code write loop against a running server. (#575)
+
+### Changed
+
+- **deps**: production-dependencies group bump (16 updates: `@sentry/node`+`@sentry/nextjs` 10.60→10.62, `lucide-react`, `resend`, `pdfjs-dist`, `recharts`, `react-resizable-panels`, `motion`, and others — all minor/patch), with the lockfile deduped. (#562)
+- **deps-dev**: dev-dependencies group bump (11 updates: `@types/node` 25→26, `turbo` 2.9→2.10, `prettier` 3.8→3.9, `@playwright/test` 1.60→1.61, `knip`, `shadcn`, `wrangler`, and others), with the lockfile deduped. (#560)
+- **deps**: GitHub Actions group bump (11 updates: `actions/checkout` 6→7, `docker/setup-qemu-action`, `docker/setup-buildx-action`, `docker/login-action`, and others). (#559)
+- **deps**: `prometheuscommunity/postgres-exporter` `v0.19.1`→`v0.20.0` in the infra dev-compose stack. (#558)
+- **deps**: `ubuntu` devcontainer base image digest bump. (#557)
+
+### Docs
+
+- **brain**: operator session runbook (W1.6) documenting how a live Brain session pushes a real org's docs through the HELD write loop. (#574)
+- **brain**: `conversationId` must be a UUID — corrected in the Brain operator runbook + M2 prompt. (#576)
+
 ## [v0.16.8] — 2026-07-06
 
 Patch release: Afframe Brain **M1 operator onramp + write-path instrumentation** — a server-verifiable extraction-method OCR fail-closed leg, the extract→book PDF bridge, and shadow-score calibration instrumentation — plus a statutory reverse-charge / issued-EU DPH fix. The Brain write lane stays HELD at cold start; nothing auto-applies. Gated through adversarial `brain-gate` + thermo-nuclear reviews, and (for the accounting fix) two independent statutory-VAT advisors.

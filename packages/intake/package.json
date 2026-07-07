@@ -22,7 +22,7 @@
     "papaparse": "^5.5.4"
   },
   "devDependencies": {
-    "@types/node": "^25.9.2",
+    "@types/node": "^26.0.1",
     "@types/papaparse": "^5.5.2",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",

@@ -21,8 +21,8 @@
     "next-intl": "^4.13.0"
   },
   "devDependencies": {
-    "@formatjs/icu-messageformat-parser": "^3.5.11",
-    "@types/node": "^26.0.0",
+    "@formatjs/icu-messageformat-parser": "^3.5.12",
+    "@types/node": "^26.0.1",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",

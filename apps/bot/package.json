@@ -20,10 +20,10 @@
     "hono": "^4.12.25"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260615.1",
+    "@cloudflare/workers-types": "^4.20260629.1",
     "@workspace/typescript-config": "workspace:*",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9",
-    "wrangler": "^4.98.0"
+    "wrangler": "^4.105.0"
   }
 }

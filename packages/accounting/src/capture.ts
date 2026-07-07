@@ -49,6 +49,25 @@ export function assertPlausibleVatRate(rate: string | null | undefined): void {
   }
 }
 
+/**
+ * Boundary guard on an ISSUED intra-Community supply: an issued EU-marked supply
+ * (§64 goods / §9/1 service) is a reverse-charged plnění — it MUST capture as
+ * vat_mode = 'REVERSE_CHARGE' (the mode decideVat emits, classify.ts) so it
+ * reaches DPH ř.20/21 + the souhrnné hlášení via the shared ISSUED_EU_SUPPLY
+ * predicate, and posts through S-EU-GOODS-DELIVERY (whose vat_mode matches, or
+ * expand.ts throws). A caller — including the Brain — that stamps a wrong mode
+ * (e.g. EXEMPT+EU) would silently drop the supply off ř.20/21 + SH; reject it
+ * here rather than reinterpret it (#541). The received side (EU acquisition §16)
+ * is unaffected — this validates the ISSUED side only.
+ */
+function assertIssuedEuIsReverseCharge(p: PartialRecordInput): void {
+  if (p.vatJurisdiction === "EU" && p.vatMode !== "REVERSE_CHARGE") {
+    throw new Error(
+      `accounting: an ISSUED EU supply must capture as vat_mode 'REVERSE_CHARGE' (§64/§9-1 reverse charge, osvobozeno s nárokem) — got '${p.vatMode}' (#541)`,
+    )
+  }
+}
+
 /** Create an účetní případ — the economic fact (§6/1). Allocates the Označení. */
 export async function createEvent(
   db: RowExecutor,
@@ -118,6 +137,7 @@ export async function captureDocument(
     )
     const partialRecordIds: string[] = []
     for (const p of line.partials) {
+      if (input.type === "ISSUED_INVOICE") assertIssuedEuIsReverseCharge(p)
       partialRecordIds.push(
         await insertPartial(db, ctx, indiv.id, p, accountingCurrency),
       )

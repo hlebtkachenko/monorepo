@@ -79,6 +79,10 @@ infra/cdk/cdk.context.json
 graphify-out/
 .graphify/
 
+# Brain operator session — real creds live in the local file, never committed.
+# The committed template is docs/runbooks/mlive.example.sh (secret-free placeholders).
+mlive.local.sh
+
 # Misc
 .DS_Store
 *.pem

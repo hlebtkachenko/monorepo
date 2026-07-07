@@ -9,10 +9,13 @@
 // deliberately ON and every cred is present. The launcher can only PROPOSE the capture write — the
 // server's three-way-AND gate holds every write at cold start; a client cannot force a green.
 //
-// UNTESTED-LIVE: the `query()` call + message walk are exercised only against a real Agent-SDK session and a
-// deployed accounting MCP endpoint (tracked on #469). Everything determinable without creds — the option
+// UNTESTED-LIVE: the `query()` call + message walk are exercised only against a real Agent-SDK session and the
+// local stdio MCP bridge talking to the deployed REST API (tracked on #469). Everything determinable without creds — the option
 // assembly, the default-deny sandbox decision, the capture-result parsing — is factored into the pure,
 // unit-tested `session-config.ts`, so this file is the thin, honest, deploy-gated shell around them.
+
+import { existsSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 
 import {
   query,
@@ -35,6 +38,7 @@ import {
   parseCaptureResultText,
   readToolResultText,
   sandboxAllows,
+  type McpBridgeSpawn,
 } from "./session-config"
 import {
   buildExtractKickoff,
@@ -55,6 +59,38 @@ import {
  * already-allowlisted or no-permission tool bypasses it — so this is the belt-and-braces layer, not the sole
  * guard: any tool that DOES reach it is allowed only when the lane's per-TOOL policy says so.
  */
+/**
+ * Resolve the LOCAL stdio MCP bridge: the absolute path to the `tsx` runner + the `@afframe/mcp` server
+ * SOURCE (`apps/mcp/src/server.ts`). Brain v1 runs inside the monorepo (like `apps/cli` dev), so the bridge
+ * runs the TS server directly under `tsx` — no build step, and it sidesteps the built `dist/server.js`
+ * ESM-extension issue (its 95 relative imports are extensionless, so plain `node dist/server.js` throws
+ * ERR_MODULE_NOT_FOUND). Both `command` (the `tsx` bin) and the server path are ABSOLUTE, so the SDK-spawned
+ * subprocess resolves correctly regardless of the operator's cwd (the SDK's `McpStdioServerConfig` has no
+ * `cwd` field). Resolved relative to this file, which sits four levels below the repo root from both
+ * `apps/cli/src/brain/` (tsx dev) and `apps/cli/dist/brain/` (built). `BRAIN_MCP_SERVER_JS` / `BRAIN_MCP_TSX_BIN`
+ * override each path. Fail LOUD (not an opaque SDK connect error) when either is missing. Impure by design —
+ * this is the launcher's job, keeping `session-config.ts` env-free + pure.
+ */
+function resolveMcpBridge(): McpBridgeSpawn {
+  const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url))
+  const serverTs =
+    process.env.BRAIN_MCP_SERVER_JS ?? `${repoRoot}apps/mcp/src/server.ts`
+  const tsxBin =
+    process.env.BRAIN_MCP_TSX_BIN ?? `${repoRoot}apps/mcp/node_modules/.bin/tsx`
+  for (const [label, path] of [
+    ["MCP server entrypoint", serverTs],
+    ["tsx runner", tsxBin],
+  ] as const) {
+    if (!existsSync(path)) {
+      throw new Error(
+        `Brain MCP bridge: ${label} not found at ${path}. Run the Brain CLI from inside the monorepo ` +
+          "(with dependencies installed), or set BRAIN_MCP_SERVER_JS / BRAIN_MCP_TSX_BIN.",
+      )
+    }
+  }
+  return { command: tsxBin, args: [serverTs] }
+}
+
 function makeSandboxGate(
   allows: (toolName: string) => boolean,
   denyMessage: (toolName: string) => string,
@@ -81,7 +117,7 @@ function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
 }
 
 /**
- * The SDK-backed launcher. Drives one headless Claude-Code session against the deployed MCP endpoint with the
+ * The SDK-backed launcher. Drives one headless Claude-Code session against the deployed REST API (via the local stdio MCP bridge) with the
  * inspected plan's system prompt + sandbox lists, then maps the capture write's outcome into a
  * `LiveBrainSessionResult`.
  *
@@ -93,7 +129,7 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
   async launch(
     options: AgentSessionLaunchOptions,
   ): Promise<LiveBrainSessionResult> {
-    const queryOptions = buildBrainQueryOptions(options)
+    const queryOptions = buildBrainQueryOptions(options, resolveMcpBridge())
 
     let sessionId = ""
     let captureToolUseId: string | undefined
@@ -165,7 +201,7 @@ function makeExtractCanUseTool(): CanUseTool {
 export interface ExtractLaunchOptions {
   /** The extract session inputs (login-pack sections + optional supplier hint). NO tenancy context. */
   session: ExtractSessionInputs
-  /** The deployed accounting MCP endpoint URL. */
+  /** The deployed REST API base URL (e.g. https://api.afframe.com), consumed by the local stdio MCP bridge. */
   mcpEndpoint: string
   /** The workspace-authorized OCR-template API key (resolves the workspace server-side; never a tool input). */
   apiKey: string
@@ -225,7 +261,8 @@ async function* extractPromptStream(
 }
 
 /**
- * The SDK-backed EXTRACT launcher. Drives one headless Claude-Code session against the deployed MCP endpoint
+ * The SDK-backed EXTRACT launcher. Drives one headless Claude-Code session against the deployed REST API (via
+ * the local stdio MCP bridge)
  * under the extract policy (ocr-template read/propose only, no book), feeding the operator-named file as a
  * content block, and returns the final assistant report (IR Invoice + provenance + fingerprint). It reuses the
  * SINGLE `query` import — no second SDK import anywhere.
@@ -235,6 +272,7 @@ export async function sdkExtractSession(
 ): Promise<ExtractSessionResult> {
   const queryOptions = buildExtractQueryOptions(
     options.session,
+    resolveMcpBridge(),
     options.mcpEndpoint,
     options.apiKey,
   )

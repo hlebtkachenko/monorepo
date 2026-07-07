@@ -112,9 +112,14 @@ describe("buildExtractLoginPack", () => {
 })
 
 describe("buildExtractQueryOptions", () => {
+  const BRIDGE = {
+    command: "/repo/apps/mcp/node_modules/.bin/tsx",
+    args: ["/repo/apps/mcp/src/server.ts"],
+  }
   const cfg = buildExtractQueryOptions(
     { sections, supplierHint: "27082440" },
-    "https://api.afframe.com/mcp",
+    BRIDGE,
+    "https://api.afframe.com",
     "affk_live_secret",
   )
 
@@ -128,14 +133,23 @@ describe("buildExtractQueryOptions", () => {
     expect(cfg.disallowedTools).toContain("Read")
   })
 
-  it("points the afframe MCP server at the endpoint with the workspace key, http transport", () => {
+  it("points the afframe MCP server at a local stdio bridge: workspace key in env (not argv), REST base pinned", () => {
     expect(cfg.mcpServers).toEqual({
       afframe: {
-        type: "http",
-        url: "https://api.afframe.com/mcp",
-        headers: { Authorization: "Bearer affk_live_secret" },
+        type: "stdio",
+        command: "/repo/apps/mcp/node_modules/.bin/tsx",
+        args: ["/repo/apps/mcp/src/server.ts"],
+        env: {
+          AFFRAME_API_KEY: "affk_live_secret",
+          AFFRAME_API_BASE: "https://api.afframe.com",
+        },
+        alwaysLoad: true,
       },
     })
+    // Security invariant: the secret rides in env, NEVER in argv (argv is world-readable via `ps`).
+    expect(cfg.mcpServers.afframe!.args.join(" ")).not.toContain(
+      "affk_live_secret",
+    )
   })
 
   it("never bypasses permissions and loads no filesystem settings", () => {

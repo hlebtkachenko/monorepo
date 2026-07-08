@@ -1,9 +1,10 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { and, eq, inArray, isNull, isNotNull } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, isNotNull } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
 import {
+  accounting_period,
   app_user,
   organization,
   organization_membership,
@@ -14,7 +15,9 @@ import { CompaniesProvider } from "../_components/workspace/companies/context"
 import {
   enrichCompanyMock,
   fiscalYearLabel,
+  toCompanyPeriods,
   type CompanyMember,
+  type CompanyPeriod,
   type CompanyRow,
 } from "../_components/workspace/companies/data"
 import { getWorkspaceContext } from "./_lib/workspace-context"
@@ -111,6 +114,37 @@ export default async function CompaniesPage({
       membersByCompany.set(m.organizationId, list)
     }
 
+    // Every company's accounting periods in one round-trip, newest-first per
+    // company (the query's total order is period_start desc, id desc; grouping
+    // by iteration preserves that relative order within each org's bucket).
+    const periodRows = await db
+      .select({
+        organizationId: accounting_period.organization_id,
+        id: accounting_period.id,
+        period_start: accounting_period.period_start,
+        period_end: accounting_period.period_end,
+        status: accounting_period.status,
+      })
+      .from(accounting_period)
+      .where(
+        inArray(
+          accounting_period.organization_id,
+          orgs.map((o) => o.id),
+        ),
+      )
+      .orderBy(desc(accounting_period.period_start), desc(accounting_period.id))
+
+    const periodRowsByCompany = new Map<string, typeof periodRows>()
+    for (const row of periodRows) {
+      const list = periodRowsByCompany.get(row.organizationId) ?? []
+      list.push(row)
+      periodRowsByCompany.set(row.organizationId, list)
+    }
+    const periodsByCompany = new Map<string, CompanyPeriod[]>()
+    for (const [orgId, rows] of periodRowsByCompany) {
+      periodsByCompany.set(orgId, toCompanyPeriods(rows))
+    }
+
     return orgs.map<CompanyRow>((o) => ({
       id: o.id,
       slug: o.slug,
@@ -119,6 +153,7 @@ export default async function CompaniesPage({
       fiscalYear: fiscalYearLabel(o.fiscalYearStartMonth),
       members: membersByCompany.get(o.id) ?? [],
       archived: showArchived,
+      periods: periodsByCompany.get(o.id) ?? [],
       ...enrichCompanyMock(o.id),
     }))
   })

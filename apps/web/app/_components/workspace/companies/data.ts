@@ -1,12 +1,13 @@
 /**
  * Companies (company books = organizations) table data contract for the workspace
- * tier. The identity fields (name, slug, type, fiscal year) are REAL — resolved
- * server-side from the `organization` table. The operational fields (VAT
- * regime, status, next deadline, assignee) are MOCK: no columns back them yet
- * (`organization` has no ico/dic/vat_status/status/assignee), so they are
- * derived deterministically from the row id in `enrichCompanyMock` — stable
- * across renders (no hydration drift), clearly placeholder until real sources
- * land. Mirrors the org tier's mock-backed surfaces.
+ * tier. The identity fields (name, slug, type, fiscal year), the member stack,
+ * and the accounting periods are REAL — resolved server-side from
+ * `organization` / `organization_membership` / `accounting_period`. The
+ * operational fields (VAT regime, status, next deadline, assignee) are MOCK:
+ * no columns back them yet (`organization` has no ico/dic/vat_status/
+ * status/assignee), so they are derived deterministically from the row id in
+ * `enrichCompanyMock` — stable across renders (no hydration drift), clearly
+ * placeholder until real sources land.
  */
 
 export type CompanyStatus = "Active" | "Onboarding" | "Archived"
@@ -32,6 +33,8 @@ export interface CompanyRow {
   members: CompanyMember[]
   /** Real: organization.archived_at is set (drives the archive/unarchive row action). */
   archived: boolean
+  /** Real: the org's accounting periods, newest first (card's period picker). */
+  periods: CompanyPeriod[]
   /** MOCK. */
   vatRegime: CompanyVatRegime
   /** MOCK. */
@@ -44,23 +47,12 @@ export interface CompanyRow {
 
 /** An accounting period a user can jump straight into from the card. */
 export interface CompanyPeriod {
+  /** Real: `accounting_period.id` (UUID) — persisted via `setActivePeriodAction`. */
   value: string
   label: string
   /** Open (postable) vs closed (locked) — drives the lock glyph. */
   open: boolean
 }
-
-/**
- * MOCK period list for the card's period picker. There is no `accounting_period`
- * table yet (the org tier's PeriodSwitcher is mock too), so every company shows
- * the same static set; "fast open" navigates into the company book.
- */
-export const COMPANY_PERIODS: CompanyPeriod[] = [
-  { value: "2026", label: "2026", open: true },
-  { value: "2025", label: "2025", open: true },
-  { value: "2024", label: "2024", open: false },
-  { value: "2023", label: "2023", open: false },
-]
 
 export interface CompanyTab {
   value: string
@@ -102,6 +94,45 @@ export function fiscalYearLabel(startMonth: number): string {
   const start = (((startMonth - 1) % 12) + 12) % 12
   const end = (start + 11) % 12
   return `${MONTHS[start]} – ${MONTHS[end]}`
+}
+
+const pad = (m: number) => String(m).padStart(2, "0")
+
+/**
+ * Format an accounting period's date range for the card's period picker: the
+ * bare year when it is a full calendar year (Jan–Dec, same year), else the
+ * full `MM.YYYY – MM.YYYY` range. Mirrors `toPeriod` in the org-header
+ * `period-switcher.tsx` so both pickers label periods identically.
+ */
+export function formatPeriodLabel(
+  periodStart: string,
+  periodEnd: string,
+): string {
+  const fromYear = Number(periodStart.slice(0, 4))
+  const fromMonth = Number(periodStart.slice(5, 7))
+  const toYear = Number(periodEnd.slice(0, 4))
+  const toMonth = Number(periodEnd.slice(5, 7))
+  const isCalendarYear =
+    fromMonth === 1 && toMonth === 12 && fromYear === toYear
+  return isCalendarYear
+    ? String(fromYear)
+    : `${pad(fromMonth)}.${fromYear} – ${pad(toMonth)}.${toYear}`
+}
+
+/** Map `accounting_period` rows (newest-first) into the card's period-picker shape. */
+export function toCompanyPeriods(
+  rows: {
+    id: string
+    period_start: string
+    period_end: string
+    status: "OPEN" | "CLOSED"
+  }[],
+): CompanyPeriod[] {
+  return rows.map((row) => ({
+    value: row.id,
+    label: formatPeriodLabel(row.period_start, row.period_end),
+    open: row.status === "OPEN",
+  }))
 }
 
 const VAT_REGIMES: CompanyVatRegime[] = [

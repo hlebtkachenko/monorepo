@@ -16,9 +16,9 @@
 
 ## Risk Classification (DORA)
 
-- **Data sensitivity touched**: [ ] None  [ ] Internal  [ ] Customer PII  [ ] Financial / cardholder
-- **Breaking change**: [ ] No  [ ] Yes (describe migration in body)
-- **Blast radius**: [ ] Single package  [ ] Monorepo-wide  [ ] Production / multi-account
+- **Data sensitivity touched**: [ ] None [ ] Internal [ ] Customer PII [ ] Financial / cardholder
+- **Breaking change**: [ ] No [ ] Yes (describe migration in body)
+- **Blast radius**: [ ] Single package [ ] Monorepo-wide [ ] Production / multi-account
 
 ## Rollback Plan
 
@@ -43,6 +43,11 @@
 - [ ] `pnpm build`
 - [ ] Manual smoke (UI changes only)
 - [ ] Migration safety reviewed (schema changes only)
+
+## Changelog
+
+- [ ] Non-release PR: added one bullet under `CHANGELOG.md` `## [Unreleased]`
+- [ ] Release PR only: moved `## [Unreleased]` entries into the new version section
 
 ## Compliance
 

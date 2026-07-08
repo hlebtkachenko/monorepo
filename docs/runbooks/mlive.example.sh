@@ -30,9 +30,15 @@ export BRAIN_MCP_ENDPOINT="https://api.afframe.com"
 # PLACEHOLDER — put the real value in mlive.local.sh, never here.
 export BRAIN_API_KEY="<PASTE-RAW-AGENT-KEY-IN-mlive.local.sh>"
 
-# --- Agent-SDK auth. A subscription-auth token for dev sessions, OR an sk-... API key. ---
-# PLACEHOLDER — put the real value in mlive.local.sh, never here.
-export BRAIN_AGENT_SDK_AUTH="<PASTE-AGENT-SDK-AUTH-IN-mlive.local.sh>"
+# --- Agent-SDK auth for the NESTED Claude subprocess (the model that runs OCR + booking). ---
+# This is NOT an Afframe credential. On your OWN Mac where Claude Code is logged in, leave it as the literal
+# `ambient` (any non-`sk-` value works): `buildBrainSessionEnv` only force-feeds ANTHROPIC_API_KEY when the
+# value starts with `sk-`; any other value is left to the nested Claude's OWN credential resolution, which
+# uses THIS machine's existing Claude Code login — so NO Anthropic token is required. Proven live 2026-07-07
+# (`brain run --live` → 202 HELD with `ambient` and zero Anthropic env vars). Only set a real `sk-ant-...`
+# API key if you run somewhere with NO Claude Code login. It MUST be non-empty (a presence check gates the
+# live commands), so `ambient` is the correct default — do not blank it.
+export BRAIN_AGENT_SDK_AUTH="ambient"
 
 # Sanity echo (prints names only, never values).
 echo "Brain live env loaded: BRAIN_RUNTIME_ACTIVE, BRAIN_LIVE, BRAIN_MCP_ENDPOINT, BRAIN_API_KEY, BRAIN_AGENT_SDK_AUTH"

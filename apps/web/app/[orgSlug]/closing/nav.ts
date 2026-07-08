@@ -121,7 +121,6 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Year-end",
           href: `${base}/year-end`,
           icon: "Archive",
-          tba: true,
           subpages: [
             {
               label: "Accruals",
@@ -146,7 +145,6 @@ export function closingNav(base: string): SidebarNavEntry[] {
             {
               label: "Statements",
               href: `${base}/year-end/statements`,
-              tba: true,
             },
             {
               label: "Publication",

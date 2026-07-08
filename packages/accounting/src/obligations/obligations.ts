@@ -28,10 +28,15 @@
  * is the correct answer, not a placeholder gap.
  */
 
+import type { VatFilingPeriod } from "../types"
 import { payrollMonthlyDeadline, vatMonthlyDeadline } from "./deadlines"
 
+// VatFilingPeriod is reused from ./types (identical "MONTHLY" | "QUARTERLY",
+// backed by the DB pgEnum) via a type-only import — erased at compile, so the
+// pure engine keeps no runtime DB dependency. A second local copy would be
+// exported-but-unused (knip), since the package index already re-exports the
+// ./types one.
 export type VatRegimeCode = "NON_PAYER" | "PAYER" | "IDENTIFIED_PERSON"
-export type VatFilingPeriod = "MONTHLY" | "QUARTERLY"
 export type PersonType = "NATURAL" | "LEGAL"
 
 export type ObligationCategory = "VAT" | "PAYROLL"

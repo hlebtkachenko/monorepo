@@ -13,7 +13,6 @@ export {
 export {
   computeObligations,
   type VatRegimeCode,
-  type VatFilingPeriod,
   type PersonType,
   type ObligationCategory,
   type ObligationKind,

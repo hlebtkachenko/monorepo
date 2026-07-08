@@ -47,10 +47,26 @@ For now: **Hleb only**. Tagging is a manual, human-gated act. No automation push
 
 This keeps the release cadence tight and predictable while the product surface is still fluid.
 
+## Changelog discipline
+
+Every non-release PR must add one bullet under `CHANGELOG.md` `## [Unreleased]`
+before review. This applies to docs, dependencies, CI, infra, and internal
+changes. Use:
+
+```bash
+pnpm changelog:add -- --category Changed --entry "..."
+```
+
+The helper inserts at the top of the requested category and preserves existing
+entries, which keeps parallel agent work from overwriting another PR's notes.
+Release PRs are the only exception: a PR titled `chore(release): vX.Y.Z` or
+`chore(release): vX.Y.Z-rc.N` moves the current Unreleased bullets into the new
+version section and does not add a new Unreleased bullet.
+
 ## How to cut a release
 
 ```bash
-# 1. Move your bullets from [Unreleased] to a new section in CHANGELOG.md
+# 1. Move the bullets from [Unreleased] to a new section in CHANGELOG.md
 #    e.g. ## [v0.2.0] — 2026-05-21
 $EDITOR CHANGELOG.md
 
@@ -198,7 +214,7 @@ On local dev, `BUILD_VERSION` is unset and the helper falls back to `"dev"`. On 
 - **No Changesets, release-please, or semantic-release.** Manual tagging is fine for a pre-1.0 product with one decider.
 - **No automated `version` field bumps** in `package.json`. The 18 workspace packages stay at `0.0.1`/`0.0.0` until we adopt a tool. The git tag is the source of truth for "what's released".
 - **No release branches.** Trunk-based — tag any commit on `main` you trust.
-- **No automated changelog generation.** Hleb edits `CHANGELOG.md` manually as part of the cut. GitHub Release notes auto-fill from commit subjects, separately.
+- **No automated changelog generation.** Every non-release PR adds its own `CHANGELOG.md` `## [Unreleased]` bullet. The release PR moves those bullets into the new version section. GitHub Release notes auto-fill from commit subjects, separately.
 
 When the team grows or v1 ships, revisit. Until then: simple wins.
 

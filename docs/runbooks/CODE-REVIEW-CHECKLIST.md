@@ -8,7 +8,7 @@ Items that catch repeat nits across PRs. Reviewer skims this before approving. A
 - [ ] Squash-merge title will read cleanly on `main` (no `WIP`, no draft markers, no commit-id leftovers).
 - [ ] PR description has Summary (1-3 bullets), Test plan, Risk Classification (DORA), Rollback Plan if non-trivial.
 - [ ] CI green (or path-filtered checks legitimately skipped).
-- [ ] CHANGELOG.md updated under `[Unreleased]` if user-visible behavior changed.
+- [ ] CHANGELOG.md updated under `[Unreleased]` for every non-release PR; release PRs only move Unreleased into the version section.
 - [ ] No secret-shaped strings in diff (api keys, postgres URLs with creds, JWTs, age keys). `gitleaks` and `check-client-secrets` catch most; eyeball anyway.
 
 ## Code quality
@@ -18,7 +18,7 @@ Items that catch repeat nits across PRs. Reviewer skims this before approving. A
 - [ ] No premature abstractions (three similar lines beats one helper used once).
 - [ ] No defensive code for impossible scenarios (validate at boundaries, trust internal types).
 - [ ] No backwards-compat shims for code that hasn't shipped.
-- [ ] No comments that only restate the code. Comments explain *why*, not *what*.
+- [ ] No comments that only restate the code. Comments explain _why_, not _what_.
 - [ ] Errors quoted exact in error messages (no rephrased copies).
 
 ## Tests

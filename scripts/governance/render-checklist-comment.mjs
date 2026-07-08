@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global process */
 /**
  * Render a scope-aware PR checklist comment from the JSON produced by
  * `detect-pr-scope.mjs`. Writes Markdown to stdout — `pr-checklist.yml`
@@ -18,6 +19,15 @@ if (!path) {
 const data = JSON.parse(readFileSync(path, "utf8"))
 
 const sections = []
+
+sections.push({
+  title: "Changelog",
+  items: [
+    "Non-release PRs add one bullet under `CHANGELOG.md` `## [Unreleased]` before review.",
+    'Use `pnpm changelog:add -- --category Changed --entry "..."` to preserve existing entries.',
+    "Release PRs titled `chore(release): vX.Y.Z` only move Unreleased entries into the new version section.",
+  ],
+})
 
 if (
   data.scopes.includes("api-endpoint") ||

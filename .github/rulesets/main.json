@@ -25,12 +25,6 @@
       }
     },
     {
-      "type": "code_quality",
-      "parameters": {
-        "severity": "warnings"
-      }
-    },
-    {
       "type": "pull_request",
       "parameters": {
         "required_approving_review_count": 0,
@@ -61,7 +55,13 @@
           { "context": "check", "integration_id": 15368 },
           { "context": "boundaries", "integration_id": 15368 },
           { "context": "conv-title", "integration_id": 15368 },
-          { "context": "size-cap", "integration_id": 15368 }
+          { "context": "size-cap", "integration_id": 15368 },
+          { "context": "shellcheck", "integration_id": 15368 },
+          { "context": "cdk-synth-strict (staging)", "integration_id": 15368 },
+          {
+            "context": "cdk-synth-strict (production)",
+            "integration_id": 15368
+          }
         ]
       }
     }

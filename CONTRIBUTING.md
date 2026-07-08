@@ -41,13 +41,14 @@ Before opening a PR:
 3. `pnpm test` full Vitest green.
 4. `pnpm build` succeeds.
 5. Storybook builds if UI changed.
-6. CHANGELOG.md updated under `[Unreleased]` for user-facing changes.
+6. CHANGELOG.md updated under `[Unreleased]` for every non-release PR.
 
 ## Pull Requests
 
 Use `gh pr create` with a clear title and body that includes:
 
 - Summary (1-3 bullets).
+- Changelog entry under `CHANGELOG.md` `## [Unreleased]` for every non-release PR.
 - Test plan (markdown checklist).
 - Linked issue or ADR if applicable.
 

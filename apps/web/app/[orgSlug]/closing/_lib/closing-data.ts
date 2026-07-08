@@ -1,18 +1,10 @@
 import "server-only"
 
-import { sql } from "drizzle-orm"
-import { executeRows, withOrganization } from "@workspace/db"
-import {
-  computeObligations,
-  type PersonType,
-  type VatFilingPeriod,
-  type VatRegimeCode,
-} from "@workspace/accounting"
+import { computeObligations } from "@workspace/accounting"
 
-import { getOrgAccountingContext } from "../../_lib/accounting-data"
+import { resolvePeriodVatProfile } from "./period-vat-profile"
 import {
   deriveObligationStatus,
-  formatIsoDate,
   type ClosingObligationsResult,
 } from "./closing-shared"
 
@@ -39,64 +31,25 @@ export {
  */
 
 /**
- * Resolve the org + active period (via `getOrgAccountingContext`), load the
- * vat_status + person_type EFFECTIVE FOR that period (not merely the current
- * one — the active period can be a historical one the user switched to) in
- * one `withOrganization` read, then compute the period's statutory
+ * Resolve the org + active period + the vat_status/person_type profile
+ * EFFECTIVE FOR that period via `resolvePeriodVatProfile` (shared with
+ * `resolveVatContext` in vat-data.ts), then compute the period's statutory
  * obligations.
  */
 export async function getClosingObligations(
   orgSlug: string,
 ): Promise<ClosingObligationsResult> {
-  const ctx = await getOrgAccountingContext(orgSlug)
-  if (!ctx) return { status: "no-access" }
-  if (
-    ctx.periodId == null ||
-    ctx.periodStart == null ||
-    ctx.periodEnd == null
-  ) {
-    return { status: "no-period" }
-  }
-  const periodStart = ctx.periodStart
-  const periodEnd = ctx.periodEnd
-  const periodLabel = `${formatIsoDate(periodStart)} – ${formatIsoDate(periodEnd)}`
+  const profile = await resolvePeriodVatProfile(orgSlug)
+  if (profile.status !== "ok") return profile
 
-  const { vatRegimeCode, filingPeriod, personType } = await withOrganization(
-    ctx.organizationId,
-    ctx.userId,
-    async (db) => {
-      const [vatStatus] = await executeRows<{
-        vat_regime_code: string
-        filing_period: string | null
-      }>(
-        db,
-        // Regime effective FOR the active period (not merely current), so a
-        // historical period reports its own regime. Mid-period regime
-        // changes are approximated by the latest overlapping row — the
-        // engine is single-regime-per-period; a mid-year change is a known
-        // simplification to revisit if it matters.
-        sql`SELECT vat_regime_code, filing_period FROM vat_status
-            WHERE organization_id = ${ctx.organizationId}::uuid
-              AND valid_from <= ${periodEnd}
-              AND (valid_to IS NULL OR valid_to >= ${periodStart})
-            ORDER BY valid_from DESC LIMIT 1`,
-      )
-      const [org] = await executeRows<{ person_type: string }>(
-        db,
-        sql`SELECT person_type FROM organization WHERE id = ${ctx.organizationId}::uuid`,
-      )
-      return {
-        // No vat_status row overlapping the period -> treat as no VAT
-        // obligations (same effect as NON_PAYER: computeObligations only
-        // branches on "PAYER" and "IDENTIFIED_PERSON").
-        vatRegimeCode: (vatStatus?.vat_regime_code ??
-          null) as VatRegimeCode | null,
-        filingPeriod: (vatStatus?.filing_period ??
-          null) as VatFilingPeriod | null,
-        personType: (org?.person_type ?? "LEGAL") as PersonType,
-      }
-    },
-  )
+  const {
+    periodStart,
+    periodEnd,
+    periodLabel,
+    vatRegimeCode,
+    filingPeriod,
+    personType,
+  } = profile
 
   if (vatRegimeCode === "PAYER" && filingPeriod == null) {
     return { status: "vat-unconfigured", periodLabel }

@@ -34,6 +34,7 @@ import type {
   assetCategory,
   depreciationMethod,
   vatFilingPeriod,
+  personType,
 } from "@workspace/db/schema"
 
 // --- enum unions -----------------------------------------------------------
@@ -43,6 +44,8 @@ export type Regime = "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS"
 /** vat_regime.code reference table (§6/§6f/§97 ZDPH). */
 export type VatRegime = "NON_PAYER" | "PAYER" | "IDENTIFIED_PERSON"
 export type VatFilingPeriod = (typeof vatFilingPeriod.enumValues)[number]
+/** organization.person_type (generated column, §13/§13b legal vs. natural person). */
+export type PersonType = (typeof personType.enumValues)[number]
 export type PeriodStatus = (typeof periodStatus.enumValues)[number]
 export type SummaryRecordType = (typeof summaryRecordType.enumValues)[number]
 export type VatMode = (typeof vatMode.enumValues)[number]

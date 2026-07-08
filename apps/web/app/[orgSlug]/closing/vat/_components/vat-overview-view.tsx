@@ -7,26 +7,14 @@ import {
 } from "@workspace/ui/blocks/app-content"
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@workspace/ui/components/table"
 
 import { AppPageHeader } from "../../../../_components/app-page-header"
-import { ClosingStatusBadge } from "../../_components/closing-status-badge"
-import {
-  formatIsoDate,
-  type ClosingObligationsResult,
-} from "../../_lib/closing-shared"
+import { ObligationsTable } from "../../_components/obligations-table"
+import type { ClosingObligationsResult } from "../../_lib/closing-shared"
 import type { VatFilingPeriodsResult } from "../_lib/vat-data"
 import { VatStatusMessage } from "./vat-status-message"
 
@@ -99,61 +87,10 @@ export function VatOverviewView({
                 ))}
               </div>
 
-              {vatObligations.length > 0 ? (
-                <Card className="p-0">
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead>Obligation</TableHead>
-                          <TableHead>Period</TableHead>
-                          <TableHead>Due</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {vatObligations.map((o, i) => (
-                          <TableRow key={`${o.kind}-${o.periodStart}-${i}`}>
-                            <TableCell>
-                              <div className="flex flex-col gap-0.5">
-                                <span>
-                                  {o.title}
-                                  {o.conditional ? (
-                                    <span className="text-muted-foreground">
-                                      {" "}
-                                      · conditional
-                                    </span>
-                                  ) : null}
-                                </span>
-                                {o.conditional && o.note ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    {o.note}
-                                  </span>
-                                ) : null}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {o.periodLabel}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {formatIsoDate(o.dueDate)}
-                            </TableCell>
-                            <TableCell>
-                              <ClosingStatusBadge status={o.status} />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="p-6 text-sm text-muted-foreground">
-                    No VAT obligations for this period.
-                  </CardContent>
-                </Card>
-              )}
+              <ObligationsTable
+                rows={vatObligations}
+                emptyLabel="No VAT obligations for this period."
+              />
             </div>
           )}
         </RecordWorkspace>

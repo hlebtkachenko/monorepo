@@ -1,7 +1,6 @@
 import "server-only"
 
-import { sql } from "drizzle-orm"
-import { executeRows, withOrganization } from "@workspace/db"
+import { withOrganization } from "@workspace/db"
 import {
   buildDph,
   buildKontrolniHlaseni,
@@ -10,28 +9,25 @@ import {
   type Dph,
   type KontrolniHlaseni,
   type ObligationKind,
-  type PersonType,
   type SouhrnneHlaseni,
   type VatFilingPeriod,
-  type VatRegimeCode,
+  type VatRegime,
 } from "@workspace/accounting"
 
-import {
-  getOrgAccountingContext,
-  type OrgAccountingContext,
-} from "../../../_lib/accounting-data"
-import { formatIsoDate } from "../../_lib/closing-shared"
+import type { OrgAccountingContext } from "../../../_lib/accounting-data"
+import { resolvePeriodVatProfile } from "../../_lib/period-vat-profile"
 
 /**
  * Server-side data for the Closing VAT pages (Overview / DAP / KH / SH) — the
  * filing-period-aware counterpart of `closing-data.ts`. Resolves the org's
- * active accounting period + the vat_status EFFECTIVE FOR that period (same
- * query approach as `getClosingObligations`), then derives the set of
- * statutory FILING periods (month or quarter, §99/§99a ZDPH) a VAT payer owes
- * a return/control-statement/EC-sales-list for, via the
- * `@workspace/accounting` obligation engine. Each filing period's real figures
- * come straight from `buildDph` / `buildKontrolniHlaseni` /
- * `buildSouhrnneHlaseni`, scoped to that sub-period — never fabricated.
+ * active accounting period + the vat_status EFFECTIVE FOR that period (via
+ * the shared `resolvePeriodVatProfile`, also used by `getClosingObligations`),
+ * then derives the set of statutory FILING periods (month or quarter,
+ * §99/§99a ZDPH) a VAT payer owes a return/control-statement/EC-sales-list
+ * for, via the `@workspace/accounting` obligation engine. Each filing
+ * period's real figures come straight from `buildDph` /
+ * `buildKontrolniHlaseni` / `buildSouhrnneHlaseni`, scoped to that
+ * sub-period — never fabricated.
  *
  * Only a PAYER has a declared filing cadence to select a period FROM (§6
  * ZDPH); a NON_PAYER reports "not-payer" (no VAT obligations at all) while an
@@ -65,7 +61,7 @@ export type VatFilingPeriodsResult =
       status: "ok"
       periodId: string
       filingPeriods: VatFilingPeriodOption[]
-      regime: VatRegimeCode
+      regime: VatRegime
       filingPeriod: VatFilingPeriod
     }
 
@@ -101,7 +97,7 @@ interface ResolvedVatContext {
   periodId: string
   periodLabel: string
   filingPeriods: VatFilingPeriodOption[]
-  regime: VatRegimeCode
+  regime: VatRegime
   filingPeriod: VatFilingPeriod
 }
 
@@ -109,60 +105,32 @@ type VatContextResolution =
   VatBaseStatus | ({ status: "ok" } & ResolvedVatContext)
 
 /**
- * Resolve the org + active period + period-effective vat_status, then derive
- * the filing-period set for one obligation `kind` (VAT_RETURN for DAP,
- * CONTROL_STATEMENT for KH, EC_SALES_LIST for SH) via the obligation engine.
- * `computeObligations` THROWS when regime is PAYER with a null filing period,
- * so that combination is detected as "vat-unconfigured" BEFORE calling it —
- * mirrors `getClosingObligations`'s guard.
+ * Resolve the org + active period + period-effective vat_status via
+ * `resolvePeriodVatProfile` (shared with `getClosingObligations` in
+ * closing-data.ts), then derive the filing-period set for one obligation
+ * `kind` (VAT_RETURN for DAP, CONTROL_STATEMENT for KH, EC_SALES_LIST for SH)
+ * via the obligation engine. `computeObligations` THROWS when regime is
+ * PAYER with a null filing period, so that combination is detected as
+ * "vat-unconfigured" BEFORE calling it — mirrors `getClosingObligations`'s
+ * guard.
  */
 async function resolveVatContext(
   orgSlug: string,
   kind: ObligationKind,
 ): Promise<VatContextResolution> {
-  const ctx = await getOrgAccountingContext(orgSlug)
-  if (!ctx) return { status: "no-access" }
-  if (
-    ctx.periodId == null ||
-    ctx.periodStart == null ||
-    ctx.periodEnd == null
-  ) {
-    return { status: "no-period" }
-  }
-  const periodStart = ctx.periodStart
-  const periodEnd = ctx.periodEnd
-  const periodLabel = `${formatIsoDate(periodStart)} – ${formatIsoDate(periodEnd)}`
+  const profile = await resolvePeriodVatProfile(orgSlug)
+  if (profile.status !== "ok") return profile
 
-  const { vatRegimeCode, filingPeriod, personType } = await withOrganization(
-    ctx.organizationId,
-    ctx.userId,
-    async (db) => {
-      const [vatStatus] = await executeRows<{
-        vat_regime_code: string
-        filing_period: string | null
-      }>(
-        db,
-        // Regime effective FOR the active period (not merely current) — same
-        // period-effective query `getClosingObligations` uses.
-        sql`SELECT vat_regime_code, filing_period FROM vat_status
-            WHERE organization_id = ${ctx.organizationId}::uuid
-              AND valid_from <= ${periodEnd}
-              AND (valid_to IS NULL OR valid_to >= ${periodStart})
-            ORDER BY valid_from DESC LIMIT 1`,
-      )
-      const [org] = await executeRows<{ person_type: string }>(
-        db,
-        sql`SELECT person_type FROM organization WHERE id = ${ctx.organizationId}::uuid`,
-      )
-      return {
-        vatRegimeCode: (vatStatus?.vat_regime_code ??
-          null) as VatRegimeCode | null,
-        filingPeriod: (vatStatus?.filing_period ??
-          null) as VatFilingPeriod | null,
-        personType: (org?.person_type ?? "LEGAL") as PersonType,
-      }
-    },
-  )
+  const {
+    ctx,
+    periodId,
+    periodStart,
+    periodEnd,
+    periodLabel,
+    vatRegimeCode,
+    filingPeriod,
+    personType,
+  } = profile
 
   // VAT pages only apply to a PAYER (a declared monthly/quarterly filing
   // cadence, §99/§99a ZDPH) — NON_PAYER and IDENTIFIED_PERSON have no such
@@ -194,7 +162,7 @@ async function resolveVatContext(
   return {
     status: "ok",
     ctx,
-    periodId: ctx.periodId,
+    periodId,
     periodLabel,
     filingPeriods,
     regime: vatRegimeCode,

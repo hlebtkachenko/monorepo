@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **closing**: statutory obligation + deadline engine (monthly/quarterly VAT return / KH / SH / payroll, business-day-shifted per the Czech holiday calendar) and real Closing Overview + Calendar computed from the active accounting period. (#598)
 - **web/accounting**: organization page data now carries the active accounting period through the server data path, replacing the remaining mock-period assumptions in that flow. (#593)
 - **web/settings**: Settings > Number series now uses the real number-series surface and includes the restore-defaults backfill for the accounting-period mechanism. (#594)
 

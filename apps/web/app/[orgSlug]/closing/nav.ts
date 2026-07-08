@@ -10,12 +10,11 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  */
 export function closingNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "CalendarClock", tba: true },
+    { label: "Overview", href: base, icon: "CalendarClock" },
     {
       label: "Calendar",
       href: `${base}/calendar`,
       icon: "CalendarIcon",
-      tba: true,
     },
     {
       label: "Monthly close",

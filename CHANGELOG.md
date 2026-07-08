@@ -6,6 +6,19 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.10] — 2026-07-08
+
+Patch release: Afframe Brain documentation + an operator-env fix. Two A-Z docs (a one-page index and a debug-level technical reference verified against the current code with `file:line` citations throughout), plus a default so a fresh Brain session uses the operator's Claude Code login instead of demanding an Anthropic token. No product or runtime change; the Brain write lane stays HELD.
+
+### Docs
+
+- **brain**: `docs/AFFRAME-BRAIN.md` — a single A-to-Z landing doc: what Brain is, the client-not-server architecture, the constitution safety spine, the server write gate + confidence model, learning, the M1–M4 roadmap with current status, an operator quickstart, and a doc map. (#583)
+- **brain**: `docs/AFFRAME-BRAIN-TECHNICAL.md` — a debug-level technical reference for a fresh engineer/agent: an end-to-end capture trace, the transport/CLI/sandbox, auth/tenancy/endpoints, the write gate (step order, three-way AND, cold-start floor, every HTTP status, admission caps, shadow score), the confidence model, the data model + migrations + composite-FK isolation, learning/OCR/constitution, a symptom→cause→file troubleshooting playbook, and a real-vs-aspirational ledger. Corrects the stale pre-reframe `packages/brain/README.md` and the schema-comment migration numbering. Linked from the index. (#585)
+
+### Changed
+
+- **cli/docs**: `BRAIN_AGENT_SDK_AUTH` defaults to `ambient` in the operator env template — on the operator's own Mac the nested Claude subprocess authenticates via the machine's Claude Code login (no Anthropic token required); `buildBrainSessionEnv` only force-feeds `ANTHROPIC_API_KEY` for an `sk-`-prefixed value. The M2 bootstrap prompt now reuses an existing filled `mlive.local.sh` instead of demanding credentials. (#582)
+
 ## [v0.16.9] — 2026-07-07
 
 Patch release: dependency maintenance sweep plus the local stdio MCP bridge that lets the live Brain loop connect. Cut as a patch by explicit decision even though it bundles a `feat` subject (#575). No user-facing product change; the Brain write lane stays HELD.

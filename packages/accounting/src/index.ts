@@ -23,6 +23,8 @@ export {
   createPeriod,
   createVatStatus,
   createNumberSeries,
+  DEFAULT_NUMBER_SERIES,
+  backfillDefaultNumberSeries,
   createChart,
   seedChartFromDirectives,
   DEFAULT_OPEN_ITEM_ACCOUNTS,

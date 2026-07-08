@@ -101,8 +101,10 @@ const pad = (m: number) => String(m).padStart(2, "0")
 /**
  * Format an accounting period's date range for the card's period picker: the
  * bare year when it is a full calendar year (Jan–Dec, same year), else the
- * full `MM.YYYY – MM.YYYY` range. Mirrors `toPeriod` in the org-header
- * `period-switcher.tsx` so both pickers label periods identically.
+ * full `MM.YYYY – MM.YYYY` range. Matches the org-header switcher's *trigger*
+ * label (`toPeriod().headerLabel` in `period-switcher.tsx`); the header
+ * dropdown deliberately shows the full range even for a calendar year, so the
+ * two dropdowns differ only in that collapsed-year case.
  */
 export function formatPeriodLabel(
   periodStart: string,

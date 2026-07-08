@@ -292,6 +292,26 @@ describe("resolveActivePeriod", () => {
     expect(resolveActivePeriod(periods, undefined)).toEqual(periods[0])
   })
 
+  it("prefers an OPEN period over a NEWER closed one (not just newest overall)", () => {
+    // Newest by start is CLOSED; the open period is older. Guards against a
+    // regression to plain newest-first (`periods[0]`) which would pick 2026.
+    const openIsOlder = [
+      {
+        id: "p2026-closed",
+        period_start: "2026-01-01",
+        period_end: "2026-12-31",
+        status: "CLOSED" as const,
+      },
+      {
+        id: "p2025-open",
+        period_start: "2025-01-01",
+        period_end: "2025-12-31",
+        status: "OPEN" as const,
+      },
+    ]
+    expect(resolveActivePeriod(openIsOlder, undefined)?.id).toBe("p2025-open")
+  })
+
   it("falls back to the newest row when none is open", () => {
     const closed = [
       {

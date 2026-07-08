@@ -200,7 +200,7 @@ Forces agent to know exactly what fields exist.
 
 **CodeGraph for KB**
 
-Same approach as `puebla` repo — graphify markdown wikilinks + frontmatter. Then `kb_graph_query("what depends on Act 593/1992")` returns full dependency tree.
+Same approach as `puebla` repo: index Markdown wikilinks and frontmatter into a queryable dependency graph. Then `kb_graph_query("what depends on Act 593/1992")` returns the full dependency tree.
 
 ### 7. Tooling expansion
 

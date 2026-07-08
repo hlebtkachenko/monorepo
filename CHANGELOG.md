@@ -15,6 +15,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Developer tooling: make CodeGraph repo-local via pnpm, add Conductor workspace setup plus agent startup scripts/runbook, and remove leftover graph-index placeholders.
 - **release/changelog**: fold the unpublished `v0.16.11` draft release notes back into Unreleased because `v0.16.10` remains the latest published GitHub release.
 - **governance**: require every non-release PR to add an Unreleased changelog entry, with CI and local hooks preserving existing entries so parallel agents append instead of overwriting.
 - **ci**: the `_deploy-aws.yml` `brain_runtime_active` input now defaults to `1` for the pre-launch period, so a deploy that omits it keeps the `/v1/accounting` write admission lane ON instead of silently killing it (v0.16.9 omitted it and every write 429'd). This does not enable auto-apply: the cold-start `extraction_failed` floor still HELDs every write. Revert the default to explicit at launch (ADR-0028). (#584)

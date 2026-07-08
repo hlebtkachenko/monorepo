@@ -20,14 +20,14 @@ constitution, the write-gate code, the operator runbooks) — not against planni
 
 Afframe Brain is an **agent that proposes Czech-accounting bookings** for a client organization's
 documents (invoices, bank statements, cash docs) and routes **every** proposal to a **human for final
-review**. It does not book autonomously in the current posture: it *proposes*, a person *disposes*.
+review**. It does not book autonomously in the current posture: it _proposes_, a person _disposes_.
 
 The product framing is **agent-native, not AI-native**: there are no per-supplier write templates the
 Brain fills in. It reads a messy per-org document dump, reasons about the correct booking against the
 Czech accounting knowledge base, and writes through the same public accounting API a human integrator
 would use — under a server-side confidence gate that holds anything not proven safe.
 
-**The cardinal rule under everything (constitution §I8):** *confident-wrong is the sin.* A booking that
+**The cardinal rule under everything (constitution §I8):** _confident-wrong is the sin._ A booking that
 is `confidence ≥ green-threshold` yet **wrong** is the single worst outcome — worse than holding a
 correct booking for review. The whole design exists to make confident-wrong structurally hard.
 
@@ -79,20 +79,20 @@ gates them, it never self-commits; ADR-0027). Their enforcement point moved from
 **server-side accounting endpoint**, but they still hold. Automated checks live in
 `scripts/brain-build/constitution-checks/`.
 
-| # | Invariant |
-|---|-----------|
-| **I1** | Server-side `withOrganization`; the Brain client cannot forge a tenant. |
-| **I2** | NEVER `withAdminBypass` on agent writes. |
-| **I3** | No tenancy fields (`organization_id`/`user_id`/`workspace_id`/`role`) in any tool input schema. |
-| **I4** | The `tool_call_log` row + its `conversation_id` is the rollback unit (postings are corrected via `corrects_posting_id`, never deleted). |
-| **I5** | The API request-schema boundary is PRIMARY; the DB protects almost nothing at the document layer. |
-| **I6** | Held-before-applied — the server gate stages every write. |
-| **I7** | Human-final-review is the master gate. |
-| **I8** | Confident-wrong is the cardinal sin. |
-| **I9** | Read-side IR only; no write templates. |
-| **I10** | Provenance / průkaznost on every booking. |
+| #       | Invariant                                                                                                                               |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **I1**  | Server-side `withOrganization`; the Brain client cannot forge a tenant.                                                                 |
+| **I2**  | NEVER `withAdminBypass` on agent writes.                                                                                                |
+| **I3**  | No tenancy fields (`organization_id`/`user_id`/`workspace_id`/`role`) in any tool input schema.                                         |
+| **I4**  | The `tool_call_log` row + its `conversation_id` is the rollback unit (postings are corrected via `corrects_posting_id`, never deleted). |
+| **I5**  | The API request-schema boundary is PRIMARY; the DB protects almost nothing at the document layer.                                       |
+| **I6**  | Held-before-applied — the server gate stages every write.                                                                               |
+| **I7**  | Human-final-review is the master gate.                                                                                                  |
+| **I8**  | Confident-wrong is the cardinal sin.                                                                                                    |
+| **I9**  | Read-side IR only; no write templates.                                                                                                  |
+| **I10** | Provenance / průkaznost on every booking.                                                                                               |
 
-An **agent** API key (`actor_kind='agent'`) may *propose* gated writes but is **denied (HTTP 403)** the
+An **agent** API key (`actor_kind='agent'`) may _propose_ gated writes but is **denied (HTTP 403)** the
 held-write review surface — it can never approve its own work (I7).
 
 ---
@@ -134,7 +134,7 @@ operational caveat in §9.
   never as opaque prod-DB rows. The constitution itself lives here and is human-authorship-only.
 - **Learned state is workspace-scoped** (ADR-0029). The first learned artifact is the **OCR template
   library**: a supplier layout learned once per accountant's office (workspace), not relearned per client
-  org. A new OCR template is proposed *unconfirmed*; a human confirms it, and only a **confirmed** template
+  org. A new OCR template is proposed _unconfirmed_; a human confirms it, and only a **confirmed** template
   lets an OCR capture clear the template-novelty screen.
 
 ---
@@ -167,12 +167,15 @@ The definition of done for v1: an operator opens a Claude Code session, it conne
 and a real org's accounting flows through the HELD loop → human review (M2) → calibration fit from the
 reviewed runs (M3) → certification to auto-apply confident bookings (M4).
 
-| Milestone | What | Status |
-|-----------|------|--------|
-| **M1** — Operator onramp + write-path instrumentation | Turnkey live loop, extract→book bridge, shadow-score persistence, one-command session. | **Engineering-done + live-confirmed on prod.** |
-| **M2** — Supervised production marathon | Run a real org's accounting through Brain, everything HELD, a human reviews/corrects each in `/approvals`, until ≥10 clean reviewed runs with zero confident-wrong. | **Next — a human-review process, the long pole.** |
-| **M3** — Calibration fit + field-by-field lift | Fit the calibration from the M2 shadow-scored runs; build server-side re-verification of every base-score fact; relax the cold-start floor **field-by-field**, each behind its own re-verification, so green becomes reachable only for genuinely server-verified evidence. | Data-triggered engineering (needs M2 data). |
-| **M4** — Certification + go-live | Certification run (0 confident-wrong, Brier target on a held-out set), an operable mass-rollback path, then flip auto-apply ON. | Final. |
+> **Live status + open issues:** the authoritative, continuously-updated tracker is
+> [`docs/AFFRAME-BRAIN-STATUS.md`](AFFRAME-BRAIN-STATUS.md) — the table below is a summary snapshot.
+
+| Milestone                                             | What                                                                                                                                                                                                                                                                        | Status                                            |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **M1** — Operator onramp + write-path instrumentation | Turnkey live loop, extract→book bridge, shadow-score persistence, one-command session.                                                                                                                                                                                      | **Engineering-done + live-confirmed on prod.**    |
+| **M2** — Supervised production marathon               | Run a real org's accounting through Brain, everything HELD, a human reviews/corrects each in `/approvals`, until ≥10 clean reviewed runs with zero confident-wrong.                                                                                                         | **Next — a human-review process, the long pole.** |
+| **M3** — Calibration fit + field-by-field lift        | Fit the calibration from the M2 shadow-scored runs; build server-side re-verification of every base-score fact; relax the cold-start floor **field-by-field**, each behind its own re-verification, so green becomes reachable only for genuinely server-verified evidence. | Data-triggered engineering (needs M2 data).       |
+| **M4** — Certification + go-live                      | Certification run (0 confident-wrong, Brier target on a held-out set), an operable mass-rollback path, then flip auto-apply ON.                                                                                                                                             | Final.                                            |
 
 **Invariants that gate every milestone (never weakened):** the server three-way-AND + the cold-start
 floor + the `BRAIN_RUNTIME_ACTIVE` kill-switch stay intact; no base-score field may be un-floored from a
@@ -201,11 +204,12 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
 
 ## 9. Operational caveats a reviewer must know
 
-- **The write lane is deploy-time fail-closed.** `BRAIN_RUNTIME_ACTIVE` defaults to `0` (OFF) on every
-  deploy unless that deploy passes `brain_runtime_active=1` (`_deploy-aws.yml` input, ADR-0028). A release
-  that omits it turns the lane **off** — every write then returns `429`. Re-enable by re-running the deploy
-  with `brain_runtime_active=1`. (For the pre-launch period, defaulting it on in the release-deploy would
-  remove this foot-gun — a candidate follow-up.)
+- **The write lane is deploy-time gated.** `BRAIN_RUNTIME_ACTIVE` is the runtime kill-switch (fail-closed
+  OFF in code — `isBrainRuntimeActive` admits only `"1"`/`"true"`); its value is set at deploy time via the
+  `_deploy-aws.yml` `brain_runtime_active` input (ADR-0028). For the pre-launch period that input now
+  **defaults to `1`** (PR #584), so a deploy that omits it keeps the lane ON instead of silently killing it
+  (v0.16.9 was the foot-gun that motivated the fix — it omitted the input and every write 429'd). Revert the
+  default to explicit at launch. To force the lane off, deploy with `brain_runtime_active=0`.
 - **No hosted MCP server** exists; the transport is the local stdio bridge. A hosted Streamable-HTTP MCP
   (`mcp.afframe.com`) is a possible v2, not built.
 - **Known open follow-ups:** the generated MCP tool schema drops the `.uuid()` on `conversationId`
@@ -219,16 +223,17 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
 
 ## 10. Where everything lives (doc map)
 
-| Topic | Source |
-|-------|--------|
-| This overview (index) | `docs/AFFRAME-BRAIN.md` |
-| Deep technical reference (debug-level, cited) | `docs/AFFRAME-BRAIN-TECHNICAL.md` |
-| Constitution (I1–I10, LOCKED) | `packages/brain/.brain/constitution.md` |
-| Architecture decisions | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
-| Run a live session | `docs/runbooks/BRAIN-OPERATOR-SESSION.md` |
-| Fresh-session bootstrap prompt | `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md` |
-| Harness internals (dry-run, sandbox) | `docs/runbooks/BRAIN-CC-HARNESS.md` |
-| The server write gate | `apps/api/src/v1/accounting/accounting-writes.gate.ts` |
-| The MCP bridge + nested launcher | `apps/cli/src/brain/{command,session-config,sdk-launcher}.ts` |
-| Package + agent instructions | `packages/brain/CLAUDE.md` (README is stale — see §9) |
-| Operator DB access | `docs/runbooks/DB-ACCESS.md` |
+| Topic                                          | Source                                                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| This overview (index)                          | `docs/AFFRAME-BRAIN.md`                                                                                             |
+| Deep technical reference (debug-level, cited)  | `docs/AFFRAME-BRAIN-TECHNICAL.md`                                                                                   |
+| Status / roadmap tracker (v1/v2 + open issues) | `docs/AFFRAME-BRAIN-STATUS.md`                                                                                      |
+| Constitution (I1–I10, LOCKED)                  | `packages/brain/.brain/constitution.md`                                                                             |
+| Architecture decisions                         | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
+| Run a live session                             | `docs/runbooks/BRAIN-OPERATOR-SESSION.md`                                                                           |
+| Fresh-session bootstrap prompt                 | `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md`                                                                     |
+| Harness internals (dry-run, sandbox)           | `docs/runbooks/BRAIN-CC-HARNESS.md`                                                                                 |
+| The server write gate                          | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                              |
+| The MCP bridge + nested launcher               | `apps/cli/src/brain/{command,session-config,sdk-launcher}.ts`                                                       |
+| Package + agent instructions                   | `packages/brain/CLAUDE.md` (README is stale — see §9)                                                               |
+| Operator DB access                             | `docs/runbooks/DB-ACCESS.md`                                                                                        |

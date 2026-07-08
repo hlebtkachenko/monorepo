@@ -53,20 +53,21 @@ Domain endpoints (invoices, accounts, journal entries) are not yet implemented.
 
 ## When you need to …
 
-| Task                       | Read                                         |
-| -------------------------- | -------------------------------------------- |
-| Add an API endpoint        | `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md` |
-| Add a package or app       | `docs/runbooks/ADDING-X-TO-MONOREPO.md`      |
-| Write a commit message     | `docs/conventions/COMMITS.md`                |
-| Configure CI               | `docs/conventions/CI-POLICY.md`              |
-| Deploy to AWS              | `docs/runbooks/AWS-SETUP.md`                 |
-| Roll back                  | `docs/runbooks/ROLLBACK.md`                  |
-| Respond to an incident     | `docs/runbooks/INCIDENT.md`                  |
-| Rotate a secret            | `docs/runbooks/SECRETS-ROTATION.md`          |
-| Tune costs                 | `docs/runbooks/COST-INCIDENT.md`             |
-| Audit local dev            | `docs/runbooks/LOCAL-DEV.md`                 |
-| Build a Storybook story    | `docs/runbooks/SHOWCASE.md`                  |
-| Add a non-shadcn component | `docs/runbooks/COMPONENT-MIGRATION.md`       |
+| Task                            | Read                                                                        |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| Add an API endpoint             | `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`                                |
+| Add a package or app            | `docs/runbooks/ADDING-X-TO-MONOREPO.md`                                     |
+| Write a commit message          | `docs/conventions/COMMITS.md`                                               |
+| Configure CI                    | `docs/conventions/CI-POLICY.md`                                             |
+| Deploy to AWS                   | `docs/runbooks/AWS-SETUP.md`                                                |
+| Roll back                       | `docs/runbooks/ROLLBACK.md`                                                 |
+| Respond to an incident          | `docs/runbooks/INCIDENT.md`                                                 |
+| Rotate a secret                 | `docs/runbooks/SECRETS-ROTATION.md`                                         |
+| Tune costs                      | `docs/runbooks/COST-INCIDENT.md`                                            |
+| Audit local dev                 | `docs/runbooks/LOCAL-DEV.md`                                                |
+| Build a Storybook story         | `docs/runbooks/SHOWCASE.md`                                                 |
+| Add a non-shadcn component      | `docs/runbooks/COMPONENT-MIGRATION.md`                                      |
+| Understand or run Afframe Brain | `docs/AFFRAME-BRAIN.md` (+ `-TECHNICAL.md` internals, `-STATUS.md` roadmap) |
 
 ## Decisions backing this layout
 

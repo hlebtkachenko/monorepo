@@ -21,12 +21,13 @@ apps/
   web/              # Next.js 16 app (Turbopack)
   admin/            # admin app
   api/              # NestJS backend API
-  mcp/              # MCP server for the public API (@afframe/mcp)
-  cli/              # command-line client for the public API (@afframe/cli)
+  mcp/              # MCP server for the public API (@afframe/mcp) — also Brain's local stdio bridge (ADR-0025)
+  cli/              # command-line client for the public API (@afframe/cli) — also the `afframe brain` commands
   bot/              # Telegram dev bot (grammY on Cloudflare Worker)
 packages/
   ui/               # shadcn/ui component library (120 registry entries)
   auth/             # Better Auth + session binding + RLS GUC
+  brain/            # Afframe Brain — agent proposing Czech-accounting bookings (docs/AFFRAME-BRAIN.md)
   config/           # shared configuration
   db/               # Drizzle schema + RLS + migrations
   email/            # React Email templates + transport
@@ -135,3 +136,4 @@ Bump rules, the cut workflow, and the tag → deploy order live in
 - [`CHANGELOG.md`](CHANGELOG.md): release notes
 - [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md): version tag format + release cut workflow
 - [`docs/adr/`](docs/adr/): architecture decision records
+- [`docs/AFFRAME-BRAIN.md`](docs/AFFRAME-BRAIN.md): Afframe Brain — what it is, how it's built, how it stays safe (A-Z landing doc; see also [`-TECHNICAL.md`](docs/AFFRAME-BRAIN-TECHNICAL.md) for internals and [`-STATUS.md`](docs/AFFRAME-BRAIN-STATUS.md) for the roadmap)

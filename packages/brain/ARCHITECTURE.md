@@ -1,5 +1,12 @@
 # Architecture — `@workspace/brain`
 
+> **⚠️ Superseded — read [`docs/AFFRAME-BRAIN-TECHNICAL.md`](../../docs/AFFRAME-BRAIN-TECHNICAL.md).** The
+> "writes IN-PROCESS / no external MCP channel / dedicated Brain worker container" design described below was
+> **dropped**. Brain v1 shipped as an **unprivileged external MCP/HTTP client with NO Brain server**
+> (ADR-0025, amended 2026-07-01): writes go through the public REST API + the server-side write gate, driven
+> by a Claude Code session via a local stdio MCP bridge — not in-process, not a worker container. Treat this
+> file as historical.
+
 ## What it is
 
 Track B of the Afframe Brain: the orchestrator + canonical IR + calibrated confidence + librarian that

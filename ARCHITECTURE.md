@@ -15,13 +15,14 @@ apps/
   web/                             Next.js 16 App Router, React 19
   admin/                           Next.js 16 staff admin surface (workspace-allowlisted)
   api/                             NestJS versioned REST API (API-key auth, rate limiting, OpenAPI)
-  mcp/                             Official MCP server for the public API (@afframe/mcp)
-  cli/                             Official command-line client for the public API (@afframe/cli)
+  mcp/                             Official MCP server for the public API (@afframe/mcp) — also Brain's local stdio bridge (ADR-0025)
+  cli/                             Official command-line client for the public API (@afframe/cli) — also the `afframe brain` operator commands
   bot/                             Telegram dev bot — sole owner of Telegram I/O; grammY on a Cloudflare Worker
 packages/
   ui/                              shadcn/ui component library (120 registry entries, Storybook, Vitest)
   db/                              Drizzle schema + RLS + migrations
   auth/                            Better Auth + session binding + RLS GUC
+  brain/                           Afframe Brain — agent-native accounting-booking client (unprivileged API/MCP client, not a server; ADR-0025)
   shared/                          Shared utilities, Zod schemas
   sdk/                             Official TypeScript SDK for the public API (@afframe/sdk)
   notify/                          Typed client + message contract for the Telegram bot (POSTs to bot /ingest)
@@ -103,6 +104,12 @@ Five primitives:
 4. **Per-org budget + cooldown.** Daily/monthly CZK ceilings. On breach, writes cooldown row. Chat route short-circuits with 429 when window is active.
 
 5. **Confidence gate on mutations.** Executor self-reports confidence score per tool_use; agent loop escalates to `user_task` when score < 95 on `approval: confidence` tools. Organization id is never carried in tool input.
+
+## Afframe Brain
+
+Distinct from the (planned) in-app AI Safety Layer above: **Afframe Brain is the operator-driven accounting agent, and it is implemented + live** (pre-launch — every write HELDs at cold start; nothing auto-applies). It is an **unprivileged external client**, not a server-side worker (ADR-0025, amended 2026-07-01): a Claude Code session runs `afframe brain` commands that drive a nested, sandboxed Agent-SDK session through a **local stdio MCP bridge** (`@afframe/mcp` via `tsx`) to the public REST API — there is no Brain server. Every booking is gated **server-side** by `runGatedWrite` (`apps/api/src/v1/accounting/accounting-writes.gate.ts`): a three-way AND (client confidence · server veto · server-recomputed green score); at cold start an unconditional `extraction_failed` floor forces every write to `202 HELD` for human approval at `/{orgSlug}/accounting/approvals` (an agent key is 403 there). Confidence is infrastructure-gated + calibrated, never model-verbalized (ADR-0026); learned OCR-template state is workspace-scoped (ADR-0029); learning artifacts land only via PR (ADR-0027).
+
+Full reference: [`docs/AFFRAME-BRAIN.md`](docs/AFFRAME-BRAIN.md) (index) · [`docs/AFFRAME-BRAIN-TECHNICAL.md`](docs/AFFRAME-BRAIN-TECHNICAL.md) (internals + data-flow diagram) · [`docs/AFFRAME-BRAIN-STATUS.md`](docs/AFFRAME-BRAIN-STATUS.md) (roadmap) · ADRs 0025–0029.
 
 ## Idempotency Contract
 

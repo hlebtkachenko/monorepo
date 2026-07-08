@@ -39,15 +39,10 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "VAT",
           href: `${base}/vat`,
           icon: "ReceiptEuro",
-          tba: true,
           subpages: [
-            { label: "VAT return", href: `${base}/vat/dap`, tba: true },
-            {
-              label: "Control statement",
-              href: `${base}/vat/kh`,
-              tba: true,
-            },
-            { label: "EC Sales List", href: `${base}/vat/sh`, tba: true },
+            { label: "VAT return", href: `${base}/vat/dap` },
+            { label: "Control statement", href: `${base}/vat/kh` },
+            { label: "EC Sales List", href: `${base}/vat/sh` },
             { label: "OSS", href: `${base}/vat/oss`, tba: true },
             { label: "IOSS", href: `${base}/vat/ioss`, tba: true },
           ],

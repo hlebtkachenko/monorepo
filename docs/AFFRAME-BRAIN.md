@@ -5,6 +5,10 @@ here: this explains what Brain is, how it is built, how it stays safe, how to ru
 detailed document lives. Everything below was verified against the tracked source (ADRs, the
 constitution, the write-gate code, the operator runbooks) — not against planning notes.
 
+> **Going deeper?** This page is the index. For the **debug-level technical reference** — the full request
+> trace, the gate/confidence/DB/transport/auth internals with `file:line` citations, and a troubleshooting
+> playbook — read [`docs/AFFRAME-BRAIN-TECHNICAL.md`](AFFRAME-BRAIN-TECHNICAL.md).
+
 > **Status (2026-07-08):** Brain v1 is **live-confirmed end-to-end on production** (pre-launch, no real
 > users). A real agent key drove the full loop to a real `202 HELD` write with a recorded shadow score.
 > Milestone **M1 is engineering-done**; the next phase (**M2**) is a human-review marathon, not code.
@@ -217,7 +221,8 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
 
 | Topic | Source |
 |-------|--------|
-| This overview | `docs/AFFRAME-BRAIN.md` |
+| This overview (index) | `docs/AFFRAME-BRAIN.md` |
+| Deep technical reference (debug-level, cited) | `docs/AFFRAME-BRAIN-TECHNICAL.md` |
 | Constitution (I1–I10, LOCKED) | `packages/brain/.brain/constitution.md` |
 | Architecture decisions | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
 | Run a live session | `docs/runbooks/BRAIN-OPERATOR-SESSION.md` |

@@ -6,8 +6,8 @@ file is for an engineer or agent with **no prior Afframe context** who needs to 
 citation, don't trust the prose. It was reconstructed by reading the **current code** (not the older
 `packages/brain/README.md`, which describes a superseded in-process design).
 
-Contents:
-0. [Orientation + an end-to-end trace](#0-orientation)
+Contents: 0. [Orientation + an end-to-end trace](#0-orientation)
+
 1. [How a live session runs (transport, CLI, sandbox)](#1-how-a-live-session-runs)
 2. [Auth, tenancy, and the API surface](#2-auth-tenancy-and-the-api-surface)
 3. [The server write gate + admission](#3-the-server-write-gate--admission)
@@ -25,7 +25,7 @@ Contents:
 Claude Code session runs a CLI (`afframe brain …`) that spawns a **nested, sandboxed** Agent-SDK session;
 that nested session talks to a **local stdio MCP bridge**; the bridge is an ordinary HTTPS client of the
 **deployed REST API**; the API's **server-side write gate** decides applied-vs-held; a **human** approves.
-The Brain can only *propose*. At the current cold-start posture, **every write is HELD** — that is by design,
+The Brain can only _propose_. At the current cold-start posture, **every write is HELD** — that is by design,
 not a bug.
 
 **End-to-end trace of one document capture** (follow the section links for detail):
@@ -56,7 +56,7 @@ Everything below expands each hop.
 
 ## 1. How a live session runs
 
-*(transport, CLI, sandbox)*
+_(transport, CLI, sandbox)_
 
 ### 1.1 The process chain
 
@@ -107,7 +107,7 @@ string from `process.env`, then sets `ANTHROPIC_API_KEY = token` **only if** `to
 (`token` = `BRAIN_AGENT_SDK_AUTH`). A non-`sk-` value (e.g. the literal `ambient`) is deliberately **not**
 force-fed as an API key — it is left to the subprocess's own credential resolution, so the nested `query()`
 authenticates off the operator's logged-in Claude Code session. **This is why on the operator's own Mac no
-Anthropic token is needed** — set `BRAIN_AGENT_SDK_AUTH=ambient`. `BRAIN_LIVE`'s *value* is never read; it is
+Anthropic token is needed** — set `BRAIN_AGENT_SDK_AUTH=ambient`. `BRAIN_LIVE`'s _value_ is never read; it is
 purely a second "must be set" flag.
 
 ### 1.3 The two lanes
@@ -147,8 +147,8 @@ nowhere in the tree.)
 - `brain run`: `--dry-run` prints the plan (no creds); otherwise live. **No `--live` flag** — live is "not
   `--dry-run`".
 - `brain book`: `--dry-run` prints only; otherwise requires TTY `[y/N]` confirmation or `--yes`
-  (`command.ts:441-458`). *(Help text mentions "`--live`" but no such option is registered on `book` —
-  `command.ts:72` vs `:83-99`. Harmless help drift.)*
+  (`command.ts:441-458`). _(Help text mentions "`--live`" but no such option is registered on `book` —
+  `command.ts:72` vs `:83-99`. Harmless help drift.)_
 - `brain extract`: has **both** `--dry-run` and `--live`; runs live only when `opts.live && !opts.dryRun`.
 
 `captureContext` (`IrToCaptureContext`, `ir-to-capture.ts:57-67`): `periodId`/`seriesId`/`eventId` are **operator-
@@ -265,7 +265,7 @@ scorer seams so no caller can substitute a permissive scorer. Ordered steps:
 `autoApply = confidenceOk && !veto.held && score.isGreen` (`:321`), three **independent** legs:
 
 - **Leg 1 — client confidence (necessary, never sufficient):** `confidenceOk = opts.confidence >= 0.9 &&
-  !amountHold` (`:289-290`). `AUTO_APPLY_THRESHOLD = 0.9` (env `ACCOUNTING_AUTO_APPLY_THRESHOLD`).
+!amountHold` (`:289-290`). `AUTO_APPLY_THRESHOLD = 0.9` (env `ACCOUNTING_AUTO_APPLY_THRESHOLD`).
   `amountHold` fires if any hold amount > `ALWAYS_HOLD_AMOUNT = 100000` CZK. The confidence scalar feeds **only**
   this leg; it never enters the score.
 - **Leg 2 — independent server veto:** `deriveVeto(db)` (payload-derived checks, e.g. `deriveCaptureVeto`);
@@ -288,7 +288,7 @@ Only self-reported Tier-2 CAP kinds survive, and they can only lower trust.
 
 ### 3.4 Every HTTP status (source: `apps/api/src/v1/domain-exception.filter.ts:28-39`)
 
-- **200** — replay of a previously *applied* write (`Idempotent-Replayed: true`).
+- **200** — replay of a previously _applied_ write (`Idempotent-Replayed: true`).
 - **201** — fresh applied write. **Unreachable at cold start.**
 - **202** — fresh held write, or replay of a held write. Body `{status:"held", reviewId}`.
 - **400** — `ZodValidationPipe` DTO failure before the handler, or an unmapped DomainError code.
@@ -297,8 +297,14 @@ Only self-reported Tier-2 CAP kinds survive, and they can only lower trust.
 - **409** — idempotency in-progress / different-body reuse (`gate.ts:262-269`).
 - **422** — missing/oversized Idempotency-Key; missing `conversationId`; or domain-integrity translations
   (unbalanced posting, closed period, FX inconsistency, SQLSTATE 22/23514).
-- **429** — admission: `"The accounting write runtime is disabled (BRAIN_RUNTIME_ACTIVE off)"` or
-  `"Too many concurrent accounting runs; retry shortly"`.
+- **429** — three distinct sources, distinguishable by the message body: (a) the **write-lane admission**
+  `"The accounting write runtime is disabled (BRAIN_RUNTIME_ACTIVE off)"` (kill-switch off) or `"Too many
+concurrent accounting runs; retry shortly"` (concurrency cap); **and** (b) a **V1-wide per-API-key rate
+  limit** that also fronts the write endpoints — `ApiKeyThrottlerGuard` (`apps/api/src/v1/api-key-throttler.guard.ts`),
+  registered as an `APP_GUARD` with `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }])`
+  (`apps/api/src/v1/v1.module.ts:46,61`) → **100 requests / 60 s per key**, generic `rate_limited` body
+  `"Too many requests. See the RateLimit-* headers…"` + IETF `RateLimit-*` headers. If a write 429s, read the
+  message string first: the throttler one is NOT a Brain-gate problem.
 - **404** — `NotFoundError` from `translateAccountingError` (e.g. RLS-hidden references).
 
 ### 3.5 BRAIN_RUNTIME_ACTIVE + admission caps
@@ -318,9 +324,10 @@ always be able to drain the queue even when the write lane is killed.
 
 `buildShadowScore(body, signals, serverDerivedSignals)` (`apps/api/src/v1/accounting/shadow-score.ts:197-271`) is
 pure, side-effect-free, never-throwing. JSON shape (`ShadowScore`):
+
 - `v` — `SHADOW_FORMULA_VERSION = 1`, the re-scoring anchor.
 - `serverLane` — `{ inputs:{kbRule:"none", extractionQuality:0, verify:{vatBaseMatchesNet?, periodConsistent?},
-  reconciliation:"none", firedSignals}, cRaw }`. The future M3 x-axis: base fields stay floored, verify booleans
+reconciliation:"none", firedSignals}, cRaw }`. The future M3 x-axis: base fields stay floored, verify booleans
   are **recomputed server-side** from the payload via `deriveServerVerify` (never the client claim), and the
   `extraction_failed` block is **dropped on this lane** so `serverLane.cRaw` is a real non-zero number.
 - `claimLane` — `{ cRaw }` only: scores the client's claims as-submitted. Diagnostic; explicitly "NEVER a
@@ -344,7 +351,7 @@ the replay body. Keys: `veto` (the leg-2 `{held, signals}`), `score`
 
 ## 4. Confidence model
 
-*(how a booking is scored — ADR-0026 "D6")*
+_(how a booking is scored — ADR-0026 "D6")_
 
 ### 4.1 Principle
 
@@ -362,11 +369,11 @@ does **not** feed `cRaw`/`cFinal`.
 - **reconciliation** (`score.ts:43-48`): `full`=+0.04, `partial`=0, `none`=−0.03.
 - **verify bonuses** (additive, PASSED only — `score.ts:24-40`): `vatBaseMatchesNet`+0.05,
   `rcChecklistPassesOrNA`+0.04, `decree500Confirmed`+0.03, `periodConsistent`+0.03, `bankVsKsSsMatch`+0.03. A
-  *failed* VAT check is not a penalty here — the caller instead fires the Tier-1 block `balance_mismatch`.
+  _failed_ VAT check is not a penalty here — the caller instead fires the Tier-1 block `balance_mismatch`.
 - **cap / block signals** (`signals.ts`): Tier-1 hard-block kinds (`no_source_doc`, `closed_period`,
   `constitution_violation`, `balance_mismatch`, `duplicate_key_collision`) → C=0; Tier-3 defer kinds
   (`extraction_failed`, `period_unknown`, `budget_exceeded`, `hitl_timeout`, `novel_template`,
-  `unverified_template`) → C=0; Tier-2 review caps (0.55–0.85) cap the score at the *lowest* fired value; 5
+  `unverified_template`) → C=0; Tier-2 review caps (0.55–0.85) cap the score at the _lowest_ fired value; 5
   "hard classes" (`asset_vs_expense`=0.60, `accrual_period_boundary`=0.65, …) are clamped **after** calibration so
   even a fitted map can't lift a fired hard class above green (`hard-class.ts:32-38`, `gate.ts:25-56,134-136`).
 
@@ -405,7 +412,7 @@ internally via `new Set(runId)`, returns identity below `MIN_CALIBRATION_RUNS=10
 (target ≤0.04, ADR-0026), and the locked reference fixtures are **built + tested**. **NOT wired:** the fitted model
 is never plugged into the live gate — `refitCalibration` has **zero non-test callers**, and the live gate is pinned
 to `scoreProposalColdStart` (identity). Fit-on-real-runs + live wiring is deploy-gated M3, explicitly out of v1
-scope. *(There is no train/test "holdout" split anywhere — only the distinct-runId ≥10 run-count guard.)*
+scope. _(There is no train/test "holdout" split anywhere — only the distinct-runId ≥10 run-count guard.)_
 
 ---
 
@@ -418,10 +425,10 @@ scope. *(There is no train/test "holdout" split anywhere — only the distinct-r
 
 ### 5.1 Three tenancy tiers + GUCs (`packages/db/src/policies/rls.ts`)
 
-| Tier | GUC | RLS | Tables |
-|---|---|---|---|
-| **Global** | none | unscoped | `app_user`, auth tables, reference/law tables (`regime`, `legal_form`, `currency`, …) |
-| **Workspace** | `app.workspace_id` | FORCE RLS, 4 command-specific policies | `counterparty` (0035), `ocr_extraction_template` (0047), `audit_event` (0005) |
+| Tier             | GUC                   | RLS                                                        | Tables                                                                                                                         |
+| ---------------- | --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Global**       | none                  | unscoped                                                   | `app_user`, auth tables, reference/law tables (`regime`, `legal_form`, `currency`, …)                                          |
+| **Workspace**    | `app.workspace_id`    | FORCE RLS, 4 command-specific policies                     | `counterparty` (0035), `ocr_extraction_template` (0047), `audit_event` (0005)                                                  |
 | **Organization** | `app.organization_id` | ENABLE + FORCE RLS, single `organization_isolation` policy | `api_key`, `organization`, `tool_call_log`, the 23 v2-accounting org-scoped tables (0035 §1), + 3 org-config satellites (0042) |
 
 Both tenant GUCs are read with `NULLIF(current_setting('app.<x>', true), '')::uuid`. `organization.organization_id`
@@ -430,7 +437,7 @@ is kept `== id` by trigger `app_organization_self_id` (0003) so every policy use
 ### 5.2 Composite-FK tenant isolation (FK bypasses RLS)
 
 A Postgres FK integrity check reads the **parent** row as an internal op **not subject to RLS**, so a naive
-`counterparty_id → counterparty(id)` FK would let org A reference org B's row. Fix: the tenancy key rides *inside*
+`counterparty_id → counterparty(id)` FK would let org A reference org B's row. Fix: the tenancy key rides _inside_
 the FK — every parent carries `UNIQUE(id, organization_id)` (or `(id, workspace_id)`) and children reference the
 composite. Examples: `accounting_event` party/counterparty FKs on `(…, workspace_id)`
 (`accounting_event.ts:69-78`); `posting` FKs on `(…, organization_id)` incl. the regime-spine
@@ -474,10 +481,11 @@ blocked; only `output_json`/`auto_applied`/`approved_by_user_id`/`rationale` upd
 
 `0004` audit (`actor_kind` enum + `tool_call_log`) · `0015` `api_key` · `0025` accounting enums/reference ·
 `0026` reference seed · `0027` `accounting_period` + org reshape · `0028` `number_series` + `accounting_event`
-+ `summary/individual/partial_record` · `0029` chart/account/category · `0030` `posting` (+ lines, self-FK) ·
-`0031` asset/depreciation/inventory · `0032` `open_item`(+settlement) · `0033` read-model · `0034` output read
-surface · `0035` FORCE RLS + `organization_isolation` on all 23 + append-only triggers · `0045` `api_key.actor_kind`
-· `0047` `ocr_extraction_template`.
+
+- `summary/individual/partial_record` · `0029` chart/account/category · `0030` `posting` (+ lines, self-FK) ·
+  `0031` asset/depreciation/inventory · `0032` `open_item`(+settlement) · `0033` read-model · `0034` output read
+  surface · `0035` FORCE RLS + `organization_isolation` on all 23 + append-only triggers · `0045` `api_key.actor_kind`
+  · `0047` `ocr_extraction_template`.
 
 ---
 
@@ -526,7 +534,7 @@ templates; I10 provenance/průkaznost. **Only I2, I3, I5 have executable checks*
 `scripts/brain-build/constitution-checks/check.sh` greps (I2) `withAdminBypass`/`SET ROLE app_admin` forms across
 `packages/brain/src`; (I3) tenancy ids in declaration position under `src/tools/`; (I5) Drizzle writes / raw
 `UPDATE|DELETE` / `` sql`…` `` / `.execute(`/`.query(` under `src/tools/`. `check.sh` is the **sole automated
-defense** for I2/I5 (the ESLint `require-with-organization` rule enforces I1 but *permits* `withAdminBypass`).
+defense** for I2/I5 (the ESLint `require-with-organization` rule enforces I1 but _permits_ `withAdminBypass`).
 I1/I4/I6/I7/I8/I9/I10 have **no** automated check — human review + advisor gate.
 
 ### 6.5 The `.brain/` store + the librarian — MOSTLY NOT BUILT
@@ -537,7 +545,7 @@ README.md** stating "Empty at M0, librarian-populated via GitHub PR". **The libr
 librarian --include=*.ts` returns zero; there is no `packages/brain/src/librarian/`. So the OCR-template library is
 real+wired, but the **broader self-improving learning loop (correction clustering → distilled rule → PR + eval
 gate) is scaffolding + ADRs only** — no writer, no learned artifacts. Do not describe Brain as "self-improving"
-today; it *proposes bookings and holds them*. The learn-on-confirm / layout-drift re-detection is open item #518.
+today; it _proposes bookings and holds them_. The learn-on-confirm / layout-drift re-detection is open item #518.
 
 ---
 
@@ -546,21 +554,22 @@ today; it *proposes bookings and holds them*. The learn-on-confirm / layout-drif
 Symptom → most-likely cause → where to look. (The write-lane and conversationId rows are the two that bit us
 first in practice.)
 
-| Symptom | Cause | Fix / where |
-|---|---|---|
-| **Every write `429 "runtime is disabled"`** | `BRAIN_RUNTIME_ACTIVE != "1"` on the running task. A deploy that omitted `brain_runtime_active=1` reset it (fail-closed OFF). | Re-deploy with `brain_runtime_active=1` (`_deploy-aws.yml`), or verify the ECS task-def env. §3.5 |
-| **Write `400 "Validation failed"` (no field detail)** | Usually `conversationId` is not a UUID (server is `z.string().uuid()`; the generated MCP tool schema drops `.uuid()`). | Pass a UUID (`uuidgen`). §1.5, §2.2 |
-| **`422 "conversationId is required for a user-bound agent key"`** | Agent key logs `ai_on_behalf`, which requires a conversationId. | Add a UUID `conversationId` to the capture. §2.2, §3.4 |
-| **`403 "Accounting writes require a user-bound API key"`** | The key has `created_by_user_id = null`. | Re-issue via "Issue Brain agent key" (binds the user). §2.5 |
-| **`403` on `/approvals` list/resolve** | Working as designed — agent keys are `@RequireHumanActor` 403 there. A human must approve. | §2.2 |
-| **`brain book/run blocked: … Missing/unmet …`** | A required env var is unset, or `BRAIN_RUNTIME_ACTIVE != "1"`. | `source docs/runbooks/mlive.local.sh`. §1.2 |
-| **`brain extract/book` won't start — asks for an Anthropic token** | Misreading: `BRAIN_AGENT_SDK_AUTH` must be *set* but on-Mac the value `ambient` is sufficient (nested Claude uses the machine's login). | Set `BRAIN_AGENT_SDK_AUTH=ambient`; never demand `sk-ant-…`. §1.2 |
-| **Health `503 "Afframe is asleep"`** | Prod is cold-paused. | `gh workflow run power.yml -f environment=production -f action=resume` (~8 min RDS cold start). |
-| **A capture that "should" auto-apply is still HELD** | Expected at cold start — the `extraction_failed` floor forces `cRaw=0`; green is unreachable until M3. A cold-start `201` would be a **broken-gate alarm**. | §3.3, §4.5 |
-| **OCR capture unexpectedly HELD even with a template** | The template is unconfirmed (`novel_template`) or the basis is missing/foreign (`unverified_template`); or `extractionMethod` omitted → fails closed to OCR. | A human must `confirm` the template. §6.1, §6.2 |
-| **`429 "Too many concurrent accounting runs"`** | Admission cap hit (global 32 / per-org 8). | Retry; or raise `ACCOUNTING_ADMISSION_*` env. §3.5 |
-| **Nested `query()` won't authenticate** | `BRAIN_AGENT_SDK_AUTH` starts with `sk-` but the key is invalid, OR the machine has no Claude Code login for the `ambient` path. | Use a valid `sk-ant-…`, or log in Claude Code and use `ambient`. §1.2 |
-| **Bridge won't start / `ERR_MODULE_NOT_FOUND`** | Someone pointed it at `dist/server.js` (not node-runnable) instead of the tsx source. | Run from inside the monorepo; the bridge uses `apps/mcp/src/server.ts` via tsx. §1.1 |
+| Symptom                                                            | Cause                                                                                                                                                        | Fix / where                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| **Every write `429 "runtime is disabled"`**                        | `BRAIN_RUNTIME_ACTIVE != "1"` on the running task. A deploy that omitted `brain_runtime_active=1` reset it (fail-closed OFF).                                | Re-deploy with `brain_runtime_active=1` (`_deploy-aws.yml`), or verify the ECS task-def env. §3.5 |
+| **Write `400 "Validation failed"` (no field detail)**              | Usually `conversationId` is not a UUID (server is `z.string().uuid()`; the generated MCP tool schema drops `.uuid()`).                                       | Pass a UUID (`uuidgen`). §1.5, §2.2                                                               |
+| **`422 "conversationId is required for a user-bound agent key"`**  | Agent key logs `ai_on_behalf`, which requires a conversationId.                                                                                              | Add a UUID `conversationId` to the capture. §2.2, §3.4                                            |
+| **`403 "Accounting writes require a user-bound API key"`**         | The key has `created_by_user_id = null`.                                                                                                                     | Re-issue via "Issue Brain agent key" (binds the user). §2.5                                       |
+| **`403` on `/approvals` list/resolve**                             | Working as designed — agent keys are `@RequireHumanActor` 403 there. A human must approve.                                                                   | §2.2                                                                                              |
+| **`brain book/run blocked: … Missing/unmet …`**                    | A required env var is unset, or `BRAIN_RUNTIME_ACTIVE != "1"`.                                                                                               | `source docs/runbooks/mlive.local.sh`. §1.2                                                       |
+| **`brain extract/book` won't start — asks for an Anthropic token** | Misreading: `BRAIN_AGENT_SDK_AUTH` must be _set_ but on-Mac the value `ambient` is sufficient (nested Claude uses the machine's login).                      | Set `BRAIN_AGENT_SDK_AUTH=ambient`; never demand `sk-ant-…`. §1.2                                 |
+| **Health `503 "Afframe is asleep"`**                               | Prod is cold-paused.                                                                                                                                         | `gh workflow run power.yml -f environment=production -f action=resume` (~8 min RDS cold start).   |
+| **A capture that "should" auto-apply is still HELD**               | Expected at cold start — the `extraction_failed` floor forces `cRaw=0`; green is unreachable until M3. A cold-start `201` would be a **broken-gate alarm**.  | §3.3, §4.5                                                                                        |
+| **OCR capture unexpectedly HELD even with a template**             | The template is unconfirmed (`novel_template`) or the basis is missing/foreign (`unverified_template`); or `extractionMethod` omitted → fails closed to OCR. | A human must `confirm` the template. §6.1, §6.2                                                   |
+| **`429 "Too many concurrent accounting runs"`**                    | Admission cap hit (global 32 / per-org 8).                                                                                                                   | Retry; or raise `ACCOUNTING_ADMISSION_*` env. §3.5                                                |
+| **`429 "Too many requests…"` with `RateLimit-*` headers**          | NOT a Brain-gate issue — the V1-wide per-key throttler (`ApiKeyThrottlerGuard`, 100 req/60 s per API key) that fronts all `/v1/*` incl. writes.              | Slow down / respect the `RateLimit-*` headers; the limit is per key (`v1.module.ts:46`). §3.4     |
+| **Nested `query()` won't authenticate**                            | `BRAIN_AGENT_SDK_AUTH` starts with `sk-` but the key is invalid, OR the machine has no Claude Code login for the `ambient` path.                             | Use a valid `sk-ant-…`, or log in Claude Code and use `ambient`. §1.2                             |
+| **Bridge won't start / `ERR_MODULE_NOT_FOUND`**                    | Someone pointed it at `dist/server.js` (not node-runnable) instead of the tsx source.                                                                        | Run from inside the monorepo; the bridge uses `apps/mcp/src/server.ts` via tsx. §1.1              |
 
 **Operator DB access for verification** (`docs/runbooks/DB-ACCESS.md`): `./scripts/db-query.sh production "SET
 ROLE app_admin; SELECT jsonb_pretty(output_json->'serverGate') FROM tool_call_log WHERE conversation_id='<uuid>'"`
@@ -578,7 +587,7 @@ An accuracy ledger, so nobody re-derives a stale roadmap:
   for I2/I3/I5, tenant isolation + composite FKs.
 - **Built but NOT wired into the live path:** the calibration refit (`refitCalibration`, PAV, Brier) — zero
   non-test callers; the live gate is pinned to the cold-start identity map. Green is unreachable until M3 wires a
-  fitted map *and* server-side re-verification un-floors the base signals (W3.3b).
+  fitted map _and_ server-side re-verification un-floors the base signals (W3.3b).
 - **NOT built (scaffolding/ADRs only):** the **librarian** and the whole self-improving learning loop
   (correction clustering → `.brain/rules|aliases|memory|judge` → PR + eval gate). The `.brain/` learned dirs are
   README-only. Learn-on-confirm / layout-drift re-detection = open #518.
@@ -594,6 +603,6 @@ An accuracy ledger, so nobody re-derives a stale roadmap:
 
 ---
 
-*This document is generated from the current code; when the code changes, re-verify the cited `file:line`
+_This document is generated from the current code; when the code changes, re-verify the cited `file:line`
 anchors. For the operator quickstart see [`docs/runbooks/BRAIN-OPERATOR-SESSION.md`](runbooks/BRAIN-OPERATOR-SESSION.md);
-for the one-page overview see [`docs/AFFRAME-BRAIN.md`](AFFRAME-BRAIN.md).*
+for the one-page overview see [`docs/AFFRAME-BRAIN.md`](AFFRAME-BRAIN.md)._

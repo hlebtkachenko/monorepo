@@ -70,16 +70,20 @@ STEP 2 — Gather the live session inputs FROM ME. Ask for these together, conci
   a) The target organization slug (e.g. `acme`), and confirm the org is already scaffolded with an OPEN accounting
      period and a DOCUMENT number series. (A freshly created org via the workspace "New organization" wizard is
      scaffolded with both.) If unsure, ask me to confirm or to create the org first.
-  b) That I have issued a USER-BOUND Brain agent key for that org via admin -> Platform -> API keys ->
-     "Issue Brain agent key" (this forces a step-up re-auth; only I can do it), and have pasted its raw value plus
-     my SDK auth into a local env file. Specifically, walk me through:
+  b) The env file. FIRST check whether it already exists and is filled:
+        grep -q 'BRAIN_API_KEY="affk_live_' docs/runbooks/mlive.local.sh && echo FILLED || echo MISSING
+     IF FILLED: do NOT `cp` over it, do NOT ask me for any credential — just `source docs/runbooks/mlive.local.sh`
+     and move on. ONLY if MISSING, walk me through creating it (issuing the key is admin -> Platform -> API keys ->
+     "Issue Brain agent key", a step-up re-auth only I can do):
         cp docs/runbooks/mlive.example.sh docs/runbooks/mlive.local.sh
-        # I edit mlive.local.sh: set BRAIN_API_KEY to the raw agent key and BRAIN_AGENT_SDK_AUTH to my token
+        # I set BRAIN_API_KEY to the raw agent key. (BRAIN_AGENT_SDK_AUTH already defaults to `ambient` — leave it.)
         chmod 600 docs/runbooks/mlive.local.sh
         source docs/runbooks/mlive.local.sh
-     Confirm (names only, never values) that these are set: BRAIN_RUNTIME_ACTIVE=1, BRAIN_LIVE=1,
-     BRAIN_MCP_ENDPOINT=https://api.afframe.com (the REST API base, NOT an /mcp path), BRAIN_API_KEY,
-     BRAIN_AGENT_SDK_AUTH.
+     `BRAIN_AGENT_SDK_AUTH` is NOT an Afframe credential and I do NOT supply an Anthropic token: on this Mac the
+     default value `ambient` is correct — the nested Claude uses this machine's Claude Code login (proven live).
+     NEVER demand an `sk-ant-...` token from me. Confirm (names only, never values) that these are set:
+     BRAIN_RUNTIME_ACTIVE=1, BRAIN_LIVE=1, BRAIN_MCP_ENDPOINT=https://api.afframe.com (the REST API base, NOT an
+     /mcp path), BRAIN_API_KEY, BRAIN_AGENT_SDK_AUTH.
   c) The org's periodId and seriesId (the DOCUMENT series uuid). If I do not have them handy, tell me you can read
      them back from the server once the key is live, and do so.
 

@@ -1,5 +1,6 @@
 import "server-only"
 
+import { cookies } from "next/headers"
 import { and, eq } from "drizzle-orm"
 import {
   sql,
@@ -18,21 +19,27 @@ import {
 } from "@workspace/accounting"
 
 import { getRequestSession } from "./request-session"
+import {
+  getHeaderPeriods,
+  PERIOD_COOKIE,
+  resolveActivePeriod,
+} from "./header-periods"
 
 /**
  * Server-side data access for the accounting pages.
  *
- * Each page resolves the org + latest accounting period once, then runs the
- * SAME domain reads the public /v1 accounting API uses (journal,
- * generalLedger, open items) inside `withOrganization` (FORCE RLS). The org
- * slug → id lookup mirrors the layout's membership resolution; the layout has
- * already gated access, this re-resolve only recovers the ids the layout
- * cannot pass down through the RSC tree.
+ * Each page resolves the org + active accounting period (resolved from the
+ * shell `afframe_period` cookie) once, then runs the SAME domain reads the
+ * public /v1 accounting API uses (journal, generalLedger, open items) inside
+ * `withOrganization` (FORCE RLS). The org slug → id lookup mirrors the
+ * layout's membership resolution; the layout has already gated access, this
+ * re-resolve only recovers the ids the layout cannot pass down through the
+ * RSC tree.
  */
 export interface OrgAccountingContext {
   organizationId: string
   userId: string
-  /** Latest accounting period, or null when the org has no books yet. */
+  /** Active accounting period resolved from the `afframe_period` shell cookie, or null when the org has no books yet. */
   periodId: string | null
   periodStart: string | null
   periodEnd: string | null
@@ -62,20 +69,12 @@ export async function getOrgAccountingContext(
   })
   if (!org) return null
 
-  const period = await withOrganization(org.id, userId, async (db) => {
-    const rows = await executeRows<{
-      id: string
-      period_start: string
-      period_end: string
-    }>(
-      db,
-      sql`select id, period_start::text, period_end::text
-          from accounting_period
-          order by period_start desc
-          limit 1`,
-    )
-    return rows[0] ?? null
-  })
+  const periods = await getHeaderPeriods({ organizationId: org.id })
+  const cookieStore = await cookies()
+  const period = resolveActivePeriod(
+    periods,
+    cookieStore.get(PERIOD_COOKIE)?.value,
+  )
 
   return {
     organizationId: org.id,

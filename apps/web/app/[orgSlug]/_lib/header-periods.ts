@@ -57,14 +57,26 @@ export async function getHeaderPeriods(input: {
  * org's periods, else the newest OPEN period, else the newest period, else
  * `null` (org has no periods). The cookie is self-validating — a stale id from
  * another org never matches, so it silently falls back.
+ *
+ * Returns the full row (not just the id) so callers that need the period's
+ * dates — `getOrgAccountingContext` — don't have to re-`.find()` it.
  */
+export function resolveActivePeriod(
+  periods: HeaderPeriod[],
+  cookieValue: string | undefined | null,
+): HeaderPeriod | null {
+  if (cookieValue) {
+    const matched = periods.find((p) => p.id === cookieValue)
+    if (matched) return matched
+  }
+  const firstOpen = periods.find((p) => p.status === "OPEN")
+  return firstOpen ?? periods[0] ?? null
+}
+
+/** Same resolution as {@link resolveActivePeriod}, returning just the id. */
 export function resolveActivePeriodId(
   periods: HeaderPeriod[],
   cookieValue: string | undefined | null,
 ): string | null {
-  if (cookieValue && periods.some((p) => p.id === cookieValue)) {
-    return cookieValue
-  }
-  const firstOpen = periods.find((p) => p.status === "OPEN")
-  return firstOpen?.id ?? periods[0]?.id ?? null
+  return resolveActivePeriod(periods, cookieValue)?.id ?? null
 }

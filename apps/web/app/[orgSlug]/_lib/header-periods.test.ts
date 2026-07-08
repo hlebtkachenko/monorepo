@@ -10,8 +10,8 @@
  *   - getHeaderPeriods returns only the current org's periods
  *   - ordered newest-first (period_start desc)
  *   - open/closed status is surfaced verbatim for the client `toPeriod` mapper
- *   - resolveActivePeriodId: cookie-in-list wins; else newest OPEN; else
- *     newest; else null
+ *   - resolveActivePeriodId / resolveActivePeriod: cookie-in-list wins; else
+ *     newest OPEN; else newest; else null
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
@@ -23,6 +23,7 @@ process.env["BETTER_AUTH_SECRET"] =
 
 let getHeaderPeriods: (typeof import("./header-periods"))["getHeaderPeriods"]
 let resolveActivePeriodId: (typeof import("./header-periods"))["resolveActivePeriodId"]
+let resolveActivePeriod: (typeof import("./header-periods"))["resolveActivePeriod"]
 let adminClient: (typeof import("@workspace/db/tests/fixtures"))["adminClient"]
 let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
 
@@ -111,7 +112,7 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   ;({ adminClient, truncateAll } = await import("@workspace/db/tests/fixtures"))
-  ;({ getHeaderPeriods, resolveActivePeriodId } =
+  ;({ getHeaderPeriods, resolveActivePeriodId, resolveActivePeriod } =
     await import("./header-periods"))
   sql = adminClient()
   await cleanup()
@@ -263,5 +264,73 @@ describe("resolveActivePeriodId", () => {
 
   it("returns null for an org with no periods", () => {
     expect(resolveActivePeriodId([], undefined)).toBeNull()
+  })
+})
+
+describe("resolveActivePeriod", () => {
+  const periods = [
+    {
+      id: "p2026",
+      period_start: "2026-01-01",
+      period_end: "2026-12-31",
+      status: "OPEN" as const,
+    },
+    {
+      id: "p2025",
+      period_start: "2025-01-01",
+      period_end: "2025-12-31",
+      status: "CLOSED" as const,
+    },
+  ]
+
+  it("returns the full row when the cookie names one of the org's periods", () => {
+    expect(resolveActivePeriod(periods, "p2025")).toEqual(periods[1])
+  })
+
+  it("falls back to the newest OPEN row for an unknown/undefined cookie", () => {
+    expect(resolveActivePeriod(periods, "from-another-org")).toEqual(periods[0])
+    expect(resolveActivePeriod(periods, undefined)).toEqual(periods[0])
+  })
+
+  it("prefers an OPEN period over a NEWER closed one (not just newest overall)", () => {
+    // Newest by start is CLOSED; the open period is older. Guards against a
+    // regression to plain newest-first (`periods[0]`) which would pick 2026.
+    const openIsOlder = [
+      {
+        id: "p2026-closed",
+        period_start: "2026-01-01",
+        period_end: "2026-12-31",
+        status: "CLOSED" as const,
+      },
+      {
+        id: "p2025-open",
+        period_start: "2025-01-01",
+        period_end: "2025-12-31",
+        status: "OPEN" as const,
+      },
+    ]
+    expect(resolveActivePeriod(openIsOlder, undefined)?.id).toBe("p2025-open")
+  })
+
+  it("falls back to the newest row when none is open", () => {
+    const closed = [
+      {
+        id: "a",
+        period_start: "2025-01-01",
+        period_end: "2025-12-31",
+        status: "CLOSED" as const,
+      },
+      {
+        id: "b",
+        period_start: "2024-01-01",
+        period_end: "2024-12-31",
+        status: "CLOSED" as const,
+      },
+    ]
+    expect(resolveActivePeriod(closed, null)).toEqual(closed[0])
+  })
+
+  it("returns null for an org with no periods", () => {
+    expect(resolveActivePeriod([], undefined)).toBeNull()
   })
 })

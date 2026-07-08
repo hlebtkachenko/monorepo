@@ -35,11 +35,12 @@ import { toast } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import { setActivePeriodAction } from "../../../[orgSlug]/_lib/period-actions"
 import {
   archiveOrgAction,
   unarchiveOrgAction,
 } from "../../../workspace/organizations/actions"
-import { COMPANY_PERIODS, STATUS_BADGE, type CompanyRow } from "./data"
+import { STATUS_BADGE, type CompanyRow } from "./data"
 
 const CARD_ARCHIVE_ERROR: Record<string, string> = {
   sessionExpired: "Your session expired. Please sign in again.",
@@ -60,9 +61,10 @@ function CompanyAvatar({ name }: { name: string }) {
 /**
  * The Companies "big card" — one company book with its identity, a real member
  * stack (also the Manage-members trigger), a period quick-switcher (jump
- * straight into the book at a period), and a whole-card click-to-open overlay.
- * Avatars + periods are mock (no org logo / accounting_period columns yet);
- * members are real.
+ * straight into the book at a period, persisting the choice via
+ * `setActivePeriodAction`), and a whole-card click-to-open overlay. Members and
+ * periods are real; only the avatar (a grey initial mark) is a stand-in until
+ * org logos land.
  */
 export function CompanyCard({ company }: { company: CompanyRow }) {
   const router = useRouter()
@@ -95,6 +97,13 @@ export function CompanyCard({ company }: { company: CompanyRow }) {
             "Could not update the company.",
         )
       }
+    })
+  }
+
+  const selectPeriod = (periodId: string) => {
+    startTransition(async () => {
+      const res = await setActivePeriodAction(company.slug, periodId)
+      if (res.ok) router.push(`/${company.slug}`)
     })
   }
 
@@ -202,6 +211,7 @@ export function CompanyCard({ company }: { company: CompanyRow }) {
             <Button
               variant="outline"
               size="sm"
+              disabled={pending || company.periods.length === 0}
               className="relative z-10 h-8 gap-1.5"
             >
               <CalendarIcon className="text-muted-foreground" />
@@ -211,19 +221,21 @@ export function CompanyCard({ company }: { company: CompanyRow }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-40">
             <DropdownMenuLabel>Open period</DropdownMenuLabel>
-            {COMPANY_PERIODS.map((p) => {
+            {company.periods.map((p) => {
               const Glyph = p.open ? LockOpenIcon : LockIcon
               return (
-                <DropdownMenuItem key={p.value} asChild>
-                  <Link href={`/${company.slug}?period=${p.value}`}>
-                    <Glyph
-                      className={cn(
-                        "size-4",
-                        p.open ? "text-foreground" : "text-muted-foreground",
-                      )}
-                    />
-                    {p.label}
-                  </Link>
+                <DropdownMenuItem
+                  key={p.value}
+                  disabled={pending}
+                  onSelect={() => selectPeriod(p.value)}
+                >
+                  <Glyph
+                    className={cn(
+                      "size-4",
+                      p.open ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  />
+                  {p.label}
                 </DropdownMenuItem>
               )
             })}

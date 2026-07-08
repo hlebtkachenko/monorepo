@@ -16,6 +16,18 @@
  * so these tests seed only the org + period + person_kind, not a full posted
  * period, and assert status "ok" + the fixed line shape rather than exact
  * non-zero figures.
+ *
+ * Both loaders gate on TWO axes — `organization.person_type` (LEGAL/NATURAL)
+ * AND the active period's `regime_code` (`buildDppo` needs DOUBLE_ENTRY,
+ * `buildDpfo` needs TAX_RECORDS) — so beyond the matching-pair "ok" cases and
+ * the person-type-only mismatch cases, this file also seeds the
+ * regime-mismatched-but-person-type-matched combos (LEGAL+SINGLE_ENTRY,
+ * NATURAL+DOUBLE_ENTRY) to prove those report "not-applicable" instead of
+ * silently reading an empty read-model as an all-zero result. Nothing in the
+ * schema ties `accounting_period.regime_code` to the owning org's
+ * `person_kind`/legal form — `seedPeriod`'s `regimeCode` param is free to set
+ * independently of `seedOrg`'s `personKind`, so both combos seed cleanly with
+ * no CHECK-constraint workaround needed.
  */
 
 import {
@@ -300,6 +312,35 @@ describe("getCorporateIncomeTax (DPPO)", () => {
 
     expect(result.status).toBe("no-period")
   }, 30_000)
+
+  it("LEGAL org with a SINGLE_ENTRY period -> not-applicable (buildDppo reads account_period_balance, DOUBLE_ENTRY only)", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dppo-legal-single-entry-na",
+      legalName: "DPPO Legal Single Entry s.r.o.",
+      personKind: "legal_entity",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+      regimeCode: "SINGLE_ENTRY",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getCorporateIncomeTax("dppo-legal-single-entry-na")
+
+    expect(result.status).toBe("not-applicable")
+    if (result.status !== "not-applicable") return
+    expect(result.reason).toContain("double-entry")
+    expect(result.reason).toContain("SINGLE_ENTRY")
+  }, 30_000)
 })
 
 describe("getPersonalIncomeTax (DPFO)", () => {
@@ -378,6 +419,35 @@ describe("getPersonalIncomeTax (DPFO)", () => {
     const result = await getPersonalIncomeTax("dpfo-no-period")
 
     expect(result.status).toBe("no-period")
+  }, 30_000)
+
+  it("NATURAL org with a DOUBLE_ENTRY period -> not-applicable (buildDpfo reads monetary_period_summary, TAX_RECORDS only)", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dpfo-natural-double-entry-na",
+      legalName: "DPFO Natural Double Entry OSVC",
+      personKind: "natural_person",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+      regimeCode: "DOUBLE_ENTRY",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getPersonalIncomeTax("dpfo-natural-double-entry-na")
+
+    expect(result.status).toBe("not-applicable")
+    if (result.status !== "not-applicable") return
+    expect(result.reason).toContain("tax records")
+    expect(result.reason).toContain("DOUBLE_ENTRY")
   }, 30_000)
 })
 

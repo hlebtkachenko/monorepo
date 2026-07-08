@@ -101,6 +101,21 @@ pre-push:
       # behaviour skips when push has no file changes).
       glob: "*"
       run: node scripts/check-pr-title.mjs "$(git log -1 --format='%s')"
+    changelog-unreleased:
+      # Mirrors the required `check` workflow's changelog gate. Every
+      # non-release PR must add an entry under CHANGELOG.md ## [Unreleased].
+      # Release PRs with a `chore(release): vX.Y.Z` title are exempt because
+      # they move Unreleased entries into a versioned section.
+      glob: "*"
+      run: |
+        if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+          echo "[lefthook changelog-unreleased] origin/main not fetched — skipping. Run: git fetch origin main"
+          exit 0
+        fi
+        node scripts/governance/check-changelog-unreleased.mjs \
+          --base origin/main \
+          --head HEAD \
+          --title "$(git log -1 --format='%s')"
     nav-drift:
       # Org sidebar nav ↔ route tree drift guard (the lean alternative to a
       # route-manifest codegen). Fails if a nav href has no route folder or a

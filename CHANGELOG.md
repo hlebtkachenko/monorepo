@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- **governance**: require every non-release PR to add an Unreleased changelog entry, with CI and local hooks preserving existing entries so parallel agents append instead of overwriting.
+
 ## [v0.16.11] — 2026-07-08
 
 Patch release: Afframe Brain platform-documentation integration + a pre-launch write-lane deploy default + a dev-dependency sweep. No product or runtime change; the Brain write lane stays HELD at cold start.

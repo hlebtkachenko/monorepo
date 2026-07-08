@@ -16,7 +16,7 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `build`                                               | required                     | required                    |
 | `ci` (aggregation shim)                               | required                     | required                    |
 | `knip` (dead-code)                                    | required, blocking [^1]      | required                    |
-| `check` (paired-files)                                | required                     | required                    |
+| `check` (repo governance)                             | required                     | required                    |
 | `boundaries` (import boundaries)                      | required                     | required                    |
 | `e2e` (Playwright auth flows)                         | advisory, path-filtered      | required (via shim)         |
 | `commitlint` (posts as `lint`)                        | required [^6]                | required                    |
@@ -62,6 +62,19 @@ A check moves from advisory to required by:
 1. PR demonstrating the check is stable on the repo (≤1% false positive rate over 4 weeks).
 2. ADR if the check changes architecture (rare).
 3. Update to this file in the same PR that flips the branch protection rule.
+
+## Repo governance check
+
+The required `check` context is the lightweight repo-governance gate. It runs on
+every PR and currently enforces:
+
+- paired-file rules from `.github/related-files.yml`
+- the changelog Unreleased rule: every non-release PR must add one bullet under
+  `CHANGELOG.md` `## [Unreleased]` while preserving existing Unreleased entries
+
+Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N`
+are exempt from adding a new Unreleased bullet because their job is to move the
+existing Unreleased entries into the new version section.
 
 ## Type-aware linting
 

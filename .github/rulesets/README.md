@@ -26,6 +26,9 @@ must pass before merge:
 `scan-pr / osv-scan`, `knip`, `check`, `boundaries`, `conv-title`, `size-cap`,
 `shellcheck`, `cdk-synth-strict (staging)`, `cdk-synth-strict (production)`.
 
+`check` is the repo-governance context. It currently runs paired-file rules and
+the changelog Unreleased gate.
+
 `bypass_actors`: repository Admin role (`actor_id: 5`), bypass `always`.
 
 ## `release-tags.json` — release-tag protection

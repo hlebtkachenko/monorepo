@@ -18,4 +18,17 @@
 **/out/
 **/.cache/
 **/*.log
+**/.env
+**/.env.*
+**/.dev.vars
+**/mlive.local.sh
+**/*.pem
+**/*.key
+**/client_secret*.json
+**/.claude/
+**/.planning/
+**/.playwright-mcp/
+**/.codegraph/
+**/graphify-out/
+**/.graphify/
 **/*.tsbuildinfo

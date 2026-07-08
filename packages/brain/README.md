@@ -3,9 +3,10 @@
 > **⚠️ Partly stale — read [`docs/AFFRAME-BRAIN.md`](../../docs/AFFRAME-BRAIN.md) first.** This file
 > describes the pre-reframe **in-process orchestrator** design. Brain v1 shipped as an **unprivileged
 > Claude Code CLIENT** of the accounting API (a local stdio MCP bridge → the public REST API, no Brain
-> server; ADR-0025 amended 2026-07-01). The `orchestrator/` `runtime/` `librarian/` layout below is partly
-> aspirational (the librarian is not built). Authoritative: [`docs/AFFRAME-BRAIN.md`](../../docs/AFFRAME-BRAIN.md)
-> + [`docs/AFFRAME-BRAIN-TECHNICAL.md`](../../docs/AFFRAME-BRAIN-TECHNICAL.md).
+> server; ADR-0025 amended 2026-07-01). The `orchestrator/`/`runtime/`/`librarian/` layout below was never
+> built as `packages/brain` code — orchestration moved to `apps/cli` + `packages/intake`, and the librarian
+> remains unbuilt; the real tree is `agent/ confidence/ gate/ ir/ reconcile/ eval/`. Authoritative:
+> [`docs/AFFRAME-BRAIN.md`](../../docs/AFFRAME-BRAIN.md) + [`docs/AFFRAME-BRAIN-TECHNICAL.md`](../../docs/AFFRAME-BRAIN-TECHNICAL.md).
 
 Afframe **Brain** (Track B): an autonomous, self-improving Czech-accounting ingestion + booking
 orchestrator. It parses a company's messy per-org 2025 dump, books it into the existing

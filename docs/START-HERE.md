@@ -67,6 +67,7 @@ Domain endpoints (invoices, accounts, journal entries) are not yet implemented.
 | Audit local dev            | `docs/runbooks/LOCAL-DEV.md`                 |
 | Build a Storybook story    | `docs/runbooks/SHOWCASE.md`                  |
 | Add a non-shadcn component | `docs/runbooks/COMPONENT-MIGRATION.md`       |
+| Understand or run Afframe Brain | `docs/AFFRAME-BRAIN.md` (+ `-TECHNICAL.md` internals, `-STATUS.md` roadmap) |
 
 ## Decisions backing this layout
 

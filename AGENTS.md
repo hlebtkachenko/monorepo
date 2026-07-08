@@ -311,6 +311,7 @@ Rule: never format a Telegram message or hold the bot token anywhere but `apps/b
 - `docs/runbooks/` — operational runbooks
 - `docs/specs/` — design specifications
 - `docs/INVENTORY.md` — DORA Article 8 ICT asset register
+- `docs/AFFRAME-BRAIN.md` — Afframe Brain landing doc (A-Z); `docs/AFFRAME-BRAIN-TECHNICAL.md` (internals) + `docs/AFFRAME-BRAIN-STATUS.md` (v1/v2 roadmap + open issues)
 
 ## Endpoint Addition Rules
 

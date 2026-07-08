@@ -97,6 +97,51 @@ export async function createNumberSeries(
   return r.id
 }
 
+/**
+ * Default číselné řady aligned to the capture layer's document kinds. Canonical
+ * home for the scaffolding protocol (`scaffoldOrganization`) AND the Settings →
+ * Number series "restore default series" backfill — both call sites must agree
+ * on the same 8 series, so this list lives here rather than being duplicated.
+ */
+export const DEFAULT_NUMBER_SERIES = [
+  { entityType: "EVENT", code: "UC", pattern: "UC{YYYY}{NNNNNN}" },
+  { entityType: "DOCUMENT", code: "FV", pattern: "FV{YYYY}{NNNN}" }, // faktura vydaná
+  { entityType: "DOCUMENT", code: "FP", pattern: "FP{YYYY}{NNNN}" }, // faktura přijatá
+  { entityType: "DOCUMENT", code: "PD", pattern: "PD{YYYY}{NNNN}" }, // pokladní doklad
+  { entityType: "DOCUMENT", code: "BV", pattern: "BV{YYYY}{NNNN}" }, // bankovní výpis
+  { entityType: "DOCUMENT", code: "ID", pattern: "ID{YYYY}{NNNN}" }, // interní doklad
+  { entityType: "ASSET", code: "MAJ", pattern: "MAJ{YYYY}{NNNN}" },
+  { entityType: "INVENTORY_COUNT", code: "INV", pattern: "INV{YYYY}{NNNN}" },
+] as const
+
+/**
+ * Idempotently insert every default series missing for the org. Gapless
+ * numbering is legally sensitive: this NEVER touches an existing row (no
+ * `next_number` reset, no pattern change) — it only adds series the org does
+ * not have yet. One INSERT…VALUES with `ON CONFLICT DO NOTHING` against the
+ * `number_series_org_entity_code_unique` constraint; returns the count
+ * actually inserted.
+ */
+export async function backfillDefaultNumberSeries(
+  db: RowExecutor,
+  ctx: OrgCtx,
+): Promise<number> {
+  const inserted = await rows<{ id: string }>(
+    db,
+    sql`INSERT INTO number_series (organization_id, entity_type, code, pattern, next_number)
+        VALUES ${sql.join(
+          DEFAULT_NUMBER_SERIES.map(
+            (s) =>
+              sql`(${ctx.organizationId}::uuid, ${s.entityType}, ${s.code}, ${s.pattern}, 1)`,
+          ),
+          sql`, `,
+        )}
+        ON CONFLICT (organization_id, entity_type, code) DO NOTHING
+        RETURNING id`,
+  )
+  return inserted.length
+}
+
 /** One účtový rozvrh per účetní období (§14/3). regime_code is GENERATED 'DOUBLE_ENTRY'. */
 export async function createChart(
   db: RowExecutor,

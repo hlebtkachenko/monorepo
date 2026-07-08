@@ -18,7 +18,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
-import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -38,108 +37,91 @@ import {
 } from "@workspace/ui/components/table"
 
 import { AppPageHeader } from "../../../_components/app-page-header"
-import type { PeriodRow } from "../_lib/settings-data"
-import { rollForwardAction } from "../actions"
+import type { NumberSeriesRow } from "../_lib/settings-data"
+import { backfillNumberSeriesAction } from "../actions"
 
-// Regime code → human label (matches the regime reference seed).
-const REGIME_LABEL: Record<string, string> = {
-  DOUBLE_ENTRY: "Podvojné účetnictví",
-  SINGLE_ENTRY: "Jednoduché účetnictví",
-  TAX_RECORDS: "Daňová evidence",
+// entity_type → human label (Czech domain terms, matches the capture layer).
+const ENTITY_TYPE_LABEL: Record<string, string> = {
+  EVENT: "Účetní případy",
+  DOCUMENT: "Doklady",
+  ASSET: "Majetek",
+  INVENTORY_COUNT: "Inventury",
 }
 
 /**
- * Periods & fiscal year — the účetní období list (newest first) plus a
- * "Roll forward" action on the latest OPEN period, which closes it and opens
- * the next one via `rollForwardPeriod`. A confirm dialog gates the write.
+ * Number series — the number_series list (read-only) plus a "Restore default
+ * series" action that backfills any missing default série via
+ * `backfillDefaultNumberSeries`. Gapless numbering is legally sensitive, so
+ * existing series are never edited or removed here — only additions.
  */
-export function PeriodsView({
+export function NumberSeriesView({
   slug,
-  periods,
+  rows,
   canEdit,
 }: {
   slug: string
-  periods: PeriodRow[]
+  rows: NumberSeriesRow[]
   canEdit: boolean
 }) {
   const router = useRouter()
   const [confirming, setConfirming] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
-  // The single OPEN period eligible to roll forward is the latest one; periods
-  // are ordered newest-first, so the first OPEN row is the target.
-  const rollTarget = periods.find((p) => p.status === "OPEN") ?? null
-
-  async function onRoll() {
-    if (!rollTarget) return
+  async function onBackfill() {
     setBusy(true)
-    const result = await rollForwardAction(slug, rollTarget.id)
+    const result = await backfillNumberSeriesAction(slug)
     setBusy(false)
     setConfirming(false)
     if (result.ok) {
-      toast.success("Period rolled forward")
+      toast.success(
+        result.added && result.added > 0
+          ? `Added ${result.added} series`
+          : "All default series already present",
+      )
       router.refresh()
     } else {
-      // Roll-forward opens the next year's EVENT/DOCUMENT series, so a missing
-      // number series is a common cause. Link straight to the remedy page.
-      toast.error("Could not roll the period forward", {
-        description: "Check the period is open and number series exist.",
-        action: {
-          label: "Number series",
-          onClick: () => router.push(`/${slug}/settings/number-series`),
-        },
-      })
+      toast.error("Could not restore default series")
     }
   }
 
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Periods & fiscal year" />
+        <ContentHeader title="Number series" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="3xl">
           <Card>
             <CardHeader>
               <CardTitle>
-                <h2>Účetní období</h2>
+                <h2>Číselné řady</h2>
               </CardTitle>
               <CardDescription>
-                Each fiscal year is one period; close the open one to roll the
-                next forward.
+                Number series are gapless and legally sensitive, so editing or
+                removing an existing series is intentionally not offered here.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              {periods.length > 0 ? (
+              {rows.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead>Start</TableHead>
-                      <TableHead>End</TableHead>
-                      <TableHead>Regime</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Pattern</TableHead>
+                      <TableHead>Next number</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {periods.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="tabular-nums">
-                          {p.periodStart}
-                        </TableCell>
-                        <TableCell className="tabular-nums">
-                          {p.periodEnd}
-                        </TableCell>
+                    {rows.map((r) => (
+                      <TableRow key={r.id}>
                         <TableCell className="text-muted-foreground">
-                          {REGIME_LABEL[p.regimeCode] ?? p.regimeCode}
+                          {ENTITY_TYPE_LABEL[r.entityType] ?? r.entityType}
                         </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              p.status === "OPEN" ? "default" : "secondary"
-                            }
-                          >
-                            {p.status}
-                          </Badge>
+                        <TableCell className="font-mono">{r.code}</TableCell>
+                        <TableCell className="font-mono">{r.pattern}</TableCell>
+                        <TableCell className="tabular-nums">
+                          {r.nextNumber}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -147,18 +129,19 @@ export function PeriodsView({
                 </Table>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No accounting periods yet.
+                  No number series yet.
                 </p>
               )}
 
-              {canEdit && rollTarget ? (
+              {canEdit ? (
                 <div className="flex items-center justify-end">
                   <Button
                     size="sm"
+                    variant="outline"
                     disabled={busy}
                     onClick={() => setConfirming(true)}
                   >
-                    Roll period forward
+                    Restore default series
                   </Button>
                 </div>
               ) : null}
@@ -170,11 +153,10 @@ export function PeriodsView({
       <AlertDialog open={confirming} onOpenChange={setConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Roll period forward?</AlertDialogTitle>
+            <AlertDialogTitle>Restore default series?</AlertDialogTitle>
             <AlertDialogDescription>
-              {rollTarget
-                ? `This closes the open period (${rollTarget.periodStart} to ${rollTarget.periodEnd}) and opens the next fiscal year. It cannot be undone here.`
-                : ""}
+              This adds any missing default series (UC, FV, FP, PD, BV, ID, MAJ,
+              INV). It never changes or removes an existing series.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -183,10 +165,10 @@ export function PeriodsView({
               disabled={busy}
               onClick={(e) => {
                 e.preventDefault()
-                void onRoll()
+                void onBackfill()
               }}
             >
-              {busy ? "Rolling…" : "Roll forward"}
+              {busy ? "Restoring…" : "Restore"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

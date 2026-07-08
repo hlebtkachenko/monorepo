@@ -23,6 +23,7 @@ import {
   createChart,
   seedChartFromDirectives,
   createNumberSeries,
+  DEFAULT_NUMBER_SERIES,
   createCounterparty,
   createCategory,
 } from "@workspace/accounting"
@@ -57,18 +58,6 @@ const NONPROFIT_FORMS: ReadonlySet<string> = new Set([
   "USTAV",
   "SVJ",
 ])
-
-/** Default číselné řady aligned to the capture layer's document kinds. */
-const DEFAULT_NUMBER_SERIES = [
-  { entityType: "EVENT", code: "UC", pattern: "UC{YYYY}{NNNNNN}" },
-  { entityType: "DOCUMENT", code: "FV", pattern: "FV{YYYY}{NNNN}" }, // faktura vydaná
-  { entityType: "DOCUMENT", code: "FP", pattern: "FP{YYYY}{NNNN}" }, // faktura přijatá
-  { entityType: "DOCUMENT", code: "PD", pattern: "PD{YYYY}{NNNN}" }, // pokladní doklad
-  { entityType: "DOCUMENT", code: "BV", pattern: "BV{YYYY}{NNNN}" }, // bankovní výpis
-  { entityType: "DOCUMENT", code: "ID", pattern: "ID{YYYY}{NNNN}" }, // interní doklad
-  { entityType: "ASSET", code: "MAJ", pattern: "MAJ{YYYY}{NNNN}" },
-  { entityType: "INVENTORY_COUNT", code: "INV", pattern: "INV{YYYY}{NNNN}" },
-] as const
 
 /** Default peněžní-deník categories for monetary regimes (daňové / nedaňové). */
 const DEFAULT_CATEGORIES = [

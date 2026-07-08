@@ -8,6 +8,7 @@ import "server-only"
 import { sql } from "drizzle-orm"
 import { executeRows, withAdminBypass, withOrganization } from "@workspace/db"
 import {
+  backfillDefaultNumberSeries,
   createVatStatus,
   rollForwardPeriod,
   type OrgCtx,
@@ -597,5 +598,59 @@ export async function rollForwardOrgPeriod(
       responsibleUserId: userId,
     })
     return { newPeriodId: res.newPeriodId }
+  })
+}
+
+export interface NumberSeriesRow {
+  id: string
+  entityType: string
+  code: string
+  pattern: string
+  nextNumber: number
+}
+
+/** The number_series list for the Number series settings page. */
+export async function loadNumberSeries(
+  ctx: OrgContext,
+  userId: string,
+): Promise<NumberSeriesRow[]> {
+  return await withOrganization(ctx.organizationId, userId, async (db) => {
+    const series = await executeRows<{
+      id: string
+      entity_type: string
+      code: string
+      pattern: string
+      next_number: number
+    }>(
+      db,
+      sql`SELECT id, entity_type, code, pattern, next_number::int
+          FROM number_series WHERE organization_id = ${ctx.organizationId}::uuid
+          ORDER BY entity_type, code`,
+    )
+    return series.map((s) => ({
+      id: s.id,
+      entityType: s.entity_type,
+      code: s.code,
+      pattern: s.pattern,
+      nextNumber: s.next_number,
+    }))
+  })
+}
+
+/**
+ * Restore any missing default číselné řady for the org. Conservative:
+ * existing series (and their next_number) are never touched — only the
+ * defaults the org doesn't already have get added. Returns the count inserted.
+ */
+export async function backfillOrgNumberSeries(
+  ctx: OrgContext,
+  userId: string,
+): Promise<number> {
+  return await withOrganization(ctx.organizationId, userId, (db) => {
+    const orgCtx: OrgCtx = {
+      organizationId: ctx.organizationId,
+      workspaceId: ctx.workspaceId,
+    }
+    return backfillDefaultNumberSeries(db, orgCtx)
   })
 }

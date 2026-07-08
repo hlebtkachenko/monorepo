@@ -49,7 +49,6 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           label: "Number series",
           href: `${base}/number-series`,
           icon: "HashIcon",
-          tba: true,
         },
         {
           label: "FX rates",

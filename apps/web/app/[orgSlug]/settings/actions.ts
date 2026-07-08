@@ -7,6 +7,7 @@ import { auth } from "@workspace/auth/server"
 import {
   addAuthorizedPerson,
   addOssRegistration,
+  backfillOrgNumberSeries,
   changeVatStatus,
   closeOssRegistration,
   removeAuthorizedPerson,
@@ -112,6 +113,26 @@ export async function rollForwardAction(
   }
   revalidatePath(`/${slug}/settings/periods`)
   return { ok: true }
+}
+
+/**
+ * Restore any missing default number series. Conservative by design: only
+ * adds series the org doesn't already have — never edits or removes an
+ * existing series (gapless numbering is legally sensitive).
+ */
+export async function backfillNumberSeriesAction(
+  slug: string,
+): Promise<SettingsResult & { added?: number }> {
+  const auth = await authorize(slug)
+  if (!auth) return { ok: false, errorKey: "forbidden" }
+  let added: number
+  try {
+    added = await backfillOrgNumberSeries(auth.ctx, auth.userId)
+  } catch {
+    return { ok: false, errorKey: "backfillFailed" }
+  }
+  revalidatePath(`/${slug}/settings/number-series`)
+  return { ok: true, added }
 }
 
 export async function changeVatStatusAction(

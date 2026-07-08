@@ -27,12 +27,18 @@
  *
  * Hodnota plnění is the base in accounting currency (CZK), no VAT (EU supplies are
  * osvobozené s nárokem). All money arithmetic in SQL (R13).
+ *
+ * buildSouhrnneHlaseni's optional `filingRange` narrows the aggregation to a
+ * filing period (calendar month/quarter) by the DUZP (accounting_event.
+ * occurred_at, §11/1e) — a souhrnné hlášení is filed per filing period, not
+ * per whole účetní období. Omitting it aggregates the whole accounting
+ * period, unchanged.
  */
 
 import { sql } from "drizzle-orm"
 import { rows } from "../sql"
 import type { RowExecutor } from "../sql"
-import type { Decimal } from "../types"
+import type { Decimal, FilingRange } from "../types"
 import { ISSUED_EU_SUPPLY_SH } from "./eu-supply-predicate"
 
 /** One souhrnné-hlášení line: member state + VAT id + kód + count + value. */
@@ -63,10 +69,14 @@ export interface SouhrnneHlaseni {
 export async function buildSouhrnneHlaseni(
   db: RowExecutor,
   periodId: string,
+  filingRange?: FilingRange,
 ): Promise<SouhrnneHlaseni> {
   // SERVICES → kód 3 (§9/1); goods and any NULL/undistinguished supply → kód 0
   // (§64). NULL falls to the ELSE branch, so legacy rows report kód 0 unchanged.
   const kodPlneni = sql`CASE WHEN pr.supply_kind = 'SERVICES' THEN '3' ELSE '0' END`
+  const filingRangeFilter = filingRange
+    ? sql`AND ae.occurred_at::date >= ${filingRange.from} AND ae.occurred_at::date <= ${filingRange.to}`
+    : sql``
   const shRows = await rows<ShRow>(
     db,
     sql`
@@ -86,6 +96,7 @@ export async function buildSouhrnneHlaseni(
          -- ř.20+ř.21 cannot diverge (#541). The vat_mode gate also excludes a
          -- STANDARD+EU distance sale / OUTSIDE_VAT+EU §10 service from the recap.
          AND ${ISSUED_EU_SUPPLY_SH}
+         ${filingRangeFilter}
        GROUP BY cp.country_code, cp.tax_id, ${kodPlneni}
        ORDER BY cp.tax_id, ${kodPlneni}`,
   )

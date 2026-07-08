@@ -76,6 +76,19 @@ export interface OrgCtx {
   workspaceId: string
 }
 
+/**
+ * A filing period (calendar month/quarter) date range, inclusive both ends.
+ * Shared by the VAT output builders (buildDph / buildKontrolniHlaseni /
+ * buildSouhrnneHlaseni) to narrow an aggregation to rows whose DPPD/DUZP
+ * (accounting_event.occurred_at, §11/1e okamžik uskutečnění) falls within
+ * [from, to]. Omitted → no extra predicate, aggregating the whole accounting
+ * period.
+ */
+export interface FilingRange {
+  from: string
+  to: string
+}
+
 // --- capture (UC-1 steps 1-3, all regimes) ---------------------------------
 
 /** An účetní případ (the economic fact, §6/1). number_series allocates the Označení. */

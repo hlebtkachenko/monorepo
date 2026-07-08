@@ -80,8 +80,14 @@ export function PeriodsView({
       toast.success("Period rolled forward")
       router.refresh()
     } else {
+      // Roll-forward opens the next year's EVENT/DOCUMENT series, so a missing
+      // number series is a common cause. Link straight to the remedy page.
       toast.error("Could not roll the period forward", {
         description: "Check the period is open and number series exist.",
+        action: {
+          label: "Number series",
+          onClick: () => router.push(`/${slug}/settings/number-series`),
+        },
       })
     }
   }

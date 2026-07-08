@@ -5,24 +5,15 @@ import {
   ContentPanel,
   RecordWorkspace,
 } from "@workspace/ui/blocks/app-content"
-import { Card, CardContent } from "@workspace/ui/components/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@workspace/ui/components/table"
+import { Card } from "@workspace/ui/components/card"
 
 import { AppPageHeader } from "../../../_components/app-page-header"
-import {
-  formatIsoDate,
-  type ClosingObligationStatus,
-  type ClosingObligationsResult,
+import type {
+  ClosingObligationStatus,
+  ClosingObligationsResult,
 } from "../_lib/closing-shared"
-import { ClosingStatusBadge } from "./closing-status-badge"
 import { ClosingStatusMessage } from "./closing-status-message"
+import { ObligationsTable } from "./obligations-table"
 
 const COUNT_ORDER: ClosingObligationStatus[] = [
   "Overdue",
@@ -94,61 +85,10 @@ export function ClosingOverviewView({
                 </p>
               ) : null}
 
-              {data.obligations.length > 0 ? (
-                <Card className="p-0">
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead>Obligation</TableHead>
-                          <TableHead>Period</TableHead>
-                          <TableHead>Due</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {data.obligations.map((o, i) => (
-                          <TableRow key={`${o.kind}-${o.periodStart}-${i}`}>
-                            <TableCell>
-                              <div className="flex flex-col gap-0.5">
-                                <span>
-                                  {o.title}
-                                  {o.conditional ? (
-                                    <span className="text-muted-foreground">
-                                      {" "}
-                                      · conditional
-                                    </span>
-                                  ) : null}
-                                </span>
-                                {o.conditional && o.note ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    {o.note}
-                                  </span>
-                                ) : null}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {o.periodLabel}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {formatIsoDate(o.dueDate)}
-                            </TableCell>
-                            <TableCell>
-                              <ClosingStatusBadge status={o.status} />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="p-6 text-sm text-muted-foreground">
-                    No statutory obligations for this period.
-                  </CardContent>
-                </Card>
-              )}
+              <ObligationsTable
+                rows={data.obligations}
+                emptyLabel="No statutory obligations for this period."
+              />
             </div>
           )}
         </RecordWorkspace>

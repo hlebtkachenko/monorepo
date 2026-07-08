@@ -12,8 +12,6 @@ export {
 } from "./deadlines"
 export {
   computeObligations,
-  type VatRegimeCode,
-  type PersonType,
   type ObligationCategory,
   type ObligationKind,
   type ObligationInput,

@@ -9,6 +9,11 @@
  * REVERSE_CHARGE receipt is derived as round(base × rate / 100, 2), the same
  * §37 convention used by the předkontace expander.
  *
+ * buildDph's optional `filingRange` narrows the aggregation to a filing
+ * period (calendar month/quarter) by the DUZP (accounting_event.occurred_at,
+ * §11/1e) — a přiznání k DPH is filed per filing period, not per whole účetní
+ * období. Omitting it aggregates the whole accounting period, unchanged.
+ *
  * Přiznání rows covered (§ ZDPH references in comments below):
  *   ř.1/2   dodání zboží/služeb, plátce, 21%/12%  (ISSUED, STANDARD)
  *   ř.3/4   pořízení zboží z JČS — samovyměření 21%/12% (RECEIVED, REVERSE_CHARGE,
@@ -53,7 +58,7 @@
 import { sql } from "drizzle-orm"
 import { one } from "../sql"
 import type { RowExecutor } from "../sql"
-import type { Decimal } from "../types"
+import type { Decimal, FilingRange } from "../types"
 import { ISSUED_EU_SUPPLY_DPH } from "./eu-supply-predicate"
 
 export interface DphRows {
@@ -165,10 +170,22 @@ export interface Dph {
   kh: KontrolniHlaseniTotals
 }
 
+/**
+ * @param filingRange Optional filing-period date range (inclusive), filtering
+ *   further to rows whose DUZP (accounting_event.occurred_at, okamžik
+ *   uskutečnění §11/1e) falls within [from, to]. A VAT return/KH/SH is filed
+ *   per calendar month or quarter, not per whole účetní období — pass the
+ *   filing period's bounds here to scope the aggregation to it. Omitted →
+ *   aggregates the WHOLE accounting period (the v1 API behavior, unchanged).
+ */
 export async function buildDph(
   db: RowExecutor,
   periodId: string,
+  filingRange?: FilingRange,
 ): Promise<Dph> {
+  const filingRangeFilter = filingRange
+    ? sql`AND ae.occurred_at::date >= ${filingRange.from} AND ae.occurred_at::date <= ${filingRange.to}`
+    : sql``
   const r = await one<DphRows & KontrolniHlaseniTotals>(
     db,
     sql`
@@ -185,7 +202,9 @@ export async function buildDph(
           FROM partial_record pr
           JOIN individual_record ir ON ir.id = pr.individual_record_id
           JOIN summary_record s     ON s.id = ir.summary_record_id
+          JOIN accounting_event ae ON ae.id = ir.accounting_event_id
          WHERE s.period_id = ${periodId}::uuid
+         ${filingRangeFilter}
       )
       SELECT
         -- ř.1/2 — ISSUED, STANDARD, 21%/12%

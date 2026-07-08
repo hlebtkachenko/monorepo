@@ -28,16 +28,14 @@
  * is the correct answer, not a placeholder gap.
  */
 
-import type { VatFilingPeriod } from "../types"
+import type { PersonType, VatFilingPeriod, VatRegime } from "../types"
 import { payrollMonthlyDeadline, vatMonthlyDeadline } from "./deadlines"
 
-// VatFilingPeriod is reused from ./types (identical "MONTHLY" | "QUARTERLY",
-// backed by the DB pgEnum) via a type-only import — erased at compile, so the
-// pure engine keeps no runtime DB dependency. A second local copy would be
-// exported-but-unused (knip), since the package index already re-exports the
-// ./types one.
-export type VatRegimeCode = "NON_PAYER" | "PAYER" | "IDENTIFIED_PERSON"
-export type PersonType = "NATURAL" | "LEGAL"
+// VatRegime, VatFilingPeriod, and PersonType are reused from ./types
+// (identical unions, each backed by a DB pgEnum/reference table) via
+// type-only imports — erased at compile, so the pure engine keeps no runtime
+// DB dependency. Local copies would be exported-but-unused (knip), since the
+// package index already re-exports the ./types ones.
 
 export type ObligationCategory = "VAT" | "PAYROLL"
 
@@ -54,7 +52,7 @@ export interface ObligationInput {
   periodStart: string
   /** ISO date — the annual accounting_period end. */
   periodEnd: string
-  vatRegimeCode: VatRegimeCode | null
+  vatRegimeCode: VatRegime | null
   /** null unless vatRegimeCode === "PAYER". */
   vatFilingPeriod: VatFilingPeriod | null
   personType: PersonType
@@ -253,6 +251,13 @@ export function computeObligations(input: ObligationInput): Obligation[] {
     }
   } else if (isVatPayer && input.vatFilingPeriod === "QUARTERLY") {
     obligations.push(...quarterlyObligations("VAT_RETURN", months, input))
+  } else if (isVatPayer) {
+    // Defensive: the top-of-function guard only rules out null, so a future
+    // third VatFilingPeriod enum value would otherwise silently fall through
+    // and emit no VAT_RETURN for a payer instead of failing loudly.
+    throw new Error(
+      `Unhandled VAT filing period for a PAYER: ${String(input.vatFilingPeriod)}`,
+    )
   }
 
   // VAT_RETURN — identified persons file conditionally (§101 odst. 5 ZDPH):

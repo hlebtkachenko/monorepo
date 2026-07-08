@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **closing**: filing-period-aware VAT output builders (přiznání k DPH / KH / SH scoped to a filing month or quarter by the DUZP, `accounting_event.occurred_at`) and real Closing VAT pages (return / control statement / EC sales list) computing each selected filing period's figures. (#601)
 - **closing**: statutory obligation + deadline engine (monthly/quarterly VAT return / KH / SH / payroll, business-day-shifted per the Czech holiday calendar) and real Closing Overview + Calendar computed from the active accounting period. (#598)
 - **web/accounting**: organization page data now carries the active accounting period through the server data path, replacing the remaining mock-period assumptions in that flow. (#593)
 - **web/settings**: Settings > Number series now uses the real number-series surface and includes the restore-defaults backfill for the accounting-period mechanism. (#594)

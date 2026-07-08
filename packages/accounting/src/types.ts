@@ -34,6 +34,7 @@ import type {
   assetCategory,
   depreciationMethod,
   vatFilingPeriod,
+  personType,
 } from "@workspace/db/schema"
 
 // --- enum unions -----------------------------------------------------------
@@ -43,6 +44,8 @@ export type Regime = "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS"
 /** vat_regime.code reference table (§6/§6f/§97 ZDPH). */
 export type VatRegime = "NON_PAYER" | "PAYER" | "IDENTIFIED_PERSON"
 export type VatFilingPeriod = (typeof vatFilingPeriod.enumValues)[number]
+/** organization.person_type (generated column, §13/§13b legal vs. natural person). */
+export type PersonType = (typeof personType.enumValues)[number]
 export type PeriodStatus = (typeof periodStatus.enumValues)[number]
 export type SummaryRecordType = (typeof summaryRecordType.enumValues)[number]
 export type VatMode = (typeof vatMode.enumValues)[number]
@@ -74,6 +77,19 @@ export type Decimal = string
 export interface OrgCtx {
   organizationId: string
   workspaceId: string
+}
+
+/**
+ * A filing period (calendar month/quarter) date range, inclusive both ends.
+ * Shared by the VAT output builders (buildDph / buildKontrolniHlaseni /
+ * buildSouhrnneHlaseni) to narrow an aggregation to rows whose DPPD/DUZP
+ * (accounting_event.occurred_at, §11/1e okamžik uskutečnění) falls within
+ * [from, to]. Omitted → no extra predicate, aggregating the whole accounting
+ * period.
+ */
+export interface FilingRange {
+  from: string
+  to: string
 }
 
 // --- capture (UC-1 steps 1-3, all regimes) ---------------------------------

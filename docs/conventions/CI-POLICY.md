@@ -22,6 +22,9 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `commitlint` (posts as `lint`)                        | required [^6]                | required                    |
 | `actionlint`                                          | advisory, path-filtered [^7] | required (via shim)         |
 | `zizmor` (workflow lint)                              | advisory                     | required                    |
+| `shellcheck`                                          | required                     | required                    |
+| `cdk-synth-strict (staging)`                          | required                     | required                    |
+| `cdk-synth-strict (production)`                       | required                     | required                    |
 | `codeql` (posts as `Analyze (javascript-typescript)`) | required [^6]                | required                    |
 | `dependency-review` (posts as `review`)               | required [^6]                | required                    |
 | `gitleaks`                                            | required                     | required                    |

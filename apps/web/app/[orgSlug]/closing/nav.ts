@@ -80,17 +80,14 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Income tax",
           href: `${base}/income-tax`,
           icon: "Calculator",
-          tba: true,
           subpages: [
             {
               label: "Corporation tax",
               href: `${base}/income-tax/dppo`,
-              tba: true,
             },
             {
               label: "Personal income tax",
               href: `${base}/income-tax/dpfo`,
-              tba: true,
             },
             {
               label: "Advances",

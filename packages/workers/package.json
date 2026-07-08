@@ -21,13 +21,13 @@
     "@workspace/notify": "workspace:*",
     "@workspace/observability": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "pg-boss": "^12.19.1"
+    "pg-boss": "^12.23.0"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.0.1",
     "eslint": "^9.39.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

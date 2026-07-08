@@ -47,7 +47,7 @@ Production runs on AWS eu-central-1.
 
 - No IAM users for humans, ever. Identity Center built-in identity store (SAML federation deferred).
 - No long-lived AWS access keys. GitHub OIDC only, environment-scoped trust policies (NOT branch-scoped).
-- Customer-managed KMS keys are used for deployed data domains that require KMS-backed encryption.
-- CloudTrail records single-region management events for forensics.
+- Customer-managed KMS keys per data domain.
+- CloudTrail org trail to S3 with Object Lock (Compliance, 7-year retention, MFA Delete).
 
 See `docs/specs/OIDC-TRUST.md` and `docs/runbooks/SECRETS.md` for details.

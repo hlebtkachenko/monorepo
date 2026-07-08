@@ -34,8 +34,7 @@ A dedicated `docs.afframe.com` host was planned and reverted on
 2026-05-21. The Scalar API Reference mounted at `api.afframe.com/` IS
 the developer documentation. See
 [ADR-0024 Amendment 2026-05-21](adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted)
-and [AFF-88](https://linear.app/hapddev/issue/AFF-88) for the open
-question on if/when to revisit.
+and the Roadmap project for the open question on if/when to revisit.
 
 Email:
 

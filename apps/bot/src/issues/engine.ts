@@ -1,19 +1,23 @@
 import type { Store } from "../state/store.js"
-import type { LinearClient } from "./linear.js"
+import type { GitHubIssueClient } from "./github.js"
 import type { IssueEvent, IssueResult } from "./types.js"
 import { fingerprint } from "./fingerprint.js"
-import { INCIDENTS_PROJECT_ID, labelsFor, titlePrefix } from "./labels.js"
+import {
+  labelsFor,
+  type ProjectFieldConfig,
+  projectFieldsFor,
+  titlePrefix,
+} from "./labels.js"
 
 export interface EngineDeps {
   store: Store
-  linear: LinearClient
-  teamId: string
+  issues: GitHubIssueClient
+  repo: string
+  projectId?: string
+  projectFieldConfig?: ProjectFieldConfig
+  parentIssueNumber?: number
   /** Injected clock for testability. */
   now: () => number
-}
-
-function issueUrl(identifier: string): string {
-  return `https://linear.app/hapddev/issue/${identifier}`
 }
 
 function renderLinks(links?: { label: string; url: string }[]): string {
@@ -22,8 +26,8 @@ function renderLinks(links?: { label: string; url: string }[]): string {
 }
 
 /**
- * Create a deduped Linear issue for an event, or comment + bump an existing one.
- * Returns null if the Linear create failed (so callers can fall back to a plain ping).
+ * Create a deduped GitHub issue for an event, or comment + bump an existing one.
+ * Returns null if issue creation failed, so callers can fall back to a plain ping.
  */
 export async function processEvent(
   e: IssueEvent,
@@ -35,7 +39,7 @@ export async function processEvent(
   const existing = await deps.store.getDedup(fp)
   if (existing) {
     const count = await deps.store.bumpDedup(fp, now)
-    await deps.linear.addComment(
+    await deps.issues.addComment(
       existing.issueId,
       `↩︎ Recurred (occurrence #${count})\n\n${e.body}${renderLinks(e.links)}`,
     )
@@ -44,19 +48,20 @@ export async function processEvent(
       issueId: existing.issueId,
       identifier: existing.identifier,
       count,
-      url: issueUrl(existing.identifier),
+      url: `https://github.com/${deps.repo}/issues/${existing.issueId}`,
       fingerprint: fp,
     }
   }
 
   const title = `${titlePrefix(e.source)} ${e.title}`
   const description = `${e.body}${renderLinks(e.links)}\n\n_fingerprint: ${fp}_`
-  const issue = await deps.linear.createIssue({
-    teamId: deps.teamId,
-    projectId: INCIDENTS_PROJECT_ID,
+  const issue = await deps.issues.createIssue({
     title,
-    description,
-    labelIds: labelsFor(e),
+    body: description,
+    labels: labelsFor(e),
+    projectId: deps.projectId,
+    projectFields: projectFieldsFor(e, deps.projectFieldConfig),
+    parentIssueNumber: deps.parentIssueNumber,
   })
   if (!issue) return null
 

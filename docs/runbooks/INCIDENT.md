@@ -28,9 +28,9 @@ ntfy.sh. The real paths today:
    topics fan out to the operator email (repo secret `EMAIL_FORWARD_TO`,
    deliberately never committed) and an HTTPS subscription
    to the Telegram bot (`bot.afframe.com/sns`) which pings Telegram.
-2. **App error → Telegram + Linear.** Unhandled api `/v1` errors
+2. **App error → Telegram + GitHub Issues.** Unhandled api `/v1` errors
    (`DomainExceptionFilter`) and browser-side web errors
-   (`/api/client-error`) POST to the bot, which creates/dedupes a Linear
+   (`/api/client-error`) POST to the bot, which creates/dedupes a GitHub
    issue and pings Telegram. (Web server-side, admin, and non-`/v1` api
    errors are NOT yet covered.)
 3. **Customer report / own observation** (status page, smoke check).
@@ -44,10 +44,11 @@ Paging = the Telegram bot to Hleb's phone. No paid pager service today
 2. Ack: respond in Telegram / note the alarm. Solo rota: Hleb is
    Incident Commander by default.
 3. Classify SEV1 / 2 / 3 within 30 minutes.
-4. Open a Linear issue (team `DEV`, label `incident`) titled
-   `inc-YYYYMMDD-<slug>` as the audit trail — the bot may already have
-   created one from the error path; use it. Live notes there: timeline,
-   hypothesis, action.
+4. Open a GitHub issue titled `inc-YYYYMMDD-<slug>` as the audit trail.
+   Add it to the active incident/project board if one is configured, with
+   Type `fix` or `security` and Priority `Urgent` or `High` as appropriate.
+   The bot may already have created one from an explicit error path; use it.
+   Live notes there: timeline, hypothesis, action.
 5. Status page `https://status.afframe.com` updated within 15 minutes
    for SEV1/2 — see [STATUS-PAGE.md](STATUS-PAGE.md). (The status page
    runs on the OVH VPS, a separate failure domain from AWS.)

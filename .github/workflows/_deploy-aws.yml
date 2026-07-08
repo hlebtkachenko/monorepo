@@ -773,6 +773,9 @@ jobs:
             BUILD_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.repository.updated_at }}
             BUILD_VERSION=${{ steps.ver.outputs.value }}
+            GITHUB_REPOSITORY=${{ github.repository }}
+            SOURCE_REPOSITORY_URL=https://github.com/${{ github.repository }}
+            GITHUB_PROJECT_URL=${{ vars.ADMIN_GITHUB_PROJECT_URL }}
 
       # CVE gate: wait for ECR's scanOnPush to finish, fail on CRITICAL.
       # ECR Basic scanning takes ~30-90s after push. The wait + describe

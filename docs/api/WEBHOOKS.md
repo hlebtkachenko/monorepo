@@ -2,7 +2,7 @@
 
 > **[Concept]** Not implemented. Tracked under the developer-platform initiative ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
 
-The webhook contract for `api.afframe.com/v1`. Adopts the [Standard Webhooks](https://www.standardwebhooks.com/) spec (Svix-led; used by Resend, Linear, Lob, Brex). Consumers built against this contract are portable across whichever webhook backend Afframe runs.
+The webhook contract for `api.afframe.com/v1`. Adopts the [Standard Webhooks](https://www.standardwebhooks.com/) spec (Svix-led; used by Resend, Lob, Brex). Consumers built against this contract are portable across whichever webhook backend Afframe runs.
 
 ---
 

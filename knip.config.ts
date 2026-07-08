@@ -22,7 +22,7 @@ const config: KnipConfig = {
   workspaces: {
     ".": {
       // Governance scripts are spawned as child processes by string path
-      // (e.g. scripts/governance/apply-linear-context.mjs execs linear-fetch.mjs),
+      // (e.g. apply-github-issue-context.mjs execs github-issue-fetch.mjs),
       // invisible to knip's import graph.
       entry: ["scripts/*.mjs", "scripts/**/*.mjs"],
       // `pnpm e2e` runs with working-directory apps/web (.github/workflows/e2e.yml);

@@ -17,12 +17,12 @@ interface ClientErrorBody {
 }
 
 // Same-origin sink for browser errors. Holds the bot secret server-side and opens a deduped
-// Linear issue (with an Open button) via the bot's /issue. Fire-and-forget; never blocks or
+// GitHub issue (with an Open button) via the bot's /issue. Fire-and-forget; never blocks or
 // leaks the secret. Framework control-flow signals (NEXT_REDIRECT, etc.) are dropped — a
 // normal login redirect is not an error.
 //
 // Abuse hardening (OBS-14) — this is an unauthenticated public POST that fans out to
-// Linear + Telegram, so two cheap gates run before any work:
+// GitHub Issues + Telegram, so two cheap gates run before any work:
 //   1. Same-origin check: legit calls come only from our own pages via
 //      `reportClientError` (fetch sends `Sec-Fetch-Site: same-origin` and, for POSTs,
 //      an Origin header). Cross-site browser calls are rejected outright.
@@ -43,7 +43,7 @@ const allowByRate = createRateLimiter({
 // Next.js redacts server-component error messages in production builds, so
 // ALL distinct RSC errors arrive with this one generic message. When it
 // matches, the digest is the only distinguishing datum and must join the
-// fingerprint or every server error dedups into a single Linear issue (OBS-05).
+// fingerprint or every server error dedups into a single GitHub issue (OBS-05).
 const NEXT_REDACTED_RE = /Server Components render/
 
 export async function POST(req: Request): Promise<Response> {

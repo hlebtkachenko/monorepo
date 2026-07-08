@@ -624,7 +624,7 @@ pnpm --filter @workspace/cdk exec cdk destroy App-staging --context env=staging
 
 ## Follow-up: per-tenant role split (LANDED — pgbouncer dual-user)
 
-The role split landed via Linear AFF-206. Web + admin authenticate to
+The role split landed via legacy AFF-206. Web + admin authenticate to
 pgbouncer as `app_user` (LOGIN, RLS applies); api stays on `app_owner`
 direct via `DATABASE_DIRECT_URL` because pg-boss needs advisory locks +
 LISTEN/NOTIFY (incompatible with pgbouncer transaction mode).

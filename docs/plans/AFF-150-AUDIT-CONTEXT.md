@@ -3,10 +3,10 @@
 > **Purpose:** durable cross-session context for the AFF-150 staging cleanup work.
 > Written 2026-05-18 after the morning's two deploys (commits `58df063` + `4ec2778`)
 > so a fresh Claude session can pick up without re-reading the entire repo. Includes
-> dependency graphs, debug map, Linear state, staging access model, and the audit
+> dependency graphs, debug map, legacy tracker state, staging access model, and the audit
 > punch-list.
 >
-> **Tracked in Linear:** [AFF-150](https://linear.app/hapddev/issue/AFF-150). When that
+> **Tracked in GitHub Issues:** legacy AFF-150. When that
 > issue closes, delete this file (per `docs/plans/README.md` convention).
 >
 > **Source audit file (gitignored):** `.context/attachments/aff-150-session-audit.md`.
@@ -159,8 +159,8 @@ If staging is rebuilt or production is provisioned, both must be re-applied OR t
 
 ## 3. AFF-150 outstanding work (the original ticket)
 
-[AFF-150](https://linear.app/hapddev/issue/AFF-150) — **Post-deploy: seed Development Afframe + Support Afframe workspaces on staging**
-Status: Backlog. Priority: High (P2). Estimate: 1pt. Parent: [AFF-39](https://linear.app/hapddev/issue/AFF-39). Branch: `sso/aff-150-post-deploy-seed-development-afframe-support-afframe`.
+legacy AFF-150 — **Post-deploy: seed Development Afframe + Support Afframe workspaces on staging**
+Status: Backlog. Priority: High (P2). Estimate: 1pt. Parent: legacy AFF-39. Branch: `sso/aff-150-post-deploy-seed-development-afframe-support-afframe`.
 
 ### Outcome wanted
 
@@ -169,7 +169,7 @@ expects, plus owner `workspace_membership` rows for `developer@hapdglobal.com`.
 Signing into `admin-staging.afframe.com` then passes the `userIsAllowlisted` gate
 and renders the staff surface.
 
-### Canonical UUIDs (from Linear, ALREADY in `vars.ADMIN_WORKSPACE_ALLOWLIST`)
+### Canonical UUIDs (from the legacy tracker, ALREADY in `vars.ADMIN_WORKSPACE_ALLOWLIST`)
 
 | Workspace           | UUID                                   |
 | ------------------- | -------------------------------------- |
@@ -210,7 +210,7 @@ and renders the staff surface.
    GUC set — wrap in `SET LOCAL app.app_user_role_name = 'app_user';` before the inserts.
 
 3. **Sanity-check** login at `https://admin-staging.afframe.com` succeeds (gate passes).
-4. **Close [AFF-150](https://linear.app/hapddev/issue/AFF-150).**
+4. **Close legacy AFF-150.**
 
 ### Alternative path
 
@@ -471,7 +471,7 @@ Three sites depend on `APP_BUCKET` on the **web** task: upload route, profile pa
 | **Bastion script** (`scripts/staging-bastion-migrate.sh`) | Ephemeral EC2 + SSM port-forward → run migrations OR ad-hoc SQL (after audit #7 fix to inject `CMD`)                            |
 | **`gh` CLI**                                              | Dispatch workflows (`gh workflow run _deploy-aws.yml`), set repo vars (`gh variable set`)                                       |
 | **CloudWatch Logs**                                       | Stream web / api / admin / pgbouncer logs live                                                                                  |
-| **Linear MCP**                                            | Read + edit AFF issues, manage Cleanup project, file new issues                                                                 |
+| **GitHub MCP**                                            | Read + edit AFF issues, manage Cleanup project, file new issues                                                                 |
 
 ### 6.3 Change vectors
 
@@ -503,7 +503,7 @@ Three sites depend on `APP_BUCKET` on the **web** task: upload route, profile pa
 
 ---
 
-## 7. Linear context
+## 7. legacy tracker context
 
 ### 7.1 AFF-150 (parent: AFF-39)
 
@@ -528,7 +528,7 @@ See section 3.
 | No auto-deploy after merge    | `~/.claude/projects/.../memory/feedback_no_auto_deploy.md`       | Never trigger AWS deploy post-merge without explicit user ask                                                    |
 | Act on full research          | `~/.claude/projects/.../memory/feedback_act_on_full_research.md` | After research, restate full findings and explicitly defer the ones you're not doing; don't silently cherry-pick |
 | Conductor worktree git safety | `~/.claude/projects/.../memory/conductor-worktree-git-safety.md` | Never background mutating git commands in parallel worktrees                                                     |
-| Branch recovery cleanup       | `~/.claude/projects/.../memory/branch-recovery-cleanup.md`       | Linear Cleanup project AFF-5..AFF-22 + durable planning docs location                                            |
+| Branch recovery cleanup       | `~/.claude/projects/.../memory/branch-recovery-cleanup.md`       | legacy cleanup tracker AFF-5..AFF-22 + durable planning docs location                                            |
 | Project positioning           | `~/.claude/projects/.../memory/project-positioning.md`           | Agent-native, not AI-native, Czech accounting platform                                                           |
 
 ---

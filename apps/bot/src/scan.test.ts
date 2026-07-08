@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest"
-import {
-  renderBriefing,
-  renderScanReport,
-  scanToIssue,
-  type ScanPoint,
-} from "./scan.js"
+import { renderBriefing, renderScanReport, type ScanPoint } from "./scan.js"
 
 const green: ScanPoint[] = [
   { name: "api", ok: true, detail: "HTTP 200" },
@@ -20,6 +15,7 @@ describe("renderScanReport", () => {
     const r = renderScanReport(green)
     expect(r).toContain("all green")
     expect(r).toContain("✅ api")
+    expect(r).toContain("heartbeats fresh")
   })
   it("flags issues with red markers", () => {
     const r = renderScanReport(red)
@@ -29,37 +25,27 @@ describe("renderScanReport", () => {
   it("uses the bonus header on demand", () => {
     expect(renderScanReport(green, true)).toContain("Bonus")
   })
-})
-
-describe("renderBriefing", () => {
-  it("summarises health, incidents and heartbeats (all clear)", () => {
-    const r = renderBriefing(green, [], [])
-    expect(r).toContain("Daily briefing")
-    expect(r).toContain("all endpoints green")
-    expect(r).toContain("no tracked incidents")
-    expect(r).toContain("heartbeats fresh")
-  })
-  it("flags down endpoints, open incidents and stale heartbeats", () => {
-    const r = renderBriefing(
-      red,
-      [{ identifier: "DEV-1", count: 3 }],
-      [{ key: "dast", label: "Nightly DAST", maxAgeMs: 1 }],
-    )
-    expect(r).toContain("down: api")
-    expect(r).toContain("DEV-1×3")
+  it("includes stale heartbeat details in the report", () => {
+    const r = renderScanReport(green, false, [
+      { key: "dast", label: "Nightly DAST", maxAgeMs: 1 },
+    ])
     expect(r).toContain("stale: dast")
   })
 })
 
-describe("scanToIssue", () => {
-  it("returns null when all green", () => {
-    expect(scanToIssue(green)).toBeNull()
+describe("renderBriefing", () => {
+  it("summarises health and heartbeats (all clear)", () => {
+    const r = renderBriefing(green, [])
+    expect(r).toContain("Daily briefing")
+    expect(r).toContain("all endpoints green")
+    expect(r).toContain("heartbeats fresh")
   })
-  it("returns an observability event listing down points with a stable fingerprint", () => {
-    const e = scanToIssue(red)
-    expect(e?.area).toBe("observability")
-    expect(e?.risk).toBe("high")
-    expect(e?.title).toContain("api")
-    expect(e?.fingerprintParts).toEqual(["health-scan", "api"])
+  it("flags down endpoints and stale heartbeats in one message", () => {
+    const r = renderBriefing(red, [
+      { key: "dast", label: "Nightly DAST", maxAgeMs: 1 },
+    ])
+    expect(r).toContain("down: api")
+    expect(r).toContain("api: HTTP 503")
+    expect(r).toContain("stale: dast")
   })
 })

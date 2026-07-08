@@ -39,20 +39,20 @@ A secret is **data that grants access to something**. Not all sensitive data is 
 
 Real categories you already have or will soon:
 
-| Type                                     | Examples (yours)                                        | Sensitivity     | Lifetime expectation                                                    |
-| ---------------------------------------- | ------------------------------------------------------- | --------------- | ----------------------------------------------------------------------- |
-| **Database credentials**                 | RDS master password, `app_user` password                | 🔴 critical     | Rotate every 90 days (automated by AWS Lambda is best)                  |
-| **Session signing keys**                 | `BETTER_AUTH_SECRET`, future `JWT_SECRET`               | 🔴 critical     | Rotate only on suspected compromise (rotation invalidates all sessions) |
-| **External SaaS API keys**               | `RESEND_API_KEY`, `ANTHROPIC_API_KEY`, `LINEAR_API_KEY` | 🟠 high         | Quarterly manual rotation, or on compromise                             |
-| **Webhook signing secrets**              | `whsec_...` (Standard Webhooks format)                  | 🟠 high         | Annual rotation, coordinated with consumer                              |
-| **Your own API keys issued to partners** | `affk_live_...`, `affk_test_...`                        | 🟠 high         | Per-customer, customer-controllable                                     |
-| **Tunnel / connectivity tokens**         | `CLOUDFLARE_TUNNEL_TOKEN_*`                             | 🟠 high         | Rotate annually or on compromise                                        |
-| **OAuth client secrets**                 | Google/GitHub OAuth (when you add SSO)                  | 🟠 high         | Annual rotation                                                         |
-| **Personal Access Tokens (PATs)**        | `LINEAR_API_KEY`, GitHub PAT (avoid these — use Apps)   | 🟡 medium       | Die with the human owner                                                |
-| **Workload identity credentials**        | ECS task role, GitHub Actions OIDC                      | 🟢 ephemeral    | Auto-rotated by cloud provider (1-12h TTL) — best class                 |
-| **Encryption keys (for other secrets)**  | `ENCRYPTION_KEY` for Infisical, KMS CMK                 | 🔴 catastrophic | Rotate annually, plan re-encryption ceremony                            |
-| **SSH keys**                             | VPS SSH key                                             | 🟠 high         | Replace on departure / device loss                                      |
-| **DKIM / DMARC keys**                    | Email signing keys at Resend                            | 🟡 medium       | Annual rotation aligned with Resend                                     |
+| Type                                     | Examples (yours)                                             | Sensitivity     | Lifetime expectation                                                    |
+| ---------------------------------------- | ------------------------------------------------------------ | --------------- | ----------------------------------------------------------------------- |
+| **Database credentials**                 | RDS master password, `app_user` password                     | 🔴 critical     | Rotate every 90 days (automated by AWS Lambda is best)                  |
+| **Session signing keys**                 | `BETTER_AUTH_SECRET`, future `JWT_SECRET`                    | 🔴 critical     | Rotate only on suspected compromise (rotation invalidates all sessions) |
+| **External SaaS API keys**               | `RESEND_API_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_ISSUES_TOKEN` | 🟠 high         | Quarterly manual rotation, or on compromise                             |
+| **Webhook signing secrets**              | `whsec_...` (Standard Webhooks format)                       | 🟠 high         | Annual rotation, coordinated with consumer                              |
+| **Your own API keys issued to partners** | `affk_live_...`, `affk_test_...`                             | 🟠 high         | Per-customer, customer-controllable                                     |
+| **Tunnel / connectivity tokens**         | `CLOUDFLARE_TUNNEL_TOKEN_*`                                  | 🟠 high         | Rotate annually or on compromise                                        |
+| **OAuth client secrets**                 | Google/GitHub OAuth (when you add SSO)                       | 🟠 high         | Annual rotation                                                         |
+| **Personal Access Tokens (PATs)**        | `GITHUB_ISSUES_TOKEN`, GitHub PAT (avoid these — use Apps)   | 🟡 medium       | Die with the human owner                                                |
+| **Workload identity credentials**        | ECS task role, GitHub Actions OIDC                           | 🟢 ephemeral    | Auto-rotated by cloud provider (1-12h TTL) — best class                 |
+| **Encryption keys (for other secrets)**  | `ENCRYPTION_KEY` for Infisical, KMS CMK                      | 🔴 catastrophic | Rotate annually, plan re-encryption ceremony                            |
+| **SSH keys**                             | VPS SSH key                                                  | 🟠 high         | Replace on departure / device loss                                      |
+| **DKIM / DMARC keys**                    | Email signing keys at Resend                                 | 🟡 medium       | Annual rotation aligned with Resend                                     |
 
 ## 3. Format conventions — why secrets have funny prefixes
 

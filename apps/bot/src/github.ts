@@ -187,5 +187,5 @@ export function createGitHubClient(
 }
 
 export function repoOf(env: { GITHUB_REPO?: string }): string {
-  return env.GITHUB_REPO ?? "hlebtkachenko/monorepo"
+  return env.GITHUB_REPO?.trim() ?? ""
 }

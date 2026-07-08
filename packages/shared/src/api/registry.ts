@@ -521,8 +521,8 @@ registry.registerPath({
   description:
     "Submit a bug report, feature request, process issue, or question. " +
     "The api forwards every submission to `support+feedback@afframe.com` " +
-    "and creates a Linear issue tagged with the feedback type. Public — " +
-    "no API key required.",
+    "and asks the bot to create or dedup a GitHub issue when issue reporting " +
+    "is configured. Public — no API key required.",
   tags: ["Feedback"],
   request: {
     body: {

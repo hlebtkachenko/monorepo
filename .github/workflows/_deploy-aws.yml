@@ -422,7 +422,7 @@ jobs:
           fi
 
           # Migrations gate — independent of the per-service build matrix.
-          if echo "$diff" | grep -qE '^packages/db/migrations/'; then
+          if grep -qE '^packages/db/migrations/' <<< "$diff"; then
             MIGRATIONS_CHANGED=true
             echo "Migration files changed — migrations step will run."
           else
@@ -451,7 +451,7 @@ jobs:
           # Fallback safety: pnpm-lock.yaml or .github/actions/setup change
           # affects every service (different node_modules graph). Turbo
           # picks these up via globalDependencies/inputs but be explicit.
-          if echo "$diff" | grep -qE '^(pnpm-lock\.yaml$|\.github/actions/setup/)'; then
+          if grep -qE '^(pnpm-lock\.yaml$|\.github/actions/setup/)' <<< "$diff"; then
             echo "Lockfile or setup-action changed — building all services."
             built=("${all_services[@]}")
           fi
@@ -466,7 +466,7 @@ jobs:
 
           echo "Services to build: ${built[*]}"
           echo "Files (first 20):"
-          echo "$diff" | head -20
+          sed -n '1,20p;20q' <<< "$diff"
           emit_legacy false "sha-$GITHUB_SHA" "$LAST_SHA"
           emit_services "${built[@]}"
           emit_per_service_tags "sha-$GITHUB_SHA" "${built[@]}"

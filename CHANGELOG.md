@@ -6,6 +6,22 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.16.11] — 2026-07-08
+
+Patch release: Afframe Brain platform-documentation integration + a pre-launch write-lane deploy default + a dev-dependency sweep. No product or runtime change; the Brain write lane stays HELD at cold start.
+
+### Docs
+
+- **brain**: weave Afframe Brain into the platform docs so it is no longer orphaned — `README.md` + `ARCHITECTURE.md` gain the `brain` package, the `apps/mcp`/`apps/cli` Brain role, and a Brain subsystem section; `docs/START-HERE.md`, `docs/README.md`, and `AGENTS.md` link the Brain docs; the stale `packages/brain/README.md` + `ARCHITECTURE.md` (which described the dropped in-process/worker design) get staleness banners. Adds `docs/AFFRAME-BRAIN-STATUS.md`, a tracked v1 status/roadmap tracker (M1–M4 done/outstanding, the engineering-done boundary, what's deferred to v2, and the open GitHub issues that gate each piece). Registers the two missing material ICT assets in the DORA register (`docs/INVENTORY.md`): the Anthropic Claude API and the Brain local operator client. Verified by two independent top-tier advisor passes. (#589)
+
+### Changed
+
+- **ci**: the `_deploy-aws.yml` `brain_runtime_active` input now defaults to `1` for the pre-launch period, so a deploy that omits it keeps the `/v1/accounting` write admission lane ON instead of silently killing it (v0.16.9 omitted it and every write 429'd). This does not enable auto-apply — the cold-start `extraction_failed` floor still HELDs every write. Revert the default to explicit at launch (ADR-0028). (#584)
+
+### Dependencies
+
+- **deps-dev**: dev-dependencies group bump (10 updates: `prettier` 3.8→3.9, `turbo` 2.9→2.10, `shadcn`, `knip`, and others), lockfile deduped. (#587)
+
 ## [v0.16.10] — 2026-07-08
 
 Patch release: Afframe Brain documentation + an operator-env fix. Two A-Z docs (a one-page index and a debug-level technical reference verified against the current code with `file:line` citations throughout), plus a default so a fresh Brain session uses the operator's Claude Code login instead of demanding an Anthropic token. No product or runtime change; the Brain write lane stays HELD.

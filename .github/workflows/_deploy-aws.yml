@@ -70,10 +70,10 @@ on:
         type: string
         default: ""
       brain_runtime_active:
-        description: "Brain write-lane kill-switch (ADR-0028). Empty = leave at CDK default (OFF/'0'). Set '1' to ENABLE the /v1/accounting write admission lane (writes still HELD at cold start)."
+        description: "Brain write-lane kill-switch (ADR-0028). '1' ENABLES the /v1/accounting write admission lane (writes still HELD at cold start — this does NOT enable auto-apply). '0' disables it. PRE-LAUNCH DEFAULT: '1', so a deploy that omits it does not silently kill the lane. Revert this default to '0'/'' at launch, when the kill-switch must be explicit."
         required: false
         type: string
-        default: ""
+        default: "1"
 
 permissions: {}
 

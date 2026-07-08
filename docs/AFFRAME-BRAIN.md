@@ -223,17 +223,18 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
 
 ## 10. Where everything lives (doc map)
 
-| Topic                                          | Source                                                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| This overview (index)                          | `docs/AFFRAME-BRAIN.md`                                                                                             |
-| Deep technical reference (debug-level, cited)  | `docs/AFFRAME-BRAIN-TECHNICAL.md`                                                                                   |
-| Status / roadmap tracker (v1/v2 + open issues) | `docs/AFFRAME-BRAIN-STATUS.md`                                                                                      |
-| Constitution (I1–I10, LOCKED)                  | `packages/brain/.brain/constitution.md`                                                                             |
-| Architecture decisions                         | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
-| Run a live session                             | `docs/runbooks/BRAIN-OPERATOR-SESSION.md`                                                                           |
-| Fresh-session bootstrap prompt                 | `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md`                                                                     |
-| Harness internals (dry-run, sandbox)           | `docs/runbooks/BRAIN-CC-HARNESS.md`                                                                                 |
-| The server write gate                          | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                              |
-| The MCP bridge + nested launcher               | `apps/cli/src/brain/{command,session-config,sdk-launcher}.ts`                                                       |
-| Package + agent instructions                   | `packages/brain/CLAUDE.md` (README is stale — see §9)                                                               |
-| Operator DB access                             | `docs/runbooks/DB-ACCESS.md`                                                                                        |
+| Topic                                               | Source                                                                                                              |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| This overview (index)                               | `docs/AFFRAME-BRAIN.md`                                                                                             |
+| Deep technical reference (debug-level, cited)       | `docs/AFFRAME-BRAIN-TECHNICAL.md`                                                                                   |
+| Status / roadmap tracker (v1/v2 + open issues)      | `docs/AFFRAME-BRAIN-STATUS.md`                                                                                      |
+| Constitution (I1–I10, LOCKED)                       | `packages/brain/.brain/constitution.md`                                                                             |
+| Architecture decisions                              | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
+| Run a live session                                  | `docs/runbooks/BRAIN-OPERATOR-SESSION.md`                                                                           |
+| Fresh-session bootstrap prompt (run a live loop)    | `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md`                                                                     |
+| Fresh-agent onboarding prompt (explain/debug/build) | `docs/runbooks/BRAIN-FRESH-AGENT-PROMPT.md`                                                                         |
+| Harness internals (dry-run, sandbox)                | `docs/runbooks/BRAIN-CC-HARNESS.md`                                                                                 |
+| The server write gate                               | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                              |
+| The MCP bridge + nested launcher                    | `apps/cli/src/brain/{command,session-config,sdk-launcher}.ts`                                                       |
+| Package + agent instructions                        | `packages/brain/CLAUDE.md` (README is stale — see §9)                                                               |
+| Operator DB access                                  | `docs/runbooks/DB-ACCESS.md`                                                                                        |

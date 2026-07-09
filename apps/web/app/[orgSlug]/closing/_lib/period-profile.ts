@@ -93,12 +93,21 @@ export async function resolvePeriodProfile(
         getPeriodRegime(db, periodId),
         executeRows<{
           id: string
-          has_employees: boolean
+          has_standard_employment: boolean | null
+          has_dpp: boolean | null
+          has_dpc: boolean | null
+          social_insurance_participation: boolean | null
+          health_insurance_participation: boolean | null
+          payroll_tax_advance_due: boolean | null
+          special_rate_withholding_due: boolean | null
           valid_from: string
           valid_to: string | null
         }>(
           db,
-          sql`SELECT id, has_employees, valid_from, valid_to
+          sql`SELECT id, has_standard_employment, has_dpp, has_dpc,
+                     social_insurance_participation, health_insurance_participation,
+                     payroll_tax_advance_due, special_rate_withholding_due,
+                     valid_from, valid_to
                 FROM organization_tax_profile
                WHERE organization_id = ${ctx.organizationId}::uuid
                  AND valid_from <= ${periodEnd}
@@ -123,7 +132,15 @@ export async function resolvePeriodProfile(
           sourceId: row.id,
           validFrom: row.valid_from,
           validTo: row.valid_to,
-          value: { hasEmployees: row.has_employees },
+          value: {
+            hasStandardEmployment: row.has_standard_employment,
+            hasDpp: row.has_dpp,
+            hasDpc: row.has_dpc,
+            socialInsuranceParticipation: row.social_insurance_participation,
+            healthInsuranceParticipation: row.health_insurance_participation,
+            payrollTaxAdvanceDue: row.payroll_tax_advance_due,
+            specialRateWithholdingDue: row.special_rate_withholding_due,
+          },
         }),
       )
       return {

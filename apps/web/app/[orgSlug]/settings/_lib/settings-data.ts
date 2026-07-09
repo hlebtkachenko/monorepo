@@ -368,15 +368,33 @@ export async function loadVatStatus(
 export interface TaxProfileRow {
   id: string
   hasEmployees: boolean
+  hasStandardEmployment: boolean | null
+  hasDpp: boolean | null
+  hasDpc: boolean | null
+  socialInsuranceParticipation: boolean | null
+  healthInsuranceParticipation: boolean | null
+  payrollTaxAdvanceDue: boolean | null
+  specialRateWithholdingDue: boolean | null
   validFrom: string
   validTo: string | null
+}
+
+export interface PayrollProfileInput {
+  hasStandardEmployment: boolean
+  hasDpp: boolean
+  hasDpc: boolean
+  socialInsuranceParticipation: boolean
+  healthInsuranceParticipation: boolean
+  payrollTaxAdvanceDue: boolean
+  specialRateWithholdingDue: boolean
+  validFrom: string
 }
 
 export interface TaxProfileData {
   history: TaxProfileRow[]
 }
 
-/** organization_tax_profile history (has_employees) for the page. */
+/** Effective payroll relationship and remittance history for the page. */
 export async function loadTaxProfile(
   ctx: OrgContext,
   userId: string,
@@ -385,11 +403,21 @@ export async function loadTaxProfile(
     const history = await executeRows<{
       id: string
       has_employees: boolean
+      has_standard_employment: boolean | null
+      has_dpp: boolean | null
+      has_dpc: boolean | null
+      social_insurance_participation: boolean | null
+      health_insurance_participation: boolean | null
+      payroll_tax_advance_due: boolean | null
+      special_rate_withholding_due: boolean | null
       valid_from: string
       valid_to: string | null
     }>(
       db,
-      sql`SELECT id, has_employees, valid_from::text, valid_to::text
+      sql`SELECT id, has_employees, has_standard_employment, has_dpp, has_dpc,
+                 social_insurance_participation, health_insurance_participation,
+                 payroll_tax_advance_due, special_rate_withholding_due,
+                 valid_from::text, valid_to::text
           FROM organization_tax_profile WHERE organization_id = ${ctx.organizationId}::uuid
           ORDER BY valid_from DESC`,
     )
@@ -397,6 +425,13 @@ export async function loadTaxProfile(
       history: history.map((r) => ({
         id: r.id,
         hasEmployees: r.has_employees,
+        hasStandardEmployment: r.has_standard_employment,
+        hasDpp: r.has_dpp,
+        hasDpc: r.has_dpc,
+        socialInsuranceParticipation: r.social_insurance_participation,
+        healthInsuranceParticipation: r.health_insurance_participation,
+        payrollTaxAdvanceDue: r.payroll_tax_advance_due,
+        specialRateWithholdingDue: r.special_rate_withholding_due,
         validFrom: r.valid_from,
         validTo: r.valid_to,
       })),
@@ -521,7 +556,7 @@ export async function changeVatStatus(
 export async function changeTaxProfile(
   ctx: OrgContext,
   userId: string,
-  input: { hasEmployees: boolean; validFrom: string },
+  input: PayrollProfileInput,
 ): Promise<void> {
   await withOrganization(ctx.organizationId, userId, async (db) => {
     const priorDay = new Date(`${input.validFrom}T00:00:00Z`)
@@ -536,7 +571,13 @@ export async function changeTaxProfile(
       workspaceId: ctx.workspaceId,
     }
     await createTaxProfile(db, orgCtx, {
-      hasEmployees: input.hasEmployees,
+      hasStandardEmployment: input.hasStandardEmployment,
+      hasDpp: input.hasDpp,
+      hasDpc: input.hasDpc,
+      socialInsuranceParticipation: input.socialInsuranceParticipation,
+      healthInsuranceParticipation: input.healthInsuranceParticipation,
+      payrollTaxAdvanceDue: input.payrollTaxAdvanceDue,
+      specialRateWithholdingDue: input.specialRateWithholdingDue,
       validFrom: input.validFrom,
     })
   })

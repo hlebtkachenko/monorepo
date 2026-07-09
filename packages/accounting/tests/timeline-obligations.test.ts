@@ -3,6 +3,26 @@ import { describe, expect, it } from "vitest"
 import { resolveEffectiveTimeline } from "../src/obligations/effective-timeline"
 import { computeTimelineObligations } from "../src/obligations/timeline-obligations"
 
+function payrollValue(
+  overrides: {
+    socialInsuranceParticipation?: boolean
+    healthInsuranceParticipation?: boolean
+    payrollTaxAdvanceDue?: boolean
+    specialRateWithholdingDue?: boolean
+  } = {},
+) {
+  return {
+    hasStandardEmployment: false,
+    hasDpp: false,
+    hasDpc: false,
+    socialInsuranceParticipation: false,
+    healthInsuranceParticipation: false,
+    payrollTaxAdvanceDue: false,
+    specialRateWithholdingDue: false,
+    ...overrides,
+  }
+}
+
 const noPayroll = resolveEffectiveTimeline({
   from: "2026-01-01",
   to: "2026-12-31",
@@ -11,7 +31,7 @@ const noPayroll = resolveEffectiveTimeline({
       sourceId: "payroll-none",
       validFrom: "2026-01-01",
       validTo: null,
-      value: { hasEmployees: false },
+      value: payrollValue(),
     },
   ],
 })
@@ -86,7 +106,7 @@ describe("computeTimelineObligations", () => {
     ).toHaveLength(6)
   })
 
-  it("applies employee facts only to their effective months", () => {
+  it("applies remittance facts only to their effective months", () => {
     const vatTimeline = resolveEffectiveTimeline({
       from: "2026-01-01",
       to: "2026-12-31",
@@ -107,13 +127,18 @@ describe("computeTimelineObligations", () => {
           sourceId: "no-employees",
           validFrom: "2026-01-01",
           validTo: "2026-08-31",
-          value: { hasEmployees: false },
+          value: payrollValue(),
         },
         {
           sourceId: "employees",
           validFrom: "2026-09-01",
           validTo: null,
-          value: { hasEmployees: true },
+          value: payrollValue({
+            socialInsuranceParticipation: true,
+            healthInsuranceParticipation: true,
+            payrollTaxAdvanceDue: true,
+            specialRateWithholdingDue: true,
+          }),
         },
       ],
     })
@@ -129,8 +154,75 @@ describe("computeTimelineObligations", () => {
       (row) => row.category === "PAYROLL",
     )
 
-    expect(payroll).toHaveLength(12)
+    expect(payroll).toHaveLength(16)
     expect(payroll[0]?.periodStart).toBe("2026-09-01")
+  })
+
+  it("keeps DPP and DPČ relationship changes inside their effective interval", () => {
+    const payrollTimeline = resolveEffectiveTimeline({
+      from: "2026-01-01",
+      to: "2026-12-31",
+      facts: [
+        {
+          sourceId: "dpp-summer",
+          validFrom: "2026-07-01",
+          validTo: "2026-09-30",
+          value: {
+            ...payrollValue({ payrollTaxAdvanceDue: true }),
+            hasDpp: true,
+          },
+        },
+      ],
+    })
+    const result = computeTimelineObligations({
+      from: "2026-01-01",
+      to: "2026-12-31",
+      personType: "LEGAL",
+      vatTimeline: [],
+      payrollTimeline,
+    })
+
+    expect(
+      result.obligations.map((obligation) => obligation.periodStart),
+    ).toEqual(["2026-07-01", "2026-08-01", "2026-09-01"])
+    expect(result.issues.map((issue) => [issue.from, issue.to])).toEqual([
+      ["2026-01-01", "2026-06-30"],
+      ["2026-10-01", "2026-12-31"],
+    ])
+  })
+
+  it("does not turn a legacy has-employees row into obligations", () => {
+    const result = computeTimelineObligations({
+      from: "2026-01-01",
+      to: "2026-01-31",
+      personType: "LEGAL",
+      vatTimeline: [],
+      payrollTimeline: resolveEffectiveTimeline({
+        from: "2026-01-01",
+        to: "2026-01-31",
+        facts: [
+          {
+            sourceId: "legacy",
+            validFrom: "2026-01-01",
+            validTo: null,
+            value: {
+              hasStandardEmployment: null,
+              hasDpp: null,
+              hasDpc: null,
+              socialInsuranceParticipation: null,
+              healthInsuranceParticipation: null,
+              payrollTaxAdvanceDue: null,
+              specialRateWithholdingDue: null,
+            },
+          },
+        ],
+      }),
+    })
+
+    expect(result.obligations).toEqual([])
+    expect(result.issues.map((issue) => issue.code)).toEqual([
+      "PAYROLL_CONFIGURATION_INCOMPLETE",
+    ])
   })
 
   it("returns missing profile intervals as needs-input issues", () => {

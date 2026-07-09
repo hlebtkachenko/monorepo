@@ -170,8 +170,13 @@ async function seedTaxProfile(opts: {
   validFrom: string
 }): Promise<void> {
   await sql`
-    INSERT INTO organization_tax_profile (organization_id, has_employees, valid_from)
-    VALUES (${opts.orgId}::uuid, ${opts.hasEmployees}, ${opts.validFrom})
+    INSERT INTO organization_tax_profile
+      (organization_id, has_employees, has_standard_employment, has_dpp, has_dpc,
+       social_insurance_participation, health_insurance_participation,
+       payroll_tax_advance_due, special_rate_withholding_due, valid_from)
+    VALUES (${opts.orgId}::uuid, ${opts.hasEmployees}, ${opts.hasEmployees}, false, false,
+            ${opts.hasEmployees}, ${opts.hasEmployees}, ${opts.hasEmployees}, false,
+            ${opts.validFrom})
   `
 }
 

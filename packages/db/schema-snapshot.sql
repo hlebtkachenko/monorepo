@@ -2222,6 +2222,13 @@ CREATE TABLE public.organization_tax_profile (
     valid_from date NOT NULL,
     valid_to date,
     has_employees boolean NOT NULL,
+    has_standard_employment boolean,
+    has_dpp boolean,
+    has_dpc boolean,
+    social_insurance_participation boolean,
+    health_insurance_participation boolean,
+    payroll_tax_advance_due boolean,
+    special_rate_withholding_due boolean,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT organization_tax_profile_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to)))
 );

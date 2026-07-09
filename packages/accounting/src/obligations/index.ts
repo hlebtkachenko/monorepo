@@ -31,7 +31,22 @@ export {
   nthOfNextMonth,
   vatMonthlyDeadline,
   payrollMonthlyDeadline,
+  specialRateWithholdingDeadline,
 } from "./deadlines"
+export {
+  PAYROLL_THRESHOLD_RULES,
+  PAYROLL_DEADLINE_RULES,
+  payrollDeadlineForMonth,
+  payrollDeadlineRuleForMonth,
+  payrollThresholdRuleForMonth,
+  evaluateAgreementInsuranceParticipation,
+  type LegalSourceMetadata,
+  type PayrollThresholdRule,
+  type PayrollDeadlineRule,
+  type PayrollObligationKind,
+  type AgreementKind,
+  type AgreementInsuranceParticipation,
+} from "./payroll-legal-rules"
 export {
   computeObligations,
   computePayrollObligations,

@@ -15,7 +15,8 @@ import {
 /**
  * Payroll obligations for the active accounting period. Unlike the Closing
  * Overview loader this does NOT gate on VAT configuration — payroll
- * remittances are independent of a VAT payer's filing period, so a
+ * remittances are decided separately from explicit monthly payroll facts and
+ * are independent of a VAT payer's filing period, so a
  * VAT-unconfigured org still sees its real payroll obligations here.
  */
 export type PayrollObligationsResult =

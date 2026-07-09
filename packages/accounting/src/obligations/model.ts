@@ -6,7 +6,8 @@ export type ObligationKind =
   | "EC_SALES_LIST"
   | "SOCIAL_INSURANCE"
   | "HEALTH_INSURANCE"
-  | "WITHHOLDING_TAX"
+  | "PAYROLL_TAX_ADVANCE"
+  | "SPECIAL_RATE_WITHHOLDING_TAX"
 
 export interface ScheduleCandidate {
   kind: ObligationKind

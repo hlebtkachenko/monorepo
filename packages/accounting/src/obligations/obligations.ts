@@ -29,7 +29,11 @@
  */
 
 import type { PersonType, VatFilingPeriod, VatRegime } from "../types"
-import { payrollMonthlyDeadline, vatMonthlyDeadline } from "./deadlines"
+import { vatMonthlyDeadline } from "./deadlines"
+import {
+  payrollDeadlineForMonth,
+  type PayrollObligationKind,
+} from "./payroll-legal-rules"
 import type { ApplicabilityDecision, Obligation, ObligationKind } from "./model"
 
 export type {
@@ -55,8 +59,6 @@ export interface ObligationInput {
   /** null unless vatRegimeCode === "PAYER". */
   vatFilingPeriod: VatFilingPeriod | null
   personType: PersonType
-  /** Caller-supplied; treated as false if undeclared. */
-  hasEmployees: boolean
   /** Omit when callers only know the possible schedule, not transaction evidence. */
   vatActivity?: readonly VatPeriodActivity[]
 }
@@ -86,7 +88,8 @@ const TITLES: Record<ObligationKind, string> = {
   EC_SALES_LIST: "EC sales list (SH)",
   SOCIAL_INSURANCE: "Social insurance",
   HEALTH_INSURANCE: "Health insurance",
-  WITHHOLDING_TAX: "Withholding tax",
+  PAYROLL_TAX_ADVANCE: "Payroll tax advance",
+  SPECIAL_RATE_WITHHOLDING_TAX: "Special-rate withholding tax",
 }
 
 const MONTH_NAMES = [
@@ -217,9 +220,11 @@ function quarterlyObligations(
 export function computePayrollObligations(input: {
   periodStart: string
   periodEnd: string
-  hasEmployees: boolean
+  socialInsuranceParticipation: boolean
+  healthInsuranceParticipation: boolean
+  payrollTaxAdvanceDue: boolean
+  specialRateWithholdingDue: boolean
 }): Obligation[] {
-  if (!input.hasEmployees) return []
   const obligations: Obligation[] = []
   for (const { year, month } of monthsInRange(
     input.periodStart,
@@ -230,24 +235,60 @@ export function computePayrollObligations(input: {
       periodLabel: monthLabel(year, month),
       periodStart: toIso(year, month, 1),
       periodEnd: lastDayOfMonthIso(year, month),
-      dueDate: payrollMonthlyDeadline(year, month),
-      applicability: APPLICABLE("Employee profile indicates payroll activity."),
     }
-    obligations.push({
-      kind: "SOCIAL_INSURANCE",
-      title: TITLES.SOCIAL_INSURANCE,
-      ...shared,
-    })
-    obligations.push({
-      kind: "HEALTH_INSURANCE",
-      title: TITLES.HEALTH_INSURANCE,
-      ...shared,
-    })
-    obligations.push({
-      kind: "WITHHOLDING_TAX",
-      title: TITLES.WITHHOLDING_TAX,
-      ...shared,
-    })
+    const deadline = (kind: PayrollObligationKind): string => {
+      const dueDate = payrollDeadlineForMonth(kind, year, month)
+      if (!dueDate) {
+        throw new Error(
+          `No verified payroll deadline rule for ${kind} in ${shared.periodStart}.`,
+        )
+      }
+      return dueDate
+    }
+    if (input.socialInsuranceParticipation) {
+      obligations.push({
+        kind: "SOCIAL_INSURANCE",
+        title: TITLES.SOCIAL_INSURANCE,
+        ...shared,
+        dueDate: deadline("SOCIAL_INSURANCE"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm social-insurance participation.",
+        ),
+      })
+    }
+    if (input.healthInsuranceParticipation) {
+      obligations.push({
+        kind: "HEALTH_INSURANCE",
+        title: TITLES.HEALTH_INSURANCE,
+        ...shared,
+        dueDate: deadline("HEALTH_INSURANCE"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm health-insurance participation.",
+        ),
+      })
+    }
+    if (input.payrollTaxAdvanceDue) {
+      obligations.push({
+        kind: "PAYROLL_TAX_ADVANCE",
+        title: TITLES.PAYROLL_TAX_ADVANCE,
+        ...shared,
+        dueDate: deadline("PAYROLL_TAX_ADVANCE"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm an employee income-tax advance.",
+        ),
+      })
+    }
+    if (input.specialRateWithholdingDue) {
+      obligations.push({
+        kind: "SPECIAL_RATE_WITHHOLDING_TAX",
+        title: TITLES.SPECIAL_RATE_WITHHOLDING_TAX,
+        ...shared,
+        dueDate: deadline("SPECIAL_RATE_WITHHOLDING_TAX"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm special-rate withholding tax.",
+        ),
+      })
+    }
   }
   return obligations
 }
@@ -500,15 +541,6 @@ export function computeObligations(input: ObligationInput): Obligation[] {
       }
     }
   }
-
-  // Payroll — social/health insurance + withholding tax remittances, monthly.
-  obligations.push(
-    ...computePayrollObligations({
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      hasEmployees: input.hasEmployees,
-    }),
-  )
 
   return obligations.sort((a, b) => {
     if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1

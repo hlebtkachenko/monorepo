@@ -54,7 +54,13 @@ type VatStatusRow = VersionedRow & {
 }
 
 type TaxProfileRow = VersionedRow & {
-  hasEmployees: boolean
+  hasStandardEmployment: boolean | null
+  hasDpp: boolean | null
+  hasDpc: boolean | null
+  socialInsuranceParticipation: boolean | null
+  healthInsuranceParticipation: boolean | null
+  payrollTaxAdvanceDue: boolean | null
+  specialRateWithholdingDue: boolean | null
 }
 
 /** The org's current period: contains today, else newest by period_start. */
@@ -146,7 +152,16 @@ export async function computeWorkspaceObligations(
       .select({
         id: organization_tax_profile.id,
         organizationId: organization_tax_profile.organization_id,
-        hasEmployees: organization_tax_profile.has_employees,
+        hasStandardEmployment: organization_tax_profile.has_standard_employment,
+        hasDpp: organization_tax_profile.has_dpp,
+        hasDpc: organization_tax_profile.has_dpc,
+        socialInsuranceParticipation:
+          organization_tax_profile.social_insurance_participation,
+        healthInsuranceParticipation:
+          organization_tax_profile.health_insurance_participation,
+        payrollTaxAdvanceDue: organization_tax_profile.payroll_tax_advance_due,
+        specialRateWithholdingDue:
+          organization_tax_profile.special_rate_withholding_due,
         validFrom: organization_tax_profile.valid_from,
         validTo: organization_tax_profile.valid_to,
       })
@@ -186,7 +201,15 @@ export async function computeWorkspaceObligations(
         sourceId: row.id,
         validFrom: row.validFrom,
         validTo: row.validTo,
-        value: { hasEmployees: row.hasEmployees },
+        value: {
+          hasStandardEmployment: row.hasStandardEmployment,
+          hasDpp: row.hasDpp,
+          hasDpc: row.hasDpc,
+          socialInsuranceParticipation: row.socialInsuranceParticipation,
+          healthInsuranceParticipation: row.healthInsuranceParticipation,
+          payrollTaxAdvanceDue: row.payrollTaxAdvanceDue,
+          specialRateWithholdingDue: row.specialRateWithholdingDue,
+        },
       }))
       const computed = computeTimelineObligations({
         from: period.periodStart,

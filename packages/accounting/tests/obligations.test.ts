@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest"
 import {
   computeObligations,
+  computePayrollObligations,
   czechHolidays,
   shiftToBusinessDay,
 } from "../src/index"
@@ -95,7 +96,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "MONTHLY",
       personType: "LEGAL",
-      hasEmployees: false,
     })
     const byKind = (kind: Obligation["kind"]) =>
       obligations.filter((o) => o.kind === kind)
@@ -123,7 +123,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "QUARTERLY",
       personType: "LEGAL",
-      hasEmployees: false,
     })
     const vatReturns = obligations.filter((o) => o.kind === "VAT_RETURN")
     const kh = obligations.filter((o) => o.kind === "CONTROL_STATEMENT")
@@ -147,7 +146,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "QUARTERLY",
       personType: "NATURAL",
-      hasEmployees: false,
     })
     const vatReturns = obligations.filter((o) => o.kind === "VAT_RETURN")
     const kh = obligations.filter((o) => o.kind === "CONTROL_STATEMENT")
@@ -174,7 +172,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "QUARTERLY",
       personType: "NATURAL",
-      hasEmployees: false,
     })
     const vatReturns = obligations.filter((o) => o.kind === "VAT_RETURN")
     const kh = obligations.filter((o) => o.kind === "CONTROL_STATEMENT")
@@ -201,7 +198,6 @@ describe("computeObligations", () => {
         vatRegimeCode: "PAYER",
         vatFilingPeriod: null,
         personType: "LEGAL",
-        hasEmployees: false,
       }),
     ).toThrow(
       "A VAT payer must have a filing period (MONTHLY or QUARTERLY); got null.",
@@ -214,7 +210,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "MONTHLY",
       personType: "LEGAL",
-      hasEmployees: false,
     })
     const november = obligations.find(
       (o) => o.kind === "VAT_RETURN" && o.periodLabel === "November 2026",
@@ -225,22 +220,25 @@ describe("computeObligations", () => {
     expect(november?.dueDate).toBe("2026-12-28")
   })
 
-  it("hasEmployees=true adds 12x3 payroll obligations", () => {
-    const obligations = computeObligations({
+  it("emits only the payroll obligations supported by monthly facts", () => {
+    const obligations = computePayrollObligations({
       ...calendar2026,
-      vatRegimeCode: "NON_PAYER",
-      vatFilingPeriod: null,
-      personType: "NATURAL",
-      hasEmployees: true,
+      socialInsuranceParticipation: true,
+      healthInsuranceParticipation: false,
+      payrollTaxAdvanceDue: true,
+      specialRateWithholdingDue: true,
     })
     expect(
       obligations.filter((o) => o.kind === "SOCIAL_INSURANCE"),
     ).toHaveLength(12)
     expect(
       obligations.filter((o) => o.kind === "HEALTH_INSURANCE"),
+    ).toHaveLength(0)
+    expect(
+      obligations.filter((o) => o.kind === "PAYROLL_TAX_ADVANCE"),
     ).toHaveLength(12)
     expect(
-      obligations.filter((o) => o.kind === "WITHHOLDING_TAX"),
+      obligations.filter((o) => o.kind === "SPECIAL_RATE_WITHHOLDING_TAX"),
     ).toHaveLength(12)
     expect(obligations).toHaveLength(36)
 
@@ -248,6 +246,12 @@ describe("computeObligations", () => {
       (o) => o.kind === "SOCIAL_INSURANCE" && o.periodLabel === "May 2026",
     )
     expect(may?.dueDate).toBe("2026-06-22")
+    const januarySpecial = obligations.find(
+      (o) =>
+        o.kind === "SPECIAL_RATE_WITHHOLDING_TAX" &&
+        o.periodLabel === "January 2026",
+    )
+    expect(januarySpecial?.dueDate).toBe("2026-03-02")
   })
 
   it("NON_PAYER with no employees returns no obligations", () => {
@@ -256,7 +260,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "NON_PAYER",
       vatFilingPeriod: null,
       personType: "NATURAL",
-      hasEmployees: false,
     })
     expect(obligations).toEqual([])
   })
@@ -267,7 +270,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "IDENTIFIED_PERSON",
       vatFilingPeriod: null,
       personType: "LEGAL",
-      hasEmployees: false,
     })
     const vatReturns = obligations.filter((o) => o.kind === "VAT_RETURN")
     const sh = obligations.filter((o) => o.kind === "EC_SALES_LIST")

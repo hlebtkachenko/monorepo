@@ -215,10 +215,22 @@ async function seedTaxProfile(opts: {
   hasEmployees: boolean
   validFrom: string
   validTo?: string | null
+  socialInsuranceParticipation?: boolean
+  healthInsuranceParticipation?: boolean
+  payrollTaxAdvanceDue?: boolean
+  specialRateWithholdingDue?: boolean
 }): Promise<void> {
   await sql`
-    INSERT INTO organization_tax_profile (organization_id, has_employees, valid_from, valid_to)
-    VALUES (${opts.orgId}::uuid, ${opts.hasEmployees}, ${opts.validFrom}, ${opts.validTo ?? null})
+    INSERT INTO organization_tax_profile
+      (organization_id, has_employees, has_standard_employment, has_dpp, has_dpc,
+       social_insurance_participation, health_insurance_participation,
+       payroll_tax_advance_due, special_rate_withholding_due, valid_from, valid_to)
+    VALUES (${opts.orgId}::uuid, ${opts.hasEmployees}, ${opts.hasEmployees}, false, false,
+            ${opts.socialInsuranceParticipation ?? opts.hasEmployees},
+            ${opts.healthInsuranceParticipation ?? opts.hasEmployees},
+            ${opts.payrollTaxAdvanceDue ?? opts.hasEmployees},
+            ${opts.specialRateWithholdingDue ?? false},
+            ${opts.validFrom}, ${opts.validTo ?? null})
   `
 }
 
@@ -286,6 +298,9 @@ describe("loadTaxProfile", () => {
     expect(data.history).toHaveLength(2)
     expect(data.history[0]).toMatchObject({
       hasEmployees: true,
+      hasStandardEmployment: true,
+      socialInsuranceParticipation: true,
+      payrollTaxAdvanceDue: true,
       validFrom: "2026-01-01",
       validTo: null,
     })
@@ -316,7 +331,7 @@ describe("loadTaxProfile", () => {
 })
 
 describe("getClosingObligations — payroll gating from organization_tax_profile", () => {
-  it("period-effective has_employees=true -> 36 payroll obligations (12 SOCIAL + 12 HEALTH + 12 WITHHOLDING)", async () => {
+  it("period-effective facts produce social, health, and tax-advance obligations independently", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -353,7 +368,12 @@ describe("getClosingObligations — payroll gating from organization_tax_profile
     expect(payroll.filter((o) => o.kind === "HEALTH_INSURANCE")).toHaveLength(
       12,
     )
-    expect(payroll.filter((o) => o.kind === "WITHHOLDING_TAX")).toHaveLength(12)
+    expect(
+      payroll.filter((o) => o.kind === "PAYROLL_TAX_ADVANCE"),
+    ).toHaveLength(12)
+    expect(
+      payroll.filter((o) => o.kind === "SPECIAL_RATE_WITHHOLDING_TAX"),
+    ).toHaveLength(0)
   }, 30_000)
 
   it("period-effective has_employees=false row -> 0 payroll obligations", async () => {
@@ -390,7 +410,7 @@ describe("getClosingObligations — payroll gating from organization_tax_profile
     ).toHaveLength(0)
   }, 30_000)
 
-  it("no organization_tax_profile row at all -> 0 payroll obligations (honest default)", async () => {
+  it("no organization_tax_profile row returns a visible configuration issue", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -417,6 +437,9 @@ describe("getClosingObligations — payroll gating from organization_tax_profile
     expect(
       result.obligations.filter((o) => o.category === "PAYROLL"),
     ).toHaveLength(0)
+    expect(result.issues.map((issue) => issue.code)).toContain(
+      "PAYROLL_PROFILE_MISSING",
+    )
   }, 30_000)
 
   it("period-effective organization_tax_profile: switching the active-period cookie between two periods selects each period's OWN has_employees row (not merely the org's current one)", async () => {

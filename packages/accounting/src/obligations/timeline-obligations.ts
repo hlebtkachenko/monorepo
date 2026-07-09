@@ -9,13 +9,20 @@ export interface VatProfileValue {
 }
 
 export interface PayrollProfileValue {
-  hasEmployees: boolean
+  hasStandardEmployment: boolean | null
+  hasDpp: boolean | null
+  hasDpc: boolean | null
+  socialInsuranceParticipation: boolean | null
+  healthInsuranceParticipation: boolean | null
+  payrollTaxAdvanceDue: boolean | null
+  specialRateWithholdingDue: boolean | null
 }
 
 export type ProfileIssueCode =
   | "VAT_PROFILE_MISSING"
   | "VAT_FILING_PERIOD_MISSING"
   | "PAYROLL_PROFILE_MISSING"
+  | "PAYROLL_CONFIGURATION_INCOMPLETE"
 
 export interface ProfileIssue {
   code: ProfileIssueCode
@@ -114,7 +121,6 @@ export function computeTimelineObligations(input: {
         vatRegimeCode: profile.regime,
         vatFilingPeriod: profile.filingPeriod,
         personType: input.personType,
-        hasEmployees: false,
       }),
     )
   }
@@ -130,11 +136,31 @@ export function computeTimelineObligations(input: {
       continue
     }
 
+    const profile = segment.fact.value
+    if (
+      profile.socialInsuranceParticipation === null ||
+      profile.healthInsuranceParticipation === null ||
+      profile.payrollTaxAdvanceDue === null ||
+      profile.specialRateWithholdingDue === null
+    ) {
+      issues.push({
+        code: "PAYROLL_CONFIGURATION_INCOMPLETE",
+        from: segment.from,
+        to: segment.to,
+        message:
+          "Payroll obligation facts are incomplete for this interval. Configure each supported remittance separately.",
+      })
+      continue
+    }
+
     add(
       computePayrollObligations({
         periodStart: segment.from,
         periodEnd: segment.to,
-        hasEmployees: segment.fact.value.hasEmployees,
+        socialInsuranceParticipation: profile.socialInsuranceParticipation,
+        healthInsuranceParticipation: profile.healthInsuranceParticipation,
+        payrollTaxAdvanceDue: profile.payrollTaxAdvanceDue,
+        specialRateWithholdingDue: profile.specialRateWithholdingDue,
       }),
     )
   }

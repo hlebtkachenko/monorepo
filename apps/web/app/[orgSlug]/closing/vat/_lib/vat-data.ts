@@ -190,7 +190,6 @@ async function resolveVatContext(
     vatRegimeCode,
     vatFilingPeriod: filingPeriod,
     personType,
-    hasEmployees: false,
     vatActivity,
   })
 

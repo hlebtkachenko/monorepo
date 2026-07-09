@@ -8,6 +8,7 @@ import { AppPageHeader } from "../../../../_components/app-page-header"
 import type { PayrollObligationsResult } from "../_lib/payroll-data"
 import { ClosingStatusMessage } from "../../_components/closing-status-message"
 import { ObligationsTable } from "../../_components/obligations-table"
+import { ProfileIssuesAlert } from "../../_components/profile-issues-alert"
 
 /**
  * Payroll — the period's real computed payroll obligations (social
@@ -17,13 +18,7 @@ import { ObligationsTable } from "../../_components/obligations-table"
  * status. An org with no employees on record (or no tax profile set)
  * legitimately shows an empty state, not a placeholder.
  */
-export function PayrollView({
-  slug,
-  data,
-}: {
-  slug: string
-  data: PayrollObligationsResult
-}) {
+export function PayrollView({ data }: { data: PayrollObligationsResult }) {
   if (data.status === "no-access") return null
 
   return (
@@ -34,12 +29,13 @@ export function PayrollView({
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
           {data.status !== "ok" ? (
-            <ClosingStatusMessage slug={slug} data={data} />
+            <ClosingStatusMessage data={data} />
           ) : (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
                 {data.periodLabel}
               </p>
+              <ProfileIssuesAlert issues={data.issues} />
               <ObligationsTable
                 rows={data.obligations}
                 emptyLabel="No payroll obligations for this period."

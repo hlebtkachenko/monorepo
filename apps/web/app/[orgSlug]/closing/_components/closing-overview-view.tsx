@@ -14,9 +14,10 @@ import type {
 } from "../_lib/closing-shared"
 import { ClosingStatusMessage } from "./closing-status-message"
 import { ObligationsTable } from "./obligations-table"
+import { ProfileIssuesAlert } from "./profile-issues-alert"
 
 const COUNT_ORDER: ClosingObligationStatus[] = [
-  "Overdue",
+  "Past due date",
   "Due soon",
   "Upcoming",
 ]
@@ -29,19 +30,21 @@ const COUNT_ORDER: ClosingObligationStatus[] = [
  * honest empty state, not a placeholder.
  */
 export function ClosingOverviewView({
-  slug,
   data,
 }: {
-  slug: string
   data: ClosingObligationsResult
 }) {
   if (data.status === "no-access") return null
 
-  const definiteObligations =
-    data.status === "ok" ? data.obligations.filter((o) => !o.conditional) : []
-  const conditionalCount =
+  const applicableObligations =
     data.status === "ok"
-      ? data.obligations.length - definiteObligations.length
+      ? data.obligations.filter((o) => o.applicability.status === "APPLICABLE")
+      : []
+  const conditionNotEvaluatedCount =
+    data.status === "ok"
+      ? data.obligations.filter(
+          (o) => o.applicability.status === "CONDITION_NOT_EVALUATED",
+        ).length
       : 0
 
   return (
@@ -52,12 +55,14 @@ export function ClosingOverviewView({
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
           {data.status !== "ok" ? (
-            <ClosingStatusMessage slug={slug} data={data} />
+            <ClosingStatusMessage data={data} />
           ) : (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
                 {data.periodLabel}
               </p>
+
+              <ProfileIssuesAlert issues={data.issues} />
 
               <div className="flex flex-wrap gap-3">
                 {COUNT_ORDER.map((status) => (
@@ -67,11 +72,10 @@ export function ClosingOverviewView({
                     </span>
                     <span className="font-heading text-2xl leading-none font-semibold tracking-tight">
                       {
-                        // Definite obligations only — a conditional row (SH,
-                        // identified-person VAT return) only applies IF the
-                        // underlying event occurred, so it must not inflate
-                        // the headline "due" counts. Surfaced separately below.
-                        definiteObligations.filter((o) => o.status === status)
+                        // Applicable obligations only. Candidates whose
+                        // condition has not been evaluated are surfaced
+                        // separately below and do not inflate deadline counts.
+                        applicableObligations.filter((o) => o.status === status)
                           .length
                       }
                     </span>
@@ -79,9 +83,9 @@ export function ClosingOverviewView({
                 ))}
               </div>
 
-              {conditionalCount > 0 ? (
+              {conditionNotEvaluatedCount > 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  {conditionalCount} conditional (only if the event occurred)
+                  {conditionNotEvaluatedCount} with condition not evaluated
                 </p>
               ) : null}
 

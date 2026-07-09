@@ -19,5 +19,5 @@ export default async function PayrollPage({
   const data = await getPayrollObligations(orgSlug)
   if (data.status === "no-access") notFound()
 
-  return <PayrollView slug={orgSlug} data={data} />
+  return <PayrollView data={data} />
 }

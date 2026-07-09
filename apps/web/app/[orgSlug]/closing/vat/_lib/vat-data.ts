@@ -7,6 +7,7 @@ import {
   buildKontrolniHlaseni,
   buildSouhrnneHlaseni,
   computeObligations,
+  singleEffectiveValue,
   type Dph,
   type KontrolniHlaseni,
   type ObligationKind,
@@ -122,16 +123,15 @@ async function resolveVatContext(
   const profile = await resolvePeriodProfile(orgSlug)
   if (profile.status !== "ok") return profile
 
-  const {
-    ctx,
-    periodId,
-    periodStart,
-    periodEnd,
-    periodLabel,
-    vatRegimeCode,
-    filingPeriod,
-    personType,
-  } = profile
+  const { ctx, periodId, periodStart, periodEnd, periodLabel, personType } =
+    profile
+  const vatProfile = singleEffectiveValue(
+    profile.vatTimeline,
+    (a, b) => a.regime === b.regime && a.filingPeriod === b.filingPeriod,
+  )
+  if (!vatProfile) return { status: "vat-unconfigured", periodLabel }
+  const vatRegimeCode = vatProfile.regime
+  const filingPeriod = vatProfile.filingPeriod
 
   // VAT pages only apply to a PAYER (a declared monthly/quarterly filing
   // cadence, §99/§99a ZDPH) — NON_PAYER and IDENTIFIED_PERSON have no such
@@ -148,7 +148,7 @@ async function resolveVatContext(
     vatRegimeCode,
     vatFilingPeriod: filingPeriod,
     personType,
-    hasEmployees: profile.hasEmployees,
+    hasEmployees: false,
   })
 
   const filingPeriods: VatFilingPeriodOption[] = obligations

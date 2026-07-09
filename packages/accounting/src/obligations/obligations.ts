@@ -30,22 +30,25 @@
 
 import type { PersonType, VatFilingPeriod, VatRegime } from "../types"
 import { payrollMonthlyDeadline, vatMonthlyDeadline } from "./deadlines"
+import type {
+  ApplicabilityDecision,
+  Obligation,
+  ObligationKind,
+} from "./model"
+
+export type {
+  ApplicabilityDecision,
+  Obligation,
+  ObligationCategory,
+  ObligationKind,
+  ScheduleCandidate,
+} from "./model"
 
 // VatRegime, VatFilingPeriod, and PersonType are reused from ./types
 // (identical unions, each backed by a DB pgEnum/reference table) via
 // type-only imports — erased at compile, so the pure engine keeps no runtime
 // DB dependency. Local copies would be exported-but-unused (knip), since the
 // package index already re-exports the ./types ones.
-
-export type ObligationCategory = "VAT" | "PAYROLL"
-
-export type ObligationKind =
-  | "VAT_RETURN"
-  | "CONTROL_STATEMENT"
-  | "EC_SALES_LIST"
-  | "SOCIAL_INSURANCE"
-  | "HEALTH_INSURANCE"
-  | "WITHHOLDING_TAX"
 
 export interface ObligationInput {
   /** ISO date — the annual accounting_period start. */
@@ -60,23 +63,15 @@ export interface ObligationInput {
   hasEmployees: boolean
 }
 
-export interface Obligation {
-  kind: ObligationKind
-  category: ObligationCategory
-  /** English label, e.g. "VAT return", "Control statement (KH)". */
-  title: string
-  /** Filing period label, e.g. "June 2026" or "Q2 2026". */
-  periodLabel: string
-  /** ISO date — start of the filing sub-period this obligation covers. */
-  periodStart: string
-  /** ISO date — end of the filing sub-period this obligation covers. */
-  periodEnd: string
-  /** ISO date, business-day-shifted. */
-  dueDate: string
-  /** true = only applies if the underlying event occurred (e.g. SH). */
-  conditional: boolean
-  note?: string
-}
+const APPLICABLE = (reason: string): ApplicabilityDecision => ({
+  status: "APPLICABLE",
+  reason,
+})
+
+const CONDITION_NOT_EVALUATED = (reason: string): ApplicabilityDecision => ({
+  status: "CONDITION_NOT_EVALUATED",
+  reason,
+})
 
 const TITLES: Record<ObligationKind, string> = {
   VAT_RETURN: "VAT return",
@@ -198,7 +193,7 @@ function quarterlyObligations(
       periodStart: bounds.periodStart,
       periodEnd: bounds.periodEnd,
       dueDate: vatMonthlyDeadline(year, lastMonthOfQuarter),
-      conditional: false,
+      applicability: APPLICABLE("VAT payer filing cadence applies."),
     }
   })
 }
@@ -226,7 +221,7 @@ export function computePayrollObligations(input: {
       periodStart: toIso(year, month, 1),
       periodEnd: lastDayOfMonthIso(year, month),
       dueDate: payrollMonthlyDeadline(year, month),
-      conditional: false,
+      applicability: APPLICABLE("Employee profile indicates payroll activity."),
     }
     obligations.push({
       kind: "SOCIAL_INSURANCE",
@@ -276,7 +271,7 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         periodStart: toIso(year, month, 1),
         periodEnd: lastDayOfMonthIso(year, month),
         dueDate: vatMonthlyDeadline(year, month),
-        conditional: false,
+        applicability: APPLICABLE("Monthly VAT payer filing cadence applies."),
       })
     }
   } else if (isVatPayer && input.vatFilingPeriod === "QUARTERLY") {
@@ -304,8 +299,9 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         periodStart: toIso(year, month, 1),
         periodEnd: lastDayOfMonthIso(year, month),
         dueDate: vatMonthlyDeadline(year, month),
-        conditional: true,
-        note: "Only in months a VAT liability arose (e.g. service received from abroad or intra-EU acquisition)",
+        applicability: CONDITION_NOT_EVALUATED(
+          "Requires a VAT-liability event in the month, such as a service received from abroad or an intra-EU acquisition.",
+        ),
       })
     }
   }
@@ -328,7 +324,9 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         periodStart: toIso(year, month, 1),
         periodEnd: lastDayOfMonthIso(year, month),
         dueDate: vatMonthlyDeadline(year, month),
-        conditional: false,
+        applicability: APPLICABLE(
+          "VAT payer person type and filing cadence require this schedule.",
+        ),
       })
     }
   }
@@ -345,8 +343,9 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         periodStart: toIso(year, month, 1),
         periodEnd: lastDayOfMonthIso(year, month),
         dueDate: vatMonthlyDeadline(year, month),
-        conditional: true,
-        note: "Only in months with EU supplies (ICD or cross-border B2B services)",
+        applicability: CONDITION_NOT_EVALUATED(
+          "Requires a qualifying EU goods supply or cross-border B2B service.",
+        ),
       })
     }
   }

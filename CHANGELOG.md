@@ -9,6 +9,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Changed
 
 - **ci**: reduce workflow drift and noise — sync the shared setup action pins, derive Dockerfile `turbo prune` from the root `turbo` dependency, make mature DB advisory checks fail visibly, trim impossible container-scan path filters, and stop PR workflow completions from spawning skipped `notify-ci` runs.
+- **accounting/closing**: resolve VAT and payroll profiles as effective-dated timelines, preserve missing intervals as configuration issues, separate schedule applicability from filing status, and stop labelling past dates as overdue without filing evidence.
 
 ### Fixed
 

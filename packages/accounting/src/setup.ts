@@ -68,6 +68,9 @@ export async function createVatStatus(
     filingPeriod?: VatFilingPeriod | null
   },
 ): Promise<string> {
+  if (input.vatRegimeCode !== "PAYER" && input.filingPeriod != null) {
+    throw new Error("VAT filing period is only valid for VAT payers.")
+  }
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO vat_status (organization_id, vat_regime_code, valid_from, valid_to, filing_period)

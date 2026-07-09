@@ -2601,7 +2601,8 @@ CREATE TABLE public.vat_status (
     valid_to date,
     filing_period public.vat_filing_period,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vat_status_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to)))
+    CONSTRAINT vat_status_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to))),
+    CONSTRAINT vat_status_filing_period_regime_check CHECK (((vat_regime_code = 'PAYER'::text) OR (filing_period IS NULL)))
 );
 
 ALTER TABLE ONLY public.vat_status FORCE ROW LEVEL SECURITY;

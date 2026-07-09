@@ -183,13 +183,13 @@ export default async function CompaniesPage({
 
     const companies = orgs.map<CompanyRow>((o) => {
       const periods = periodsByCompany.get(o.id) ?? []
-      const obligations = obligationsByOrg.get(o.id) ?? []
+      const obligations = obligationsByOrg.get(o.id)?.obligations ?? []
       // Definite obligations only — a conditional row (SH, identified-person
       // VAT return) only applies IF the underlying event occurred, so it must
       // never be asserted as the org's next hard deadline (mirrors the org
       // Closing surface's `definiteObligations` filter).
       const upcoming = obligations.find(
-        (ob) => !ob.conditional && ob.dueDate >= today,
+        (ob) => ob.applicability.status === "APPLICABLE" && ob.dueDate >= today,
       )
       return {
         id: o.id,

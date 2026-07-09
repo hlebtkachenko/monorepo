@@ -10,20 +10,12 @@ import { useIcons } from "@workspace/ui/icon-packs"
 
 import { useLegislation } from "./context"
 import {
+  OBLIGATION_STATUS_BADGE_VARIANT,
   OBLIGATION_STATUS_OPTIONS,
   formatDueDate,
   type ObligationRow,
-  type ObligationStatus,
 } from "./data"
 import { ObligationTitle } from "./obligation-title"
-
-const STATUS_BADGE: Record<
-  ObligationStatus,
-  React.ComponentProps<typeof Badge>["variant"]
-> = {
-  Upcoming: "outline",
-  "Due soon": "secondary",
-}
 
 // Anchor for shift-range selection across the visible page (row id).
 const selectAnchorId: { current: string | null } = { current: null }
@@ -111,8 +103,8 @@ export const obligationColumns: ColumnDef<ObligationRow>[] = [
     cell: ({ row }) => (
       <ObligationTitle
         obligation={row.original.obligation}
-        conditional={row.original.conditional}
-        note={row.original.note}
+        applicability={row.original.applicability}
+        reason={row.original.note}
       />
     ),
     meta: { label: "Obligation" },
@@ -142,7 +134,7 @@ export const obligationColumns: ColumnDef<ObligationRow>[] = [
     header: "Status",
     size: 130,
     cell: ({ row }) => (
-      <Badge variant={STATUS_BADGE[row.original.status]}>
+      <Badge variant={OBLIGATION_STATUS_BADGE_VARIANT[row.original.status]}>
         {row.original.status}
       </Badge>
     ),

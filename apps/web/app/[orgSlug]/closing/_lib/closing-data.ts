@@ -1,6 +1,6 @@
 import "server-only"
 
-import { computeObligations } from "@workspace/accounting"
+import { computeTimelineObligations } from "@workspace/accounting"
 import { czechToday } from "@/lib/czech-today"
 
 import { resolvePeriodProfile } from "./period-profile"
@@ -47,23 +47,16 @@ export async function getClosingObligations(
     periodStart,
     periodEnd,
     periodLabel,
-    vatRegimeCode,
-    filingPeriod,
     personType,
-    hasEmployees,
+    vatTimeline,
+    payrollTimeline,
   } = profile
-
-  if (vatRegimeCode === "PAYER" && filingPeriod == null) {
-    return { status: "vat-unconfigured", periodLabel }
-  }
-
-  const obligations = computeObligations({
-    periodStart,
-    periodEnd,
-    vatRegimeCode,
-    vatFilingPeriod: filingPeriod,
+  const result = computeTimelineObligations({
+    from: periodStart,
+    to: periodEnd,
     personType,
-    hasEmployees,
+    vatTimeline,
+    payrollTimeline,
   })
 
   const today = czechToday()
@@ -73,9 +66,10 @@ export async function getClosingObligations(
     periodLabel,
     periodStart,
     periodEnd,
-    obligations: obligations.map((o) => ({
+    issues: result.issues,
+    obligations: result.obligations.map((o) => ({
       ...o,
-      status: deriveObligationStatus(o.dueDate, today),
+      status: deriveObligationStatus(o, today),
     })),
   }
 }

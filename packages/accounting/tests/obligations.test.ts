@@ -15,6 +15,16 @@ import {
 } from "../src/index"
 import type { Obligation } from "../src/index"
 
+function expectApplicability(
+  obligations: Obligation[],
+  status: Obligation["applicability"]["status"],
+): void {
+  expect(obligations.every((o) => o.applicability.status === status)).toBe(true)
+  expect(
+    obligations.every((o) => o.applicability.reason.trim().length > 0),
+  ).toBe(true)
+}
+
 describe("czechHolidays", () => {
   it("includes all 11 fixed-date holidays for 2026", () => {
     const holidays = czechHolidays(2026)
@@ -92,9 +102,11 @@ describe("computeObligations", () => {
 
     expect(byKind("VAT_RETURN")).toHaveLength(12)
     expect(byKind("CONTROL_STATEMENT")).toHaveLength(12)
+    expectApplicability(byKind("VAT_RETURN"), "APPLICABLE")
+    expectApplicability(byKind("CONTROL_STATEMENT"), "APPLICABLE")
     const sh = byKind("EC_SALES_LIST")
     expect(sh).toHaveLength(12)
-    expect(sh.every((o) => o.conditional)).toBe(true)
+    expectApplicability(sh, "CONDITION_NOT_EVALUATED")
     expect(obligations).toHaveLength(36)
 
     const june = byKind("VAT_RETURN").find((o) => o.periodLabel === "June 2026")
@@ -260,9 +272,9 @@ describe("computeObligations", () => {
     const vatReturns = obligations.filter((o) => o.kind === "VAT_RETURN")
     const sh = obligations.filter((o) => o.kind === "EC_SALES_LIST")
     expect(vatReturns).toHaveLength(12)
-    expect(vatReturns.every((o) => o.conditional)).toBe(true)
+    expectApplicability(vatReturns, "CONDITION_NOT_EVALUATED")
     expect(sh).toHaveLength(12)
-    expect(sh.every((o) => o.conditional)).toBe(true)
+    expectApplicability(sh, "CONDITION_NOT_EVALUATED")
     expect(
       obligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
     ).toHaveLength(0)

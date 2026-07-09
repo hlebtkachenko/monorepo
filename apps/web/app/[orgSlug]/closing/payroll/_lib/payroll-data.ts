@@ -1,6 +1,9 @@
 import "server-only"
 
-import { computePayrollObligations } from "@workspace/accounting"
+import {
+  computeTimelineObligations,
+  type ProfileIssue,
+} from "@workspace/accounting"
 import { czechToday } from "@/lib/czech-today"
 
 import { resolvePeriodProfile } from "../../_lib/period-profile"
@@ -18,7 +21,12 @@ import {
 export type PayrollObligationsResult =
   | { status: "no-access" }
   | { status: "no-period" }
-  | { status: "ok"; periodLabel: string; obligations: ObligationWithStatus[] }
+  | {
+      status: "ok"
+      periodLabel: string
+      obligations: ObligationWithStatus[]
+      issues: ProfileIssue[]
+    }
 
 export async function getPayrollObligations(
   orgSlug: string,
@@ -27,11 +35,22 @@ export async function getPayrollObligations(
   if (profile.status !== "ok") return profile
 
   const today = czechToday()
-  const obligations: ObligationWithStatus[] = computePayrollObligations({
-    periodStart: profile.periodStart,
-    periodEnd: profile.periodEnd,
-    hasEmployees: profile.hasEmployees,
-  }).map((o) => ({ ...o, status: deriveObligationStatus(o.dueDate, today) }))
+  const result = computeTimelineObligations({
+    from: profile.periodStart,
+    to: profile.periodEnd,
+    personType: profile.personType,
+    vatTimeline: [],
+    payrollTimeline: profile.payrollTimeline,
+  })
+  const obligations: ObligationWithStatus[] = result.obligations.map((o) => ({
+    ...o,
+    status: deriveObligationStatus(o, today),
+  }))
 
-  return { status: "ok", periodLabel: profile.periodLabel, obligations }
+  return {
+    status: "ok",
+    periodLabel: profile.periodLabel,
+    obligations,
+    issues: result.issues.filter((issue) => issue.code.startsWith("PAYROLL_")),
+  }
 }

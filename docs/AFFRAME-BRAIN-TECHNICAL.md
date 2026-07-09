@@ -35,7 +35,7 @@ not a bug.
 ```
 operator Claude Code
   └─ afframe brain book <pdf> --extracted ir.json --context ctx.json --yes   (§1)
-       └─ runLiveBrainSession: 5-var creds gate + BRAIN_RUNTIME_ACTIVE=="1"   (§1.2)
+       └─ runLiveBrainSession: BRAIN_API_KEY creds gate (M0.2a: the rest default)  (§1.2)
             └─ nested query()  →  spawns  tsx apps/mcp/src/server.ts          (§1.1)
                  └─ model calls  mcp__afframe__capture_accounting_document
                       └─ bridge → HTTPS → POST /v1/accounting/documents        (§2.6)
@@ -94,23 +94,34 @@ Override with `BRAIN_MCP_SERVER_JS` / `BRAIN_MCP_TSX_BIN`; missing either → fa
 
 ### 1.2 Env vars per command + the exact "blocked" messages
 
-Canonical names: `BRAIN_HARNESS_REQUIRED_ENV` (`brain-cc-harness.ts:44-59`): `BRAIN_RUNTIME_ACTIVE`,
-`BRAIN_LIVE`, `BRAIN_MCP_ENDPOINT` (the deployed **REST base URL** — the var name is legacy, its meaning is the
-REST base), `BRAIN_API_KEY`, `BRAIN_AGENT_SDK_AUTH`.
+**[M0.2a — env-collapse]** A fresh session needs ONLY `BRAIN_API_KEY` pasted in. `resolveBrainEnv`
+(`apps/cli/src/brain/env.ts`) defaults everything else: `BRAIN_MCP_ENDPOINT` → the production REST base
+(`https://api.afframe.com`) when unset, `BRAIN_AGENT_SDK_AUTH` → the literal `"ambient"` when unset.
 
-- **run / book** (`runLiveBrainSession`): all 5 vars truthy (`brain-cc-harness.ts:307-310`) AND
-  `BRAIN_RUNTIME_ACTIVE === "1"` exactly (`:312-316`) AND non-empty `mcpEndpoint` (`:317-318`). Any miss →
-  `BrainHarnessNotWiredError`; `command.ts:402-405` prints `` `${command} blocked: ${msg}` `` + exit 1.
-- **extract**: reads only `BRAIN_MCP_ENDPOINT`, `BRAIN_API_KEY`, `BRAIN_AGENT_SDK_AUTH` (`command.ts:186-193`) —
-  **not** `BRAIN_RUNTIME_ACTIVE`/`BRAIN_LIVE` (extract never books). Missing → `brain extract blocked: missing …`.
+Canonical names the harness gate still checks: `BRAIN_HARNESS_REQUIRED_ENV` (`brain-cc-harness.ts`):
+`BRAIN_MCP_ENDPOINT` (the deployed **REST base URL** — the var name is legacy, its meaning is the REST base),
+`BRAIN_API_KEY`, `BRAIN_AGENT_SDK_AUTH`. `BRAIN_RUNTIME_ACTIVE` and `BRAIN_LIVE` are **no longer part of this
+list** — M0.2a dropped the redundant client-side pre-block on those two (a duplicate of the SERVER's real
+admission authority, `apps/api/src/v1/accounting/admission.singleton.ts`, which is unchanged and still fails
+closed on its own kill-switch regardless of the client).
 
-**`buildBrainSessionEnv` and the `ambient` behavior** (`session-config.ts:228-238`): it copies every defined
-string from `process.env`, then sets `ANTHROPIC_API_KEY = token` **only if** `token.startsWith("sk-")`
-(`token` = `BRAIN_AGENT_SDK_AUTH`). A non-`sk-` value (e.g. the literal `ambient`) is deliberately **not**
-force-fed as an API key — it is left to the subprocess's own credential resolution, so the nested `query()`
-authenticates off the operator's logged-in Claude Code session. **This is why on the operator's own Mac no
-Anthropic token is needed** — set `BRAIN_AGENT_SDK_AUTH=ambient`. `BRAIN_LIVE`'s _value_ is never read; it is
-purely a second "must be set" flag.
+- **run / book** (`runLiveBrainSession`): `apps/cli`'s `readEnv` resolves the 3 required names from the
+  already-defaulted `BrainEnv`, so only an unset `BRAIN_API_KEY` (no default) can leave one falsy. Any miss →
+  `BrainHarnessNotWiredError`; `command.ts` prints `` `${command} blocked: ${msg}` `` + exit 1. An
+  admission-refused live run (write lane off, concurrency cap, or per-key throttle — all `429 rate_limited`)
+  is NOT a client-side block: it comes back as an ordinary result that `renderLiveResult`
+  (`session-config.ts`) renders as the clean sentence `"Brain write lane is currently off (or the write was
+rate-limited) — nothing was booked."` instead of the raw tool-result text.
+- **extract**: reads only `BRAIN_API_KEY` (`command.ts`, via `resolveBrainEnv`) — never required
+  `BRAIN_RUNTIME_ACTIVE`/`BRAIN_LIVE` (extract never books). Missing → `brain extract blocked: missing
+BRAIN_API_KEY`.
+
+**`buildBrainSessionEnv` and the `ambient` behavior** (`session-config.ts`): it copies every defined string
+from `process.env`, then sets `ANTHROPIC_API_KEY = token` **only if** `token.startsWith("sk-")` (`token` =
+the resolved `BRAIN_AGENT_SDK_AUTH`). A non-`sk-` value (e.g. the literal `ambient`, now the M0.2a default) is
+deliberately **not** force-fed as an API key — it is left to the subprocess's own credential resolution, so
+the nested `query()` authenticates off the operator's logged-in Claude Code session. **This is why on the
+operator's own Mac no Anthropic token is needed** — the `ambient` default is correct out of the box.
 
 ### 1.3 The two lanes
 
@@ -556,22 +567,22 @@ today; it _proposes bookings and holds them_. The learn-on-confirm / layout-drif
 Symptom → most-likely cause → where to look. (The write-lane and conversationId rows are the two that bit us
 first in practice.)
 
-| Symptom                                                            | Cause                                                                                                                                                                                    | Fix / where                                                                                       |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Every write `429 "runtime is disabled"`**                        | `BRAIN_RUNTIME_ACTIVE != "1"` on the running task. A deploy that omitted `brain_runtime_active=1` reset it (fail-closed OFF).                                                            | Re-deploy with `brain_runtime_active=1` (`_deploy-aws.yml`), or verify the ECS task-def env. §3.5 |
-| **Write `400 "Validation failed"` (no field detail)**              | Usually `conversationId` is not a UUID — the server requires it (`z.string().uuid()`); fixed GH #577, the generated MCP tool schema also enforces `.uuid()`.                             | Pass a UUID (`uuidgen`). §1.5, §2.2                                                               |
-| **`422 "conversationId is required for a user-bound agent key"`**  | Agent key logs `ai_on_behalf`, which requires a conversationId.                                                                                                                          | Add a UUID `conversationId` to the capture. §2.2, §3.4                                            |
-| **`403 "Accounting writes require a user-bound API key"`**         | The key has `created_by_user_id = null`.                                                                                                                                                 | Re-issue via "Issue Brain agent key" (binds the user). §2.5                                       |
-| **`403` on `/approvals` list/resolve**                             | Working as designed — agent keys are `@RequireHumanActor` 403 there. A human must approve.                                                                                               | §2.2                                                                                              |
-| **`brain book/run blocked: … Missing/unmet …`**                    | A required env var is unset, or `BRAIN_RUNTIME_ACTIVE != "1"`.                                                                                                                           | `source docs/runbooks/mlive.local.sh`. §1.2                                                       |
-| **`brain extract/book` won't start — asks for an Anthropic token** | Misreading: `BRAIN_AGENT_SDK_AUTH` must be _set_ but on-Mac the value `ambient` is sufficient (nested Claude uses the machine's login).                                                  | Set `BRAIN_AGENT_SDK_AUTH=ambient`; never demand `sk-ant-…`. §1.2                                 |
-| **Health `503 "Afframe is asleep"`**                               | Prod is cold-paused.                                                                                                                                                                     | `gh workflow run power.yml -f environment=production -f action=resume` (~8 min RDS cold start).   |
-| **A capture that "should" auto-apply is still HELD**               | Expected at cold start — the `extraction_failed` floor forces `cRaw=0`; green is unreachable until M3. A cold-start `201` would be a **broken-gate alarm**.                              | §3.3, §4.5                                                                                        |
-| **OCR capture unexpectedly HELD even with a template**             | The template is unconfirmed (`novel_template`) or the basis is missing/foreign (`unverified_template`); or `extractionMethod` omitted → fails closed to OCR.                             | A human must `confirm` the template. §6.1, §6.2                                                   |
-| **`429 "Too many concurrent accounting runs"`**                    | Admission cap hit (global 64 / per-org 16 pre-launch deploy; code fallback 32/8 if env unset).                                                                                           | Retry; or raise `ACCOUNTING_ADMISSION_*` env. §3.5                                                |
-| **`429 "Too many requests…"` with `RateLimit-*` headers**          | NOT a Brain-gate issue — the V1-wide per-key throttler (`ApiKeyThrottlerGuard`, 300 req/60 s per API key pre-launch deploy; code fallback 100/60s) that fronts all `/v1/*` incl. writes. | Slow down / respect the `RateLimit-*` headers; the limit is per key (`v1.module.ts`). §3.4        |
-| **Nested `query()` won't authenticate**                            | `BRAIN_AGENT_SDK_AUTH` starts with `sk-` but the key is invalid, OR the machine has no Claude Code login for the `ambient` path.                                                         | Use a valid `sk-ant-…`, or log in Claude Code and use `ambient`. §1.2                             |
-| **Bridge won't start / `ERR_MODULE_NOT_FOUND`**                    | Someone pointed it at `dist/server.js` (not node-runnable) instead of the tsx source.                                                                                                    | Run from inside the monorepo; the bridge uses `apps/mcp/src/server.ts` via tsx. §1.1              |
+| Symptom                                                                                                  | Cause                                                                                                                                                                                                                 | Fix / where                                                                                       |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **CLI prints "Brain write lane is currently off (or the write was rate-limited) — nothing was booked."** | `BRAIN_RUNTIME_ACTIVE != "1"` on the running api task (or a concurrency/throttle cap). M0.2a: the client no longer pre-checks this — it always attempts, and this clean sentence replaces the raw `429 rate_limited`. | Re-deploy with `brain_runtime_active=1` (`_deploy-aws.yml`), or verify the ECS task-def env. §3.5 |
+| **Write `400 "Validation failed"` (no field detail)**                                                    | Usually `conversationId` is not a UUID — the server requires it (`z.string().uuid()`); fixed GH #577, the generated MCP tool schema also enforces `.uuid()`.                                                          | Pass a UUID (`uuidgen`). §1.5, §2.2                                                               |
+| **`422 "conversationId is required for a user-bound agent key"`**                                        | Agent key logs `ai_on_behalf`, which requires a conversationId.                                                                                                                                                       | Add a UUID `conversationId` to the capture. §2.2, §3.4                                            |
+| **`403 "Accounting writes require a user-bound API key"`**                                               | The key has `created_by_user_id = null`.                                                                                                                                                                              | Re-issue via "Issue Brain agent key" (binds the user). §2.5                                       |
+| **`403` on `/approvals` list/resolve**                                                                   | Working as designed — agent keys are `@RequireHumanActor` 403 there. A human must approve.                                                                                                                            | §2.2                                                                                              |
+| **`brain book/run blocked: … Missing/unmet …`**                                                          | `BRAIN_API_KEY` is unset — the one required paste (M0.2a collapsed every other var to a default).                                                                                                                     | `source docs/runbooks/mlive.local.sh`. §1.2                                                       |
+| **`brain extract/book` won't start — asks for an Anthropic token**                                       | Misreading: `BRAIN_AGENT_SDK_AUTH` must be _set_ but on-Mac the value `ambient` is sufficient (nested Claude uses the machine's login).                                                                               | Set `BRAIN_AGENT_SDK_AUTH=ambient`; never demand `sk-ant-…`. §1.2                                 |
+| **Health `503 "Afframe is asleep"`**                                                                     | Prod is cold-paused.                                                                                                                                                                                                  | `gh workflow run power.yml -f environment=production -f action=resume` (~8 min RDS cold start).   |
+| **A capture that "should" auto-apply is still HELD**                                                     | Expected at cold start — the `extraction_failed` floor forces `cRaw=0`; green is unreachable until M3. A cold-start `201` would be a **broken-gate alarm**.                                                           | §3.3, §4.5                                                                                        |
+| **OCR capture unexpectedly HELD even with a template**                                                   | The template is unconfirmed (`novel_template`) or the basis is missing/foreign (`unverified_template`); or `extractionMethod` omitted → fails closed to OCR.                                                          | A human must `confirm` the template. §6.1, §6.2                                                   |
+| **`429 "Too many concurrent accounting runs"`**                                                          | Admission cap hit (global 64 / per-org 16 pre-launch deploy; code fallback 32/8 if env unset).                                                                                                                        | Retry; or raise `ACCOUNTING_ADMISSION_*` env. §3.5                                                |
+| **`429 "Too many requests…"` with `RateLimit-*` headers**                                                | NOT a Brain-gate issue — the V1-wide per-key throttler (`ApiKeyThrottlerGuard`, 300 req/60 s per API key pre-launch deploy; code fallback 100/60s) that fronts all `/v1/*` incl. writes.                              | Slow down / respect the `RateLimit-*` headers; the limit is per key (`v1.module.ts`). §3.4        |
+| **Nested `query()` won't authenticate**                                                                  | `BRAIN_AGENT_SDK_AUTH` starts with `sk-` but the key is invalid, OR the machine has no Claude Code login for the `ambient` path.                                                                                      | Use a valid `sk-ant-…`, or log in Claude Code and use `ambient`. §1.2                             |
+| **Bridge won't start / `ERR_MODULE_NOT_FOUND`**                                                          | Someone pointed it at `dist/server.js` (not node-runnable) instead of the tsx source.                                                                                                                                 | Run from inside the monorepo; the bridge uses `apps/mcp/src/server.ts` via tsx. §1.1              |
 
 **Operator DB access for verification** (`docs/runbooks/DB-ACCESS.md`): `./scripts/db-query.sh production "SET
 ROLE app_admin; SELECT jsonb_pretty(output_json->'serverGate') FROM tool_call_log WHERE conversation_id='<uuid>'"`

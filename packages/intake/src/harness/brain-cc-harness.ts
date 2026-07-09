@@ -42,21 +42,32 @@ import { invoiceToCapture, type IrToCaptureContext } from "../ir-to-capture"
  * runbook, the error message, and the code stay in lockstep.
  */
 export const BRAIN_HARNESS_REQUIRED_ENV = {
-  /** The write-lane kill-switch. MUST be `"1"` before any live run (fail-closed default OFF). */
-  runtimeActive: "BRAIN_RUNTIME_ACTIVE",
-  /** Explicit opt-in that live creds are present + the operator intends a real session. */
-  liveEnabled: "BRAIN_LIVE",
   /**
    * The deployed REST API base URL (e.g. https://api.afframe.com). Consumed by the LOCAL stdio MCP bridge the
    * CLI spawns (as its `AFFRAME_API_BASE`) — the Brain reaches prod as an ordinary outbound HTTPS client, not
    * a hosted MCP endpoint. Var name kept as `BRAIN_MCP_ENDPOINT`; only its meaning is now the REST base.
+   * `apps/cli` (`resolveBrainEnv`) defaults this to the production base when unset (M0.2a), so this gate
+   * fires only if the CALLER's `readEnv` resolves an empty value — never on the raw env var's absence.
    */
   mcpEndpoint: "BRAIN_MCP_ENDPOINT",
   /** The Brain's server-authorized accounting API key (principal → org, server-injected tenancy). */
   apiKey: "BRAIN_API_KEY",
-  /** Agent-SDK auth. Bedrock spike uses AWS creds + `effort:xhigh`; subscription auth for dev sessions. */
+  /**
+   * Agent-SDK auth. Bedrock spike uses AWS creds + `effort:xhigh`; subscription auth for dev sessions.
+   * `apps/cli` (`resolveBrainEnv`) defaults this to the literal `"ambient"` when unset (M0.2a).
+   */
   agentSdkAuth: "BRAIN_AGENT_SDK_AUTH",
 } as const
+
+// M0.2a (env-collapse): this gate used to ALSO require `BRAIN_RUNTIME_ACTIVE=1` + `BRAIN_LIVE` before ever
+// reaching a launcher — a CLIENT-side pre-block duplicating the SERVER's real admission authority
+// (`apps/api/src/v1/accounting/admission.singleton.ts`, `packages/db/src/admission.ts`), which fails closed
+// on its own `BRAIN_RUNTIME_ACTIVE` kill-switch and HELDs every write at cold start regardless of what the
+// client believes. Pre-blocking here bought no safety (the server gate is unchanged and still authoritative)
+// and cost operators two extra env vars on every fresh session. Dropped: the client now always attempts, and
+// the server decides — a run that hits an inactive write lane surfaces the server's `429 rate_limited`
+// through the ordinary launcher result, which `apps/cli` renders as a clean lane-off message instead of a
+// raw HTTP dump (see `renderLiveResult` / `isLaneOffOutcome` in `apps/cli/src/brain/session-config.ts`).
 
 /**
  * One planned MCP tool call in the dry-run. `toolName` is the real `mcp__afframe__<verb_resource>` name so
@@ -225,8 +236,9 @@ export interface AgentSessionLaunchOptions {
  * A launcher OWNS the `@anthropic-ai/claude-agent-sdk` session — it is injected so `@workspace/intake` NEVER
  * imports the SDK (not even `import type`), keeping the SDK out of this package's dependency graph. The
  * SDK-backed launcher belongs in `apps/cli` (to be added with the first live run); tests inject a mock.
- * `runLiveBrainSession` only reaches a launcher AFTER the env + kill-switch gate passes, so a launcher can
- * never run a write lane the server has OFF.
+ * `runLiveBrainSession` only reaches a launcher AFTER the creds gate passes. The write lane itself is gated
+ * SERVER-side only (M0.2a dropped the redundant client pre-block) — a launcher can propose, but the server
+ * still HELDs/rejects any write the deploy-time kill-switch has OFF.
  */
 export interface AgentSessionLauncher {
   launch(options: AgentSessionLaunchOptions): Promise<LiveBrainSessionResult>
@@ -275,7 +287,7 @@ export interface LiveBrainSessionResult {
 export class BrainHarnessNotWiredError extends Error {
   constructor(missing: readonly string[]) {
     super(
-      "runLiveBrainSession cannot run: its creds/kill-switch gate is unmet or no Agent-SDK session launcher " +
+      "runLiveBrainSession cannot run: its creds gate is unmet or no Agent-SDK session launcher " +
         "was injected (the @anthropic-ai/claude-agent-sdk-backed launcher lives in apps/cli — NOT a dependency of " +
         `@workspace/intake). Missing/unmet: ${missing.join(", ")}. ` +
         "See docs/runbooks/BRAIN-CC-HARNESS.md for the wiring + first-live-run procedure.",
@@ -285,17 +297,22 @@ export class BrainHarnessNotWiredError extends Error {
 }
 
 /**
- * CREDS-GATED live-run entry point. It NEVER fakes a session and NEVER runs a write lane the server holds OFF:
+ * CREDS-GATED live-run entry point. It NEVER fakes a session:
  *
- *   1. It fails closed on the env/creds gate + the `BRAIN_RUNTIME_ACTIVE=1` write-lane kill-switch FIRST,
- *      before touching the launcher, naming exactly what is missing.
+ *   1. It fails closed on the creds gate FIRST, before touching the launcher, naming exactly what is
+ *      missing. (M0.2a: this used to ALSO require the client to see `BRAIN_RUNTIME_ACTIVE=1` + `BRAIN_LIVE`
+ *      before ever reaching a launcher — a redundant pre-block, since the SERVER admission lane is the real,
+ *      unweakened authority and HELDs/rejects every write at cold start regardless of the client. Dropped so
+ *      the client always attempts and the server decides; see the note above `BRAIN_HARNESS_REQUIRED_ENV`.)
  *   2. Only then, if an `AgentSessionLauncher` was injected, does it delegate — handing the launcher the
  *      session config derived from the inspected dry-run plan. If no launcher was injected it fails closed
  *      (the SDK-backed launcher lives in `apps/cli`, so this package pulls in no SDK dependency).
  *
  * This is real wiring, not a stub: with a launcher + full env it launches the session and returns its
  * result; with anything unmet it fails loud. The SERVER gate still holds every write at cold start — the
- * launcher can only PROPOSE, never force a green (the auto-apply lane's three-way AND is server-side).
+ * launcher can only PROPOSE, never force a green (the auto-apply lane's three-way AND is server-side), and a
+ * write the server's kill-switch has OFF still comes back as a rejected/held result, never a fabricated
+ * success.
  */
 export async function runLiveBrainSession(
   inputs: LiveBrainSessionInputs,
@@ -308,17 +325,11 @@ export async function runLiveBrainSession(
     values[envName] = inputs.readEnv(envName)
     if (!values[envName]) missing.push(`env ${envName}`)
   }
-  // The write-lane kill-switch must be explicitly ON — a set-but-not-"1" value is still closed.
-  if (values[BRAIN_HARNESS_REQUIRED_ENV.runtimeActive] !== "1") {
-    missing.push(
-      `${BRAIN_HARNESS_REQUIRED_ENV.runtimeActive}=1 (write lane OFF)`,
-    )
-  }
   if (!inputs.mcpEndpoint)
     missing.push("deployed REST API base URL (inputs.mcpEndpoint)")
 
-  // Fail closed on env/kill-switch BEFORE the launcher is ever consulted — a launcher must never see a
-  // half-provisioned run, and the write lane must be explicitly ON.
+  // Fail closed on creds BEFORE the launcher is ever consulted — a launcher must never see a
+  // half-provisioned run.
   if (missing.length > 0) throw new BrainHarnessNotWiredError(missing)
 
   // No launcher injected = not wired. The SDK-backed launcher belongs in operator tooling (apps/cli), never
@@ -337,8 +348,9 @@ export async function runLiveBrainSession(
     throw new BrainHarnessNotWiredError(["env re-read returned empty creds"])
   }
 
-  // Env is complete + the kill-switch is ON + a launcher is present. Hand the launcher the INSPECTED plan
-  // (it reads the login pack's system prompt + allow/deny lists directly) + endpoint + creds, and delegate.
+  // Creds are complete and a launcher is present. Hand the launcher the INSPECTED plan (it reads the login
+  // pack's system prompt + allow/deny lists directly) + endpoint + creds, and delegate. The SERVER gate — not
+  // this function — decides whether the write lane is open.
   return inputs.launcher.launch({
     plan: inputs.plan,
     mcpEndpoint: inputs.mcpEndpoint,

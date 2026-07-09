@@ -272,8 +272,6 @@ describe("runLiveBrainSession (creds-gated)", () => {
   })
 
   const fullEnv: Record<string, string> = {
-    [BRAIN_HARNESS_REQUIRED_ENV.runtimeActive]: "1",
-    [BRAIN_HARNESS_REQUIRED_ENV.liveEnabled]: "1",
     [BRAIN_HARNESS_REQUIRED_ENV.mcpEndpoint]: "https://api.afframe.com",
     [BRAIN_HARNESS_REQUIRED_ENV.apiKey]: "sk-test",
     [BRAIN_HARNESS_REQUIRED_ENV.agentSdkAuth]: "token",
@@ -312,7 +310,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
     expect(launched).toBe(false)
   })
 
-  it("delegates to an injected launcher once env + kill-switch are satisfied", async () => {
+  it("delegates to an injected launcher once the creds gate is satisfied", async () => {
     // Real wiring: with full env + a launcher, the session runs and returns the launcher's result. The mock
     // launcher stands in for the apps/cli SDK-backed one; it also asserts the config is derived from the plan.
     const seen: Array<Record<string, unknown>> = []
@@ -351,20 +349,33 @@ describe("runLiveBrainSession (creds-gated)", () => {
     expect(seen[0]!["agentSdkAuth"]).toBe("token")
   })
 
-  it("flags the write-lane kill-switch as unmet when BRAIN_RUNTIME_ACTIVE is set but not '1'", async () => {
-    let caught: unknown
-    try {
-      await runLiveBrainSession({
-        plan,
-        mcpEndpoint: "https://api.afframe.com",
-        readEnv: (name) =>
-          name === BRAIN_HARNESS_REQUIRED_ENV.runtimeActive ? "0" : "x",
-      })
-    } catch (e) {
-      caught = e
+  // M0.2a — the client used to pre-block on `BRAIN_RUNTIME_ACTIVE=1` + `BRAIN_LIVE` before ever reaching a
+  // launcher: a redundant client-side gate duplicating the SERVER's real admission authority. Dropped so the
+  // client always attempts and the server decides (the server's own kill-switch is untouched and still
+  // HELDs/rejects any write it has OFF — see apps/api/src/v1/accounting/admission.singleton.ts).
+  it("[M0.2a] never requires BRAIN_RUNTIME_ACTIVE or BRAIN_LIVE — neither name appears in the required list", () => {
+    const names: readonly string[] = Object.values(BRAIN_HARNESS_REQUIRED_ENV)
+    expect(names).not.toContain("BRAIN_RUNTIME_ACTIVE")
+    expect(names).not.toContain("BRAIN_LIVE")
+  })
+
+  it("[M0.2a] delegates to the launcher even when BRAIN_RUNTIME_ACTIVE / BRAIN_LIVE are completely unset", async () => {
+    // Only the three real creds are provided via readEnv; BRAIN_RUNTIME_ACTIVE / BRAIN_LIVE are never asked
+    // for and their absence must not block the run — the server is the sole authority on the write lane.
+    const mockLauncher = {
+      launch: () =>
+        Promise.resolve({
+          brainRunId: "run-2",
+          applied: false,
+          serverGate: { held: true },
+        }),
     }
-    expect((caught as Error).message).toContain(
-      `${BRAIN_HARNESS_REQUIRED_ENV.runtimeActive}=1`,
-    )
+    const result = await runLiveBrainSession({
+      plan,
+      mcpEndpoint: "https://api.afframe.com",
+      readEnv: (name) => fullEnv[name],
+      launcher: mockLauncher,
+    })
+    expect(result.brainRunId).toBe("run-2")
   })
 })

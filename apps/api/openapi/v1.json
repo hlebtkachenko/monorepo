@@ -2445,13 +2445,40 @@
               "b2_dan"
             ],
             "description": "Kontrolní hlášení section totals."
+          },
+          "completeness": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "COMPLETE",
+                  "NEEDS_INPUT"
+                ]
+              },
+              "missingTaxPointDocuments": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missingReceivedDateDocuments": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "status",
+              "missingTaxPointDocuments",
+              "missingReceivedDateDocuments"
+            ],
+            "description": "Whether the VAT artifact has the legal-date evidence required by its included sections."
           }
         },
         "required": [
           "organizationId",
           "periodId",
           "rows",
-          "kh"
+          "kh",
+          "completeness"
         ],
         "description": "DPH přiznání (VAT return) for the period — line values plus kontrolní hlášení section totals, computed from the posted facts."
       },
@@ -2859,12 +2886,39 @@
               "description": "One souhrnné hlášení row (per partner + kód plnění)."
             },
             "description": "EU supply recap rows (§102)."
+          },
+          "completeness": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "COMPLETE",
+                  "NEEDS_INPUT"
+                ]
+              },
+              "missingTaxPointDocuments": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missingReceivedDateDocuments": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "status",
+              "missingTaxPointDocuments",
+              "missingReceivedDateDocuments"
+            ],
+            "description": "Whether the VAT artifact has the legal-date evidence required by its included sections."
           }
         },
         "required": [
           "organizationId",
           "periodId",
-          "rows"
+          "rows",
+          "completeness"
         ],
         "description": "Souhrnné hlášení — EU supplies recap for the period."
       },
@@ -3307,6 +3361,32 @@
               "count"
             ],
             "description": "B.3 — received supplies under threshold (aggregate)."
+          },
+          "completeness": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "COMPLETE",
+                  "NEEDS_INPUT"
+                ]
+              },
+              "missingTaxPointDocuments": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "missingReceivedDateDocuments": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "status",
+              "missingTaxPointDocuments",
+              "missingReceivedDateDocuments"
+            ],
+            "description": "Whether the VAT artifact has the legal-date evidence required by its included sections."
           }
         },
         "required": [
@@ -3318,7 +3398,8 @@
           "a5",
           "b1",
           "b2",
-          "b3"
+          "b3",
+          "completeness"
         ],
         "description": "Kontrolní hlášení — per-counterparty control statement (§101c-i)."
       },
@@ -4169,6 +4250,12 @@
             "description": "Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period.",
             "example": "2025-03-14"
           },
+          "occurredOn": {
+            "type": "string",
+            "format": "date",
+            "description": "Explicit Czech legal date for period membership. Legacy callers may omit it and the server derives Europe/Prague from occurredAt.",
+            "example": "2026-03-14"
+          },
           "confidence": {
             "type": "number",
             "minimum": 0,
@@ -4339,6 +4426,24 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$",
             "description": "Okamžik vyhotovení (§11/1d) — ISO.",
             "example": "2025-03-14"
+          },
+          "taxPointDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "DUZP/DPPD used by VAT outputs. When omitted, invoice capture derives it from linked accounting-event legal dates.",
+            "example": "2026-03-14"
+          },
+          "receivedDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Proven date a received invoice was obtained. Missing means input-VAT eligibility is incomplete.",
+            "example": "2026-03-14"
           },
           "roundingAmount": {
             "type": "string",

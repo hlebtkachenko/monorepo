@@ -43,6 +43,7 @@ export {
   type DphRows,
   type KontrolniHlaseniTotals,
 } from "./dph"
+export type { VatEvidenceCompleteness } from "./vat-evidence-completeness"
 export {
   buildKontrolniHlaseni,
   KH_ROW_THRESHOLD,

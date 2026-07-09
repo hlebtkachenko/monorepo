@@ -107,6 +107,7 @@ describe("TODO-1 — DPH EU (ř.3/4) vs domestic PDP (ř.10/11) split", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2050-03-01",
+        receivedDate: "2050-03-01",
         lines: [
           {
             eventId: evEu.eventId,
@@ -145,6 +146,7 @@ describe("TODO-1 — DPH EU (ř.3/4) vs domestic PDP (ř.10/11) split", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2050-03-05",
+        receivedDate: "2050-03-05",
         lines: [
           {
             eventId: evPdp.eventId,
@@ -170,7 +172,10 @@ describe("TODO-1 — DPH EU (ř.3/4) vs domestic PDP (ř.10/11) split", () => {
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // EU → ř.3, domestic → ř.10 — no longer collapsed
       expect(dph.rows.r3_base).toBe("1000.0000")
       expect(dph.rows.r3_dan).toBe("210.0000")
@@ -270,7 +275,10 @@ describe("TODO-2 — per-counterparty kontrolní hlášení", () => {
         responsibleUserId: userId,
       })
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(kh.a4).toHaveLength(1)
       expect(kh.a4[0]!.tax_id).toBe("CZ12345678")
       expect(kh.a4[0]!.base21).toBe("20000.0000")
@@ -352,7 +360,10 @@ describe("TODO-2 — per-counterparty kontrolní hlášení", () => {
         ],
       })
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // the big dobropis is a row-level A.4 entry with NEGATIVE amounts,
       // not folded into the aggregate
       expect(kh.a4).toHaveLength(1)
@@ -586,7 +597,10 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
         responsibleUserId: userId,
       })
 
-      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      const sh = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(sh.rows).toHaveLength(1)
       expect(sh.rows[0]!.tax_id).toBe("DE811234567")
       expect(sh.rows[0]!.country_code).toBe("DE")
@@ -643,7 +657,10 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
         responsibleUserId: userId,
       })
 
-      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      const sh = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(sh.rows).toHaveLength(1)
       expect(sh.rows[0]!.tax_id).toBe("DE822345678")
       expect(sh.rows[0]!.value).toBe("30000.0000")
@@ -720,7 +737,10 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
         })
       }
 
-      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      const sh = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // same partner, same doklad, two kód rows (goods 0, service 3)
       expect(sh.rows).toHaveLength(2)
       const byKod = Object.fromEntries(sh.rows.map((r) => [r.kod_plneni, r]))
@@ -1024,7 +1044,10 @@ describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
         ],
       })
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       const a1TaxIds = kh.a1.map((r) => r.tax_id)
       // both domestic §92 rows present on A.1; the EU-marked row is absent.
       expect(a1TaxIds).toContain("CZ12345678")
@@ -1038,14 +1061,20 @@ describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
       )
 
       // the EU-marked issued RC appears on Souhrnné hlášení (kód 0, no supply_kind).
-      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      const sh = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       const shEu = sh.rows.find((r) => r.tax_id === "DE811234567")
       expect(shEu?.value).toBe("30000.0000")
       expect(sh.rows.some((r) => r.tax_id === "CZ12345678")).toBe(false)
 
       // DPH: the A.1 checksum + ř.25 exclude the EU base (20000 + 15000 = 35000),
       // so the two A.1 numbers on the filed KH agree and ř.25 carries no EU leak.
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(dph.kh.a1_base).toBe("35000.0000")
       expect(dph.rows.r25_base).toBe("35000.0000")
     })
@@ -1090,6 +1119,7 @@ describe("[#516] KH kód předmětu plnění (§92 commodity)", () => {
           seriesId: s.documentSeriesId,
           type: args.type,
           issuedAt: args.day,
+          receivedDate: args.type === "RECEIVED_INVOICE" ? args.day : undefined,
           lines: [
             {
               eventId: ev.eventId,
@@ -1220,7 +1250,10 @@ describe("[#516] KH kód předmětu plnění (§92 commodity)", () => {
         ],
       )
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
 
       // A.1 single §92e row → kód "4".
       const a1_92e = kh.a1.find((r) => r.tax_id === "CZ11110000")

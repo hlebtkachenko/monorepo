@@ -1,6 +1,7 @@
 import "server-only"
 
 import { computeObligations } from "@workspace/accounting"
+import { czechToday } from "@/lib/czech-today"
 
 import { resolvePeriodProfile } from "./period-profile"
 import {
@@ -65,7 +66,7 @@ export async function getClosingObligations(
     hasEmployees,
   })
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = czechToday()
 
   return {
     status: "ok",

@@ -13,6 +13,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Fixed
 
 - **ci/bot**: let deploy-bot use the pnpm-installed wrangler instead of a stale wrangler-action version pin, avoiding npm workspace protocol failures during Worker deploys.
+- Model statutory VAT periods independently from accounting periods, preserve Czech legal dates, and report incomplete VAT evidence instead of asserting unsupported deductions.
 
 ## [v0.17.0] — 2026-07-09
 

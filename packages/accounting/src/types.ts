@@ -79,24 +79,26 @@ export interface OrgCtx {
   workspaceId: string
 }
 
-/**
- * A filing period (calendar month/quarter) date range, inclusive both ends.
- * Shared by the VAT output builders (buildDph / buildKontrolniHlaseni /
- * buildSouhrnneHlaseni) to narrow an aggregation to rows whose DPPD/DUZP
- * (accounting_event.occurred_at, §11/1e okamžik uskutečnění) falls within
- * [from, to]. Omitted → no extra predicate, aggregating the whole accounting
- * period.
- */
-export interface FilingRange {
+/** A statutory calendar month or quarter, inclusive at both ends. */
+export interface StatutoryPeriod {
   from: string
   to: string
 }
+
+/**
+ * The two explicit evidence boundaries supported by VAT read models.
+ * Statutory outputs use FILING_PERIOD and may cross accounting periods.
+ * ACCOUNTING_PERIOD remains available for the period-scoped public read model.
+ */
+export type VatEvidenceScope =
+  | { kind: "ACCOUNTING_PERIOD"; periodId: string }
+  | { kind: "FILING_PERIOD"; period: StatutoryPeriod }
 
 // --- capture (UC-1 steps 1-3, all regimes) ---------------------------------
 
 /** An účetní případ (the economic fact, §6/1). number_series allocates the Označení. */
 export interface EventInput {
-  /** The účetní období this case belongs to (occurred_at ∈ period). */
+  /** The účetní období this case belongs to (occurred_on ∈ period). */
   periodId: string
   /** number_series with entity_type = EVENT. */
   seriesId: string
@@ -108,6 +110,8 @@ export interface EventInput {
   content?: string | null
   /** okamžik uskutečnění (§11/1e) — ISO date/timestamp; must fall in the period. */
   occurredAt: string
+  /** Czech legal calendar date. Omit only for legacy callers; derived in Europe/Prague. */
+  occurredOn?: string
   /** osoba odpovědná za případ (§11/1f, R10) — app_user id. */
   responsibleUserId: string
 }
@@ -185,6 +189,10 @@ export interface DocumentInput {
   type: SummaryRecordType
   /** okamžik vyhotovení (§11/1d). */
   issuedAt: string
+  /** DUZP/DPPD for VAT reporting. For legacy callers it is derived from linked events. */
+  taxPointDate?: string | null
+  /** Date the recipient obtained the document. Required to prove input-VAT eligibility. */
+  receivedDate?: string | null
   /** §37 doc-total rounding → 548/648 at posting. Defaults "0". */
   roundingAmount?: Decimal
   lines: IndividualRecordInput[]

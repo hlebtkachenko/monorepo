@@ -14,6 +14,7 @@ const inputShape = {
   "description": z.string().min(1).max(2000).describe("Case description."),
   "content": z.string().max(10000).nullable().describe("Optional detail.").optional(),
   "occurredAt": z.string().describe("Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period."),
+  "occurredOn": z.string().describe("Explicit Czech legal date for period membership. Legacy callers may omit it and the server derives Europe/Prague from occurredAt.").optional(),
   "confidence": z.number().min(0).max(1).describe("Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required."),
   "rationale": z.string().min(1).max(2000).describe("Why this write — persisted to the audit trail. Required."),
   "conversationId": z.string().describe("Audit-correlation id of the driving agent conversation.").optional(),

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { inArray } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
+import { czechToday } from "@/lib/czech-today"
 import { organization } from "@workspace/db/schema"
 
 import { AppPageHeader } from "../../_components/app-page-header"
@@ -40,7 +41,7 @@ export default async function LegislationPage() {
   const ctx = await getWorkspaceContext(session.user.id)
   if (!ctx.activeWorkspaceId) return null
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = czechToday()
   const obligationsByOrg = await computeWorkspaceObligations(
     ctx.activeWorkspaceId,
   )

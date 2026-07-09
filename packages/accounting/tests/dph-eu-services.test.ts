@@ -58,6 +58,7 @@ async function captureEuReceipt(
     seriesId: seed.documentSeriesId,
     type: "RECEIVED_INVOICE",
     issuedAt: args.day,
+    receivedDate: args.day,
     lines: [
       {
         eventId: ev.eventId,
@@ -112,7 +113,10 @@ describe("DPH ř.5/6 — EU services received split (#449)", () => {
         day: "2081-05-01",
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
 
       // ř.5/6 — EU services received, self-assessed
       expect(dph.rows.r5_base).toBe("1000.0000")

@@ -155,7 +155,7 @@ describe("computeObligations", () => {
     expect(khQ2?.periodEnd).toBe("2026-06-30")
   })
 
-  it("PAYER + QUARTERLY, non-calendar accounting period: quarterly VAT_RETURN/CONTROL_STATEMENT bounds are clipped to the accounting period, dueDate stays the true calendar-quarter deadline", () => {
+  it("PAYER + QUARTERLY, non-calendar accounting period: VAT_RETURN and CONTROL_STATEMENT use complete calendar-quarter bounds", () => {
     const obligations = computeObligations({
       periodStart: "2026-02-01",
       periodEnd: "2026-04-30",
@@ -169,19 +169,16 @@ describe("computeObligations", () => {
     expect(vatReturns).toHaveLength(2)
     expect(kh).toHaveLength(2)
 
-    const q1Vat = vatReturns.find((o) => o.periodLabel === "Q1 2026")
-    expect(q1Vat?.periodStart).toBe("2026-02-01") // clipped up from 2026-01-01
-    expect(q1Vat?.periodEnd).toBe("2026-03-31") // true calendar quarter end, within range
-    expect(q1Vat?.dueDate).toBe("2026-04-27") // true calendar-quarter deadline, unclipped
+    for (const obligationsForKind of [vatReturns, kh]) {
+      const q1 = obligationsForKind.find((o) => o.periodLabel === "Q1 2026")
+      expect(q1?.periodStart).toBe("2026-01-01")
+      expect(q1?.periodEnd).toBe("2026-03-31")
+      expect(q1?.dueDate).toBe("2026-04-27")
 
-    const q2Vat = vatReturns.find((o) => o.periodLabel === "Q2 2026")
-    expect(q2Vat?.periodStart).toBe("2026-04-01") // true calendar quarter start, within range
-    expect(q2Vat?.periodEnd).toBe("2026-04-30") // clipped down from 2026-06-30
-    expect(q2Vat?.dueDate).toBe("2026-07-27") // true calendar-quarter deadline, unclipped
-
-    for (const o of [...vatReturns, ...kh]) {
-      expect(o.periodStart >= "2026-02-01").toBe(true)
-      expect(o.periodEnd <= "2026-04-30").toBe(true)
+      const q2 = obligationsForKind.find((o) => o.periodLabel === "Q2 2026")
+      expect(q2?.periodStart).toBe("2026-04-01")
+      expect(q2?.periodEnd).toBe("2026-06-30")
+      expect(q2?.dueDate).toBe("2026-07-27")
     }
   })
 

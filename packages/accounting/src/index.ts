@@ -215,6 +215,7 @@ export {
   type Dph,
   type DphRows,
   type KontrolniHlaseniTotals,
+  type VatEvidenceCompleteness,
   type KontrolniHlaseni,
   type KhRow,
   type KhAggregate,

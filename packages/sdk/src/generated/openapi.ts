@@ -1941,6 +1941,13 @@ export interface components {
                  */
                 b2_dan: string;
             };
+            /** @description Whether the VAT artifact has the legal-date evidence required by its included sections. */
+            completeness: {
+                /** @enum {string} */
+                status: "COMPLETE" | "NEEDS_INPUT";
+                missingTaxPointDocuments: number;
+                missingReceivedDateDocuments: number;
+            };
         };
         /** @description DPH přiznání line values. */
         DphRows: {
@@ -2258,6 +2265,13 @@ export interface components {
                  */
                 value: string;
             }[];
+            /** @description Whether the VAT artifact has the legal-date evidence required by its included sections. */
+            completeness: {
+                /** @enum {string} */
+                status: "COMPLETE" | "NEEDS_INPUT";
+                missingTaxPointDocuments: number;
+                missingReceivedDateDocuments: number;
+            };
         };
         /** @description One souhrnné hlášení row (per partner + kód plnění). */
         EcSalesRow: {
@@ -2550,6 +2564,13 @@ export interface components {
                  * @example 12
                  */
                 count: number;
+            };
+            /** @description Whether the VAT artifact has the legal-date evidence required by its included sections. */
+            completeness: {
+                /** @enum {string} */
+                status: "COMPLETE" | "NEEDS_INPUT";
+                missingTaxPointDocuments: number;
+                missingReceivedDateDocuments: number;
             };
         };
         /** @description One kontrolní hlášení detail row (per doklad). */
@@ -3064,6 +3085,12 @@ export interface components {
              */
             occurredAt: string;
             /**
+             * Format: date
+             * @description Explicit Czech legal date for period membership. Legacy callers may omit it and the server derives Europe/Prague from occurredAt.
+             * @example 2026-03-14
+             */
+            occurredOn?: string;
+            /**
              * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
              * @example 0.95
              */
@@ -3149,6 +3176,18 @@ export interface components {
              * @example 2025-03-14
              */
             issuedAt: string;
+            /**
+             * Format: date
+             * @description DUZP/DPPD used by VAT outputs. When omitted, invoice capture derives it from linked accounting-event legal dates.
+             * @example 2026-03-14
+             */
+            taxPointDate?: string | null;
+            /**
+             * Format: date
+             * @description Proven date a received invoice was obtained. Missing means input-VAT eligibility is incomplete.
+             * @example 2026-03-14
+             */
+            receivedDate?: string | null;
             /**
              * @description §37 doc-total rounding → 548/648.
              * @example -500.00

@@ -746,7 +746,10 @@ CREATE FUNCTION public.app_event_period_guard() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  PERFORM app_assert_period_writable(NEW.period_id, 'accounting_event', NEW.occurred_at::date);
+  IF NEW.occurred_on IS NULL THEN
+    NEW.occurred_on := (NEW.occurred_at AT TIME ZONE 'Europe/Prague')::date;
+  END IF;
+  PERFORM app_assert_period_writable(NEW.period_id, 'accounting_event', NEW.occurred_on);
   RETURN NEW;
 END;
 $$;
@@ -1449,7 +1452,8 @@ CREATE TABLE public.accounting_event (
     occurred_at timestamp with time zone NOT NULL,
     responsible_user_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    occurred_on date NOT NULL
 );
 
 ALTER TABLE ONLY public.accounting_event FORCE ROW LEVEL SECURITY;
@@ -2469,7 +2473,9 @@ CREATE TABLE public.summary_record (
     issued_at timestamp with time zone NOT NULL,
     rounding_amount numeric(19,4) DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    tax_point_date date,
+    received_date date
 );
 
 ALTER TABLE ONLY public.summary_record FORCE ROW LEVEL SECURITY;
@@ -3487,6 +3493,12 @@ CREATE INDEX account_period_balance_updated_idx ON public.account_period_balance
 CREATE INDEX account_synthetic_code_idx ON public.account USING btree (synthetic_code);
 
 --
+-- Name: accounting_event_org_occurred_on_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX accounting_event_org_occurred_on_idx ON public.accounting_event USING btree (organization_id, occurred_on);
+
+--
 -- Name: accounting_event_period_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3923,6 +3935,18 @@ CREATE INDEX signature_event_idx ON public.signature USING btree (event_id);
 --
 
 CREATE INDEX signature_posting_idx ON public.signature USING btree (posting_id);
+
+--
+-- Name: summary_record_org_received_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX summary_record_org_received_date_idx ON public.summary_record USING btree (organization_id, received_date) WHERE (received_date IS NOT NULL);
+
+--
+-- Name: summary_record_org_tax_point_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX summary_record_org_tax_point_date_idx ON public.summary_record USING btree (organization_id, tax_point_date) WHERE (tax_point_date IS NOT NULL);
 
 --
 -- Name: summary_record_period_idx; Type: INDEX; Schema: public; Owner: -

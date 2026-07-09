@@ -2,13 +2,12 @@
  * VAT filing-period awareness: a přiznání k DPH / kontrolní hlášení / souhrnné
  * hlášení covers a FILING PERIOD (calendar month or quarter), not the whole
  * annual účetní období. buildDph / buildKontrolniHlaseni / buildSouhrnneHlaseni
- * accept an optional third `filingRange` argument that further filters rows to
- * those whose DUZP (accounting_event.occurred_at, okamžik uskutečnění §11/1e)
- * falls within [from, to]. Omitting it (the v1 API call sites today) aggregates
- * the whole accounting period, unchanged — this suite proves both the new
- * narrowing behavior and that the whole-period default is untouched.
+ * accept an explicit evidence scope. FILING_PERIOD uses legal document dates
+ * and can cross accounting periods; ACCOUNTING_PERIOD preserves the v1 public
+ * read-model boundary. This suite proves both behaviors.
  */
-import { beforeAll, afterAll, describe, expect, it } from "vitest"
+import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest"
+import { sql } from "drizzle-orm"
 import { withOrganization } from "@workspace/db"
 import {
   adminClient,
@@ -27,21 +26,40 @@ import {
 let admin: ReturnType<typeof adminClient>
 let workspaceId: string
 let orgA: string
+let orgB: string
 let userId: string
+let userBId: string
+let orgSequence = 0
 
 beforeAll(async () => {
   admin = adminClient()
   const seed = await seedTwoOrganizations(admin)
   workspaceId = seed.workspaceId
   orgA = seed.orgAId
+  orgB = seed.orgBId
   userId = seed.userAId
+  userBId = seed.userBId
 })
 afterAll(async () => {
   await admin.end({ timeout: 5 })
 })
 
-describe("VAT output builders — optional filingRange", () => {
-  it("buildDph: omitted range aggregates the whole period; a monthly range narrows to that month's DUZP only", async () => {
+beforeEach(async () => {
+  const sequence = ++orgSequence
+  const [org] = await admin<Array<{ id: string }>>`
+    INSERT INTO organization
+      (organization_id, workspace_id, slug, legal_name, person_kind, legal_subject_kind)
+    VALUES
+      (uuidv7(), ${workspaceId}, ${`vat-range-${sequence}`}, ${`VAT Range ${sequence}`}, 'legal_entity', 'for_profit')
+    RETURNING id
+  `
+  if (!org) throw new Error("Failed to seed VAT range organization")
+  orgA = org.id
+  await admin`UPDATE organization SET organization_id = id WHERE id = ${orgA}::uuid`
+})
+
+describe("VAT output builder evidence scopes", () => {
+  it("buildDph: accounting-period scope aggregates the book period and filing scope narrows by tax point", async () => {
     const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
       periodStart: "2026-01-01",
       periodEnd: "2026-12-31",
@@ -105,26 +123,418 @@ describe("VAT output builders — optional filingRange", () => {
         ],
       })
 
-      // No range → whole accounting period, both months included (backward compat)
-      const whole = await buildDph(db, s.periodId)
+      // Accounting-period scope keeps the public API's book-period read model.
+      const whole = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(whole.rows.r1_base).toBe("3000.0000")
       expect(whole.rows.r1_dan).toBe("630.0000")
 
-      // January filing range → January row only, February amount excluded
-      const jan = await buildDph(db, s.periodId, {
-        from: "2026-01-01",
-        to: "2026-01-31",
+      // January filing scope includes only January tax points.
+      const jan = await buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
       })
       expect(jan.rows.r1_base).toBe("1000.0000")
       expect(jan.rows.r1_dan).toBe("210.0000")
 
-      // February filing range → February row only, January amount excluded
-      const feb = await buildDph(db, s.periodId, {
-        from: "2026-02-01",
-        to: "2026-02-28",
+      // February filing scope includes only February tax points.
+      const feb = await buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-02-01", to: "2026-02-28" },
       })
       expect(feb.rows.r1_base).toBe("2000.0000")
       expect(feb.rows.r1_dan).toBe("420.0000")
+    })
+  })
+
+  it("uses the explicit Czech legal date independently of the database session timezone", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Midnight-boundary sale",
+        occurredAt: "2026-02-01T00:30:00+01:00",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2026-02-01T00:30:00+01:00",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const scope = {
+        kind: "FILING_PERIOD" as const,
+        period: { from: "2026-02-01", to: "2026-02-28" },
+      }
+      await db.execute(sql`SELECT set_config('TimeZone', 'UTC', true)`)
+      const utc = await buildDph(db, scope)
+      await db.execute(
+        sql`SELECT set_config('TimeZone', 'Europe/Prague', true)`,
+      )
+      const prague = await buildDph(db, scope)
+
+      expect(utc.rows.r1_base).toBe("1000.0000")
+      expect(prague.rows.r1_base).toBe("1000.0000")
+    })
+  })
+
+  it("claims received standard VAT no earlier than the proven receipt date", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "January supply received in February",
+        occurredAt: "2026-01-15",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2026-01-15",
+        taxPointDate: "2026-01-15",
+        receivedDate: "2026-02-05",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const january = await buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
+      })
+      const february = await buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-02-01", to: "2026-02-28" },
+      })
+
+      expect(january.rows.r40_base).toBe("0.0000")
+      expect(january.rows.r40_dan).toBe("0.0000")
+      expect(february.rows.r40_base).toBe("1000.0000")
+      expect(february.rows.r40_dan).toBe("210.0000")
+      expect(february.completeness.status).toBe("COMPLETE")
+    })
+  })
+
+  it("keeps a legacy received invoice without receipt evidence out of deductions and reports missing input", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Received invoice with unknown receipt date",
+        occurredAt: "2026-01-15",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2026-01-15",
+        taxPointDate: "2026-01-15",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const result = await buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
+      })
+      expect(result.rows.r40_base).toBe("0.0000")
+      expect(result.rows.r40_dan).toBe("0.0000")
+      expect(result.completeness).toEqual({
+        status: "NEEDS_INPUT",
+        missingTaxPointDocuments: 0,
+        missingReceivedDateDocuments: 1,
+      })
+    })
+  })
+
+  it("reports missing receipt evidence only for VAT artifacts that use received invoices", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Received invoice irrelevant to souhrnne hlaseni",
+        occurredAt: "2026-01-20",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2026-01-20",
+        taxPointDate: "2026-01-20",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const scope = {
+        kind: "FILING_PERIOD" as const,
+        period: { from: "2026-01-01", to: "2026-01-31" },
+      }
+      const [dap, kh, sh] = await Promise.all([
+        buildDph(db, scope),
+        buildKontrolniHlaseni(db, scope),
+        buildSouhrnneHlaseni(db, scope),
+      ])
+
+      expect(dap.completeness).toEqual({
+        status: "NEEDS_INPUT",
+        missingTaxPointDocuments: 0,
+        missingReceivedDateDocuments: 1,
+      })
+      expect(kh.completeness).toEqual({
+        status: "NEEDS_INPUT",
+        missingTaxPointDocuments: 0,
+        missingReceivedDateDocuments: 1,
+      })
+      expect(sh.completeness).toEqual({
+        status: "COMPLETE",
+        missingTaxPointDocuments: 0,
+        missingReceivedDateDocuments: 0,
+      })
+    })
+  })
+
+  it("requires receipt evidence for a deductible reverse-charge DAP entry but not for KH", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Deductible reverse-charge invoice without receipt date",
+        occurredAt: "2026-01-22",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2026-01-22",
+        taxPointDate: "2026-01-22",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "REVERSE_CHARGE",
+                vatJurisdiction: "REVERSE_CHARGE",
+                vatDeductible: true,
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const scope = {
+        kind: "FILING_PERIOD" as const,
+        period: { from: "2026-01-01", to: "2026-01-31" },
+      }
+      const [dap, kh] = await Promise.all([
+        buildDph(db, scope),
+        buildKontrolniHlaseni(db, scope),
+      ])
+
+      expect(dap.completeness).toEqual({
+        status: "NEEDS_INPUT",
+        missingTaxPointDocuments: 0,
+        missingReceivedDateDocuments: 1,
+      })
+      expect(kh.completeness).toEqual({
+        status: "COMPLETE",
+        missingTaxPointDocuments: 0,
+        missingReceivedDateDocuments: 0,
+      })
+    })
+  })
+
+  it("excludes an issued invoice with an unknown tax point from an accounting-period DAP", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Issued invoice with incomplete legacy tax evidence",
+        occurredAt: "2026-01-25",
+        responsibleUserId: userId,
+      })
+      const document = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2026-01-25",
+        taxPointDate: "2026-01-25",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      await db.execute(sql`
+        UPDATE summary_record
+           SET tax_point_date = NULL
+         WHERE id = ${document.summaryRecordId}::uuid
+      `)
+
+      const result = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+
+      expect(result.rows.r1_base).toBe("0.0000")
+      expect(result.rows.r1_dan).toBe("0.0000")
+      expect(result.completeness).toEqual({
+        status: "NEEDS_INPUT",
+        missingTaxPointDocuments: 1,
+        missingReceivedDateDocuments: 0,
+      })
+    })
+  })
+
+  it("keeps filing-period evidence isolated by organization RLS", async () => {
+    const a = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2028-01-01",
+      periodEnd: "2028-12-31",
+    })
+    const b = await seedDoubleEntryOrg(orgB, workspaceId, userBId, {
+      periodStart: "2028-01-01",
+      periodEnd: "2028-12-31",
+    })
+
+    const captureSale = async (
+      organizationId: string,
+      actorId: string,
+      seed: typeof a,
+      baseAmount: string,
+      vatAmount: string,
+    ) => {
+      await withOrganization(organizationId, actorId, async (db) => {
+        const event = await createEvent(db, seed.ctx, {
+          periodId: seed.periodId,
+          seriesId: seed.eventSeriesId,
+          description: "RLS filing-period sale",
+          occurredAt: "2028-03-10",
+          responsibleUserId: actorId,
+        })
+        await captureDocument(db, seed.ctx, {
+          periodId: seed.periodId,
+          seriesId: seed.documentSeriesId,
+          type: "ISSUED_INVOICE",
+          issuedAt: "2028-03-10",
+          lines: [
+            {
+              eventId: event.eventId,
+              partials: [
+                {
+                  baseAmount,
+                  vatRate: "21",
+                  vatMode: "STANDARD",
+                  vatAmount,
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        })
+      })
+    }
+
+    await captureSale(orgA, userId, a, "1000.00", "210.00")
+    await captureSale(orgB, userBId, b, "9000.00", "1890.00")
+
+    await withOrganization(orgA, userId, async (db) => {
+      const result = await buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2028-01-01", to: "2028-03-31" },
+      })
+      expect(result.rows.r1_base).toBe("1000.0000")
+      expect(result.rows.r1_dan).toBe("210.0000")
     })
   })
 
@@ -200,22 +610,25 @@ describe("VAT output builders — optional filingRange", () => {
         ],
       })
 
-      // No range → both dokladů appear (backward compat)
-      const whole = await buildKontrolniHlaseni(db, s.periodId)
+      // Accounting-period scope includes both documents.
+      const whole = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(whole.a4).toHaveLength(2)
 
-      // January filing range → the January doklad only
-      const jan = await buildKontrolniHlaseni(db, s.periodId, {
-        from: "2026-01-01",
-        to: "2026-01-31",
+      // January filing scope includes the January document only.
+      const jan = await buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
       })
       expect(jan.a4).toHaveLength(1)
       expect(jan.a4[0]!.base21).toBe("20000.0000")
 
-      // February filing range → the February doklad only (January excluded)
-      const feb = await buildKontrolniHlaseni(db, s.periodId, {
-        from: "2026-02-01",
-        to: "2026-02-28",
+      // February filing scope includes the February document only.
+      const feb = await buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-02-01", to: "2026-02-28" },
       })
       expect(feb.a4).toHaveLength(1)
       expect(feb.a4[0]!.base21).toBe("30000.0000")
@@ -252,6 +665,7 @@ describe("VAT output builders — optional filingRange", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2026-01-12",
+        receivedDate: "2026-01-12",
         lines: [
           {
             eventId: evJan.eventId,
@@ -281,6 +695,7 @@ describe("VAT output builders — optional filingRange", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2026-02-12",
+        receivedDate: "2026-02-12",
         lines: [
           {
             eventId: evFeb.eventId,
@@ -296,23 +711,26 @@ describe("VAT output builders — optional filingRange", () => {
         ],
       })
 
-      // No range → both PDP dokladů appear (backward compat)
-      const whole = await buildKontrolniHlaseni(db, s.periodId)
+      // Accounting-period scope includes both PDP documents.
+      const whole = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(whole.b1).toHaveLength(2)
 
-      // January filing range → the January doklad only
-      const jan = await buildKontrolniHlaseni(db, s.periodId, {
-        from: "2026-01-01",
-        to: "2026-01-31",
+      // January filing scope includes the January document only.
+      const jan = await buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
       })
       expect(jan.b1).toHaveLength(1)
       expect(jan.b1[0]!.base21).toBe("500.0000")
       expect(jan.b1[0]!.dan21).toBe("105.0000")
 
-      // February filing range → the February doklad only (January excluded)
-      const feb = await buildKontrolniHlaseni(db, s.periodId, {
-        from: "2026-02-01",
-        to: "2026-02-28",
+      // February filing scope includes the February document only.
+      const feb = await buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-02-01", to: "2026-02-28" },
       })
       expect(feb.b1).toHaveLength(1)
       expect(feb.b1[0]!.base21).toBe("800.0000")
@@ -388,25 +806,28 @@ describe("VAT output builders — optional filingRange", () => {
         ],
       })
 
-      // No range → both sub-threshold dokladů fold into one A.5 aggregate (backward compat)
-      const whole = await buildKontrolniHlaseni(db, s.periodId)
+      // Accounting-period scope folds both sub-threshold documents into A.5.
+      const whole = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(whole.a5.count).toBe(2)
       expect(whole.a5.base).toBe("2500.0000")
       expect(whole.a5.dan).toBe("525.0000")
 
-      // January filing range → the January doklad only
-      const jan = await buildKontrolniHlaseni(db, s.periodId, {
-        from: "2026-01-01",
-        to: "2026-01-31",
+      // January filing scope includes the January document only.
+      const jan = await buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
       })
       expect(jan.a5.count).toBe(1)
       expect(jan.a5.base).toBe("1000.0000")
       expect(jan.a5.dan).toBe("210.0000")
 
-      // February filing range → the February doklad only (January excluded)
-      const feb = await buildKontrolniHlaseni(db, s.periodId, {
-        from: "2026-02-01",
-        to: "2026-02-28",
+      // February filing scope includes the February document only.
+      const feb = await buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-02-01", to: "2026-02-28" },
       })
       expect(feb.a5.count).toBe(1)
       expect(feb.a5.base).toBe("1500.0000")
@@ -486,25 +907,28 @@ describe("VAT output builders — optional filingRange", () => {
         ],
       })
 
-      // No range → both months fold into one kód-0 row (same counterparty + kód)
-      const whole = await buildSouhrnneHlaseni(db, s.periodId)
+      // Accounting-period scope folds both months into one kód-0 row.
+      const whole = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(whole.rows).toHaveLength(1)
       expect(whole.rows[0]!.value).toBe("120000.0000")
       expect(whole.rows[0]!.count).toBe(2)
 
-      // January filing range → January supply only
-      const jan = await buildSouhrnneHlaseni(db, s.periodId, {
-        from: "2026-01-01",
-        to: "2026-01-31",
+      // January filing scope includes the January supply only.
+      const jan = await buildSouhrnneHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
       })
       expect(jan.rows).toHaveLength(1)
       expect(jan.rows[0]!.value).toBe("50000.0000")
       expect(jan.rows[0]!.count).toBe(1)
 
-      // February filing range → February supply only (January excluded)
-      const feb = await buildSouhrnneHlaseni(db, s.periodId, {
-        from: "2026-02-01",
-        to: "2026-02-28",
+      // February filing scope includes the February supply only.
+      const feb = await buildSouhrnneHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-02-01", to: "2026-02-28" },
       })
       expect(feb.rows).toHaveLength(1)
       expect(feb.rows[0]!.value).toBe("70000.0000")

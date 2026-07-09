@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest"
+
+import {
+  CaptureAccountingDocumentRequestSchema,
+  CreateAccountingEventRequestSchema,
+} from "./accounting-writes"
+
+describe("accounting legal-date schemas", () => {
+  it("rejects calendar-invalid legal dates before they reach PostgreSQL", () => {
+    const event = CreateAccountingEventRequestSchema.safeParse({
+      periodId: "00000000-0000-4000-8000-000000000001",
+      seriesId: "00000000-0000-4000-8000-000000000002",
+      description: "Invalid date",
+      occurredAt: "2026-02-28T12:00:00Z",
+      occurredOn: "2026-02-30",
+      confidence: 1,
+      rationale: "Schema boundary test",
+    })
+
+    expect(event.success).toBe(false)
+    if (!event.success) {
+      expect(event.error.issues.map((issue) => issue.path)).toContainEqual([
+        "occurredOn",
+      ])
+    }
+  })
+
+  it("rejects received-document dates on issued invoices", () => {
+    const document = CaptureAccountingDocumentRequestSchema.safeParse({
+      periodId: "00000000-0000-4000-8000-000000000001",
+      seriesId: "00000000-0000-4000-8000-000000000002",
+      type: "ISSUED_INVOICE",
+      issuedAt: "2026-03-14T12:00:00Z",
+      receivedDate: "2026-03-14",
+      lines: [],
+      confidence: 1,
+      rationale: "Schema boundary test",
+    })
+
+    expect(document.success).toBe(false)
+    if (!document.success) {
+      expect(document.error.issues.map((issue) => issue.path)).toContainEqual([
+        "receivedDate",
+      ])
+    }
+  })
+
+  it("rejects tax-point dates on non-invoice documents", () => {
+    const document = CaptureAccountingDocumentRequestSchema.safeParse({
+      periodId: "00000000-0000-4000-8000-000000000001",
+      seriesId: "00000000-0000-4000-8000-000000000002",
+      type: "BANK_STATEMENT",
+      issuedAt: "2026-03-14T12:00:00Z",
+      taxPointDate: "2026-03-14",
+      lines: [],
+      confidence: 1,
+      rationale: "Schema boundary test",
+    })
+
+    expect(document.success).toBe(false)
+    if (!document.success) {
+      expect(document.error.issues.map((issue) => issue.path)).toContainEqual([
+        "taxPointDate",
+      ])
+    }
+  })
+})

@@ -7,17 +7,17 @@ import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
-  "periodId": z.string().describe("Účetní období."),
-  "seriesId": z.string().describe("EVENT number series (see GET number-series)."),
-  "partyId": z.string().nullable().describe("OUR side (counterparty row); null for internal.").optional(),
-  "counterpartyId": z.string().nullable().describe("THEIR side (counterparty row).").optional(),
+  "periodId": z.string().uuid().describe("Účetní období."),
+  "seriesId": z.string().uuid().describe("EVENT number series (see GET number-series)."),
+  "partyId": z.string().uuid().nullable().describe("OUR side (counterparty row); null for internal.").optional(),
+  "counterpartyId": z.string().uuid().nullable().describe("THEIR side (counterparty row).").optional(),
   "description": z.string().min(1).max(2000).describe("Case description."),
   "content": z.string().max(10000).nullable().describe("Optional detail.").optional(),
   "occurredAt": z.string().describe("Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period."),
   "occurredOn": z.string().describe("Explicit Czech legal date for period membership. Legacy callers may omit it and the server derives Europe/Prague from occurredAt.").optional(),
   "confidence": z.number().min(0).max(1).describe("Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required."),
   "rationale": z.string().min(1).max(2000).describe("Why this write — persisted to the audit trail. Required."),
-  "conversationId": z.string().describe("Audit-correlation id of the driving agent conversation.").optional(),
+  "conversationId": z.string().uuid().describe("Audit-correlation id of the driving agent conversation.").optional(),
   "signals": z.object({ "kbRule": z.enum(["constitution_safe","high_active","medium","low_mixed","none"]).describe("Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.").optional(), "extractionQuality": z.number().min(0).max(1).describe("Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.").optional(), "reconciliation": z.enum(["full","partial","none"]).describe("Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.").optional(), "vatBaseMatchesNet": z.boolean().describe("Verify BONUS claim. NOT server-recomputed → no uplift (false).").optional(), "rcChecklistPassesOrNA": z.boolean().describe("Verify BONUS claim. NOT server-recomputed → no uplift (false).").optional(), "decree500Confirmed": z.boolean().describe("Verify BONUS claim. NOT server-recomputed → no uplift (false).").optional(), "periodConsistent": z.boolean().describe("Verify BONUS claim. NOT server-recomputed → no uplift (false).").optional(), "bankVsKsSsMatch": z.boolean().describe("Verify BONUS claim. NOT server-recomputed → no uplift (false).").optional(), "capSignals": z.array(z.string()).describe("Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.").optional() }).nullable().describe("Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs.").optional(),
   "idempotency-key": z.string().describe("Idempotency key (1–255 chars); reuse on retry."),
 }

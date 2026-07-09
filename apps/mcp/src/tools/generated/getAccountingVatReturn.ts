@@ -7,7 +7,7 @@ import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
-  "periodId": z.string().describe("Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404."),
+  "periodId": z.string().uuid().describe("Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404."),
 }
 
 export function registerGetAccountingVatReturn(

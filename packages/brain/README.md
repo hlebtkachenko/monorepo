@@ -1,43 +1,26 @@
 # @workspace/brain
 
-> **⚠️ Partly stale — read [`docs/AFFRAME-BRAIN.md`](../../docs/AFFRAME-BRAIN.md) first.** This file
-> describes the pre-reframe **in-process orchestrator** design. Brain v1 shipped as an **unprivileged
-> Claude Code CLIENT** of the accounting API (a local stdio MCP bridge → the public REST API, no Brain
-> server; ADR-0025 amended 2026-07-01). The `orchestrator/`/`runtime/`/`librarian/` layout below was never
-> built as `packages/brain` code — orchestration moved to `apps/cli` + `packages/intake`, and the librarian
-> remains unbuilt; the real tree is `agent/ confidence/ gate/ ir/ reconcile/ eval/`. Authoritative:
-> [`docs/AFFRAME-BRAIN.md`](../../docs/AFFRAME-BRAIN.md) + [`docs/AFFRAME-BRAIN-TECHNICAL.md`](../../docs/AFFRAME-BRAIN-TECHNICAL.md).
+Afframe **Brain**: an autonomous, self-improving Czech-accounting ingestion + booking agent.
 
-Afframe **Brain** (Track B): an autonomous, self-improving Czech-accounting ingestion + booking
-orchestrator. It parses a company's messy per-org 2025 dump, books it into the existing
-`@workspace/accounting` tables (agent-native, no write templates), scores every line with a
-**calibrated** confidence, routes everything to a final human review (the master gate), and learns
-run-over-run — without ever raising the _confident-wrong_ rate.
+Brain v1 is an **unprivileged external client** of the accounting API, not a server-side worker. The
+operator (Hleb) runs a local Claude Code session that drives a nested sandboxed Agent-SDK session,
+which talks to a local stdio MCP bridge, which calls the public REST API (`apps/api`). There is no
+in-process Brain server and no direct DB connection. Every write goes through the server-side write
+gate, which **HELDs everything at cold start** for human review — see
+`docs/AFFRAME-BRAIN.md` (approvals gate section).
 
-Consumed **source-first** (no build step required by consumers): `import { ... } from "@workspace/brain"`.
+This package (`packages/brain`) holds the read-side pieces that run inside that client: canonical IR,
+the confidence engine, the gate, reconciliation, and evals (`src/agent/ confidence/ gate/ ir/
+reconcile/ eval/`). Consumed source-first: `import { ... } from "@workspace/brain"`.
 
-## Layout (filled in across M0–M2)
+## Source of truth
 
-```
-src/
-  types.ts        # BrainRun, BrainRunItem, ConfidenceSignal, AdvisorVerdict + lifecycle enums  [WP-0.1 ✓]
-  index.ts        # public surface
-  ir/             # canonical IR + provenance envelope (read-side only)                          [WP-0.5]
-  confidence/     # 4-tier infra-signal router, score composition, calibration.ts               [WP-0.7]
-  parsers/        # deterministic per-format parsers (Money S3 XML + Fio first)                  [WP-1.2]
-  orchestrator/   # deterministic stage machine, Agent-SDK fan-out, HITL hooks, resume           [WP-1.4]
-  runtime/        # BrainRunContext, runBrain, heartbeat + budget guards                         [WP-1.5]
-  tools/write/    # typed wrappers — ONE @workspace/accounting call each, inside withOrganization [WP-0.6/1.6]
-  tools/read/     # typed query fns over the 5 books views (security_invoker)                    [WP-1.6]
-  librarian/      # correction clustering → distilled rule → GitHub-PR dispatch                  [WP-1.11]
-```
+- [`docs/AFFRAME-BRAIN.md`](../../docs/AFFRAME-BRAIN.md) — the landing doc (A-Z index)
+- [`docs/AFFRAME-BRAIN-TECHNICAL.md`](../../docs/AFFRAME-BRAIN-TECHNICAL.md) — debug-level technical reference
+- [`docs/AFFRAME-BRAIN-STATUS.md`](../../docs/AFFRAME-BRAIN-STATUS.md) — v1/v2 status and roadmap tracker
+
+The safety invariants (constitution) are locked at `packages/brain/.brain/constitution.md`.
 
 ## Scripts
 
 `pnpm --filter @workspace/brain build | typecheck | lint | test`
-
-## Reference
-
-Build spec + governance: `.context/afframe-brain/AFFRAME-BRAIN-EXECUTOR-BRIEF.md` and the approved
-build plan. Safety invariants are enforced as executable checks (the constitution; WP-0.2) and the
-Build Ground-Truth Gate (`scripts/brain-build/`). See `CLAUDE.md` + `ARCHITECTURE.md`.

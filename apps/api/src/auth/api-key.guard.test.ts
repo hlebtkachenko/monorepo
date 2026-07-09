@@ -10,6 +10,7 @@ vi.mock("@workspace/auth/api-key-verifier", () => ({
 const { verifyApiKey } = await import("@workspace/auth/api-key-verifier")
 const { ApiKeyGuard } = await import("./api-key.guard")
 const { RequireScopes } = await import("./require-scopes.decorator")
+const { RequireHumanActor } = await import("./require-human-actor.decorator")
 
 const verifyApiKeyMock = vi.mocked(verifyApiKey)
 
@@ -19,12 +20,21 @@ class FakeController {
   scopedWrite() {}
 
   plainRead() {}
+
+  @RequireHumanActor()
+  humanOnlyRoute() {}
+}
+
+@RequireHumanActor()
+class FakeHumanOnlyController {
+  anyRoute() {}
 }
 
 /** Fake ExecutionContext carrying the given request headers + target route. */
 function makeContext(
   headers: Record<string, string>,
   handler: (...args: never[]) => unknown = FakeController.prototype.plainRead,
+  controllerClass: unknown = FakeController,
 ) {
   const req: { headers: Record<string, string>; principal?: unknown } = {
     headers,
@@ -32,18 +42,21 @@ function makeContext(
   const ctx = {
     switchToHttp: () => ({ getRequest: () => req }),
     getHandler: () => handler,
-    getClass: () => FakeController,
+    getClass: () => controllerClass,
   } as unknown as ExecutionContext
   return { ctx, req }
 }
 
-function principalWithScopes(scopes: string[]) {
+function principalWithScopes(
+  scopes: string[],
+  actorKind: "human" | "agent" = "human",
+) {
   return {
     userId: "user-1",
     organizationId: "org-1",
     workspaceId: "ws-1",
     scopes,
-    actorKind: "human" as const,
+    actorKind,
   }
 }
 
@@ -128,6 +141,53 @@ describe("ApiKeyGuard", () => {
       verifyApiKeyMock.mockResolvedValue(principal)
       const { ctx } = makeContext({ authorization: "Bearer affk_live_ok" })
       await expect(guard.canActivate(ctx)).resolves.toBe(true)
+    })
+  })
+
+  describe("[I7 / #517] human-actor enforcement (@RequireHumanActor)", () => {
+    const humanOnlyRoute = FakeController.prototype.humanOnlyRoute
+
+    it("rejects an agent-actor key with 403, naming the reason", async () => {
+      verifyApiKeyMock.mockResolvedValue(principalWithScopes(["read"], "agent"))
+      const { ctx, req } = makeContext(
+        { authorization: "Bearer affk_live_agent" },
+        humanOnlyRoute,
+      )
+      const err: unknown = await guard.canActivate(ctx).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(ForbiddenException)
+      expect((err as ForbiddenException).message).toMatch(/human reviewer/i)
+      expect(req.principal).toBeUndefined()
+    })
+
+    it("admits a human-actor key on the same route", async () => {
+      const principal = principalWithScopes(["read"], "human")
+      verifyApiKeyMock.mockResolvedValue(principal)
+      const { ctx, req } = makeContext(
+        { authorization: "Bearer affk_live_ok" },
+        humanOnlyRoute,
+      )
+      await expect(guard.canActivate(ctx)).resolves.toBe(true)
+      expect(req.principal).toEqual(principal)
+    })
+
+    it("leaves an undecorated route unaffected by an agent-actor key", async () => {
+      verifyApiKeyMock.mockResolvedValue(principalWithScopes(["read"], "agent"))
+      const { ctx } = makeContext({ authorization: "Bearer affk_live_agent" })
+      await expect(guard.canActivate(ctx)).resolves.toBe(true)
+    })
+
+    it("enforces a CLASS-level @RequireHumanActor() the same way a method-level one does", async () => {
+      // Mirrors the real HeldWritesController, which decorates the whole class
+      // so every current AND future route inherits the deny by default.
+      verifyApiKeyMock.mockResolvedValue(principalWithScopes(["read"], "agent"))
+      const { ctx } = makeContext(
+        { authorization: "Bearer affk_live_agent" },
+        FakeHumanOnlyController.prototype.anyRoute,
+        FakeHumanOnlyController,
+      )
+      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      )
     })
   })
 })

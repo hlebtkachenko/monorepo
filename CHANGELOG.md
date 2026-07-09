@@ -6,6 +6,33 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **brain**: automated code guards + tests for the Brain safety invariants I3 (no tenancy fields in any API request schema + full public-op allowlist), I4 (append-only ledger DELETE rejection), I7 (human-actor-required guard), I9 (no write-templates tripwire, scanning code not comments), and I10 (provenance atomicity).
+- **brain/api**: onboarding tools — `POST /v1/accounting/number-series`, `POST /v1/accounting/periods`, `GET /v1/accounting/periods` (with SDK + MCP tools). `create-period` reuses the coupled scaffold so a period is always minted with its chart of accounts + default number series (fixes #579 under-provisioning) and rejects overlapping periods with a 409 to prevent double-booking on retry.
+- **brain**: the held-write review surface now renders a real reviewable view for each Brain proposal — document header (counterparty, date, total), per-rate VAT summary, human-readable why-held reasons in Czech, and the rationale, grouped by účetní případ — instead of a raw JSON dump.
+- **brain**: the Brain live-session login pack now assembles its safety-spine constitution section byte-verbatim from the locked `.brain/constitution.md` (the operator no longer hand-copies the 13KB locked file, removing a drift/truncation risk) and fail-closes — it throws rather than boot a session with any missing or empty safety section. The three sections with no canonical committed source stay operator-supplied (auto-authoring safety text is deliberately refused).
+- **brain**: observability alerts for the Brain write gate — a CRITICAL alert (deduped GitHub issue + Telegram) fires if a fresh accounting write ever auto-applies (HTTP 201) at the cold-start posture (structurally impossible today — a broken-gate alarm), and a stale-held-review-queue warning reports held writes older than a configurable threshold, wired to an opt-in recurring scheduler (`ACCOUNTING_STALE_HELD_ALERT_ENABLED`, dormant by default). Both route through `@workspace/notify` and are fully fail-swallowed; the gate hook is purely observational (returns the decision unchanged).
+
+### Changed
+
+- **ci**: add `brain` to the allowed `pr-title` conventional-commit scopes so Afframe Brain PRs pass `conv-title` with a `feat(brain):`-style scope.
+- **brain/api**: raise pre-launch throughput — admission caps 32/8 → 64/16 wired into the ECS task-def, and the `/v1` throttler is now env-configurable (`V1_THROTTLE_LIMIT` default raised 100 → 300). Throughput only: every write is still HELD (the caps are a pure concurrency limiter, orthogonal to the auto-apply gate). Single-task caps today (#472).
+
+### Fixed
+
+- **accounting/legal-dates**: keep missing or ambiguous DUZP, DPPD, and invoice-receipt evidence unresolved, and reject legal-date corrections after an accounting period is closed.
+- **mcp**: the MCP tool codegen (`gen-tools.ts`) silently dropped JSON-Schema `format`, so `conversationId` and other UUID fields never received `.uuid()` in the generated tools; now emit `.uuid()` for `format: "uuid"` so generated tools match the API contract. (#577)
+
+### Docs
+
+- **brain**: document the two distinct write-gate thresholds (client confidence vs server cold-start green) and a file map of where each Brain concern lives, and add a `⚠ SAFETY SPINE` banner to the gate / evidence-gate / sandbox source files.
+- **brain**: mark ADRs 0025–0029 Accepted, rewrite the stale `packages/brain/README.md` to the accurate client-not-server design, and drop the phantom `--live` flag from `brain book` help.
+
+## [v0.17.1] — 2026-07-09
+
+Patch release: CI/CD signal and bot-deploy fixes only. No product or runtime change.
+
 ### Changed
 
 - **ci**: reduce workflow drift and noise — sync the shared setup action pins, derive Dockerfile `turbo prune` from the root `turbo` dependency, make mature DB advisory checks fail visibly, trim impossible container-scan path filters, and stop PR workflow completions from spawning skipped `notify-ci` runs.

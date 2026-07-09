@@ -1,7 +1,7 @@
 # 28. Afframe Brain marshrutizátor — admission + per-(org, period) write isolation at the API front door
 
-- Status: Proposed
-- Date: 2026-07-01
+- Status: Accepted
+- Date: 2026-07-01 (Accepted 2026-07-08)
 - Deciders: Hleb Tkachenko
 
 > Records a decision from the 2026-07-01 Brain reframe (`.context/afframe-brain/REFRAME-v1.2.md`). Pairs with the

@@ -1,3 +1,5 @@
+// ⚠ SAFETY SPINE — do not modify without brain-gate review
+
 import {
   type GateDecision,
   scoreProposalColdStart,

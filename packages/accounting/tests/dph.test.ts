@@ -266,6 +266,61 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
   })
 })
 
+describe("VAT period activity legal dates", () => {
+  it("places a received standard invoice in its proven deduction month", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2045-01-01",
+      periodEnd: "2045-12-31",
+    })
+
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Late-received standard invoice",
+        occurredAt: "2045-01-10",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2045-01-10",
+        receivedDate: "2045-03-05",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const activity = await getVatPeriodActivity(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+
+      expect(activity).toEqual([
+        {
+          month: "2045-03",
+          hasKhReportableTransactions: true,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: false,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ])
+    })
+  })
+})
+
 /**
  * Issued-EU supplies (#541): a §64 goods delivery to a JČS plátce belongs on
  * DAP ř.20, a §9/1 service on ř.21 — both osvobozené s nárokem (base only, no

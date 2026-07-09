@@ -22,11 +22,20 @@ export async function getVatPeriodActivity(
     jurisdiction: sql`pr.vat_jurisdiction`,
     supplyKind: sql`pr.supply_kind`,
   })
+  const deductionDated = sql`sr.type = 'RECEIVED_INVOICE' AND pr.vat_mode = 'STANDARD'`
+  const activityDate = sql`CASE
+    WHEN ${deductionDated} THEN GREATEST(sr.tax_point_date, sr.received_date)
+    ELSE sr.tax_point_date
+  END`
+  const inScope = sql`(
+    (${deductionDated} AND ${evidence.deduction})
+    OR (NOT (${deductionDated}) AND ${evidence.taxPoint})
+  )`
 
   return rows<VatPeriodActivity>(
     db,
     sql`
-      SELECT to_char(date_trunc('month', sr.tax_point_date), 'YYYY-MM') AS month,
+      SELECT to_char(date_trunc('month', ${activityDate}), 'YYYY-MM') AS month,
              bool_or(${classification.khReportable}) AS "hasKhReportableTransactions",
              bool_or(${classification.issuedEuGoods}) AS "hasShGoodsSupplies",
              bool_or(${classification.issuedEuServices}) AS "hasShServiceSupplies",
@@ -34,8 +43,8 @@ export async function getVatPeriodActivity(
         FROM partial_record pr
         JOIN individual_record ir ON ir.id = pr.individual_record_id
         JOIN summary_record sr ON sr.id = ir.summary_record_id
-       WHERE ${evidence.taxPoint}
-       GROUP BY date_trunc('month', sr.tax_point_date)
-       ORDER BY date_trunc('month', sr.tax_point_date)`,
+       WHERE ${inScope}
+       GROUP BY date_trunc('month', ${activityDate})
+       ORDER BY date_trunc('month', ${activityDate})`,
   )
 }

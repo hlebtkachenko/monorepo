@@ -1,5 +1,19 @@
 # M2 operator bootstrap prompt
 
+> ## The one-sentence entry (what Hleb actually pastes)
+>
+> Open Claude Code **inside the Afframe monorepo** and paste exactly this one line — nothing else:
+>
+> > Read and follow `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md` to run a live Afframe Brain accounting session: if `BRAIN_API_KEY` isn't already set, ask me for it, then take the invoice folder I give you through the HELD write loop.
+>
+> That one sentence is the whole bootstrap. A fresh session — no Afframe memory, no prior connection — reads
+> this file and **executes the STEP 0–7 procedure in the fenced block below directly**; you do NOT paste the
+> long block yourself, it is the procedure the session follows. The bare shell form
+> `afframe brain book <folder>` is **not** the entry point: `afframe` is not a global bin (the CLI runs from
+> source via `pnpm --filter @afframe/cli dev brain …` inside the monorepo), and a shell command cannot orient a
+> session that knows nothing about Afframe — always start from the sentence above. After M0.2a env-collapse the
+> session needs only `BRAIN_API_KEY`; every other Brain var defaults.
+
 > ## Transport: local stdio MCP bridge (resolved 2026-07-06)
 >
 > The live Brain loop launches an Agent-SDK subprocess that books via the MCP tool
@@ -26,7 +40,10 @@
 > the Brain can never approve its own work).
 
 Copy everything inside the fenced block below into a fresh Claude Code session running **inside the Afframe
-monorepo** on your Mac.
+monorepo** on your Mac — OR just paste the one-sentence entry above and let the session read + follow this file.
+
+> **If you are the Claude Code session that was told to "read and follow this file": the fenced block below IS
+> your instruction set. Execute STEP 0–7 now, in order — do not wait for the human to re-paste it.**
 
 ---
 

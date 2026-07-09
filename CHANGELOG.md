@@ -18,6 +18,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **ci**: add `brain` to the allowed `pr-title` conventional-commit scopes so Afframe Brain PRs pass `conv-title` with a `feat(brain):`-style scope.
 - **brain/api**: raise pre-launch throughput — admission caps 32/8 → 64/16 wired into the ECS task-def, and the `/v1` throttler is now env-configurable (`V1_THROTTLE_LIMIT` default raised 100 → 300). Throughput only: every write is still HELD (the caps are a pure concurrency limiter, orthogonal to the auto-apply gate). Single-task caps today (#472).
+- **brain**: the Brain CLI now runs with only `BRAIN_API_KEY` set — `BRAIN_MCP_ENDPOINT` defaults to the production API base and the auth mode to `ambient`; the redundant client-side `BRAIN_RUNTIME_ACTIVE`/`BRAIN_LIVE` pre-gate is removed (the server admission lane is the sole authority and every write is still HELD), and a lane-off / rate-limited run prints a clean sentence instead of a raw 429 dump.
 
 ### Fixed
 
@@ -56,7 +57,6 @@ Minor release: period-mechanism completion (PR1–PR4) — real accounting-perio
 
 ### Changed
 
-- **brain**: the Brain CLI now runs with only `BRAIN_API_KEY` set — `BRAIN_MCP_ENDPOINT` defaults to the production API base and the auth mode to `ambient`; the redundant client-side `BRAIN_RUNTIME_ACTIVE`/`BRAIN_LIVE` pre-gate is removed (the server admission lane is the sole authority and every write is still HELD), and a lane-off / rate-limited run prints a clean sentence instead of a raw 429 dump.
 - Refresh root maintenance files: set the real Code of Conduct enforcement contact, document the as-built AWS security posture in SECURITY.md, and harden .dockerignore to keep secrets and local tool dirs (.env, keys, .claude/, .codegraph/) out of the Docker build context.
 - Developer tooling: CodeGraph now ships a versioned Claude Code UserPromptSubmit hook (repo-wide per-prompt context injection), exposes the full MCP tool set (explore/node/search/status), tunes parse workers + daemon idle timeout, and makes the Conductor workspace index build best-effort so it never blocks workspace creation.
 - Developer tooling: make CodeGraph repo-local via pnpm, add Conductor workspace setup plus agent startup scripts/runbook, and remove leftover graph-index placeholders.

@@ -41,6 +41,18 @@ pnpm install --frozen-lockfile && pnpm codegraph:ready
 
 This only affects workspaces created after the settings file is merged to the default branch on the remote. Existing workspaces should run `pnpm codegraph:ready` once manually.
 
+## Scripts
+
+All wrapper commands run through `scripts/codegraph.mjs` with telemetry disabled:
+
+| Command                 | Does                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `pnpm codegraph:ready`  | Ensure the index exists (build if missing), sync changed files, print status. Session default. |
+| `pnpm codegraph:ensure` | Build the index only if `.codegraph/` is missing; no sync.                                     |
+| `pnpm codegraph:sync`   | Ensure the index exists, then sync changes since the last index.                               |
+| `pnpm codegraph:status` | Print index status; reports if no index exists yet (does not build one).                       |
+| `pnpm codegraph:init`   | Rebuild the full index from scratch.                                                           |
+
 ## Agent Start Checklist
 
 At the start of a coding session, run:

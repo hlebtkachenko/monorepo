@@ -30,13 +30,16 @@ function run(args, options = {}) {
   }
 }
 
+// Builds the index if it is missing. Returns true when a fresh index was
+// built (so callers can skip a redundant sync right after a full init).
 function ensureIndex() {
   if (existsSync(indexDir)) {
-    return
+    return false
   }
 
   log("CodeGraph index missing, building local .codegraph/ index...")
   run(["init", "."])
+  return true
 }
 
 switch (command) {
@@ -47,15 +50,21 @@ switch (command) {
     ensureIndex()
     break
   case "sync":
-    ensureIndex()
-    run(["sync", "."])
+    if (!ensureIndex()) {
+      run(["sync", "."])
+    }
     break
   case "status":
+    if (!existsSync(indexDir)) {
+      log("No CodeGraph index yet. Run `pnpm codegraph:ready` to build it.")
+      break
+    }
     run(["status", "."])
     break
   case "ready":
-    ensureIndex()
-    run(["sync", "."])
+    if (!ensureIndex()) {
+      run(["sync", "."])
+    }
     run(["status", "."])
     break
   default:

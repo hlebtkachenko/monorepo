@@ -103,8 +103,8 @@ describe("listCommits", () => {
 })
 
 describe("repoOf", () => {
-  it("defaults to the monorepo slug", () => {
-    expect(repoOf({})).toBe("hlebtkachenko/monorepo")
+  it("uses configured repo only", () => {
+    expect(repoOf({})).toBe("")
     expect(repoOf({ GITHUB_REPO: "x/y" })).toBe("x/y")
   })
 })

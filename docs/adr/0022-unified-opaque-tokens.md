@@ -3,7 +3,7 @@
 - Status: **Proposed**
 - Date: 2026-05-19
 - Deciders: Hleb Tkachenko
-- Tracked in Linear: [AFF-198](https://linear.app/hapddev/issue/AFF-198)
+- Tracker: legacy AFF-198
 - Supersedes: the per-kind JWT modules in `packages/auth/src/tokens/{signup,login-email,onboarding-state,active-workspace}.ts` and the `auth_invite` table from migration `0002_auth.sql`.
 
 > **Amendment 2026-06-07:** Implemented (Status header left intact). The unified opaque-token design ships in `packages/auth/src/tokens/auth-token.ts` and `packages/db/migrations/0017_auth_token.sql`.

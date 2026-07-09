@@ -14,13 +14,13 @@ Design + usage reference for the official Model Context Protocol server exposing
 | Schema source          | Auto-generate from OpenAPI 3.1, hand-curate, commit as source (don't regenerate at runtime) | In-house TypeScript codegen at `apps/mcp/scripts/gen-tools.ts` (see ADR-0024 §4). `cnoe-io/openapi-mcp-codegen` rejected — Python-only. Repair pass gets ~94% usable. |
 | Distribution — local   | `npx -y @afframe/mcp@latest` (env-var bearer token)                                         | Most common pattern in `claude_desktop_config.json`                                                                                                                   |
 | Distribution — desktop | Claude Desktop Extensions (`.dxt`)                                                          | One-click install, OS-keychain secrets, bundled Node runtime                                                                                                          |
-| Distribution — hosted  | `mcp.afframe.com` (Streamable HTTP + OAuth)                                                 | Zero install, OAuth = no key handling. The Stripe/Linear/Cloudflare pattern.                                                                                          |
+| Distribution — hosted  | `mcp.afframe.com` (Streamable HTTP + OAuth)                                                 | Zero install, OAuth = no key handling. The Stripe/GitHub/Cloudflare pattern.                                                                                          |
 | Transport (remote)     | Streamable HTTP only                                                                        | SSE deprecated in MCP spec 2025-03-26, fully removed 2026-03-26                                                                                                       |
 | Repo location          | `apps/mcp`                                                                                  | Shares `@workspace/shared` types with `apps/api` and `apps/cli`                                                                                                       |
 | Auth (local)           | `AFFRAME_API_KEY` env var → `Authorization: Bearer ...`                                     | Standard; never accept a per-tool token argument                                                                                                                      |
 | Auth (hosted)          | OAuth 2.1 device flow against `app.afframe.com`                                             | Per the 2025-06-18 MCP authorization spec                                                                                                                             |
-| Naming                 | `verb_resource` snake_case (`create_invoice`, `list_invoices`)                              | Convention in Stripe / Linear / GitHub. Clients namespace as `mcp__afframe__verb_resource`.                                                                           |
-| Scope split            | Three pre-bundled flavours: `read`, `write`, `destructive`                                  | Linear's scope model; accountancy clients won't grant write on day one                                                                                                |
+| Naming                 | `verb_resource` snake_case (`create_invoice`, `list_invoices`)                              | Convention in Stripe / GitHub / Sentry. Clients namespace as `mcp__afframe__verb_resource`.                                                                           |
+| Scope split            | Three pre-bundled flavours: `read`, `write`, `destructive`                                  | Least-privilege scope model; accountancy clients won't grant write on day one                                                                                         |
 | Discovery              | Publish `/.well-known/mcp` + list in registry.modelcontextprotocol.io                       | Lets registries crawl capability without connecting                                                                                                                   |
 
 ---
@@ -42,7 +42,7 @@ list_accounts()
 fx_rate(from: string, to: string, date: ISODate)
 ```
 
-Roughly 20-30 tools at GA. Stripe ships ~30, Linear ~25, Sentry ~20 — pattern from research.
+Roughly 20-30 tools at GA. Stripe ships ~30 and Sentry ships ~20 — pattern from research.
 
 ### Tool definition shape (per tool)
 
@@ -162,7 +162,7 @@ Each tool is one file under `apps/mcp/src/tools/`. Filename matches `name`. Triv
 ## 5. Patterns to copy
 
 1. **Stripe's dual-transport / dual-auth**: `mcp.afframe.com` (OAuth, human users) + `npx @afframe/mcp` (bearer, CI / power users). Same tool surface, two distribution paths.
-2. **Linear's scope-restricted keys + scope-flavoured MCP installs**: read-only by default; opt-in to write; opt-in twice to destructive. Critical signal for accounting data — partners will not grant write to an AI agent on day one.
+2. **Scope-restricted keys + scope-flavoured MCP installs**: read-only by default; opt-in to write; opt-in twice to destructive. Critical signal for accounting data — partners will not grant write to an AI agent on day one.
 
 ---
 
@@ -204,7 +204,6 @@ Each tool is one file under `apps/mcp/src/tools/`. Filename matches `name`. Triv
 - [MCP specification 2026-03-26](https://modelcontextprotocol.io/specification/)
 - [MCP authorization spec 2025-06-18](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
 - [Stripe MCP docs](https://docs.stripe.com/mcp)
-- [Linear MCP docs](https://linear.app/docs/mcp)
 - [Cloudflare Remote MCP guide](https://developers.cloudflare.com/agents/guides/remote-mcp-server/)
 - [Speakeasy: OpenAPI → MCP tool design](https://www.speakeasy.com/mcp/tool-design/generate-mcp-tools-from-openapi)
 - [Claude Desktop Extensions (DXT)](https://www.desktopextensions.com/)

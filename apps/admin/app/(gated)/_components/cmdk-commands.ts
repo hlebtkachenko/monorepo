@@ -64,9 +64,7 @@ interface SubcommandConfirmPrompt {
 }
 
 export type SubcommandPrompt =
-  | SubcommandPickPrompt
-  | SubcommandInputPrompt
-  | SubcommandConfirmPrompt
+  SubcommandPickPrompt | SubcommandInputPrompt | SubcommandConfirmPrompt
 
 export interface SubcommandConfig {
   prompts: ReadonlyArray<SubcommandPrompt>
@@ -104,6 +102,8 @@ function nextTheme(current: string | undefined): "light" | "dark" | "system" {
   if (current === "dark") return "system"
   return "light"
 }
+
+const githubProjectUrl = process.env.NEXT_PUBLIC_GITHUB_PROJECT_URL?.trim()
 
 export const ADMIN_COMMANDS: AdminCommand[] = [
   {
@@ -228,23 +228,23 @@ export const ADMIN_COMMANDS: AdminCommand[] = [
       }
     },
   },
-  {
-    id: "external.linear.aff221",
-    label: "Open Linear AFF-221 (master tracker)",
-    hint: "New tab",
-    icon: ExternalLink,
-    group: "Navigation",
-    keywords: "linear aff-221 master tracker overnight build issue",
-    run: () => {
-      if (typeof window !== "undefined") {
-        window.open(
-          "https://linear.app/hapddev/issue/AFF-221/appsadmin-overnight-build-master-tracker",
-          "_blank",
-          "noopener",
-        )
-      }
-    },
-  },
+  ...(githubProjectUrl
+    ? [
+        {
+          id: "external.github.project",
+          label: "Open GitHub project",
+          hint: "New tab",
+          icon: ExternalLink,
+          group: "Navigation",
+          keywords: "github issues project roadmap tracker",
+          run: () => {
+            if (typeof window !== "undefined") {
+              window.open(githubProjectUrl, "_blank", "noopener")
+            }
+          },
+        },
+      ]
+    : []),
   {
     id: "dev.copy.build-sha",
     label: "Copy build SHA",
@@ -324,8 +324,7 @@ export const ADMIN_COMMANDS: AdminCommand[] = [
     },
     run: async (_ctx, data) => {
       const picked = (data ?? {}).flag as
-        | { id: string; label: string; sublabel?: string }
-        | undefined
+        { id: string; label: string; sublabel?: string } | undefined
       if (!picked) {
         toast.error("No flag selected")
         return

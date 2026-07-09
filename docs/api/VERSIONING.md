@@ -144,5 +144,5 @@ Calls to removed endpoints return `410 Gone` with:
 - [RFC 8594 — Sunset HTTP Header](https://www.rfc-editor.org/rfc/rfc8594.html)
 - [IETF Deprecation header draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/)
 - [Zalando RESTful API guidelines — deprecation](https://github.com/zalando/restful-api-guidelines/blob/main/chapters/deprecation.adoc)
-- [Linear deprecations](https://linear.app/developers/deprecations)
+- [GitHub REST API versioning](https://docs.github.com/en/rest/about-the-rest-api/api-versions)
 - [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`CHANGELOG.md`](./CHANGELOG.md), [`SDK.md`](./SDK.md)

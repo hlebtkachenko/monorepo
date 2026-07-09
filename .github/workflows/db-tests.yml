@@ -3,7 +3,7 @@
 # rule engine). This workflow is ADVISORY today — neither `smoke` (Static
 # checks) nor `integration` (Migration + vitest) is listed in the main
 # branch ruleset's required_status_checks, so trigger-level `paths:` is
-# safe. If either job is promoted to required (see Linear AFF-65), switch
+# safe. If either job is promoted to required (see docs/conventions/CI-POLICY.md), switch
 # to the ci-status-shim pattern used by ci.yml so a skipped check still
 # reports green.
 #

@@ -18,7 +18,7 @@ import "./lanes/permissions-drain"
 
 /**
  * Shared failure-notify hook (OBS-15): every lane handler is bound through
- * this wrapper, so a throwing handler reports to the bot (deduped Linear
+ * this wrapper, so a throwing handler reports to the bot (deduped GitHub
  * issue + Telegram) BEFORE pg-boss marks the job failed — previously only
  * permissions-drain's per-row dead-letter path reported; a handler that
  * threw before reaching it (e.g. missing OPENFGA_* env) retried to

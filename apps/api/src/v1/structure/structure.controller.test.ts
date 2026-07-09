@@ -46,8 +46,8 @@ describe("StructureController", () => {
     expect(vat?.group).toBe("Obligations")
     const dap = vat?.subpages.find((s) => s.route === "closing/vat/dap")
     expect(dap?.label).toBe("VAT return")
-    expect(dap?.tba).toBe(true)
-    // Placeholder pages carry no assigned archetype yet.
+    expect(dap?.tba).toBe(false)
+    // This shipped page still carries no assigned archetype.
     expect(dap?.archetype).toBeNull()
   })
 

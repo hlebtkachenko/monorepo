@@ -812,7 +812,7 @@ export const registry: Record<string, ComponentMeta> = {
     source: "shadcn",
     sourceType: "vanilla",
     upstream: "https://ui.shadcn.com/docs/components/progress",
-    description: "Linear progress bar indicator",
+    description: "Horizontal progress bar indicator",
     categories: ["feedback"],
   },
   "prompt-library": {

@@ -124,7 +124,7 @@ export function captureContext(input: CaptureInput): CapturedContext {
 
 /**
  * Reduce a URL to origin + pathname, dropping the query string and hash.
- * Captured page/referrer URLs are forwarded to the support inbox + Linear,
+ * Captured page/referrer URLs are forwarded to the support inbox + GitHub Issues,
  * so query params (invite/reset tokens, signed-download params, search
  * terms) must never leave the browser. Do NOT restore the full href.
  */
@@ -499,7 +499,7 @@ export interface BugReportPayload extends CapturedContext {
   message: string
   /** Optional reply-to email; pre-filled from session, user editable. */
   email: string | null
-  /** Auto-generated title for the Linear issue. */
+  /** Auto-generated title for the GitHub issue. */
   auto_title: string
 }
 

@@ -7,9 +7,9 @@ import "./zod-openapi"
  *
  * Server-side handling: send email via Resend to
  * `support+feedback@afframe.com` (Gmail-style sub-addressing routes to
- * the support inbox with an auto-applied label) AND create a Linear
- * issue in the Afframe project tagged by type. The api never persists
- * raw feedback locally — Linear is the system of record.
+ * the support inbox with an auto-applied label) AND ask the bot to file or
+ * dedup a GitHub issue when issue reporting is configured. The api never
+ * persists raw feedback locally.
  */
 
 export const FeedbackTypeSchema = z
@@ -25,10 +25,10 @@ export type FeedbackType = z.infer<typeof FeedbackTypeSchema>
 
 /**
  * Optional, best-effort capture context. Sent by in-app reporters (the
- * right-click bug dialog) to enrich the Linear issue; omitted by public
+ * right-click bug dialog) to enrich the GitHub issue; omitted by public
  * SDK/partner callers. Every field is optional — a bare `{type, message}`
  * submission stays valid. The server folds whatever is present into the
- * Linear description; nothing here is trusted for auth or scoping.
+ * GitHub issue body; nothing here is trusted for auth or scoping.
  */
 const RectSchema = z
   .object({
@@ -117,7 +117,7 @@ export const FeedbackContextSchema = z
   .openapi({
     description:
       "Optional in-app capture context. Public callers omit it; the " +
-      "in-app bug reporter attaches it to enrich the Linear issue.",
+      "in-app bug reporter attaches it to enrich the GitHub issue.",
   })
 export type FeedbackContext = z.infer<typeof FeedbackContextSchema>
 
@@ -131,7 +131,7 @@ export const CreateFeedbackRequestSchema = z
       .openapi({
         description:
           "Free-form feedback text. 1–4000 characters. Markdown allowed " +
-          "but not rendered — the Linear issue treats this as plain text.",
+          "but not rendered — the GitHub issue treats this as plain text.",
         example:
           "The /v1/organization endpoint returned a 500 when my API key " +
           "was created in the last 60 seconds. Retried after a minute and " +
@@ -153,13 +153,13 @@ export const CreateFeedbackRequestSchema = z
       description:
         "Optional in-app capture context (page, element, viewport, " +
         "client). Public callers omit it; the in-app reporter attaches " +
-        "it. Folded into the Linear issue when present.",
+        "it. Folded into the GitHub issue when present.",
     }),
   })
   .openapi({
     description:
       "Partner feedback submission. Idempotency is not enforced — " +
-      "duplicate submissions create duplicate Linear issues. Clients " +
+      "duplicate submissions create duplicate GitHub issues. Clients " +
       "should rate-limit themselves to one submission per minute.",
   })
 export type CreateFeedbackRequest = z.infer<typeof CreateFeedbackRequestSchema>
@@ -169,12 +169,12 @@ export const CreateFeedbackResponseSchema = z
     received: z.literal(true).openapi({
       description:
         "Always `true` on a 2xx response. Confirms the api accepted the " +
-        "submission for downstream dispatch (email + Linear issue).",
+        "submission for downstream dispatch (email + GitHub issue).",
     }),
     referenceId: z.string().openapi({
       description:
         "Opaque submission reference. Quote this in any follow-up email — " +
-        "it links the support reply back to the Linear issue.",
+        "it links the support reply back to the GitHub issue.",
       example: "fb_2ZdAk5x",
     }),
   })

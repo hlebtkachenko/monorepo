@@ -414,7 +414,7 @@ No query-string, no cookie, no basic auth. The lock icon in the Scalar UI maps t
 
 ## 11. Concept / planned APIs
 
-> **Everything in this section is `[Concept]` — planned, not implemented.** A concept ships when its Linear issue closes and its endpoints appear in `/v1/openapi.json`. Until then, do not write client code against it; the shapes here are sketches, not contracts.
+> **Everything in this section is `[Concept]` — planned, not implemented.** A concept ships when its GitHub issue closes, its Roadmap project item reaches Done, and its endpoints appear in `/v1/openapi.json`. Until then, do not write client code against it; the shapes here are sketches, not contracts.
 
 ### `[Concept]` Domain endpoints — invoices, accounts, journals (AFF-71)
 
@@ -500,4 +500,4 @@ Useful for partners who need to mirror the platform's FX convention exactly (e.g
 - [`ADR-0022`](../adr/0022-unified-opaque-tokens.md) — opaque-token + DB-hash pattern (API keys, invites)
 - [Scalar repo](https://github.com/scalar/scalar) — upstream
 - [Scalar NestJS integration docs](https://scalar.com/products/api-references/integrations/nestjs) — official
-- Linear AFF-220 — replacement implementation issue
+- Legacy AFF-220 — replacement implementation issue

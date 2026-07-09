@@ -1,7 +1,7 @@
 # AI Financial Agents Plan
 
-> **Tracked in Linear: [AFF-31](https://linear.app/hapddev/issue/AFF-31/ai-financial-agents-gl-reconciler-p0-agent-infrastructure).**
-> Delete this file when AFF-31 is closed. Planning is tracked in Linear, not here — see [`docs/plans/README.md`](./README.md).
+> **Tracked in GitHub Issues: legacy AFF-31.**
+> Delete this file when AFF-31 is closed. Planning is tracked in GitHub Issues, not here — see [`docs/plans/README.md`](./README.md).
 > Note: the queue substrate is pg-boss (ADR-0017, `@workspace/workers`); this plan is aligned to it.
 
 Research-backed plan for building AI-assisted financial workflows into the monorepo. Based on deep analysis of Anthropic's `financial-services` reference repo (agent architectures, prompt patterns, security models, guardrails). Priorities: **P0** (first feature to build), **P1** (high value, build after P0), **P2** (future, needs more requirements), **P3** (optional, build if requested).

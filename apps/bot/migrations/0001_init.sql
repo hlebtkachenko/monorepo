@@ -1,7 +1,7 @@
 -- afframe-bot state (Cloudflare D1). Re-scopes DEV-55's pending-approval store off
 -- AWS RDS (unreachable from a Worker) to Worker-local D1.
 
--- Auto-issue dedup: one row per fingerprint -> the Linear issue it maps to.
+-- Auto-issue dedup: one row per fingerprint -> the GitHub issue it maps to.
 CREATE TABLE IF NOT EXISTS dedup (
   fingerprint TEXT PRIMARY KEY,
   issue_id    TEXT NOT NULL,

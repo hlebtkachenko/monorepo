@@ -27,13 +27,15 @@ import { notifierFromEnv } from "@workspace/notify"
  *   2. Email `support+feedback@afframe.com` via Resend. Gmail-style
  *      sub-addressing routes to the support inbox with an auto-applied
  *      label. The api never stores the raw feedback locally.
- *   3. If `LINEAR_API_KEY` is set, create a Linear issue in the Afframe
- *      project tagged with the feedback type. Linear is the system of
- *      record.
+ *   3. If bot issue reporting is configured, send a normalized
+ *      customer-request event to the bot. The bot owns GitHub issue
+ *      creation and dedup. Optional Project/Epic routing is bot deploy
+ *      config, not API behavior.
  *
- * Both side-effects are fire-and-forget from the request's perspective:
- * the api returns 201 as soon as the email + Linear calls have been
- * issued. A failure on either side is logged but does NOT fail the
+ * Both side-effects are best-effort from the request's perspective:
+ * the api returns 201 once the email attempt has completed and the GitHub
+ * issue report has been queued. A failure on either side is logged but
+ * does NOT fail the
  * request — the user already submitted, and forcing them to retry on
  * our infra outage is worse than swallowing the error and following
  * up via the logged reference id.
@@ -46,9 +48,8 @@ import { notifierFromEnv } from "@workspace/notify"
 // Gmail-style sub-addressing on the brand support inbox: routes to the
 // same mailbox with an auto-applied "feedback" label.
 const SUPPORT_INBOX = BRAND_SUPPORT_EMAIL.replace("@", "+feedback@")
-const LINEAR_API = "https://api.linear.app/graphql"
 
-// Fire-and-forget Telegram ping for every feedback; no-op when the bot env is unset.
+// Files (or dedups into) a GitHub issue per feedback via the bot; no-op when unset.
 const notifier = notifierFromEnv()
 
 function generateReferenceId(): string {
@@ -159,7 +160,7 @@ function renderContext(context: FeedbackContext | undefined): string {
 
 /**
  * The full validated context as a collapsed JSON block, appended to the
- * Linear issue (NOT the support email) so triagers get the ~14 captured
+ * GitHub issue (NOT the support email) so triagers get the ~14 captured
  * fields `renderContext` summarizes but omits — element role/id/classes/
  * text, selection.html, surrounding.nearby_text, viewport.scroll_y, client
  * env, page.referrer — without bloating the at-a-glance Markdown header.
@@ -182,17 +183,31 @@ function renderContextJson(context: FeedbackContext | undefined): string {
   ].join("\n")
 }
 
-async function createLinearIssue(
+// Exhaustive by construction: a new FeedbackType member is a compile error here,
+// not a silent fallback to some default bucket.
+const FEEDBACK_ISSUE_TYPE: Record<
+  CreateFeedbackRequest["type"],
+  "feat" | "fix" | "docs"
+> = {
+  request: "feat",
+  question: "docs",
+  bug: "fix",
+  issue: "fix",
+}
+
+function issueTypeForFeedback(
+  type: CreateFeedbackRequest["type"],
+): "feat" | "fix" | "docs" {
+  return FEEDBACK_ISSUE_TYPE[type]
+}
+
+async function reportGitHubIssue(
   body: CreateFeedbackRequest,
   referenceId: string,
   logger: Logger,
 ): Promise<void> {
-  const apiKey = process.env.LINEAR_API_KEY?.trim()
-  const teamId = process.env.LINEAR_TEAM_ID?.trim()
-  if (!apiKey || !teamId) {
-    logger.warn(
-      `[feedback ${referenceId}] LINEAR_API_KEY or LINEAR_TEAM_ID unset — skipping Linear issue creation`,
-    )
+  if (!notifier) {
+    logger.warn(`[feedback ${referenceId}] bot issue reporting not configured`)
     return
   }
   const title = `[feedback · ${body.type}] ${body.message.slice(0, 80)}${
@@ -208,28 +223,22 @@ async function createLinearIssue(
     ].join("\n") +
     renderContext(body.context) +
     renderContextJson(body.context)
-  const mutation = `
-    mutation CreateFeedback($input: IssueCreateInput!) {
-      issueCreate(input: $input) { success issue { id identifier } }
-    }
-  `
   try {
-    const res = await fetch(LINEAR_API, {
-      method: "POST",
-      headers: { authorization: apiKey, "content-type": "application/json" },
-      body: JSON.stringify({
-        query: mutation,
-        variables: { input: { teamId, title, description } },
-      }),
+    await notifier.reportIssue({
+      source: "customer-request",
+      title,
+      body: description,
+      fingerprintParts: ["feedback", referenceId],
+      area: "web",
+      risk: "low",
+      type: issueTypeForFeedback(body.type),
+      links: body.context?.page?.url
+        ? [{ label: "Captured page", url: body.context.page.url }]
+        : undefined,
     })
-    if (!res.ok) {
-      logger.error(
-        `[feedback ${referenceId}] Linear API ${res.status}: ${await res.text()}`,
-      )
-    }
   } catch (err) {
     logger.error(
-      `[feedback ${referenceId}] Linear request failed: ${
+      `[feedback ${referenceId}] GitHub issue report failed: ${
         err instanceof Error ? err.message : String(err)
       }`,
     )
@@ -247,7 +256,7 @@ export class FeedbackController {
     summary: "Send feedback",
     description:
       "Submit a bug, request, issue, or question. Forwarded to " +
-      "support+feedback@afframe.com and filed as a Linear issue.",
+      "support+feedback@afframe.com and filed as a GitHub issue.",
   })
   @ApiCreatedResponse({
     description: "Feedback accepted for downstream dispatch.",
@@ -280,15 +289,10 @@ export class FeedbackController {
         }`,
       )
     }
-    // Linear creation is best-effort; do not block the response.
-    void createLinearIssue(body, referenceId, this.logger)
-    if (notifier) {
-      void notifier
-        .notify(`📝 New feedback ${referenceId} (${body.type})`, {
-          source: "api",
-        })
-        .catch(() => {})
-    }
+    // GitHub issue creation is best-effort through the bot; do not block the response.
+    // reportIssue already sends the canonical (dedup/snooze-aware) Telegram echo with an
+    // Open button, so no separate notify() ping — that would double-buzz every submission.
+    void reportGitHubIssue(body, referenceId, this.logger)
 
     return { received: true, referenceId }
   }

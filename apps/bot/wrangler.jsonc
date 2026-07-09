@@ -16,8 +16,6 @@
   "vars": {
     // One always-on prod-hosted hub watching both envs; source-tagged per message.
     "ENVIRONMENT": "production",
-    // owner/repo the control plane dispatches + reads. Non-secret.
-    "GITHUB_REPO": "hlebtkachenko/monorepo",
     // Public API base for the /status lightweight ping (hits ${API_URL}/api/health).
     "API_URL": "https://api.afframe.com",
   },

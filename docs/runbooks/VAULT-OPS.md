@@ -3,13 +3,13 @@
 > **Status:** M1–M5 live as of 2026-05-31. M1/M2 (Vault bring-up + KMS
 > auto-unseal + restic→R2 backup), M3 (ECS AWS IAM auth), M3.5 (root token
 > revoked → operator-admin), M4 (3 app secrets Vault→SSM→ECS in staging +
-> production), M5 (GitHub OIDC→Vault JWT for `linear-sync.yml`). Remaining:
-> M10 rotation drill + cost audit. DR drill deferred to
-> [AFF-247](https://linear.app/hapddev/issue/AFF-247); B2 secondary backup
-> deferred to [AFF-246](https://linear.app/hapddev/issue/AFF-246). Milestone
+> production), M5 (GitHub OIDC→Vault JWT pilot; retired after the issue
+> backlink workflow moved to GitHub's built-in token). Remaining:
+> M10 rotation drill + cost audit. DR drill and B2 secondary backup remain
+> deferred until the Roadmap project prioritizes them. Milestone
 > history: [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md).
 >
-> **Backs:** [AFF-245](https://linear.app/hapddev/issue/AFF-245).
+> **Backs:** legacy AFF-245.
 >
 > **Authoritative reference for:** day-to-day Vault operations on the Hostinger
 > KVM 2 VPS at `secrets-admin.afframe.com`. Anything that touches an unsealed
@@ -58,14 +58,14 @@ ssh afframe-vps 'df -h /srv/secrets/vault/audit && stat -c "%U:%G %a" /srv/secre
 | Backup script           | `/usr/local/sbin/vault-backup` (source: `infra/vault/vps-overlay/usr/local/sbin/vault-backup`); reads `/root/.config/restic/.env` via `set -a`                                      |
 | systemd unit            | `/etc/systemd/system/vault-backup.{service,timer}`; `ProtectHome=read-only`, `RESTIC_CACHE_DIR=/var/cache/restic`, `TimeoutStartSec=1800`                                           |
 | Restic repo (primary)   | `s3:https://e891323bcdc79af6e2b692027f14674c.eu.r2.cloudflarestorage.com/afframe-vault-backup` (Cloudflare R2, EU region, repo id `5b5e8232`)                                       |
-| Restic repo (secondary) | DEFERRED → [AFF-246](https://linear.app/hapddev/issue/AFF-246)                                                                                                                      |
+| Restic repo (secondary) | DEFERRED until prioritized in GitHub Issues                                                                                                                                         |
 | Restic password         | VPS `/root/.config/restic/.env` (mode 0600, root) + **offline escrow**. NOT in macOS Keychain (verified 2026-05-31). The running backup timer proves the value is valid on the VPS. |
 | R2 token                | VPS `/root/.config/restic/.env` (S3-compatible, scoped to bucket, TTL 2027-05-23 → rotate 90-day cadence). NOT in macOS Keychain (verified 2026-05-31).                             |
 | Backup cadence          | every 6h UTC (`OnCalendar=*-*-* 00,06,12,18:00:00 UTC`); Sunday < 06:00 UTC tick adds `restic check --read-data-subset=5%`                                                          |
 | Retention               | `restic forget --keep-daily 7 --keep-weekly 12 --keep-monthly 12 --prune`                                                                                                           |
 | Failure signal          | sentinel file `/var/run/vault-backup.failed` (`test -e` for monitoring) + non-zero systemd exit                                                                                     |
 | First snapshot          | `b1988da1` (2026-05-23 14:34:43 UTC, 14.9 KiB raw → 15.5 KiB stored)                                                                                                                |
-| DR drill                | DEFERRED → [AFF-247](https://linear.app/hapddev/issue/AFF-247) — restore is unverified end-to-end                                                                                   |
+| DR drill                | DEFERRED until prioritized in GitHub Issues — restore is unverified end-to-end                                                                                                      |
 
 ### M2 30-second smoke
 
@@ -417,11 +417,14 @@ The `operator-admin` policy grants `list+sudo` on `auth/token/accessors`
 `sys/rekey/*` / `sys/generate-root/*` / `sys/seal` — those require the
 recovery-key ceremony above. The 5 recovery keys remain in escrow.
 
-### GitHub Actions JWT auth (M5, 2026-05-31)
+### GitHub Actions JWT auth pilot (M5, retired)
 
-`linear-sync.yml` fetches `LINEAR_API_KEY` from Vault via GitHub OIDC.
-Chain: GitHub OIDC token → Cloudflare Access (service token) → Vault JWT
-auth → secret read.
+The M5 pilot proved the chain for a workflow-owned shared secret:
+GitHub OIDC token → Cloudflare Access service token → Vault JWT auth →
+secret read. The original consumer was the old tracker write-back workflow.
+That workflow has been replaced by `issue-sync.yml`, which uses the built-in
+`GITHUB_TOKEN` and no Vault secret. Keep this section only as a reference if a
+future workflow needs a Vault-backed shared credential.
 
 Server-side config (applied via `~/.context/scripts/m5-setup-jwt-auth.sh`
 
@@ -448,7 +451,7 @@ vault write auth/jwt/role/gha-monorepo - <<'JSON'
   "bound_audiences": ["https://secrets-admin.afframe.com"],
   "bound_claims": {
     "repository": "hlebtkachenko/monorepo",
-    "workflow_ref": "hlebtkachenko/monorepo/.github/workflows/linear-sync.yml@*"
+    "workflow_ref": "hlebtkachenko/monorepo/.github/workflows/<workflow>.yml@*"
   },
   "token_policies": ["gha-read-shared-tokens"],
   "ttl": "15m",
@@ -472,18 +475,15 @@ Two gotchas, both fixed:
 no audiences bound to the role"`. Both set to
    `https://secrets-admin.afframe.com`.
 
-Verify a CI run succeeded end-to-end (audit log, run on operator laptop
+Verify a CI run succeeds end-to-end (audit log, run on operator laptop
 with op-admin token):
 
 ```bash
 sudo tail -200 /srv/secrets/vault/audit/audit.log | \
   jq -c 'select(.request.path=="auth/jwt/login" or (.request.path|startswith("platform/data/shared"))) | {time, path:.request.path, role:.auth.metadata.role}'
 # Expect: auth/jwt/login with role=gha-monorepo, then a read on
-# platform/data/shared/linear-api-key.
+# platform/data/shared/<secret-name>.
 ```
-
-Rotate the Linear key: `vault kv put platform/shared/linear-api-key value=<new>`.
-No GitHub-secret change needed.
 
 ## Irreversible operations register
 

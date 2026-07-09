@@ -3178,7 +3178,7 @@ export interface components {
             issuedAt: string;
             /**
              * Format: date
-             * @description DUZP/DPPD used by VAT outputs. When omitted, invoice capture derives it from linked accounting-event legal dates.
+             * @description DUZP/DPPD used by VAT outputs. Missing means the legal date remains unresolved.
              * @example 2026-03-14
              */
             taxPointDate?: string | null;

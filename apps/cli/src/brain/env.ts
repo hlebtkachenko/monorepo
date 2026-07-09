@@ -24,7 +24,7 @@ export interface BrainEnv {
 }
 
 /** The default actor-mode value: use the nested Claude Code session's own (ambient) credential resolution. */
-export const AMBIENT_AGENT_SDK_AUTH = "ambient"
+const AMBIENT_AGENT_SDK_AUTH = "ambient"
 
 /**
  * Resolve the Brain live-session env from a snapshot. An empty string is treated the same as unset (an

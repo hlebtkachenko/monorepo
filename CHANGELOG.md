@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.17.0] — 2026-07-09
+
+Minor release: period-mechanism completion (PR1–PR4) — real accounting-period data wires through the full closing cycle (VAT, payroll, income tax, year-end statements, obligation calendar), real Settings surfaces (number series, tax profile), and real workspace Companies + Legislation operational data. Adds the GitHub Issues tracker migration (replacing the retired Linear integration), CodeGraph developer tooling repo-wide, and numerous CI, governance, and dependency updates.
+
 ### Added
 
 - **workspace**: replace mock operational data on the Companies + Legislation surfaces with real data — a workspace-scoped statutory obligation engine (`computeWorkspaceObligations`) drives each company's next-deadline card field and the Legislation board; VAT regime and onboarding/active/archived status are now derived from `vat_status`/`accounting_period`; a new `organization.responsible_user_id` column + owner/admin-gated assignment action wires a real accountant assignee picker onto the company card and inspector. (#612)

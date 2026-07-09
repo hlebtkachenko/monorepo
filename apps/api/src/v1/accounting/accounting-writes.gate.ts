@@ -8,6 +8,7 @@ import {
   AdmissionRejected,
   type AdmissionSlot,
   lockPeriodInTx,
+  readConfidentWrongCount,
   updateToolCallLogOutput,
   withOrganization,
   writeToolCallLog,
@@ -257,6 +258,33 @@ export async function runGatedWriteWithSeams<T>(
         principal.organizationId,
         userId,
         async (db): Promise<TxOutcome> => {
+          // [I8] Confident-wrong circuit breaker. A confident-wrong (an
+          // AUTO-APPLIED write a human later marks wrong) increments the
+          // workspace's persisted counter and HALTS the lane: every subsequent
+          // gated write is refused until a human clears it. Read FAIL-CLOSED —
+          // a count > 0 OR any failure reading it refuses. Placed at the very
+          // top of the tx, BEFORE writeToolCallLog: a tripped breaker burns no
+          // idempotency key and does no domain work (the tx rolls back), so the
+          // client can retry cleanly once the breaker is cleared. A clean 0 (the
+          // cold-start norm — auto-apply is unreachable, so no write can be
+          // confident-wrong yet) falls straight through. TIGHTENING-only: this
+          // adds a refuse condition, it never releases one.
+          let confidentWrong: number
+          try {
+            confidentWrong = await readConfidentWrongCount(db)
+          } catch {
+            throw new RateLimitedError(
+              "Cannot verify the Brain confident-wrong safety state; refusing this write fail-closed",
+            )
+          }
+          if (confidentWrong > 0) {
+            throw new RateLimitedError(
+              `Brain is halted by the confident-wrong circuit breaker ` +
+                `(${confidentWrong} unresolved incident(s) in this workspace); ` +
+                `a human must investigate and clear it before autonomous writes resume`,
+            )
+          }
+
           const log = await writeToolCallLog(db, {
             organizationId: principal.organizationId,
             toolName: operationId,

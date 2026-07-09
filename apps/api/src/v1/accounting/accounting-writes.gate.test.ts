@@ -36,6 +36,10 @@ vi.mock("@workspace/db", () => {
     writeToolCallLog: vi.fn(),
     updateToolCallLogOutput: vi.fn(),
     lockPeriodInTx: vi.fn(),
+    // [I8] The confident-wrong circuit-breaker read the gate performs at run
+    // entry. Default (0) = breaker closed / clean pass; overridden per-test to
+    // exercise the >0 (refuse) and unreadable (refuse) fail-closed legs.
+    readConfidentWrongCount: vi.fn(),
     AdmissionController,
     AdmissionRejected,
   }
@@ -49,6 +53,7 @@ const writeLog = vi.mocked(db.writeToolCallLog)
 const updateLog = vi.mocked(db.updateToolCallLogOutput)
 const withOrg = vi.mocked(db.withOrganization)
 const lockPeriod = vi.mocked(db.lockPeriodInTx)
+const readCW = vi.mocked(db.readConfidentWrongCount)
 
 // A permissive admission for the TEST-ONLY seam form (mirrors the mocked
 // singleton's always-admit behavior). Seam tests call `runGatedWriteWithSeams`
@@ -168,6 +173,7 @@ describe("runGatedWrite", () => {
     updateLog.mockReset()
     withOrg.mockReset()
     lockPeriod.mockReset()
+    readCW.mockReset()
     lockPeriod.mockResolvedValue(undefined)
     // Run the callback with a throwaway db handle, one transaction.
     withOrg.mockImplementation((_org, _user, fn) =>
@@ -175,6 +181,8 @@ describe("runGatedWrite", () => {
     )
     writeLog.mockResolvedValue({ toolCallLogId: "log-1", replayed: false })
     updateLog.mockResolvedValue(undefined as never)
+    // [I8] Breaker closed by default (the cold-start norm): count 0 = clean pass.
+    readCW.mockResolvedValue(0)
   })
 
   it("rejects when the Idempotency-Key is missing", async () => {
@@ -189,6 +197,40 @@ describe("runGatedWrite", () => {
       ForbiddenError,
     )
     expect(writeLog).not.toHaveBeenCalled()
+  })
+
+  // [I8] Confident-wrong circuit breaker ---------------------------------------
+
+  it("proceeds normally when the confident-wrong count is 0 (breaker closed)", async () => {
+    // Default readCW = 0. The write runs through the gate as usual (held at
+    // cold start), proving a clean 0 does NOT block: writeToolCallLog IS called.
+    readCW.mockResolvedValue(0)
+    const run = vi.fn()
+    const res = await runGatedWrite(build({ confidence: 0.99, run }))
+    expect(res.httpStatus).toBe(202)
+    expect(readCW).toHaveBeenCalledOnce()
+    expect(writeLog).toHaveBeenCalledOnce()
+  })
+
+  it("REFUSES fail-closed when the confident-wrong count is > 0 (breaker open)", async () => {
+    readCW.mockResolvedValue(1)
+    const run = vi.fn()
+    await expect(
+      runGatedWrite(build({ confidence: 0.5, run })),
+    ).rejects.toBeInstanceOf(RateLimitedError)
+    // Refused BEFORE any work: no audit row written, no domain fn run.
+    expect(writeLog).not.toHaveBeenCalled()
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it("REFUSES fail-closed when the confident-wrong count is unreadable", async () => {
+    readCW.mockRejectedValue(new Error("db read failed"))
+    const run = vi.fn()
+    await expect(
+      runGatedWrite(build({ confidence: 0.5, run })),
+    ).rejects.toBeInstanceOf(RateLimitedError)
+    expect(writeLog).not.toHaveBeenCalled()
+    expect(run).not.toHaveBeenCalled()
   })
 
   it("auto-applies (201) when confidence, veto, AND the server score are all green", async () => {

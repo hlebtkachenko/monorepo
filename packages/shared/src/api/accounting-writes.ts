@@ -78,6 +78,11 @@ const SUPPLY_KIND = z.enum([
  */
 const COMMODITY_CODE = z.enum(["1", "3", "4", "5"])
 
+const LEGAL_DATE = z.iso.date().openapi({
+  description: "Czech legal calendar date (YYYY-MM-DD).",
+  example: "2026-03-14",
+})
+
 // ── classify (pure decision) ────────────────────────────────────────────────
 
 export const ClassifyEventRequestSchema = z
@@ -525,6 +530,10 @@ export const CreateAccountingEventRequestSchema = z
           "Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period.",
         example: "2025-03-14",
       }),
+    occurredOn: LEGAL_DATE.optional().openapi({
+      description:
+        "Explicit Czech legal date for period membership. Legacy callers may omit it and the server derives Europe/Prague from occurredAt.",
+    }),
     confidence: CONFIDENCE,
     rationale: RATIONALE,
     conversationId: CONVERSATION_ID,
@@ -623,6 +632,14 @@ export const CaptureAccountingDocumentRequestSchema = z
         description: "Okamžik vyhotovení (§11/1d) — ISO.",
         example: "2025-03-14",
       }),
+    taxPointDate: LEGAL_DATE.nullish().openapi({
+      description:
+        "DUZP/DPPD used by VAT outputs. When omitted, invoice capture derives it from linked accounting-event legal dates.",
+    }),
+    receivedDate: LEGAL_DATE.nullish().openapi({
+      description:
+        "Proven date a received invoice was obtained. Missing means input-VAT eligibility is incomplete.",
+    }),
     roundingAmount: SignedDecimal.optional().openapi({
       description: "§37 doc-total rounding → 548/648.",
     }),
@@ -631,6 +648,24 @@ export const CaptureAccountingDocumentRequestSchema = z
     // signals / templateId / extractionMethod), defined ONCE in GATE_ENVELOPE and
     // stripped before the domain mutation via `stripGateEnvelope`.
     ...GATE_ENVELOPE,
+  })
+  .superRefine((value, ctx) => {
+    const isInvoice =
+      value.type === "RECEIVED_INVOICE" || value.type === "ISSUED_INVOICE"
+    if (value.taxPointDate != null && !isInvoice) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["taxPointDate"],
+        message: "taxPointDate is only valid for an invoice",
+      })
+    }
+    if (value.receivedDate != null && value.type !== "RECEIVED_INVOICE") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["receivedDate"],
+        message: "receivedDate is only valid for a received invoice",
+      })
+    }
   })
   .openapi({
     description:

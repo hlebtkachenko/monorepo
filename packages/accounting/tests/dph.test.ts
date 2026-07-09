@@ -133,6 +133,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2044-03-10",
+        receivedDate: "2044-03-10",
         lines: [
           {
             eventId: ev3.eventId,
@@ -193,7 +194,10 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
 
       expect(dph.type).toBe("VAT_RETURN")
 
@@ -304,7 +308,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // ř.20 — EU goods, base only (osvobozené s nárokem, daň 0)
       expect(dph.rows.r20_base).toBe("50000.0000")
       // ř.21 — no EU service
@@ -316,7 +323,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
       // NOT kontrolní hlášení A.1 (EU excluded, #516/#541)
       expect(dph.kh.a1_base).toBe("0.0000")
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(kh.a1).toHaveLength(0)
     })
   })
@@ -371,7 +381,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // ř.21 — EU service, base only
       expect(dph.rows.r21_base).toBe("30000.0000")
       // ř.20 — no EU goods
@@ -381,7 +394,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
       expect(dph.rows.r50_base).toBe("0.0000")
       expect(dph.kh.a1_base).toBe("0.0000")
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(kh.a1).toHaveLength(0)
     })
   })
@@ -436,7 +452,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // ř.25 — domestic §92 PDP dodavatel, base only (daň odvádí odběratel)
       expect(dph.rows.r25_base).toBe("80000.0000")
       // NOT EU lines
@@ -446,7 +465,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
       expect(dph.kh.a1_base).toBe("80000.0000")
 
       // KH A.1 row-level: the §92e domestic PDP supply IS reported (kód 4)
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(kh.a1).toHaveLength(1)
       expect(kh.a1[0]!.tax_id).toBe("CZ12345678")
       expect(kh.a1[0]!.kod).toBe("4")
@@ -542,8 +564,14 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
-      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      const sh = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
 
       const shByKod = Object.fromEntries(
         sh.rows.map((r) => [r.kod_plneni, r.value]),

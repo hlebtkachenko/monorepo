@@ -11,6 +11,7 @@
  */
 import {
   bigint,
+  date,
   foreignKey,
   pgTable,
   text,
@@ -33,7 +34,7 @@ export const accounting_event = pgTable(
       .default(sql`uuidv7()`),
     organization_id: uuid("organization_id").notNull(),
     workspace_id: uuid("workspace_id").notNull(),
-    period_id: uuid("period_id").notNull(), // the case's účetní období (occurred_at ∈ period)
+    period_id: uuid("period_id").notNull(), // the case's účetní období (occurred_on ∈ period)
     number_series_id: uuid("number_series_id").notNull(), // Označení series (entity_type = EVENT)
     sequence_number: bigint("sequence_number", { mode: "number" }).notNull(), // gapless position in the série
     designation: text("designation").notNull(), // FROZEN Označení string (gov/audit id)
@@ -42,6 +43,7 @@ export const accounting_event = pgTable(
     description: text("description").notNull(), // obsah úč. případu (§11/1b)
     content: text("content"), // optional longer detail
     occurred_at: timestamp("occurred_at", { withTimezone: true }).notNull(), // okamžik uskutečnění (§11/1e)
+    occurred_on: date("occurred_on").notNull(), // Czech legal calendar date; period-membership anchor
     responsible_user_id: uuid("responsible_user_id")
       .notNull()
       .references(() => app_user.id), // osoba odp. za případ (§11/1f, R10)
@@ -61,10 +63,7 @@ export const accounting_event = pgTable(
     foreignKey({
       name: "accounting_event_period_fk",
       columns: [t.period_id, t.organization_id],
-      foreignColumns: [
-        accounting_period.id,
-        accounting_period.organization_id,
-      ],
+      foreignColumns: [accounting_period.id, accounting_period.organization_id],
     }),
     foreignKey({
       name: "accounting_event_party_fk",

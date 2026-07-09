@@ -585,6 +585,71 @@ describe("getVatReturn", () => {
     expect(april.dph.rows.vlastni_dan).toBe("0.0000")
   }, 30_000)
 
+  it("aggregates one statutory quarter across two fiscal accounting periods", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "vat-return-cross-period",
+      legalName: "VAT Cross Period s.r.o.",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    const firstPeriodId = await seedPeriod({
+      orgId: org,
+      start: "2025-02-01",
+      end: "2026-01-31",
+      status: "OPEN",
+    })
+    const secondPeriodId = await seedPeriod({
+      orgId: org,
+      start: "2026-02-01",
+      end: "2027-01-31",
+      status: "OPEN",
+    })
+    await seedVatStatus({
+      orgId: org,
+      vatRegimeCode: "PAYER",
+      validFrom: "2025-01-01",
+      filingPeriod: "QUARTERLY",
+    })
+    await captureStandardSale({
+      orgId: org,
+      workspaceId: ws,
+      userId: user,
+      periodId: firstPeriodId,
+      occurredAt: "2026-01-15",
+      baseAmount: "1000.00",
+      vatAmount: "210.00",
+    })
+    await captureStandardSale({
+      orgId: org,
+      workspaceId: ws,
+      userId: user,
+      periodId: secondPeriodId,
+      occurredAt: "2026-02-15",
+      baseAmount: "2000.00",
+      vatAmount: "420.00",
+    })
+
+    sessionUserId = user
+    cookieValue = secondPeriodId
+
+    const result = await getVatReturn(
+      "vat-return-cross-period",
+      "2026-01-01",
+      "2026-03-31",
+    )
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.selected).toEqual({
+      label: "Q1 2026",
+      from: "2026-01-01",
+      to: "2026-03-31",
+    })
+    expect(result.dph.rows.r1_base).toBe("3000.0000")
+    expect(result.dph.rows.r1_dan).toBe("630.0000")
+  }, 30_000)
+
   it("a crafted/stale `?fp=` value that doesn't name a real filing period falls back to a real one, not an arbitrary range", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)

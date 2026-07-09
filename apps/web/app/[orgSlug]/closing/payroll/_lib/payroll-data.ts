@@ -1,6 +1,7 @@
 import "server-only"
 
 import { computePayrollObligations } from "@workspace/accounting"
+import { czechToday } from "@/lib/czech-today"
 
 import { resolvePeriodProfile } from "../../_lib/period-profile"
 import {
@@ -25,7 +26,7 @@ export async function getPayrollObligations(
   const profile = await resolvePeriodProfile(orgSlug)
   if (profile.status !== "ok") return profile
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = czechToday()
   const obligations: ObligationWithStatus[] = computePayrollObligations({
     periodStart: profile.periodStart,
     periodEnd: profile.periodEnd,

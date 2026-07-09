@@ -177,29 +177,15 @@ function quarterBounds(
   }
 }
 
-/** The later of two ISO dates (string comparison works on ISO YYYY-MM-DD). */
-function maxIso(a: string, b: string): string {
-  return a > b ? a : b
-}
-
-/** The earlier of two ISO dates (string comparison works on ISO YYYY-MM-DD). */
-function minIso(a: string, b: string): string {
-  return a < b ? a : b
-}
-
 /**
  * Emit one quarterly obligation (VAT_RETURN or CONTROL_STATEMENT) per true
- * calendar quarter touched by `months`. The reported periodStart/periodEnd
- * are clipped to [input.periodStart, input.periodEnd] so a non-calendar
- * fiscal year never reports a sub-period outside the accounting period, but
- * `dueDate` is always derived from the TRUE (unclipped) calendar-quarter end
- * — the statutory deadline is fixed by the calendar quarter, not by the
- * fiscal-year clip.
+ * calendar quarter touched by `months`. Statutory VAT periods are complete
+ * calendar quarters even when the accounting period starts or ends partway
+ * through one. The deadline is derived from the calendar-quarter end too.
  */
 function quarterlyObligations(
   kind: "VAT_RETURN" | "CONTROL_STATEMENT",
   months: { year: number; month: number }[],
-  input: ObligationInput,
 ): Obligation[] {
   return quartersInRange(months).map(({ year, quarter }) => {
     const bounds = quarterBounds(year, quarter)
@@ -209,8 +195,8 @@ function quarterlyObligations(
       category: "VAT",
       title: TITLES[kind],
       periodLabel: `Q${quarter} ${year}`,
-      periodStart: maxIso(bounds.periodStart, input.periodStart),
-      periodEnd: minIso(bounds.periodEnd, input.periodEnd),
+      periodStart: bounds.periodStart,
+      periodEnd: bounds.periodEnd,
       dueDate: vatMonthlyDeadline(year, lastMonthOfQuarter),
       conditional: false,
     }
@@ -294,7 +280,7 @@ export function computeObligations(input: ObligationInput): Obligation[] {
       })
     }
   } else if (isVatPayer && input.vatFilingPeriod === "QUARTERLY") {
-    obligations.push(...quarterlyObligations("VAT_RETURN", months, input))
+    obligations.push(...quarterlyObligations("VAT_RETURN", months))
   } else if (isVatPayer) {
     // Defensive: the top-of-function guard only rules out null, so a future
     // third VatFilingPeriod enum value would otherwise silently fall through
@@ -331,9 +317,7 @@ export function computeObligations(input: ObligationInput): Obligation[] {
   const khQuarterly =
     input.personType === "NATURAL" && input.vatFilingPeriod === "QUARTERLY"
   if (isVatPayer && khQuarterly) {
-    obligations.push(
-      ...quarterlyObligations("CONTROL_STATEMENT", months, input),
-    )
+    obligations.push(...quarterlyObligations("CONTROL_STATEMENT", months))
   } else if (isVatPayer) {
     for (const { year, month } of months) {
       obligations.push({

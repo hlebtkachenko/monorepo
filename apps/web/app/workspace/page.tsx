@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { and, desc, eq, inArray, isNull, isNotNull } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
+import { czechToday } from "@/lib/czech-today"
 import {
   accounting_period,
   app_user,
@@ -72,7 +73,7 @@ export default async function CompaniesPage({
   const showArchived = archived === "1"
 
   const activeWorkspaceId = ctx.activeWorkspaceId
-  const today = new Date().toISOString().slice(0, 10)
+  const today = czechToday()
 
   // Each org's real statutory obligations for its current period — feeds the
   // card's "next deadline" (own batch-loaded `withAdminBypass`, see

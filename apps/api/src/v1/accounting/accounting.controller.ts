@@ -275,13 +275,14 @@ export class AccountingController {
     const dph = await withOrganization(
       principal.organizationId,
       principal.userId,
-      (db) => buildDph(db, periodId),
+      (db) => buildDph(db, { kind: "ACCOUNTING_PERIOD", periodId }),
     )
     return {
       organizationId: principal.organizationId,
       periodId,
       rows: dph.rows,
       kh: dph.kh,
+      completeness: dph.completeness,
     }
   }
 
@@ -327,7 +328,11 @@ export class AccountingController {
     const s = await withOrganization(
       principal.organizationId,
       principal.userId,
-      (db) => buildSouhrnneHlaseni(db, periodId),
+      (db) =>
+        buildSouhrnneHlaseni(db, {
+          kind: "ACCOUNTING_PERIOD",
+          periodId,
+        }),
     )
     return {
       organizationId: principal.organizationId,
@@ -339,6 +344,7 @@ export class AccountingController {
         count: r.count,
         value: r.value,
       })),
+      completeness: s.completeness,
     }
   }
 
@@ -353,7 +359,11 @@ export class AccountingController {
     const k = await withOrganization(
       principal.organizationId,
       principal.userId,
-      (db) => buildKontrolniHlaseni(db, periodId),
+      (db) =>
+        buildKontrolniHlaseni(db, {
+          kind: "ACCOUNTING_PERIOD",
+          periodId,
+        }),
     )
     const row = (r: {
       tax_id: string | null
@@ -389,6 +399,7 @@ export class AccountingController {
       b1: k.b1.map(row),
       b2: k.b2.map(row),
       b3: agg(k.b3),
+      completeness: k.completeness,
     }
   }
 

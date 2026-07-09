@@ -1,6 +1,7 @@
 import "server-only"
 
 import { withOrganization } from "@workspace/db"
+import { czechToday } from "@/lib/czech-today"
 import {
   buildDph,
   buildKontrolniHlaseni,
@@ -205,10 +206,7 @@ function selectFilingPeriod(
     )
     if (match) return match
   }
-  return pickDefaultFilingPeriod(
-    filingPeriods,
-    new Date().toISOString().slice(0, 10),
-  )
+  return pickDefaultFilingPeriod(filingPeriods, czechToday())
 }
 
 /**
@@ -246,9 +244,9 @@ export async function getVatReturn(
     resolved.ctx.organizationId,
     resolved.ctx.userId,
     (db) =>
-      buildDph(db, resolved.periodId, {
-        from: selected.from,
-        to: selected.to,
+      buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: selected.from, to: selected.to },
       }),
   )
   return { status: "ok", filingPeriods: resolved.filingPeriods, selected, dph }
@@ -269,9 +267,9 @@ export async function getControlStatement(
     resolved.ctx.organizationId,
     resolved.ctx.userId,
     (db) =>
-      buildKontrolniHlaseni(db, resolved.periodId, {
-        from: selected.from,
-        to: selected.to,
+      buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: selected.from, to: selected.to },
       }),
   )
   return { status: "ok", filingPeriods: resolved.filingPeriods, selected, kh }
@@ -292,9 +290,9 @@ export async function getEcSalesList(
     resolved.ctx.organizationId,
     resolved.ctx.userId,
     (db) =>
-      buildSouhrnneHlaseni(db, resolved.periodId, {
-        from: selected.from,
-        to: selected.to,
+      buildSouhrnneHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: selected.from, to: selected.to },
       }),
   )
   return { status: "ok", filingPeriods: resolved.filingPeriods, selected, sh }

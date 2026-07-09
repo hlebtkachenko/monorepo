@@ -2,6 +2,7 @@ import "server-only"
 
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
+import { czechToday } from "@/lib/czech-today"
 import {
   accounting_period,
   organization,
@@ -114,7 +115,7 @@ function groupByOrg<T extends { organizationId: string }>(
 export async function computeWorkspaceObligations(
   activeWorkspaceId: string,
 ): Promise<Map<string, WorkspaceObligation[]>> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = czechToday()
   const result = new Map<string, WorkspaceObligation[]>()
 
   await withAdminBypass(async (db) => {

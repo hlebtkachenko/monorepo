@@ -366,6 +366,20 @@ export type KontrolniHlaseniTotals = z.infer<
   typeof KontrolniHlaseniTotalsSchema
 >
 
+export const VatEvidenceCompletenessSchema = z
+  .object({
+    status: z.enum(["COMPLETE", "NEEDS_INPUT"]),
+    missingTaxPointDocuments: z.number().int().nonnegative(),
+    missingReceivedDateDocuments: z.number().int().nonnegative(),
+  })
+  .openapi({
+    description:
+      "Whether the VAT artifact has the legal-date evidence required by its included sections.",
+  })
+export type VatEvidenceCompleteness = z.infer<
+  typeof VatEvidenceCompletenessSchema
+>
+
 /** `GET /v1/accounting/periods/{periodId}/outputs/vat-return` response. */
 export const DphResponseSchema = z
   .object({
@@ -376,6 +390,7 @@ export const DphResponseSchema = z
     }),
     rows: DphRowsSchema,
     kh: KontrolniHlaseniTotalsSchema,
+    completeness: VatEvidenceCompletenessSchema,
   })
   .openapi({
     description:
@@ -449,6 +464,7 @@ export const EcSalesListResponseSchema = z
     rows: z
       .array(EcSalesRowSchema)
       .openapi({ description: "EU supply recap rows (§102)." }),
+    completeness: VatEvidenceCompletenessSchema,
   })
   .openapi({
     description: "Souhrnné hlášení — EU supplies recap for the period.",
@@ -530,6 +546,7 @@ export const ControlStatementResponseSchema = z
     b3: KhAggregateSchema.openapi({
       description: "B.3 — received supplies under threshold (aggregate).",
     }),
+    completeness: VatEvidenceCompletenessSchema,
   })
   .openapi({
     description:

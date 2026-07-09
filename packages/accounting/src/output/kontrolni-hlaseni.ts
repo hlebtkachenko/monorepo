@@ -30,17 +30,20 @@
  * aggregate. Rows are grouped per (doklad, counterparty); all money arithmetic
  * is in SQL (R13).
  *
- * buildKontrolniHlaseni's optional `filingRange` narrows every section to a
- * filing period (calendar month/quarter) by the DPPD (accounting_event.
- * occurred_at, §11/1e) — a kontrolní hlášení is filed per filing period, not
- * per whole účetní období. Omitting it aggregates the whole accounting
- * period, unchanged.
+ * A FILING_PERIOD evidence scope uses document legal dates and may cross
+ * accounting periods. Received STANDARD sections follow proven deduction
+ * eligibility; other sections follow the document tax point.
  */
 
 import { sql } from "drizzle-orm"
 import { rows } from "../sql"
 import type { RowExecutor } from "../sql"
-import type { Decimal, FilingRange } from "../types"
+import type { Decimal, VatEvidenceScope } from "../types"
+import {
+  getVatEvidenceCompleteness,
+  type VatEvidenceCompleteness,
+} from "./vat-evidence-completeness"
+import { vatEvidencePredicates } from "./vat-evidence-scope"
 
 /** §101d/1 limit — plnění nad 10 000 Kč včetně daně (v absolutní hodnotě —
  * opravné doklady jsou záporné) jde na řádkovou evidenci. */
@@ -86,13 +89,7 @@ export interface KontrolniHlaseni {
   b1: KhRow[]
   b2: KhRow[]
   b3: KhAggregate
-}
-
-/** `AND ae.occurred_at::date BETWEEN from AND to`, or no-op when range is undefined. */
-function filingRangeFilter(range?: FilingRange) {
-  return range
-    ? sql`AND ae.occurred_at::date >= ${range.from} AND ae.occurred_at::date <= ${range.to}`
-    : sql``
+  completeness: VatEvidenceCompleteness
 }
 
 /**
@@ -100,16 +97,20 @@ function filingRangeFilter(range?: FilingRange) {
  * (ISSUED for A.4/A.5, RECEIVED for B.2/B.3): base+daň per rate, doklad gross,
  * DIČ. Reused by the >10k row query and the ≤10k aggregate query.
  */
-function standardDokladCte(
-  periodId: string,
-  type: string,
-  filingRange?: FilingRange,
-) {
+function standardDokladCte(scope: VatEvidenceScope, type: string) {
+  const predicates = vatEvidencePredicates(
+    scope,
+    sql`sr.period_id`,
+    sql`sr.tax_point_date`,
+    sql`sr.received_date`,
+  )
+  const scopeFilter =
+    type === "RECEIVED_INVOICE" ? predicates.deduction : predicates.taxPoint
   return sql`
     doklad AS (
       SELECT sr.id                                                          AS summary_record_id,
              sr.designation                                                 AS doklad,
-             MIN(ae.occurred_at)::date                                      AS dppd,
+             sr.tax_point_date                                              AS dppd,
              cp.tax_id                                                      AS tax_id,
              COALESCE(SUM(pr.base_in_accounting_currency) FILTER (WHERE pr.vat_rate = 21), 0) AS base21,
              COALESCE(SUM(pr.vat_in_accounting_currency)  FILTER (WHERE pr.vat_rate = 21), 0) AS dan21,
@@ -121,11 +122,10 @@ function standardDokladCte(
         JOIN summary_record   sr ON sr.id = ir.summary_record_id
         JOIN accounting_event ae ON ae.id = ir.accounting_event_id
         LEFT JOIN counterparty cp ON cp.id = ae.counterparty_id
-       WHERE sr.period_id = ${periodId}::uuid
+       WHERE ${scopeFilter}
          AND sr.type = ${type}
          AND pr.vat_mode = 'STANDARD'
-         ${filingRangeFilter(filingRange)}
-       GROUP BY sr.id, sr.designation, cp.tax_id
+       GROUP BY sr.id, sr.designation, sr.tax_point_date, cp.tax_id
     )`
 }
 
@@ -138,14 +138,13 @@ function standardDokladCte(
  */
 async function reverseChargeRows(
   db: RowExecutor,
-  periodId: string,
+  scope: VatEvidenceScope,
   type: string,
   // Every caller MUST pick a jurisdiction. There is deliberately no unfiltered
   // ("ANY") mode: that was the #516 leak that put EU-marked issued reverse-charge
   // onto KH A.1, and dropping it from the union makes that regression
   // unrepresentable — a new call site cannot reintroduce it.
   euFilter: "EU" | "DOMESTIC",
-  filingRange?: FilingRange,
 ): Promise<KhRow[]> {
   const jurisdiction =
     euFilter === "EU"
@@ -165,11 +164,17 @@ async function reverseChargeRows(
     type === "ISSUED_INVOICE"
       ? sql`0`
       : sql`SUM(round(pr.base_in_accounting_currency * COALESCE(pr.vat_rate,0) / 100, 2)) FILTER (WHERE pr.vat_rate = ${rate})`
+  const scopeFilter = vatEvidencePredicates(
+    scope,
+    sql`sr.period_id`,
+    sql`sr.tax_point_date`,
+    sql`sr.received_date`,
+  ).taxPoint
   return rows<KhRow>(
     db,
     sql`
       SELECT sr.designation                                              AS doklad,
-             MIN(ae.occurred_at)::date                                   AS dppd,
+             sr.tax_point_date                                           AS dppd,
              cp.tax_id                                                   AS tax_id,
              pr.commodity_code                                           AS kod,
              COALESCE(SUM(pr.base_in_accounting_currency) FILTER (WHERE pr.vat_rate = 21), 0)::numeric(19,4) AS base21,
@@ -181,12 +186,11 @@ async function reverseChargeRows(
         JOIN summary_record   sr ON sr.id = ir.summary_record_id
         JOIN accounting_event ae ON ae.id = ir.accounting_event_id
         LEFT JOIN counterparty cp ON cp.id = ae.counterparty_id
-       WHERE sr.period_id = ${periodId}::uuid
+       WHERE ${scopeFilter}
          AND sr.type = ${type}
          AND pr.vat_mode = 'REVERSE_CHARGE'
          ${jurisdiction}
-         ${filingRangeFilter(filingRange)}
-       GROUP BY sr.designation, cp.tax_id, pr.commodity_code
+       GROUP BY sr.designation, sr.tax_point_date, cp.tax_id, pr.commodity_code
        ORDER BY sr.designation`,
   )
 }
@@ -194,14 +198,13 @@ async function reverseChargeRows(
 /** STANDARD taxable rows over the §101d threshold (A.4 / B.2). */
 async function standardRowsOverThreshold(
   db: RowExecutor,
-  periodId: string,
+  scope: VatEvidenceScope,
   type: string,
-  filingRange?: FilingRange,
 ): Promise<KhRow[]> {
   return rows<KhRow>(
     db,
     sql`
-      WITH ${standardDokladCte(periodId, type, filingRange)}
+      WITH ${standardDokladCte(scope, type)}
       SELECT doklad,
              dppd,
              tax_id,
@@ -220,14 +223,13 @@ async function standardRowsOverThreshold(
 /** STANDARD taxable plnění under the threshold or without DIČ, aggregated (A.5 / B.3). */
 async function standardAggregate(
   db: RowExecutor,
-  periodId: string,
+  scope: VatEvidenceScope,
   type: string,
-  filingRange?: FilingRange,
 ): Promise<KhAggregate> {
   const r = await rows<KhAggregate>(
     db,
     sql`
-      WITH ${standardDokladCte(periodId, type, filingRange)}
+      WITH ${standardDokladCte(scope, type)}
       SELECT COALESCE(SUM(base21 + base12), 0)::numeric(19,4) AS base,
              COALESCE(SUM(dan21 + dan12), 0)::numeric(19,4)   AS dan,
              COUNT(*)::int                                    AS count
@@ -241,16 +243,14 @@ async function standardAggregate(
  * Build the full kontrolní hlášení for a period: every row-level section plus the
  * two aggregate sections.
  *
- * @param filingRange Optional filing-period date range (inclusive), narrowing
- *   every section to rows whose DPPD (accounting_event.occurred_at) falls
- *   within [from, to]. Omitted → the whole accounting period (unchanged).
+ * A statutory filing scope can cross accounting-period boundaries. The
+ * ACCOUNTING_PERIOD scope remains for the period-scoped public read model.
  */
 export async function buildKontrolniHlaseni(
   db: RowExecutor,
-  periodId: string,
-  filingRange?: FilingRange,
+  scope: VatEvidenceScope,
 ): Promise<KontrolniHlaseni> {
-  const [a1, a2, a4, a5, b1, b2, b3] = await Promise.all([
+  const [a1, a2, a4, a5, b1, b2, b3, completeness] = await Promise.all([
     // [#516] A.1 = domestic §92 PDP dodavatel ONLY. An EU-marked ISSUED
     // reverse-charge supply (a §9/1 service reverse-charged to the EU customer)
     // belongs on Souhrnné hlášení (kód 3), never on KH A.1 — `DOMESTIC`
@@ -258,19 +258,24 @@ export async function buildKontrolniHlaseni(
     // (jurisdiction 'REVERSE_CHARGE' / legacy NULL) and drops only 'EU'. The
     // souhrnné-hlášení emitter already reports those EU rows, so `ANY` here
     // double-reported them onto the KH. Symmetric with B.1 (RECEIVED domestic).
-    reverseChargeRows(db, periodId, "ISSUED_INVOICE", "DOMESTIC", filingRange),
-    reverseChargeRows(db, periodId, "RECEIVED_INVOICE", "EU", filingRange),
-    standardRowsOverThreshold(db, periodId, "ISSUED_INVOICE", filingRange),
-    standardAggregate(db, periodId, "ISSUED_INVOICE", filingRange),
-    reverseChargeRows(
-      db,
-      periodId,
-      "RECEIVED_INVOICE",
-      "DOMESTIC",
-      filingRange,
-    ),
-    standardRowsOverThreshold(db, periodId, "RECEIVED_INVOICE", filingRange),
-    standardAggregate(db, periodId, "RECEIVED_INVOICE", filingRange),
+    reverseChargeRows(db, scope, "ISSUED_INVOICE", "DOMESTIC"),
+    reverseChargeRows(db, scope, "RECEIVED_INVOICE", "EU"),
+    standardRowsOverThreshold(db, scope, "ISSUED_INVOICE"),
+    standardAggregate(db, scope, "ISSUED_INVOICE"),
+    reverseChargeRows(db, scope, "RECEIVED_INVOICE", "DOMESTIC"),
+    standardRowsOverThreshold(db, scope, "RECEIVED_INVOICE"),
+    standardAggregate(db, scope, "RECEIVED_INVOICE"),
+    getVatEvidenceCompleteness(db, scope, "KH"),
   ])
-  return { type: "KONTROLNI_HLASENI", a1, a2, a4, a5, b1, b2, b3 }
+  return {
+    type: "KONTROLNI_HLASENI",
+    a1,
+    a2,
+    a4,
+    a5,
+    b1,
+    b2,
+    b3,
+    completeness,
+  }
 }

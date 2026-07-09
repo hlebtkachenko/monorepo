@@ -1,7 +1,7 @@
 # 27. Afframe Brain learning artifacts — the `.brain/` git tree, written only via GitHub PR
 
-- Status: Proposed
-- Date: 2026-06-25
+- Status: Accepted
+- Date: 2026-06-25 (Accepted 2026-07-08)
 - Deciders: Hleb Tkachenko
 
 > Records a decision from the approved Afframe Brain plan (v1.1). The constitution lives at

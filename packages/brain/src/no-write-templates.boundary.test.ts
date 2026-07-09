@@ -58,12 +58,80 @@ function collectProdSources(dir: string): string[] {
   return out
 }
 
-/** Every write-template indicator `source` contains, or `[]` if clean. */
+/**
+ * Strip line + block comments from `source` (and, when `dropStrings` is set,
+ * the CONTENTS of string / template literals too), so the detectors scan CODE,
+ * not prose. A single-pass scanner tracks string-vs-comment state, so a `//`
+ * inside a string, or a URL inside a string, never confuses the comment
+ * stripper. Best-effort: it does not descend into template-literal `${…}`
+ * interpolations — all a tripwire needs. String DELIMITERS are preserved so
+ * token boundaries survive (`from ""` still reads as an import).
+ */
+function stripCommentsAndStrings(source: string, dropStrings: boolean): string {
+  let out = ""
+  let i = 0
+  const n = source.length
+  while (i < n) {
+    const c = source[i]
+    const next = source[i + 1]
+    if (c === "/" && next === "/") {
+      i += 2
+      while (i < n && source[i] !== "\n") i++
+      continue
+    }
+    if (c === "/" && next === "*") {
+      i += 2
+      while (i < n && !(source[i] === "*" && source[i + 1] === "/")) i++
+      i += 2
+      continue
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      const quote = c
+      out += quote
+      i++
+      let body = ""
+      while (i < n && source[i] !== quote) {
+        if (source[i] === "\\") {
+          body += source[i]! + (source[i + 1] ?? "")
+          i += 2
+          continue
+        }
+        body += source[i]
+        i++
+      }
+      if (!dropStrings) out += body
+      if (i < n) out += source[i] // closing quote
+      i++
+      continue
+    }
+    out += c
+    i++
+  }
+  return out
+}
+
+/**
+ * Every write-template indicator `source` contains, or `[]` if clean.
+ *
+ * Both detectors scan COMMENT-STRIPPED code so a doc comment that merely
+ * MENTIONS a write-template word (e.g. `// unlike a writeTemplate, we compose
+ * via typed functions`) can never false-positive and break the build. The
+ * engine detector keeps string literals (a template-engine's name legitimately
+ * lives in its import specifier, `from "mustache"`); the name detector also
+ * drops string contents, so a benign string like `"postingTemplate"` is not
+ * mistaken for a real identifier.
+ */
 function findViolations(source: string): string[] {
   const hits: string[] = []
-  const engineMatch = TEMPLATE_ENGINE_RE.exec(source)
+  // Engine imports live in string specifiers → keep strings, drop only comments.
+  const engineMatch = TEMPLATE_ENGINE_RE.exec(
+    stripCommentsAndStrings(source, false),
+  )
   if (engineMatch) hits.push(`template-engine import: ${engineMatch[0]}`)
-  const nameMatch = WRITE_TEMPLATE_NAME_RE.exec(source)
+  // A write-template is a real IDENTIFIER → drop comments AND string contents.
+  const nameMatch = WRITE_TEMPLATE_NAME_RE.exec(
+    stripCommentsAndStrings(source, true),
+  )
   if (nameMatch) hits.push(`write-template identifier: ${nameMatch[0]}`)
   return hits
 }
@@ -75,7 +143,14 @@ describe("[I9] no write-side templates (packages/brain/src)", () => {
     expect(prodFiles.length).toBeGreaterThan(0)
   })
 
-  it("detects every realistic evasion form and ignores the legitimate OcrTemplate surface (the detector is real)", () => {
+  // BEST-EFFORT tripwire, NOT robust enforcement: it catches the two OBVIOUS
+  // reintroduction forms — a named template-engine import, or a `*Template`
+  // identifier paired with a write word — on comment-/string-stripped code. It
+  // does not attempt to defeat a determined author (dynamic `require`, string
+  // concatenation of the engine name, an aliased identifier). Its job is to
+  // make the easy backslide loud, and to NOT fire on prose that merely names a
+  // write-template.
+  it("detects the obvious reintroduction forms and ignores the legit OcrTemplate surface (best-effort tripwire)", () => {
     expect(findViolations(`import Handlebars from "handlebars"`)).not.toEqual(
       [],
     )
@@ -103,6 +178,38 @@ describe("[I9] no write-side templates (packages/brain/src)", () => {
       ),
     ).toEqual([])
     expect(findViolations(`const templateId = capture.templateId`)).toEqual([])
+  })
+
+  it("does NOT trip on a comment or string literal that merely NAMES a write-template (scans code, not prose)", () => {
+    // The exact false-positive that would otherwise break the build: an honest
+    // doc comment explaining what we DON'T do.
+    expect(
+      findViolations(
+        `// unlike a writeTemplate, we compose via typed functions`,
+      ),
+    ).toEqual([])
+    expect(
+      findViolations(`/* renderXmlTemplate is exactly what I9 forbids */`),
+    ).toEqual([])
+    // A block comment mentioning an engine by name is prose, not an import.
+    expect(
+      findViolations(`/* we deliberately avoid handlebars and mustache */`),
+    ).toEqual([])
+    // A string literal whose VALUE happens to contain the identifier pattern is
+    // data, not a write-template — the name detector drops string contents.
+    expect(findViolations(`const label = "postingTemplate"`)).toEqual([])
+    // A comment containing a URL must not confuse the line-comment stripper.
+    expect(
+      findViolations(
+        `const u = "https://afframe.com" // see writeTemplate note`,
+      ),
+    ).toEqual([])
+    // ...but a REAL engine import surrounded by comments still trips.
+    expect(
+      findViolations(
+        `// harmless comment\nimport { compile } from "mustache" // engine`,
+      ),
+    ).not.toEqual([])
   })
 
   it("no production source under packages/brain/src declares a write-side template", () => {

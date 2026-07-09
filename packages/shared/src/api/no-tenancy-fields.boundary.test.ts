@@ -41,6 +41,36 @@ const TENANCY_FIELDS = new Set([
   "workspaceId",
 ])
 
+/** The HTTP verbs a path-item entry can be — everything else (a `parameters`
+ * / `summary` sibling on a path item) is not an operation and is skipped. */
+const HTTP_METHODS = new Set([
+  "get",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "head",
+  "options",
+  "trace",
+])
+
+/**
+ * The genuinely PUBLIC (unauthenticated) operations — no API-key principal, so
+ * I3 is structurally vacuous (no credential to leak tenancy from). Every one is
+ * declared `Public — no API key required` in `registry.ts`. This is an EXPLICIT
+ * allowlist, not a skip-by-omission: the "every op is classified" test below
+ * forces any op that is NEITHER bearer-secured NOR listed here to fail, so a
+ * future principal-bound endpoint that authenticates at runtime (NestJS
+ * `ApiKeyGuard`) but FORGETS its `security` array cannot silently drop out of
+ * the tenancy body-scan. Keyed `"<method> <path>"` (lowercase method).
+ */
+const PUBLIC_OPERATIONS = new Set([
+  "get /v1/status",
+  "post /v1/feedback",
+  "get /v1/structure",
+  "get /v1/structure/archetypes",
+])
+
 interface JsonSchema {
   properties?: Record<string, JsonSchema>
   items?: JsonSchema | JsonSchema[]
@@ -170,6 +200,35 @@ describe("[I3] request/input schemas are tenancy-free (packages/shared/src/api)"
     expect(cleanFields.some((f) => TENANCY_FIELDS.has(f))).toBe(false)
   })
 
+  it("every registered operation is classified — bearer-secured OR on the explicit public allowlist (no silent skip)", () => {
+    // The tenancy body-scan below only runs on the bearer-secured `paths`. This
+    // guard closes the hole that scoping creates: an operation that is neither
+    // secured nor consciously public would otherwise be dropped from the scan
+    // entirely, and a tenancy field in its body would slip through unseen. A new
+    // op must therefore either declare `security` (→ scanned) or be added to
+    // `PUBLIC_OPERATIONS` (→ structurally vacuous). Forgetting the `security`
+    // array on a runtime-authenticated (ApiKeyGuard) endpoint now FAILS here.
+    const unclassified: string[] = []
+    for (const [p, methods] of Object.entries(allPaths)) {
+      for (const [method, op] of Object.entries(methods)) {
+        if (!HTTP_METHODS.has(method)) continue
+        const secured = (op.security?.length ?? 0) > 0
+        const isPublic = PUBLIC_OPERATIONS.has(`${method} ${p}`)
+        if (!secured && !isPublic) {
+          unclassified.push(`${method.toUpperCase()} ${p}`)
+        }
+      }
+    }
+    expect(
+      unclassified,
+      `Operation(s) neither declare bearer 'security' nor appear on the public ` +
+        `allowlist. A principal-bound op that forgets its 'security' array is ` +
+        `silently dropped from the I3 tenancy body-scan — declare 'security', ` +
+        `or add it to PUBLIC_OPERATIONS if it is genuinely unauthenticated. ` +
+        `Unclassified: ${unclassified.join(" | ")}`,
+    ).toEqual([])
+  })
+
   it("no operation's parameters (query/path/header) declare a tenancy field", () => {
     const offenders: string[] = []
     for (const [p, methods] of Object.entries(paths)) {
@@ -190,6 +249,10 @@ describe("[I3] request/input schemas are tenancy-free (packages/shared/src/api)"
     const offenders: string[] = []
     for (const [p, methods] of Object.entries(paths)) {
       for (const [method, op] of Object.entries(methods)) {
+        // NOTE: only the `application/json` body is inspected — every current
+        // v1 write takes a JSON body. A future multipart/form-data op (e.g. a
+        // file upload) would need its content type added here, or its fields
+        // would escape this scan.
         const bodySchema = op.requestBody?.content?.["application/json"]?.schema
         if (!bodySchema) continue
         const hits = [

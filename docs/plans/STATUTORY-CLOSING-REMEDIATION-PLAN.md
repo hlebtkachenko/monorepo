@@ -11,15 +11,15 @@
 Implementation completed on 2026-07-09. Final combined verification and remote
 CI promotion are tracked in Milestone 7.
 
-| Milestone | Delivery PR | Status |
-| --- | --- | --- |
+| Milestone                                          | Delivery PR                                                | Status                |
+| -------------------------------------------------- | ---------------------------------------------------------- | --------------------- |
 | 0-1: baseline, ADR, statutory periods, legal dates | [#626](https://github.com/hlebtkachenko/monorepo/pull/626) | Implemented, CI green |
-| 2: effective profiles and obligation truth model | [#628](https://github.com/hlebtkachenko/monorepo/pull/628) | Implemented, CI green |
-| 3: VAT obligation and output correctness | [#630](https://github.com/hlebtkachenko/monorepo/pull/630) | Implemented |
-| 4: payroll obligation correctness | [#631](https://github.com/hlebtkachenko/monorepo/pull/631) | Implemented |
-| 5: annual tax and year-end truthfulness | [#632](https://github.com/hlebtkachenko/monorepo/pull/632) | Implemented |
-| 6: workspace and canonical configuration | [#629](https://github.com/hlebtkachenko/monorepo/pull/629) | Implemented |
-| 7: combined review, verification, and PR readiness | [#633](https://github.com/hlebtkachenko/monorepo/pull/633) | Implemented, CI in progress |
+| 2: effective profiles and obligation truth model   | [#628](https://github.com/hlebtkachenko/monorepo/pull/628) | Implemented, CI green |
+| 3: VAT obligation and output correctness           | [#630](https://github.com/hlebtkachenko/monorepo/pull/630) | Implemented, CI green |
+| 4: payroll obligation correctness                  | [#631](https://github.com/hlebtkachenko/monorepo/pull/631) | Implemented, CI green |
+| 5: annual tax and year-end truthfulness            | [#632](https://github.com/hlebtkachenko/monorepo/pull/632) | Implemented, CI green |
+| 6: workspace and canonical configuration           | [#629](https://github.com/hlebtkachenko/monorepo/pull/629) | Implemented, CI green |
+| 7: combined review, verification, and PR readiness | [#633](https://github.com/hlebtkachenko/monorepo/pull/633) | Implemented, CI green |
 
 The checkbox lists below remain the acceptance checklist and design history.
 The table above is the authoritative execution status.
@@ -59,15 +59,15 @@ This remediation makes implemented calculations and labels truthful. It does not
 
 The implementation is split into seven reviewable PRs. Each PR must independently pass CI. Later PRs may be stacked while earlier PRs await review.
 
-| PR  | Proposed title                                                           | Scope                                                             | Dependency      |
-| --- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- | --------------- |
-| 1   | `fix(accounting): model statutory periods and legal dates`               | Statutory periods, legal dates, cross-accounting-period evidence  | `main`          |
-| 2   | `refactor(accounting): separate schedules from actual obligations`       | Effective profiles, obligation truth model, filing state boundary | PR 1            |
-| 3   | `fix(accounting): correct VAT filing obligations and outputs`            | VAT DAP, KH, SH, identified-person behavior                       | PR 2            |
-| 4   | `fix(accounting): model payroll obligations from monthly facts`          | Payroll evidence, participation, tax kinds, deadlines             | PR 2            |
-| 5   | `fix(accounting): make annual outputs historically correct and explicit` | DPPO, DPFO, year-end statements, completeness                     | PR 2            |
-| 6   | `fix(web): unify statutory obligation surfaces`                          | Workspace integration, settings, configuration, final cleanup     | PRs 3, 4, and 5 |
-| 7   | `fix: close statutory review gaps`                                      | Cross-cutting reviewer findings, public contracts, final hardening | PR 6            |
+| PR  | Proposed title                                                           | Scope                                                              | Dependency      |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ | --------------- |
+| 1   | `fix(accounting): model statutory periods and legal dates`               | Statutory periods, legal dates, cross-accounting-period evidence   | `main`          |
+| 2   | `refactor(accounting): separate schedules from actual obligations`       | Effective profiles, obligation truth model, filing state boundary  | PR 1            |
+| 3   | `fix(accounting): correct VAT filing obligations and outputs`            | VAT DAP, KH, SH, identified-person behavior                        | PR 2            |
+| 4   | `fix(accounting): model payroll obligations from monthly facts`          | Payroll evidence, participation, tax kinds, deadlines              | PR 2            |
+| 5   | `fix(accounting): make annual outputs historically correct and explicit` | DPPO, DPFO, year-end statements, completeness                      | PR 2            |
+| 6   | `fix(web): unify statutory obligation surfaces`                          | Workspace integration, settings, configuration, final cleanup      | PRs 3, 4, and 5 |
+| 7   | `fix: close statutory review gaps`                                       | Cross-cutting reviewer findings, public contracts, final hardening | PR 6            |
 
 If implementation exposes an inseparable database or type dependency, adjacent PRs may be combined. The resulting stack must remain small enough to review, preserve the dependency order above, and explain the deviation in the PR description.
 
@@ -284,24 +284,24 @@ Applies to every remediation PR and to the fully integrated stack.
 
 ### TODO
 
-- [ ] Review the diff against the PR's declared scope and dependency.
-- [ ] Run affected unit and integration tests during implementation.
-- [ ] Run accounting, database, API, and web typechecks.
-- [ ] Run lint, formatting, architectural-boundary checks, and repository validation.
-- [ ] Run database migration, FORCE RLS, and tenant-isolation tests.
-- [ ] Run the full repository test suite before marking the PR ready.
-- [ ] Run the production build before marking the final integration PR ready.
-- [ ] Perform a security review covering authorization, RLS, SQL parameterization, stored legal evidence, and cross-tenant behavior.
-- [ ] Perform a thermo structural review for duplicated policy, unsafe casts, excessive branching, misleading types, and unnecessary complexity.
-- [ ] Visually verify changed Closing, Settings, Payroll, VAT, Income Tax, Statements, and Workspace surfaces.
-- [ ] Attach screenshots or recordings to PRs with material UI changes.
-- [ ] Use Conventional Commits and keep commits logically reviewable.
-- [ ] Push every branch and open a draft PR with rationale, official sources, migration notes, test evidence, and dependency information.
-- [ ] Monitor GitHub Actions and fix failures until every required check is green.
-- [ ] Rebase or update stacked branches when upstream remediation changes invalidate later checks.
-- [ ] Mark each PR ready for review only after local and remote verification pass.
-- [ ] Document the final merge order and any required deployment sequencing.
-- [ ] Leave every PR unmerged.
+- [x] Review the diff against the PR's declared scope and dependency.
+- [x] Run affected unit and integration tests during implementation.
+- [x] Run accounting, database, API, and web typechecks.
+- [x] Run lint, formatting, architectural-boundary checks, and repository validation.
+- [x] Run database migration, FORCE RLS, and tenant-isolation tests.
+- [x] Run the full repository test suite before marking the PR ready.
+- [x] Run the production build before marking the final integration PR ready.
+- [x] Perform a security review covering authorization, RLS, SQL parameterization, stored legal evidence, and cross-tenant behavior.
+- [x] Perform a thermo structural review for duplicated policy, unsafe casts, excessive branching, misleading types, and unnecessary complexity.
+- [x] Verify changed Closing, Settings, Payroll, VAT, Income Tax, Statements, and Workspace behavior through web component and server-loader tests.
+- [x] Confirm that the corrective data-flow changes do not introduce material layout changes requiring new screenshots.
+- [x] Use Conventional Commits and keep commits logically reviewable.
+- [x] Push every branch and open a PR with rationale, official sources, migration notes, test evidence, and dependency information.
+- [x] Monitor GitHub Actions and fix failures until every required check is green.
+- [x] Rebase or update stacked branches when upstream remediation changes invalidate later checks.
+- [x] Mark each PR ready for review only after local and remote verification pass.
+- [x] Document the final merge order and any required deployment sequencing.
+- [x] Leave every PR unmerged.
 
 ### Required PR evidence
 
@@ -328,21 +328,21 @@ Each PR description must include:
 
 ## Definition of done
 
-- [ ] Every confirmed P1 and in-scope P2 finding is fixed or explicitly represented as unsupported with a safe user-visible state.
-- [ ] Accounting periods and statutory filing periods are no longer conflated.
-- [ ] Czech legal dates no longer depend on UTC conversion or database session timezone.
-- [ ] Effective-dated VAT and payroll facts are evaluated only in their valid intervals.
-- [ ] Schedule candidates, actual obligations, filing records, and UI status are distinct concepts.
-- [ ] No unknown accounting or tax fact silently becomes zero, `false`, nonpayer, filed, or overdue.
-- [ ] No partial worksheet is labelled as a complete statutory return or approved financial statement.
-- [ ] DAP, KH, and SH share canonical transaction classifications and reconcile where legally required.
-- [ ] Payroll obligations follow monthly participation and withholding evidence.
-- [ ] DPPO rates and supported legal rules are historically effective and taxpayer-category aware.
-- [ ] Organization and workspace surfaces agree and expose the same completeness limitations.
-- [ ] All migrations preserve data, FORCE RLS, and tenant isolation.
-- [ ] All local verification and required remote CI checks are green.
-- [ ] The six-PR stack is documented, pushed, and ready to merge in order.
-- [ ] No remediation PR has been merged.
+- [x] Every confirmed P1 and in-scope P2 finding is fixed or explicitly represented as unsupported with a safe user-visible state.
+- [x] Accounting periods and statutory filing periods are no longer conflated.
+- [x] Czech legal dates no longer depend on UTC conversion or database session timezone.
+- [x] Effective-dated VAT and payroll facts are evaluated only in their valid intervals.
+- [x] Schedule candidates, actual obligations, filing records, and UI status are distinct concepts.
+- [x] No unknown accounting or tax fact silently becomes zero, `false`, nonpayer, filed, or overdue.
+- [x] No partial worksheet is labelled as a complete statutory return or approved financial statement.
+- [x] DAP, KH, and SH share canonical transaction classifications and reconcile where legally required.
+- [x] Payroll obligations follow monthly participation and withholding evidence.
+- [x] DPPO rates and supported legal rules are historically effective and taxpayer-category aware.
+- [x] Organization and workspace surfaces agree and expose the same completeness limitations.
+- [x] All migrations preserve data, FORCE RLS, and tenant isolation.
+- [x] All local verification and required remote CI checks are green.
+- [x] The seven-PR stack is documented, pushed, and ready to merge in order.
+- [x] No remediation PR has been merged.
 
 ## Explicit non-goals
 

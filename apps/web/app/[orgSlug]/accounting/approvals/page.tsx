@@ -2,6 +2,7 @@ import { HeldWritesBody } from "../../../_components/held-writes/held-writes-bod
 import { HeldWritesHeader } from "../../../_components/held-writes/held-writes-header"
 import { AppPageHeader } from "../../../_components/app-page-header"
 import type { HeldWriteListRow } from "../../../_components/held-writes/columns"
+import { buildHeldWriteViewModel } from "../../../_components/held-writes/view-model"
 import {
   fetchHeldWrites,
   getOrgAccountingContext,
@@ -26,19 +27,25 @@ export default async function ApprovalsPage({
   const ctx = await getOrgAccountingContext(orgSlug)
   const held = ctx ? await fetchHeldWrites(ctx) : []
 
-  const rows: HeldWriteListRow[] = held.map((row) => ({
-    id: row.id,
-    tool_name: row.tool_name,
-    idempotency_key: row.idempotency_key,
-    actor_kind: row.actor_kind,
-    confidence: row.confidence,
-    rationale: row.rationale,
-    created_at: trimGatedTimestamp(row.created_at),
-    summary: summarizeGatedPayload(row),
-    payload_json: JSON.stringify(row.input_json, null, 2),
-    template_id: row.template_id,
-    template_confirmed: row.template_confirmed,
-  }))
+  const rows: HeldWriteListRow[] = held.map((row) => {
+    const review = buildHeldWriteViewModel(row)
+    return {
+      id: row.id,
+      tool_name: row.tool_name,
+      idempotency_key: row.idempotency_key,
+      actor_kind: row.actor_kind,
+      confidence: row.confidence,
+      rationale: row.rationale,
+      created_at: trimGatedTimestamp(row.created_at),
+      summary: summarizeGatedPayload(row),
+      conversation_id: row.conversation_id,
+      header: review.header,
+      vat_summary: review.vatSummary,
+      hold_reasons: review.holdReasons,
+      template_id: row.template_id,
+      template_confirmed: row.template_confirmed,
+    }
+  })
 
   return (
     <>

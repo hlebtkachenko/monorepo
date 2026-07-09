@@ -80,6 +80,17 @@ export function HeldWritesBody({
 
   const data = React.useMemo(() => applySearch(rows, search), [rows, search])
 
+  // Sibling held writes for the inspected row's účetní případ (same
+  // conversationId) — a write with no conversationId has no siblings.
+  const caseWrites = React.useMemo(() => {
+    if (!inspected?.conversation_id) return []
+    return rows.filter(
+      (r) =>
+        r.id !== inspected.id &&
+        r.conversation_id === inspected.conversation_id,
+    )
+  }, [rows, inspected])
+
   const { table } = useDataTable<HeldWriteListRow>({
     data,
     columns,
@@ -104,6 +115,7 @@ export function HeldWritesBody({
         inspected ? (
           <HeldWriteDetail
             row={inspected}
+            caseWrites={caseWrites}
             orgSlug={orgSlug}
             onResolved={() => {
               setInspectorOpen(false)

@@ -34,6 +34,7 @@ interface JsonSchemaNode {
   maxLength?: number
   minimum?: number
   maximum?: number
+  format?: string
 }
 
 interface Parameter {
@@ -139,6 +140,11 @@ function zodExprFor(
     expr = "z.string()"
     if (typeof node.minLength === "number") expr += `.min(${node.minLength})`
     if (typeof node.maxLength === "number") expr += `.max(${node.maxLength})`
+    // `format: "uuid"` (#577) is the only string format currently enforced
+    // here — the MCP-side schema stays a usability layer for the LLM, not
+    // the enforcement boundary (the api re-validates every body), so other
+    // formats (email/uri/date-time) are left to that server-side check.
+    if (node.format === "uuid") expr += ".uuid()"
   } else if (base === "number" || base === "integer") {
     expr = base === "integer" ? "z.number().int()" : "z.number()"
     if (typeof node.minimum === "number") expr += `.min(${node.minimum})`

@@ -767,6 +767,21 @@ describe("append-only (R8 §35)", () => {
     expect(row?.posting_kind).toBe("SIMPLE")
   })
 
+  it("[I4] (10b) DELETE on a posting HEADER is rejected — even for the superuser/owner (BEFORE trigger)", async () => {
+    // Constitution I4: a posted record is corrected by a NEW correcting
+    // posting (corrects_posting_id, R8 ČÚS 001 §35), never a physical
+    // delete. Test (10) above proves UPDATE is blocked on the SAME
+    // POSTING_A header; this proves DELETE is too — the append-only pair
+    // the invariant requires.
+    await expect(
+      admin.unsafe(`DELETE FROM posting WHERE id = '${POSTING_A}'::uuid`),
+    ).rejects.toThrow(/append-only/)
+    const [row] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM posting WHERE id = '${POSTING_A}'::uuid`,
+    )
+    expect(row?.id).toBe(POSTING_A)
+  })
+
   it("(11) DELETE on a posting line is rejected — superuser AND app_user blocked", async () => {
     // superuser is blocked by the BEFORE trigger (fires for all roles)
     await expect(
@@ -1431,5 +1446,117 @@ describe("commodity_code (migration 0046)", () => {
          VALUES ('00000000-0000-0000-0000-0000000cc005'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'REVERSE_CHARGE', 'EU', 0, 'CZK', 1000, 0, '1')`,
       ),
     ).rejects.toThrow(/partial_record_commodity_code_rc_chk|commodity_code/i)
+  })
+})
+
+// ===========================================================================
+// [I10] Provenance atomicity — the DB rollback PRIMITIVE the invariant relies
+// on. (NOT an end-to-end proof of the gate; read this header before trusting
+// what it covers.)
+//
+// The invariant (constitution I4/I10): "every gated write inserts one
+// tool_call_log row inside the SAME withOrganization tx as the domain write,"
+// so a booking can never exist without its provenance row. The GATE that
+// actually CO-LOCATES the two writes lives in apps/api — see
+// `apps/api/src/v1/accounting/accounting-writes.gate.ts`
+// `runGatedWriteWithSeams` (~L242-399): it wraps `writeToolCallLog` +
+// `opts.run` inside ONE `withOrganization` callback. That co-location is
+// currently guarded ONLY by (i) the structural gate test
+// (`apps/api/src/v1/accounting/accounting-writes.gate.test.ts`), which MOCKS
+// `withOrganization` (`fn => fn({})`) and so cannot exercise a real COMMIT,
+// and (ii) the `OrgTx` type, which forces `opts.run` onto the same bound tx
+// handle. An end-to-end DB proof of the gate's co-location would need a
+// real-Postgres harness inside apps/api (none exists today; packages/db must
+// not import apps/api, which would invert the package boundary) — so it is out
+// of scope for this packages/db suite.
+//
+// What THIS describe proves is the DB rollback PRIMITIVE the invariant leans
+// on: a tool_call_log INSERT and a posting INSERT issued in ONE transaction
+// either BOTH commit or BOTH roll back — INCLUDING when the failure is the
+// DEFERRED R4 balance trigger firing at COMMIT (the subtle case, where a naive
+// "log in its own tx, commit, then post" design would leak an orphan
+// provenance row). It does NOT, on its own, prove that `runGatedWrite`
+// co-locates the two writes; the gate + the `OrgTx` type above cover that half.
+// ===========================================================================
+describe("[I10] provenance-atomicity DB primitive (tool_call_log + posting commit/rollback together)", () => {
+  it("(P1) a tool_call_log row and a posting in ONE tx commit together — the happy-path primitive", async () => {
+    const postingId = "00000000-0000-0000-0000-0000000079a1"
+    const idempotencyKey = `i10-happy-${Date.now()}`
+    const logId = await admin.begin(async (tx) => {
+      await tx.unsafe(
+        `SELECT set_config('app.organization_id', '${ORG_A}', true)`,
+      )
+      const [log] = await tx.unsafe<Array<{ id: string }>>(`
+        INSERT INTO tool_call_log (organization_id, tool_name, idempotency_key, actor_kind, user_id, input_json)
+        VALUES ('${ORG_A}', 'createAccountingPosting', '${idempotencyKey}', 'ai_on_behalf', '${USER}', '{"x": 1}'::jsonb)
+        RETURNING id
+      `)
+      await tx.unsafe(`
+        INSERT INTO posting (id, organization_id, period_id, regime_code, summary_record_id, accounting_event_id, posting_date, posting_kind, responsible_user_id, posted_at)
+        VALUES ('${postingId}', '${ORG_A}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${DOC_A}', '${EVENT_A}', '2025-04-05', 'SIMPLE', '${USER}', now())
+      `)
+      await tx.unsafe(`
+        INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+        VALUES ('00000000-0000-0000-0000-0000000079a2', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_311}', 'DEBIT', 700)
+      `)
+      await tx.unsafe(`
+        INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+        VALUES ('00000000-0000-0000-0000-0000000079a3', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_321}', 'CREDIT', 700)
+      `)
+      if (!log) throw new Error("tool_call_log insert failed")
+      return log.id
+    })
+
+    const [postingRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM posting WHERE id = '${postingId}'::uuid`,
+    )
+    expect(postingRow?.id).toBe(postingId)
+    const [logRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM tool_call_log WHERE id = '${logId}'::uuid`,
+    )
+    expect(logRow?.id).toBe(logId)
+  })
+
+  it("(P2) a tool_call_log row + an UNBALANCED posting in ONE tx roll back together when the deferred R4 trigger fails at COMMIT (the DB primitive I10 leans on)", async () => {
+    const postingId = "00000000-0000-0000-0000-0000000079b1"
+    const idempotencyKey = `i10-rollback-${Date.now()}`
+    await expect(
+      admin.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${ORG_A}', true)`,
+        )
+        await tx.unsafe(`
+          INSERT INTO tool_call_log (organization_id, tool_name, idempotency_key, actor_kind, user_id, input_json)
+          VALUES ('${ORG_A}', 'createAccountingPosting', '${idempotencyKey}', 'ai_on_behalf', '${USER}', '{"x": 1}'::jsonb)
+        `)
+        await tx.unsafe(`
+          INSERT INTO posting (id, organization_id, period_id, regime_code, summary_record_id, accounting_event_id, posting_date, posting_kind, responsible_user_id, posted_at)
+          VALUES ('${postingId}', '${ORG_A}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${DOC_A}', '${EVENT_A}', '2025-04-06', 'SIMPLE', '${USER}', now())
+        `)
+        // This is a HAND-WRITTEN admin.begin() tx, NOT runGatedWrite — it
+        // proves the DB rollback primitive, not the gate's co-location (see the
+        // describe header). Unbalanced lines (1000 debit vs 1 credit): the R4
+        // DEFERRED trigger fires AT COMMIT, rolling back the WHOLE transaction,
+        // including the tool_call_log insert above — so a design that committed
+        // the log in a separate tx would leak an orphan provenance row here.
+        await tx.unsafe(`
+          INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+          VALUES ('00000000-0000-0000-0000-0000000079b2', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_311}', 'DEBIT', 1000)
+        `)
+        await tx.unsafe(`
+          INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+          VALUES ('00000000-0000-0000-0000-0000000079b3', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_321}', 'CREDIT', 1)
+        `)
+      }),
+    ).rejects.toThrow(/unbalanced/)
+
+    const [postingRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM posting WHERE id = '${postingId}'::uuid`,
+    )
+    expect(postingRow).toBeUndefined()
+    const [logRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM tool_call_log WHERE idempotency_key = '${idempotencyKey}'`,
+    )
+    expect(logRow).toBeUndefined()
   })
 })

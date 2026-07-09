@@ -32,6 +32,14 @@ export {
 } from "./regime"
 export { derivePeriodBounds, type PeriodBounds } from "./period"
 export {
+  resolveOrgAccountingProfile,
+  scaffoldAccountingPeriod,
+  type OrgAccountingProfile,
+  type AccountingScaffoldContext,
+  type AccountingScaffoldParams,
+  type AccountingScaffoldResult,
+} from "./accounting-scaffold"
+export {
   prefillFromRegistries,
   type PrefillOptions,
   type PrefillResult,

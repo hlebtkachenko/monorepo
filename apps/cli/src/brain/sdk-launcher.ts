@@ -71,7 +71,7 @@ import {
  * override each path. Fail LOUD (not an opaque SDK connect error) when either is missing. Impure by design —
  * this is the launcher's job, keeping `session-config.ts` env-free + pure.
  */
-function resolveMcpBridge(): McpBridgeSpawn {
+export function resolveMcpBridge(): McpBridgeSpawn {
   const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url))
   const serverTs =
     process.env.BRAIN_MCP_SERVER_JS ?? `${repoRoot}apps/mcp/src/server.ts`
@@ -91,7 +91,7 @@ function resolveMcpBridge(): McpBridgeSpawn {
   return { command: tsxBin, args: [serverTs] }
 }
 
-function makeSandboxGate(
+export function makeSandboxGate(
   allows: (toolName: string) => boolean,
   denyMessage: (toolName: string) => string,
 ): CanUseTool {
@@ -108,7 +108,7 @@ function makeSandboxGate(
  * accounting policy says so; everything else (`resolve_accounting_held_write`, `list_accounting_held_writes`,
  * an off-list `afframe` tool, a foreign server, an empty name) is denied.
  */
-function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
+export function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
   return makeSandboxGate(
     (toolName) => sandboxAllows(toolName, plan),
     (toolName) =>
@@ -189,7 +189,7 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
 // is NO `Read` tool, so a hostile document can never steer a filesystem read of `~/.aws` / `.env` / the key.
 
 /** DEFAULT-DENY permission gate for the extract lane — allows only the ocr-template read + propose pair. */
-function makeExtractCanUseTool(): CanUseTool {
+export function makeExtractCanUseTool(): CanUseTool {
   return makeSandboxGate(
     extractSandboxAllows,
     (toolName) =>
@@ -236,10 +236,7 @@ async function* extractPromptStream(
           source: {
             ...source,
             media_type: document.mediaType as
-              | "image/jpeg"
-              | "image/png"
-              | "image/gif"
-              | "image/webp",
+              "image/jpeg" | "image/png" | "image/gif" | "image/webp",
           },
         } as const)
       : ({

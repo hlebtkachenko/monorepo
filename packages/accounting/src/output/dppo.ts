@@ -55,7 +55,7 @@ export interface DppoInput {
   /**
    * §34/1 daňová ztráta minulých let available to deduct. Applied AFTER the
    * §23/1 base, capped at the (non-negative) base — never turns a profit into a
-   * loss. Defaults 0.
+   * loss. Required with provenance, including when the confirmed amount is zero.
    */
   lossCarryForward?: ProvenancedDecimal
   /** Slevy na dani §35 (deducted from the computed tax). */

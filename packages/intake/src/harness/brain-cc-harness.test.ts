@@ -371,6 +371,9 @@ describe("runLiveBrainSession (creds-gated)", () => {
         Promise.resolve({
           brainRunId: "run-2",
           applied: false,
+          status: "held",
+          isError: false,
+          rateLimited: false,
           serverGate: { held: true },
         }),
     }

@@ -230,6 +230,9 @@ describe("renderLiveResult (M0.2a — acceptance: CLI prints a clean lane-off me
     const result: LiveBrainSessionResult = {
       brainRunId: "run-1",
       applied: false,
+      status: "unparsed",
+      isError: true,
+      rateLimited: true,
       serverGate: {
         status: "unparsed",
         raw: "Rate limited. retry_after=?s code=rate_limited request_id=req-1",
@@ -244,6 +247,9 @@ describe("renderLiveResult (M0.2a — acceptance: CLI prints a clean lane-off me
     const result: LiveBrainSessionResult = {
       brainRunId: "run-2",
       applied: true,
+      status: "applied",
+      isError: false,
+      rateLimited: false,
       serverGate: { status: "applied", eventId: "e1" },
     }
     expect(renderLiveResult(result)).toBe(
@@ -255,6 +261,9 @@ describe("renderLiveResult (M0.2a — acceptance: CLI prints a clean lane-off me
     const result: LiveBrainSessionResult = {
       brainRunId: "run-3",
       applied: false,
+      status: "held",
+      isError: false,
+      rateLimited: false,
       serverGate: { status: "held", reviewId: "rev-1" },
     }
     expect(renderLiveResult(result)).toBe(

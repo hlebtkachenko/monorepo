@@ -767,6 +767,21 @@ describe("append-only (R8 §35)", () => {
     expect(row?.posting_kind).toBe("SIMPLE")
   })
 
+  it("[I4] (10b) DELETE on a posting HEADER is rejected — even for the superuser/owner (BEFORE trigger)", async () => {
+    // Constitution I4: a posted record is corrected by a NEW correcting
+    // posting (corrects_posting_id, R8 ČÚS 001 §35), never a physical
+    // delete. Test (10) above proves UPDATE is blocked on the SAME
+    // POSTING_A header; this proves DELETE is too — the append-only pair
+    // the invariant requires.
+    await expect(
+      admin.unsafe(`DELETE FROM posting WHERE id = '${POSTING_A}'::uuid`),
+    ).rejects.toThrow(/append-only/)
+    const [row] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM posting WHERE id = '${POSTING_A}'::uuid`,
+    )
+    expect(row?.id).toBe(POSTING_A)
+  })
+
   it("(11) DELETE on a posting line is rejected — superuser AND app_user blocked", async () => {
     // superuser is blocked by the BEFORE trigger (fires for all roles)
     await expect(
@@ -1406,5 +1421,96 @@ describe("commodity_code (migration 0046)", () => {
          VALUES ('00000000-0000-0000-0000-0000000cc005'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'REVERSE_CHARGE', 'EU', 0, 'CZK', 1000, 0, '1')`,
       ),
     ).rejects.toThrow(/partial_record_commodity_code_rc_chk|commodity_code/i)
+  })
+})
+
+// ===========================================================================
+// [I10] Provenance atomicity — a booking with no tool_call_log row is
+// impossible, because runGatedWrite (apps/api accounting-writes.gate.ts)
+// inserts the tool_call_log row and the domain write in ONE withOrganization
+// transaction (constitution I4/I10: "every gated write inserts one
+// tool_call_log row inside the SAME withOrganization tx as the domain
+// write"). This exercises that atomicity directly at the DB level: a
+// tool_call_log INSERT and a posting INSERT in one admin.begin() tx either
+// BOTH commit or BOTH roll back — there is no world where one persists
+// without the other.
+// ===========================================================================
+describe("[I10] provenance atomicity (tool_call_log + posting commit/rollback together)", () => {
+  it("(P1) a posting and its tool_call_log row commit together (happy path)", async () => {
+    const postingId = "00000000-0000-0000-0000-0000000079a1"
+    const idempotencyKey = `i10-happy-${Date.now()}`
+    const logId = await admin.begin(async (tx) => {
+      await tx.unsafe(
+        `SELECT set_config('app.organization_id', '${ORG_A}', true)`,
+      )
+      const [log] = await tx.unsafe<Array<{ id: string }>>(`
+        INSERT INTO tool_call_log (organization_id, tool_name, idempotency_key, actor_kind, user_id, input_json)
+        VALUES ('${ORG_A}', 'createAccountingPosting', '${idempotencyKey}', 'ai_on_behalf', '${USER}', '{"x": 1}'::jsonb)
+        RETURNING id
+      `)
+      await tx.unsafe(`
+        INSERT INTO posting (id, organization_id, period_id, regime_code, summary_record_id, accounting_event_id, posting_date, posting_kind, responsible_user_id, posted_at)
+        VALUES ('${postingId}', '${ORG_A}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${DOC_A}', '${EVENT_A}', '2025-04-05', 'SIMPLE', '${USER}', now())
+      `)
+      await tx.unsafe(`
+        INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+        VALUES ('00000000-0000-0000-0000-0000000079a2', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_311}', 'DEBIT', 700)
+      `)
+      await tx.unsafe(`
+        INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+        VALUES ('00000000-0000-0000-0000-0000000079a3', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_321}', 'CREDIT', 700)
+      `)
+      if (!log) throw new Error("tool_call_log insert failed")
+      return log.id
+    })
+
+    const [postingRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM posting WHERE id = '${postingId}'::uuid`,
+    )
+    expect(postingRow?.id).toBe(postingId)
+    const [logRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM tool_call_log WHERE id = '${logId}'::uuid`,
+    )
+    expect(logRow?.id).toBe(logId)
+  })
+
+  it("(P2) if the domain write fails at COMMIT, its tool_call_log row rolls back too — no booking can exist without its provenance row", async () => {
+    const postingId = "00000000-0000-0000-0000-0000000079b1"
+    const idempotencyKey = `i10-rollback-${Date.now()}`
+    await expect(
+      admin.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${ORG_A}', true)`,
+        )
+        await tx.unsafe(`
+          INSERT INTO tool_call_log (organization_id, tool_name, idempotency_key, actor_kind, user_id, input_json)
+          VALUES ('${ORG_A}', 'createAccountingPosting', '${idempotencyKey}', 'ai_on_behalf', '${USER}', '{"x": 1}'::jsonb)
+        `)
+        await tx.unsafe(`
+          INSERT INTO posting (id, organization_id, period_id, regime_code, summary_record_id, accounting_event_id, posting_date, posting_kind, responsible_user_id, posted_at)
+          VALUES ('${postingId}', '${ORG_A}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${DOC_A}', '${EVENT_A}', '2025-04-06', 'SIMPLE', '${USER}', now())
+        `)
+        // Unbalanced lines (1000 debit vs 1 credit) — the R4 deferred trigger
+        // fires AT COMMIT, rolling back the WHOLE transaction, including the
+        // tool_call_log insert above.
+        await tx.unsafe(`
+          INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+          VALUES ('00000000-0000-0000-0000-0000000079b2', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_311}', 'DEBIT', 1000)
+        `)
+        await tx.unsafe(`
+          INSERT INTO posting_double_entry_line (id, organization_id, posting_id, period_id, regime_code, account_id, side, amount)
+          VALUES ('00000000-0000-0000-0000-0000000079b3', '${ORG_A}', '${postingId}', '${PERIOD_A}', 'DOUBLE_ENTRY', '${ACC_321}', 'CREDIT', 1)
+        `)
+      }),
+    ).rejects.toThrow(/unbalanced/)
+
+    const [postingRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM posting WHERE id = '${postingId}'::uuid`,
+    )
+    expect(postingRow).toBeUndefined()
+    const [logRow] = await admin.unsafe<Array<{ id: string }>>(
+      `SELECT id FROM tool_call_log WHERE idempotency_key = '${idempotencyKey}'`,
+    )
+    expect(logRow).toBeUndefined()
   })
 })

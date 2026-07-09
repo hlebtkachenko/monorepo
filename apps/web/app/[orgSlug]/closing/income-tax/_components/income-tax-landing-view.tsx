@@ -15,7 +15,7 @@ import {
 
 import { AppPageHeader } from "../../../../_components/app-page-header"
 import type { IncomeTaxLandingResult } from "../_lib/income-tax-data"
-import { IncomeTaxStatusMessage } from "./income-tax-status-message"
+import { AnnualStatusMessage } from "../../_components/annual-status-message"
 
 /**
  * Income tax landing — a launchpad to whichever of Corporation tax (DPPO) or
@@ -39,7 +39,7 @@ export function IncomeTaxLandingView({
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
           {data.status !== "ok" ? (
-            <IncomeTaxStatusMessage data={data} />
+            <AnnualStatusMessage data={data} />
           ) : (
             <div className="flex flex-col gap-4">
               <Link

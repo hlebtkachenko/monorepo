@@ -2,7 +2,7 @@ import "server-only"
 
 import { computeObligations } from "@workspace/accounting"
 
-import { resolvePeriodVatProfile } from "./period-vat-profile"
+import { resolvePeriodProfile } from "./period-profile"
 import {
   deriveObligationStatus,
   type ClosingObligationsResult,
@@ -32,14 +32,14 @@ export {
 
 /**
  * Resolve the org + active period + the vat_status/person_type profile
- * EFFECTIVE FOR that period via `resolvePeriodVatProfile` (shared with
+ * EFFECTIVE FOR that period via `resolvePeriodProfile` (shared with
  * `resolveVatContext` in vat-data.ts), then compute the period's statutory
  * obligations.
  */
 export async function getClosingObligations(
   orgSlug: string,
 ): Promise<ClosingObligationsResult> {
-  const profile = await resolvePeriodVatProfile(orgSlug)
+  const profile = await resolvePeriodProfile(orgSlug)
   if (profile.status !== "ok") return profile
 
   const {

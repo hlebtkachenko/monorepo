@@ -17,7 +17,7 @@ import {
 import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { CorporateIncomeTaxResult } from "../_lib/income-tax-data"
-import { IncomeTaxStatusMessage } from "./income-tax-status-message"
+import { AnnualStatusMessage } from "../../_components/annual-status-message"
 
 /** One DPPO computation line — `sazba` is a rate (§21), every other field is a Kč amount. */
 interface DppoLine {
@@ -74,7 +74,7 @@ export function DppoView({ data }: { data: CorporateIncomeTaxResult }) {
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
           {data.status !== "ok" ? (
-            <IncomeTaxStatusMessage data={data} />
+            <AnnualStatusMessage data={data} />
           ) : (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">

@@ -22,7 +22,7 @@ import {
 import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { FinancialStatementsResult } from "../_lib/year-end-data"
-import { YearEndStatusMessage } from "./year-end-status-message"
+import { AnnualStatusMessage } from "../../_components/annual-status-message"
 
 /** One rolled-up statutory rozvaha/VZZ line — indented by its dotted-code depth. */
 function LayoutTable({
@@ -91,7 +91,7 @@ export function StatementsView({ data }: { data: FinancialStatementsResult }) {
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
           {data.status !== "ok" ? (
-            <YearEndStatusMessage data={data} />
+            <AnnualStatusMessage data={data} />
           ) : (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">

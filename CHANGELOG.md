@@ -56,6 +56,7 @@ Minor release: period-mechanism completion (PR1–PR4) — real accounting-perio
 
 ### Changed
 
+- **brain**: the Brain CLI now runs with only `BRAIN_API_KEY` set — `BRAIN_MCP_ENDPOINT` defaults to the production API base and the auth mode to `ambient`; the redundant client-side `BRAIN_RUNTIME_ACTIVE`/`BRAIN_LIVE` pre-gate is removed (the server admission lane is the sole authority and every write is still HELD), and a lane-off / rate-limited run prints a clean sentence instead of a raw 429 dump.
 - Refresh root maintenance files: set the real Code of Conduct enforcement contact, document the as-built AWS security posture in SECURITY.md, and harden .dockerignore to keep secrets and local tool dirs (.env, keys, .claude/, .codegraph/) out of the Docker build context.
 - Developer tooling: CodeGraph now ships a versioned Claude Code UserPromptSubmit hook (repo-wide per-prompt context injection), exposes the full MCP tool set (explore/node/search/status), tunes parse workers + daemon idle timeout, and makes the Conductor workspace index build best-effort so it never blocks workspace creation.
 - Developer tooling: make CodeGraph repo-local via pnpm, add Conductor workspace setup plus agent startup scripts/runbook, and remove leftover graph-index placeholders.

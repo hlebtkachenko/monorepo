@@ -199,6 +199,40 @@ export async function scaffoldAccountingPeriod(
     workspaceId: ctx.workspaceId,
   }
 
+  // Overlap guard (F1). accounting_period has only CHECK (start <= end) — nothing
+  // stops a period whose range intersects an existing one for the same org. A
+  // retried or double-fired create-period (realistic: a Brain agent retrying a
+  // timed-out-but-committed request) would otherwise mint a SECOND účetní období,
+  // each with its own chart of accounts, over the same dates — an accounting-
+  // integrity hazard with no dedup. Reject inside the caller's org-bound tx
+  // (RLS-scoped; the explicit organization_id filter is belt-and-suspenders)
+  // BEFORE any INSERT. Standard half-open-agnostic interval-overlap predicate:
+  // existing.start <= req.end AND existing.end >= req.start. The internal period-
+  // progression callers (openNextPeriod / rollForwardPeriod) go through the lower-
+  // level createPeriod primitive, not this scaffold, so their non-overlapping
+  // roll-forward is untouched.
+  const overlap = await executeRows<{
+    id: string
+    period_start: string
+    period_end: string
+  }>(
+    db,
+    sql`SELECT id, period_start::text AS period_start, period_end::text AS period_end
+          FROM accounting_period
+         WHERE organization_id = ${ctx.organizationId}::uuid
+           AND period_start <= ${params.periodEnd}::date
+           AND period_end >= ${params.periodStart}::date
+         ORDER BY period_start
+         LIMIT 1`,
+  )
+  if (overlap[0]) {
+    const c = overlap[0]
+    throw new ScaffoldValidationError(
+      `the requested účetní období ${params.periodStart}…${params.periodEnd} overlaps an existing period ${c.period_start}…${c.period_end} (id ${c.id}); open a non-overlapping period or reuse the existing one`,
+      "PERIOD_OVERLAP",
+    )
+  }
+
   const periodId = await createPeriod(db, orgCtx, {
     periodStart: params.periodStart,
     periodEnd: params.periodEnd,

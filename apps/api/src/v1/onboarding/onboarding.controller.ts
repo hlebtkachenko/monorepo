@@ -11,7 +11,7 @@ import type {
   CreateNumberSeriesResponse,
   ListAccountingPeriodsResponse,
 } from "@workspace/shared/api"
-import { ValidationError } from "@workspace/shared/errors"
+import { ConflictError, ValidationError } from "@workspace/shared/errors"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
 import { withOrganization } from "@workspace/db"
 import { accounting_period } from "@workspace/db/schema"
@@ -160,6 +160,11 @@ export class OnboardingController {
       // A statutory/derivation failure (e.g. an ambiguous regime) is a 4xx, not
       // a 500 — the driver/domain errors route through the accounting seam.
       if (e instanceof ScaffoldValidationError) {
+        // A period-overlap rejection is a duplicate/double-book conflict with
+        // existing state (409), not a malformed-input validation error (422).
+        if (e.code === "PERIOD_OVERLAP") {
+          throw new ConflictError(e.message)
+        }
         throw new ValidationError(e.message)
       }
       translateAccountingError(e)
@@ -201,6 +206,9 @@ export class OnboardingController {
         periodStart: p.periodStart,
         periodEnd: p.periodEnd,
         status: p.status,
+        // regime_code / accounting_size_code are FK-constrained (accounting_period
+        // → regime.code / accounting_size.code), so a stored value is always a
+        // valid enum member — the narrowing casts can't widen past the DB.
         regimeCode: p.regimeCode as
           "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS",
         accountingSizeCode: p.accountingSizeCode as

@@ -54,6 +54,8 @@ const state = vi.hoisted(() => ({
   resolveCalls: [] as Array<{ orgId: string; override?: string }>,
   /** When set, the next resolveOrgAccountingProfile call throws it. */
   resolveThrows: null as Error | null,
+  /** When set, the next scaffoldAccountingPeriod call throws it. */
+  scaffoldThrows: null as Error | null,
 }))
 
 vi.mock("@workspace/auth/api-key-verifier", () => ({
@@ -131,6 +133,11 @@ vi.mock("@workspace/org-provisioning", () => {
         params: Record<string, unknown>,
       ) => {
         state.scaffoldCalls.push({ ctx, params })
+        if (state.scaffoldThrows) {
+          const e = state.scaffoldThrows
+          state.scaffoldThrows = null
+          throw e
+        }
         return {
           periodId: "0196f1de-0000-7000-8000-0000000000d9",
           chartId: "0196f1de-0000-7000-8000-0000000000c9",
@@ -257,6 +264,7 @@ describe("OnboardingController (/v1/accounting onboarding)", () => {
     state.scaffoldCalls = []
     state.resolveCalls = []
     state.resolveThrows = null
+    state.scaffoldThrows = null
   })
 
   // ── auth ──────────────────────────────────────────────────────────────────
@@ -381,6 +389,25 @@ describe("OnboardingController (/v1/accounting onboarding)", () => {
       .expect(422)
     expect(res.body.error.error_type).toBe("VALIDATION")
     expect(state.scaffoldCalls).toHaveLength(0)
+  })
+
+  it("409s when the requested period overlaps an existing one (F1 double-book guard)", async () => {
+    verifyApiKeyMock.mockResolvedValue(
+      principalFor(ORG_A, ["accounting:write"]),
+    )
+    state.scaffoldThrows = new ScaffoldValidationError(
+      "the requested účetní období 2025-06-01…2026-05-31 overlaps an existing period 2025-01-01…2025-12-31",
+      "PERIOD_OVERLAP",
+    )
+    const res = await supertest(app.getHttpServer())
+      .post("/v1/accounting/periods")
+      .set("Authorization", "Bearer affk_live_a")
+      .send({ periodStart: "2025-06-01", periodEnd: "2026-05-31" })
+      .expect(409)
+    expect(res.body.error.code).toBe("conflict")
+    expect(res.body.error.error_type).toBe("CONFLICT")
+    // The scaffold was invoked (guard lives inside it) but nothing was created.
+    expect(state.scaffoldCalls).toHaveLength(1)
   })
 
   // ── list periods ─────────────────────────────────────────────────────────

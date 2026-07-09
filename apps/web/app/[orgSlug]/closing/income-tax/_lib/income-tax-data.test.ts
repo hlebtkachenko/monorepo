@@ -1,0 +1,509 @@
+/**
+ * Integration test for the Closing Income tax loaders — `getCorporateIncomeTax`
+ * (DPPO) / `getPersonalIncomeTax` (DPFO) / `getIncomeTaxLanding`. Mirrors
+ * `vat-data.test.ts` / `closing-data.test.ts` (AFF-119 / E7b): the module
+ * under test + its transitive `@workspace/db` imports are loaded dynamically
+ * in `beforeAll` so the DB singletons bind AFTER globalSetup has set
+ * DATABASE_URL. `next/headers` (`cookies`) and the `../../../_lib/request-session`
+ * module (imported by `accounting-data.ts`, which `income-tax-data.ts` calls
+ * into via `getOrgAccountingContext`) are `vi.mock`ed so the test controls
+ * the active-period cookie and the signed-in user without a real Next.js
+ * request/response.
+ *
+ * `buildDppo` / `buildDpfo` read the read-model (account_period_balance /
+ * monetary_period_summary) — an accounting period with no postings still
+ * returns a real, zeroed computation (COALESCE(..., 0) in the builder SQL),
+ * so these tests seed only the org + period + person_kind, not a full posted
+ * period, and assert status "ok" + the fixed line shape rather than exact
+ * non-zero figures.
+ *
+ * Both loaders gate on TWO axes — `organization.person_type` (LEGAL/NATURAL)
+ * AND the active period's `regime_code` (`buildDppo` needs DOUBLE_ENTRY,
+ * `buildDpfo` needs TAX_RECORDS) — so beyond the matching-pair "ok" cases and
+ * the person-type-only mismatch cases, this file also seeds the
+ * regime-mismatched-but-person-type-matched combos (LEGAL+SINGLE_ENTRY,
+ * NATURAL+DOUBLE_ENTRY) to prove those report "not-applicable" instead of
+ * silently reading an empty read-model as an all-zero result. Nothing in the
+ * schema ties `accounting_period.regime_code` to the owning org's
+ * `person_kind`/legal form — `seedPeriod`'s `regimeCode` param is free to set
+ * independently of `seedOrg`'s `personKind`, so both combos seed cleanly with
+ * no CHECK-constraint workaround needed.
+ */
+
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
+import postgres from "postgres"
+
+process.env["BETTER_AUTH_SECRET"] =
+  process.env["BETTER_AUTH_SECRET"] ??
+  "web-integration-test-secret-0123456789ab"
+
+// ---------------------------------------------------------------------------
+// Mocks — controlled per-test via these mutable variables
+// ---------------------------------------------------------------------------
+
+let cookieValue: string | undefined
+let sessionUserId: string | undefined
+
+vi.mock("next/headers", () => ({
+  cookies: () =>
+    Promise.resolve({
+      get: (name: string) =>
+        cookieValue !== undefined ? { name, value: cookieValue } : undefined,
+    }),
+}))
+
+// Resolves to the SAME module `accounting-data.ts` imports via
+// "./request-session" (apps/web/app/[orgSlug]/_lib/request-session.ts).
+vi.mock("../../../_lib/request-session", () => ({
+  getRequestSession: () =>
+    Promise.resolve(sessionUserId ? { user: { id: sessionUserId } } : null),
+}))
+
+let getCorporateIncomeTax: (typeof import("./income-tax-data"))["getCorporateIncomeTax"]
+let getPersonalIncomeTax: (typeof import("./income-tax-data"))["getPersonalIncomeTax"]
+let getIncomeTaxLanding: (typeof import("./income-tax-data"))["getIncomeTaxLanding"]
+let adminClient: (typeof import("@workspace/db/tests/fixtures"))["adminClient"]
+let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
+
+let sql: postgres.Sql
+
+// ---------------------------------------------------------------------------
+// Seed helpers (raw SQL via the superuser admin client) — mirrors
+// vat-data.test.ts / closing-data.test.ts
+// ---------------------------------------------------------------------------
+
+let seq = 0
+
+async function seedUser(): Promise<string> {
+  seq += 1
+  const [user] = await sql<Array<{ id: string }>>`
+    INSERT INTO app_user (email, name, role)
+    VALUES (${`income-tax-data-${Date.now()}-${seq}@test.invalid`}, 'User', 'user')
+    RETURNING id
+  `
+  if (!user) throw new Error("user insert failed")
+  return user.id
+}
+
+async function seedWorkspace(creatorId: string): Promise<string> {
+  const [ws] = await sql<Array<{ id: string }>>`
+    INSERT INTO workspace (display_name, created_by_user_id)
+    VALUES ('Income Tax Data Test Workspace', ${creatorId}::uuid)
+    RETURNING id
+  `
+  if (!ws) throw new Error("workspace insert failed")
+  return ws.id
+}
+
+async function seedOrg(opts: {
+  workspaceId: string
+  slug: string
+  legalName: string
+  personKind?: "legal_entity" | "natural_person"
+}): Promise<string> {
+  const personKind = opts.personKind ?? "legal_entity"
+  // organization_person_subject_consistency (0003_rls_force.sql) requires
+  // legal_subject_kind IS NULL for a natural_person, NOT NULL for a legal_entity.
+  const legalSubjectKind = personKind === "legal_entity" ? "for_profit" : null
+  const [org] = await sql<Array<{ id: string }>>`
+    INSERT INTO organization (
+      organization_id, workspace_id, slug, legal_name,
+      person_kind, legal_subject_kind
+    )
+    VALUES (
+      uuidv7(), ${opts.workspaceId}::uuid, ${opts.slug}, ${opts.legalName},
+      ${personKind}, ${legalSubjectKind}
+    )
+    RETURNING id
+  `
+  if (!org) throw new Error("org insert failed")
+  await sql`UPDATE organization SET organization_id = id WHERE id = ${org.id}::uuid`
+  return org.id
+}
+
+/**
+ * One active workspace_membership exists per (workspace, user) — insert is
+ * gated by the last-owner trigger, so elevate to app_admin for the write.
+ */
+async function ensureWorkspaceMembership(
+  workspaceId: string,
+  userId: string,
+): Promise<string> {
+  const [existing] = await sql<Array<{ id: string }>>`
+    SELECT id FROM workspace_membership
+    WHERE workspace_id = ${workspaceId}::uuid
+      AND user_id = ${userId}::uuid
+      AND active = true
+    LIMIT 1
+  `
+  if (existing) return existing.id
+
+  return await sql.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL ROLE app_admin`)
+    await tx.unsafe(`SET LOCAL app.app_user_role_name = 'app_user'`)
+    const rows = (await tx.unsafe(
+      `INSERT INTO workspace_membership (workspace_id, user_id, role)
+       VALUES ('${workspaceId}'::uuid, '${userId}'::uuid, 'member')
+       RETURNING id`,
+    )) as unknown as Array<{ id: string }>
+    if (!rows[0]) throw new Error("workspace_membership insert failed")
+    return rows[0].id
+  })
+}
+
+/** Give a user an active org membership (+ the backing workspace membership). */
+async function addOrgMember(opts: {
+  orgId: string
+  workspaceId: string
+  userId: string
+  role?: "owner" | "admin" | "member" | "agent" | "guest"
+}): Promise<void> {
+  const role = opts.role ?? "owner"
+  const wsMembershipId = await ensureWorkspaceMembership(
+    opts.workspaceId,
+    opts.userId,
+  )
+
+  const [orgM] = await sql<Array<{ id: string }>>`
+    INSERT INTO organization_membership (
+      organization_id, workspace_id, user_id,
+      workspace_membership_id, role, active
+    ) VALUES (
+      ${opts.orgId}::uuid, ${opts.workspaceId}::uuid, ${opts.userId}::uuid,
+      ${wsMembershipId}::uuid, ${role}, true
+    )
+    RETURNING id
+  `
+  if (!orgM) throw new Error("organization_membership insert failed")
+}
+
+/** Insert one accounting period (regime + currency reference migration-seeded rows). */
+async function seedPeriod(opts: {
+  orgId: string
+  start: string
+  end: string
+  status: "OPEN" | "CLOSED"
+  regimeCode?: "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS"
+}): Promise<string> {
+  const [period] = await sql<Array<{ id: string }>>`
+    INSERT INTO accounting_period (
+      organization_id, period_start, period_end, status,
+      regime_code, accounting_currency
+    )
+    VALUES (
+      ${opts.orgId}::uuid, ${opts.start}, ${opts.end}, ${opts.status},
+      ${opts.regimeCode ?? "DOUBLE_ENTRY"}, 'CZK'
+    )
+    RETURNING id
+  `
+  if (!period) throw new Error("accounting_period insert failed")
+  return period.id
+}
+
+async function cleanup(): Promise<void> {
+  await sql`DELETE FROM accounting_period`
+  await truncateAll(sql)
+}
+
+beforeAll(async () => {
+  ;({ adminClient, truncateAll } = await import("@workspace/db/tests/fixtures"))
+  ;({ getCorporateIncomeTax, getPersonalIncomeTax, getIncomeTaxLanding } =
+    await import("./income-tax-data"))
+  sql = adminClient()
+  await cleanup()
+}, 30_000)
+
+afterAll(async () => {
+  await cleanup()
+  await sql.end({ timeout: 5 })
+})
+
+beforeEach(async () => {
+  await cleanup()
+  cookieValue = undefined
+  sessionUserId = undefined
+})
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("getCorporateIncomeTax (DPPO)", () => {
+  it("LEGAL org with an active period -> ok, real (zeroed) DPPO shape", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dppo-legal-ok",
+      legalName: "DPPO Legal s.r.o.",
+      personKind: "legal_entity",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getCorporateIncomeTax("dppo-legal-ok")
+
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.dppo.type).toBe("CORPORATE_INCOME_TAX")
+    expect(result.dppo.ucetni_vysledek).toBe("0.0000")
+    expect(result.dppo.zaklad_dane).toBe("0.0000")
+    expect(result.dppo.dan).toBe("0.0000")
+    expect(result.dppo.sazba).toBe("0.2100")
+  }, 30_000)
+
+  it("NATURAL org -> not-applicable (DPPO only applies to a legal entity)", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dppo-natural-na",
+      legalName: "DPPO Natural OSVC",
+      personKind: "natural_person",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getCorporateIncomeTax("dppo-natural-na")
+
+    expect(result.status).toBe("not-applicable")
+    if (result.status !== "not-applicable") return
+    expect(result.reason).toContain("natural person")
+  }, 30_000)
+
+  it("org with no accounting_period -> no-period", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dppo-no-period",
+      legalName: "DPPO No Period s.r.o.",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getCorporateIncomeTax("dppo-no-period")
+
+    expect(result.status).toBe("no-period")
+  }, 30_000)
+
+  it("LEGAL org with a SINGLE_ENTRY period -> not-applicable (buildDppo reads account_period_balance, DOUBLE_ENTRY only)", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dppo-legal-single-entry-na",
+      legalName: "DPPO Legal Single Entry s.r.o.",
+      personKind: "legal_entity",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+      regimeCode: "SINGLE_ENTRY",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getCorporateIncomeTax("dppo-legal-single-entry-na")
+
+    expect(result.status).toBe("not-applicable")
+    if (result.status !== "not-applicable") return
+    expect(result.reason).toContain("double-entry")
+    expect(result.reason).toContain("SINGLE_ENTRY")
+  }, 30_000)
+})
+
+describe("getPersonalIncomeTax (DPFO)", () => {
+  it("NATURAL org with an active period -> ok, real (zeroed) DPFO shape", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dpfo-natural-ok",
+      legalName: "DPFO Natural OSVC",
+      personKind: "natural_person",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+      regimeCode: "TAX_RECORDS",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getPersonalIncomeTax("dpfo-natural-ok")
+
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.dpfo.type).toBe("PERSONAL_INCOME_TAX")
+    expect(result.dpfo.prijmy_danove).toBe("0.0000")
+    expect(result.dpfo.vydaje_danove).toBe("0.0000")
+    expect(result.dpfo.zaklad_dane).toBe("0.0000")
+  }, 30_000)
+
+  it("LEGAL org -> not-applicable (DPFO only applies to a natural person)", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dpfo-legal-na",
+      legalName: "DPFO Legal s.r.o.",
+      personKind: "legal_entity",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getPersonalIncomeTax("dpfo-legal-na")
+
+    expect(result.status).toBe("not-applicable")
+    if (result.status !== "not-applicable") return
+    expect(result.reason).toContain("legal entity")
+  }, 30_000)
+
+  it("org with no accounting_period -> no-period", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dpfo-no-period",
+      legalName: "DPFO No Period OSVC",
+      personKind: "natural_person",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getPersonalIncomeTax("dpfo-no-period")
+
+    expect(result.status).toBe("no-period")
+  }, 30_000)
+
+  it("NATURAL org with a DOUBLE_ENTRY period -> not-applicable (buildDpfo reads monetary_period_summary, TAX_RECORDS only)", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dpfo-natural-double-entry-na",
+      legalName: "DPFO Natural Double Entry OSVC",
+      personKind: "natural_person",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+      regimeCode: "DOUBLE_ENTRY",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getPersonalIncomeTax("dpfo-natural-double-entry-na")
+
+    expect(result.status).toBe("not-applicable")
+    if (result.status !== "not-applicable") return
+    expect(result.reason).toContain("tax records")
+    expect(result.reason).toContain("DOUBLE_ENTRY")
+  }, 30_000)
+})
+
+describe("getIncomeTaxLanding", () => {
+  it("LEGAL org -> ok with personType LEGAL", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "landing-legal",
+      legalName: "Landing Legal s.r.o.",
+      personKind: "legal_entity",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getIncomeTaxLanding("landing-legal")
+
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.personType).toBe("LEGAL")
+  }, 30_000)
+
+  it("NATURAL org -> ok with personType NATURAL", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "landing-natural",
+      legalName: "Landing Natural OSVC",
+      personKind: "natural_person",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+      regimeCode: "TAX_RECORDS",
+    })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getIncomeTaxLanding("landing-natural")
+
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.personType).toBe("NATURAL")
+  }, 30_000)
+})

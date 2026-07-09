@@ -1,0 +1,10 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+# CodeGraph is optional local dev tooling; it must never fail workspace
+# creation. `pnpm install` must succeed; the index build is best-effort.
+setup = "pnpm install --frozen-lockfile && { pnpm codegraph:ready || true; }"
+
+[scripts.run.codegraph]
+command = "pnpm codegraph:ready"
+icon = "network"

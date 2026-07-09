@@ -10,12 +10,11 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
  */
 export function closingNav(base: string): SidebarNavEntry[] {
   return [
-    { label: "Overview", href: base, icon: "CalendarClock", tba: true },
+    { label: "Overview", href: base, icon: "CalendarClock" },
     {
       label: "Calendar",
       href: `${base}/calendar`,
       icon: "CalendarIcon",
-      tba: true,
     },
     {
       label: "Monthly close",
@@ -40,15 +39,10 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "VAT",
           href: `${base}/vat`,
           icon: "ReceiptEuro",
-          tba: true,
           subpages: [
-            { label: "VAT return", href: `${base}/vat/dap`, tba: true },
-            {
-              label: "Control statement",
-              href: `${base}/vat/kh`,
-              tba: true,
-            },
-            { label: "EC Sales List", href: `${base}/vat/sh`, tba: true },
+            { label: "VAT return", href: `${base}/vat/dap` },
+            { label: "Control statement", href: `${base}/vat/kh` },
+            { label: "EC Sales List", href: `${base}/vat/sh` },
             { label: "OSS", href: `${base}/vat/oss`, tba: true },
             { label: "IOSS", href: `${base}/vat/ioss`, tba: true },
           ],
@@ -86,17 +80,14 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Income tax",
           href: `${base}/income-tax`,
           icon: "Calculator",
-          tba: true,
           subpages: [
             {
               label: "Corporation tax",
               href: `${base}/income-tax/dppo`,
-              tba: true,
             },
             {
               label: "Personal income tax",
               href: `${base}/income-tax/dpfo`,
-              tba: true,
             },
             {
               label: "Advances",
@@ -130,7 +121,6 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Year-end",
           href: `${base}/year-end`,
           icon: "Archive",
-          tba: true,
           subpages: [
             {
               label: "Accruals",
@@ -155,7 +145,6 @@ export function closingNav(base: string): SidebarNavEntry[] {
             {
               label: "Statements",
               href: `${base}/year-end/statements`,
-              tba: true,
             },
             {
               label: "Publication",

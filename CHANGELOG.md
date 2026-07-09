@@ -6,25 +6,37 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **closing**: real Closing income-tax pages (DPPO / DPFO, gated on person type + book regime) and year-end financial-statements page, computed from the existing annual output builders over the active accounting period. (#605)
+- **closing**: filing-period-aware VAT output builders (přiznání k DPH / KH / SH scoped to a filing month or quarter by the DUZP, `accounting_event.occurred_at`) and real Closing VAT pages (return / control statement / EC sales list) computing each selected filing period's figures. (#601)
+- **closing**: statutory obligation + deadline engine (monthly/quarterly VAT return / KH / SH / payroll, business-day-shifted per the Czech holiday calendar) and real Closing Overview + Calendar computed from the active accounting period. (#598)
+- **web/accounting**: organization page data now carries the active accounting period through the server data path, replacing the remaining mock-period assumptions in that flow. (#593)
+- **web/settings**: Settings > Number series now uses the real number-series surface and includes the restore-defaults backfill for the accounting-period mechanism. (#594)
+
 ### Changed
 
+- Developer tooling: CodeGraph now ships a versioned Claude Code UserPromptSubmit hook (repo-wide per-prompt context injection), exposes the full MCP tool set (explore/node/search/status), tunes parse workers + daemon idle timeout, and makes the Conductor workspace index build best-effort so it never blocks workspace creation.
+- Developer tooling: make CodeGraph repo-local via pnpm, add Conductor workspace setup plus agent startup scripts/runbook, and remove leftover graph-index placeholders.
+- **release/changelog**: correct historical entries — drop the stale note claiming the v0.2.1 tag still exists on the remote (it was deleted) and strip the stray emoji from the v0.3.1 HITL fix entry. (#604)
+- **release/changelog**: fold the unpublished `v0.16.11` draft release notes back into Unreleased because `v0.16.10` remains the latest published GitHub release.
 - **governance**: require every non-release PR to add an Unreleased changelog entry, with CI and local hooks preserving existing entries so parallel agents append instead of overwriting.
+- **ci**: the `_deploy-aws.yml` `brain_runtime_active` input now defaults to `1` for the pre-launch period, so a deploy that omits it keeps the `/v1/accounting` write admission lane ON instead of silently killing it (v0.16.9 omitted it and every write 429'd). This does not enable auto-apply: the cold-start `extraction_failed` floor still HELDs every write. Revert the default to explicit at launch (ADR-0028). (#584)
 
-## [v0.16.11] — 2026-07-08
+### Fixed
 
-Patch release: Afframe Brain platform-documentation integration + a pre-launch write-lane deploy default + a dev-dependency sweep. No product or runtime change; the Brain write lane stays HELD at cold start.
+- **ci**: deploy diff checks now handle changed or missing CDK input files correctly under `pipefail`, so the guard fails for real drift instead of exiting early from expected no-match cases. (#595)
+- **github**: remove the unsupported Code Quality branch-ruleset threshold while keeping CodeQL code scanning required, and document the live required-check set. (#597)
 
 ### Docs
 
 - **brain**: weave Afframe Brain into the platform docs so it is no longer orphaned — `README.md` + `ARCHITECTURE.md` gain the `brain` package, the `apps/mcp`/`apps/cli` Brain role, and a Brain subsystem section; `docs/START-HERE.md`, `docs/README.md`, and `AGENTS.md` link the Brain docs; the stale `packages/brain/README.md` + `ARCHITECTURE.md` (which described the dropped in-process/worker design) get staleness banners. Adds `docs/AFFRAME-BRAIN-STATUS.md`, a tracked v1 status/roadmap tracker (M1–M4 done/outstanding, the engineering-done boundary, what's deferred to v2, and the open GitHub issues that gate each piece). Registers the two missing material ICT assets in the DORA register (`docs/INVENTORY.md`): the Anthropic Claude API and the Brain local operator client. Verified by two independent top-tier advisor passes. (#589)
-
-### Changed
-
-- **ci**: the `_deploy-aws.yml` `brain_runtime_active` input now defaults to `1` for the pre-launch period, so a deploy that omits it keeps the `/v1/accounting` write admission lane ON instead of silently killing it (v0.16.9 omitted it and every write 429'd). This does not enable auto-apply — the cold-start `extraction_failed` floor still HELDs every write. Revert the default to explicit at launch (ADR-0028). (#584)
+- **brain**: add the per-key throttler `429` failure mode to the Brain troubleshooting playbook, including the operator symptom and remediation path. (#591)
 
 ### Dependencies
 
 - **deps-dev**: dev-dependencies group bump (10 updates: `prettier` 3.8→3.9, `turbo` 2.9→2.10, `shadcn`, `knip`, and others), lockfile deduped. (#587)
+- **deps**: bump AWS CDK to `2.1129.0` and refresh the lockfile. (#596)
 
 ## [v0.16.10] — 2026-07-08
 
@@ -545,7 +557,7 @@ Minor release: the agent human-in-the-loop (HITL) round-trip and the Telegram co
 
 ### Fixed
 
-- Keep the HITL question visible + strip options when ✍️ Other is chosen. (#339)
+- Keep the HITL question visible + strip options when Other is chosen. (#339)
 
 ## [v0.3.0] — 2026-06-06
 
@@ -620,8 +632,6 @@ Supply-chain follow-up to v0.2.2. No app surface changes.
 ## [v0.2.2] — 2026-05-21
 
 CI + observability follow-ups to v0.2.0. No app surface changes.
-
-> Note: tag `v0.2.1` was burned by a second supply-chain bug in the SBOM generator (`anchore/sbom-action` rejecting `.tar.gz` as a non-directory). The fix bundle ships as v0.2.2 instead. The v0.2.1 tag remains on the remote as a dangling reference with no GitHub Release attached.
 
 ### Fixed
 

@@ -29,12 +29,18 @@
  * value goes on an A.4/B.2 row with its negative amounts, not into the
  * aggregate. Rows are grouped per (doklad, counterparty); all money arithmetic
  * is in SQL (R13).
+ *
+ * buildKontrolniHlaseni's optional `filingRange` narrows every section to a
+ * filing period (calendar month/quarter) by the DPPD (accounting_event.
+ * occurred_at, §11/1e) — a kontrolní hlášení is filed per filing period, not
+ * per whole účetní období. Omitting it aggregates the whole accounting
+ * period, unchanged.
  */
 
 import { sql } from "drizzle-orm"
 import { rows } from "../sql"
 import type { RowExecutor } from "../sql"
-import type { Decimal } from "../types"
+import type { Decimal, FilingRange } from "../types"
 
 /** §101d/1 limit — plnění nad 10 000 Kč včetně daně (v absolutní hodnotě —
  * opravné doklady jsou záporné) jde na řádkovou evidenci. */
@@ -82,12 +88,23 @@ export interface KontrolniHlaseni {
   b3: KhAggregate
 }
 
+/** `AND ae.occurred_at::date BETWEEN from AND to`, or no-op when range is undefined. */
+function filingRangeFilter(range?: FilingRange) {
+  return range
+    ? sql`AND ae.occurred_at::date >= ${range.from} AND ae.occurred_at::date <= ${range.to}`
+    : sql``
+}
+
 /**
  * Doklad-level aggregation of STANDARD partial_records for one document side
  * (ISSUED for A.4/A.5, RECEIVED for B.2/B.3): base+daň per rate, doklad gross,
  * DIČ. Reused by the >10k row query and the ≤10k aggregate query.
  */
-function standardDokladCte(periodId: string, type: string) {
+function standardDokladCte(
+  periodId: string,
+  type: string,
+  filingRange?: FilingRange,
+) {
   return sql`
     doklad AS (
       SELECT sr.id                                                          AS summary_record_id,
@@ -107,6 +124,7 @@ function standardDokladCte(periodId: string, type: string) {
        WHERE sr.period_id = ${periodId}::uuid
          AND sr.type = ${type}
          AND pr.vat_mode = 'STANDARD'
+         ${filingRangeFilter(filingRange)}
        GROUP BY sr.id, sr.designation, cp.tax_id
     )`
 }
@@ -127,6 +145,7 @@ async function reverseChargeRows(
   // onto KH A.1, and dropping it from the union makes that regression
   // unrepresentable — a new call site cannot reintroduce it.
   euFilter: "EU" | "DOMESTIC",
+  filingRange?: FilingRange,
 ): Promise<KhRow[]> {
   const jurisdiction =
     euFilter === "EU"
@@ -166,6 +185,7 @@ async function reverseChargeRows(
          AND sr.type = ${type}
          AND pr.vat_mode = 'REVERSE_CHARGE'
          ${jurisdiction}
+         ${filingRangeFilter(filingRange)}
        GROUP BY sr.designation, cp.tax_id, pr.commodity_code
        ORDER BY sr.designation`,
   )
@@ -176,11 +196,12 @@ async function standardRowsOverThreshold(
   db: RowExecutor,
   periodId: string,
   type: string,
+  filingRange?: FilingRange,
 ): Promise<KhRow[]> {
   return rows<KhRow>(
     db,
     sql`
-      WITH ${standardDokladCte(periodId, type)}
+      WITH ${standardDokladCte(periodId, type, filingRange)}
       SELECT doklad,
              dppd,
              tax_id,
@@ -201,11 +222,12 @@ async function standardAggregate(
   db: RowExecutor,
   periodId: string,
   type: string,
+  filingRange?: FilingRange,
 ): Promise<KhAggregate> {
   const r = await rows<KhAggregate>(
     db,
     sql`
-      WITH ${standardDokladCte(periodId, type)}
+      WITH ${standardDokladCte(periodId, type, filingRange)}
       SELECT COALESCE(SUM(base21 + base12), 0)::numeric(19,4) AS base,
              COALESCE(SUM(dan21 + dan12), 0)::numeric(19,4)   AS dan,
              COUNT(*)::int                                    AS count
@@ -218,10 +240,15 @@ async function standardAggregate(
 /**
  * Build the full kontrolní hlášení for a period: every row-level section plus the
  * two aggregate sections.
+ *
+ * @param filingRange Optional filing-period date range (inclusive), narrowing
+ *   every section to rows whose DPPD (accounting_event.occurred_at) falls
+ *   within [from, to]. Omitted → the whole accounting period (unchanged).
  */
 export async function buildKontrolniHlaseni(
   db: RowExecutor,
   periodId: string,
+  filingRange?: FilingRange,
 ): Promise<KontrolniHlaseni> {
   const [a1, a2, a4, a5, b1, b2, b3] = await Promise.all([
     // [#516] A.1 = domestic §92 PDP dodavatel ONLY. An EU-marked ISSUED
@@ -231,13 +258,19 @@ export async function buildKontrolniHlaseni(
     // (jurisdiction 'REVERSE_CHARGE' / legacy NULL) and drops only 'EU'. The
     // souhrnné-hlášení emitter already reports those EU rows, so `ANY` here
     // double-reported them onto the KH. Symmetric with B.1 (RECEIVED domestic).
-    reverseChargeRows(db, periodId, "ISSUED_INVOICE", "DOMESTIC"),
-    reverseChargeRows(db, periodId, "RECEIVED_INVOICE", "EU"),
-    standardRowsOverThreshold(db, periodId, "ISSUED_INVOICE"),
-    standardAggregate(db, periodId, "ISSUED_INVOICE"),
-    reverseChargeRows(db, periodId, "RECEIVED_INVOICE", "DOMESTIC"),
-    standardRowsOverThreshold(db, periodId, "RECEIVED_INVOICE"),
-    standardAggregate(db, periodId, "RECEIVED_INVOICE"),
+    reverseChargeRows(db, periodId, "ISSUED_INVOICE", "DOMESTIC", filingRange),
+    reverseChargeRows(db, periodId, "RECEIVED_INVOICE", "EU", filingRange),
+    standardRowsOverThreshold(db, periodId, "ISSUED_INVOICE", filingRange),
+    standardAggregate(db, periodId, "ISSUED_INVOICE", filingRange),
+    reverseChargeRows(
+      db,
+      periodId,
+      "RECEIVED_INVOICE",
+      "DOMESTIC",
+      filingRange,
+    ),
+    standardRowsOverThreshold(db, periodId, "RECEIVED_INVOICE", filingRange),
+    standardAggregate(db, periodId, "RECEIVED_INVOICE", filingRange),
   ])
   return { type: "KONTROLNI_HLASENI", a1, a2, a4, a5, b1, b2, b3 }
 }

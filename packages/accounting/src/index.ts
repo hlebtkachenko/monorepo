@@ -225,3 +225,22 @@ export {
   type StatementRozsah,
   type StatementUnit,
 } from "./output/index"
+
+// Obligation + deadline engine (monthly/quarterly VAT + payroll; annual
+// income-tax/year-end deadlines are out of scope for this unit — see
+// obligations/obligations.ts). `VatFilingPeriod`, `VatRegime`, and
+// `PersonType` are NOT re-exported here — they are omitted because
+// `export * from "./types"` above already exports the identical ones, so
+// re-exporting them here would be redundant.
+export {
+  czechHolidays,
+  shiftToBusinessDay,
+  nthOfNextMonth,
+  vatMonthlyDeadline,
+  payrollMonthlyDeadline,
+  computeObligations,
+  type ObligationCategory,
+  type ObligationKind,
+  type ObligationInput,
+  type Obligation,
+} from "./obligations/index"

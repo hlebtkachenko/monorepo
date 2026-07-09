@@ -41,6 +41,11 @@ _junk/
 # to every contributor, so they live in the repo. Everything else under
 # `.claude/` (per-session worktrees, transcripts) stays local-only.
 .claude/*
+# Shared, code-reviewed agent config (CodeGraph MCP permission + the
+# UserPromptSubmit context-injection hook) IS versioned so every contributor
+# and every fresh workspace gets it. Personal overrides go in the still-ignored
+# `.claude/settings.local.json`.
+!.claude/settings.json
 !.claude/skills/
 .claude/skills/*/state/
 # Versioned agent gate workflows: the Brain safety gate + the thermo code-quality
@@ -74,10 +79,8 @@ apps/web/e2e/.results/
 # CDK regenerates the file on demand on every synth.
 infra/cdk/cdk.context.json
 
-# codegraph / graphify local index + reports (per-worktree, never committed)
+# CodeGraph local index + reports (per-worktree, never committed)
 .codegraph/
-graphify-out/
-.graphify/
 
 # Brain operator session — real creds live in the local file, never committed.
 # The committed template is docs/runbooks/mlive.example.sh (secret-free placeholders).

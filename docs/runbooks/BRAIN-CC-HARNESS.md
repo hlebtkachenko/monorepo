@@ -58,12 +58,15 @@ invoice cannot add/remove/re-target a tool call, and cannot reach a denied tool 
   the capture request. Each planned call is tagged with the sandbox verdict (`isToolAllowed`), so the plan
   can never schedule a denied tool.
 - **`runLiveBrainSession(inputs): Promise<LiveBrainSessionResult>`** — CREDS-GATED, now WIRED to an injected
-  launcher. It (1) fails closed on the env/creds gate + the `BRAIN_RUNTIME_ACTIVE=1` write-lane kill-switch,
-  naming exactly what is unmet, BEFORE touching the launcher; then (2) if an `AgentSessionLauncher` was
-  injected, delegates to it with the session config derived from the inspected plan
-  (`plan.loginPack.system` / `allowedTools` / `disallowedTools` + `mcpEndpoint` + resolved `apiKey`). With no
-  launcher injected it fails loud. It never fabricates a result, and it never reaches a launcher on a
-  half-provisioned or kill-switch-off run.
+  launcher. It (1) fails closed on the creds gate, naming exactly what is unmet, BEFORE touching the launcher;
+  then (2) if an `AgentSessionLauncher` was injected, delegates to it with the session config derived from the
+  inspected plan (`plan.loginPack.system` / `allowedTools` / `disallowedTools` + `mcpEndpoint` + resolved
+  `apiKey`). With no launcher injected it fails loud. It never fabricates a result, and it never reaches a
+  launcher on a half-provisioned run. **[M0.2a]** it no longer pre-blocks on `BRAIN_RUNTIME_ACTIVE` / `BRAIN_LIVE`
+  — that was a redundant CLIENT-side gate duplicating the SERVER's real admission authority, which still
+  fails closed on its own kill-switch and HELDs/rejects every write regardless of the client. The client now
+  always attempts; an admission-refused run comes back through the ordinary result, which `apps/cli` renders
+  as a clean lane-off message (§ below), never a fabricated success.
 - **`AgentSessionLauncher` / `AgentSessionLaunchOptions`** — the seam between this package and the Agent-SDK
   launch. The launcher OWNS the `@anthropic-ai/claude-agent-sdk` session and is INJECTED, so `@workspace/intake`
   imports the SDK **nowhere** (not even `import type`). The SDK-backed launcher belongs in operator tooling
@@ -75,13 +78,20 @@ invoice cannot add/remove/re-target a tool call, and cannot reach a denied tool 
 
 ## Creds / env the live run needs
 
-| Env                    | Purpose                                                                                                                  |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `BRAIN_RUNTIME_ACTIVE` | The write-lane kill-switch. MUST be `1` (defaults OFF, fail-closed). A set-but-not-`1` value is still closed.            |
-| `BRAIN_LIVE`           | Explicit opt-in that live creds are present + the operator intends a real session.                                       |
-| `BRAIN_MCP_ENDPOINT`   | The deployed accounting MCP endpoint URL (e.g. `https://api.afframe.com/mcp`).                                           |
-| `BRAIN_API_KEY`        | The Brain's server-authorized accounting API key. The principal resolves org server-side; tenancy is NEVER a tool input. |
-| `BRAIN_AGENT_SDK_AUTH` | Agent-SDK auth. Dev sessions use subscription auth; the Bedrock spike uses AWS creds + `effort:xhigh`.                   |
+**[M0.2a — env-collapse]** A fresh `apps/cli` session needs ONLY `BRAIN_API_KEY` pasted in.
+`resolveBrainEnv` (`apps/cli/src/brain/env.ts`) defaults everything else:
+
+| Env                    | Purpose                                                                                                                  | Default (apps/cli, M0.2a)          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `BRAIN_MCP_ENDPOINT`   | The deployed REST API base URL (e.g. `https://api.afframe.com`), consumed by the local stdio MCP bridge.                 | `https://api.afframe.com` (prod)   |
+| `BRAIN_API_KEY`        | The Brain's server-authorized accounting API key. The principal resolves org server-side; tenancy is NEVER a tool input. | none — the one required paste      |
+| `BRAIN_AGENT_SDK_AUTH` | Agent-SDK auth. Dev sessions use subscription auth; the Bedrock spike uses AWS creds + `effort:xhigh`.                   | `"ambient"` (this machine's login) |
+
+`BRAIN_RUNTIME_ACTIVE` (the write-lane kill-switch) and `BRAIN_LIVE` are **no longer read by the client at
+all** (dropped M0.2a — see `BRAIN_HARNESS_REQUIRED_ENV`'s doc comment). `BRAIN_RUNTIME_ACTIVE` still exists as
+the SERVER's deploy-time kill-switch (`apps/api/src/v1/accounting/admission.singleton.ts`, set via CDK
+context) — that gate is unchanged and still fails closed; the client simply no longer pre-checks it before
+attempting a run.
 
 The **Agent-SDK itself (`@anthropic-ai/claude-agent-sdk`) is NOT a dependency of this repo** — it is referenced in
 types + this runbook only. The scaffold composes our pieces and documents the SDK wiring; wiring the SDK in
@@ -112,8 +122,10 @@ author≠approver rider is a second, independent backstop). Verify after issuanc
 Prereqs: #395 accounting write endpoints merged + `pnpm gen:all` run (the real `mcp__afframe__*` tool names
 exist); the API + MCP deployed; the Brain API key issued; Agent-SDK auth available.
 
-1. **Provision env.** Set every `BRAIN_HARNESS_REQUIRED_ENV` value. Confirm `BRAIN_RUNTIME_ACTIVE=1` — the
-   write lane ships OFF, so this is the deliberate turn-on step.
+1. **Provision env.** Set `BRAIN_API_KEY` (the one required paste — everything else in
+   `BRAIN_HARNESS_REQUIRED_ENV` defaults, M0.2a). Confirm the SERVER's write lane is actually on
+   (`BRAIN_RUNTIME_ACTIVE=1` on the deployed api task) — the client no longer checks this itself, so a
+   run against an off lane now surfaces as the clean lane-off message, not a client-side refusal.
 2. **Build the dry-run plan first.** Call `planBrainDryRun` with the stub invoice + resolved uuids
    (periodId / seriesId / eventId from `get_structure` + `list_accounting_number_series`). **Inspect** the
    plan: the tool sequence, the sandbox verdicts (all `allowed`), and the capture request (valid, tenancy-free).
@@ -147,6 +159,7 @@ exist); the API + MCP deployed; the Brain API key issued; Agent-SDK auth availab
    Then call `runLiveBrainSession({ plan, mcpEndpoint, readEnv, launcher: sdkLauncher })`. Until this launcher
    is provided, `runLiveBrainSession` fails closed — the seam is wired and tested (mock launcher), only the
    SDK body + the live run remain (tracked on #469).
+
 4. **Run the session** against the real tools. It reads structure/series, proposes the capture write, and the
    **server** gates it. Stamp `conversation_id = brain_run_id`.
 5. **Record the result** (`LiveBrainSessionResult`): the `brain_run_id`, whether the server APPLIED or HELD,

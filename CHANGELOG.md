@@ -10,6 +10,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **ci**: reduce workflow drift and noise — sync the shared setup action pins, derive Dockerfile `turbo prune` from the root `turbo` dependency, make mature DB advisory checks fail visibly, trim impossible container-scan path filters, and stop PR workflow completions from spawning skipped `notify-ci` runs.
 
+### Fixed
+
+- **ci/bot**: let deploy-bot use the pnpm-installed wrangler instead of a stale wrangler-action version pin, avoiding npm workspace protocol failures during Worker deploys.
+
 ## [v0.17.0] — 2026-07-09
 
 Minor release: period-mechanism completion (PR1–PR4) — real accounting-period data wires through the full closing cycle (VAT, payroll, income tax, year-end statements, obligation calendar), real Settings surfaces (number series, tax profile), and real workspace Companies + Legislation operational data. Adds the GitHub Issues tracker migration (replacing the retired Linear integration), CodeGraph developer tooling repo-wide, and numerous CI, governance, and dependency updates.

@@ -147,7 +147,7 @@ async function resolveVatContext(
     vatRegimeCode,
     vatFilingPeriod: filingPeriod,
     personType,
-    hasEmployees: false,
+    hasEmployees: profile.hasEmployees,
   })
 
   const filingPeriods: VatFilingPeriodOption[] = obligations

@@ -8,6 +8,7 @@ import {
   addAuthorizedPerson,
   addOssRegistration,
   backfillOrgNumberSeries,
+  changeTaxProfile,
   changeVatStatus,
   closeOssRegistration,
   removeAuthorizedPerson,
@@ -161,6 +162,24 @@ export async function changeVatStatusAction(
     return { ok: false, errorKey: "changeVatFailed" }
   }
   revalidatePath(`/${slug}/settings/vat-status`)
+  return { ok: true }
+}
+
+export async function changeTaxProfileAction(
+  slug: string,
+  input: { hasEmployees: boolean; validFrom: string },
+): Promise<SettingsResult> {
+  const auth = await authorize(slug)
+  if (!auth) return { ok: false, errorKey: "forbidden" }
+  if (input.validFrom.trim() === "") {
+    return { ok: false, errorKey: "validFromRequired" }
+  }
+  try {
+    await changeTaxProfile(auth.ctx, auth.userId, input)
+  } catch {
+    return { ok: false, errorKey: "changeTaxProfileFailed" }
+  }
+  revalidatePath(`/${slug}/settings/tax-profile`)
   return { ok: true }
 }
 

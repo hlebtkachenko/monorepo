@@ -76,6 +76,8 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "organization_authorized_person",
   "organization_tax_representative",
   "organization_oss_registration",
+  // operational tax profile (0048_organization_tax_profile.sql)
+  "organization_tax_profile",
 ] as const
 
 export type OrganizationScopedTable =

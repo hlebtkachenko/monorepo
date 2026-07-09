@@ -218,6 +218,50 @@ function quarterlyObligations(
 }
 
 /**
+ * Payroll obligations (social + health insurance, withholding/advance payroll
+ * tax) for the period — monthly, business-day-shifted, independent of VAT
+ * configuration. Extracted so the Payroll surface can compute payroll without
+ * the VAT-payer filing-period gate that `computeObligations` enforces.
+ */
+export function computePayrollObligations(input: {
+  periodStart: string
+  periodEnd: string
+  hasEmployees: boolean
+}): Obligation[] {
+  if (!input.hasEmployees) return []
+  const obligations: Obligation[] = []
+  for (const { year, month } of monthsInRange(
+    input.periodStart,
+    input.periodEnd,
+  )) {
+    const shared = {
+      category: "PAYROLL" as const,
+      periodLabel: monthLabel(year, month),
+      periodStart: toIso(year, month, 1),
+      periodEnd: lastDayOfMonthIso(year, month),
+      dueDate: payrollMonthlyDeadline(year, month),
+      conditional: false,
+    }
+    obligations.push({
+      kind: "SOCIAL_INSURANCE",
+      title: TITLES.SOCIAL_INSURANCE,
+      ...shared,
+    })
+    obligations.push({
+      kind: "HEALTH_INSURANCE",
+      title: TITLES.HEALTH_INSURANCE,
+      ...shared,
+    })
+    obligations.push({
+      kind: "WITHHOLDING_TAX",
+      title: TITLES.WITHHOLDING_TAX,
+      ...shared,
+    })
+  }
+  return obligations
+}
+
+/**
  * Compute the monthly/quarterly statutory obligations for an accounting
  * period. Deterministic — no fabricated obligations; a regime/filing
  * combination that owes nothing returns no rows for it.
@@ -324,33 +368,13 @@ export function computeObligations(input: ObligationInput): Obligation[] {
   }
 
   // Payroll — social/health insurance + withholding tax remittances, monthly.
-  if (input.hasEmployees) {
-    for (const { year, month } of months) {
-      const shared = {
-        category: "PAYROLL" as const,
-        periodLabel: monthLabel(year, month),
-        periodStart: toIso(year, month, 1),
-        periodEnd: lastDayOfMonthIso(year, month),
-        dueDate: payrollMonthlyDeadline(year, month),
-        conditional: false,
-      }
-      obligations.push({
-        kind: "SOCIAL_INSURANCE",
-        title: TITLES.SOCIAL_INSURANCE,
-        ...shared,
-      })
-      obligations.push({
-        kind: "HEALTH_INSURANCE",
-        title: TITLES.HEALTH_INSURANCE,
-        ...shared,
-      })
-      obligations.push({
-        kind: "WITHHOLDING_TAX",
-        title: TITLES.WITHHOLDING_TAX,
-        ...shared,
-      })
-    }
-  }
+  obligations.push(
+    ...computePayrollObligations({
+      periodStart: input.periodStart,
+      periodEnd: input.periodEnd,
+      hasEmployees: input.hasEmployees,
+    }),
+  )
 
   return obligations.sort((a, b) => {
     if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1

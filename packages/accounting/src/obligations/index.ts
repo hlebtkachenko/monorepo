@@ -12,6 +12,7 @@ export {
 } from "./deadlines"
 export {
   computeObligations,
+  computePayrollObligations,
   type ObligationCategory,
   type ObligationKind,
   type ObligationInput,

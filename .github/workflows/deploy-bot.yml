@@ -79,7 +79,9 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/bot
-          wranglerVersion: "4.100.0"
+          # No wranglerVersion pin: the action uses the wrangler installed by
+          # the repo setup step. A stale pin makes wrangler-action fall back to
+          # `npm i wrangler@<pin>`, which cannot resolve workspace:* deps.
           command: deploy
 
       - name: Apply D1 migrations (remote)

@@ -80,17 +80,14 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Income tax",
           href: `${base}/income-tax`,
           icon: "Calculator",
-          tba: true,
           subpages: [
             {
               label: "Corporation tax",
               href: `${base}/income-tax/dppo`,
-              tba: true,
             },
             {
               label: "Personal income tax",
               href: `${base}/income-tax/dpfo`,
-              tba: true,
             },
             {
               label: "Advances",
@@ -124,7 +121,6 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Year-end",
           href: `${base}/year-end`,
           icon: "Archive",
-          tba: true,
           subpages: [
             {
               label: "Accruals",
@@ -149,7 +145,6 @@ export function closingNav(base: string): SidebarNavEntry[] {
             {
               label: "Statements",
               href: `${base}/year-end/statements`,
-              tba: true,
             },
             {
               label: "Publication",

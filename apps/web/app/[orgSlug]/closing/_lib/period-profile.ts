@@ -2,10 +2,12 @@ import "server-only"
 
 import { sql } from "drizzle-orm"
 import { executeRows, withOrganization } from "@workspace/db"
-import type {
-  PersonType,
-  VatFilingPeriod,
-  VatRegime,
+import {
+  getPeriodRegime,
+  type PersonType,
+  type Regime,
+  type VatFilingPeriod,
+  type VatRegime,
 } from "@workspace/accounting"
 
 import {
@@ -15,15 +17,18 @@ import {
 import { formatIsoDate } from "./closing-shared"
 
 /**
- * Resolve the org + active accounting period, then read the vat_status +
- * person_type EFFECTIVE FOR that period (not merely the current one — the
- * active period can be a historical one the user switched to) in one
- * `withOrganization` read. Shared by `getClosingObligations`
- * (closing-data.ts) and `resolveVatContext` (vat-data.ts) — both need this
- * exact same period-effective profile before branching into their own
- * kind-specific logic.
+ * Resolve the org + active accounting period, then read — EFFECTIVE FOR that
+ * period (not merely the current one; the active period can be a historical
+ * one the user switched to) — the vat_status, person_type, and accounting
+ * regime in one `withOrganization` round trip. This is the single
+ * period-scoped profile every Closing loader builds on before branching into
+ * its own kind-specific logic:
+ *   - `getClosingObligations` (closing-data.ts) + `resolveVatContext`
+ *     (vat-data.ts) branch on vat_status + person_type;
+ *   - the annual income-tax (income-tax-data.ts) + year-end
+ *     (year-end-data.ts) loaders branch on person_type + regime.
  */
-export type PeriodVatProfileResult =
+export type PeriodProfileResult =
   | { status: "no-access" }
   | { status: "no-period" }
   | {
@@ -36,11 +41,12 @@ export type PeriodVatProfileResult =
       vatRegimeCode: VatRegime | null
       filingPeriod: VatFilingPeriod | null
       personType: PersonType
+      regime: Regime
     }
 
-export async function resolvePeriodVatProfile(
+export async function resolvePeriodProfile(
   orgSlug: string,
-): Promise<PeriodVatProfileResult> {
+): Promise<PeriodProfileResult> {
   const ctx = await getOrgAccountingContext(orgSlug)
   if (!ctx) return { status: "no-access" }
   if (
@@ -55,10 +61,8 @@ export async function resolvePeriodVatProfile(
   const periodEnd = ctx.periodEnd
   const periodLabel = `${formatIsoDate(periodStart)} – ${formatIsoDate(periodEnd)}`
 
-  const { vatRegimeCode, filingPeriod, personType } = await withOrganization(
-    ctx.organizationId,
-    ctx.userId,
-    async (db) => {
+  const { vatRegimeCode, filingPeriod, personType, regime } =
+    await withOrganization(ctx.organizationId, ctx.userId, async (db) => {
       const [vatStatus] = await executeRows<{
         vat_regime_code: string
         filing_period: string | null
@@ -79,6 +83,7 @@ export async function resolvePeriodVatProfile(
         db,
         sql`SELECT person_type FROM organization WHERE id = ${ctx.organizationId}::uuid`,
       )
+      const regime = await getPeriodRegime(db, periodId)
       return {
         // No vat_status row overlapping the period -> treat as no VAT
         // obligations (same effect as NON_PAYER: computeObligations only
@@ -87,9 +92,9 @@ export async function resolvePeriodVatProfile(
         filingPeriod: (vatStatus?.filing_period ??
           null) as VatFilingPeriod | null,
         personType: (org?.person_type ?? "LEGAL") as PersonType,
+        regime,
       }
-    },
-  )
+    })
 
   return {
     status: "ok",
@@ -101,5 +106,6 @@ export async function resolvePeriodVatProfile(
     vatRegimeCode,
     filingPeriod,
     personType,
+    regime,
   }
 }

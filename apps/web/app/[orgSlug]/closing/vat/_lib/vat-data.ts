@@ -15,13 +15,13 @@ import {
 } from "@workspace/accounting"
 
 import type { OrgAccountingContext } from "../../../_lib/accounting-data"
-import { resolvePeriodVatProfile } from "../../_lib/period-vat-profile"
+import { resolvePeriodProfile } from "../../_lib/period-profile"
 
 /**
  * Server-side data for the Closing VAT pages (Overview / DAP / KH / SH) — the
  * filing-period-aware counterpart of `closing-data.ts`. Resolves the org's
  * active accounting period + the vat_status EFFECTIVE FOR that period (via
- * the shared `resolvePeriodVatProfile`, also used by `getClosingObligations`),
+ * the shared `resolvePeriodProfile`, also used by `getClosingObligations`),
  * then derives the set of statutory FILING periods (month or quarter,
  * §99/§99a ZDPH) a VAT payer owes a return/control-statement/EC-sales-list
  * for, via the `@workspace/accounting` obligation engine. Each filing
@@ -106,7 +106,7 @@ type VatContextResolution =
 
 /**
  * Resolve the org + active period + period-effective vat_status via
- * `resolvePeriodVatProfile` (shared with `getClosingObligations` in
+ * `resolvePeriodProfile` (shared with `getClosingObligations` in
  * closing-data.ts), then derive the filing-period set for one obligation
  * `kind` (VAT_RETURN for DAP, CONTROL_STATEMENT for KH, EC_SALES_LIST for SH)
  * via the obligation engine. `computeObligations` THROWS when regime is
@@ -118,7 +118,7 @@ async function resolveVatContext(
   orgSlug: string,
   kind: ObligationKind,
 ): Promise<VatContextResolution> {
-  const profile = await resolvePeriodVatProfile(orgSlug)
+  const profile = await resolvePeriodProfile(orgSlug)
   if (profile.status !== "ok") return profile
 
   const {

@@ -1,3 +1,9 @@
+import type { ObligationKind } from "./model"
+import {
+  payrollMonthlyDeadline,
+  specialRateWithholdingDeadline,
+} from "./deadlines"
+
 export interface LegalSourceMetadata {
   authority: string
   url: string
@@ -180,8 +186,3 @@ export function payrollDeadlineForMonth(
     ? specialRateWithholdingDeadline(year, month)
     : payrollMonthlyDeadline(year, month)
 }
-import type { ObligationKind } from "./model"
-import {
-  payrollMonthlyDeadline,
-  specialRateWithholdingDeadline,
-} from "./deadlines"

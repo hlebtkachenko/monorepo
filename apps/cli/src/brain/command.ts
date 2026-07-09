@@ -69,7 +69,7 @@ export function registerBrainCommand(program: Command): void {
   brain
     .command("book")
     .description(
-      "Book documents into a capture plan, print it for inspection, and (with --live + confirmation) book " +
+      "Book documents into a capture plan, print it for inspection, and (with confirmation) book " +
         "each. Two shapes: a FOLDER of structured exports (csv / xlsx / Pohoda dataPack XML → " +
         "extractionMethod=structured), OR a single PDF/image + --extracted <ir.json> (the IR a `brain extract` " +
         "vision-OCR pre-pass produced → extractionMethod=ocr, the W1.4 extract→book bridge). --dry-run " +
@@ -95,7 +95,7 @@ export function registerBrainCommand(program: Command): void {
     )
     .option(
       "--yes",
-      "Skip the interactive confirmation prompt on a --live run (non-interactive operators)",
+      "Skip the interactive confirmation prompt on a live run (non-interactive operators)",
     )
     .action(
       async (

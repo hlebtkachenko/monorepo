@@ -1,7 +1,7 @@
 # 29. Brain learned state is workspace-scoped
 
-- Status: Proposed
-- Date: 2026-07-05
+- Status: Accepted
+- Date: 2026-07-05 (Accepted 2026-07-08)
 - Deciders: Hleb Tkachenko
 
 > Records the tenancy tier for anything the Brain LEARNS or REMEMBERS. Pairs with
@@ -23,7 +23,7 @@ clients A and B and both buy from vendor V, V's invoice looks the same on both b
 learned while booking for A must be reusable while booking for B. Scoping the template to the
 organization would relearn (and re-confirm) the same layout N times per office, once per client that
 shares the supplier, and never let confidence accumulate across a workspace. Organization is the
-*momentary* scope in which a document is booked; it is the wrong home for durable, cross-client
+_momentary_ scope in which a document is booked; it is the wrong home for durable, cross-client
 knowledge.
 
 ## Decision
@@ -54,7 +54,7 @@ Positive:
 
 Negative / trade-offs:
 
-- Learned state is not isolated *between clients of the same office*. This is intentional (the whole
+- Learned state is not isolated _between clients of the same office_. This is intentional (the whole
   point is cross-client reuse), but it means a template poisoned while booking for one client would
   be visible to the office's other books — mitigated by the human-confirmation + held/reject
   signals, which are the Brain's confidence gate, not an isolation boundary.

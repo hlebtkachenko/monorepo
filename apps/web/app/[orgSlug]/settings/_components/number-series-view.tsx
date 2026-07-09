@@ -46,7 +46,7 @@ import { backfillNumberSeriesAction } from "../actions"
 
 const DEFAULT_DESCRIPTION_BY_KEY = new Map(
   DEFAULT_NUMBER_SERIES.map((series) => [
-    `${series.entityType}:${series.code}`,
+    `${series.entityType}:${series.code}:${series.pattern}`,
     series.description,
   ]),
 )
@@ -133,7 +133,7 @@ export function NumberSeriesView({
                         <TableCell className="font-mono">{r.code}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {DEFAULT_DESCRIPTION_BY_KEY.get(
-                            `${r.entityType}:${r.code}`,
+                            `${r.entityType}:${r.code}:${r.pattern}`,
                           ) ?? "Custom series"}
                         </TableCell>
                         <TableCell className="font-mono">{r.pattern}</TableCell>

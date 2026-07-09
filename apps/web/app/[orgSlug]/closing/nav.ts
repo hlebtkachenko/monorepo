@@ -52,7 +52,6 @@ export function closingNav(base: string): SidebarNavEntry[] {
           label: "Payroll",
           href: `${base}/payroll`,
           icon: "Users",
-          tba: true,
           subpages: [
             {
               label: "Monthly employer report",

@@ -42,6 +42,7 @@ export type PeriodProfileResult =
       filingPeriod: VatFilingPeriod | null
       personType: PersonType
       regime: Regime
+      hasEmployees: boolean
     }
 
 export async function resolvePeriodProfile(
@@ -61,7 +62,7 @@ export async function resolvePeriodProfile(
   const periodEnd = ctx.periodEnd
   const periodLabel = `${formatIsoDate(periodStart)} – ${formatIsoDate(periodEnd)}`
 
-  const { vatRegimeCode, filingPeriod, personType, regime } =
+  const { vatRegimeCode, filingPeriod, personType, regime, hasEmployees } =
     await withOrganization(ctx.organizationId, ctx.userId, async (db) => {
       const [vatStatus] = await executeRows<{
         vat_regime_code: string
@@ -84,6 +85,20 @@ export async function resolvePeriodProfile(
         sql`SELECT person_type FROM organization WHERE id = ${ctx.organizationId}::uuid`,
       )
       const regime = await getPeriodRegime(db, periodId)
+      const [taxRow] = await executeRows<{ has_employees: boolean }>(
+        db,
+        // Same period-effective predicate as the vat_status read above —
+        // and the same single-value-per-period simplification: if MORE THAN
+        // ONE organization_tax_profile row overlaps the active period (e.g.
+        // a mid-period hire or termination), `ORDER BY valid_from DESC
+        // LIMIT 1` reduces it to the latest overlapping row's value. Splitting
+        // payroll obligations at the mid-period boundary is deferred.
+        sql`SELECT has_employees FROM organization_tax_profile
+            WHERE organization_id = ${ctx.organizationId}::uuid
+              AND valid_from <= ${periodEnd}
+              AND (valid_to IS NULL OR valid_to >= ${periodStart})
+            ORDER BY valid_from DESC LIMIT 1`,
+      )
       return {
         // No vat_status row overlapping the period -> treat as no VAT
         // obligations (same effect as NON_PAYER: computeObligations only
@@ -93,6 +108,10 @@ export async function resolvePeriodProfile(
           null) as VatFilingPeriod | null,
         personType: (org?.person_type ?? "LEGAL") as PersonType,
         regime,
+        // No organization_tax_profile row overlapping the period -> no
+        // payroll obligations, the honest default (no profile set = no
+        // employees on record).
+        hasEmployees: taxRow?.has_employees ?? false,
       }
     })
 
@@ -107,5 +126,6 @@ export async function resolvePeriodProfile(
     filingPeriod,
     personType,
     regime,
+    hasEmployees,
   }
 }

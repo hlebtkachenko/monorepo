@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm"
 import { executeRows, withAdminBypass, withOrganization } from "@workspace/db"
 import {
   backfillDefaultNumberSeries,
+  createTaxProfile,
   createVatStatus,
   rollForwardPeriod,
   type OrgCtx,
@@ -364,6 +365,45 @@ export async function loadVatStatus(
   })
 }
 
+export interface TaxProfileRow {
+  id: string
+  hasEmployees: boolean
+  validFrom: string
+  validTo: string | null
+}
+
+export interface TaxProfileData {
+  history: TaxProfileRow[]
+}
+
+/** organization_tax_profile history (has_employees) for the page. */
+export async function loadTaxProfile(
+  ctx: OrgContext,
+  userId: string,
+): Promise<TaxProfileData> {
+  return await withOrganization(ctx.organizationId, userId, async (db) => {
+    const history = await executeRows<{
+      id: string
+      has_employees: boolean
+      valid_from: string
+      valid_to: string | null
+    }>(
+      db,
+      sql`SELECT id, has_employees, valid_from::text, valid_to::text
+          FROM organization_tax_profile WHERE organization_id = ${ctx.organizationId}::uuid
+          ORDER BY valid_from DESC`,
+    )
+    return {
+      history: history.map((r) => ({
+        id: r.id,
+        hasEmployees: r.has_employees,
+        validFrom: r.valid_from,
+        validTo: r.valid_to,
+      })),
+    }
+  })
+}
+
 /** Data box id only — the Integrations › Data box page. */
 export async function loadDataBox(
   ctx: OrgContext,
@@ -469,6 +509,35 @@ export async function changeVatStatus(
       vatRegimeCode: input.vatRegimeCode,
       validFrom: input.validFrom,
       filingPeriod: input.filingPeriod,
+    })
+  })
+}
+
+/**
+ * Change the tax profile: close the open row (valid_to = day before the new
+ * start) and insert the new one via the accounting domain helper. The
+ * organization_tax_profile_no_overlap gist EXCLUDE rejects any range collision.
+ */
+export async function changeTaxProfile(
+  ctx: OrgContext,
+  userId: string,
+  input: { hasEmployees: boolean; validFrom: string },
+): Promise<void> {
+  await withOrganization(ctx.organizationId, userId, async (db) => {
+    const priorDay = new Date(`${input.validFrom}T00:00:00Z`)
+    priorDay.setUTCDate(priorDay.getUTCDate() - 1)
+    const closeAt = priorDay.toISOString().slice(0, 10)
+    await db.execute(
+      sql`UPDATE organization_tax_profile SET valid_to = ${closeAt}::date
+          WHERE organization_id = ${ctx.organizationId}::uuid AND valid_to IS NULL`,
+    )
+    const orgCtx: OrgCtx = {
+      organizationId: ctx.organizationId,
+      workspaceId: ctx.workspaceId,
+    }
+    await createTaxProfile(db, orgCtx, {
+      hasEmployees: input.hasEmployees,
+      validFrom: input.validFrom,
     })
   })
 }

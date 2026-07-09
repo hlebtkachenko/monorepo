@@ -49,15 +49,12 @@ export async function getClosingObligations(
     vatRegimeCode,
     filingPeriod,
     personType,
+    hasEmployees,
   } = profile
 
   if (vatRegimeCode === "PAYER" && filingPeriod == null) {
     return { status: "vat-unconfigured", periodLabel }
   }
-
-  // TODO(tax-profile): wire real has_employees once organization_tax_profile
-  // lands (PR 3d); false = no payroll obligations shown, honest default.
-  const hasEmployees = false
 
   const obligations = computeObligations({
     periodStart,

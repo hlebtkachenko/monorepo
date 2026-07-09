@@ -2187,6 +2187,22 @@ CREATE TABLE public.organization_provisioning (
 ALTER TABLE ONLY public.organization_provisioning FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: organization_tax_profile; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.organization_tax_profile (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    valid_from date NOT NULL,
+    valid_to date,
+    has_employees boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT organization_tax_profile_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to)))
+);
+
+ALTER TABLE ONLY public.organization_tax_profile FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: organization_tax_representative; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3180,6 +3196,20 @@ ALTER TABLE ONLY public.organization_provisioning
 
 ALTER TABLE public.organization
     ADD CONSTRAINT organization_slug_not_reserved CHECK ((NOT public.app_is_reserved_org_slug((slug)::text))) NOT VALID;
+
+--
+-- Name: organization_tax_profile organization_tax_profile_no_overlap; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_tax_profile
+    ADD CONSTRAINT organization_tax_profile_no_overlap EXCLUDE USING gist (organization_id WITH =, daterange(valid_from, COALESCE(valid_to, 'infinity'::date), '[]'::text) WITH &&);
+
+--
+-- Name: organization_tax_profile organization_tax_profile_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_tax_profile
+    ADD CONSTRAINT organization_tax_profile_pkey PRIMARY KEY (id);
 
 --
 -- Name: organization_tax_representative organization_tax_representative_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4858,6 +4888,13 @@ ALTER TABLE ONLY public.organization_provisioning
     ADD CONSTRAINT organization_provisioning_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
 
 --
+-- Name: organization_tax_profile organization_tax_profile_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization_tax_profile
+    ADD CONSTRAINT organization_tax_profile_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
 -- Name: organization_tax_representative organization_tax_representative_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5571,6 +5608,12 @@ CREATE POLICY organization_isolation ON public.organization_business_activity US
 CREATE POLICY organization_isolation ON public.organization_oss_registration USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: organization_tax_profile organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.organization_tax_profile USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: organization_tax_representative organization_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -5671,6 +5714,12 @@ CREATE POLICY organization_provisioning_select ON public.organization_provisioni
 --
 
 CREATE POLICY organization_provisioning_update ON public.organization_provisioning FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: organization_tax_profile; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.organization_tax_profile ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: organization_tax_representative; Type: ROW SECURITY; Schema: public; Owner: -

@@ -1,7 +1,7 @@
 # Scripts Enablement
 
-> **Tracked in Linear: [AFF-30](https://linear.app/hapddev/issue/AFF-30/port-deferred-shell-scripts-when-prerequisites-land).**
-> Delete this file when AFF-30 is closed. Planning is tracked in Linear, not here — see [`docs/plans/README.md`](./README.md).
+> **Tracked in GitHub Issues: legacy AFF-30.**
+> Delete this file when AFF-30 is closed. Planning is tracked in GitHub Issues, not here — see [`docs/plans/README.md`](./README.md).
 
 Scripts intentionally NOT ported from prior repos pending prerequisites. Each entry lists the trigger condition for porting and a reference path.
 

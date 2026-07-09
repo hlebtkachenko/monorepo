@@ -4,7 +4,7 @@
 # this catches scan FINDINGS (a real high/critical alert raised while the workflow itself
 # went green and uploaded SARIF). Pulls open code-scanning alerts (CodeQL, Trivy container
 # scan, Nuclei DAST, and OSV dependency CVEs — all upload SARIF to the code-scanning store)
-# and forwards each NEW one to the bot's /issue, which opens a deduped [SECURITY] Linear
+# and forwards each NEW one to the bot's /issue, which opens a deduped [SECURITY] GitHub
 # issue (source security-scan -> agent-created + security-scan + security labels).
 #
 # Scope notes (deliberate, see DEV-59):

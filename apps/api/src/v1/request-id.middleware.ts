@@ -9,7 +9,7 @@ export interface RequestWithId extends Request {
 
 /**
  * Caller-supplied ids must be tame: they are interpolated into error logs,
- * echoed as a response header, and embedded in auto-filed Linear issue
+ * echoed as a response header, and embedded in auto-filed GitHub issue
  * bodies. Anything outside this shape is replaced with a fresh UUID.
  */
 const REQUEST_ID_RE = /^[A-Za-z0-9_-]{1,64}$/

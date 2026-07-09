@@ -1055,7 +1055,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Overview",
           "route": "closing",
           "icon": "CalendarClock",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -1065,7 +1065,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Calendar",
           "route": "closing/calendar",
           "icon": "CalendarIcon",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -1095,28 +1095,28 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "VAT",
           "route": "closing/vat",
           "icon": "ReceiptEuro",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": [
             {
               "label": "VAT return",
               "route": "closing/vat/dap",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },
             {
               "label": "Control statement",
               "route": "closing/vat/kh",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },
             {
               "label": "EC Sales List",
               "route": "closing/vat/sh",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },
@@ -1141,7 +1141,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Payroll",
           "route": "closing/payroll",
           "icon": "Users",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": [
@@ -1180,21 +1180,21 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Income tax",
           "route": "closing/income-tax",
           "icon": "Calculator",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": [
             {
               "label": "Corporation tax",
               "route": "closing/income-tax/dppo",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },
             {
               "label": "Personal income tax",
               "route": "closing/income-tax/dpfo",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },
@@ -1237,7 +1237,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Year-end",
           "route": "closing/year-end",
           "icon": "Archive",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": [
@@ -1272,7 +1272,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
             {
               "label": "Statements",
               "route": "closing/year-end/statements",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },
@@ -1805,6 +1805,16 @@ export const APP_STRUCTURE: GetStructureResponse = {
         },
         {
           "group": "Organisation",
+          "label": "Tax profile",
+          "route": "settings/tax-profile",
+          "icon": "Users",
+          "tba": false,
+          "archetype": null,
+          "purpose": null,
+          "subpages": []
+        },
+        {
+          "group": "Organisation",
           "label": "Business activities",
           "route": "settings/business-activities",
           "icon": "Briefcase",
@@ -1828,7 +1838,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Number series",
           "route": "settings/number-series",
           "icon": "HashIcon",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []

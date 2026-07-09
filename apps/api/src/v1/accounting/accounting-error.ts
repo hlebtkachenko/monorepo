@@ -107,7 +107,7 @@ export function translateAccountingError(e: unknown): never {
   }
   // Plain substring checks (not a regex) — the message can embed user-supplied
   // text, and a `fx rate.*required` pattern backtracks polynomially (ReDoS) on
-  // repeated "fx rate" input. Linear `includes` is equivalent for classification.
+  // repeated "fx rate" input. A linear `includes` check is equivalent for classification.
   const lower = msg.toLowerCase()
   if (
     lower.includes("fx rate is set") ||

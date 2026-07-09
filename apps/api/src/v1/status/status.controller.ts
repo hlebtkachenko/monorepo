@@ -12,8 +12,7 @@ import type { StatusResponse } from "@workspace/shared/api"
  * monitors are still `active: false` — see infra/openstatus/openstatus.yaml).
  *
  * Verification of the live OpenStatus shape is tracked separately and
- * should happen the first time `status.afframe.com` returns real data
- * — see the AFF Linear issue filed alongside this commit.
+ * should happen the first time `status.afframe.com` returns real data.
  *
  * Public endpoint (no API key); the data it exposes is already public
  * via status.afframe.com.

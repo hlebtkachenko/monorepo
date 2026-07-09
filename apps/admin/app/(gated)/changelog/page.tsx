@@ -10,9 +10,15 @@ import { PageHeader, StubBanner } from "@/app/(gated)/_components"
 export const metadata = { title: "Changelog" }
 export const revalidate = 3600
 
-const RELEASES_API =
-  "https://api.github.com/repos/hlebtkachenko/monorepo/releases?per_page=20"
-const RELEASES_URL = "https://github.com/hlebtkachenko/monorepo/releases"
+const repositorySlug =
+  process.env.GITHUB_REPOSITORY?.trim() ??
+  process.env.NEXT_PUBLIC_GITHUB_REPOSITORY?.trim()
+const releasesApi = repositorySlug
+  ? `https://api.github.com/repos/${repositorySlug}/releases?per_page=20`
+  : null
+const releasesUrl = repositorySlug
+  ? `https://github.com/${repositorySlug}/releases`
+  : null
 
 type Release = {
   id: number
@@ -26,8 +32,9 @@ type Release = {
 }
 
 async function fetchReleases(): Promise<Release[] | null> {
+  if (!releasesApi) return null
   try {
-    const res = await fetch(RELEASES_API, {
+    const res = await fetch(releasesApi, {
       headers: {
         Accept: "application/vnd.github+json",
         "User-Agent": "afframe-admin",
@@ -61,26 +68,32 @@ export default async function Page() {
 
       {releases === null ? (
         <StubBanner>
-          Could not load releases from GitHub right now.
-          <span className="mt-2 block">
-            View them on{" "}
-            <a
-              href={RELEASES_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-0.5 underline underline-offset-4"
-            >
-              GitHub
-              <ArrowUpRight className="size-3" />
-            </a>
-            .
-          </span>
+          {releasesUrl ? (
+            <>
+              Could not load releases from GitHub right now.
+              <span className="mt-2 block">
+                View them on{" "}
+                <a
+                  href={releasesUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-0.5 underline underline-offset-4"
+                >
+                  GitHub
+                  <ArrowUpRight className="size-3" />
+                </a>
+                .
+              </span>
+            </>
+          ) : (
+            "GitHub repository metadata is not configured for this build."
+          )}
         </StubBanner>
-      ) : releases.length === 0 ? (
+      ) : releases.length === 0 && releasesUrl ? (
         <p className="text-sm text-muted-foreground">
           No releases published yet.{" "}
           <a
-            href={RELEASES_URL}
+            href={releasesUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-0.5 underline underline-offset-4"
@@ -88,6 +101,10 @@ export default async function Page() {
             GitHub
             <ArrowUpRight className="size-3" />
           </a>
+        </p>
+      ) : releases.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No releases published yet.
         </p>
       ) : (
         <div className="flex flex-col gap-6">

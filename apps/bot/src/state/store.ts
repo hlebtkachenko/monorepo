@@ -68,6 +68,8 @@ export interface Store {
   createDedup(r: DedupRecord): Promise<void>
   /** Atomically bump count + lastSeen; returns the new count. */
   bumpDedup(fingerprint: string, lastSeen: number): Promise<number>
+  /** Drop a dedup row so the fingerprint re-files (stale non-GitHub id / deleted issue). */
+  deleteDedup(fingerprint: string): Promise<void>
   putApproval(r: ApprovalRecord): Promise<void>
   getApproval(id: string): Promise<ApprovalRecord | null>
   /** Look up an approval by its Telegram prompt message id (for matching a free-text reply). */
@@ -217,6 +219,12 @@ export function createStore(db: D1Database): Store {
         .bind(lastSeen, fingerprint)
         .first<{ count: number }>()
       return row?.count ?? 0
+    },
+    async deleteDedup(fingerprint) {
+      await db
+        .prepare("DELETE FROM dedup WHERE fingerprint = ?")
+        .bind(fingerprint)
+        .run()
     },
     async putApproval(r) {
       await db

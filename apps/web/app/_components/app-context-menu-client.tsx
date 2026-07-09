@@ -37,7 +37,7 @@ export function AppContextMenuClient({
     // server action (same-origin RPC → server-to-server, no browser
     // CORS). Throws on failure so the BugReportDialog's submit-state
     // machine flips to "error" and keeps itself open. v1 returns an
-    // opaque referenceId (no Linear issue URL), surfaced via the toast.
+    // opaque referenceId (no tracker URL), surfaced via the toast.
     const { referenceId } = await reportFeedback(payload)
     toast.success(`Feedback sent — ${referenceId}`)
   }, [])

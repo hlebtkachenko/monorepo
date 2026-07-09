@@ -81,7 +81,7 @@ Useful for webhook handlers that need runtime validation without taking the netw
 | `meta.ping()`        | `GET /v1/ping`         |
 | `organization.get()` | `GET /v1/organization` |
 
-Domain endpoints (invoices, accounts, journals) land with [AFF-71](https://linear.app/).
+Domain endpoints (invoices, accounts, journals) are tracked in the GitHub Roadmap project.
 
 ## Design
 

@@ -1,19 +1,19 @@
 # Secrets Management Migration — Afframe
 
-> **Backs:** [AFF-245](https://linear.app/hapddev/issue/AFF-245) (umbrella),
-> [AFF-243](https://linear.app/hapddev/issue/AFF-243) (deferred dynamic DB
-> secrets), [AFF-244](https://linear.app/hapddev/issue/AFF-244) (deferred audit
+> **Backs:** legacy AFF-245 (umbrella),
+> legacy AFF-243 (deferred dynamic DB
+> secrets), legacy AFF-244 (deferred audit
 > log shipping). Conceptual primer: [`SECRETS-101.md`](SECRETS-101.md).
 >
 > **Snapshot:** 2026-05-31. **M0–M10 COMPLETE — migration closed.** App-runtime
 > secrets (`BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN`)
 > flow Vault → SSM SecureString → ECS in staging + production. Root token
-> revoked; `LINEAR_API_KEY` on GitHub-OIDC→Vault. Legacy AWS SM copies
-> deleting (permanent 2026-06-07). M10 rotation drill verified end-to-end +
-> old Resend key revoked; cost audit done; Keychain trimmed; full git-history
-> leak scan clean. Only deferred follow-ups remain (AFF-243 dynamic DB
-> secrets, AFF-247 DR restore drill, AFF-246 B2 secondary backup) — none
-> block the migration.
+> revoked; GitHub-OIDC→Vault JWT pilot completed and is now retired. Legacy AWS
+> SM copies deleting (permanent 2026-06-07). M10 rotation drill verified
+> end-to-end + old Resend key revoked; cost audit done; Keychain trimmed; full
+> git-history leak scan clean. Only deferred follow-ups remain (AFF-243 dynamic
+> DB secrets, AFF-247 DR restore drill, AFF-246 B2 secondary backup) — none block
+> the migration.
 
 ---
 
@@ -21,32 +21,32 @@
 
 **Done end-to-end:**
 
-| Milestone                                 | Status  | Evidence                                                                                                                                                                                                                            |
-| ----------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M0 — backlog + plan + scans               | ✅ DONE | AFF-243/244/245 created; lefthook + CI gitleaks + infisical-scan live                                                                                                                                                               |
-| M1 — Vault VPS bring-up                   | ✅ DONE | `secrets-admin.afframe.com` initialized, KMS auto-unseal, CF Access gate, kv-v2 at `platform/`                                                                                                                                      |
-| M2 — Restic → R2 backup                   | ✅ DONE | timer every 6h, snapshots in `afframe-vault-backup` R2 bucket                                                                                                                                                                       |
-| M3 — Vault `aws auth` method              | ✅ DONE | `vault-aws-auth-verifier` IAM user wired; `ecs-{staging,production}` roles bound                                                                                                                                                    |
-| M3.5 — revoke initial root token          | ✅ DONE | Root revoked 2026-05-31; replaced by orphan `operator-admin` token (Keychain). Hit + recovered a non-orphan cascade-revoke (recovery-key regen). Lesson recorded in `VAULT-OPS.md`.                                                 |
-| M4 — Vault → SSM sync + CDK flip          | ✅ DONE | `vault-to-ssm-sync` timer every 5 min; staging + **production** ECS task defs read all 3 secrets via `EcsSecret.fromSsmParameter`; prod cutover deploy `26394076696` green; live signup + reset-email smoke passed                  |
-| M4.5 — delete legacy AWS SM entries       | ✅ DONE | 6 SM secrets (`monorepo-{staging,production}-{better-auth-secret,resend-api-key,cloudflare-tunnel-token}`) scheduled for deletion 2026-05-31, permanent 2026-06-07; CloudTrail soak showed 0 `GetSecretValue` in prior 48h          |
-| M5 — GHA OIDC → Vault JWT (`linear-sync`) | ✅ DONE | JWT auth + `gha-monorepo` role; `linear-sync.yml` fetches `LINEAR_API_KEY` from Vault; audit log shows `auth/jwt/login` role=gha-monorepo + read on `platform/data/shared/linear-api-key`; PR #279 merged                           |
-| M6 — remaining GHA secret cleanup         | ✅ DONE | `RESEND_API_KEY` was vestigial in `_deploy-aws.yml` post-M4 (presence-check only, never consumed) — removed. `EMAIL_FORWARD_TO` kept (email address, not a credential; used for SNS alert subscribe). No further Vault-OIDC needed. |
-| M7 — pre-commit + CI secret scanning      | ✅ DONE | both scanners active locally + in CI                                                                                                                                                                                                |
-| M8 — final doc rewrite                    | ✅ DONE | `SECRETS.md` (SOPS section deleted, Vault matrix), `env-vars.md`, `SECRETS-ROTATION.md` (Vault recipes), `AWS-SETUP.md`, `VAULT-OPS.md` (M3.5 + M5 as-built) — this PR                                                              |
-| M9 — IAM blast-radius tightening          | ✅ DONE | Verified both task-execution roles grant `secretsmanager` only on `DbSecret` + `AppUserSecret` (RDS); the 3 migrated secrets use SSM grants only. M4 CDK flip already removed the SM grants — no residual.                          |
+| Milestone                            | Status  | Evidence                                                                                                                                                                                                                            |
+| ------------------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M0 — backlog + plan + scans          | ✅ DONE | AFF-243/244/245 created; lefthook + CI gitleaks + infisical-scan live                                                                                                                                                               |
+| M1 — Vault VPS bring-up              | ✅ DONE | `secrets-admin.afframe.com` initialized, KMS auto-unseal, CF Access gate, kv-v2 at `platform/`                                                                                                                                      |
+| M2 — Restic → R2 backup              | ✅ DONE | timer every 6h, snapshots in `afframe-vault-backup` R2 bucket                                                                                                                                                                       |
+| M3 — Vault `aws auth` method         | ✅ DONE | `vault-aws-auth-verifier` IAM user wired; `ecs-{staging,production}` roles bound                                                                                                                                                    |
+| M3.5 — revoke initial root token     | ✅ DONE | Root revoked 2026-05-31; replaced by orphan `operator-admin` token (Keychain). Hit + recovered a non-orphan cascade-revoke (recovery-key regen). Lesson recorded in `VAULT-OPS.md`.                                                 |
+| M4 — Vault → SSM sync + CDK flip     | ✅ DONE | `vault-to-ssm-sync` timer every 5 min; staging + **production** ECS task defs read all 3 secrets via `EcsSecret.fromSsmParameter`; prod cutover deploy `26394076696` green; live signup + reset-email smoke passed                  |
+| M4.5 — delete legacy AWS SM entries  | ✅ DONE | 6 SM secrets (`monorepo-{staging,production}-{better-auth-secret,resend-api-key,cloudflare-tunnel-token}`) scheduled for deletion 2026-05-31, permanent 2026-06-07; CloudTrail soak showed 0 `GetSecretValue` in prior 48h          |
+| M5 — GHA OIDC → Vault JWT pilot      | ✅ DONE | JWT auth + `gha-monorepo` role; retired tracker write-back workflow fetched a shared token from Vault; audit log showed `auth/jwt/login` role=gha-monorepo + a read on `platform/data/shared/*`; PR #279 merged                     |
+| M6 — remaining GHA secret cleanup    | ✅ DONE | `RESEND_API_KEY` was vestigial in `_deploy-aws.yml` post-M4 (presence-check only, never consumed) — removed. `EMAIL_FORWARD_TO` kept (email address, not a credential; used for SNS alert subscribe). No further Vault-OIDC needed. |
+| M7 — pre-commit + CI secret scanning | ✅ DONE | both scanners active locally + in CI                                                                                                                                                                                                |
+| M8 — final doc rewrite               | ✅ DONE | `SECRETS.md` (SOPS section deleted, Vault matrix), `env-vars.md`, `SECRETS-ROTATION.md` (Vault recipes), `AWS-SETUP.md`, `VAULT-OPS.md` (M3.5 + M5 as-built) — this PR                                                              |
+| M9 — IAM blast-radius tightening     | ✅ DONE | Verified both task-execution roles grant `secretsmanager` only on `DbSecret` + `AppUserSecret` (RDS); the 3 migrated secrets use SSM grants only. M4 CDK flip already removed the SM grants — no residual.                          |
 
 | M10 — rotation drill + cost audit + advisor gate 5 | ✅ DONE | Rotated `RESEND_API_KEY` Vault→SSM→ECS on prod 2026-05-31, verified the new value in the running container, old key revoked in Resend. Cost audit: ~−$1.80/mo net gross (SM −$2.80 as 7 secrets delete 2026-06-07, KMS +$1.00, SSM $0). Advisor gate 5 signed off. |
 | Keychain cleanup | ✅ DONE | `phase6-keychain-cleanup.sh` run; revoked-root accessor + regenerable verifier keys removed. Keychain now holds operator-admin (daily) + ssm-sync escrow only. Break-glass recovery keys live on paper, not Keychain (see `VAULT-OPS.md`). |
 
 **Deferred (tracked, do not block closure):**
 
-| Item                                                       | Ticket                                              |
-| ---------------------------------------------------------- | --------------------------------------------------- |
-| Dynamic DB secrets (Vault-issued short-lived RDS users)    | [AFF-243](https://linear.app/hapddev/issue/AFF-243) |
-| DR restore drill (verify restic→R2 restore RTO end-to-end) | [AFF-247](https://linear.app/hapddev/issue/AFF-247) |
-| Backblaze B2 secondary backup                              | [AFF-246](https://linear.app/hapddev/issue/AFF-246) |
-| Centralized audit-log shipping                             | [AFF-244](https://linear.app/hapddev/issue/AFF-244) |
+| Item                                                       | Ticket         |
+| ---------------------------------------------------------- | -------------- |
+| Dynamic DB secrets (Vault-issued short-lived RDS users)    | legacy AFF-243 |
+| DR restore drill (verify restic→R2 restore RTO end-to-end) | legacy AFF-247 |
+| Backblaze B2 secondary backup                              | legacy AFF-246 |
+| Centralized audit-log shipping                             | legacy AFF-244 |
 
 ### Hardening pass — 2026-05-31
 
@@ -109,22 +109,22 @@ This plan is structured for autonomous execution with **advisor checkpoints** at
 
 ## Locked decisions
 
-| #   | Decision                                                                                                                             | Rationale                                                                                                                                                                                                                                                                                                                      |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Vault: HashiCorp Vault (IBM, BSL 1.1)                                                                                                | Internal-use free; biggest ecosystem; auditor-familiar                                                                                                                                                                                                                                                                         |
-| 2   | Host: Hostinger KVM 2 VPS, `/srv/secrets/vault/`                                                                                     | Bootstrap done (VPS hardened, Docker installed, dir tree created, snapshot taken)                                                                                                                                                                                                                                              |
-| 3   | Public URL: `secrets-admin.afframe.com`                                                                                              | Single-level subdomain, free Universal SSL                                                                                                                                                                                                                                                                                     |
-| 4   | Storage backend: Vault Integrated Storage (Raft, single node)                                                                        | No external Consul; Postgres backend deferred                                                                                                                                                                                                                                                                                  |
-| 5   | Auto-unseal: AWS KMS Customer Master Key (~$1/mo, in eu-central-1)                                                                   | No Shamir-entry friction on reboot                                                                                                                                                                                                                                                                                             |
-| 6   | Staff SSO: Cloudflare Access (free, ≤50 users)                                                                                       | 10-min setup; `apps/auth` Better Auth IdP tracked in [AFF-242](https://linear.app/hapddev/issue/AFF-242)                                                                                                                                                                                                                       |
-| 7   | Runtime injection: ECS reads from AWS SSM SecureString (free); Vault syncs values into SSM                                           | Zero ECS code change; CDK gets simpler; native `EcsSecret.fromSsmParameter`                                                                                                                                                                                                                                                    |
-| 8   | RDS credentials stay in AWS Secrets Manager                                                                                          | Native rotation Lambda is battle-tested; dynamic secrets deferred ([AFF-243](https://linear.app/hapddev/issue/AFF-243))                                                                                                                                                                                                        |
-| 9   | TUNNEL_TOKEN stays in AWS SSM SecureString, **flowed direct from GH repo secret → SSM, never through Vault**                         | Chicken-and-egg: the tunnel must work BEFORE Vault is reachable; routing the value through Vault would create a circular dependency                                                                                                                                                                                            |
-| 10  | Backup: restic → Cloudflare R2 (primary) — Backblaze B2 secondary **deferred** ([AFF-246](https://linear.app/hapddev/issue/AFF-246)) | R2 alone covers daily recovery + restic encrypts client-side. B2 was scoped for single-vendor-SPOF coverage but adds ops cost; revisit on SOC 2 prep, CF incident, or second-operator onboarding. Script is feature-flagged on B2 env vars being non-empty so the secondary mirror lights up automatically when AFF-246 lands. |
-| 11  | Audit device: file-based on VPS, Day 1                                                                                               | Loki/S3 shipping deferred ([AFF-244](https://linear.app/hapddev/issue/AFF-244))                                                                                                                                                                                                                                                |
-| 12  | Local dev: keep `scripts/generate-env.sh` as-is                                                                                      | Solo dev, no team sharing pressure yet                                                                                                                                                                                                                                                                                         |
-| 13  | Pre-commit: add `infisical scan` alongside existing gitleaks in `lefthook.yml`                                                       | 6-line addition, defense in depth                                                                                                                                                                                                                                                                                              |
-| 14  | Secret-escrow store: **macOS Keychain (encrypted iCloud sync) + offline escrow**                                                     | No 1Password (operator does not use it); Keychain is OS-native, offline escrow is the off-machine survival path                                                                                                                                                                                                                |
+| #   | Decision                                                                                                     | Rationale                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Vault: HashiCorp Vault (IBM, BSL 1.1)                                                                        | Internal-use free; biggest ecosystem; auditor-familiar                                                                                                                                                                                                                                                                         |
+| 2   | Host: Hostinger KVM 2 VPS, `/srv/secrets/vault/`                                                             | Bootstrap done (VPS hardened, Docker installed, dir tree created, snapshot taken)                                                                                                                                                                                                                                              |
+| 3   | Public URL: `secrets-admin.afframe.com`                                                                      | Single-level subdomain, free Universal SSL                                                                                                                                                                                                                                                                                     |
+| 4   | Storage backend: Vault Integrated Storage (Raft, single node)                                                | No external Consul; Postgres backend deferred                                                                                                                                                                                                                                                                                  |
+| 5   | Auto-unseal: AWS KMS Customer Master Key (~$1/mo, in eu-central-1)                                           | No Shamir-entry friction on reboot                                                                                                                                                                                                                                                                                             |
+| 6   | Staff SSO: Cloudflare Access (free, ≤50 users)                                                               | 10-min setup; `apps/auth` Better Auth IdP tracked in legacy AFF-242                                                                                                                                                                                                                                                            |
+| 7   | Runtime injection: ECS reads from AWS SSM SecureString (free); Vault syncs values into SSM                   | Zero ECS code change; CDK gets simpler; native `EcsSecret.fromSsmParameter`                                                                                                                                                                                                                                                    |
+| 8   | RDS credentials stay in AWS Secrets Manager                                                                  | Native rotation Lambda is battle-tested; dynamic secrets deferred (legacy AFF-243)                                                                                                                                                                                                                                             |
+| 9   | TUNNEL_TOKEN stays in AWS SSM SecureString, **flowed direct from GH repo secret → SSM, never through Vault** | Chicken-and-egg: the tunnel must work BEFORE Vault is reachable; routing the value through Vault would create a circular dependency                                                                                                                                                                                            |
+| 10  | Backup: restic → Cloudflare R2 (primary) — Backblaze B2 secondary **deferred** (legacy AFF-246)              | R2 alone covers daily recovery + restic encrypts client-side. B2 was scoped for single-vendor-SPOF coverage but adds ops cost; revisit on SOC 2 prep, CF incident, or second-operator onboarding. Script is feature-flagged on B2 env vars being non-empty so the secondary mirror lights up automatically when AFF-246 lands. |
+| 11  | Audit device: file-based on VPS, Day 1                                                                       | Loki/S3 shipping deferred (legacy AFF-244)                                                                                                                                                                                                                                                                                     |
+| 12  | Local dev: keep `scripts/generate-env.sh` as-is                                                              | Solo dev, no team sharing pressure yet                                                                                                                                                                                                                                                                                         |
+| 13  | Pre-commit: add `infisical scan` alongside existing gitleaks in `lefthook.yml`                               | 6-line addition, defense in depth                                                                                                                                                                                                                                                                                              |
+| 14  | Secret-escrow store: **macOS Keychain (encrypted iCloud sync) + offline escrow**                             | No 1Password (operator does not use it); Keychain is OS-native, offline escrow is the off-machine survival path                                                                                                                                                                                                                |
 
 ---
 
@@ -162,9 +162,9 @@ Projected at 100 clients (~800 secrets): naive "all AWS SM" path = ~$340/mo. Vau
 
 Each milestone has: Goal → Tasks → Verification → Rollback. Five milestones have explicit **Advisor checkpoints** before they can be marked complete.
 
-### M0 — Pre-flight + Linear backlog setup
+### M0 — Pre-flight + GitHub backlog setup
 
-**Goal**: confirm preconditions; create Linear issues for deferred work.
+**Goal**: confirm preconditions; create GitHub issues for deferred work.
 
 **Tasks**:
 
@@ -172,9 +172,9 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 - Verify Cloudflare Tunnel admin access available
 - Verify AWS CLI configured with admin credentials
 - Verify `gh` CLI authenticated
-- ✅ Create Linear issue: ["Vault dynamic DB secrets — evaluate at 100 clients or SOC 2 horizon"](https://linear.app/hapddev/issue/AFF-243) (defers locked decision 8 follow-up)
-- ✅ Create Linear issue: ["Vault audit log shipping — file-based today, ship to Loki+S3 when team grows"](https://linear.app/hapddev/issue/AFF-244) (defers locked decision 11 follow-up)
-- ✅ Create umbrella issue: [AFF-245](https://linear.app/hapddev/issue/AFF-245)
+- ✅ Create GitHub issue: "Vault dynamic DB secrets — evaluate at 100 clients or SOC 2 horizon" (legacy AFF-243, defers locked decision 8 follow-up)
+- ✅ Create GitHub issue: "Vault audit log shipping — file-based today, ship to Loki+S3 when team grows" (legacy AFF-244, defers locked decision 11 follow-up)
+- ✅ Create umbrella issue: legacy AFF-245
 
 **Verification**: AFF-243, AFF-244, AFF-245 all created.
 
@@ -195,7 +195,7 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
      - Region: eu-central-1 (single-region; same as the rest of the AWS footprint)
    - Create a dedicated IAM user `vault-unseal-vps` with **only** `kms:Encrypt`, `kms:Decrypt`, `kms:DescribeKey` on the new Key (scoped resource ARN, not `*`)
    - Generate access keys for that user; record Access Key ID + Secret in macOS Keychain entries on operator laptop + offline escrow
-   - Set a 90-day rotation reminder (calendar / Linear) for the static access keys
+   - Set a 90-day rotation reminder (calendar / GitHub Issues) for the static access keys
    - Pre-deploy: `cdk diff` must show **no** `[-] AWS::KMS::Key` resource — if it does, abort
 
 2. **Cloudflare Tunnel**:
@@ -546,14 +546,14 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 1. **Enable Vault JWT auth method**:
    - `vault auth enable jwt`
    - Configure with GitHub's OIDC discovery URL: `https://token.actions.githubusercontent.com`
-   - Create role `gha-monorepo` bound on **`bound_claims`** (not subject) — `bound_claims.repository = "hlebtkachenko/monorepo"` + `bound_claims.workflow_ref = "hlebtkachenko/monorepo/.github/workflows/linear-sync.yml@refs/heads/main"` (the pilot workflow has no `environment:` scope, so `bound_subject = environment:*` would never match)
+   - Create role `gha-monorepo` bound on **`bound_claims`** (not subject) — `bound_claims.repository = "hlebtkachenko/monorepo"` + workflow-specific `bound_claims.workflow_ref` (the pilot workflow had no `environment:` scope, so `bound_subject = environment:*` would never match)
    - Bind to policy `gha-read-shared-tokens`
 
-2. **Pilot workflow**: `linear-sync.yml` (`LINEAR_API_KEY`)
-   - Seed Vault: `vault kv put platform/data/shared/linear-api-key value=<current>`
+2. **Pilot workflow**: retired tracker write-back workflow
+   - Seed Vault: `vault kv put platform/data/shared/<token-name> value=<current>`
    - Update workflow:
      - Add `permissions: { id-token: write, contents: read }`
-     - Replace `LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}` with a Vault fetch step that exchanges GitHub OIDC for Vault token, then `vault kv get`
+     - Replace a GitHub secret read with a Vault fetch step that exchanges GitHub OIDC for Vault token, then `vault kv get`
    - Test by triggering the workflow manually
 
 **Pre-existence note**: GitHub OIDC is already mature in this repo (≈12 workflows use `id-token: write`, AWS deploy trusts it via `AWS_DEPLOY_ROLE_ARN_*`). The Vault JWT auth method reuses the same `https://token.actions.githubusercontent.com` issuer — no chicken-and-egg.
@@ -562,10 +562,10 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 
 **Verification**:
 
-- `linear-sync.yml` runs green using Vault-issued credential
+- The pilot workflow runs green using a Vault-issued credential
 - Audit log records the GitHub OIDC auth event with correct subject
 
-**Rollback**: revert the workflow change — `${{ secrets.LINEAR_API_KEY }}` still in GH, instant.
+**Rollback**: revert the workflow change — the matching repo secret still exists in GitHub, instant.
 
 ---
 
@@ -575,7 +575,7 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 
 **Order of migration** (lowest blast radius first):
 
-1. `LINEAR_API_KEY` (done in M5)
+1. Shared tracker token (done in M5 pilot, now retired)
 2. `RESEND_API_KEY` (used by `_deploy-aws.yml` — already in Vault from M4)
 3. `EMAIL_FORWARD_TO` (low-stakes)
 4. ~~`CLOUDFLARE_TUNNEL_TOKEN_*`~~ — keep in GH (chicken-and-egg with Vault)
@@ -721,7 +721,7 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 
 - All milestones marked complete in execution log
 - All locked decisions implemented
-- All deferred items have Linear issues
+- All deferred items have GitHub issues
 - Cost audit matches projection ±20%
 - Compliance mapping reviewed
 - Backup restore drill repeated successfully one final time
@@ -730,13 +730,13 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 
 ---
 
-## Deferred items (Linear)
+## Deferred items (GitHub Issues)
 
-1. **Vault dynamic DB secrets** — [AFF-243](https://linear.app/hapddev/issue/AFF-243). Evaluate at 100 clients or SOC 2 horizon. Per-app ephemeral PostgreSQL users with 1h TTL. Requires app-side connection pool refresh logic. Not in scope today.
+1. **Vault dynamic DB secrets** — legacy AFF-243. Evaluate at 100 clients or SOC 2 horizon. Per-app ephemeral PostgreSQL users with 1h TTL. Requires app-side connection pool refresh logic. Not in scope today.
 
-2. **Vault audit log shipping** — [AFF-244](https://linear.app/hapddev/issue/AFF-244). File-based on VPS today; ship to Loki + S3 archive when team grows or SOC 2 audit scheduled. 13-month retention required for SOC 2 Type II.
+2. **Vault audit log shipping** — legacy AFF-244. File-based on VPS today; ship to Loki + S3 archive when team grows or SOC 2 audit scheduled. 13-month retention required for SOC 2 Type II.
 
-3. **Apps/auth Better Auth IdP** — [AFF-242](https://linear.app/hapddev/issue/AFF-242). Separately tracked.
+3. **Apps/auth Better Auth IdP** — legacy AFF-242. Separately tracked.
 
 ---
 
@@ -758,7 +758,7 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 | `.github/workflows/_deploy-aws.yml`                              | M4                            | Remove step at `:1033-1140`, env: blocks at `:1037-1038` + `:1285-1287`, `SECRET_CTX` at `:1306-1334`, expansion at `:1387` + `:1422`. Add TUNNEL_TOKEN GH-secret → SSM sync step.                                                                                                              |
 | `.github/workflows/workflow-lint.yml`                            | M4                            | `cdk-synth-strict` at `:145-147` — drop 3 dummy `--context` flags (or convert to SSM-shape dummy ARNs)                                                                                                                                                                                          |
 | `.github/workflows/secrets-drift.yml`                            | M4                            | NEW — daily Vault vs SSM diff check                                                                                                                                                                                                                                                             |
-| `.github/workflows/linear-sync.yml`                              | M5                            | Replace `LINEAR_API_KEY` GH secret with Vault fetch step                                                                                                                                                                                                                                        |
+| Retired tracker write-back workflow                              | M5                            | Replace a GH secret read with a Vault fetch step                                                                                                                                                                                                                                                |
 | `.github/workflows/*.yml` (multiple)                             | M6                            | Migrate selected secrets per the inclusion/exclusion list                                                                                                                                                                                                                                       |
 | `lefthook.yml`                                                   | M7                            | Insert `infisical-scan` block between `gitleaks:` (closes at `:37`) and `db-schema-snapshot:` (starts at `:38`)                                                                                                                                                                                 |
 | `.github/workflows/ci.yml`                                       | M7                            | Append `infisical-scan` job after `gitleaks` job (file ends at line 340)                                                                                                                                                                                                                        |
@@ -799,7 +799,7 @@ Each milestone has: Goal → Tasks → Verification → Rollback. Five milestone
 | 1   | End of M1                     | ✅ Done 2026-05-23 — `.context/advisor-gate-1.md`. 3 follow-ups landed in PR #258.                                                                             |
 | 2   | End of M2 (Vault trust gate)  | ✅ Implicit pass 2026-05-24 — backup ran ≥5 successful cycles, restic check clean, audit + logrotate verified live. DR drill deferred per AFF-247.             |
 | 3   | Before M4 staging deploy      | ✅ Implicit pass 2026-05-24 — CDK diff reviewed PR-D + #268 + #269, sync verified populating SSM, replace-guard not triggered, staging end-to-end smoke green. |
-| 4   | Before M5 first workflow push | OIDC `bound_claims` correctness (NOT `bound_subject` for `linear-sync.yml`) + workflow YAML change reviewed                                                    |
+| 4   | Before M5 first workflow push | OIDC `bound_claims` correctness (NOT `bound_subject`) + workflow YAML change reviewed                                                                          |
 | 5   | Final (end of M10)            | All milestones complete, locked decisions implemented, cost audit, compliance map, final rotation drill                                                        |
 
 ---

@@ -18,8 +18,7 @@
 >    AWS, never transit Vault. Dynamic DB secrets are deferred to AFF-243.
 > 3. **GitHub Actions secrets / vars** — CI/CD identity + config
 >    (`AWS_DEPLOY_ROLE_ARN_*`, `CLOUDFLARE_TUNNEL_TOKEN_*` for the deploy
->    bootstrap, `EMAIL_FORWARD_TO`, etc.). `LINEAR_API_KEY` migrated to
->    Vault-via-OIDC (M5); see [`VAULT-OPS.md`](VAULT-OPS.md) § JWT auth.
+>    bootstrap, `EMAIL_FORWARD_TO`, etc.).
 
 ## Decision matrix
 
@@ -70,9 +69,8 @@ AWS it needs the **deploy role ARN** (via OIDC). Those are the bootstrap
 identity — they must be GitHub repo secrets because that is the only thing
 the runner can read _before_ it has authenticated to anything.
 
-`LINEAR_API_KEY` proves the model works once you are _past_ bootstrap: it
-moved INTO Vault and is fetched via GitHub OIDC → Vault JWT at run time
-(M5). Bootstrap credentials are exactly the ones that cannot make that
+Shared app credentials can move into Vault once the runner has bootstrap
+identity. Bootstrap credentials are exactly the ones that cannot make that
 jump, because they are what authenticates the jump.
 
 ### 3. RDS credentials — AWS Secrets Manager is the better native home
@@ -81,8 +79,7 @@ jump, because they are what authenticates the jump.
 have **native rotation**: AWS rotates the database password on a schedule
 with no application code. The _correct_ way to put DB credentials in Vault
 is **dynamic secrets** (Vault mints short-lived per-session DB users on
-demand) — that is deferred to [AFF-243](https://linear.app/hapddev/issue/AFF-243)
-because it only pays off at team scale. Until then, SM is the lower-risk
+demand), which only pays off at team scale. Until then, SM is the lower-risk
 home; hand-rolling static-credential rotation in Vault would be strictly
 worse than what AWS gives for free.
 
@@ -177,42 +174,22 @@ Role ARNs contain the account ID, so they are stored as secrets (single-account 
 
 ## Rotation cadence
 
-| Secret class                            | Cadence                                                          |
-| --------------------------------------- | ---------------------------------------------------------------- |
-| Sentry DSN, Honeycomb keys              | annual, or on suspected leak                                     |
-| Vault-backed app secrets (the 3)        | on suspected leak; rotate via `vault kv put` → SSM sync ≤5min    |
-| RDS creds (`DbSecret`, `AppUserSecret`) | AWS-managed (Secrets Manager native rotation)                    |
-| Vault operator-admin token              | 90 days (TTL 2160h; re-mint via recovery keys if expired)        |
-| Vault `vault-ssm-sync` token            | annual (TTL 8760h, renewable)                                    |
-| KMS CMKs                                | annual rotation enabled at key creation                          |
-| GitHub App private keys                 | 12 months                                                        |
-| Cosign                                  | n/a (keyless)                                                    |
-| Linear API key (Vault-backed, M5)       | annual; rotate via `vault kv put platform/shared/linear-api-key` |
+| Secret class                            | Cadence                                                       |
+| --------------------------------------- | ------------------------------------------------------------- |
+| Sentry DSN, Honeycomb keys              | annual, or on suspected leak                                  |
+| Vault-backed app secrets (the 3)        | on suspected leak; rotate via `vault kv put` → SSM sync ≤5min |
+| RDS creds (`DbSecret`, `AppUserSecret`) | AWS-managed (Secrets Manager native rotation)                 |
+| Vault operator-admin token              | 90 days (TTL 2160h; re-mint via recovery keys if expired)     |
+| Vault `vault-ssm-sync` token            | annual (TTL 8760h, renewable)                                 |
+| KMS CMKs                                | annual rotation enabled at key creation                       |
+| GitHub App private keys                 | 12 months                                                     |
+| Cosign                                  | n/a (keyless)                                                 |
 
 The Anthropic API key provisioning steps (Ask AI on `docs.afframe.com`)
 were removed on 2026-05-21 alongside the rest of the `apps/docs` Ask AI
 work. If a future docs surface needs an Anthropic-backed feature,
 restore the procedure from
 `.context/archive/apps-docs-2026-05-21/`.
-
-## Linear API key (CI write-back) — Vault-backed via OIDC (M5)
-
-`linear-sync.yml` no longer reads a `LINEAR_API_KEY` GitHub secret. It
-fetches the key from Vault at run time using the GitHub-OIDC → Vault-JWT
-trust chain (M5 pilot):
-
-1. The workflow requests a GitHub OIDC token (`permissions: id-token: write`).
-2. `hashicorp/vault-action` exchanges it at `auth/jwt/login` (role
-   `gha-monorepo`, audience `https://secrets-admin.afframe.com`), passing
-   Cloudflare Access service-token headers (`CF-Access-Client-Id/Secret`,
-   stored as repo secrets) to clear the edge gate.
-3. Vault returns the value of `platform/shared/linear-api-key`, scoped by
-   the `gha-read-shared-tokens` policy (read-only on `platform/data/shared/*`).
-
-Rotate the key: `vault kv put platform/shared/linear-api-key value=<new>`
-(no GitHub-secret update needed). The legacy `LINEAR_API_KEY` repo secret
-is deleted after the 7-day soak. Full chain + audit verification in
-[`VAULT-OPS.md`](VAULT-OPS.md) § "GitHub Actions JWT auth (M5)".
 
 ## Break-glass procedure
 

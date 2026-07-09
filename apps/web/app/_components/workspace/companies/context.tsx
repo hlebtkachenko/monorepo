@@ -5,7 +5,7 @@ import * as React from "react"
 import type { InspectorMode } from "@workspace/ui/blocks/app-content"
 import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 
-import type { CompanyRow } from "./data"
+import type { CompanyAssignee, CompanyRow } from "./data"
 
 /**
  * Shared UI state linking the Companies page's two shell slots: the portaled
@@ -14,6 +14,10 @@ import type { CompanyRow } from "./data"
  * page actually consumes — the favorite star lives in the shared
  * `PageHeaderActions` cluster, and the inspector mode follows the viewport
  * (panel on desktop, dialog on mobile), so neither needs page-level state here.
+ *
+ * `canAssign` + `assignableMembers` are workspace-level (same for every row),
+ * resolved server-side in `workspace/page.tsx` and threaded through the
+ * provider so the card + inspector assignee pickers don't need per-row props.
  */
 export type CompaniesView = "cards" | "table"
 
@@ -28,6 +32,10 @@ interface CompaniesState {
   inspectorMode: InspectorMode
   openInspector: (row: CompanyRow) => void
   closeInspector: () => void
+  /** Whether the signed-in user (workspace owner/admin) may (re)assign a book. */
+  canAssign: boolean
+  /** Active workspace members eligible as a company's responsible accountant. */
+  assignableMembers: CompanyAssignee[]
 }
 
 const CompaniesContext = React.createContext<CompaniesState | null>(null)
@@ -39,7 +47,15 @@ export function useCompanies(): CompaniesState {
   return ctx
 }
 
-export function CompaniesProvider({ children }: { children: React.ReactNode }) {
+export function CompaniesProvider({
+  children,
+  canAssign = false,
+  assignableMembers = [],
+}: {
+  children: React.ReactNode
+  canAssign?: boolean
+  assignableMembers?: CompanyAssignee[]
+}) {
   const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = React.useState("all")
   const [view, setView] = React.useState<CompaniesView>("cards")
@@ -63,6 +79,8 @@ export function CompaniesProvider({ children }: { children: React.ReactNode }) {
       inspectorMode: isMobile ? "dialog" : "panel",
       openInspector,
       closeInspector,
+      canAssign,
+      assignableMembers,
     }),
     [
       activeTab,
@@ -72,6 +90,8 @@ export function CompaniesProvider({ children }: { children: React.ReactNode }) {
       isMobile,
       openInspector,
       closeInspector,
+      canAssign,
+      assignableMembers,
     ],
   )
 

@@ -75,7 +75,7 @@ export interface paths {
         put?: never;
         /**
          * Send feedback
-         * @description Submit a bug report, feature request, process issue, or question. The api forwards every submission to `support+feedback@afframe.com` and creates a Linear issue tagged with the feedback type. Public — no API key required.
+         * @description Submit a bug report, feature request, process issue, or question. The api forwards every submission to `support+feedback@afframe.com` and asks the bot to create or dedup a GitHub issue when issue reporting is configured. Public — no API key required.
          */
         post: operations["createFeedback"];
         delete?: never;
@@ -795,7 +795,7 @@ export interface components {
              */
             status: "operational" | "degraded_performance" | "partial_outage" | "major_outage";
         };
-        /** @description Partner feedback submission. Idempotency is not enforced — duplicate submissions create duplicate Linear issues. Clients should rate-limit themselves to one submission per minute. */
+        /** @description Partner feedback submission. Idempotency is not enforced — duplicate submissions create duplicate GitHub issues. Clients should rate-limit themselves to one submission per minute. */
         CreateFeedbackRequest: {
             /**
              * @description Feedback category. `bug` = something broken; `request` = new feature ask; `issue` = process / UX / docs problem; `question` = support question that didn't fit the FAQ.
@@ -804,7 +804,7 @@ export interface components {
              */
             type: "bug" | "request" | "issue" | "question";
             /**
-             * @description Free-form feedback text. 1–4000 characters. Markdown allowed but not rendered — the Linear issue treats this as plain text.
+             * @description Free-form feedback text. 1–4000 characters. Markdown allowed but not rendered — the GitHub issue treats this as plain text.
              * @example The /v1/organization endpoint returned a 500 when my API key was created in the last 60 seconds. Retried after a minute and it worked.
              */
             message: string;
@@ -814,7 +814,7 @@ export interface components {
              * @example dev@partner.example
              */
             email?: string;
-            /** @description Optional in-app capture context (page, element, viewport, client). Public callers omit it; the in-app reporter attaches it. Folded into the Linear issue when present. */
+            /** @description Optional in-app capture context (page, element, viewport, client). Public callers omit it; the in-app reporter attaches it. Folded into the GitHub issue when present. */
             context?: {
                 /** @description Page the report was filed from. */
                 page?: {
@@ -886,12 +886,12 @@ export interface components {
         /** @description Confirmation that feedback was accepted. Acceptance does NOT guarantee a reply — `question` submissions get one, the others are reviewed without acknowledgement unless an email is provided. */
         CreateFeedbackResponse: {
             /**
-             * @description Always `true` on a 2xx response. Confirms the api accepted the submission for downstream dispatch (email + Linear issue).
+             * @description Always `true` on a 2xx response. Confirms the api accepted the submission for downstream dispatch (email + GitHub issue).
              * @enum {boolean}
              */
             received: true;
             /**
-             * @description Opaque submission reference. Quote this in any follow-up email — it links the support reply back to the Linear issue.
+             * @description Opaque submission reference. Quote this in any follow-up email — it links the support reply back to the GitHub issue.
              * @example fb_2ZdAk5x
              */
             referenceId: string;

@@ -15,6 +15,7 @@ import {
   type ObligationRow,
   type ObligationStatus,
 } from "./data"
+import { ObligationTitle } from "./obligation-title"
 
 const STATUS_BADGE: Record<
   ObligationStatus,
@@ -22,8 +23,6 @@ const STATUS_BADGE: Record<
 > = {
   Upcoming: "outline",
   "Due soon": "secondary",
-  Overdue: "destructive",
-  Filed: "ghost",
 }
 
 // Anchor for shift-range selection across the visible page (row id).
@@ -110,7 +109,11 @@ export const obligationColumns: ColumnDef<ObligationRow>[] = [
     header: "Obligation",
     size: 220,
     cell: ({ row }) => (
-      <span className="font-medium">{row.original.obligation}</span>
+      <ObligationTitle
+        obligation={row.original.obligation}
+        conditional={row.original.conditional}
+        note={row.original.note}
+      />
     ),
     meta: { label: "Obligation" },
     enableSorting: true,
@@ -156,9 +159,15 @@ export const obligationColumns: ColumnDef<ObligationRow>[] = [
     enableSorting: true,
   },
   {
-    accessorKey: "assignee",
+    id: "assignee",
+    accessorFn: (row) => row.assignee ?? "",
     header: "Assigned",
     size: 160,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.original.assignee ?? "Unassigned"}
+      </span>
+    ),
     meta: { label: "Assigned" },
     enableSorting: true,
   },

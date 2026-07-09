@@ -6,11 +6,13 @@ import { createStore } from "./state/store.js"
 export type CommandResult = string
 
 function github(env: Env): GitHubClient | null {
-  if (!env.GITHUB_DISPATCH_TOKEN) return null
-  return createGitHubClient(env.GITHUB_DISPATCH_TOKEN, repoOf(env))
+  const repo = repoOf(env)
+  if (!env.GITHUB_DISPATCH_TOKEN || !repo) return null
+  return createGitHubClient(env.GITHUB_DISPATCH_TOKEN, repo)
 }
 
-const NO_GH = "GitHub control not configured (set GITHUB_DISPATCH_TOKEN)."
+const NO_GH =
+  "GitHub control not configured (set GITHUB_DISPATCH_TOKEN and GITHUB_REPO)."
 
 function runIcon(conclusion: string | null, status: string): string {
   if (status !== "completed") return "⏳"

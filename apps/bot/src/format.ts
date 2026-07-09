@@ -28,9 +28,9 @@ export function buildKeyboard(buttons?: string[]): InlineKeyboard | undefined {
 }
 
 /**
- * Keyboard for an auto-created/recurred issue. Row 1: Open in Linear (+ Open run / ⟳ Rerun
+ * Keyboard for an auto-created/recurred issue. Row 1: Open issue (+ Open run / ⟳ Rerun
  * when the event carried a GitHub run). Row 2: delivery controls (Snooze 1h / Ack), keyed by
- * the SHORT Linear identifier so the callback stays under Telegram's 64-byte limit.
+ * the SHORT GitHub issue identifier so the callback stays under Telegram's 64-byte limit.
  */
 export function buildIssueKeyboard(
   identifier: string,

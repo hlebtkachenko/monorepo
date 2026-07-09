@@ -21,9 +21,9 @@ const config: KnipConfig = {
   ignoreUnresolved: ["next"],
   workspaces: {
     ".": {
-      // Governance scripts are spawned as child processes by string path
-      // (e.g. scripts/governance/apply-linear-context.mjs execs linear-fetch.mjs),
-      // invisible to knip's import graph.
+      // Governance scripts are invoked by string path from CI workflows
+      // (e.g. issue-sync.yml runs apply-github-issue-context.mjs), never
+      // imported into an app's TS graph.
       entry: ["scripts/*.mjs", "scripts/**/*.mjs"],
       // `pnpm e2e` runs with working-directory apps/web (.github/workflows/e2e.yml);
       // the script lives in apps/web/package.json, not resolvable as a root binary.

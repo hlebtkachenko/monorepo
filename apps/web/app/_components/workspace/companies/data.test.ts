@@ -7,7 +7,13 @@
 
 import { describe, expect, it } from "vitest"
 
-import { formatPeriodLabel, toCompanyPeriods } from "./data"
+import {
+  applySearch,
+  formatPeriodLabel,
+  toCompanyPeriods,
+  vatRegimeLabel,
+} from "./data"
+import type { CompanyRow } from "./data"
 
 describe("formatPeriodLabel", () => {
   it("collapses a full calendar year (Jan–Dec, same year) to just the year", () => {
@@ -46,5 +52,49 @@ describe("toCompanyPeriods", () => {
 
   it("returns an empty list for no rows", () => {
     expect(toCompanyPeriods([])).toEqual([])
+  })
+})
+
+describe("vatRegimeLabel", () => {
+  it("maps each known vat_regime_code to its display label", () => {
+    expect(vatRegimeLabel("NON_PAYER")).toBe("Non-payer")
+    expect(vatRegimeLabel("PAYER")).toBe("Payer")
+    expect(vatRegimeLabel("IDENTIFIED_PERSON")).toBe("Identified person")
+  })
+
+  it("defaults to Non-payer for no row / an unrecognized code", () => {
+    expect(vatRegimeLabel(undefined)).toBe("Non-payer")
+    expect(vatRegimeLabel(null)).toBe("Non-payer")
+    expect(vatRegimeLabel("SOMETHING_ELSE")).toBe("Non-payer")
+  })
+})
+
+describe("applySearch", () => {
+  const baseRow: CompanyRow = {
+    id: "org-1",
+    slug: "acme",
+    legalName: "Acme s.r.o.",
+    typeLabel: "s.r.o.",
+    fiscalYear: "2026",
+    members: [],
+    archived: false,
+    periods: [],
+    vatRegime: "Payer",
+    status: "Active",
+    nextDeadline: "No upcoming deadline",
+    assignee: null,
+  }
+
+  it("matches on the assignee's name when assigned", () => {
+    const assigned: CompanyRow = {
+      ...baseRow,
+      assignee: { userId: "u-1", name: "Jana Nováková" },
+    }
+    expect(applySearch([assigned], "nováková")).toEqual([assigned])
+  })
+
+  it("does not throw and excludes the row when unassigned", () => {
+    expect(applySearch([baseRow], "nováková")).toEqual([])
+    expect(applySearch([baseRow], "")).toEqual([baseRow])
   })
 })

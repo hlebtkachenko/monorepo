@@ -8,19 +8,27 @@ import {
   app_user,
   organization,
   organization_membership,
+  vat_status,
 } from "@workspace/db/schema"
 
+import { formatIsoDate } from "../[orgSlug]/closing/_lib/closing-shared"
 import { CompaniesView } from "../_components/workspace/companies/companies-view"
 import { CompaniesProvider } from "../_components/workspace/companies/context"
 import {
-  enrichCompanyMock,
   fiscalYearLabel,
   toCompanyPeriods,
+  vatRegimeLabel,
   type CompanyMember,
   type CompanyPeriod,
   type CompanyRow,
 } from "../_components/workspace/companies/data"
+import {
+  canAssignCompanies,
+  loadAssignableMembers,
+  loadOrgAssignees,
+} from "./_lib/assign-company"
 import { getWorkspaceContext } from "./_lib/workspace-context"
+import { computeWorkspaceObligations } from "./_lib/workspace-obligations"
 
 export const metadata = { title: "Companies" }
 
@@ -36,10 +44,15 @@ const ERROR_MESSAGES: Record<string, string> = {
 /**
  * Companies — the accountant-office hub + workspace index (post-login landing).
  * Lists the company books (organizations) of the active workspace as big cards
- * or a table. Identity fields + the member stack are real; operational columns
- * are mock (see `data.ts`). Reads use `withAdminBypass` + an explicit
- * `workspace_id` predicate — `organization` RLS is keyed on `app.organization_id`
- * (no workspace-scoped read policy), so `withWorkspace` would return zero rows.
+ * or a table. Every field is real: identity + the member stack from
+ * `organization` / `organization_membership` / `accounting_period`; VAT regime
+ * from the current `vat_status` row; status derived from `archived_at` + the
+ * period list; the next deadline from the shared obligation engine
+ * (`workspace-obligations.ts`); the assignee from
+ * `organization.responsible_user_id ⋈ app_user`. Reads use `withAdminBypass` +
+ * an explicit `workspace_id` predicate — `organization` RLS is keyed on
+ * `app.organization_id` (no workspace-scoped read policy), so `withWorkspace`
+ * would return zero rows.
  */
 export default async function CompaniesPage({
   searchParams,
@@ -55,11 +68,18 @@ export default async function CompaniesPage({
   const { error, archived } = await searchParams
   // The list defaults to active books (`archived_at IS NULL`); `?archived=1`
   // shows the archived ones. This is REAL isolation on `organization.archived_at`
-  // and is orthogonal to the mock status tabs (which filter `enrichCompanyMock`).
+  // and is orthogonal to the status tabs (which filter the derived `status`).
   const showArchived = archived === "1"
 
   const activeWorkspaceId = ctx.activeWorkspaceId
-  const companies = await withAdminBypass(async (db) => {
+  const today = new Date().toISOString().slice(0, 10)
+
+  // Each org's real statutory obligations for its current period — feeds the
+  // card's "next deadline" (own batch-loaded `withAdminBypass`, see
+  // `workspace-obligations.ts`).
+  const obligationsByOrg = await computeWorkspaceObligations(activeWorkspaceId)
+
+  const { companies, assignableMembers } = await withAdminBypass(async (db) => {
     const orgs = await db
       .select({
         id: organization.id,
@@ -80,7 +100,11 @@ export default async function CompaniesPage({
       )
       .orderBy(organization.legal_name)
 
-    if (orgs.length === 0) return []
+    const assignableMembers = await loadAssignableMembers(db, activeWorkspaceId)
+
+    if (orgs.length === 0) return { companies: [], assignableMembers }
+
+    const orgIds = orgs.map((o) => o.id)
 
     // Active members of every company in one round-trip, grouped by company.
     const memberRows = await db
@@ -95,10 +119,7 @@ export default async function CompaniesPage({
       .innerJoin(app_user, eq(app_user.id, organization_membership.user_id))
       .where(
         and(
-          inArray(
-            organization_membership.organization_id,
-            orgs.map((o) => o.id),
-          ),
+          inArray(organization_membership.organization_id, orgIds),
           eq(organization_membership.active, true),
         ),
       )
@@ -126,12 +147,7 @@ export default async function CompaniesPage({
         status: accounting_period.status,
       })
       .from(accounting_period)
-      .where(
-        inArray(
-          accounting_period.organization_id,
-          orgs.map((o) => o.id),
-        ),
-      )
+      .where(inArray(accounting_period.organization_id, orgIds))
       .orderBy(desc(accounting_period.period_start), desc(accounting_period.id))
 
     const periodRowsByCompany = new Map<string, typeof periodRows>()
@@ -145,23 +161,68 @@ export default async function CompaniesPage({
       periodsByCompany.set(orgId, toCompanyPeriods(rows))
     }
 
-    return orgs.map<CompanyRow>((o) => ({
-      id: o.id,
-      slug: o.slug,
-      legalName: o.legalName,
-      typeLabel: o.legalSubjectKind || o.personKind,
-      fiscalYear: fiscalYearLabel(o.fiscalYearStartMonth),
-      members: membersByCompany.get(o.id) ?? [],
-      archived: showArchived,
-      periods: periodsByCompany.get(o.id) ?? [],
-      ...enrichCompanyMock(o.id),
-    }))
+    // Current VAT regime per company (the row with valid_to IS NULL).
+    const vatRows = await db
+      .select({
+        organizationId: vat_status.organization_id,
+        vatRegimeCode: vat_status.vat_regime_code,
+      })
+      .from(vat_status)
+      .where(
+        and(
+          inArray(vat_status.organization_id, orgIds),
+          isNull(vat_status.valid_to),
+        ),
+      )
+    const vatRegimeByCompany = new Map(
+      vatRows.map((r) => [r.organizationId, r.vatRegimeCode]),
+    )
+
+    const assigneeByCompany = await loadOrgAssignees(db, orgIds)
+
+    const companies = orgs.map<CompanyRow>((o) => {
+      const periods = periodsByCompany.get(o.id) ?? []
+      const obligations = obligationsByOrg.get(o.id) ?? []
+      // Definite obligations only — a conditional row (SH, identified-person
+      // VAT return) only applies IF the underlying event occurred, so it must
+      // never be asserted as the org's next hard deadline (mirrors the org
+      // Closing surface's `definiteObligations` filter).
+      const upcoming = obligations.find(
+        (ob) => !ob.conditional && ob.dueDate >= today,
+      )
+      return {
+        id: o.id,
+        slug: o.slug,
+        legalName: o.legalName,
+        typeLabel: o.legalSubjectKind || o.personKind,
+        fiscalYear: fiscalYearLabel(o.fiscalYearStartMonth),
+        members: membersByCompany.get(o.id) ?? [],
+        archived: showArchived,
+        periods,
+        vatRegime: vatRegimeLabel(vatRegimeByCompany.get(o.id)),
+        status: showArchived
+          ? "Archived"
+          : periods.length === 0
+            ? "Onboarding"
+            : "Active",
+        nextDeadline: upcoming
+          ? `${upcoming.title} · ${formatIsoDate(upcoming.dueDate)}`
+          : "No upcoming deadline",
+        assignee: assigneeByCompany.get(o.id) ?? null,
+      }
+    })
+
+    return { companies, assignableMembers }
   })
 
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined
+  const canAssign = ctx.current ? canAssignCompanies(ctx.current.role) : false
 
   return (
-    <CompaniesProvider>
+    <CompaniesProvider
+      canAssign={canAssign}
+      assignableMembers={assignableMembers}
+    >
       <CompaniesView
         companies={companies}
         errorMessage={errorMessage}

@@ -4,7 +4,23 @@ Instructions for AI agents (Claude Code, Codex, Cursor) working in this monorepo
 
 ## Issue Tracking
 
-Issues and planning live in **Linear**. Route by function: product engineering (bugs, CI, infra, features) → **Engineering & Design** (`DEV`); discovery / marketing / pricing / brand → **Product** (`PRO`); pipeline / support → **Sales** (`SAL`); legal / finance / compliance / hiring → **Operations** (`OPS`). The legacy **Afframe** team (`AFF`) is **FROZEN — never file new work there.** Agents reach Linear through the Linear MCP tools (`mcp__claude_ai_Linear__*`): list, search, read, create, and update issues in-session. Conductor can also open a workspace directly from a Linear issue. When work spans sessions, the Linear issue is the source of truth — read it before starting, update it as you go.
+Issues and planning live in **GitHub Issues** and the active GitHub Project
+configured by Hleb for the current planning horizon. GitHub Issues are the
+source of truth for work that spans sessions: read the issue before starting,
+keep status/progress in the issue or linked PR, and close the issue through the
+PR when the work lands.
+
+Use the project fields, not separate tracker prefixes, for routing:
+
+- `Type`: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `security`, `EPIC`
+- `Priority`: `Urgent`, `High`, `Medium`, `Low`
+- `Status`: `Backlog`, `In progress`, `In review`, `Done`
+
+PR automation links PRs back to GitHub issues from PR metadata. Prefer GitHub
+closing keywords in the PR body (`Closes #123`, `Fixes #123`) for work that
+should close on merge, or `Refs #123` for contextual links only. The sync also
+understands explicit `#123` references in PR titles, PR bodies, and commit
+messages. Branch names are not part of issue tracking.
 
 ## Asking Hleb (human-in-the-loop)
 

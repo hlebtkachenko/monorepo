@@ -3,7 +3,7 @@
 Files in this directory are deployed by hand to the Hostinger KVM 2 VPS at
 `secrets-admin.afframe.com` during milestones M1–M2 of the secrets-management
 migration. Plan: [`docs/plans/SECRETS-MIGRATION.md`](../../docs/plans/SECRETS-MIGRATION.md).
-Linear: [AFF-245](https://linear.app/hapddev/issue/AFF-245).
+Tracker: legacy AFF-245.
 
 ## File → VPS path mapping
 
@@ -64,7 +64,7 @@ docker compose logs vault | tail -20
 docker compose exec vault vault operator init -key-shares=5 -key-threshold=3
 #    Capture the 5 unseal keys + initial root token from stdout. Store in
 #    macOS Keychain (3) + offline escrow (2) per the irreversible-ops
-#    register. NEVER paste them into Slack / Linear / a chat with an LLM.
+#    register. NEVER paste them into Slack, issue trackers, or a chat with an LLM.
 
 # 7. Verify auto-unseal works.
 docker compose restart vault
@@ -108,7 +108,7 @@ Pre-requisites:
   token scoped read/write to that bucket only.
 - Restic repo password generated (`openssl rand -base64 32`), escrowed to
   macOS Keychain entry `afframe-vault-restic-password` + offline escrow.
-- **B2 secondary mirror is deferred per [AFF-246](https://linear.app/hapddev/issue/AFF-246)**;
+- **B2 secondary mirror is deferred until prioritized in GitHub Issues**;
   ship the R2-only config. The script auto-detects the missing B2 env vars
   and skips the weekly mirror cleanly — re-enable later by populating
   `B2_*` + `RESTIC_REPOSITORY_SECONDARY` in `.env`.
@@ -181,4 +181,4 @@ the throwaway VPS. Procedure outline in
 - The Vault → SSM SecureString sync script (PR M4)
 - Live R2 / B2 buckets (operator provisions out-of-band; bucket names + token shapes are in `env.template`)
 
-See the umbrella tracker [AFF-245](https://linear.app/hapddev/issue/AFF-245).
+See the umbrella tracker in GitHub Issues.

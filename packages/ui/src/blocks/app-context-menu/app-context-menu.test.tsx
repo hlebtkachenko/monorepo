@@ -255,7 +255,7 @@ describe("AppContextMenu", () => {
   it("posts the structured payload via onReportBug on submit", async () => {
     const user = userEvent.setup()
     const onReportBug = vi.fn().mockResolvedValue({
-      url: "https://linear.app/x/AFF-1",
+      url: "https://github.com/hlebtkachenko/monorepo/issues/1",
       identifier: "AFF-1",
     })
     render(

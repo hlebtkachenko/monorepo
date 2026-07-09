@@ -175,7 +175,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
       Sentry.captureException(exception)
       const safe = sanitizeError(exception, requestId)
       // Fire-and-forget: a failed report must never alter the error response. Opens a deduped
-      // Linear issue (with an Open button); the full stack goes to CloudWatch logs (and Sentry
+      // GitHub issue (with an Open button); the full stack goes to CloudWatch logs (and Sentry
       // when SENTRY_DSN is provisioned), not the issue body.
       void notifier?.reportIssue({
         source: "error",

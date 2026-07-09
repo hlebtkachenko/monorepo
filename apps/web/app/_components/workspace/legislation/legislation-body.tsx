@@ -20,20 +20,16 @@ import { TableStatusBar } from "../_shared/table-status-bar"
 import { obligationColumns } from "./columns"
 import { useLegislation } from "./context"
 import { LegislationToolbar } from "./legislation-toolbar"
-import {
-  OBLIGATION_ROWS,
-  OBLIGATION_TABS,
-  formatDueDate,
-  type ObligationRow,
-} from "./data"
+import { OBLIGATION_TABS, formatDueDate, type ObligationRow } from "./data"
+import { ObligationTitle } from "./obligation-title"
 
 /** Free-text search across the obligation's readable fields. */
 function applySearch(rows: ObligationRow[], query: string): ObligationRow[] {
   const q = query.trim().toLowerCase()
   if (!q) return rows
   return rows.filter((row) =>
-    [row.obligation, row.company, row.status, row.assignee].some((value) =>
-      value.toLowerCase().includes(q),
+    [row.obligation, row.company, row.status, row.assignee ?? ""].some(
+      (value) => value.toLowerCase().includes(q),
     ),
   )
 }
@@ -42,29 +38,37 @@ function applySearch(rows: ObligationRow[], query: string): ObligationRow[] {
 function ObligationDetail({ row }: { row: ObligationRow }) {
   return (
     <dl className="flex flex-col gap-3">
-      <DetailField label="Obligation" value={row.obligation} />
+      <DetailField
+        label="Obligation"
+        value={
+          <ObligationTitle
+            obligation={row.obligation}
+            conditional={row.conditional}
+            note={row.note}
+          />
+        }
+      />
       <DetailField label="Company" value={row.company} />
       <DetailField label="Due date" value={formatDueDate(row.dueDate)} />
       <DetailField
         label="Status"
         value={<Badge variant="secondary">{row.status}</Badge>}
       />
-      <DetailField label="Assigned" value={row.assignee} />
+      <DetailField label="Assigned" value={row.assignee ?? "Unassigned"} />
     </dl>
   )
 }
 
 /**
- * Legislation body — the Table archetype on the workspace shell. A static MOCK
- * obligation board drives a TanStack `DataGridView`: tab-filtered by status, a
- * universal search, the faceted Status filter, row selection with a bulk
- * `ActionBar`, and a per-row `Inspector`. Mounts as the shell `children`.
+ * Legislation body — the Table archetype on the workspace shell. Real
+ * obligation rows (resolved server-side, see `workspace-obligations.ts`)
+ * drive a TanStack `DataGridView`: tab-filtered by status, a universal
+ * search, the faceted Status filter, row selection with a bulk `ActionBar`,
+ * and a per-row `Inspector`. An empty `rows` array renders the grid's
+ * built-in "No results." state — an honest empty board, not a fake row.
+ * Mounts as the shell `children`.
  */
-export function LegislationBody({
-  rows = OBLIGATION_ROWS,
-}: {
-  rows?: ObligationRow[]
-}) {
+export function LegislationBody({ rows }: { rows: ObligationRow[] }) {
   const icons = useIcons()
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
     useLegislation()
@@ -99,7 +103,6 @@ export function LegislationBody({
   const isFiltered =
     search.trim() !== "" || table.getState().columnFilters.length > 0
 
-  const CheckIcon = icons.Check
   const AssignIcon = icons.UserPlus
 
   return (
@@ -140,15 +143,6 @@ export function LegislationBody({
           <ActionBarSelection>{selectedCount} selected</ActionBarSelection>
           <ActionBarSeparator />
           <ActionBarGroup>
-            <ActionBarItem
-              onSelect={() => {
-                toast("Mark filed — coming soon")
-                table.resetRowSelection()
-              }}
-            >
-              <CheckIcon />
-              Mark filed
-            </ActionBarItem>
             <ActionBarItem
               onSelect={() => {
                 toast("Assign — coming soon")

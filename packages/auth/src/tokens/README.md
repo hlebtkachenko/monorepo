@@ -1,6 +1,6 @@
 # `@workspace/auth/tokens` — unified opaque token system
 
-> Developer reference. For the **decision and threat model**, see [ADR-0022](../../../../docs/adr/0022-unified-opaque-tokens.md). For the migration tracking issue, see [AFF-198](https://linear.app/hapddev/issue/AFF-198).
+> Developer reference. For the **decision and threat model**, see [ADR-0022](../../../../docs/adr/0022-unified-opaque-tokens.md). For the migration tracker, use the Roadmap project.
 
 ## Purpose
 
@@ -177,5 +177,5 @@ A nightly worker (`packages/workers/src/jobs/prune-auth-tokens.ts`) deletes rows
 - [ADR-0022](../../../../docs/adr/0022-unified-opaque-tokens.md) — design rationale, threat model, alternatives considered
 - [ADR-0011](../../../../docs/adr/0011-audit-log.md) — audit log (sibling pattern, redaction registry shared)
 - [ADR-0010](../../../../docs/adr/0010-multi-tenant-rls.md) — multi-tenant RLS (why mint/consume run under `withAdminBypass`)
-- [AFF-198](https://linear.app/hapddev/issue/AFF-198) — migration tracking
+- Legacy AFF-198 — migration tracking
 - [`docs/plans/AFF-150-AUDIT-CONTEXT.md`](../../../../docs/plans/AFF-150-AUDIT-CONTEXT.md) — broader auth dependency graph

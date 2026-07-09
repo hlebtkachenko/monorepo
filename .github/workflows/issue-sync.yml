@@ -1,0 +1,45 @@
+# GitHub issue write-back. On every PR open / sync, posts or updates a
+# backlink comment on issues linked from PR metadata. The resolver uses
+# GitHub's closing issue references first, then explicit `#123` issue
+# references in the PR title, PR body, or commit messages.
+
+name: Issue sync
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions: {}
+
+concurrency:
+  group: issue-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Post / update issue backlink
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true # ADVISORY
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Apply GitHub issue context
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node scripts/governance/apply-github-issue-context.mjs \
+            "$PR_NUMBER" "$PR_URL" "$PR_TITLE"

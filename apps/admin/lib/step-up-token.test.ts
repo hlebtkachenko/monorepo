@@ -42,7 +42,9 @@ describe("signStepUpToken + verifyStepUpToken", () => {
   it("rejects a tampered signature", () => {
     const token = signStepUpToken(makePayload(), SECRET)
     const [body, sig] = token.split(".")
-    const tampered = body + "." + sig!.slice(0, -1) + "A"
+    const tamperedSig = Buffer.from(sig!, "base64url")
+    tamperedSig[0] = tamperedSig[0]! ^ 0xff
+    const tampered = body + "." + tamperedSig.toString("base64url")
     expect(verifyStepUpToken(tampered, SECRET)).toBeNull()
   })
 

@@ -99,7 +99,7 @@ Legal and product blockers first, then infra/ops, then deferred tracks.
       preferred). Dependabot PRs currently run without remote cache.
       ADR-0021, `docs/runbooks/CI-TURBO-REMOTE-CACHE.md`.
 
-## Deferred tracks (Linear)
+## Deferred tracks
 
 - [ ] **10. Workers boot + pg-boss v12** (joint issue/PR): pg-boss never
       starts in any deployed env, migration `0007_pgboss.sql` pre-creates
@@ -111,4 +111,4 @@ Legal and product blockers first, then infra/ops, then deferred tracks.
       `apps/web/e2e/`).
 - [ ] **18. CONFIRM: launching without self-serve billing** (stub only) —
       stated decision, record it here when confirmed.
-- [ ] **19. File Linear (post-v1): session list/revoke UI; license gate.**
+- [ ] **19. File GitHub issues (post-v1): session list/revoke UI; license gate.**

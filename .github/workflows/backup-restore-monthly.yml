@@ -202,7 +202,7 @@ jobs:
           # organization_membership resource_grant tool_call_log).
           bash infra/scripts/restore-drill.sh
 
-      - name: Alarm on failure (Telegram + deduped Linear issue via bot)
+      - name: Alarm on failure (Telegram + deduped GitHub issue via bot)
         if: failure()
         env:
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}

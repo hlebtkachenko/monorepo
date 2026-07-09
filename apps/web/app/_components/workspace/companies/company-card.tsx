@@ -31,22 +31,106 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { toast } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { setActivePeriodAction } from "../../../[orgSlug]/_lib/period-actions"
+import { setCompanyAssigneeAction } from "../../../workspace/actions"
 import {
   archiveOrgAction,
   unarchiveOrgAction,
 } from "../../../workspace/organizations/actions"
-import { STATUS_BADGE, type CompanyRow } from "./data"
+import { useCompanies } from "./context"
+import { type CompanyAssignee, STATUS_BADGE, type CompanyRow } from "./data"
 
 const CARD_ARCHIVE_ERROR: Record<string, string> = {
   sessionExpired: "Your session expired. Please sign in again.",
   noActiveWorkspace: "No active workspace.",
   notFound: "That company could not be found.",
   forbidden: "Only an owner or admin can archive a company.",
+}
+
+const ASSIGN_ERROR: Record<string, string> = {
+  sessionExpired: "Your session expired. Please sign in again.",
+  noActiveWorkspace: "No active workspace.",
+  notFound: "That company could not be found.",
+  invalidAssignee: "That person is not an active member of this workspace.",
+  forbidden: "Only an owner or admin can reassign a company.",
+}
+
+const UNASSIGNED = "__unassigned__"
+
+/**
+ * The company's responsible-accountant field. Read-only text for a plain
+ * member; a real `Select` (calling `setCompanyAssigneeAction`) for a
+ * workspace owner/admin. Shared by the card and the Companies table
+ * inspector (`companies-table.tsx`).
+ */
+export function CompanyAssigneeField({
+  company,
+  canAssign,
+  assignableMembers,
+}: {
+  company: CompanyRow
+  canAssign: boolean
+  assignableMembers: CompanyAssignee[]
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = React.useTransition()
+
+  if (!canAssign) {
+    return (
+      <span className="text-sm font-medium">
+        {company.assignee?.name ?? "Unassigned"}
+      </span>
+    )
+  }
+
+  return (
+    <Select
+      value={company.assignee?.userId ?? UNASSIGNED}
+      disabled={pending}
+      onValueChange={(value) => {
+        const userId = value === UNASSIGNED ? null : value
+        startTransition(async () => {
+          const res = await setCompanyAssigneeAction(company.slug, userId)
+          if (res.ok) {
+            toast.success(userId ? "Assignee updated" : "Company unassigned")
+            router.refresh()
+          } else {
+            toast.error(
+              (res.errorKey && ASSIGN_ERROR[res.errorKey]) ||
+                "Could not update the assignee.",
+            )
+          }
+        })
+      }}
+    >
+      <SelectTrigger
+        size="sm"
+        className="relative z-10 h-7 w-full text-xs"
+        aria-label={`Assignee for ${company.legalName}`}
+      >
+        <SelectValue placeholder="Unassigned" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+        {assignableMembers.map((m) => (
+          <SelectItem key={m.userId} value={m.userId}>
+            {m.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
 }
 
 /** Grey rounded-square company mark (initial) — a stand-in until org logos land. */
@@ -68,6 +152,7 @@ function CompanyAvatar({ name }: { name: string }) {
  */
 export function CompanyCard({ company }: { company: CompanyRow }) {
   const router = useRouter()
+  const { canAssign, assignableMembers } = useCompanies()
   const icons = useIcons()
   const CalendarIcon = icons.CalendarClock
   const ChevronIcon = icons.ChevronDown
@@ -171,7 +256,16 @@ export function CompanyCard({ company }: { company: CompanyRow }) {
           }
         />
         <DetailField label="VAT regime" value={company.vatRegime} />
-        <DetailField label="Assigned" value={company.assignee} />
+        <DetailField
+          label="Assigned"
+          value={
+            <CompanyAssigneeField
+              company={company}
+              canAssign={canAssign}
+              assignableMembers={assignableMembers}
+            />
+          }
+        />
       </div>
 
       {/* Members + period quick-switch */}

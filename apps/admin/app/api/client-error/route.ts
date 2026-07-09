@@ -18,7 +18,7 @@ interface ClientErrorBody {
 
 // Same-origin sink for admin browser errors (OBS-03 — mirror of the web route,
 // including the OBS-14 hardening). Holds the bot secret server-side; opens a
-// deduped Linear issue via the bot's /issue. The admin container gets
+// deduped GitHub issue via the bot's /issue. The admin container gets
 // BOT_INGEST_URL + NOTIFY_SHARED_SECRET from CDK (infra/cdk/lib/app-stack.ts);
 // notifierFromEnv() no-ops when they are unset (local dev).
 //

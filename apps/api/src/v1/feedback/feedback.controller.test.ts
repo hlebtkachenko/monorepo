@@ -1,8 +1,17 @@
 import { Test, type TestingModule } from "@nestjs/testing"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
+const notifyMock = vi.hoisted(() => ({
+  reportIssue: vi.fn().mockResolvedValue(undefined),
+  notify: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock("@workspace/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock("@workspace/notify", () => ({
+  notifierFromEnv: () => notifyMock,
 }))
 
 import { ValidationError } from "@workspace/shared/errors"
@@ -41,6 +50,8 @@ describe("FeedbackController", () => {
     expect(call?.subject).toContain("[Afframe feedback · request]")
     expect(call?.text).toContain("dev@partner.example")
     expect(call?.text).toContain("idempotency-key")
+    await vi.waitFor(() => expect(notifyMock.reportIssue).toHaveBeenCalled())
+    expect(notifyMock.reportIssue.mock.calls[0]?.[0]?.type).toBe("feat")
   })
 
   it("does not throw when the email transport fails — logs + returns 201", async () => {
@@ -97,39 +108,33 @@ describe("FeedbackController", () => {
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
-  it("appends the full validated context as a JSON block to the Linear issue", async () => {
-    // createLinearIssue no-ops unless both env vars are set (controller skips
-    // it otherwise), so the JSON-block path is uncovered without this setup.
-    vi.stubEnv("LINEAR_API_KEY", "lin_test")
-    vi.stubEnv("LINEAR_TEAM_ID", "team_test")
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue({ ok: true, text: async () => "" })
-    vi.stubGlobal("fetch", fetchMock)
+  it("appends the full validated context as a JSON block to the GitHub issue report", async () => {
+    await controller.create({
+      type: "bug",
+      message: "Save button does nothing on the invoice editor.",
+      context: {
+        page: { url: "https://app.afframe.com/acme", pathname: "/acme" },
+        // `role` is rendered only in the JSON block, never the Markdown
+        // summary, so it proves the full context is forwarded.
+        element: { tag: "button", role: "button", dom_path: "main > button" },
+      },
+    })
 
-    try {
-      await controller.create({
-        type: "bug",
-        message: "Save button does nothing on the invoice editor.",
-        context: {
-          page: { url: "https://app.afframe.com/acme", pathname: "/acme" },
-          // `role` is rendered only in the JSON block, never the Markdown
-          // summary — so it proves the full context is forwarded.
-          element: { tag: "button", role: "button", dom_path: "main > button" },
-        },
-      })
+    await vi.waitFor(() => expect(notifyMock.reportIssue).toHaveBeenCalled())
+    const report = notifyMock.reportIssue.mock.calls[0]?.[0]
+    expect(report?.source).toBe("customer-request")
+    expect(report?.type).toBe("fix")
+    expect(report?.body).toContain("```json")
+    expect(report?.body).toContain('"role": "button"')
+  })
 
-      // createLinearIssue is fire-and-forget (void), so wait for the dispatch.
-      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-      const sentBody = JSON.parse(
-        (fetchMock.mock.calls[0]?.[1] as { body: string }).body,
-      )
-      const description = sentBody.variables.input.description as string
-      expect(description).toContain("```json")
-      expect(description).toContain('"role": "button"')
-    } finally {
-      vi.unstubAllGlobals()
-      vi.unstubAllEnvs()
-    }
+  it("routes questions to the Roadmap docs type", async () => {
+    await controller.create({
+      type: "question",
+      message: "How do I rotate an API key?",
+    })
+
+    await vi.waitFor(() => expect(notifyMock.reportIssue).toHaveBeenCalled())
+    expect(notifyMock.reportIssue.mock.calls[0]?.[0]?.type).toBe("docs")
   })
 })

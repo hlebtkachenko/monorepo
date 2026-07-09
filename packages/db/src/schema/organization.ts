@@ -17,6 +17,9 @@
  *     writing person_kind and the two can never diverge.
  *   - UNIQUE(id, workspace_id) (added in 0026) is the composite-FK target the v2
  *     capture layer references; declared in the migration, not mirrored here.
+ *   - responsible_user_id — the workspace staff member (accountant) responsible
+ *     for this client book, added in 0049_organization_responsible_user.sql.
+ *     Nullable (unassigned); assignment is gated (owner/admin) server-side.
  */
 import {
   char,
@@ -29,6 +32,7 @@ import {
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 import { personType } from "./_enums"
+import { app_user } from "./app_user"
 
 export const organization = pgTable("organization", {
   id: uuid("id")
@@ -78,6 +82,11 @@ export const organization = pgTable("organization", {
   registry_file_number: text("registry_file_number"),
   // Manage-orgs archive flag; NULL = active.
   archived_at: timestamp("archived_at", { withTimezone: true }),
+  // The workspace staff member (accountant) responsible for this client book.
+  // Nullable (unassigned). Added in 0049_organization_responsible_user.sql.
+  responsible_user_id: uuid("responsible_user_id").references(
+    () => app_user.id,
+  ),
   fiscal_year_start_month: smallint("fiscal_year_start_month")
     .notNull()
     .default(sql`1`)

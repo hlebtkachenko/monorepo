@@ -68,6 +68,11 @@ export interface AdminHeaderActionsProps {
   webUrl: string
 }
 
+const repositorySlug = process.env.NEXT_PUBLIC_GITHUB_REPOSITORY?.trim()
+const docsUrl = repositorySlug
+  ? `https://github.com/${repositorySlug}/tree/main/docs`
+  : null
+
 /**
  * Admin-surface action cluster for the AppHeader `actions` slot. Help menu +
  * Sidekick assistant toggle + a profile menu (workspace link, theme, icon
@@ -128,17 +133,15 @@ export function AdminHeaderActions({
           sideOffset={MENU_GAP}
           className={HEADER_MENU}
         >
-          <DropdownMenuItem asChild>
-            <a
-              href="https://github.com/hlebtkachenko/monorepo/tree/main/docs"
-              target="_blank"
-              rel="noreferrer"
-            >
-              <DocsIcon />
-              Documentation
-              <ExternalIcon className="ml-auto size-3" />
-            </a>
-          </DropdownMenuItem>
+          {docsUrl ? (
+            <DropdownMenuItem asChild>
+              <a href={docsUrl} target="_blank" rel="noreferrer">
+                <DocsIcon />
+                Documentation
+                <ExternalIcon className="ml-auto size-3" />
+              </a>
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onSelect={() => openCmdk()}>
             <KeyboardIcon />
             Command palette

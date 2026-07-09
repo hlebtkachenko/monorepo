@@ -234,9 +234,15 @@ export const companyColumns: ColumnDef<CompanyRow>[] = [
     meta: { label: "Next deadline" },
   },
   {
-    accessorKey: "assignee",
+    id: "assignee",
+    accessorFn: (row) => row.assignee?.name ?? "",
     header: "Assigned",
     size: 160,
+    cell: ({ row }) => (
+      <span className="text-muted-foreground">
+        {row.original.assignee?.name ?? "Unassigned"}
+      </span>
+    ),
     meta: { label: "Assigned" },
     enableSorting: true,
   },

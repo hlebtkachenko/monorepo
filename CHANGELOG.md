@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **closing**: time-versioned `organization_tax_profile` table (has_employees) wired into the statutory obligation engine so payroll obligations become real, plus a Settings > Tax profile capture page and a real Payroll landing (period-mechanism PR3d). (#609)
 - **closing**: real Closing income-tax pages (DPPO / DPFO, gated on person type + book regime) and year-end financial-statements page, computed from the existing annual output builders over the active accounting period. (#605)
 - **closing**: filing-period-aware VAT output builders (přiznání k DPH / KH / SH scoped to a filing month or quarter by the DUZP, `accounting_event.occurred_at`) and real Closing VAT pages (return / control statement / EC sales list) computing each selected filing period's figures. (#601)
 - **closing**: statutory obligation + deadline engine (monthly/quarterly VAT return / KH / SH / payroll, business-day-shifted per the Czech holiday calendar) and real Closing Overview + Calendar computed from the active accounting period. (#598)

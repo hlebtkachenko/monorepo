@@ -47,6 +47,9 @@ export * from "./organization_authorized_person"
 export * from "./organization_tax_representative"
 export * from "./organization_oss_registration"
 
+// operational tax profile (0048_organization_tax_profile)
+export * from "./organization_tax_profile"
+
 // v2 accounting — capture core (0027)
 export * from "./number_series"
 export * from "./accounting_event"

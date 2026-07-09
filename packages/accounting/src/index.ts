@@ -22,6 +22,7 @@ export { resolveAccountId, resolveAccountIds } from "./accounts"
 export {
   createPeriod,
   createVatStatus,
+  createTaxProfile,
   createNumberSeries,
   DEFAULT_NUMBER_SERIES,
   backfillDefaultNumberSeries,
@@ -239,6 +240,7 @@ export {
   vatMonthlyDeadline,
   payrollMonthlyDeadline,
   computeObligations,
+  computePayrollObligations,
   type ObligationCategory,
   type ObligationKind,
   type ObligationInput,

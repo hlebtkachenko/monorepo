@@ -29,6 +29,11 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           icon: "ReceiptEuro",
         },
         {
+          label: "Tax profile",
+          href: `${base}/tax-profile`,
+          icon: "Users",
+        },
+        {
           label: "Business activities",
           href: `${base}/business-activities`,
           icon: "Briefcase",

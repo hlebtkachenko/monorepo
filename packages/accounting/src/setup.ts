@@ -78,6 +78,33 @@ export async function createVatStatus(
   return r.id
 }
 
+/**
+ * Register an organization_tax_profile range — currently just has_employees,
+ * the operational attribute the statutory obligation engine needs but cannot
+ * derive from the books. One open row per org (valid_to = null); the
+ * organization_tax_profile_no_overlap gist EXCLUDE bars overlaps. Mirrors
+ * createVatStatus: insert-only — the caller (changeTaxProfile) closes any
+ * currently-open row before calling this.
+ */
+export async function createTaxProfile(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: {
+    hasEmployees: boolean
+    validFrom: string
+    validTo?: string | null
+  },
+): Promise<string> {
+  const r = await one<{ id: string }>(
+    db,
+    sql`INSERT INTO organization_tax_profile (organization_id, has_employees, valid_from, valid_to)
+        VALUES (${ctx.organizationId}::uuid, ${input.hasEmployees}, ${input.validFrom}::date,
+                ${input.validTo ?? null})
+        RETURNING id`,
+  )
+  return r.id
+}
+
 export async function createNumberSeries(
   db: RowExecutor,
   ctx: OrgCtx,

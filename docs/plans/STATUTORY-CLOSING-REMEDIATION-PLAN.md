@@ -19,7 +19,7 @@ CI promotion are tracked in Milestone 7.
 | 4: payroll obligation correctness | [#631](https://github.com/hlebtkachenko/monorepo/pull/631) | Implemented |
 | 5: annual tax and year-end truthfulness | [#632](https://github.com/hlebtkachenko/monorepo/pull/632) | Implemented |
 | 6: workspace and canonical configuration | [#629](https://github.com/hlebtkachenko/monorepo/pull/629) | Implemented |
-| 7: combined review, verification, and PR readiness | PR stack above | In progress |
+| 7: combined review, verification, and PR readiness | [#633](https://github.com/hlebtkachenko/monorepo/pull/633) | Implemented, CI in progress |
 
 The checkbox lists below remain the acceptance checklist and design history.
 The table above is the authoritative execution status.
@@ -57,7 +57,7 @@ This remediation makes implemented calculations and labels truthful. It does not
 
 ## Remediation PR stack
 
-The implementation is split into six reviewable PRs. Each PR must independently pass CI. Later PRs may be stacked while earlier PRs await review.
+The implementation is split into seven reviewable PRs. Each PR must independently pass CI. Later PRs may be stacked while earlier PRs await review.
 
 | PR  | Proposed title                                                           | Scope                                                             | Dependency      |
 | --- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- | --------------- |
@@ -67,6 +67,7 @@ The implementation is split into six reviewable PRs. Each PR must independently 
 | 4   | `fix(accounting): model payroll obligations from monthly facts`          | Payroll evidence, participation, tax kinds, deadlines             | PR 2            |
 | 5   | `fix(accounting): make annual outputs historically correct and explicit` | DPPO, DPFO, year-end statements, completeness                     | PR 2            |
 | 6   | `fix(web): unify statutory obligation surfaces`                          | Workspace integration, settings, configuration, final cleanup     | PRs 3, 4, and 5 |
+| 7   | `fix: close statutory review gaps`                                      | Cross-cutting reviewer findings, public contracts, final hardening | PR 6            |
 
 If implementation exposes an inseparable database or type dependency, adjacent PRs may be combined. The resulting stack must remain small enough to review, preserve the dependency order above, and explain the deviation in the PR description.
 

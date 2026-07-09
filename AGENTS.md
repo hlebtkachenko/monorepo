@@ -41,6 +41,24 @@ Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs
 - **Web app** (`apps/web`): Next.js 16 with Turbopack
 - **Shared configs**: `packages/eslint-config` (flat config), `packages/typescript-config`
 
+## CodeGraph
+
+CodeGraph is enabled for this repo through `.mcp.json` and the root dev dependency `@colbymchenry/codegraph`. It stores a local, ignored `.codegraph/` SQLite index per checkout/worktree. Do not commit `.codegraph/`.
+
+At the start of a coding session, run one command:
+
+```bash
+pnpm codegraph:ready
+```
+
+`codegraph:ready` creates `.codegraph/` if missing, syncs changed files, and prints status. Conductor workspace setup also runs it through `.conductor/settings.toml`, but agents should run it again after rebases, branch switches, pulls, or external edits.
+
+Use CodeGraph before grep/read loops for structural questions: where a symbol lives, how a flow reaches another layer, callers/callees, route-to-handler paths, impact analysis, and affected tests. For MCP-enabled agents, prefer the CodeGraph MCP tool; for non-MCP contexts use `pnpm exec codegraph explore "<question>"`, `pnpm exec codegraph query <symbol>`, `pnpm exec codegraph impact <symbol>`, or `codegraph affected`.
+
+If CodeGraph reports stale files, read those specific files directly before editing. Full rebuilds (`pnpm codegraph:init` or `pnpm exec codegraph index --force .`) are only for missing/corrupt indexes.
+
+Full procedure: [`docs/runbooks/CODEGRAPH.md`](docs/runbooks/CODEGRAPH.md).
+
 ## Component Pattern
 
 Every component lives in `packages/ui/src/components/{name}/` with 4 files:
@@ -102,6 +120,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 Agent-specific runbooks live in `docs/runbooks/`:
 
 - `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the four-archetype catalog (Table / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the dev-only `/demo-*` routes as living examples
+- `CODEGRAPH.md`: how the repo-local CodeGraph MCP/index setup works, how to initialize/sync per Conductor worktree, and when agents should use it before grep/read exploration
 - `DB-ACCESS.md`: operator DB access — `scripts/db-query.sh` (fast ~2s reads via ECS Exec) vs the EC2 bastion (`staging-bastion-migrate.sh`) for raw write SQL
 - `BRAIN-OPERATOR-SESSION.md`: how Hleb starts a live Brain session and pushes a real org's docs through the HELD write loop — issue the `actor_kind='agent'` key, the exact env vars (`mlive.example.sh` template), the `brain extract` → `brain book` command sequence, and the `/{orgSlug}/accounting/approvals` review gate
 - `SHOWCASE.md`: instructions for adding component demos to the showcase page

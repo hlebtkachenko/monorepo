@@ -2,8 +2,11 @@
   "mcpServers": {
     "codegraph": {
       "type": "stdio",
-      "command": "codegraph",
-      "args": ["serve", "--mcp"]
+      "command": "pnpm",
+      "args": ["exec", "codegraph", "serve", "--mcp"],
+      "env": {
+        "CODEGRAPH_TELEMETRY": "0"
+      }
     }
   }
 }

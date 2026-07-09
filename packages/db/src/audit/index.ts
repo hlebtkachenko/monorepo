@@ -9,3 +9,4 @@ export {
 } from "./write-log"
 export * from "./query"
 export * from "./get-detail"
+export * from "./stale-held-writes"

@@ -18,7 +18,12 @@ import {
   type BrainDryRunInputs,
   type BrainDryRunPlan,
 } from "@workspace/intake"
-import type { Invoice } from "@workspace/brain"
+import { assembleLoginSections } from "@workspace/brain"
+import type {
+  Invoice,
+  LoginContextSections,
+  OperatorLoginSections,
+} from "@workspace/brain"
 import {
   assembleBookPlan,
   assembleOcrCapturePlan,
@@ -280,17 +285,34 @@ function readContextFile<K extends string>(
   return picked
 }
 
+/**
+ * Assemble the canonical safety spine onto an operator context (M0.2a′): the LOCKED constitution is read
+ * VERBATIM from `.brain/constitution.md` (never hand-copied → cannot drift/drop), and the assembler fails
+ * closed if ANY safety section is missing/blank. Applied at the operator-JSON boundary so every path
+ * (`run` / `book` / `extract`) boots with the same drift-proof spine; the operator no longer supplies the
+ * constitution.
+ */
+function withAssembledSections<T extends { sections: unknown }>(
+  ctx: T,
+): T & { sections: LoginContextSections } {
+  return {
+    ...ctx,
+    sections: assembleLoginSections(ctx.sections as OperatorLoginSections),
+  }
+}
+
 /** Read + shallow-validate the operator-supplied `extract` context: JUST the login-pack sections (no tenancy). */
 function readExtractContext(path: string): ExtractContext {
-  return readContextFile(path, "--context", ["sections"]) as ExtractContext
+  return withAssembledSections(
+    readContextFile(path, "--context", ["sections"]),
+  ) as ExtractContext
 }
 
 /** Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context. */
 function readBookContext(path: string): BookContext {
-  return readContextFile(path, "--context", [
-    "sections",
-    "captureContext",
-  ]) as BookContext
+  return withAssembledSections(
+    readContextFile(path, "--context", ["sections", "captureContext"]),
+  ) as BookContext
 }
 
 /** True when `path` is a single PDF/image FILE (not a directory) — the OCR extract→book bridge (W1.4) path. */
@@ -466,9 +488,7 @@ async function confirmLiveRun(count: number): Promise<boolean> {
  * Brain's agent key via `@RequireHumanActor()` (#517); this pin closes the last client-side widening seam.
  */
 export function readInputs(path: string): BrainDryRunInputs {
-  return readContextFile(path, "--inputs", [
-    "invoice",
-    "sections",
-    "captureContext",
-  ]) as BrainDryRunInputs
+  return withAssembledSections(
+    readContextFile(path, "--inputs", ["invoice", "sections", "captureContext"]),
+  ) as BrainDryRunInputs
 }

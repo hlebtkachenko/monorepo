@@ -194,10 +194,19 @@ carried as integer minor-unit **strings** (e.g. `"150000"`), reconstructed as `b
 `captureContext` (shape = `IrToCaptureContext`, `packages/intake/src/ir-to-capture.ts`) carries the
 operator-supplied uuids + the server-gate envelope:
 
+The `constitution` is NOT supplied here: the CLI ASSEMBLES it VERBATIM from the LOCKED
+`packages/brain/.brain/constitution.md` at the operator-JSON boundary (M0.2a′), so it can never be
+hand-copied stale or dropped. You supply only the remaining spine sections; a missing/blank one fails
+closed (the assembler refuses to boot a login pack with a hole in its safety framing).
+
 ```jsonc
 {
   "sections": {
-    /* constitution / KB pointer / law / confidence / escalation texts */
+    // constitution is auto-assembled from .brain/constitution.md — do NOT paste it here
+    "kb": { "id": "…", "version": "…" }, // which KB snapshot the session is grounded on
+    "lawSummary": "…", // the accounting-law digest the session reasons against
+    "confidenceProtocol": "…", // how the SERVER gate scores (the model never self-scores)
+    "escalationPolicy": "…" // when + how to route to a human
   },
   "captureContext": {
     "periodId": "…uuid…", // open accounting period (NOT MCP-resolved)

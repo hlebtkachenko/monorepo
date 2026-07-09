@@ -7,7 +7,7 @@ import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
-  "id": z.string().describe("OCR template id, resolved within the API key's workspace."),
+  "id": z.string().uuid().describe("OCR template id, resolved within the API key's workspace."),
 }
 
 export function registerConfirmOcrTemplate(

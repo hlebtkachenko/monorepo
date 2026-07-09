@@ -7,7 +7,7 @@ import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
-  "accountId": z.string().describe("Opaque account identifier (UUID)."),
+  "accountId": z.string().uuid().describe("Opaque account identifier (UUID)."),
 }
 
 export function registerGetAccount(

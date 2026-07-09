@@ -1,7 +1,7 @@
 # 26. Afframe Brain confidence — infrastructure-gated, calibrated, never model-verbalized
 
-- Status: Proposed
-- Date: 2026-06-25
+- Status: Accepted
+- Date: 2026-06-25 (Accepted 2026-07-08)
 - Deciders: Hleb Tkachenko
 
 > Records a decision from the approved Afframe Brain plan (v1.1), embodied in `packages/brain/src/confidence/`

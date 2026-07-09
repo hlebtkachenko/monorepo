@@ -19,14 +19,10 @@ import type { AdminBypassDb, OrganizationBoundDb } from "@workspace/db"
 import type { OrgCtx } from "@workspace/accounting"
 import {
   createVatStatus,
-  createPeriod,
-  createChart,
-  seedChartFromDirectives,
-  createNumberSeries,
-  DEFAULT_NUMBER_SERIES,
   createCounterparty,
   createCategory,
 } from "@workspace/accounting"
+import { scaffoldAccountingPeriod } from "./accounting-scaffold"
 import { ScaffoldInput, type ScaffoldInputRaw } from "./input"
 import { slugify, isReservedSlug } from "./slug"
 import {
@@ -286,28 +282,26 @@ async function createOrganization(
             : null,
       })
 
-      const periodId = await createPeriod(orgDb, ctx, {
-        periodStart: bounds.periodStart,
-        periodEnd: bounds.periodEnd,
-        regimeCode: regime,
-        accountingCurrency: input.accountingCurrency,
-        accountingSizeCode: input.accountingSizeCode ?? null,
-        fxRatePolicy: input.fxRatePolicy ?? null,
-      })
-
-      let chartId: string | null = null
-      let accountsSeeded = 0
-      if (requiresChart) {
-        chartId = await createChart(orgDb, ctx, { periodId })
-        accountsSeeded = await seedChartFromDirectives(orgDb, ctx, {
-          chartId,
-          periodId,
-        })
-      }
-
-      for (const series of DEFAULT_NUMBER_SERIES) {
-        await createNumberSeries(orgDb, ctx, series)
-      }
+      // The coupled accounting scaffold (period + chart + number series) — the
+      // single shared path POST /v1/accounting/periods also calls, so a period
+      // is never minted without its chart + series (#579).
+      const { periodId, chartId, accountsSeeded } =
+        await scaffoldAccountingPeriod(
+          orgDb,
+          {
+            organizationId: orgId,
+            workspaceId: input.workspaceId,
+            regime,
+            requiresChart,
+          },
+          {
+            periodStart: bounds.periodStart,
+            periodEnd: bounds.periodEnd,
+            accountingCurrency: input.accountingCurrency,
+            accountingSizeCode: input.accountingSizeCode ?? null,
+            fxRatePolicy: input.fxRatePolicy ?? null,
+          },
+        )
 
       await createCounterparty(orgDb, ctx, {
         selfOfOrganizationId: orgId,

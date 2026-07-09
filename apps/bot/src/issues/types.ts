@@ -1,10 +1,8 @@
 export type IssueSource =
-  | "ci-failure"
-  | "security-scan"
-  | "customer-request"
-  | "agent"
-  | "error"
+  "ci-failure" | "security-scan" | "customer-request" | "agent" | "error"
 type Risk = "blocking" | "high" | "medium" | "low"
+export type IssueType =
+  "feat" | "fix" | "refactor" | "chore" | "docs" | "test" | "security"
 type IssueArea =
   | "api"
   | "web"
@@ -26,8 +24,8 @@ export interface IssueEvent {
   fingerprintParts: string[]
   area?: IssueArea
   risk?: Risk
-  /** Linear Type label; defaults to security for security-scan, else fix. */
-  type?: "security" | "fix"
+  /** GitHub Project Type field; defaults from source when omitted. */
+  type?: IssueType
   links?: { label: string; url: string }[]
   /** GitHub Actions run id — when set, the Telegram echo grows an "⟳ Rerun" button. */
   runId?: number

@@ -23,11 +23,13 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Developer tooling: make CodeGraph repo-local via pnpm, add Conductor workspace setup plus agent startup scripts/runbook, and remove leftover graph-index placeholders.
 - **release/changelog**: correct historical entries — drop the stale note claiming the v0.2.1 tag still exists on the remote (it was deleted) and strip the stray emoji from the v0.3.1 HITL fix entry. (#604)
 - **release/changelog**: fold the unpublished `v0.16.11` draft release notes back into Unreleased because `v0.16.10` remains the latest published GitHub release.
+- **governance**: replace the retired tracker integration with GitHub Issues. Bot-created issues now use GitHub issues and repo labels, with optional ProjectV2 field writes and optional parent Epic attachment supplied by deploy config instead of source-level Roadmap constants. Scheduled health scans and heartbeat checks report in Telegram without creating issues. PR backlink sync resolves GitHub issue links from PR metadata and explicit issue references instead of branch names; docs, runbooks, generated API contracts, and workflow comments no longer reference the old tracker.
 - **governance**: require every non-release PR to add an Unreleased changelog entry, with CI and local hooks preserving existing entries so parallel agents append instead of overwriting.
 - **ci**: the `_deploy-aws.yml` `brain_runtime_active` input now defaults to `1` for the pre-launch period, so a deploy that omits it keeps the `/v1/accounting` write admission lane ON instead of silently killing it (v0.16.9 omitted it and every write 429'd). This does not enable auto-apply: the cold-start `extraction_failed` floor still HELDs every write. Revert the default to explicit at launch (ADR-0028). (#584)
 
 ### Fixed
 
+- **bot/issues**: harden the GitHub-issues tracker migration — reset the Linear-era D1 dedup/snooze cache on deploy (a surviving row would comment a recurrence into a dead 404 and never open a GitHub issue), re-file a fresh issue when a comment POST fails or the stored id isn't a GitHub number, honor `addComment`'s result instead of ignoring it, validate the ProjectV2 field config at the boundary (a partial config no longer TypeErrors + 500s `/issue`) with a fail-fast deploy check, drop the duplicate Telegram ping per feedback, and de-duplicate the governance scripts (no self-`spawnSync`) + the bot's two GitHub transports. (#603)
 - **ci**: deploy diff checks now handle changed or missing CDK input files correctly under `pipefail`, so the guard fails for real drift instead of exiting early from expected no-match cases. (#595)
 - **github**: remove the unsupported Code Quality branch-ruleset threshold while keeping CodeQL code scanning required, and document the live required-check set. (#597)
 
@@ -413,7 +415,7 @@ Minor release: org/period context switchers wired to real data, public sign-up c
 ### Operations
 
 - **db**: fast ECS-exec `db-query.sh` read helper; hardened the EC2 bastion migrate path. (#407)
-- **ci**: skip the linear-sync job on Dependabot PRs (no secret access). (#415)
+- **ci**: skip the issue-sync job on Dependabot PRs (no secret access). (#415)
 
 ### Infrastructure
 
@@ -532,7 +534,7 @@ Patch release: web layout re-land and supporting docs/UX fixes.
 
 ### Fixed
 
-- App errors now open deduped Linear issues; dropped the Next.js control-flow signals from error capture. (#342)
+- App errors now open deduped GitHub issues; dropped the Next.js control-flow signals from error capture. (#342)
 
 ### Documentation
 
@@ -568,7 +570,7 @@ Minor release: the Afframe Telegram dev alert + control hub (epic DEV-48).
 
 ### Added
 
-- **Telegram dev alert + control hub** (`apps/bot`): a Cloudflare Worker (grammY + Hono) that is the single choke point for developer-facing Telegram I/O. Outbound `POST /ingest`; inbound `/webhook` (secret-token + Telegram user-id allowlist, constant-time auth); `/issue` + `/sns`; a scheduled health scan (cron 06:00/18:00 Prague) with a `/scan` command; and an auto-issue engine (Cloudflare D1 dedup → Linear issue in **DEV — Incidents** with source/type/risk/area labels). New `@workspace/notify` typed client. AWS CloudWatch alarms fan in via SNS (Billing + KillSwitch topics); an independent GitHub Actions watchdog monitors the bot's `/health`.
+- **Telegram dev alert + control hub** (`apps/bot`): a Cloudflare Worker (grammY + Hono) that is the single choke point for developer-facing Telegram I/O. Outbound `POST /ingest`; inbound `/webhook` (secret-token + Telegram user-id allowlist, constant-time auth); `/issue` + `/sns`; a scheduled health scan (cron 06:00/18:00 Prague) with a `/scan` command; and an auto-issue engine (Cloudflare D1 dedup → GitHub issue in **DEV — Incidents** with source/type/risk/area labels). New `@workspace/notify` typed client. AWS CloudWatch alarms fan in via SNS (Billing + KillSwitch topics); an independent GitHub Actions watchdog monitors the bot's `/health`.
 - App-side error capture + business pings wired to the bot: `apps/api` `DomainExceptionFilter` (Sentry + notify), Next.js `global-error`/`error`/`instrumentation-client` + a same-origin client-error route, `packages/workers` `permissions-drain` dead-letter, plus feedback + new-workspace pings.
 
 ### Infrastructure
@@ -595,7 +597,7 @@ Largest release since v0.2.0. Introduces the public API v1 surface, the Vault-on
 ### Added
 
 - **Public API v1** — `/v1` release candidate: Scalar API reference, generated SDK + MCP tool surface + CLI, OpenAPI registry codegen, status + feedback endpoints, topnav/brand polish.
-- **Secrets architecture — Vault → SSM (M1–M10)** — Vault-on-VPS bring-up assets (compose, HCL, env, logrotate); `SecretsBootstrap` CDK stack (KMS auto-unseal + IAM user); Vault AWS IAM auth verifier + operator-admin policy (M3 / M3.5); vault-to-SSM sync (script + systemd + drift CI); M4 CDK flip of 3 workflow secrets to SSM SecureString + `vault-ssm-sync` IAM user; restic backup + DR-drill assets; `linear-sync.yml` fetches `LINEAR_API_KEY` from Vault via OIDC (M5); `infisical-scan` gate.
+- **Secrets architecture — Vault → SSM (M1–M10)** — Vault-on-VPS bring-up assets (compose, HCL, env, logrotate); `SecretsBootstrap` CDK stack (KMS auto-unseal + IAM user); Vault AWS IAM auth verifier + operator-admin policy (M3 / M3.5); vault-to-SSM sync (script + systemd + drift CI); M4 CDK flip of 3 workflow secrets to SSM SecureString + `vault-ssm-sync` IAM user; restic backup + DR-drill assets; GitHub OIDC → Vault JWT pilot (M5); `infisical-scan` gate.
 - **AWS cost-runaway protection** — account-wide $55 production cost guard; always-on cost reduction + hardened cost kill-switch.
 - **env power** — `env-power` workflow (resume / warm-pause / cold-pause) with auto-cold-pause on staging + prod and an `all`-envs matrix fan-out. Auto-pause binds an edge "app is asleep" page served by the `cloudflare-sleeping` worker (the in-app `/sleeping` twin was dropped).
 - **ECS Exec** enabled on the App stack.

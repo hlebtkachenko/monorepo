@@ -97,6 +97,8 @@ jobs:
             BUILD_SHA=${{ github.sha }}
             BUILD_TIME=${{ github.event.repository.updated_at }}
             BUILD_VERSION=${{ steps.meta.outputs.version }}
+            GITHUB_REPOSITORY=${{ github.repository }}
+            SOURCE_REPOSITORY_URL=https://github.com/${{ github.repository }}
 
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 

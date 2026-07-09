@@ -12,7 +12,7 @@
 # continue-on-error): this shim structure is unchanged — the shim still owns the
 # required-check name; the real knip-run job is no longer warn-only.
 #
-# See Linear AFF-68 for the broader rollout.
+# See docs/conventions/CI-POLICY.md for the broader required-check rollout.
 
 name: Knip
 

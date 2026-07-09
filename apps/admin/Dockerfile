@@ -33,10 +33,16 @@ FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549c
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
+ARG GITHUB_REPOSITORY=
+ARG GITHUB_PROJECT_URL=
+ARG SOURCE_REPOSITORY_URL=
 ENV NEXT_TELEMETRY_DISABLED=1 \
     BUILD_SHA=$BUILD_SHA \
     BUILD_TIME=$BUILD_TIME \
-    BUILD_VERSION=$BUILD_VERSION
+    BUILD_VERSION=$BUILD_VERSION \
+    GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
+    NEXT_PUBLIC_GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
+    NEXT_PUBLIC_GITHUB_PROJECT_URL=$GITHUB_PROJECT_URL
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY --from=deps /repo /repo
@@ -59,9 +65,12 @@ FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549
 ARG BUILD_SHA=unknown
 ARG BUILD_TIME=unknown
 ARG BUILD_VERSION=0.0.0
+ARG GITHUB_REPOSITORY=
+ARG GITHUB_PROJECT_URL=
+ARG SOURCE_REPOSITORY_URL=
 
 LABEL org.opencontainers.image.title="monorepo-admin" \
-      org.opencontainers.image.source="https://github.com/hlebtkachenko/monorepo" \
+      org.opencontainers.image.source="$SOURCE_REPOSITORY_URL" \
       org.opencontainers.image.revision="$BUILD_SHA" \
       org.opencontainers.image.created="$BUILD_TIME" \
       org.opencontainers.image.version="$BUILD_VERSION" \
@@ -74,6 +83,9 @@ ENV NODE_ENV=production \
     BUILD_SHA=$BUILD_SHA \
     BUILD_TIME=$BUILD_TIME \
     BUILD_VERSION=$BUILD_VERSION \
+    GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
+    NEXT_PUBLIC_GITHUB_REPOSITORY=$GITHUB_REPOSITORY \
+    NEXT_PUBLIC_GITHUB_PROJECT_URL=$GITHUB_PROJECT_URL \
     STORYBOOK_STATIC_DIR=/app/.storybook-static \
     # Admin never registers accounts: Better Auth's /sign-up/email rejects
     # when this is set (packages/auth/src/server.ts emailAndPassword.disableSignUp).

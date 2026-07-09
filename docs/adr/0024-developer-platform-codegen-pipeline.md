@@ -158,8 +158,8 @@ Negative / tradeoffs:
 - Phase B: registry cutover + SDK / MCP / CI codegen wired. **Shipped.**
 - Phase C: `apps/docs` self-hosted Next.js + MDX hub. **Built then
   archived 2026-05-21** — see Amendment.
-- Phase D: editor / void + governance docs + secrets hygiene + Linear
-  pivot on AFF-88. **Shipped except cross-subdomain cookie span for
+- Phase D: editor / void + governance docs + secrets hygiene + GitHub Issues
+  pivot on legacy AFF-88. **Shipped except cross-subdomain cookie span for
   the docs host, which is moot now.**
 
 ADR-0023 stays accepted for the items not revised here (CLI design,
@@ -232,8 +232,8 @@ Future option (deferred, not in scope here):
 - Re-evaluate Scalar Cloud Docs Pro vs. status quo when partner
   traffic appears, when narrative authoring outgrows
   `info.description` markdown, or when a hosted docs partner asks
-  for one. Linear AFF-88 stays open as the tracking ticket.
-- Linear AFF-226 (accounting body content) and AFF-227 (help-center
+  for one. legacy AFF-88 stays open as the tracking ticket.
+- legacy AFF-226 (accounting body content) and AFF-227 (help-center
   copy) closed as not-doing under the current end state. Their
   source MDX lives in the archived `apps/docs/content/` and can be
   re-imported if a future docs surface lands.

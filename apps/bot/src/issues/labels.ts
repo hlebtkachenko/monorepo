@@ -1,53 +1,136 @@
-import type { IssueEvent, IssueSource } from "./types.js"
+import type { ProjectFieldValue } from "./github.js"
+import type { IssueEvent, IssueSource, IssueType } from "./types.js"
 
-// DEV team + DEV — Incidents (rolling) project. Auto-created issues land here.
-export const DEFAULT_TEAM_ID = "ad95d719-40bb-43d5-85fd-0c4bba3dcd08"
-export const INCIDENTS_PROJECT_ID = "00c12cdd-47e4-4f3f-b42c-a6f9d21a0f47"
+type IssuePriority = "urgent" | "high" | "medium" | "low"
 
-// Resolved Linear label ids (stable; ids survive renames, so hardcoding beats a runtime query).
-export const LABEL = {
-  agentCreated: "280f742d-de07-4d03-99f3-342a38355de9",
-  ciFailure: "d1347aa7-7298-4a79-a040-057c115fd78b",
-  securityScan: "9ebea71f-76f9-4c59-b72a-268a658dceb5",
-  customerRequest: "6ae1e2da-a0b1-47e1-9c80-8a097606c41c",
-  typeSecurity: "4e511341-bf3c-42dd-9011-3019642a4da0",
-  typeFix: "d91d15ff-d1a1-4454-b906-73dd8a26f3ea",
-  risk: {
-    blocking: "2deefeeb-32b4-484a-b74c-02f7d17e4c71",
-    high: "d6f0f9b3-b2a3-4a42-bf5c-32ff883eb996",
-    medium: "1ac83be9-c964-42e4-817e-e519ea2aedc2",
-    low: "6def66e9-929c-4c98-9f28-387590f82b4c",
-  },
-  // NOTE: PUBLIC Linear label ids, not secrets. The api/secrets/auth entries trip
-  // gitleaks' generic-api-key keyword heuristic (property name is the trigger), so
-  // they carry an inline gitleaks:allow — honest annotation, not a real credential.
-  area: {
-    api: "12328123-9a4e-47f2-8220-38a685985973", // gitleaks:allow
-    web: "4faa18a9-0221-4959-a1f5-eb6b3b6c7be7",
-    ci: "f45d069f-f010-4ad3-a697-7aa0af07cd5c",
-    observability: "b67b6c89-000a-4a9a-b8fd-51722ca63364",
-    secrets: "1119ce12-3f44-4d82-a307-f9a19d95a56b", // gitleaks:allow
-    infra: "de0d7dc8-4853-419b-bff1-79eae8fb03f3",
-    auth: "bca15af9-90e9-4e7b-bb5c-e1f87b17ca73", // gitleaks:allow
-    db: "7d88abf5-1400-4107-ad58-e50fd51a815f",
-    agents: "142ed089-a8d0-43f0-82b4-8d21a3259528",
-  },
-} as const
+export interface ProjectFieldConfig {
+  status?: {
+    fieldId: string
+    backlogOptionId: string
+  }
+  type?: {
+    fieldId: string
+    options: Partial<Record<IssueType, string>>
+  }
+  priority?: {
+    fieldId: string
+    options: Partial<Record<IssuePriority, string>>
+  }
+}
 
-/** Explicit label set per the DEV-56 source→labels map. Always tags `agent-created`. */
+/**
+ * Existing repo labels only. Type/priority live in GitHub Project fields, so the label
+ * is a pure function of the resolved project type: enhancement for feat, bug for anything
+ * defect-shaped (fix/security), nothing for chore/refactor/docs/test.
+ */
 export function labelsFor(e: IssueEvent): string[] {
-  const ids: string[] = [LABEL.agentCreated]
-  if (e.source === "ci-failure") ids.push(LABEL.ciFailure)
-  if (e.source === "security-scan") ids.push(LABEL.securityScan)
-  if (e.source === "customer-request") ids.push(LABEL.customerRequest)
-  ids.push(
-    e.type === "security" || e.source === "security-scan"
-      ? LABEL.typeSecurity
-      : LABEL.typeFix,
-  )
-  if (e.risk) ids.push(LABEL.risk[e.risk])
-  if (e.area) ids.push(LABEL.area[e.area])
-  return [...new Set(ids)]
+  const type = projectTypeFor(e)
+  if (type === "feat") return ["enhancement"]
+  if (type === "fix" || type === "security") return ["bug"]
+  return []
+}
+
+export function projectFieldsFor(
+  e: IssueEvent,
+  config?: ProjectFieldConfig,
+): ProjectFieldValue[] {
+  if (!config) return []
+
+  const type = projectTypeFor(e)
+  const priority =
+    e.risk === "blocking"
+      ? "urgent"
+      : e.risk === "high"
+        ? "high"
+        : e.risk === "low"
+          ? "low"
+          : "medium"
+  const fields: ProjectFieldValue[] = []
+  if (config.status?.fieldId && config.status.backlogOptionId) {
+    fields.push({
+      fieldId: config.status.fieldId,
+      optionId: config.status.backlogOptionId,
+    })
+  }
+  const typeOptionId = config.type?.options?.[type]
+  if (config.type?.fieldId && typeOptionId) {
+    fields.push({ fieldId: config.type.fieldId, optionId: typeOptionId })
+  }
+  const priorityOptionId = config.priority?.options?.[priority]
+  if (config.priority?.fieldId && priorityOptionId) {
+    fields.push({
+      fieldId: config.priority.fieldId,
+      optionId: priorityOptionId,
+    })
+  }
+  return fields
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
+}
+
+/**
+ * Parse + normalize the deploy-time `GITHUB_PROJECT_FIELD_CONFIG` JSON at the system
+ * boundary. Each section is kept only when its required fields are present and correctly
+ * typed, so a partial/typo'd config degrades to "issue created without those Project
+ * fields" instead of throwing a TypeError deep in `projectFieldsFor` — which would escape
+ * the emit fail-soft seam and 500 the whole /issue path. Returns undefined only when the
+ * env var is unset.
+ */
+export function parseProjectFieldConfig(
+  value?: string,
+): ProjectFieldConfig | undefined {
+  if (!value) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(parsed)) return undefined
+
+  const config: ProjectFieldConfig = {}
+  const { status, type, priority } = parsed
+  if (
+    isRecord(status) &&
+    typeof status.fieldId === "string" &&
+    typeof status.backlogOptionId === "string"
+  ) {
+    config.status = {
+      fieldId: status.fieldId,
+      backlogOptionId: status.backlogOptionId,
+    }
+  }
+  if (
+    isRecord(type) &&
+    typeof type.fieldId === "string" &&
+    isRecord(type.options)
+  ) {
+    config.type = {
+      fieldId: type.fieldId,
+      options: type.options as Partial<Record<IssueType, string>>,
+    }
+  }
+  if (
+    isRecord(priority) &&
+    typeof priority.fieldId === "string" &&
+    isRecord(priority.options)
+  ) {
+    config.priority = {
+      fieldId: priority.fieldId,
+      options: priority.options as Partial<Record<IssuePriority, string>>,
+    }
+  }
+  return config
+}
+
+function projectTypeFor(e: IssueEvent): IssueType {
+  if (e.type) return e.type
+  if (e.source === "security-scan") return "security"
+  if (e.source === "customer-request") return "feat"
+  if (e.source === "agent") return "chore"
+  return "fix"
 }
 
 const PREFIX: Record<IssueSource, string> = {

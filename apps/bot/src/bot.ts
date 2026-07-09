@@ -18,8 +18,9 @@ import { deliverFromEnv } from "./deliver.js"
 import type { IssueEvent } from "./issues/types.js"
 
 function githubFor(env: Env) {
-  return env.GITHUB_DISPATCH_TOKEN
-    ? createGitHubClient(env.GITHUB_DISPATCH_TOKEN, repoOf(env))
+  const repo = repoOf(env)
+  return env.GITHUB_DISPATCH_TOKEN && repo
+    ? createGitHubClient(env.GITHUB_DISPATCH_TOKEN, repo)
     : null
 }
 
@@ -156,7 +157,7 @@ export function createBot(env: Env): Bot {
     })
   }
 
-  // /issue <title> — open a Linear incident from the phone (deduped like any other event).
+  // /issue <title> — open a GitHub issue from the phone (deduped like any other event).
   bot.command("issue", async (ctx) => {
     const title = (ctx.match ?? "").trim()
     if (!title) {

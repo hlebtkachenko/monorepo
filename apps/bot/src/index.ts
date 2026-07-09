@@ -20,18 +20,8 @@ import { deliverFromEnv } from "./deliver.js"
 import { answerView, isHttpsUrl, shouldApplyTimeout } from "./hitl.js"
 import type { IssueEvent } from "./issues/types.js"
 import { confirmSubscription, snsToEvent, type SnsEnvelope } from "./sns.js"
-import {
-  pollEndpoints,
-  renderBriefing,
-  renderScanReport,
-  scanToIssue,
-} from "./scan.js"
-import {
-  HEARTBEATS,
-  deadManToIssue,
-  staleHeartbeats,
-  type BeatEntry,
-} from "./heartbeats.js"
+import { pollEndpoints, renderBriefing, renderScanReport } from "./scan.js"
+import { HEARTBEATS, staleHeartbeats, type BeatEntry } from "./heartbeats.js"
 
 /** info/success pings are silent; warn/error buzz the phone. */
 function isQuiet(level: IngestPayload["level"]): boolean {
@@ -91,7 +81,7 @@ function createApp(env: Env) {
     return c.json({ ok: true })
   })
 
-  // AUTO-ISSUE: CI / security / errors / feedback / agent -> create-or-dedup a Linear issue + echo.
+  // EXPLICIT ISSUE: CI / security / errors / feedback / agent -> create-or-dedup a GitHub issue + echo.
   app.post("/issue", async (c) => {
     if (!isAuthorizedIngest(c.req.header("authorization"), env.INGEST_SECRET)) {
       return c.json({ error: "unauthorized" }, 401)
@@ -270,7 +260,8 @@ export default {
   ): Response | Promise<Response> {
     return createApp(env).fetch(request, env, ctx)
   },
-  // Cron (06:00 + 18:00 Prague): health checklist + dead-man check; morning run adds a briefing.
+  // Cron (06:00 + 18:00 Prague): Telegram health checklist + dead-man check;
+  // morning run uses the briefing format. Cron never opens GitHub issues.
   async scheduled(
     event: ScheduledEvent,
     env: Env,
@@ -295,18 +286,9 @@ export default {
 
     // 04:00 UTC = morning (Prague) -> daily briefing; otherwise a plain scan report.
     if (event.cron === "0 4 * * *") {
-      const incidents = await store.recentDedup(20)
-      await bot.api.sendMessage(
-        target,
-        renderBriefing(points, incidents, stale),
-      )
+      await bot.api.sendMessage(target, renderBriefing(points, stale))
     } else {
-      await bot.api.sendMessage(target, renderScanReport(points))
+      await bot.api.sendMessage(target, renderScanReport(points, false, stale))
     }
-
-    const scanIssue = scanToIssue(points)
-    if (scanIssue) await emitIssue(scanIssue, env, bot)
-    const deadMan = deadManToIssue(stale)
-    if (deadMan) await emitIssue(deadMan, env, bot)
   },
 }

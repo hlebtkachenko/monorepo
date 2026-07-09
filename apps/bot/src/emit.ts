@@ -2,10 +2,11 @@ import type { Bot } from "grammy"
 import type { Env } from "./env.js"
 import { buildIssueKeyboard, escapeHtml } from "./format.js"
 import { createStore } from "./state/store.js"
-import { createLinearClient } from "./issues/linear.js"
+import { createGitHubIssueClient } from "./issues/github.js"
 import { processEvent } from "./issues/engine.js"
-import { DEFAULT_TEAM_ID } from "./issues/labels.js"
+import { parseProjectFieldConfig } from "./issues/labels.js"
 import type { IssueEvent } from "./issues/types.js"
+import { repoOf } from "./github.js"
 
 export interface EmitResult {
   status: 200 | 502
@@ -13,10 +14,10 @@ export interface EmitResult {
 }
 
 /**
- * Shared path: normalized event -> deduped Linear issue (create or comment+bump) -> Telegram
- * echo with Open / Rerun / Snooze / Ack controls. Used by the HTTP routes, the /issue command,
- * and the scheduled scan. Delivery rule (DEV-63): if the incident's identifier is snoozed or
- * acked, the Linear issue is STILL bumped but the Telegram ping is suppressed.
+ * Shared path: normalized event -> deduped GitHub issue (create or comment+bump) -> Telegram
+ * echo with Open / Rerun / Snooze / Ack controls. Used by explicit issue routes and
+ * the /issue command. Delivery rule (DEV-63): if the incident's identifier is snoozed or
+ * acked, the GitHub issue is STILL bumped but the Telegram ping is suppressed.
  */
 export async function emitIssue(
   event: IssueEvent,
@@ -25,20 +26,28 @@ export async function emitIssue(
 ): Promise<EmitResult> {
   const target = Number(env.TELEGRAM_USER_ID)
 
-  if (!env.LINEAR_API_TOKEN) {
+  const token = env.GITHUB_ISSUES_TOKEN ?? env.GITHUB_DISPATCH_TOKEN
+  const repo = repoOf(env)
+  if (!token || !repo) {
     await bot.api.sendMessage(
       target,
-      `⚠️ ${escapeHtml(event.title)}\n<i>[${escapeHtml(event.source)}]</i> (Linear not configured)`,
+      `⚠️ ${escapeHtml(event.title)}\n<i>[${escapeHtml(event.source)}]</i> (GitHub issue tracking not configured)`,
       { parse_mode: "HTML" },
     )
     return { status: 200, payload: { ok: true, issue: null } }
   }
 
   const store = createStore(env.DB)
+  const parentIssueNumber = parseIssueNumber(env.GITHUB_EPIC_ISSUE_NUMBER)
   const result = await processEvent(event, {
     store,
-    linear: createLinearClient(env.LINEAR_API_TOKEN),
-    teamId: env.LINEAR_TEAM_ID ?? DEFAULT_TEAM_ID,
+    issues: createGitHubIssueClient(token, repo),
+    repo,
+    projectId: env.GITHUB_PROJECT_ID,
+    projectFieldConfig: parseProjectFieldConfig(
+      env.GITHUB_PROJECT_FIELD_CONFIG,
+    ),
+    parentIssueNumber,
     now: () => Date.now(),
   })
 
@@ -84,4 +93,10 @@ export async function emitIssue(
       },
     },
   }
+}
+
+function parseIssueNumber(value?: string): number | undefined {
+  if (!value) return undefined
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
 }

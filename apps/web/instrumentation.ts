@@ -17,7 +17,7 @@ import {
  *   1. A stable `[web-server-error]` console line — the CloudWatch metric
  *      filter behind the `monorepo-<env>-web-server-errors-high` alarm
  *      (infra/cdk/lib/observability-stack.ts) matches this token.
- *   2. `notifierFromEnv().reportIssue` → bot `/issue` → deduped Linear issue
+ *   2. `notifierFromEnv().reportIssue` → bot `/issue` → deduped GitHub issue
  *      + Telegram ping (no-op when BOT_INGEST_URL / NOTIFY_SHARED_SECRET are
  *      unset, e.g. local dev).
  *

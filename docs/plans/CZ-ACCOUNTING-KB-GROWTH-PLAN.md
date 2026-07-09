@@ -418,9 +418,9 @@ NOW   (Wave 8):     hygiene + EN aliases + MCP basics + advisor cycle
 
 **Highest ROI right now:** advisor cycle (lifts entire KB confidence) + 3 MCP tools (15× retrieval cost reduction). Run both in parallel.
 
-## Linear epic + subissues
+## GitHub issue + subissues
 
-This plan is tracked as a Linear epic in DEV/AI project with one subissue per growth vector. Subissues are sized for atomic agent execution. Cross-references on each subissue point back to the relevant section of this document.
+This plan is tracked as a GitHub issue in DEV/AI project with one subissue per growth vector. Subissues are sized for atomic agent execution. Cross-references on each subissue point back to the relevant section of this document.
 
 ## Cross-references
 

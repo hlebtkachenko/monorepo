@@ -1,19 +1,23 @@
 import type { Store } from "../state/store.js"
-import type { LinearClient } from "./linear.js"
+import type { GitHubIssueClient } from "./github.js"
 import type { IssueEvent, IssueResult } from "./types.js"
 import { fingerprint } from "./fingerprint.js"
-import { INCIDENTS_PROJECT_ID, labelsFor, titlePrefix } from "./labels.js"
+import {
+  labelsFor,
+  type ProjectFieldConfig,
+  projectFieldsFor,
+  titlePrefix,
+} from "./labels.js"
 
 export interface EngineDeps {
   store: Store
-  linear: LinearClient
-  teamId: string
+  issues: GitHubIssueClient
+  repo: string
+  projectId?: string
+  projectFieldConfig?: ProjectFieldConfig
+  parentIssueNumber?: number
   /** Injected clock for testability. */
   now: () => number
-}
-
-function issueUrl(identifier: string): string {
-  return `https://linear.app/hapddev/issue/${identifier}`
 }
 
 function renderLinks(links?: { label: string; url: string }[]): string {
@@ -22,8 +26,17 @@ function renderLinks(links?: { label: string; url: string }[]): string {
 }
 
 /**
- * Create a deduped Linear issue for an event, or comment + bump an existing one.
- * Returns null if the Linear create failed (so callers can fall back to a plain ping).
+ * A dedup row's `issueId` is a GitHub issue number — a positive integer. Rows from the
+ * retired Linear backend carry a Linear UUID instead; those must be treated as absent so
+ * the fingerprint gets a fresh GitHub issue rather than a comment POST into a 404 void.
+ */
+function isGitHubIssueNumber(issueId: string): boolean {
+  return /^\d+$/.test(issueId)
+}
+
+/**
+ * Create a deduped GitHub issue for an event, or comment + bump an existing one.
+ * Returns null if issue creation failed, so callers can fall back to a plain ping.
  */
 export async function processEvent(
   e: IssueEvent,
@@ -34,44 +47,57 @@ export async function processEvent(
 
   const existing = await deps.store.getDedup(fp)
   if (existing) {
-    const count = await deps.store.bumpDedup(fp, now)
-    await deps.linear.addComment(
-      existing.issueId,
-      `↩︎ Recurred (occurrence #${count})\n\n${e.body}${renderLinks(e.links)}`,
-    )
-    return {
-      action: "commented",
-      issueId: existing.issueId,
-      identifier: existing.identifier,
-      count,
-      url: issueUrl(existing.identifier),
-      fingerprint: fp,
+    // Only comment when the row points at a live GitHub issue. A stale Linear id, or a
+    // comment POST that fails (issue deleted / token lost access), drops the row and
+    // falls through to create — the incident is never silently swallowed.
+    if (isGitHubIssueNumber(existing.issueId)) {
+      const commented = await deps.issues.addComment(
+        existing.issueId,
+        `↩︎ Recurred (occurrence #${existing.count + 1})\n\n${e.body}${renderLinks(
+          e.links,
+        )}`,
+      )
+      if (commented) {
+        const count = await deps.store.bumpDedup(fp, now)
+        return {
+          action: "commented",
+          issueId: existing.issueId,
+          identifier: existing.identifier,
+          count,
+          url: `https://github.com/${deps.repo}/issues/${existing.issueId}`,
+          fingerprint: fp,
+        }
+      }
     }
+    await deps.store.deleteDedup(fp)
   }
 
   const title = `${titlePrefix(e.source)} ${e.title}`
   const description = `${e.body}${renderLinks(e.links)}\n\n_fingerprint: ${fp}_`
-  const issue = await deps.linear.createIssue({
-    teamId: deps.teamId,
-    projectId: INCIDENTS_PROJECT_ID,
+  const issue = await deps.issues.createIssue({
     title,
-    description,
-    labelIds: labelsFor(e),
+    body: description,
+    labels: labelsFor(e),
+    projectId: deps.projectId,
+    projectFields: projectFieldsFor(e, deps.projectFieldConfig),
+    parentIssueNumber: deps.parentIssueNumber,
   })
   if (!issue) return null
 
+  const issueId = String(issue.number)
+  const identifier = `#${issue.number}`
   await deps.store.createDedup({
     fingerprint: fp,
-    issueId: issue.id,
-    identifier: issue.identifier,
+    issueId,
+    identifier,
     count: 1,
     firstSeen: now,
     lastSeen: now,
   })
   return {
     action: "created",
-    issueId: issue.id,
-    identifier: issue.identifier,
+    issueId,
+    identifier,
     count: 1,
     url: issue.url,
     fingerprint: fp,

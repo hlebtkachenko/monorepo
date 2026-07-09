@@ -51,7 +51,7 @@ export const WithBugHandler: Story = {
       // Pretend network latency so the Save button animation is visible.
       await new Promise((r) => setTimeout(r, 800))
       return {
-        url: "https://linear.app/example/issue/AFF-123",
+        url: "https://github.com/hlebtkachenko/monorepo/issues/123",
         identifier: "AFF-123",
       }
     },
@@ -66,7 +66,7 @@ export const FailingBugHandler: Story = {
     user: { email: "owner@acme.test" },
     onReportBug: async () => {
       await new Promise((r) => setTimeout(r, 600))
-      throw new Error("Linear is not configured (503).")
+      throw new Error("GitHub issue tracking is not configured (503).")
     },
     children: <SamplePage />,
   },

@@ -33,7 +33,7 @@ Is it an app-runtime secret the web/api/admin containers read?
 ├─ Is it a CI/CD value a GitHub workflow needs at build/deploy time?
 │   ├─ Identity/bootstrap (AWS role ARN, CF tunnel token, account id):
 │   │   → GitHub repo secret (`gh secret set …`). Stays in GitHub.
-│   └─ A shared app credential a workflow reads (like LINEAR_API_KEY):
+│   └─ A shared app credential a workflow reads:
 │       → Vault platform/shared/<name>, fetched via GitHub OIDC → Vault JWT.
 │          See VAULT-OPS.md § "GitHub Actions JWT auth".
 │

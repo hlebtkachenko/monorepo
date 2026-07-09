@@ -1,7 +1,7 @@
 # DAST — Nuclei scan
 
 > Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
-> Linear: DEV-47.
+> Tracker: GitHub issue DEV-47.
 
 `.github/workflows/nuclei-dast.yml` runs [ProjectDiscovery Nuclei](https://projectdiscovery.io)
 nightly against the live afframe hosts. It is the one layer the source-level

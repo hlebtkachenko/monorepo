@@ -60,7 +60,7 @@ Negative / trade-offs:
 Follow-up work required:
 
 - AFF-73 — admin dashboard for key management + key prefix migration.
-- A new Linear initiative for the developer platform (CLI, MCP, SDK, webhooks, sandbox). Each ships as a separate phase.
+- A new GitHub Roadmap initiative for the developer platform (CLI, MCP, SDK, webhooks, sandbox). Each ships as a separate phase.
 - Update `.gitleaks.toml` (new file) with Czech finance rules + `affk_live_` rule. Done in this same change (see [`docs/runbooks/SECRETS.md`](../runbooks/SECRETS.md) for context).
 - Wire `/.well-known/security.txt` (web app responsibility, not the API). RFC 9116.
 - Update `SECURITY.md` with the `security@afframe.com` alias once the mailbox exists.
@@ -69,7 +69,7 @@ Follow-up work required:
 
 - **Date-pinned versioning (Stripe-style).** Rejected: one-engineer team, accountancy domain changes with legislation, the compatibility tax is years of work for a marginal partner-experience gain over `/v2` path versioning + Sunset headers.
 - **Build webhook delivery in-house.** Rejected: durable retry, secret rotation, partner-facing event log are 2-3 engineer-months. Svix Cloud free tier + migration path to self-hosted Hook0 buys the time.
-- **Generic `openapi-call` MCP tool.** Rejected: empirical research (Cursor 40-tool cap, GitHub MCP burning 42k tokens on definitions) shows LLMs select named intents better than a single generic call. Curated tool surface is the dominant pattern (Stripe, Linear, Sentry).
+- **Generic `openapi-call` MCP tool.** Rejected: empirical research (Cursor 40-tool cap, GitHub MCP burning 42k tokens on definitions) shows LLMs select named intents better than a single generic call. Curated tool surface is the dominant pattern (Stripe, GitHub, Sentry).
 - **`@afframe/sdk` hand-rolled.** Rejected at the >10-endpoint scale. Generated SDK from OpenAPI keeps the SDK honest by construction.
 - **OAuth-only API auth.** Rejected for launch: bearer keys are the universal common denominator for accountant developers' scripts. OAuth (per-org-installed app pattern) is a separate ADR when an integrations marketplace lands.
 - **Python or Go SDK at launch.** Deferred. Add when a paying partner asks.

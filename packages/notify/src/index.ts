@@ -21,14 +21,10 @@ export interface IngestPayload {
   buttons?: string[]
 }
 
-/** A normalized event for POST /issue — opens (or dedups into) a tracked Linear issue. */
+/** A normalized event for POST /issue — opens (or dedups into) a tracked GitHub issue. */
 export interface IssueReport {
   source:
-    | "error"
-    | "ci-failure"
-    | "security-scan"
-    | "customer-request"
-    | "agent"
+    "error" | "ci-failure" | "security-scan" | "customer-request" | "agent"
   title: string
   /** Markdown body — MUST be pre-sanitized (no secrets/PII/raw stacks). */
   body: string
@@ -45,7 +41,7 @@ export interface IssueReport {
     | "db"
     | "agents"
   risk?: "blocking" | "high" | "medium" | "low"
-  type?: "security" | "fix"
+  type?: "feat" | "fix" | "refactor" | "chore" | "docs" | "test" | "security"
   links?: { label: string; url: string }[]
 }
 
@@ -168,7 +164,7 @@ export interface Notifier {
     opts?: Omit<IngestPayload, "text" | "level">,
   ): Promise<void>
   send(payload: IngestPayload): Promise<void>
-  /** Open (or dedup into) a tracked Linear issue + a Telegram echo with an Open button. */
+  /** Open (or dedup into) a tracked GitHub issue + a Telegram echo with an Open button. */
   reportIssue(report: IssueReport): Promise<void>
   /** Post a HITL question; returns the approval id to poll. */
   ask(req: ApprovalRequest): Promise<{ id: string; exp: number }>
@@ -284,7 +280,7 @@ export function notifierFromEnv(
  * payload, and email addresses in the message are redacted to `<redacted-email>`,
  * so the result is safe to surface. Returns `message` (trimmed, ≤300 chars) + a
  * stable correlation `id` (requestId / jobId / generated). The full stack belongs
- * in Sentry, not in a Telegram message or a Linear issue body.
+ * in Sentry, not in a Telegram message or a GitHub issue body.
  */
 export function sanitizeError(
   err: unknown,
@@ -297,7 +293,7 @@ export function sanitizeError(
   const raw = (err instanceof Error ? err.message : String(err)).slice(0, 2000)
   // Redact email addresses: an error message can echo a user-supplied address
   // (e.g. a transport / validation error), which must not reach a Telegram
-  // message, a Linear issue body, or a CloudWatch log line. ASCII addresses only
+  // message, a GitHub issue body, or a CloudWatch log line. ASCII addresses only
   // — unicode/IDN locals are out of scope for this best-effort gate.
   const message = raw
     .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, "<redacted-email>")

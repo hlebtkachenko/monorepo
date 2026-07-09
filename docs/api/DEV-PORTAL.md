@@ -5,12 +5,11 @@
 > `api.afframe.com/`. The narrative pages, Pagefind search, Ask AI, and
 > `llms.txt` items remain `[Concept]` and are not in scope for v0. See
 > [ADR-0024 Amendment 2026-05-21](../adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted)
-> and [AFF-88](https://linear.app/hapddev/issue/AFF-88) for the open
-> question on if/when to revisit.
+> and the Roadmap project for the open question on if/when to revisit.
 
 > Sitemap and rules for the public developer portal at `api.afframe.com/docs` (narrative) and `api.afframe.com/v1/docs` (Scalar reference). Backs [`ADR-0023`](../adr/0023-public-api-developer-platform.md).
 >
-> Markers: **[Live]** done, **[Wip]** in flight, **[Concept]** planned. Universal = appears in every B2B portal we surveyed (Stripe, Linear, Resend, Plaid, Mercury, Vercel, Twilio); finance-specific = mandatory for an accountancy API; nice-to-have = ship when content exists.
+> Markers: **[Live]** done, **[Wip]** in flight, **[Concept]** planned. Universal = appears in every B2B portal we surveyed (Stripe, GitHub, Resend, Plaid, Mercury, Vercel, Twilio); finance-specific = mandatory for an accountancy API; nice-to-have = ship when content exists.
 
 ---
 
@@ -135,7 +134,7 @@ Use `affk_test_e7f1...` (the well-known fixture key) in every example. Never pas
 ### R5 — `[Concept]` items carry a callout
 
 ```markdown
-> **[Concept]** This endpoint is planned but not implemented. Tracked in [AFF-71](https://linear.app/...).
+> **[Concept]** This endpoint is planned but not implemented. Tracked in the GitHub Roadmap project.
 ```
 
 Required at the top of any section describing unbuilt functionality. Consumers should never write integration code against a `[Concept]` shape; the shape is a sketch, not a contract.

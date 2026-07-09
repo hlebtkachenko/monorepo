@@ -9,7 +9,7 @@
 > Public launch now rides on the Scalar API Reference at
 > `api.afframe.com/` plus the per-package npm READMEs (CLI, SDK, MCP).
 >
-> Items are tagged: **[Live]** done today, **[Wip]** in flight, **[Concept]** planned but not built. Every concept item links to a Linear issue or a design doc.
+> Items are tagged: **[Live]** done today, **[Wip]** in flight, **[Concept]** planned but not built. Every concept item links to a GitHub issue, a Roadmap project item, or a design doc.
 
 ---
 

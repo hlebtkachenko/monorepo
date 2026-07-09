@@ -92,6 +92,18 @@ fix(web): handle empty showcase grid
 Closes #123, refs #122
 ```
 
+## PR Issue Links
+
+PR automation links a PR back to GitHub issues from PR metadata, not from branch
+names. Prefer GitHub issue references in the PR body:
+
+- `Closes #123` or `Fixes #123` for work that should close the issue on merge.
+- `Refs #123` for contextual links that should stay open.
+
+The sync workflow resolves GitHub's closing issue references first, then falls
+back to explicit `#123` or `/issues/123` references in the PR title, PR body, or
+commit messages. Branch names are deliberately ignored.
+
 ## Pre-commit
 
 A commit-msg hook (lefthook or husky, project-specific) runs commitlint locally. Same rules in CI; failing in CI but passing locally usually means the local hook is not installed.

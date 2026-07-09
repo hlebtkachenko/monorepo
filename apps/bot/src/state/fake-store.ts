@@ -29,6 +29,9 @@ export function fakeStore(): Store {
       r.lastSeen = lastSeen
       return r.count
     },
+    async deleteDedup(fp) {
+      dedup.delete(fp)
+    },
     async putApproval(r) {
       approvals.set(r.id, { ...r })
     },

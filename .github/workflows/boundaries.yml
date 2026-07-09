@@ -4,7 +4,7 @@
 # is gated on a `changes` upstream so docs-only and infra-only PRs skip
 # the ~30-60s turbo boundaries run.
 #
-# See Linear AFF-68 for the broader rollout.
+# See docs/conventions/CI-POLICY.md for the broader required-check rollout.
 
 name: Boundaries
 

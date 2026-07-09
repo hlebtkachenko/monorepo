@@ -189,7 +189,7 @@ export interface DocumentInput {
   type: SummaryRecordType
   /** okamžik vyhotovení (§11/1d). */
   issuedAt: string
-  /** DUZP/DPPD for VAT reporting. For legacy callers it is derived from linked events. */
+  /** DUZP/DPPD for VAT reporting. Missing means the legal date is unresolved. */
   taxPointDate?: string | null
   /** Date the recipient obtained the document. Required to prove input-VAT eligibility. */
   receivedDate?: string | null

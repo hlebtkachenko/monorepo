@@ -634,7 +634,7 @@ export const CaptureAccountingDocumentRequestSchema = z
       }),
     taxPointDate: LEGAL_DATE.nullish().openapi({
       description:
-        "DUZP/DPPD used by VAT outputs. When omitted, invoice capture derives it from linked accounting-event legal dates.",
+        "DUZP/DPPD used by VAT outputs. Missing means the legal date remains unresolved.",
     }),
     receivedDate: LEGAL_DATE.nullish().openapi({
       description:

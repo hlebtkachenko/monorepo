@@ -60,6 +60,7 @@ UPDATE summary_record sr
       FROM individual_record ir
       JOIN accounting_event ae ON ae.id = ir.accounting_event_id
      GROUP BY ir.summary_record_id
+    HAVING MIN(ae.occurred_on) = MAX(ae.occurred_on)
   ) dates
  WHERE sr.id = dates.summary_record_id
    AND sr.type IN ('RECEIVED_INVOICE', 'ISSUED_INVOICE')
@@ -84,5 +85,35 @@ BEGIN
 END;
 $$;
 ALTER FUNCTION app_event_period_guard() OWNER TO app_owner;
+
+-- Legal-date corrections change statutory VAT evidence. Serialize them with
+-- closing by taking a shared lock on the accounting-period row, then reject
+-- the update unless the period remains writable.
+CREATE OR REPLACE FUNCTION app_summary_legal_dates_period_guard()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM 1
+    FROM accounting_period
+   WHERE id = NEW.period_id
+   FOR SHARE;
+  PERFORM app_assert_period_writable(
+    NEW.period_id,
+    'summary_record legal-date correction',
+    NULL
+  );
+  RETURN NEW;
+END;
+$$;
+ALTER FUNCTION app_summary_legal_dates_period_guard() OWNER TO app_owner;
+
+DROP TRIGGER IF EXISTS summary_record_legal_dates_period_guard ON summary_record;
+CREATE TRIGGER summary_record_legal_dates_period_guard
+BEFORE UPDATE OF tax_point_date, received_date ON summary_record
+FOR EACH ROW
+WHEN (
+  OLD.tax_point_date IS DISTINCT FROM NEW.tax_point_date
+  OR OLD.received_date IS DISTINCT FROM NEW.received_date
+)
+EXECUTE FUNCTION app_summary_legal_dates_period_guard();
 
 COMMIT;

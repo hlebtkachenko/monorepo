@@ -74,9 +74,15 @@ export async function createEvent(
   ctx: OrgCtx,
   input: EventInput,
 ): Promise<CapturedEvent> {
+  const occurredAtIsDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(input.occurredAt)
+  const occurredAt = occurredAtIsDateOnly
+    ? sql`${input.occurredAt}::date::timestamp AT TIME ZONE 'Europe/Prague'`
+    : sql`${input.occurredAt}::timestamptz`
   const occurredOn = input.occurredOn
     ? sql`${input.occurredOn}::date`
-    : sql`(${input.occurredAt}::timestamptz AT TIME ZONE 'Europe/Prague')::date`
+    : occurredAtIsDateOnly
+      ? sql`${input.occurredAt}::date`
+      : sql`(${input.occurredAt}::timestamptz AT TIME ZONE 'Europe/Prague')::date`
   const allocated = await allocateNumber(
     db,
     input.seriesId,
@@ -91,7 +97,7 @@ export async function createEvent(
         VALUES
           (${ctx.organizationId}::uuid, ${ctx.workspaceId}::uuid, ${input.periodId}::uuid, ${input.seriesId}::uuid,
            ${allocated.sequenceNumber}, ${allocated.designation}, ${input.partyId ?? null}, ${input.counterpartyId ?? null},
-           ${input.description}, ${input.content ?? null}, ${input.occurredAt}::timestamptz, ${occurredOn}, ${input.responsibleUserId}::uuid)
+           ${input.description}, ${input.content ?? null}, ${occurredAt}, ${occurredOn}, ${input.responsibleUserId}::uuid)
         RETURNING id`,
   )
   return {
@@ -158,19 +164,6 @@ export async function captureDocument(
       )
     }
     lines.push({ individualRecordId: indiv.id, partialRecordIds })
-  }
-
-  if (input.taxPointDate == null && isInvoice) {
-    await db.execute(sql`
-      UPDATE summary_record sr
-         SET tax_point_date = dates.tax_point_date
-        FROM (
-          SELECT MIN(ae.occurred_on) AS tax_point_date
-            FROM individual_record ir
-            JOIN accounting_event ae ON ae.id = ir.accounting_event_id
-           WHERE ir.summary_record_id = ${doc.id}::uuid
-        ) dates
-       WHERE sr.id = ${doc.id}::uuid`)
   }
 
   return {

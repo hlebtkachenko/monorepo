@@ -58,6 +58,7 @@ async function captureEuReceipt(
     seriesId: seed.documentSeriesId,
     type: "RECEIVED_INVOICE",
     issuedAt: args.day,
+    taxPointDate: args.day,
     receivedDate: args.day,
     lines: [
       {

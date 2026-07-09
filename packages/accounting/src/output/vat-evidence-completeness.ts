@@ -28,8 +28,8 @@ export async function getVatEvidenceCompleteness(
         )`
   const receiptRelevant =
     scope.kind === "ACCOUNTING_PERIOD"
-      ? sql`sr.period_id = ${scope.periodId}::uuid`
-      : sql`sr.tax_point_date >= ${scope.period.from}::date AND sr.tax_point_date <= ${scope.period.to}::date`
+      ? sql`true`
+      : sql`sr.tax_point_date <= ${scope.period.to}::date`
   const taxRelevant =
     artifact === "SH"
       ? sql`sr.type = 'ISSUED_INVOICE' AND EXISTS (
@@ -91,6 +91,7 @@ export async function getVatEvidenceCompleteness(
              COUNT(*) FILTER (
                WHERE sr.type = 'RECEIVED_INVOICE'
                  AND sr.received_date IS NULL
+                 AND ${candidate}
                  AND ${receiptRelevant}
                  AND ${receiptRequired}
              )::int AS missing_received_date_documents

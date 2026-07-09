@@ -57,6 +57,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2044-03-01",
+        taxPointDate: "2044-03-01",
         lines: [
           {
             eventId: ev1.eventId,
@@ -95,6 +96,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2044-03-05",
+        taxPointDate: "2044-03-05",
         lines: [
           {
             eventId: ev2.eventId,
@@ -133,6 +135,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2044-03-10",
+        taxPointDate: "2044-03-10",
         receivedDate: "2044-03-10",
         lines: [
           {
@@ -171,6 +174,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2044-03-15",
+        taxPointDate: "2044-03-15",
         lines: [
           {
             eventId: ev4.eventId,
@@ -280,6 +284,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2091-04-01",
+        taxPointDate: "2091-04-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -355,6 +360,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2092-04-01",
+        taxPointDate: "2092-04-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -426,6 +432,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2093-04-01",
+        taxPointDate: "2093-04-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -501,6 +508,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2094-04-01",
+        taxPointDate: "2094-04-01",
         lines: [
           {
             eventId: goodsEv.eventId,
@@ -539,6 +547,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2094-05-01",
+        taxPointDate: "2094-05-01",
         lines: [
           {
             eventId: svcEv.eventId,
@@ -615,7 +624,8 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
           periodId: s.periodId,
           seriesId: s.documentSeriesId,
           type: "ISSUED_INVOICE",
-          issuedAt: "2095-04-01",
+        issuedAt: "2095-04-01",
+        taxPointDate: "2095-04-01",
           lines: [
             {
               eventId: ev.eventId,

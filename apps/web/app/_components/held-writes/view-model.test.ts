@@ -230,6 +230,38 @@ describe("holdReasonsFrom", () => {
     expect(holdReasonsFrom(null)).toEqual([])
     expect(holdReasonsFrom({})).toEqual([])
   })
+
+  it("labels every Tier-1/Tier-3 block signal kind in Czech, not the raw token", () => {
+    // extraction_failed is the dominant pre-launch cold-start hold reason (signals.ts TIER3_DEFER_KINDS)
+    // — it MUST render as Czech prose, never as the raw "extraction_failed" jargon.
+    const cases: Array<[kind: string, expectedCzech: string]> = [
+      ["extraction_failed", "extrakce dokladu selhala, nutná ruční kontrola"],
+      ["no_source_doc", "chybí zdrojový doklad"],
+      ["closed_period", "účetní období je uzavřené"],
+    ]
+
+    for (const [kind, expectedCzech] of cases) {
+      const reasons = holdReasonsFrom({
+        serverGate: {
+          veto: { held: false, signals: [] },
+          score: { reasons: [`blocked: ${kind}`] },
+        },
+      })
+      expect(reasons).toEqual([`Blokováno: ${expectedCzech}`])
+      // The raw token must never leak into the rendered reason.
+      expect(reasons[0]).not.toContain(kind)
+    }
+  })
+
+  it("falls back to the raw string for an unknown/future signal kind (never crashes)", () => {
+    const reasons = holdReasonsFrom({
+      serverGate: {
+        veto: { held: false, signals: [] },
+        score: { reasons: ["blocked: some_future_signal"] },
+      },
+    })
+    expect(reasons).toEqual(["Blokováno: some_future_signal"])
+  })
 })
 
 describe("groupHeldWritesByCase", () => {

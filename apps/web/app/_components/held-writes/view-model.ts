@@ -97,14 +97,55 @@ const VAT_MODE_LABELS: Record<string, string> = {
 // Why-held reasons — decoded from output_json.serverGate (accounting-writes.gate.ts).
 // ---------------------------------------------------------------------------
 
-/** Known infra-signal kinds (accounting-veto.ts + brain/confidence/signals.ts), human-labeled. Unknown kinds fall back to the raw string. */
+/**
+ * Known infra-signal kinds, human-labeled. Two sources:
+ *  - `accounting-veto.ts` (`unverified_vat_regime` / `vat_amount_missing` / `vat_mismatch`) — the
+ *    independent server veto's own signals.
+ *  - `packages/brain/src/confidence/signals.ts` — the FULL block/defer/cap taxonomy the score
+ *    verdict's `reasons` can name (Tier-1 BLOCK, Tier-3 DEFER, the `spolek_scope` force-defer, and
+ *    every Tier-2 review cap). Every kind from that catalog MUST have an entry here — an unlabeled
+ *    kind means a held write shows raw jargon (e.g. "extraction_failed") to a Czech-only reviewer.
+ * Unknown/future kinds fall back to the raw string (see `signalLabel`) — never crash.
+ */
 const SIGNAL_LABELS: Record<string, string> = {
-  asset_vs_expense: "možná záměna aktivum / náklad (DHM ≥ 40 000 Kč)",
+  // accounting-veto.ts — server veto's own signals (not in signals.ts).
   unverified_vat_regime: "neověřitelný režim DPH",
   vat_amount_missing: "chybí částka DPH k ověření",
-  vat_mismatch: "nesoulad vypočtené a uvedené DPH",
+
+  // Tier-1 hard block (signals.ts TIER1_BLOCK_KINDS) — forces confidence to 0.
+  no_source_doc: "chybí zdrojový doklad",
+  closed_period: "účetní období je uzavřené",
+  constitution_violation: "porušení provozních zásad Brain (constitution)",
+  balance_mismatch: "nesedí saldo, debet a kredit se neshodují",
+  duplicate_key_collision: "možný duplicitní doklad, kolize klíče",
+
+  // Tier-3 defer (signals.ts TIER3_DEFER_KINDS) — cannot be scored/trusted, routed to the deferred pile.
+  extraction_failed: "extrakce dokladu selhala, nutná ruční kontrola",
+  period_unknown: "nelze určit účetní období",
+  budget_exceeded: "vyčerpán rozpočet na automatické zpracování",
+  hitl_timeout: "vypršel čas na lidské schválení (HITL timeout)",
   novel_template: "nepotvrzená OCR šablona",
   unverified_template: "OCR bez potvrzené šablony",
+
+  // Force-defer (signals.ts FORCE_DEFER_KINDS) — spolek is out of scope (starter scope = s.r.o. + OSVČ).
+  spolek_scope: "mimo podporovaný rozsah, spolek zatím není podporován",
+
+  // Tier-2 review caps (signals.ts TIER2_CAP_VALUES) — confidence capped sub-green, never blocked outright.
+  reverse_charge_candidate: "možná přenesená daňová povinnost",
+  pdf_low_confidence: "nízká jistota čtení PDF dokladu",
+  novel_ico: "neznámé IČO protistrany",
+  multi_source_conflict: "rozpor mezi zdrojovými doklady",
+  kb_rule_amber_red: "pravidlo znalostní báze označeno jako rizikové",
+  novel_bank_pattern: "neobvyklý vzor bankovní transakce",
+  vat_mismatch: "nesoulad vypočtené a uvedené DPH",
+  kb_rule_low: "nízká jistota pravidla znalostní báze",
+  trajectory_instability: "nestabilní vývoj jistoty v čase",
+  amount_near_threshold: "částka blízko rozhodné hranice",
+  asset_vs_expense: "možná záměna aktivum / náklad (DHM ≥ 40 000 Kč)",
+  accrual_period_boundary: "časové rozlišení přesahuje hranici období",
+  reserve_or_impairment: "rezerva nebo opravná položka vyžaduje posouzení",
+  dph_tax_point_timing: "nejistota v okamžiku vzniku daňové povinnosti (DUZP)",
+  prior_without_source: "dřívější zápis bez podkladového dokladu",
 }
 
 function signalLabel(signal: string): string {

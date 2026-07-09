@@ -92,6 +92,10 @@ jobs:
           compare "pnpm" "$PNPM_CURRENT" "$PNPM_LATEST" "package.json packageManager"
 
           check_pnpm_copy() { # where current
+            if [ -z "$2" ]; then
+              echo "::error::$1: could not extract pnpm version (pattern rot?)"
+              exit 1
+            fi
             if [ "$2" != "$PNPM_CURRENT" ]; then
               add_drift "pnpm local sync" "$2" "$PNPM_CURRENT" "$1"
             fi

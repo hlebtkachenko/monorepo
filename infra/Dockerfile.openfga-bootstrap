@@ -33,7 +33,8 @@ FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549c
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY . .
-RUN pnpm dlx turbo@2.9.12 prune @workspace/openfga-bootstrap --docker
+RUN TURBO_VERSION="$(node -p "require('./package.json').devDependencies.turbo.replace(/^[~^]/, '')")" \
+    && pnpm dlx "turbo@${TURBO_VERSION}" prune @workspace/openfga-bootstrap --docker
 
 # ---------- deps: pnpm install + deploy the pruned subtree ------------------
 # pnpm deploy emits a fully-flat node_modules under /prod, so the runner

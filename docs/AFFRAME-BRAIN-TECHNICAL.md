@@ -16,6 +16,8 @@ Contents: 0. [Orientation + an end-to-end trace](#0-orientation)
 6. [Learning, OCR templates, and the constitution](#6-learning-ocr-templates-and-the-constitution)
 7. [Debugging playbook (symptom → cause → file)](#7-debugging-playbook)
 8. [Real vs aspirational (accuracy ledger)](#8-real-vs-aspirational)
+9. [The two thresholds — do not confuse them](#9-the-two-thresholds--do-not-confuse-them)
+10. [File map — where each Brain concern lives](#10-file-map--where-each-brain-concern-lives)
 
 ---
 
@@ -557,7 +559,7 @@ first in practice.)
 | Symptom                                                            | Cause                                                                                                                                                        | Fix / where                                                                                       |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
 | **Every write `429 "runtime is disabled"`**                        | `BRAIN_RUNTIME_ACTIVE != "1"` on the running task. A deploy that omitted `brain_runtime_active=1` reset it (fail-closed OFF).                                | Re-deploy with `brain_runtime_active=1` (`_deploy-aws.yml`), or verify the ECS task-def env. §3.5 |
-| **Write `400 "Validation failed"` (no field detail)**              | Usually `conversationId` is not a UUID (server is `z.string().uuid()`; the generated MCP tool schema drops `.uuid()`).                                       | Pass a UUID (`uuidgen`). §1.5, §2.2                                                               |
+| **Write `400 "Validation failed"` (no field detail)**              | Usually `conversationId` is not a UUID — the server requires it (`z.string().uuid()`); fixed GH #577, the generated MCP tool schema also enforces `.uuid()`. | Pass a UUID (`uuidgen`). §1.5, §2.2                                                               |
 | **`422 "conversationId is required for a user-bound agent key"`**  | Agent key logs `ai_on_behalf`, which requires a conversationId.                                                                                              | Add a UUID `conversationId` to the capture. §2.2, §3.4                                            |
 | **`403 "Accounting writes require a user-bound API key"`**         | The key has `created_by_user_id = null`.                                                                                                                     | Re-issue via "Issue Brain agent key" (binds the user). §2.5                                       |
 | **`403` on `/approvals` list/resolve**                             | Working as designed — agent keys are `@RequireHumanActor` 403 there. A human must approve.                                                                   | §2.2                                                                                              |
@@ -591,15 +593,69 @@ An accuracy ledger, so nobody re-derives a stale roadmap:
 - **NOT built (scaffolding/ADRs only):** the **librarian** and the whole self-improving learning loop
   (correction clustering → `.brain/rules|aliases|memory|judge` → PR + eval gate). The `.brain/` learned dirs are
   README-only. Learn-on-confirm / layout-drift re-detection = open #518.
-- **Known code/doc drift to fix:** the generated MCP tool schema drops `.uuid()` on `conversationId` (server
-  still enforces it) — GH #577; the `canUseTool` layer is shadowed by `allowedTools` — GH #578; the create-org
+- **Known code/doc drift to fix:** the `canUseTool` layer is shadowed by `allowedTools` — GH #578; the create-org
   wizard doesn't always scaffold period/series — GH #579; `packages/brain/README.md` describes the superseded
   in-process design; the schema-comment migration numbers are +1 off for accounting `≥0025`; `brain book`'s help
-  mentions a `--live` flag that isn't registered.
+  mentions a `--live` flag that isn't registered. _(GH #577 — the generated MCP tool schema dropping `.uuid()`
+  on `conversationId` — is fixed: `apps/mcp/scripts/gen-tools.ts` now emits `.uuid()` for any `format: "uuid"`
+  JSON-Schema field, and `pnpm gen:all` regenerated the tool files.)_
 - **Milestones:** M1 (operator onramp + instrumentation) engineering-done + live-confirmed; M2 (the human-review
   marathon) is the next phase and is a **process**, not code; M3 (calibration fit + field-by-field lift) is
   data-triggered engineering; M4 (certification + auto-apply) is final. All Brain ADRs (0025–0029) are still
   `Proposed` status.
+
+---
+
+## 9. The two thresholds — do not confuse them
+
+_(expands §3.2 — this is the single most common mix-up when reading a `serverGate` audit row)_
+
+There are **two independent thresholds** in the write gate, on two different scales, checked by two different
+legs of the three-way AND (§3.2). Neither substitutes for the other, and a write needs **both** (plus the veto
+leg) to auto-apply:
+
+| Threshold              | Value                                               | What it gates                                                                                                                | Who computes it                                                      | Where                                                                                                |
+| ---------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Client confidence**  | `>= 0.9`                                            | Leg 1 (`confidenceOk`) — the agent's **self-reported** `confidence` field on the request body.                               | The calling agent (client-side, unverified).                         | `AUTO_APPLY_THRESHOLD` — `accounting-writes.gate.ts:289-290` (env `ACCOUNTING_AUTO_APPLY_THRESHOLD`) |
+| **Server score green** | `>= 0.97` (cold start) / `0.95` (fitted, not wired) | Leg 3 (`score.isGreen`) — `cFinal` computed **server-side** from re-derived/degraded signals, never from the client's claim. | The server's own scoring engine (`scoreEvidence` / `scoreProposal`). | `COLD_START_GREEN_THRESHOLD` — `calibration.ts:10-12,159-166`                                        |
+
+**Why they must not be conflated:**
+
+- They live on the **same [0,1] scale** but measure **different things** — one is "how sure the agent says it
+  is," the other is "how sure the server's own evidence-scoring says it is." A high client confidence has **zero
+  effect** on the server score (§4.1: `scoreProposal` never even receives the client confidence scalar).
+- At **cold start** the server-score leg is structurally unreachable (§3.3/§4.5: the `extraction_failed` floor
+  forces `cRaw = 0` regardless of client confidence), so **every write is HELD even when client confidence is
+  1.0**. Seeing a HELD write with `confidence: 0.98` on the body is expected, not a bug — check `serverGate.score`
+  in `tool_call_log.output_json`, not the request's `confidence` field, to see why.
+- The debugging playbook (§7) row "A capture that 'should' auto-apply is still HELD" is the direct symptom of
+  mixing these up: the client confidence being high says nothing about the server score being green.
+
+## 10. File map — where each Brain concern lives
+
+_(quick orientation — follow the section link for the full trace of each row)_
+
+| Concern                                                                      | Path                                                                                                            | Section        |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------- |
+| CLI entry / subcommands (`brain run\|book\|extract`)                         | `apps/cli/src/brain/command.ts`                                                                                 | §1.1, §1.5     |
+| SDK launcher (spawns the nested Agent-SDK session + resolves the MCP bridge) | `apps/cli/src/brain/sdk-launcher.ts`                                                                            | §1.1           |
+| Pure session/query-options config (env, kickoff, capture-outcome parsing)    | `apps/cli/src/brain/session-config.ts`                                                                          | §1.1–1.3       |
+| Extract-lane policy + config                                                 | `apps/cli/src/brain/extract-config.ts`                                                                          | §1.3           |
+| Live-session creds gate (`runLiveBrainSession`)                              | `packages/intake/src/harness/brain-cc-harness.ts`                                                               | §1.1, §1.2     |
+| Local stdio MCP bridge (server + client)                                     | `apps/mcp/src/server.ts`, `apps/mcp/src/client.ts`                                                              | §1.1           |
+| MCP tool codegen (source schema → generated tool files)                      | `apps/mcp/scripts/gen-tools.ts` → `apps/mcp/src/tools/generated/`                                               | §1.5, §8       |
+| Sandbox policy (allowlists, `canUseTool` gate)                               | `packages/brain/src/agent/sandbox.ts`                                                                           | §1.3, §1.4     |
+| API-key auth + actor_kind                                                    | `apps/api/src/auth/api-key.guard.ts`, `packages/auth/src/api-key-verifier.ts`                                   | §2.1–2.2       |
+| The write gate (`runGatedWrite`, three-way AND)                              | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                          | §3             |
+| Evidence envelope degrade-fail-closed                                        | `apps/api/src/v1/accounting/evidence-gate.ts`                                                                   | §3.3, §4.3     |
+| Confidence scoring (`scoreProposal`, cap/block signals)                      | `packages/brain/src/confidence/score.ts`, `signals.ts`                                                          | §4             |
+| Calibration (PAV fit, Brier — built, not wired)                              | `packages/brain/src/confidence/calibration.ts`                                                                  | §4.4, §4.6     |
+| Shadow score (audit-only, never decides)                                     | `apps/api/src/v1/accounting/shadow-score.ts`                                                                    | §3.6           |
+| OCR template trust lifecycle                                                 | `apps/api/src/v1/ocr-templates/ocr-templates.controller.ts`, `packages/db/src/accounting/ocr-template-trust.ts` | §6.1–6.2       |
+| Admission / kill-switch / concurrency caps                                   | `packages/db/src/admission.ts`, `apps/api/src/v1/accounting/admission.singleton.ts`                             | §3.5           |
+| Tenant isolation (RLS, GUCs, composite FKs)                                  | `packages/db/src/tenancy.ts`, `packages/db/src/policies/rls.ts`                                                 | §2.4, §5.1–5.2 |
+| The constitution (I1–I10, locked, human-authorship-only)                     | `packages/brain/.brain/constitution.md`                                                                         | §6.4           |
+| Executable constitution checks (I2/I3/I5)                                    | `scripts/brain-build/constitution-checks/check.sh`                                                              | §6.4           |
 
 ---
 

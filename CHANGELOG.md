@@ -10,8 +10,13 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **ci**: add `brain` to the allowed `pr-title` conventional-commit scopes so Afframe Brain PRs pass `conv-title` with a `feat(brain):`-style scope.
 
+### Fixed
+
+- **mcp**: the MCP tool codegen (`gen-tools.ts`) silently dropped JSON-Schema `format`, so `conversationId` and other UUID fields never received `.uuid()` in the generated tools; now emit `.uuid()` for `format: "uuid"` so generated tools match the API contract. (#577)
+
 ### Docs
 
+- **brain**: document the two distinct write-gate thresholds (client confidence vs server cold-start green) and a file map of where each Brain concern lives, and add a `⚠ SAFETY SPINE` banner to the gate / evidence-gate / sandbox source files.
 - **brain**: mark ADRs 0025–0029 Accepted, rewrite the stale `packages/brain/README.md` to the accurate client-not-server design, and drop the phantom `--live` flag from `brain book` help.
 
 ## [v0.17.1] — 2026-07-09

@@ -1,3 +1,5 @@
+// ⚠ SAFETY SPINE — do not modify without brain-gate review
+
 /**
  * N-1 — the Brain CC-client tool sandbox.
  *

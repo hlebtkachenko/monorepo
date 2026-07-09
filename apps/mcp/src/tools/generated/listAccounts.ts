@@ -7,7 +7,7 @@ import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
-  "periodId": z.string().describe("Restrict to one účetní období. Omit to list every period's accounts the tenant can see.").optional(),
+  "periodId": z.string().uuid().describe("Restrict to one účetní období. Omit to list every period's accounts the tenant can see.").optional(),
   "isSynthetic": z.enum(["true","false"]).describe("Filter to synthetic (`true`) or analytical (`false`) accounts only.").optional(),
 }
 

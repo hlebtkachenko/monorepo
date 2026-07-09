@@ -148,6 +148,12 @@ jobs:
           fi
 
           if [ -n "$PROJECT_FIELD_CONFIG" ]; then
+            # Fail the deploy on malformed JSON here (the boundary) rather than let a
+            # typo'd repo var silently degrade every bot-created issue to "no Project fields".
+            if ! node -e 'JSON.parse(process.env.PROJECT_FIELD_CONFIG)'; then
+              echo "::error::BOT_GITHUB_PROJECT_FIELD_CONFIG is not valid JSON"
+              exit 1
+            fi
             printf '%s' "$PROJECT_FIELD_CONFIG" | pnpm exec wrangler secret put GITHUB_PROJECT_FIELD_CONFIG
           else
             echo "BOT_GITHUB_PROJECT_FIELD_CONFIG unset — bot-created issues will skip ProjectV2 fields"

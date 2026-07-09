@@ -9,6 +9,7 @@ import type {
 import { fingerprint } from "./fingerprint.js"
 import {
   labelsFor,
+  parseProjectFieldConfig,
   projectFieldsFor,
   type ProjectFieldConfig,
 } from "./labels.js"
@@ -56,8 +57,6 @@ function fakeIssues(
       return createImpl
         ? createImpl()
         : {
-            id: "100",
-            identifier: "#100",
             number: 100,
             restId: 1000,
             url: `https://github.com/${repo}/issues/100`,
@@ -173,6 +172,23 @@ describe("issue mapping", () => {
   it("omits project fields when no Project config is supplied", () => {
     expect(projectFieldsFor(baseEvent)).toEqual([])
   })
+  it("parseProjectFieldConfig drops malformed sections instead of throwing", () => {
+    // A partial config (type present but no `options`) previously TypeError'd deep in
+    // projectFieldsFor, escaping the emit fail-soft seam and 500-ing the /issue path.
+    const config = parseProjectFieldConfig('{"type":{"fieldId":"F"}}')
+    expect(config).toEqual({})
+    expect(() => projectFieldsFor(baseEvent, config)).not.toThrow()
+    expect(projectFieldsFor(baseEvent, config)).toEqual([])
+  })
+  it("parseProjectFieldConfig keeps well-formed sections", () => {
+    const config = parseProjectFieldConfig(JSON.stringify(projectFieldConfig))
+    expect(config?.type?.fieldId).toBe("type-field")
+    expect(config?.status?.backlogOptionId).toBe("status-backlog")
+  })
+  it("parseProjectFieldConfig returns undefined only when unset or unparseable", () => {
+    expect(parseProjectFieldConfig(undefined)).toBeUndefined()
+    expect(parseProjectFieldConfig("not json")).toBeUndefined()
+  })
 })
 
 describe("processEvent", () => {
@@ -211,5 +227,50 @@ describe("processEvent", () => {
         await fingerprint(baseEvent.source, baseEvent.fingerprintParts),
       ),
     ).toBeNull()
+  })
+
+  it("re-files a fresh GitHub issue when the dedup row holds a stale Linear id", async () => {
+    const store = fakeStore()
+    const fp = await fingerprint(baseEvent.source, baseEvent.fingerprintParts)
+    await store.createDedup({
+      fingerprint: fp,
+      issueId: "9f1c-linear-uuid",
+      identifier: "DEV-42",
+      count: 3,
+      firstSeen: 1,
+      lastSeen: 1,
+    })
+    const issues = fakeIssues()
+    const r = await processEvent(baseEvent, deps(store, issues))
+    expect(r?.action).toBe("created")
+    expect(issues.comments).toHaveLength(0)
+    expect(issues.creates).toHaveLength(1)
+    const row = await store.getDedup(fp)
+    expect(row?.issueId).toBe("100")
+    expect(row?.identifier).toBe("#100")
+    expect(row?.count).toBe(1)
+  })
+
+  it("re-files when commenting on the existing issue fails", async () => {
+    const store = fakeStore()
+    const fp = await fingerprint(baseEvent.source, baseEvent.fingerprintParts)
+    await store.createDedup({
+      fingerprint: fp,
+      issueId: "55",
+      identifier: "#55",
+      count: 2,
+      firstSeen: 1,
+      lastSeen: 1,
+    })
+    const issues = fakeIssues()
+    issues.addComment = async (issueId, body) => {
+      issues.comments.push({ issueId, body })
+      return false
+    }
+    const r = await processEvent(baseEvent, deps(store, issues))
+    expect(r?.action).toBe("created")
+    expect(issues.comments).toHaveLength(1)
+    expect(issues.creates).toHaveLength(1)
+    expect((await store.getDedup(fp))?.issueId).toBe("100")
   })
 })

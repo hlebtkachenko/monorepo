@@ -5,6 +5,33 @@
 
 const API = "https://api.github.com"
 
+/** Standard GitHub REST/GraphQL request headers shared by the bot's clients. */
+export function ghHeaders(token: string): Record<string, string> {
+  return {
+    authorization: `Bearer ${token}`,
+    accept: "application/vnd.github+json",
+    "x-github-api-version": "2022-11-28",
+    "user-agent": "afframe-bot",
+  }
+}
+
+/**
+ * Best-effort GitHub fetch shared by the control-plane and issue clients: an 8s
+ * timeout and a swallow-to-null on any network/timeout error, so a failed call
+ * never throws into a Telegram handler. Callers inspect the returned status.
+ */
+export async function ghFetch(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit = {},
+): Promise<Response | null> {
+  try {
+    return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(8000) })
+  } catch {
+    return null
+  }
+}
+
 interface WorkflowRun {
   id: number
   name: string
@@ -88,53 +115,36 @@ export function createGitHubClient(
   repo: string,
   fetchImpl: typeof fetch = fetch,
 ): GitHubClient {
-  const headers = {
-    authorization: `Bearer ${token}`,
-    accept: "application/vnd.github+json",
-    "x-github-api-version": "2022-11-28",
-    "user-agent": "afframe-bot",
-  }
+  const headers = ghHeaders(token)
 
   async function get<T>(path: string): Promise<T | null> {
-    try {
-      const res = await fetchImpl(`${API}/repos/${repo}${path}`, {
-        headers,
-        signal: AbortSignal.timeout(8000),
-      })
-      if (!res.ok) return null
-      return (await res.json()) as T
-    } catch {
-      return null
-    }
+    const res = await ghFetch(fetchImpl, `${API}/repos/${repo}${path}`, {
+      headers,
+    })
+    if (!res?.ok) return null
+    return (await res.json()) as T
   }
 
   return {
     async dispatch(workflow, ref, inputs) {
-      try {
-        const res = await fetchImpl(
-          `${API}/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
-          {
-            method: "POST",
-            headers: { ...headers, "content-type": "application/json" },
-            body: JSON.stringify({ ref, inputs }),
-            signal: AbortSignal.timeout(8000),
-          },
-        )
-        return res.status === 204
-      } catch {
-        return false
-      }
+      const res = await ghFetch(
+        fetchImpl,
+        `${API}/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
+        {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ ref, inputs }),
+        },
+      )
+      return res?.status === 204
     },
     async rerunFailedJobs(runId) {
-      try {
-        const res = await fetchImpl(
-          `${API}/repos/${repo}/actions/runs/${runId}/rerun-failed-jobs`,
-          { method: "POST", headers, signal: AbortSignal.timeout(8000) },
-        )
-        return res.status === 201
-      } catch {
-        return false
-      }
+      const res = await ghFetch(
+        fetchImpl,
+        `${API}/repos/${repo}/actions/runs/${runId}/rerun-failed-jobs`,
+        { method: "POST", headers },
+      )
+      return res?.status === 201
     },
     async listRuns(perPage = 8) {
       const json = await get<{ workflow_runs?: RunRow[] }>(

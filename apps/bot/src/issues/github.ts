@@ -1,10 +1,12 @@
+import { ghFetch, ghHeaders } from "../github.js"
+
 const API = "https://api.github.com"
 const GRAPHQL = "https://api.github.com/graphql"
 
 export interface CreatedIssue {
-  id: string
-  identifier: string
+  /** GitHub issue number (`#123` shown to humans; the REST comment path keys off it). */
   number: number
+  /** GitHub's internal REST id — only used to attach the issue as a sub-issue. */
   restId: number
   url: string
 }
@@ -48,29 +50,23 @@ export function createGitHubIssueClient(
   repo: string,
   fetchImpl: typeof fetch = fetch,
 ): GitHubIssueClient {
-  const headers = {
-    authorization: `Bearer ${token}`,
-    accept: "application/vnd.github+json",
-    "x-github-api-version": "2022-11-28",
-    "user-agent": "afframe-bot",
-  }
+  const headers = ghHeaders(token)
 
   async function graphql<T>(
     query: string,
     variables: Record<string, unknown>,
   ): Promise<T | null> {
-    try {
-      const res = await fetchImpl(GRAPHQL, {
-        method: "POST",
-        headers: { ...headers, "content-type": "application/json" },
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(8000),
-      })
-      if (!res.ok) return null
-      return (await res.json()) as T
-    } catch {
-      return null
-    }
+    const res = await ghFetch(fetchImpl, GRAPHQL, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({ query, variables }),
+    })
+    if (!res?.ok) return null
+    const json = (await res.json()) as T & { errors?: unknown[] }
+    // GitHub GraphQL reports failures as 200-with-`errors`. Treat that as a miss so a
+    // wrong fieldId/optionId degrades to "no Project fields", not a silent success.
+    if (Array.isArray(json.errors) && json.errors.length > 0) return null
+    return json
   }
 
   async function addToProject(
@@ -133,76 +129,68 @@ export function createGitHubIssueClient(
     parentIssueNumber: number,
     subIssueRestId: number,
   ): Promise<void> {
-    try {
-      await fetchImpl(
-        `${API}/repos/${repo}/issues/${parentIssueNumber}/sub_issues`,
-        {
-          method: "POST",
-          headers: { ...headers, "content-type": "application/json" },
-          body: JSON.stringify({
-            sub_issue_id: subIssueRestId,
-            replace_parent: true,
-          }),
-          signal: AbortSignal.timeout(8000),
-        },
-      )
-    } catch {
-      // Sub-issues are hierarchy metadata. Issue creation and Project fields still stand
-      // if GitHub rejects the hierarchy write because the token lacks that permission.
-    }
+    // Sub-issues are hierarchy metadata. Issue creation and Project fields still stand
+    // if GitHub rejects the hierarchy write because the token lacks that permission —
+    // ghFetch swallows the failure to null and we ignore the result.
+    await ghFetch(
+      fetchImpl,
+      `${API}/repos/${repo}/issues/${parentIssueNumber}/sub_issues`,
+      {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({
+          sub_issue_id: subIssueRestId,
+          replace_parent: true,
+        }),
+      },
+    )
   }
 
   return {
     async createIssue(input) {
+      const res = await ghFetch(fetchImpl, `${API}/repos/${repo}/issues`, {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({
+          title: input.title,
+          body: input.body,
+          labels: input.labels,
+        }),
+      })
+      if (!res?.ok) return null
+      let issue: IssueRow
       try {
-        const res = await fetchImpl(`${API}/repos/${repo}/issues`, {
-          method: "POST",
-          headers: { ...headers, "content-type": "application/json" },
-          body: JSON.stringify({
-            title: input.title,
-            body: input.body,
-            labels: input.labels,
-          }),
-          signal: AbortSignal.timeout(8000),
-        })
-        if (!res.ok) return null
-        const issue = (await res.json()) as IssueRow
-        if (input.projectId) {
-          await addToProject(
-            input.projectId,
-            issue.node_id,
-            input.projectFields ?? [],
-          )
-        }
-        if (input.parentIssueNumber) {
-          await addSubIssue(input.parentIssueNumber, issue.id)
-        }
-        return {
-          id: String(issue.number),
-          identifier: `#${issue.number}`,
-          number: issue.number,
-          restId: issue.id,
-          url: issue.html_url,
-        }
+        issue = (await res.json()) as IssueRow
       } catch {
         return null
       }
+      if (input.projectId) {
+        await addToProject(
+          input.projectId,
+          issue.node_id,
+          input.projectFields ?? [],
+        )
+      }
+      if (input.parentIssueNumber) {
+        await addSubIssue(input.parentIssueNumber, issue.id)
+      }
+      return {
+        number: issue.number,
+        restId: issue.id,
+        url: issue.html_url,
+      }
     },
     async addComment(issueId, body) {
-      try {
-        const res = await fetchImpl(
-          `${API}/repos/${repo}/issues/${encodeURIComponent(issueId)}/comments`,
-          {
-            method: "POST",
-            headers: { ...headers, "content-type": "application/json" },
-            body: JSON.stringify({ body }),
-            signal: AbortSignal.timeout(8000),
-          },
-        )
-        return res.ok
-      } catch {
-        return false
-      }
+      const res = await ghFetch(
+        fetchImpl,
+        `${API}/repos/${repo}/issues/${encodeURIComponent(issueId)}/comments`,
+        {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ body }),
+        },
+      )
+      return res?.ok ?? false
     },
   }
 }

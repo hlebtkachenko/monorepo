@@ -44,8 +44,6 @@ describe("createGitHubIssueClient", () => {
     })
 
     expect(issue).toEqual({
-      id: "123",
-      identifier: "#123",
       number: 123,
       restId: 456,
       url: "https://github.com/o/r/issues/123",

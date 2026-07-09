@@ -49,7 +49,7 @@ import { notifierFromEnv } from "@workspace/notify"
 // same mailbox with an auto-applied "feedback" label.
 const SUPPORT_INBOX = BRAND_SUPPORT_EMAIL.replace("@", "+feedback@")
 
-// Fire-and-forget Telegram ping for every feedback; no-op when the bot env is unset.
+// Files (or dedups into) a GitHub issue per feedback via the bot; no-op when unset.
 const notifier = notifierFromEnv()
 
 function generateReferenceId(): string {
@@ -183,20 +183,22 @@ function renderContextJson(context: FeedbackContext | undefined): string {
   ].join("\n")
 }
 
+// Exhaustive by construction: a new FeedbackType member is a compile error here,
+// not a silent fallback to some default bucket.
+const FEEDBACK_ISSUE_TYPE: Record<
+  CreateFeedbackRequest["type"],
+  "feat" | "fix" | "docs"
+> = {
+  request: "feat",
+  question: "docs",
+  bug: "fix",
+  issue: "fix",
+}
+
 function issueTypeForFeedback(
   type: CreateFeedbackRequest["type"],
-): "feat" | "fix" | "docs" | "chore" {
-  switch (type) {
-    case "request":
-      return "feat"
-    case "question":
-      return "docs"
-    case "bug":
-    case "issue":
-      return "fix"
-    default:
-      return "chore"
-  }
+): "feat" | "fix" | "docs" {
+  return FEEDBACK_ISSUE_TYPE[type]
 }
 
 async function reportGitHubIssue(
@@ -288,14 +290,9 @@ export class FeedbackController {
       )
     }
     // GitHub issue creation is best-effort through the bot; do not block the response.
+    // reportIssue already sends the canonical (dedup/snooze-aware) Telegram echo with an
+    // Open button, so no separate notify() ping — that would double-buzz every submission.
     void reportGitHubIssue(body, referenceId, this.logger)
-    if (notifier) {
-      void notifier
-        .notify(`📝 New feedback ${referenceId} (${body.type})`, {
-          source: "api",
-        })
-        .catch(() => {})
-    }
 
     return { received: true, referenceId }
   }

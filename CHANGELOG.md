@@ -27,6 +27,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- **bot/issues**: harden the GitHub-issues tracker migration — reset the Linear-era D1 dedup/snooze cache on deploy (a surviving row would comment a recurrence into a dead 404 and never open a GitHub issue), re-file a fresh issue when a comment POST fails or the stored id isn't a GitHub number, honor `addComment`'s result instead of ignoring it, validate the ProjectV2 field config at the boundary (a partial config no longer TypeErrors + 500s `/issue`) with a fail-fast deploy check, drop the duplicate Telegram ping per feedback, and de-duplicate the governance scripts (no self-`spawnSync`) + the bot's two GitHub transports. (#603)
 - **ci**: deploy diff checks now handle changed or missing CDK input files correctly under `pipefail`, so the guard fails for real drift instead of exiting early from expected no-match cases. (#595)
 - **github**: remove the unsupported Code Quality branch-ruleset threshold while keeping CodeQL code scanning required, and document the live required-check set. (#597)
 

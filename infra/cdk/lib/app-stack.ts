@@ -711,8 +711,22 @@ export class AppStack extends Stack {
         // NO code change: `cdk deploy -c brainRuntimeActive=1`. See GH #468.
         BRAIN_RUNTIME_ACTIVE:
           (this.node.tryGetContext("brainRuntimeActive") as
-            | string
-            | undefined) ?? "0",
+            string | undefined) ?? "0",
+        // Pre-launch throughput raise (M0.1, GH #472). The `accountingAdmission`
+        // singleton (apps/api/src/v1/accounting/admission.singleton.ts) is a
+        // PER-PROCESS concurrency limiter and the api runs as ONE Fargate task
+        // today, so these are effectively single-task caps: if a 2nd task is
+        // ever added, EACH instance enforces its own caps and the effective
+        // global doubles (#472, deferred until cross-instance shared state
+        // exists). Raised from the code fallback (global 32 / per-org 8) to
+        // give real pre-launch document volume headroom while staying sane for
+        // one task's capacity.
+        ACCOUNTING_ADMISSION_GLOBAL_CAP: "64",
+        ACCOUNTING_ADMISSION_PER_ORG_CAP: "16",
+        // V1-wide per-API-key rate limit (apps/api/src/v1/v1.module.ts). Raised
+        // from the code fallback (100 req/60s) so the throttler isn't the
+        // binding constraint now that the admission caps above are higher.
+        V1_THROTTLE_LIMIT: "300",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),

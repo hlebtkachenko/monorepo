@@ -108,6 +108,14 @@ import {
   OcrTemplateSchema,
   UpdateOcrTemplateRequestSchema,
 } from "./ocr-templates"
+import {
+  AccountingPeriodSchema,
+  CreateAccountingPeriodRequestSchema,
+  CreateAccountingPeriodResponseSchema,
+  CreateNumberSeriesRequestSchema,
+  CreateNumberSeriesResponseSchema,
+  ListAccountingPeriodsResponseSchema,
+} from "./onboarding"
 
 type OpenAPIDocument = ReturnType<OpenApiGeneratorV31["generateDocument"]>
 
@@ -315,6 +323,27 @@ const CreateOcrTemplateRequest = registry.register(
 const UpdateOcrTemplateRequest = registry.register(
   "UpdateOcrTemplateRequest",
   UpdateOcrTemplateRequestSchema,
+)
+const CreateNumberSeriesRequest = registry.register(
+  "CreateNumberSeriesRequest",
+  CreateNumberSeriesRequestSchema,
+)
+const CreateNumberSeriesResponse = registry.register(
+  "CreateNumberSeriesResponse",
+  CreateNumberSeriesResponseSchema,
+)
+const CreateAccountingPeriodRequest = registry.register(
+  "CreateAccountingPeriodRequest",
+  CreateAccountingPeriodRequestSchema,
+)
+const CreateAccountingPeriodResponse = registry.register(
+  "CreateAccountingPeriodResponse",
+  CreateAccountingPeriodResponseSchema,
+)
+registry.register("AccountingPeriod", AccountingPeriodSchema)
+const ListAccountingPeriodsResponse = registry.register(
+  "ListAccountingPeriodsResponse",
+  ListAccountingPeriodsResponseSchema,
 )
 
 /**
@@ -1296,6 +1325,85 @@ registry.registerPath({
     "200": {
       description: "The confirmed template.",
       content: { "application/json": { schema: OcrTemplateResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/number-series",
+  operationId: "createNumberSeries",
+  summary: "Create a number series",
+  description:
+    "Creates a gapless číselná řada for the organization. Onboarding tool: " +
+    "an org needs a DOCUMENT/EVENT series before it can book. Tenant injected " +
+    "from the API-key principal. Requires the `accounting:write` scope.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: CreateNumberSeriesRequest } },
+    },
+  },
+  responses: {
+    "201": {
+      description: "The created number series.",
+      content: { "application/json": { schema: CreateNumberSeriesResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/periods",
+  operationId: "createAccountingPeriod",
+  summary: "Open an accounting period",
+  description:
+    "Opens an účetní období and its COUPLED scaffold — chart of accounts " +
+    "(double-entry) + default number series — so the org is fully bookable. " +
+    "The regime is reused from an existing period or derived from the legal " +
+    "form. Tenant injected from the principal. Requires `accounting:write`.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateAccountingPeriodRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "The provisioned accounting period.",
+      content: {
+        "application/json": { schema: CreateAccountingPeriodResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/accounting/periods",
+  operationId: "listAccountingPeriods",
+  summary: "List accounting periods",
+  description:
+    "Returns the organization's účetní období (periodId, bounds, status, " +
+    "regime). This is how an agent discovers the periodId that write bodies " +
+    "reference. Organization-scoped (FORCE RLS).",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  responses: {
+    "200": {
+      description: "The organization's accounting periods.",
+      content: {
+        "application/json": { schema: ListAccountingPeriodsResponse },
+      },
     },
     ...ERROR_RESPONSE_REFS,
   },

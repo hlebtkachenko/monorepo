@@ -39,6 +39,11 @@ import {
   OcrTemplateResponseSchema,
   CreateOcrTemplateRequestSchema,
   UpdateOcrTemplateRequestSchema,
+  CreateNumberSeriesRequestSchema,
+  CreateNumberSeriesResponseSchema,
+  CreateAccountingPeriodRequestSchema,
+  CreateAccountingPeriodResponseSchema,
+  ListAccountingPeriodsResponseSchema,
 } from "@workspace/shared/api"
 
 /**
@@ -151,4 +156,19 @@ export class CreateOcrTemplateRequestDto extends createZodDto(
 ) {}
 export class UpdateOcrTemplateRequestDto extends createZodDto(
   UpdateOcrTemplateRequestSchema,
+) {}
+export class CreateNumberSeriesRequestDto extends createZodDto(
+  CreateNumberSeriesRequestSchema,
+) {}
+export class CreateNumberSeriesResponseDto extends createZodDto(
+  CreateNumberSeriesResponseSchema,
+) {}
+export class CreateAccountingPeriodRequestDto extends createZodDto(
+  CreateAccountingPeriodRequestSchema,
+) {}
+export class CreateAccountingPeriodResponseDto extends createZodDto(
+  CreateAccountingPeriodResponseSchema,
+) {}
+export class ListAccountingPeriodsResponseDto extends createZodDto(
+  ListAccountingPeriodsResponseSchema,
 ) {}

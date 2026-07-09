@@ -26,6 +26,7 @@
     "@workspace/db": "workspace:*",
     "@workspace/email": "workspace:*",
     "@workspace/notify": "workspace:*",
+    "@workspace/org-provisioning": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/ui": "workspace:*",
     "express": "^5.2.1",

@@ -6,8 +6,11 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import postgres from "postgres"
+import { withOrganization } from "@workspace/db"
 import { adminClient, truncateAll } from "@workspace/db/tests/fixtures"
 import {
+  resolveOrgAccountingProfile,
+  scaffoldAccountingPeriod,
   scaffoldOrganization,
   ScaffoldValidationError,
   type ScaffoldInputRaw,
@@ -254,6 +257,117 @@ describe("scaffoldOrganization — monetary regimes + guards", () => {
         }),
       ),
     ).rejects.toMatchObject({ code: "SINGLE_ENTRY_VAT_PAYER" })
+  })
+})
+
+describe("scaffoldAccountingPeriod — coupled scaffold (#579)", () => {
+  it("resolves the profile of an existing org and opens a period WITH its chart + series", async () => {
+    const org = await scaffoldOrganization(
+      baseInput({
+        legalName: "Delta s.r.o.",
+        ico: "87654321",
+        inPublicRegister: true,
+        registeredAt: "2026-01-01",
+      }),
+    )
+    const orgId = org.organizationId
+
+    // resolveOrgAccountingProfile reuses the regime of the existing period.
+    const profile = await withOrganization(orgId, ownerUserId, (db) =>
+      resolveOrgAccountingProfile(db, orgId),
+    )
+    expect(profile.regime).toBe("DOUBLE_ENTRY")
+    expect(profile.requiresChart).toBe(true)
+
+    // A SECOND period, opened via the coupled scaffold, is never bare: it gets
+    // its own chart + seeded účty, and the default series stay idempotent (0).
+    const result = await withOrganization(orgId, ownerUserId, (db) =>
+      scaffoldAccountingPeriod(
+        db,
+        {
+          organizationId: orgId,
+          workspaceId,
+          regime: profile.regime,
+          requiresChart: profile.requiresChart,
+        },
+        { periodStart: "2027-01-01", periodEnd: "2027-12-31" },
+      ),
+    )
+    expect(result.periodId).not.toBe("")
+    expect(result.chartId).not.toBeNull()
+    expect(result.accountsSeeded).toBeGreaterThan(200)
+    // The org already had its 8 default series from creation — none re-created.
+    expect(result.seriesCreated).toBe(0)
+
+    // The org now has two periods, each with its own chart, and still 8 series.
+    const [periods] = await adminSql<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM accounting_period WHERE organization_id = ${orgId}::uuid`
+    expect(periods!.n).toBe(2)
+    const [charts] = await adminSql<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM chart_of_accounts WHERE organization_id = ${orgId}::uuid`
+    expect(charts!.n).toBe(2)
+    const [series] = await adminSql<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM number_series WHERE organization_id = ${orgId}::uuid`
+    expect(series!.n).toBe(8)
+  })
+
+  it("rejects a period overlapping an existing one — no second period/chart minted (F1)", async () => {
+    const org = await scaffoldOrganization(
+      baseInput({
+        legalName: "Omega s.r.o.",
+        ico: "11223344",
+        inPublicRegister: true,
+        registeredAt: "2026-01-01",
+      }),
+    )
+    const orgId = org.organizationId
+    // First period is 2026-01-01…2026-12-31 (from registeredAt); it seeded 1 chart.
+    const profile = await withOrganization(orgId, ownerUserId, (db) =>
+      resolveOrgAccountingProfile(db, orgId),
+    )
+
+    // A retried/double-fired create over an INTERSECTING range (mid-year start
+    // that overlaps the existing full-year period) must be rejected.
+    await expect(
+      withOrganization(orgId, ownerUserId, (db) =>
+        scaffoldAccountingPeriod(
+          db,
+          {
+            organizationId: orgId,
+            workspaceId,
+            regime: profile.regime,
+            requiresChart: profile.requiresChart,
+          },
+          { periodStart: "2026-06-01", periodEnd: "2027-05-31" },
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "PERIOD_OVERLAP" })
+
+    // The guard fired BEFORE any INSERT: still exactly one period + one chart.
+    const [periods] = await adminSql<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM accounting_period WHERE organization_id = ${orgId}::uuid`
+    expect(periods!.n).toBe(1)
+    const [charts] = await adminSql<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM chart_of_accounts WHERE organization_id = ${orgId}::uuid`
+    expect(charts!.n).toBe(1)
+
+    // A NON-overlapping successor (the next fiscal year) is still allowed.
+    const next = await withOrganization(orgId, ownerUserId, (db) =>
+      scaffoldAccountingPeriod(
+        db,
+        {
+          organizationId: orgId,
+          workspaceId,
+          regime: profile.regime,
+          requiresChart: profile.requiresChart,
+        },
+        { periodStart: "2027-01-01", periodEnd: "2027-12-31" },
+      ),
+    )
+    expect(next.periodId).not.toBe("")
+    const [after] = await adminSql<Array<{ n: number }>>`
+      SELECT count(*)::int AS n FROM accounting_period WHERE organization_id = ${orgId}::uuid`
+    expect(after!.n).toBe(2)
   })
 })
 

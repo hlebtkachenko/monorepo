@@ -6,17 +6,33 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { DetailField } from "@workspace/ui/blocks/app-content"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@workspace/ui/components/table"
 import { Textarea } from "@workspace/ui/components/textarea"
 import { useIcons } from "@workspace/ui/icon-packs"
 
+import {
+  decimalToNumber,
+  formatDate,
+  formatDecimal,
+} from "../_shared/accounting-format"
 import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
+import type { HeldWriteHeader, HeldWriteVatSummaryRow } from "./view-model"
 
 /**
  * Held gated write as prepared by the approvals page from `fetchHeldWrites`
- * rows. Declared locally so these client components never import the
- * `server-only` data module. Everything is a plain serializable string —
- * `confidence` stays the decimal string ("0.6300"), `payload_json` is the
- * original request payload pre-printed as JSON on the server.
+ * rows (shaped through `buildHeldWriteViewModel`). Declared locally so these
+ * client components never import the `server-only` data module. Everything is
+ * a plain serializable value — `confidence` stays the decimal string
+ * ("0.6300"), amounts inside `header`/`vat_summary` stay decimal strings (the
+ * domain money transport — see `_shared/accounting-format.ts`), NEVER a raw
+ * JSON payload dump.
  */
 export interface HeldWriteListRow {
   id: string
@@ -29,8 +45,14 @@ export interface HeldWriteListRow {
   created_at: string
   /** Human summary derived from the payload on the server. */
   summary: string
-  /** Pretty-printed JSON of the original gated payload. */
-  payload_json: string
+  /** Audit correlation id — held writes for the same účetní případ share one. */
+  conversation_id: string | null
+  /** Document header (counterparty, date, total, currency) — shaped server-side. */
+  header: HeldWriteHeader
+  /** Per-VAT-rate base/VAT rollup — empty when the tool has no VAT lines (events, postings). */
+  vat_summary: HeldWriteVatSummaryRow[]
+  /** Human-readable reasons the gate HELD this write. */
+  hold_reasons: string[]
   /**
    * [WS-2] OCR extraction template this write was derived from (audit
    * `serverGate.templateId`), or null for structured-export writes.
@@ -309,13 +331,154 @@ function HeldWriteResolveActions({
   )
 }
 
-/** Inspector detail for a single held write, with approve/reject resolution. */
+/** cs-CZ, 2dp, no currency suffix — for a NON-CZK amount, where `formatDecimal`'s hardcoded " Kč" would mislabel it. */
+const PLAIN_NUMBER = new Intl.NumberFormat("cs-CZ", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+/**
+ * Format a document-currency decimal amount for display. Documents/postings
+ * default to CZK (the accounting currency) — `formatDecimal` is the existing,
+ * shared formatter for that case. A foreign-currency line (pre-FX-conversion,
+ * `currencyCode` on the payload) shows its OWN code instead of a fabricated
+ * " Kč" suffix.
+ */
+function formatCaseAmount(amount: string, currency: string | null): string {
+  if (currency && currency !== "CZK") {
+    return `${PLAIN_NUMBER.format(decimalToNumber(amount))} ${currency}`
+  }
+  return formatDecimal(amount)
+}
+
+/** The document header — protistrana, date, total — replacing the raw JSON dump. */
+function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
+  return (
+    <dl className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3">
+      <DetailField label="Protistrana" value={header.counterpartyName ?? "—"} />
+      <DetailField
+        label="Datum"
+        value={header.date ? formatDate(header.date) : "—"}
+      />
+      <DetailField
+        label="Číslo dokladu"
+        value={header.documentNumber ?? "— (přiděleno až po schválení)"}
+      />
+      <DetailField
+        label="Celkem"
+        value={
+          <span className="tabular-nums">
+            {header.totalAmount
+              ? formatCaseAmount(header.totalAmount, header.currency)
+              : "—"}
+          </span>
+        }
+      />
+    </dl>
+  )
+}
+
+/** Per-VAT-rate base/VAT rollup — empty for tools with no VAT lines (events, postings). */
+function VatSummaryTable({
+  rows,
+  currency,
+}: {
+  rows: HeldWriteVatSummaryRow[]
+  currency: string | null
+}) {
+  if (rows.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Rozpis DPH podle sazby
+      </span>
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="text-muted-foreground">Sazba</TableHead>
+            <TableHead className="text-right text-muted-foreground">
+              Základ
+            </TableHead>
+            <TableHead className="text-right text-muted-foreground">
+              DPH
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.rateLabel} className="hover:bg-transparent">
+              <TableCell>{r.rateLabel}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatCaseAmount(r.base, currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatCaseAmount(r.vat, currency)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+/** Human-readable reasons the gate HELD this write — from `output_json.serverGate`. */
+function HoldReasonsList({ reasons }: { reasons: string[] }) {
+  if (reasons.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Důvod zadržení
+      </span>
+      <ul className="flex flex-col gap-1 text-sm">
+        {reasons.map((reason) => (
+          <li key={reason} className="flex gap-2">
+            <span className="text-destructive" aria-hidden="true">
+              •
+            </span>
+            <span>{reason}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Sibling held writes sharing this write's účetní případ (conversationId) — grouped for review. */
+function CaseSiblingsList({ writes }: { writes: HeldWriteListRow[] }) {
+  if (writes.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Další položky tohoto případu
+      </span>
+      <ul className="flex flex-col gap-1.5">
+        {writes.map((w) => (
+          <li key={w.id} className="flex items-center gap-2 text-sm">
+            <Badge variant="secondary">{toolLabel(w.tool_name)}</Badge>
+            <span className="truncate">{w.summary}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Inspector detail for a single held write, with approve/reject resolution.
+ * Renders the document header, per-rate VAT summary, why-held reasons, and
+ * the rationale — no raw JSON. `caseWrites` are sibling held writes sharing
+ * this write's `conversationId` (the účetní případ), rendered together so a
+ * reviewer sees the whole case, not just one isolated write.
+ */
 export function HeldWriteDetail({
   row,
+  caseWrites,
   orgSlug,
   onResolved,
 }: {
   row: HeldWriteListRow
+  caseWrites: HeldWriteListRow[]
   orgSlug: string
   onResolved: () => void
 }) {
@@ -361,14 +524,10 @@ export function HeldWriteDetail({
           />
         ) : null}
       </dl>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">
-          Původní požadavek
-        </span>
-        <pre className="max-h-80 overflow-auto rounded-md border bg-muted/50 p-3 font-mono text-xs">
-          {row.payload_json}
-        </pre>
-      </div>
+      <HeldWriteHeaderCard header={row.header} />
+      <VatSummaryTable rows={row.vat_summary} currency={row.header.currency} />
+      <HoldReasonsList reasons={row.hold_reasons} />
+      <CaseSiblingsList writes={caseWrites} />
       <HeldWriteResolveActions
         orgSlug={orgSlug}
         id={row.id}

@@ -168,8 +168,16 @@ export interface HeldWriteRow {
   confidence: string
   rationale: string | null
   created_at: string
-  /** Original gated payload — shown to the reviewer verbatim. */
+  /** Audit correlation id (opaque UUID) — held writes for the SAME účetní případ share one. */
+  conversation_id: string | null
+  /** Original gated payload — the review view-model shapes header + VAT summary from this. */
   input_json: unknown
+  /**
+   * The gate's full audit record (`{payloadHash, serverGate, status, reviewId}` —
+   * accounting-writes.gate.ts). The review view-model reads `serverGate.veto` +
+   * `serverGate.score.reasons` to explain WHY the write is held.
+   */
+  output_json: unknown
   /**
    * [WS-2] OCR extraction template this write was derived from, read from the
    * gate's audit `output_json.serverGate.templateId` (NULL for structured-export
@@ -184,6 +192,15 @@ export interface HeldWriteRow {
    * template row no longer exists — display gates on `template_id` being present.
    */
   template_confirmed: boolean
+  /**
+   * [M0.5] The counterparty (protistrana) name for this write's účetní případ,
+   * resolved server-side so the reviewer sees a name instead of a raw uuid.
+   * `createAccountingEvent` carries `counterpartyId` directly; a document
+   * capture / posting instead references an existing `accounting_event` (via
+   * the first line's `eventId`, or `entry.accountingEventId`) whose
+   * `counterparty_id` is read here. Null when nothing resolves.
+   */
+  counterparty_name: string | null
 }
 
 /**
@@ -193,6 +210,15 @@ export interface HeldWriteRow {
  * The template LEFT JOIN keys on the audit `serverGate.templateId` and reads the
  * template's confirmation state so the reviewer sees which OCR template produced
  * the booking (workspace-scoped table, resolvable under this tx's `app.workspace_id`).
+ *
+ * [M0.5] The accounting_event + counterparty LEFT JOINs resolve the header's
+ * counterparty name: `createAccountingEvent` carries `counterpartyId` directly
+ * on the payload; `captureAccountingDocument` / `createAccountingPosting`
+ * instead reference an ALREADY-CREATED `accounting_event` (a document/posting
+ * cannot exist without one), so their counterparty is read through it. A
+ * multi-event document capture (rare — e.g. a BATCH bank statement) is
+ * represented by its FIRST line's event only; good enough for a header, not a
+ * line-level breakdown.
  */
 export async function fetchHeldWrites(
   ctx: OrgAccountingContext,
@@ -203,12 +229,29 @@ export async function fetchHeldWrites(
       sql`select l.id, l.tool_name, l.idempotency_key,
                  l.actor_kind::text as actor_kind,
                  l.confidence::text as confidence, l.rationale,
-                 l.created_at::text as created_at, l.input_json,
+                 l.created_at::text as created_at,
+                 l.conversation_id::text as conversation_id,
+                 l.input_json, l.output_json,
                  (l.output_json->'serverGate'->>'templateId') as template_id,
-                 (t.human_confirmed_at is not null) as template_confirmed
+                 (t.human_confirmed_at is not null) as template_confirmed,
+                 cp.name as counterparty_name
           from tool_call_log l
           left join ocr_extraction_template t
             on t.id = (l.output_json->'serverGate'->>'templateId')::uuid
+          left join accounting_event ae
+            on ae.id = (case l.tool_name
+                 when 'captureAccountingDocument'
+                   then l.input_json->'lines'->0->>'eventId'
+                 when 'createAccountingPosting'
+                   then l.input_json->'entry'->>'accountingEventId'
+               end)::uuid
+          left join counterparty cp
+            on cp.id = coalesce(
+                 ae.counterparty_id,
+                 case when l.tool_name = 'createAccountingEvent'
+                   then (l.input_json->>'counterpartyId')::uuid
+                 end
+               )
           where l.auto_applied = false and l.approved_by_user_id is null
           order by l.created_at desc`,
     ),

@@ -15,6 +15,7 @@ import { ApiKeyThrottlerGuard } from "./api-key-throttler.guard"
 import { DomainExceptionFilter } from "./domain-exception.filter"
 import { FeedbackController } from "./feedback/feedback.controller"
 import { OcrTemplatesController } from "./ocr-templates/ocr-templates.controller"
+import { OnboardingController } from "./onboarding/onboarding.controller"
 import { OrganizationController } from "./organization/organization.controller"
 import { PingController } from "./ping/ping.controller"
 import { RequestIdMiddleware } from "./request-id.middleware"
@@ -73,6 +74,7 @@ const THROTTLE_TTL_MS = positiveInt(process.env["V1_THROTTLE_TTL_MS"], 60_000)
     InvoicesController,
     AccountsController,
     OcrTemplatesController,
+    OnboardingController,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ApiKeyThrottlerGuard },
@@ -96,6 +98,7 @@ export class V1Module implements NestModule {
         InvoicesController,
         AccountsController,
         OcrTemplatesController,
+        OnboardingController,
       )
   }
 }

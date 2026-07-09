@@ -357,7 +357,11 @@ export interface paths {
          */
         get: operations["listAccountingNumberSeries"];
         put?: never;
-        post?: never;
+        /**
+         * Create a number series
+         * @description Creates a gapless číselná řada for the organization. Onboarding tool: an org needs a DOCUMENT/EVENT series before it can book. Tenant injected from the API-key principal. Requires the `accounting:write` scope.
+         */
+        post: operations["createNumberSeries"];
         delete?: never;
         options?: never;
         head?: never;
@@ -612,6 +616,30 @@ export interface paths {
          * @description Marks a template as human-confirmed (sets `humanConfirmedAt` to now). HUMAN-ACTOR ONLY: an agent-actor key is rejected with 403 — confirmation is the trust boundary that a human, not the Brain, must cross. Returns 404 when the template is not visible to the caller's workspace.
          */
         post: operations["confirmOcrTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List accounting periods
+         * @description Returns the organization's účetní období (periodId, bounds, status, regime). This is how an agent discovers the periodId that write bodies reference. Organization-scoped (FORCE RLS).
+         */
+        get: operations["listAccountingPeriods"];
+        put?: never;
+        /**
+         * Open an accounting period
+         * @description Opens an účetní období and its COUPLED scaffold — chart of accounts (double-entry) + default number series — so the org is fully bookable. The regime is reused from an existing period or derived from the legal form. Tenant injected from the principal. Requires `accounting:write`.
+         */
+        post: operations["createAccountingPeriod"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4732,6 +4760,239 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** @description Create a gapless number series. */
+        CreateNumberSeriesRequest: {
+            /**
+             * @description What the series numbers.
+             * @example DOCUMENT
+             * @enum {string}
+             */
+            entityType: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT";
+            /**
+             * @description Company série label (unique per entity type).
+             * @example FP
+             */
+            code: string;
+            /**
+             * @description Designation format. `{YYYY}` = year, `{NNNN}` = zero-padded sequence.
+             * @example FP{YYYY}{NNNN}
+             */
+            pattern: string;
+            /**
+             * @description First sequence number to allocate (defaults to 1).
+             * @example 1
+             */
+            nextNumber?: number;
+        };
+        /** @description The created number series. */
+        CreateNumberSeriesResponse: {
+            /** @description The created number series. */
+            series: {
+                /**
+                 * Format: uuid
+                 * @description Series id — reference by this in write bodies (seriesId).
+                 * @example aa11bb22-cc33-4d44-9e55-ff6677889900
+                 */
+                id: string;
+                /**
+                 * @description What the series numbers.
+                 * @example DOCUMENT
+                 * @enum {string}
+                 */
+                entityType: "EVENT" | "DOCUMENT" | "ASSET" | "INVENTORY_COUNT";
+                /**
+                 * @description Company série label.
+                 * @example FP
+                 */
+                code: string;
+                /**
+                 * @description Designation format.
+                 * @example FP{YYYY}{NNNN}
+                 */
+                pattern: string;
+                /**
+                 * @description Next sequence number.
+                 * @example 43
+                 */
+                nextNumber: number;
+            };
+        };
+        /** @description Open an accounting period. Also creates its coupled chart of accounts (double-entry) and default number series, so the org is fully bookable. */
+        CreateAccountingPeriodRequest: {
+            /**
+             * @description First day of the účetní období (YYYY-MM-DD).
+             * @example 2025-01-01
+             */
+            periodStart: string;
+            /**
+             * @description Last day of the účetní období. Omit to derive the fiscal-year end containing periodStart from the org's fiscal-year start month.
+             * @example 2025-12-31
+             */
+            periodEnd?: string;
+            /**
+             * @description Bookkeeping regime. Required only when the org's legal form permits more than one and no period exists yet; otherwise derived/reused.
+             * @example DOUBLE_ENTRY
+             * @enum {string}
+             */
+            regimeCode?: "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS";
+            /**
+             * @description Měna účetnictví (ISO 4217). Defaults to CZK.
+             * @example CZK
+             */
+            accountingCurrency?: string;
+            /**
+             * @description Účetní jednotka size category (§1b). Null until assessed.
+             * @example MICRO
+             * @enum {string|null}
+             */
+            accountingSizeCode?: "MICRO" | "SMALL" | "MEDIUM" | "LARGE" | null;
+            /**
+             * @description FX-rate směrnice policy (§24). Null defaults to DAILY.
+             * @example DAILY
+             * @enum {string|null}
+             */
+            fxRatePolicy?: "DAILY" | "REAL" | "FIXED" | null;
+        };
+        /** @description The provisioned accounting period. */
+        CreateAccountingPeriodResponse: {
+            /**
+             * Format: uuid
+             * @description The created accounting period id.
+             * @example 0196f1de-0000-7000-8000-0000000000d1
+             */
+            periodId: string;
+            /**
+             * @description Regime the period was opened under.
+             * @example DOUBLE_ENTRY
+             * @enum {string}
+             */
+            regimeCode: "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS";
+            /**
+             * @description Resolved first day of the period.
+             * @example 2025-01-01
+             */
+            periodStart: string;
+            /**
+             * @description Resolved last day of the period.
+             * @example 2025-12-31
+             */
+            periodEnd: string;
+            /**
+             * Format: uuid
+             * @description The created chart of accounts id (null for non-double-entry regimes).
+             * @example 0196f1de-0000-7000-8000-0000000000c1
+             */
+            chartId: string | null;
+            /**
+             * @description Number of účty seeded into the chart (0 without a chart).
+             * @example 218
+             */
+            accountsSeeded: number;
+            /**
+             * @description Default number series inserted (0 when the org already had them).
+             * @example 8
+             */
+            seriesCreated: number;
+        };
+        /** @description An účetní období. */
+        AccountingPeriod: {
+            /**
+             * Format: uuid
+             * @description Accounting period id — reference this as periodId.
+             * @example 0196f1de-0000-7000-8000-0000000000d1
+             */
+            id: string;
+            /**
+             * @description First day of the period.
+             * @example 2025-01-01
+             */
+            periodStart: string;
+            /**
+             * @description Last day of the period.
+             * @example 2025-12-31
+             */
+            periodEnd: string;
+            /**
+             * @description OPEN (bookable) or CLOSED.
+             * @example OPEN
+             * @enum {string}
+             */
+            status: "OPEN" | "CLOSED";
+            /**
+             * @description Bookkeeping regime (immutable per period).
+             * @example DOUBLE_ENTRY
+             * @enum {string}
+             */
+            regimeCode: "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS";
+            /**
+             * @description Size category, or null until assessed at period end.
+             * @example MICRO
+             * @enum {string|null}
+             */
+            accountingSizeCode: "MICRO" | "SMALL" | "MEDIUM" | "LARGE" | null;
+            /**
+             * @description Měna účetnictví (ISO 4217).
+             * @example CZK
+             */
+            accountingCurrency: string;
+            /**
+             * @description FX-rate směrnice policy, or null (defaults to DAILY).
+             * @example DAILY
+             * @enum {string|null}
+             */
+            fxRatePolicy: "DAILY" | "REAL" | "FIXED" | null;
+        };
+        /** @description The organization's accounting periods. */
+        ListAccountingPeriodsResponse: {
+            /** @description The organization's accounting periods. */
+            periods: {
+                /**
+                 * Format: uuid
+                 * @description Accounting period id — reference this as periodId.
+                 * @example 0196f1de-0000-7000-8000-0000000000d1
+                 */
+                id: string;
+                /**
+                 * @description First day of the period.
+                 * @example 2025-01-01
+                 */
+                periodStart: string;
+                /**
+                 * @description Last day of the period.
+                 * @example 2025-12-31
+                 */
+                periodEnd: string;
+                /**
+                 * @description OPEN (bookable) or CLOSED.
+                 * @example OPEN
+                 * @enum {string}
+                 */
+                status: "OPEN" | "CLOSED";
+                /**
+                 * @description Bookkeeping regime (immutable per period).
+                 * @example DOUBLE_ENTRY
+                 * @enum {string}
+                 */
+                regimeCode: "DOUBLE_ENTRY" | "SINGLE_ENTRY" | "TAX_RECORDS";
+                /**
+                 * @description Size category, or null until assessed at period end.
+                 * @example MICRO
+                 * @enum {string|null}
+                 */
+                accountingSizeCode: "MICRO" | "SMALL" | "MEDIUM" | "LARGE" | null;
+                /**
+                 * @description Měna účetnictví (ISO 4217).
+                 * @example CZK
+                 */
+                accountingCurrency: string;
+                /**
+                 * @description FX-rate směrnice policy, or null (defaults to DAILY).
+                 * @example DAILY
+                 * @enum {string|null}
+                 */
+                fxRatePolicy: "DAILY" | "REAL" | "FIXED" | null;
+            }[];
+        };
     };
     responses: {
         /** @description API key missing, malformed, revoked, or pointing at a different environment than the host. */
@@ -5376,6 +5637,36 @@ export interface operations {
             429: components["responses"]["RateLimited"];
         };
     };
+    createNumberSeries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNumberSeriesRequest"];
+            };
+        };
+        responses: {
+            /** @description The created number series. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateNumberSeriesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
     createAccountingEvent: {
         parameters: {
             query?: never;
@@ -5869,6 +6160,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OcrTemplateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listAccountingPeriods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organization's accounting periods. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListAccountingPeriodsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createAccountingPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAccountingPeriodRequest"];
+            };
+        };
+        responses: {
+            /** @description The provisioned accounting period. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAccountingPeriodResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

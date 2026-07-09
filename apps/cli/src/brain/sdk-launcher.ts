@@ -34,6 +34,7 @@ import {
   buildBrainKickoff,
   buildBrainQueryOptions,
   buildBrainSessionEnv,
+  detectCaptureError,
   parseCaptureOutcome,
   parseCaptureResultText,
   readToolResultText,
@@ -133,7 +134,11 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
 
     let sessionId = ""
     let captureToolUseId: string | undefined
-    let captureResultRaw: unknown
+    // Keep BOTH the raw tool-result text and the MCP `is_error` flag, not just the parsed body: an admission
+    // 429 / 5xx / validation error surfaces to the model as an `isError` text block the parser cannot read as a
+    // status, and discarding it here is exactly what would let a dropped document be mis-recorded as HELD.
+    let captureResultText: string | undefined
+    let captureIsError = false
 
     for await (const message of query({
       prompt: buildBrainKickoff(options.plan, options.idempotencyKey),
@@ -160,9 +165,8 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
               block.type === "tool_result" &&
               block.tool_use_id === captureToolUseId
             ) {
-              captureResultRaw = parseCaptureResultText(
-                readToolResultText(block.content),
-              )
+              captureResultText = readToolResultText(block.content)
+              captureIsError = block.is_error === true
             }
           }
         }
@@ -171,10 +175,21 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
       }
     }
 
-    const outcome = parseCaptureOutcome(captureResultRaw)
+    // The parsed status/reviewId/applied (fail-safe: unreadable → not applied) PLUS the self-contained error
+    // signal (rate-limit vs hard error vs unparseable), so the caller never has to infer the real outcome from
+    // `applied` alone.
+    const outcome = parseCaptureOutcome(
+      parseCaptureResultText(captureResultText),
+    )
+    const error = detectCaptureError(captureResultText, captureIsError)
     return {
       brainRunId: sessionId,
       applied: outcome.applied,
+      status: outcome.status,
+      reviewId: outcome.reviewId,
+      isError: error.isError,
+      rateLimited: error.rateLimited,
+      retryAfterMs: error.retryAfterMs,
       serverGate: outcome.raw,
     }
   },

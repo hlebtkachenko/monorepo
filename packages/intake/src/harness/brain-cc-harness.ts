@@ -291,6 +291,31 @@ export interface LiveBrainSessionResult {
   brainRunId: string
   /** Whether the server gate APPLIED the capture write (true) or HELD it for human review (false). */
   applied: boolean
+  /**
+   * The parsed capture status string the launcher read back (`"applied"` / `"held"` / `"unknown"` /
+   * `"unparsed"`). Surfaced so a caller can distinguish a genuine HELD write from a non-applied result that was
+   * never a real hold — the bulk orchestrator (M0.6) records only a real `held` as a terminal success.
+   */
+  status: string
+  /**
+   * The held-write review handle. Present ONLY on a genuine HELD write. Its ABSENCE on a non-applied result is
+   * the load-bearing signal that the result is NOT a real hold (a rate-limit / error / unparseable body), so it
+   * must be recorded failed — never silently held (which would drop the document from the batch).
+   */
+  reviewId?: string
+  /**
+   * True when the capture tool result was an ERROR — an MCP `isError` result (rate-limit, 5xx, validation) OR
+   * an unparseable body. An error result can NEVER be a genuine applied/held write.
+   */
+  isError: boolean
+  /**
+   * True when the error is specifically an admission rate-limit (`code=rate_limited`) surfaced IN-SESSION as a
+   * tool error (not a thrown `RateLimitError`). Lets the batch engine's backoff/retry fire instead of failing
+   * the document.
+   */
+  rateLimited: boolean
+  /** The rate-limit's `retry_after` in MILLISECONDS, when the tool-error carried one. */
+  retryAfterMs?: number
   /** The server gate's persisted verdict (`tool_call_log.output_json.serverGate`), echoed for the run log. */
   serverGate: unknown
 }

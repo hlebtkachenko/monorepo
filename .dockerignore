@@ -29,6 +29,4 @@
 **/.planning/
 **/.playwright-mcp/
 **/.codegraph/
-**/graphify-out/
-**/.graphify/
 **/*.tsbuildinfo

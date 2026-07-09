@@ -14,6 +14,8 @@ function run(args, options = {}) {
     cwd: root,
     stdio: "inherit",
     env: {
+      // Keep index build/sync in step with the MCP server config in .mcp.json.
+      CODEGRAPH_PARSE_WORKERS: "8",
       ...process.env,
       CODEGRAPH_TELEMETRY: "0",
     },

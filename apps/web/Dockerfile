@@ -12,7 +12,8 @@ FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549c
 WORKDIR /repo
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 COPY . .
-RUN pnpm dlx turbo@2.9.12 prune web --docker
+RUN TURBO_VERSION="$(node -p "require('./package.json').devDependencies.turbo.replace(/^[~^]/, '')")" \
+    && pnpm dlx "turbo@${TURBO_VERSION}" prune web --docker
 
 # ---------- deps ----------
 # Debian-slim (glibc) chosen over alpine to avoid musl-binding compatibility

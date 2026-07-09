@@ -19,6 +19,7 @@ import { OnboardingController } from "./onboarding/onboarding.controller"
 import { OrganizationController } from "./organization/organization.controller"
 import { PingController } from "./ping/ping.controller"
 import { RequestIdMiddleware } from "./request-id.middleware"
+import { StaleHeldWritesScheduler } from "./accounting/stale-held-writes-scheduler"
 import { StatusController } from "./status/status.controller"
 import { StructureController } from "./structure/structure.controller"
 
@@ -54,6 +55,9 @@ const THROTTLE_TTL_MS = positiveInt(process.env["V1_THROTTLE_TTL_MS"], 60_000)
  * - ZodValidationPipe: validates any `createZodDto` request param against its
  *   Zod schema. Inert on the foundation's input-free GET endpoints.
  * - RequestIdMiddleware: per-request `X-Request-Id` on the v1 routes.
+ * - StaleHeldWritesScheduler: recurring caller for the stale held-write queue
+ *   alert (`accounting/stale-held-writes-alert.ts`); dormant unless
+ *   `ACCOUNTING_STALE_HELD_ALERT_ENABLED=true`.
  *
  * API-key auth stays per-controller (`@UseGuards`) so public endpoints
  * (`/v1/status`, `/v1/feedback`) and `/api/health` remain key-free.
@@ -80,6 +84,7 @@ const THROTTLE_TTL_MS = positiveInt(process.env["V1_THROTTLE_TTL_MS"], 60_000)
     { provide: APP_GUARD, useClass: ApiKeyThrottlerGuard },
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
     { provide: APP_PIPE, useClass: ZodValidationPipe },
+    StaleHeldWritesScheduler,
   ],
 })
 export class V1Module implements NestModule {

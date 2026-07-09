@@ -31,6 +31,7 @@ import {
 import { evaluateEvidence, type EvidenceEnvelope } from "./evidence-gate"
 import { buildShadowScore } from "./shadow-score"
 import { translateAccountingError } from "./accounting-error"
+import { observeGateIntegrity } from "./gate-integrity-alert"
 
 // A non-finite override (e.g. "100 000" / "100,000" → NaN) would silently
 // disable the amount hold fleet-wide, so fall back to the documented default.
@@ -149,7 +150,18 @@ export async function runGatedWrite<T>(
   // fail-closed admission / scoring seams. The invariant is enforced by the
   // TYPE SYSTEM — a production caller trying to pass a permissive scorer is a
   // TS2554 compile error, strictly stronger than a source scan ([#519]).
-  return runGatedWriteWithSeams(opts, accountingAdmission, evaluateEvidence)
+  const result = await runGatedWriteWithSeams(
+    opts,
+    accountingAdmission,
+    evaluateEvidence,
+  )
+  // [M0.8] Read-only observation, AFTER the decision is final: never changes
+  // the gate's outcome, never awaited, never throws (see gate-integrity-alert.ts).
+  observeGateIntegrity(result, {
+    operationId: opts.operationId,
+    organizationId: opts.principal.organizationId,
+  })
+  return result
 }
 
 /**

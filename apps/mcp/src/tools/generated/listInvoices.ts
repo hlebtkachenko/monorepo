@@ -8,7 +8,7 @@ import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
   "direction": z.enum(["received","issued"]).describe("Restrict to received or issued invoices.").optional(),
-  "periodId": z.string().describe("Restrict to one účetní období.").optional(),
+  "periodId": z.string().uuid().describe("Restrict to one účetní období.").optional(),
 }
 
 export function registerListInvoices(

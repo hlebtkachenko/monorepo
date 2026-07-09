@@ -7,7 +7,7 @@ import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
-  "invoiceId": z.string().describe("Opaque invoice identifier (UUID)."),
+  "invoiceId": z.string().uuid().describe("Opaque invoice identifier (UUID)."),
 }
 
 export function registerGetInvoice(

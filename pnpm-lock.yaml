@@ -202,6 +202,9 @@ importers:
       '@workspace/notify':
         specifier: workspace:*
         version: link:../../packages/notify
+      '@workspace/org-provisioning':
+        specifier: workspace:*
+        version: link:../../packages/org-provisioning
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared

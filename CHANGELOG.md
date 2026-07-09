@@ -15,6 +15,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- **release/changelog**: correct historical entries — drop the stale note claiming the v0.2.1 tag still exists on the remote (it was deleted) and strip the stray emoji from the v0.3.1 HITL fix entry. (#604)
 - **release/changelog**: fold the unpublished `v0.16.11` draft release notes back into Unreleased because `v0.16.10` remains the latest published GitHub release.
 - **governance**: require every non-release PR to add an Unreleased changelog entry, with CI and local hooks preserving existing entries so parallel agents append instead of overwriting.
 - **ci**: the `_deploy-aws.yml` `brain_runtime_active` input now defaults to `1` for the pre-launch period, so a deploy that omits it keeps the `/v1/accounting` write admission lane ON instead of silently killing it (v0.16.9 omitted it and every write 429'd). This does not enable auto-apply: the cold-start `extraction_failed` floor still HELDs every write. Revert the default to explicit at launch (ADR-0028). (#584)
@@ -553,7 +554,7 @@ Minor release: the agent human-in-the-loop (HITL) round-trip and the Telegram co
 
 ### Fixed
 
-- Keep the HITL question visible + strip options when ✍️ Other is chosen. (#339)
+- Keep the HITL question visible + strip options when Other is chosen. (#339)
 
 ## [v0.3.0] — 2026-06-06
 
@@ -628,8 +629,6 @@ Supply-chain follow-up to v0.2.2. No app surface changes.
 ## [v0.2.2] — 2026-05-21
 
 CI + observability follow-ups to v0.2.0. No app surface changes.
-
-> Note: tag `v0.2.1` was burned by a second supply-chain bug in the SBOM generator (`anchore/sbom-action` rejecting `.tar.gz` as a non-directory). The fix bundle ships as v0.2.2 instead. The v0.2.1 tag remains on the remote as a dangling reference with no GitHub Release attached.
 
 ### Fixed
 

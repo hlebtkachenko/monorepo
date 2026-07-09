@@ -90,14 +90,10 @@ function groupByOrg<T extends { organizationId: string }>(
  *   - "current period" = the period containing today's date; if none does,
  *     the org's newest period by `period_start`. An org with no period at
  *     all contributes no obligations (still onboarding).
- *   - a VAT payer with no filing period configured (`vat_status.filing_period
- *     IS NULL`) cannot run through `computeObligations` (it throws), so only
- *     payroll is computed for that org — an honest partial, not a fabricated
- *     VAT schedule.
- *   - vat_status / organization_tax_profile are versioned by [valid_from,
- *     valid_to]; if more than one row overlaps the chosen period, the row
- *     with the latest `valid_from` wins (single-value-per-period, same
- *     simplification as `period-profile.ts`).
+ *   - missing VAT cadence or profile intervals remain explicit issues while
+ *     independently known payroll intervals are still computed.
+ *   - vat_status / organization_tax_profile are resolved as complete
+ *     effective-dated timelines; gaps are preserved and overlaps fail loudly.
  */
 export async function computeWorkspaceObligations(
   activeWorkspaceId: string,
@@ -179,6 +175,7 @@ export async function computeWorkspaceObligations(
         validFrom: row.validFrom,
         validTo: row.validTo,
         value: {
+          // Backed by vat_status.vat_regime_code -> vat_regime(code).
           regime: row.vatRegimeCode as VatRegime,
           filingPeriod: row.filingPeriod,
         },

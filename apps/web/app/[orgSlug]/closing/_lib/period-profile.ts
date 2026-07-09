@@ -25,7 +25,7 @@ import { formatIsoDate } from "./closing-shared"
  * period (not merely the current one; the active period can be a historical
  * one the user switched to) — the vat_status, person_type, and accounting
  * regime in one `withOrganization` round trip. This is the single
- * period-scoped profile every Closing loader builds on before branching into
+ * period-scoped profile timeline every Closing loader builds on before branching into
  * its own kind-specific logic:
  *   - `getClosingObligations` (closing-data.ts) + `resolveVatContext`
  *     (vat-data.ts) branch on vat_status + person_type;

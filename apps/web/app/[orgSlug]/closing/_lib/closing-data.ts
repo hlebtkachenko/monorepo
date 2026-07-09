@@ -19,16 +19,10 @@ export {
 
 /**
  * Server-side data for the Closing Overview + Calendar pages — resolves the
- * org's active accounting period and current VAT/person profile, then runs
- * them through `computeObligations` (the pure `@workspace/accounting`
- * obligation engine). Real, computed rows only: an org that owes nothing
- * (e.g. NON_PAYER, no employees) legitimately gets an empty obligations
- * array — that is the correct answer, not a gap.
- *
- * `computeObligations` THROWS when `vatRegimeCode === "PAYER"` and
- * `vatFilingPeriod` is null (a payer must declare a filing cadence) — the
- * "vat-unconfigured" result branch below detects that combination BEFORE
- * calling the engine.
+ * org's active accounting period and effective VAT/payroll timelines, then
+ * runs them through the pure `@workspace/accounting` obligation engine. Real,
+ * computed rows only: an org that owes nothing legitimately gets an empty
+ * array, while unknown intervals remain explicit configuration issues.
  */
 
 /**

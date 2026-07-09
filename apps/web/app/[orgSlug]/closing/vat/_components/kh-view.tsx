@@ -136,7 +136,7 @@ export function KhView({
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Control statement" />
+        <ContentHeader title="Control statement worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">

@@ -46,7 +46,7 @@ export function ShView({
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="EC Sales List" />
+        <ContentHeader title="EC Sales List worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">

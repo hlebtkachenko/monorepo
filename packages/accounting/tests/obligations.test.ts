@@ -103,7 +103,7 @@ describe("computeObligations", () => {
     expect(byKind("VAT_RETURN")).toHaveLength(12)
     expect(byKind("CONTROL_STATEMENT")).toHaveLength(12)
     expectApplicability(byKind("VAT_RETURN"), "APPLICABLE")
-    expectApplicability(byKind("CONTROL_STATEMENT"), "APPLICABLE")
+    expectApplicability(byKind("CONTROL_STATEMENT"), "CONDITION_NOT_EVALUATED")
     const sh = byKind("EC_SALES_LIST")
     expect(sh).toHaveLength(12)
     expectApplicability(sh, "CONDITION_NOT_EVALUATED")
@@ -279,5 +279,122 @@ describe("computeObligations", () => {
       obligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
     ).toHaveLength(0)
     expect(obligations).toHaveLength(24)
+  })
+
+  it("does not assert a nil KH when captured evidence has no reportable transactions", () => {
+    const obligations = computeObligations({
+      ...calendar2026,
+      vatRegimeCode: "PAYER",
+      vatFilingPeriod: "MONTHLY",
+      personType: "LEGAL",
+      hasEmployees: false,
+      vatActivity: [],
+    })
+    expect(obligations.filter((o) => o.kind === "VAT_RETURN")).toHaveLength(12)
+    expect(obligations.filter((o) => o.kind === "CONTROL_STATEMENT")).toEqual(
+      [],
+    )
+  })
+
+  it("emits KH only for periods with reportable transaction evidence", () => {
+    const obligations = computeObligations({
+      ...calendar2026,
+      vatRegimeCode: "PAYER",
+      vatFilingPeriod: "MONTHLY",
+      personType: "LEGAL",
+      hasEmployees: false,
+      vatActivity: [
+        {
+          month: "2026-03",
+          hasKhReportableTransactions: true,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: false,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ],
+    })
+    const kh = obligations.filter((o) => o.kind === "CONTROL_STATEMENT")
+    expect(kh.map((o) => o.periodLabel)).toEqual(["March 2026"])
+    expectApplicability(kh, "APPLICABLE")
+  })
+
+  it("uses quarterly SH for service-only evidence and monthly SH when goods occur", () => {
+    const activity = (args: {
+      month: string
+      goods?: boolean
+      services?: boolean
+    }) => ({
+      month: args.month,
+      hasKhReportableTransactions: false,
+      hasShGoodsSupplies: args.goods ?? false,
+      hasShServiceSupplies: args.services ?? false,
+      hasIdentifiedPersonVatLiability: false,
+    })
+    const serviceOnly = computeObligations({
+      ...calendar2026,
+      vatRegimeCode: "PAYER",
+      vatFilingPeriod: "QUARTERLY",
+      personType: "LEGAL",
+      hasEmployees: false,
+      vatActivity: [activity({ month: "2026-05", services: true })],
+    }).filter((o) => o.kind === "EC_SALES_LIST")
+    expect(serviceOnly.map((o) => o.periodLabel)).toEqual(["Q2 2026"])
+
+    const withGoods = computeObligations({
+      ...calendar2026,
+      vatRegimeCode: "PAYER",
+      vatFilingPeriod: "QUARTERLY",
+      personType: "LEGAL",
+      hasEmployees: false,
+      vatActivity: [
+        activity({ month: "2026-04", services: true }),
+        activity({ month: "2026-05", goods: true }),
+        activity({ month: "2026-10", services: true }),
+      ],
+    }).filter((o) => o.kind === "EC_SALES_LIST")
+    expect(withGoods.map((o) => o.periodLabel)).toEqual([
+      "April 2026",
+      "May 2026",
+      "October 2026",
+    ])
+    expect(withGoods[0]?.dueDate).toBe(withGoods[1]?.dueDate)
+    expect(withGoods[2]?.dueDate).toBe("2026-11-25")
+  })
+
+  it("derives identified-person DAP and SH from events and never emits KH", () => {
+    const obligations = computeObligations({
+      ...calendar2026,
+      vatRegimeCode: "IDENTIFIED_PERSON",
+      vatFilingPeriod: null,
+      personType: "NATURAL",
+      hasEmployees: false,
+      vatActivity: [
+        {
+          month: "2026-01",
+          hasKhReportableTransactions: true,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: false,
+          hasIdentifiedPersonVatLiability: true,
+        },
+        {
+          month: "2026-02",
+          hasKhReportableTransactions: false,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: true,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ],
+    })
+    expect(
+      obligations
+        .filter((o) => o.kind === "VAT_RETURN")
+        .map((o) => o.periodLabel),
+    ).toEqual(["January 2026"])
+    expect(
+      obligations
+        .filter((o) => o.kind === "EC_SALES_LIST")
+        .map((o) => o.periodLabel),
+    ).toEqual(["February 2026"])
+    expect(obligations.some((o) => o.kind === "CONTROL_STATEMENT")).toBe(false)
   })
 })

@@ -59,6 +59,7 @@ import { one } from "../sql"
 import type { RowExecutor } from "../sql"
 import type { Decimal, VatEvidenceScope } from "../types"
 import { ISSUED_EU_SUPPLY_DPH } from "./eu-supply-predicate"
+import { vatClassificationPredicates } from "./vat-classification"
 import {
   getVatEvidenceCompleteness,
   type VatEvidenceCompleteness,
@@ -75,7 +76,8 @@ export interface DphRows {
   /**
    * ř.3/4 — pořízení zboží z jiného členského státu, samovyměření 21 %/12 %
    * (§16). RECEIVED + REVERSE_CHARGE + vat_jurisdiction = 'EU' + supply_kind
-   * IS DISTINCT FROM 'SERVICES' (goods, or a legacy NULL supply_kind).
+   * = 'GOODS'. Missing or unsupported classifications are excluded and block
+   * the worksheet completeness state.
    */
   r3_base: Decimal
   r3_dan: Decimal
@@ -102,8 +104,8 @@ export interface DphRows {
   r11_dan: Decimal
   /**
    * ř.20 — dodání zboží do jiného členského státu (§64): ISSUED + REVERSE_CHARGE +
-   * vat_jurisdiction = 'EU' + supply_kind IS DISTINCT FROM 'SERVICES' (goods, or a
-   * legacy NULL supply_kind — mirrors the received-side ř.3/4 goods default).
+   * vat_jurisdiction = 'EU' + supply_kind = 'GOODS'. Unclassified legacy rows
+   * remain outside this worksheet rather than being asserted as §64 goods.
    * Osvobozené plnění s nárokem na odpočet → základ only, no daň. Reported in the
    * souhrnné hlášení (kód 0), never in kontrolní hlášení.
    */
@@ -189,6 +191,12 @@ export async function buildDph(
     sql`s.tax_point_date`,
     sql`s.received_date`,
   )
+  const classification = vatClassificationPredicates({
+    documentType: sql`type`,
+    mode: sql`vat_mode`,
+    jurisdiction: sql`vat_jurisdiction`,
+    supplyKind: sql`supply_kind`,
+  })
   const [r, completeness] = await Promise.all([
     one<DphRows & KontrolniHlaseniTotals>(
       db,
@@ -218,11 +226,11 @@ export async function buildDph(
         COALESCE(SUM(dan)  FILTER (WHERE tax_point_in_scope AND type = 'ISSUED_INVOICE' AND vat_mode = 'STANDARD' AND vat_rate = 12), 0)::numeric(19,4) AS r2_dan,
 
         -- ř.3/4 — RECEIVED, REVERSE_CHARGE, EU acquisition of GOODS (§16), 21%/12% (samovyměření).
-        --         supply_kind IS DISTINCT FROM 'SERVICES' keeps goods + any NULL/undistinguished here.
-        COALESCE(SUM(base)              FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 21), 0)::numeric(19,4) AS r3_base,
-        COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 21), 0)::numeric(19,4) AS r3_dan,
-        COALESCE(SUM(base)              FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 12), 0)::numeric(19,4) AS r4_base,
-        COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind IS DISTINCT FROM 'SERVICES' AND vat_rate = 12), 0)::numeric(19,4) AS r4_dan,
+        --         Only explicit GOODS evidence is classified as §16.
+        COALESCE(SUM(base)              FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'GOODS' AND vat_rate = 21), 0)::numeric(19,4) AS r3_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'GOODS' AND vat_rate = 21), 0)::numeric(19,4) AS r3_dan,
+        COALESCE(SUM(base)              FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'GOODS' AND vat_rate = 12), 0)::numeric(19,4) AS r4_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_jurisdiction = 'EU' AND supply_kind = 'GOODS' AND vat_rate = 12), 0)::numeric(19,4) AS r4_dan,
 
         -- ř.5/6 — RECEIVED, REVERSE_CHARGE, EU receipt of a SERVICE with place of supply §9/1, 21%/12% (samovyměření).
         --         supply_kind = 'SERVICES' splits these out of ř.3/4 (goods).
@@ -239,8 +247,8 @@ export async function buildDph(
 
         -- ř.20 — ISSUED, REVERSE_CHARGE, EU delivery of GOODS (§64), osvobozeno s nárokem: základ only, no daň.
         --        Shared ISSUED_EU_SUPPLY predicate (identical to the souhrnné hlášení gate, so SH ≡ ř.20+ř.21).
-        --        supply_kind IS DISTINCT FROM 'SERVICES' keeps goods + any NULL/undistinguished here (mirrors ř.3/4).
-        COALESCE(SUM(base) FILTER (WHERE tax_point_in_scope AND ${ISSUED_EU_SUPPLY_DPH} AND supply_kind IS DISTINCT FROM 'SERVICES'), 0)::numeric(19,4) AS r20_base,
+        --        Only explicit GOODS evidence is classified as §64.
+        COALESCE(SUM(base) FILTER (WHERE tax_point_in_scope AND ${ISSUED_EU_SUPPLY_DPH} AND supply_kind = 'GOODS'), 0)::numeric(19,4) AS r20_base,
 
         -- ř.21 — ISSUED, REVERSE_CHARGE, EU supply of a SERVICE with place of supply §9/1: základ only, no daň.
         --        supply_kind = 'SERVICES' splits these out of ř.20 (goods).
@@ -259,10 +267,10 @@ export async function buildDph(
         COALESCE(SUM(dan)  FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'STANDARD' AND vat_rate = 12), 0)::numeric(19,4) AS r41_dan,
 
         -- ř.43/44 — deductible input of the samovyměření (PDP/EU), vat_deductible = true
-        COALESCE(SUM(base)              FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible AND vat_rate = 21), 0)::numeric(19,4) AS r43_base,
-        COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible AND vat_rate = 21), 0)::numeric(19,4) AS r43_dan,
-        COALESCE(SUM(base)              FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible AND vat_rate = 12), 0)::numeric(19,4) AS r44_base,
-        COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible AND vat_rate = 12), 0)::numeric(19,4) AS r44_dan,
+        COALESCE(SUM(base)              FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence} AND vat_deductible AND vat_rate = 21), 0)::numeric(19,4) AS r43_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence} AND vat_deductible AND vat_rate = 21), 0)::numeric(19,4) AS r43_dan,
+        COALESCE(SUM(base)              FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence} AND vat_deductible AND vat_rate = 12), 0)::numeric(19,4) AS r44_base,
+        COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence} AND vat_deductible AND vat_rate = 12), 0)::numeric(19,4) AS r44_dan,
 
         -- ř.50 — EXEMPT, both sides. [#541] belt-and-braces: exclude vat_jurisdiction 'EU'
         -- so an EXEMPT+EU row can never masquerade as §51 exempt-without-deduction here
@@ -272,16 +280,16 @@ export async function buildDph(
 
         -- totals: daň na výstupu / odpočet (incl. deductible samovyměření) / vlastní daň
         (COALESCE(SUM(dan)              FILTER (WHERE tax_point_in_scope AND type = 'ISSUED_INVOICE'   AND vat_mode = 'STANDARD'),      0)
-          + COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE'), 0)
+          + COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence}), 0)
         )::numeric(19,4) AS dan_na_vystupu,
         (COALESCE(SUM(dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'STANDARD'), 0)
-          + COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible), 0)
+          + COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence} AND vat_deductible), 0)
         )::numeric(19,4) AS odpocet,
         (
           (COALESCE(SUM(dan)              FILTER (WHERE tax_point_in_scope AND type = 'ISSUED_INVOICE'   AND vat_mode = 'STANDARD'),      0)
-            + COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE'), 0))
+            + COALESCE(SUM(self_assessed_dan) FILTER (WHERE tax_point_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence}), 0))
           - (COALESCE(SUM(dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'STANDARD'), 0)
-            + COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND vat_deductible), 0))
+            + COALESCE(SUM(self_assessed_dan) FILTER (WHERE deduction_in_scope AND type = 'RECEIVED_INVOICE' AND vat_mode = 'REVERSE_CHARGE' AND ${classification.supportedDapEvidence} AND vat_deductible), 0))
         )::numeric(19,4) AS vlastni_dan,
 
         -- kontrolní hlášení — section totals (no per-counterparty breakdown; see module doc)

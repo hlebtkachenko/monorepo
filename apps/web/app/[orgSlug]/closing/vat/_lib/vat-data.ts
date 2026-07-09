@@ -7,7 +7,10 @@ import {
   buildKontrolniHlaseni,
   buildSouhrnneHlaseni,
   computeObligations,
+  getVatPeriodActivity,
+  getVatEvidenceCompleteness,
   singleEffectiveValue,
+  statutoryVatEnvelope,
   type Dph,
   type KontrolniHlaseni,
   type ObligationKind,
@@ -55,6 +58,14 @@ export type VatBaseStatus =
   | { status: "no-period" }
   | { status: "not-payer" }
   | { status: "identified-person" }
+  | {
+      status: "no-filing-activity"
+      artifact: "VAT return" | "control statement" | "EC Sales List"
+    }
+  | {
+      status: "vat-evidence-incomplete"
+      artifact: "control statement" | "EC Sales List"
+    }
   | { status: "vat-unconfigured"; periodLabel: string }
 
 export type VatFilingPeriodsResult =
@@ -64,7 +75,7 @@ export type VatFilingPeriodsResult =
       periodId: string
       filingPeriods: VatFilingPeriodOption[]
       regime: VatRegime
-      filingPeriod: VatFilingPeriod
+      filingPeriod: VatFilingPeriod | null
     }
 
 export type VatReturnResult =
@@ -100,7 +111,7 @@ interface ResolvedVatContext {
   periodLabel: string
   filingPeriods: VatFilingPeriodOption[]
   regime: VatRegime
-  filingPeriod: VatFilingPeriod
+  filingPeriod: VatFilingPeriod | null
 }
 
 type VatContextResolution =
@@ -137,10 +148,41 @@ async function resolveVatContext(
   // cadence, §99/§99a ZDPH) — NON_PAYER and IDENTIFIED_PERSON have no such
   // cadence to select a filing period from. IDENTIFIED_PERSON still owes
   // event-driven filings (§101/5 + §102 ZDPH), surfaced distinctly.
+  if (vatRegimeCode === "NON_PAYER") return { status: "not-payer" }
+  // The payer worksheet builders include input-tax deduction semantics that
+  // identified persons do not have. Keep that distinct regime explicit until
+  // a dedicated identified-person worksheet is implemented.
   if (vatRegimeCode === "IDENTIFIED_PERSON")
     return { status: "identified-person" }
-  if (vatRegimeCode !== "PAYER") return { status: "not-payer" }
-  if (filingPeriod == null) return { status: "vat-unconfigured", periodLabel }
+  if (vatRegimeCode === "PAYER" && filingPeriod == null)
+    return { status: "vat-unconfigured", periodLabel }
+
+  const envelope = statutoryVatEnvelope(periodStart, periodEnd)
+  const artifactKind =
+    kind === "CONTROL_STATEMENT"
+      ? "KH"
+      : kind === "EC_SALES_LIST"
+        ? "SH"
+        : "DAP"
+  const [vatActivity, completeness] = await withOrganization(
+    ctx.organizationId,
+    ctx.userId,
+    (db) => {
+      const scope = { kind: "FILING_PERIOD" as const, period: envelope }
+      return Promise.all([
+        getVatPeriodActivity(db, scope),
+        getVatEvidenceCompleteness(db, scope, artifactKind),
+      ])
+    },
+  )
+
+  if (kind !== "VAT_RETURN" && completeness.status === "NEEDS_INPUT") {
+    return {
+      status: "vat-evidence-incomplete",
+      artifact:
+        kind === "CONTROL_STATEMENT" ? "control statement" : "EC Sales List",
+    }
+  }
 
   const obligations = computeObligations({
     periodStart,
@@ -149,6 +191,7 @@ async function resolveVatContext(
     vatFilingPeriod: filingPeriod,
     personType,
     hasEmployees: false,
+    vatActivity,
   })
 
   const filingPeriods: VatFilingPeriodOption[] = obligations
@@ -159,6 +202,16 @@ async function resolveVatContext(
       to: o.periodEnd,
     }))
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0))
+
+  if (filingPeriods.length === 0) {
+    const artifact =
+      kind === "VAT_RETURN"
+        ? "VAT return"
+        : kind === "CONTROL_STATEMENT"
+          ? "control statement"
+          : "EC Sales List"
+    return { status: "no-filing-activity", artifact }
+  }
 
   return {
     status: "ok",

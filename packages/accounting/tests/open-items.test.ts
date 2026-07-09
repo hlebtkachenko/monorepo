@@ -118,6 +118,7 @@ describe("TODO-1 — DPH EU (ř.3/4) vs domestic PDP (ř.10/11) split", () => {
                 vatRate: "21",
                 vatMode: "REVERSE_CHARGE",
                 vatJurisdiction: "EU",
+                supplyKind: "GOODS",
                 currencyCode: "CZK",
               },
             ],
@@ -588,6 +589,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
                 baseAmount: "50000.00",
                 vatMode: "REVERSE_CHARGE",
                 vatJurisdiction: "EU",
+                supplyKind: "GOODS",
                 currencyCode: "CZK",
               },
             ],
@@ -613,7 +615,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
       expect(sh.rows[0]!.country_code).toBe("DE")
       expect(sh.rows[0]!.value).toBe("50000.0000")
       expect(sh.rows[0]!.count).toBe(1)
-      // no supply_kind on the partial → legacy kód 0 (goods §64), unchanged
+      // Explicit goods classification maps to kód 0 (§64).
       expect(sh.rows[0]!.kod_plneni).toBe("0")
     })
   })
@@ -1049,6 +1051,7 @@ describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
                 vatRate: "21",
                 vatMode: "REVERSE_CHARGE",
                 vatJurisdiction: "EU",
+                supplyKind: "SERVICES",
                 currencyCode: "CZK",
               },
             ],

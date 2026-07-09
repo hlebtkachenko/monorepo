@@ -11,17 +11,30 @@ export function VatEvidenceAlert({
 }: {
   completeness: VatEvidenceCompleteness
 }) {
-  if (completeness.status !== "NEEDS_INPUT") return null
-
   return (
     <Alert>
       <AlertTriangle />
-      <AlertTitle>VAT evidence incomplete</AlertTitle>
+      <AlertTitle>
+        {completeness.status === "NEEDS_INPUT"
+          ? "VAT evidence needs input"
+          : "Partial VAT worksheet"}
+      </AlertTitle>
       <AlertDescription>
-        Missing tax-point dates: {completeness.missingTaxPointDocuments}.
-        Missing received-document dates:{" "}
-        {completeness.missingReceivedDateDocuments}. Amounts that depend on
-        missing evidence are excluded until it is supplied.
+        {completeness.status === "NEEDS_INPUT" ? (
+          <p>
+            Missing tax-point dates: {completeness.missingTaxPointDocuments}.
+            Missing received-document dates:{" "}
+            {completeness.missingReceivedDateDocuments}. Amounts that depend on
+            missing evidence are excluded until it is supplied. Documents with
+            missing VAT classification or counterparty identity:{" "}
+            {completeness.missingClassificationDocuments}.
+          </p>
+        ) : null}
+        <ul className="list-disc pl-5">
+          {completeness.limitations.map((limitation) => (
+            <li key={limitation}>{limitation}</li>
+          ))}
+        </ul>
       </AlertDescription>
     </Alert>
   )

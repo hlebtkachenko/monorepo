@@ -44,6 +44,7 @@ import {
   type VatEvidenceCompleteness,
 } from "./vat-evidence-completeness"
 import { vatEvidencePredicates } from "./vat-evidence-scope"
+import { vatClassificationPredicates } from "./vat-classification"
 
 /** §101d/1 limit — plnění nad 10 000 Kč včetně daně (v absolutní hodnotě —
  * opravné doklady jsou záporné) jde na řádkovou evidenci. */
@@ -106,6 +107,12 @@ function standardDokladCte(scope: VatEvidenceScope, type: string) {
   )
   const scopeFilter =
     type === "RECEIVED_INVOICE" ? predicates.deduction : predicates.taxPoint
+  const classification = vatClassificationPredicates({
+    documentType: sql`sr.type`,
+    mode: sql`pr.vat_mode`,
+    jurisdiction: sql`pr.vat_jurisdiction`,
+    supplyKind: sql`pr.supply_kind`,
+  })
   return sql`
     doklad AS (
       SELECT sr.id                                                          AS summary_record_id,
@@ -125,6 +132,7 @@ function standardDokladCte(scope: VatEvidenceScope, type: string) {
        WHERE ${scopeFilter}
          AND sr.type = ${type}
          AND pr.vat_mode = 'STANDARD'
+         AND ${classification.khReportable}
        GROUP BY sr.id, sr.designation, sr.tax_point_date, cp.tax_id
     )`
 }
@@ -170,6 +178,12 @@ async function reverseChargeRows(
     sql`sr.tax_point_date`,
     sql`sr.received_date`,
   ).taxPoint
+  const classification = vatClassificationPredicates({
+    documentType: sql`sr.type`,
+    mode: sql`pr.vat_mode`,
+    jurisdiction: sql`pr.vat_jurisdiction`,
+    supplyKind: sql`pr.supply_kind`,
+  })
   return rows<KhRow>(
     db,
     sql`
@@ -189,6 +203,7 @@ async function reverseChargeRows(
        WHERE ${scopeFilter}
          AND sr.type = ${type}
          AND pr.vat_mode = 'REVERSE_CHARGE'
+         AND ${classification.khReportable}
          ${jurisdiction}
        GROUP BY sr.designation, sr.tax_point_date, cp.tax_id, pr.commodity_code
        ORDER BY sr.designation`,

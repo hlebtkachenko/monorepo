@@ -143,7 +143,7 @@ export function DapView({
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="VAT return" />
+        <ContentHeader title="VAT return worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">

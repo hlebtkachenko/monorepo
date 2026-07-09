@@ -199,6 +199,8 @@ export {
   buildDph,
   buildKontrolniHlaseni,
   buildSouhrnneHlaseni,
+  getVatPeriodActivity,
+  getVatEvidenceCompleteness,
   computeIncomeTaxAdvances,
   NON_DEDUCTIBLE_CATALOGUE,
   KH_ROW_THRESHOLD,
@@ -262,4 +264,5 @@ export {
   type ObligationKind,
   type ObligationInput,
   type Obligation,
+  type VatPeriodActivity,
 } from "./obligations/index"

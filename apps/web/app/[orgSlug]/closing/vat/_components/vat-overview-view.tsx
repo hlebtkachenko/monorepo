@@ -21,18 +21,18 @@ import { VatStatusMessage } from "./vat-status-message"
 const VAT_LINKS = [
   {
     href: "dap",
-    title: "VAT return",
-    description: "Přiznání k DPH — the filing period's přiznání lines.",
+    title: "VAT return worksheet",
+    description: "Implemented VAT lines for review, not a filing-ready return.",
   },
   {
     href: "kh",
-    title: "Control statement",
-    description: "Kontrolní hlášení — per-counterparty VAT sections.",
+    title: "Control statement worksheet",
+    description: "Implemented KH sections for review, not a filing-ready KH.",
   },
   {
     href: "sh",
-    title: "EC Sales List",
-    description: "Souhrnné hlášení — intra-EU B2B supplies.",
+    title: "EC Sales List worksheet",
+    description: "Supported intra-EU B2B supplies for review.",
   },
 ] as const
 

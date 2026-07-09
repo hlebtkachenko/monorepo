@@ -14,6 +14,7 @@ import {
   buildDph,
   buildKontrolniHlaseni,
   buildSouhrnneHlaseni,
+  getVatPeriodActivity,
   captureDocument,
   createCounterparty,
   createEvent,
@@ -247,6 +248,20 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
       expect(dph.kh.b1_dan).toBe("105.0000")
       expect(dph.kh.a1_base).toBe("0.0000")
       expect(dph.kh.b2_base).toBe("0.0000")
+
+      const activity = await getVatPeriodActivity(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      expect(activity).toEqual([
+        {
+          month: "2044-03",
+          hasKhReportableTransactions: true,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: false,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ])
     })
   })
 })

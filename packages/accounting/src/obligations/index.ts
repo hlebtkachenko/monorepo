@@ -39,4 +39,5 @@ export {
   type ObligationKind,
   type ObligationInput,
   type Obligation,
+  type VatPeriodActivity,
 } from "./obligations"

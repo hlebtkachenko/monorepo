@@ -342,7 +342,7 @@ describe("VAT output builder evidence scopes", () => {
       expect(january.rows.r40_dan).toBe("0.0000")
       expect(february.rows.r40_base).toBe("1000.0000")
       expect(february.rows.r40_dan).toBe("210.0000")
-      expect(february.completeness.status).toBe("COMPLETE")
+      expect(february.completeness.status).toBe("PARTIAL")
     })
   })
 
@@ -387,7 +387,7 @@ describe("VAT output builder evidence scopes", () => {
       })
       expect(result.rows.r40_base).toBe("0.0000")
       expect(result.rows.r40_dan).toBe("0.0000")
-      expect(result.completeness).toEqual({
+      expect(result.completeness).toMatchObject({
         status: "NEEDS_INPUT",
         missingTaxPointDocuments: 0,
         missingReceivedDateDocuments: 1,
@@ -543,18 +543,18 @@ describe("VAT output builder evidence scopes", () => {
         buildSouhrnneHlaseni(db, scope),
       ])
 
-      expect(dap.completeness).toEqual({
+      expect(dap.completeness).toMatchObject({
         status: "NEEDS_INPUT",
         missingTaxPointDocuments: 0,
         missingReceivedDateDocuments: 1,
       })
-      expect(kh.completeness).toEqual({
+      expect(kh.completeness).toMatchObject({
         status: "NEEDS_INPUT",
         missingTaxPointDocuments: 0,
         missingReceivedDateDocuments: 1,
       })
-      expect(sh.completeness).toEqual({
-        status: "COMPLETE",
+      expect(sh.completeness).toMatchObject({
+        status: "PARTIAL",
         missingTaxPointDocuments: 0,
         missingReceivedDateDocuments: 0,
       })
@@ -606,13 +606,13 @@ describe("VAT output builder evidence scopes", () => {
         buildKontrolniHlaseni(db, scope),
       ])
 
-      expect(dap.completeness).toEqual({
+      expect(dap.completeness).toMatchObject({
         status: "NEEDS_INPUT",
         missingTaxPointDocuments: 0,
         missingReceivedDateDocuments: 1,
       })
-      expect(kh.completeness).toEqual({
-        status: "COMPLETE",
+      expect(kh.completeness).toMatchObject({
+        status: "PARTIAL",
         missingTaxPointDocuments: 0,
         missingReceivedDateDocuments: 0,
       })
@@ -666,7 +666,7 @@ describe("VAT output builder evidence scopes", () => {
 
       expect(result.rows.r1_base).toBe("0.0000")
       expect(result.rows.r1_dan).toBe("0.0000")
-      expect(result.completeness).toEqual({
+      expect(result.completeness).toMatchObject({
         status: "NEEDS_INPUT",
         missingTaxPointDocuments: 1,
         missingReceivedDateDocuments: 0,

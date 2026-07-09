@@ -441,7 +441,7 @@ describe("getVatFilingPeriods", () => {
     expect(result.status).toBe("no-period")
   }, 30_000)
 
-  it("IDENTIFIED_PERSON org -> identified-person (event-driven filer, no standing cadence)", async () => {
+  it("IDENTIFIED_PERSON keeps its distinct unsupported worksheet state", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -472,8 +472,8 @@ describe("getVatFilingPeriods", () => {
   }, 30_000)
 })
 
-describe("per-kind filing cadence divergence (KH quarterly, SH always monthly)", () => {
-  it("NATURAL person + PAYER/QUARTERLY -> KH 4 quarterly, SH 12 monthly, DAP 4 quarterly", async () => {
+describe("evidence-driven filing periods", () => {
+  it("quarterly payer without activity has DAP periods but no nil KH or SH", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -500,20 +500,16 @@ describe("per-kind filing cadence divergence (KH quarterly, SH always monthly)",
     cookieValue = undefined
 
     const kh = await getControlStatement("vat-natural-quarterly")
-    expect(kh.status).toBe("ok")
-    if (kh.status !== "ok") return
-    expect(kh.filingPeriods).toHaveLength(4)
-    expect(kh.filingPeriods.map((fp) => fp.label)).toEqual([
-      "Q1 2026",
-      "Q2 2026",
-      "Q3 2026",
-      "Q4 2026",
-    ])
+    expect(kh).toEqual({
+      status: "no-filing-activity",
+      artifact: "control statement",
+    })
 
     const sh = await getEcSalesList("vat-natural-quarterly")
-    expect(sh.status).toBe("ok")
-    if (sh.status !== "ok") return
-    expect(sh.filingPeriods).toHaveLength(12)
+    expect(sh).toEqual({
+      status: "no-filing-activity",
+      artifact: "EC Sales List",
+    })
 
     const dap = await getVatFilingPeriods("vat-natural-quarterly")
     expect(dap.status).toBe("ok")

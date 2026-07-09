@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { DapView } from "../_components/dap-view"
 import { getVatReturn } from "../_lib/vat-data"
 
-export const metadata = { title: "VAT return" }
+export const metadata = { title: "VAT return worksheet" }
 
 /**
  * VAT return (přiznání k DPH) — the selected filing period's real přiznání

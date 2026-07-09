@@ -10,8 +10,13 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **ci**: add `brain` to the allowed `pr-title` conventional-commit scopes so Afframe Brain PRs pass `conv-title` with a `feat(brain):`-style scope.
 
+### Fixed
+
+- **mcp**: the MCP tool codegen (`gen-tools.ts`) silently dropped JSON-Schema `format`, so `conversationId` and other UUID fields never received `.uuid()` in the generated tools; now emit `.uuid()` for `format: "uuid"` so generated tools match the API contract. (#577)
+
 ### Docs
 
+- **brain**: document the two distinct write-gate thresholds (client confidence vs server cold-start green) and a file map of where each Brain concern lives, and add a `⚠ SAFETY SPINE` banner to the gate / evidence-gate / sandbox source files.
 - **brain**: mark ADRs 0025–0029 Accepted, rewrite the stale `packages/brain/README.md` to the accurate client-not-server design, and drop the phantom `--live` flag from `brain book` help.
 
 ## [v0.17.1] — 2026-07-09
@@ -53,14 +58,12 @@ Minor release: period-mechanism completion (PR1–PR4) — real accounting-perio
 
 ### Fixed
 
-- **mcp**: the MCP tool codegen (`gen-tools.ts`) silently dropped JSON-Schema `format`, so `conversationId` and other UUID fields never received `.uuid()` in the generated tools; now emit `.uuid()` for `format: "uuid"` so generated tools match the API contract. (#577)
 - **bot/issues**: harden the GitHub-issues tracker migration — reset the Linear-era D1 dedup/snooze cache on deploy (a surviving row would comment a recurrence into a dead 404 and never open a GitHub issue), re-file a fresh issue when a comment POST fails or the stored id isn't a GitHub number, honor `addComment`'s result instead of ignoring it, validate the ProjectV2 field config at the boundary (a partial config no longer TypeErrors + 500s `/issue`) with a fail-fast deploy check, drop the duplicate Telegram ping per feedback, and de-duplicate the governance scripts (no self-`spawnSync`) + the bot's two GitHub transports. (#603)
 - **ci**: deploy diff checks now handle changed or missing CDK input files correctly under `pipefail`, so the guard fails for real drift instead of exiting early from expected no-match cases. (#595)
 - **github**: remove the unsupported Code Quality branch-ruleset threshold while keeping CodeQL code scanning required, and document the live required-check set. (#597)
 
 ### Docs
 
-- **brain**: document the two distinct write-gate thresholds (client confidence vs server cold-start green) and a file map of where each Brain concern lives, and add a `⚠ SAFETY SPINE` banner to the gate / evidence-gate / sandbox source files.
 - **brain**: weave Afframe Brain into the platform docs so it is no longer orphaned — `README.md` + `ARCHITECTURE.md` gain the `brain` package, the `apps/mcp`/`apps/cli` Brain role, and a Brain subsystem section; `docs/START-HERE.md`, `docs/README.md`, and `AGENTS.md` link the Brain docs; the stale `packages/brain/README.md` + `ARCHITECTURE.md` (which described the dropped in-process/worker design) get staleness banners. Adds `docs/AFFRAME-BRAIN-STATUS.md`, a tracked v1 status/roadmap tracker (M1–M4 done/outstanding, the engineering-done boundary, what's deferred to v2, and the open GitHub issues that gate each piece). Registers the two missing material ICT assets in the DORA register (`docs/INVENTORY.md`): the Anthropic Claude API and the Brain local operator client. Verified by two independent top-tier advisor passes. (#589)
 - **brain**: add the per-key throttler `429` failure mode to the Brain troubleshooting playbook, including the operator symptom and remediation path. (#591)
 

@@ -21,13 +21,28 @@ import { RequestIdMiddleware } from "./request-id.middleware"
 import { StatusController } from "./status/status.controller"
 import { StructureController } from "./structure/structure.controller"
 
+// A non-integer / non-positive override would be nonsensical for a rate
+// limit, so fall back to the documented default rather than admit an absurd
+// (or zero/negative, which nestjs-throttler would misbehave on) value.
+const positiveInt = (raw: string | undefined, dflt: number): number => {
+  const n = Number(raw)
+  return Number.isInteger(n) && n > 0 ? n : dflt
+}
+// Defaults here are the SAFE fallback (matches the long-standing hardcoded
+// value) for any environment that doesn't set the env var (local dev, tests).
+// The raised pre-launch value is set via CDK task-def env
+// (infra/cdk/lib/app-stack.ts) — see V1_THROTTLE_LIMIT / V1_THROTTLE_TTL_MS.
+const THROTTLE_LIMIT = positiveInt(process.env["V1_THROTTLE_LIMIT"], 100)
+const THROTTLE_TTL_MS = positiveInt(process.env["V1_THROTTLE_TTL_MS"], 60_000)
+
 /**
  * Public API surface — `api.afframe.com/v1/*`.
  *
- * - ThrottlerModule: 100 req / 60 s (in-memory; single Fargate task per
- *   ADR-0008). ApiKeyThrottlerGuard keys the limit on the API key, not the
- *   client IP — behind the Cloudflare Tunnel every request shares the
- *   sidecar's loopback IP, so per-key is the only meaningful bucket.
+ * - ThrottlerModule: `V1_THROTTLE_LIMIT` req / `V1_THROTTLE_TTL_MS` ms
+ *   (default 100 req / 60 s; in-memory; single Fargate task per ADR-0008).
+ *   ApiKeyThrottlerGuard keys the limit on the API key, not the client IP —
+ *   behind the Cloudflare Tunnel every request shares the sidecar's loopback
+ *   IP, so per-key is the only meaningful bucket.
  * - DomainExceptionFilter: registered as a GLOBAL filter (`APP_FILTER`) so
  *   every controller-routed error — including one thrown by a guard, and
  *   any future controller that forgets a decorator — renders the standard
@@ -43,7 +58,9 @@ import { StructureController } from "./structure/structure.controller"
  * (`/v1/status`, `/v1/feedback`) and `/api/health` remain key-free.
  */
 @Module({
-  imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }])],
+  imports: [
+    ThrottlerModule.forRoot([{ ttl: THROTTLE_TTL_MS, limit: THROTTLE_LIMIT }]),
+  ],
   controllers: [
     PingController,
     OrganizationController,

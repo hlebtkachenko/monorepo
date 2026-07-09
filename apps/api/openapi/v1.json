@@ -2758,63 +2758,499 @@
             "description": "Period covered.",
             "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
           },
+          "artifactKind": {
+            "type": "string",
+            "enum": [
+              "DPPO_CALCULATION_WORKSHEET"
+            ]
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
+          },
+          "bookValues": {
+            "type": "object",
+            "properties": {
+              "accountingResult": {
+                "type": "string",
+                "description": "Accounting profit or loss from the book balances.",
+                "example": "0.00"
+              }
+            },
+            "required": [
+              "accountingResult"
+            ]
+          },
+          "adjustments": {
+            "type": "object",
+            "properties": {
+              "nonDeductibleExpenses": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "description": "Adjustment amount.",
+                    "example": "0.00"
+                  },
+                  "provenance": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ADVISOR",
+                          "LEDGER"
+                        ]
+                      },
+                      "reference": {
+                        "type": "string"
+                      },
+                      "recordedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "reference",
+                      "recordedAt"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "provenance"
+                ]
+              },
+              "exemptRevenue": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "description": "Adjustment amount.",
+                    "example": "0.00"
+                  },
+                  "provenance": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ADVISOR",
+                          "LEDGER"
+                        ]
+                      },
+                      "reference": {
+                        "type": "string"
+                      },
+                      "recordedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "reference",
+                      "recordedAt"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "provenance"
+                ]
+              },
+              "excludeLossMakingMainActivity": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "description": "Adjustment amount.",
+                    "example": "0.00"
+                  },
+                  "provenance": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ADVISOR",
+                          "LEDGER"
+                        ]
+                      },
+                      "reference": {
+                        "type": "string"
+                      },
+                      "recordedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "reference",
+                      "recordedAt"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "provenance"
+                ]
+              },
+              "lossCarryForward": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "description": "Adjustment amount.",
+                    "example": "0.00"
+                  },
+                  "provenance": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ADVISOR",
+                          "LEDGER"
+                        ]
+                      },
+                      "reference": {
+                        "type": "string"
+                      },
+                      "recordedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "reference",
+                      "recordedAt"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "provenance"
+                ]
+              },
+              "taxReliefs": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "description": "Adjustment amount.",
+                    "example": "0.00"
+                  },
+                  "provenance": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ADVISOR",
+                          "LEDGER"
+                        ]
+                      },
+                      "reference": {
+                        "type": "string"
+                      },
+                      "recordedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "reference",
+                      "recordedAt"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "provenance"
+                ]
+              },
+              "advancesPaid": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "description": "Adjustment amount.",
+                    "example": "0.00"
+                  },
+                  "provenance": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "USER",
+                          "ADVISOR",
+                          "LEDGER"
+                        ]
+                      },
+                      "reference": {
+                        "type": "string"
+                      },
+                      "recordedAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "reference",
+                      "recordedAt"
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "provenance"
+                ]
+              }
+            },
+            "required": [
+              "nonDeductibleExpenses",
+              "exemptRevenue",
+              "excludeLossMakingMainActivity",
+              "lossCarryForward",
+              "taxReliefs",
+              "advancesPaid"
+            ]
+          },
+          "rateResolution": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "SUPPORTED"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "STANDARD",
+                      "BASIC_INVESTMENT_FUND",
+                      "QUALIFYING_PENSION_INSTITUTION"
+                    ]
+                  },
+                  "rate": {
+                    "type": "string",
+                    "description": "Effective tax rate.",
+                    "example": "0.00"
+                  },
+                  "effectiveFrom": {
+                    "type": "string"
+                  },
+                  "effectiveTo": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sourceUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "verifiedOn": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "category",
+                  "rate",
+                  "effectiveFrom",
+                  "effectiveTo",
+                  "sourceUrl",
+                  "verifiedOn"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "UNSUPPORTED"
+                    ]
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "STANDARD",
+                      "BASIC_INVESTMENT_FUND",
+                      "QUALIFYING_PENSION_INSTITUTION",
+                      "OTHER",
+                      "UNKNOWN"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "category",
+                  "reason"
+                ]
+              }
+            ]
+          },
+          "completeness": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "WORKSHEET_READY",
+                  "NEEDS_INPUT",
+                  "DRAFT"
+                ]
+              },
+              "filingReady": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "blockingInputs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "unsupportedRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "status",
+              "filingReady",
+              "blockingInputs",
+              "unsupportedRequirements"
+            ]
+          },
           "ucetniVysledek": {
             "type": "string",
             "description": "Účetní výsledek hospodaření.",
             "example": "0.00"
           },
           "nedanoveNaklady": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Daňově neuznatelné náklady (§25).",
             "example": "0.00"
           },
           "osvobozeneVynosy": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Osvobozené/nezdaňované výnosy.",
             "example": "0.00"
           },
           "zakladDane": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Základ daně §23/1 (před §34).",
             "example": "0.00"
           },
           "odpocetZtraty": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Odpočet daňové ztráty minulých let §34.",
             "example": "0.00"
           },
           "zakladZaokrouhleny": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Zaokrouhlený základ daně.",
             "example": "0.00"
           },
           "sazba": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Sazba daně.",
             "example": "0.00"
           },
           "dan": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Daň.",
             "example": "0.00"
           },
           "slevy": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Slevy na dani.",
             "example": "0.00"
           },
           "danPoSlevach": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Daň po slevách.",
             "example": "0.00"
           },
           "zalohy": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Zaplacené zálohy §38a.",
             "example": "0.00"
           },
           "doplatek": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Doplatek (+) / přeplatek (−).",
             "example": "0.00"
           }
@@ -2822,6 +3258,13 @@
         "required": [
           "organizationId",
           "periodId",
+          "artifactKind",
+          "periodStart",
+          "periodEnd",
+          "bookValues",
+          "adjustments",
+          "rateResolution",
+          "completeness",
           "ucetniVysledek",
           "nedanoveNaklady",
           "osvobozeneVynosy",
@@ -2835,7 +3278,7 @@
           "zalohy",
           "doplatek"
         ],
-        "description": "DPPO — corporate income tax computation for the period."
+        "description": "DPPO calculation worksheet. Missing category or provenanced adjustments block derived tax totals."
       },
       "EcSalesListResponse": {
         "type": "object",
@@ -3541,6 +3984,49 @@
             "description": "Period covered.",
             "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
           },
+          "artifactKind": {
+            "type": "string",
+            "enum": [
+              "DRAFT_CLOSING_WORKSHEET"
+            ]
+          },
+          "completeness": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "WORKSHEET_READY",
+                  "NEEDS_INPUT",
+                  "DRAFT"
+                ]
+              },
+              "filingReady": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "blockingInputs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "unsupportedRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "status",
+              "filingReady",
+              "blockingInputs",
+              "unsupportedRequirements"
+            ]
+          },
           "aktiva": {
             "type": "string",
             "description": "Aktiva celkem.",
@@ -3618,6 +4104,8 @@
         "required": [
           "organizationId",
           "periodId",
+          "artifactKind",
+          "completeness",
           "aktiva",
           "pasiva",
           "naklady",
@@ -3625,7 +4113,7 @@
           "vysledek",
           "lines"
         ],
-        "description": "Účetní závěrka — rozvaha + VZZ totals plus per-account lines."
+        "description": "Draft closing worksheet with explicit statutory completion gaps."
       },
       "StatementLineRow": {
         "type": "object",
@@ -3703,6 +4191,67 @@
             "description": "Presentation unit used.",
             "example": "CZK"
           },
+          "artifactKind": {
+            "type": "string",
+            "enum": [
+              "DRAFT_CLOSING_WORKSHEET"
+            ]
+          },
+          "completeness": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "WORKSHEET_READY",
+                  "NEEDS_INPUT",
+                  "DRAFT"
+                ]
+              },
+              "filingReady": {
+                "type": "boolean",
+                "enum": [
+                  false
+                ]
+              },
+              "blockingInputs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "unsupportedRequirements": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "status",
+              "filingReady",
+              "blockingInputs",
+              "unsupportedRequirements"
+            ]
+          },
+          "comparativePeriod": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "periodStart": {
+                "type": "string"
+              },
+              "periodEnd": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "periodStart",
+              "periodEnd"
+            ]
+          },
           "aktiva": {
             "type": "array",
             "items": {
@@ -3722,12 +4271,21 @@
                   "type": "string",
                   "description": "Rolled-up amount in the presentation unit.",
                   "example": "0.00"
+                },
+                "comparativeAmount": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Amount for the preceding period.",
+                  "example": "0.00"
                 }
               },
               "required": [
                 "code",
                 "depth",
-                "amount"
+                "amount",
+                "comparativeAmount"
               ],
               "description": "One formatted statement layout line."
             },
@@ -3736,6 +4294,14 @@
           "aktivaTotal": {
             "type": "string",
             "description": "Aktiva celkem.",
+            "example": "0.00"
+          },
+          "aktivaTotalComparative": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Prior-period aktiva celkem.",
             "example": "0.00"
           },
           "pasiva": {
@@ -3757,12 +4323,21 @@
                   "type": "string",
                   "description": "Rolled-up amount in the presentation unit.",
                   "example": "0.00"
+                },
+                "comparativeAmount": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Amount for the preceding period.",
+                  "example": "0.00"
                 }
               },
               "required": [
                 "code",
                 "depth",
-                "amount"
+                "amount",
+                "comparativeAmount"
               ],
               "description": "One formatted statement layout line."
             },
@@ -3771,6 +4346,14 @@
           "pasivaTotal": {
             "type": "string",
             "description": "Pasiva celkem.",
+            "example": "0.00"
+          },
+          "pasivaTotalComparative": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Prior-period pasiva celkem.",
             "example": "0.00"
           },
           "vzz": {
@@ -3792,12 +4375,21 @@
                   "type": "string",
                   "description": "Rolled-up amount in the presentation unit.",
                   "example": "0.00"
+                },
+                "comparativeAmount": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Amount for the preceding period.",
+                  "example": "0.00"
                 }
               },
               "required": [
                 "code",
                 "depth",
-                "amount"
+                "amount",
+                "comparativeAmount"
               ],
               "description": "One formatted statement layout line."
             },
@@ -3808,14 +4400,38 @@
             "description": "Náklady celkem.",
             "example": "0.00"
           },
+          "nakladyComparative": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Prior-period náklady celkem.",
+            "example": "0.00"
+          },
           "vynosy": {
             "type": "string",
             "description": "Výnosy celkem.",
             "example": "0.00"
           },
+          "vynosyComparative": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Prior-period výnosy celkem.",
+            "example": "0.00"
+          },
           "vysledek": {
             "type": "string",
             "description": "Výsledek hospodaření.",
+            "example": "0.00"
+          },
+          "vysledekComparative": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Prior-period výsledek hospodaření.",
             "example": "0.00"
           }
         },
@@ -3824,16 +4440,24 @@
           "periodId",
           "rozsah",
           "unit",
+          "artifactKind",
+          "completeness",
+          "comparativePeriod",
           "aktiva",
           "aktivaTotal",
+          "aktivaTotalComparative",
           "pasiva",
           "pasivaTotal",
+          "pasivaTotalComparative",
           "vzz",
           "naklady",
+          "nakladyComparative",
           "vynosy",
-          "vysledek"
+          "vynosyComparative",
+          "vysledek",
+          "vysledekComparative"
         ],
-        "description": "Formatted rozvaha + VZZ per Decree 500/2002 přílohy."
+        "description": "Draft rozvaha and VZZ layout with prior-period comparisons when available."
       },
       "LayoutLine": {
         "type": "object",
@@ -3852,12 +4476,21 @@
             "type": "string",
             "description": "Rolled-up amount in the presentation unit.",
             "example": "0.00"
+          },
+          "comparativeAmount": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Amount for the preceding period.",
+            "example": "0.00"
           }
         },
         "required": [
           "code",
           "depth",
-          "amount"
+          "amount",
+          "comparativeAmount"
         ],
         "description": "One formatted statement layout line."
       },

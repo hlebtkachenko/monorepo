@@ -488,14 +488,35 @@ describe("DPPO (corporate income tax)", () => {
       }),
     )
     await withOrganization(orgA, userId, async (db) => {
-      const dppo = await buildDppo(db, s.periodId)
+      const zero = {
+        amount: "0",
+        provenance: {
+          source: "ADVISOR" as const,
+          reference: "test fixture",
+          recordedAt: "2043-12-31",
+        },
+      }
+      const completeInput = {
+        taxpayerCategory: "STANDARD" as const,
+        nonDeductibleExpenses: zero,
+        exemptRevenue: zero,
+        excludeLossMakingMainActivity: zero,
+        lossCarryForward: zero,
+        taxReliefs: zero,
+        advancesPaid: zero,
+      }
+      const dppo = await buildDppo(db, s.periodId, completeInput)
       expect(dppo.ucetni_vysledek).toBe("123456.0000")
       expect(dppo.zaklad_zaokrouhleny).toBe("123000.0000") // rounded down to whole thousands
       expect(dppo.dan).toBe("25830.0000") // 123000 × 21%
 
       // §18a veřejně prospěšný poplatník: exclude the result → base 0, daň 0
       const vpp = await buildDppo(db, s.periodId, {
-        excludeLossMakingMainActivity: "-123456",
+        ...completeInput,
+        excludeLossMakingMainActivity: {
+          ...zero,
+          amount: "-123456",
+        },
       })
       expect(vpp.zaklad_dane).toBe("0.0000")
       expect(vpp.dan).toBe("0.0000")

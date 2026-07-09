@@ -29,6 +29,7 @@ import { sql, type SQL } from "drizzle-orm"
 import { rows, one } from "../sql"
 import type { RowExecutor } from "../sql"
 import type { Decimal } from "../types"
+import type { AnnualArtifactCompleteness } from "./annual-completeness"
 
 export type StatementRozsah = "FULL" | "ABBREVIATED"
 export type StatementUnit = "CZK" | "THOUSANDS"
@@ -47,21 +48,36 @@ export interface LayoutLine {
   depth: number
   /** rolled-up amount in the presentation unit. */
   amount: Decimal
+  /** Same line for the immediately preceding accounting period, when proven. */
+  comparativeAmount: Decimal | null
 }
 
 export interface StatementLayout {
   type: "STATEMENT_LAYOUT"
+  artifactKind: "DRAFT_CLOSING_WORKSHEET"
+  completeness: AnnualArtifactCompleteness
   rozsah: StatementRozsah
   unit: StatementUnit
+  comparativePeriod: {
+    periodStart: string
+    periodEnd: string
+  } | null
   aktiva: LayoutLine[]
   aktiva_total: Decimal
+  aktiva_total_comparative: Decimal | null
   pasiva: LayoutLine[]
   pasiva_total: Decimal
+  pasiva_total_comparative: Decimal | null
   vzz: LayoutLine[]
   naklady: Decimal
+  naklady_comparative: Decimal | null
   vynosy: Decimal
+  vynosy_comparative: Decimal | null
   vysledek: Decimal
+  vysledek_comparative: Decimal | null
 }
+
+type StatementAmountLine = Omit<LayoutLine, "comparativeAmount">
 
 /**
  * Roll one statement's account lines up their dotted code hierarchy and round to
@@ -76,7 +92,7 @@ async function rollUp(
   part: "AKTIVA" | "PASIVA" | "VZZ",
   rozsah: StatementRozsah,
   unit: StatementUnit,
-): Promise<LayoutLine[]> {
+): Promise<StatementAmountLine[]> {
   const natureFilter =
     part === "AKTIVA"
       ? sql`a.nature = 'ASSET'`
@@ -102,7 +118,7 @@ async function rollUp(
   const round = sql`${roundToUnit(sql`SUM(amount)`, unit)}::numeric(19,4)`
   const maxDepth = rozsah === "ABBREVIATED" ? 2 : 99
 
-  return rows<LayoutLine>(
+  return rows<StatementAmountLine>(
     db,
     sql`
       WITH leaf AS (
@@ -134,6 +150,28 @@ async function rollUp(
   )
 }
 
+function mergeLayoutLines(
+  current: StatementAmountLine[],
+  comparative: StatementAmountLine[] | null,
+): LayoutLine[] {
+  const currentByCode = new Map(current.map((line) => [line.code, line]))
+  const comparativeByCode = new Map(
+    (comparative ?? []).map((line) => [line.code, line]),
+  )
+  const codes = new Set([...currentByCode.keys(), ...comparativeByCode.keys()])
+  return [...codes].sort().map((code) => {
+    const currentLine = currentByCode.get(code)
+    const comparativeLine = comparativeByCode.get(code)
+    return {
+      code,
+      depth: currentLine?.depth ?? comparativeLine!.depth,
+      amount: currentLine?.amount ?? "0.0000",
+      comparativeAmount:
+        comparative == null ? null : (comparativeLine?.amount ?? "0.0000"),
+    }
+  })
+}
+
 async function partTotal(
   db: RowExecutor,
   periodId: string,
@@ -157,16 +195,22 @@ async function partTotal(
   return r.total
 }
 
-/** Build the formatted rozvaha + VZZ layout for a period. */
-export async function buildStatementLayout(
+type PeriodLayout = {
+  aktiva: StatementAmountLine[]
+  pasiva: StatementAmountLine[]
+  vzz: StatementAmountLine[]
+  aktivaTotal: Decimal
+  pasivaTotal: Decimal
+  totals: { naklady: Decimal; vynosy: Decimal; vysledek: Decimal }
+}
+
+async function buildPeriodLayout(
   db: RowExecutor,
   periodId: string,
-  opts: { rozsah?: StatementRozsah; unit?: StatementUnit } = {},
-): Promise<StatementLayout> {
-  const rozsah = opts.rozsah ?? "FULL"
-  const unit = opts.unit ?? "THOUSANDS"
-
-  const [aktiva, pasiva, vzz, aktiva_total, pasiva_total, totals] =
+  rozsah: StatementRozsah,
+  unit: StatementUnit,
+): Promise<PeriodLayout> {
+  const [aktiva, pasiva, vzz, aktivaTotal, pasivaTotal, totals] =
     await Promise.all([
       rollUp(db, periodId, "AKTIVA", rozsah, unit),
       rollUp(db, periodId, "PASIVA", rozsah, unit),
@@ -189,18 +233,84 @@ export async function buildStatementLayout(
             FROM acct`,
       ),
     ])
+  return { aktiva, pasiva, vzz, aktivaTotal, pasivaTotal, totals }
+}
+
+/** Build the formatted rozvaha + VZZ layout for a period. */
+export async function buildStatementLayout(
+  db: RowExecutor,
+  periodId: string,
+  opts: { rozsah?: StatementRozsah; unit?: StatementUnit } = {},
+): Promise<StatementLayout> {
+  const rozsah = opts.rozsah ?? "FULL"
+  const unit = opts.unit ?? "THOUSANDS"
+  const previous = await one<{
+    id: string | null
+    period_start: string | null
+    period_end: string | null
+  }>(
+    db,
+    sql`SELECT previous.id, previous.period_start, previous.period_end
+          FROM accounting_period current
+          LEFT JOIN LATERAL (
+            SELECT candidate.id, candidate.period_start, candidate.period_end
+              FROM accounting_period candidate
+             WHERE candidate.organization_id = current.organization_id
+               AND candidate.period_end < current.period_start
+             ORDER BY candidate.period_end DESC
+             LIMIT 1
+          ) previous ON true
+         WHERE current.id = ${periodId}::uuid`,
+  )
+  const [current, comparative] = await Promise.all([
+    buildPeriodLayout(db, periodId, rozsah, unit),
+    previous.id == null
+      ? Promise.resolve(null)
+      : buildPeriodLayout(db, previous.id, rozsah, unit),
+  ])
+  const statementBlockers = [
+    "Asset gross values and corrections are not classified by the current account read model.",
+    "Notes to the financial statements are missing.",
+    "Approval, signature, audit applicability, and publication have not been recorded.",
+  ]
+  if (comparative == null) {
+    statementBlockers.unshift(
+      "No preceding accounting period is available for comparative values.",
+    )
+  }
 
   return {
     type: "STATEMENT_LAYOUT",
+    artifactKind: "DRAFT_CLOSING_WORKSHEET",
+    completeness: {
+      status: "DRAFT",
+      filingReady: false,
+      blockingInputs: statementBlockers,
+      unsupportedRequirements: [
+        "This draft worksheet is not an approved statutory financial statement.",
+      ],
+    },
     rozsah,
     unit,
-    aktiva,
-    aktiva_total,
-    pasiva,
-    pasiva_total,
-    vzz,
-    naklady: totals.naklady,
-    vynosy: totals.vynosy,
-    vysledek: totals.vysledek,
+    comparativePeriod:
+      previous.period_start == null || previous.period_end == null
+        ? null
+        : {
+            periodStart: previous.period_start,
+            periodEnd: previous.period_end,
+          },
+    aktiva: mergeLayoutLines(current.aktiva, comparative?.aktiva ?? null),
+    aktiva_total: current.aktivaTotal,
+    aktiva_total_comparative: comparative?.aktivaTotal ?? null,
+    pasiva: mergeLayoutLines(current.pasiva, comparative?.pasiva ?? null),
+    pasiva_total: current.pasivaTotal,
+    pasiva_total_comparative: comparative?.pasivaTotal ?? null,
+    vzz: mergeLayoutLines(current.vzz, comparative?.vzz ?? null),
+    naklady: current.totals.naklady,
+    naklady_comparative: comparative?.totals.naklady ?? null,
+    vynosy: current.totals.vynosy,
+    vynosy_comparative: comparative?.totals.vynosy ?? null,
+    vysledek: current.totals.vysledek,
+    vysledek_comparative: comparative?.totals.vysledek ?? null,
   }
 }

@@ -2152,7 +2152,7 @@ export interface components {
              */
             b2_dan: string;
         };
-        /** @description DPPO — corporate income tax computation for the period. */
+        /** @description DPPO calculation worksheet. Missing category or provenanced adjustments block derived tax totals. */
         DppoResponse: {
             /**
              * Format: uuid
@@ -2165,6 +2165,127 @@ export interface components {
              * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
              */
             periodId: string;
+            /** @enum {string} */
+            artifactKind: "DPPO_CALCULATION_WORKSHEET";
+            periodStart: string;
+            periodEnd: string;
+            bookValues: {
+                /**
+                 * @description Accounting profit or loss from the book balances.
+                 * @example 0.00
+                 */
+                accountingResult: string;
+            };
+            adjustments: {
+                nonDeductibleExpenses: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                exemptRevenue: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                excludeLossMakingMainActivity: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                lossCarryForward: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                taxReliefs: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                advancesPaid: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+            };
+            rateResolution: {
+                /** @enum {string} */
+                status: "SUPPORTED";
+                /** @enum {string} */
+                category: "STANDARD" | "BASIC_INVESTMENT_FUND" | "QUALIFYING_PENSION_INSTITUTION";
+                /**
+                 * @description Effective tax rate.
+                 * @example 0.00
+                 */
+                rate: string;
+                effectiveFrom: string;
+                effectiveTo: string | null;
+                /** Format: uri */
+                sourceUrl: string;
+                verifiedOn: string;
+            } | {
+                /** @enum {string} */
+                status: "UNSUPPORTED";
+                /** @enum {string} */
+                category: "STANDARD" | "BASIC_INVESTMENT_FUND" | "QUALIFYING_PENSION_INSTITUTION" | "OTHER" | "UNKNOWN";
+                reason: string;
+            };
+            completeness: {
+                /** @enum {string} */
+                status: "WORKSHEET_READY" | "NEEDS_INPUT" | "DRAFT";
+                /** @enum {boolean} */
+                filingReady: false;
+                blockingInputs: string[];
+                unsupportedRequirements: string[];
+            };
             /**
              * @description Účetní výsledek hospodaření.
              * @example 0.00
@@ -2174,57 +2295,57 @@ export interface components {
              * @description Daňově neuznatelné náklady (§25).
              * @example 0.00
              */
-            nedanoveNaklady: string;
+            nedanoveNaklady: string | null;
             /**
              * @description Osvobozené/nezdaňované výnosy.
              * @example 0.00
              */
-            osvobozeneVynosy: string;
+            osvobozeneVynosy: string | null;
             /**
              * @description Základ daně §23/1 (před §34).
              * @example 0.00
              */
-            zakladDane: string;
+            zakladDane: string | null;
             /**
              * @description Odpočet daňové ztráty minulých let §34.
              * @example 0.00
              */
-            odpocetZtraty: string;
+            odpocetZtraty: string | null;
             /**
              * @description Zaokrouhlený základ daně.
              * @example 0.00
              */
-            zakladZaokrouhleny: string;
+            zakladZaokrouhleny: string | null;
             /**
              * @description Sazba daně.
              * @example 0.00
              */
-            sazba: string;
+            sazba: string | null;
             /**
              * @description Daň.
              * @example 0.00
              */
-            dan: string;
+            dan: string | null;
             /**
              * @description Slevy na dani.
              * @example 0.00
              */
-            slevy: string;
+            slevy: string | null;
             /**
              * @description Daň po slevách.
              * @example 0.00
              */
-            danPoSlevach: string;
+            danPoSlevach: string | null;
             /**
              * @description Zaplacené zálohy §38a.
              * @example 0.00
              */
-            zalohy: string;
+            zalohy: string | null;
             /**
              * @description Doplatek (+) / přeplatek (−).
              * @example 0.00
              */
-            doplatek: string;
+            doplatek: string | null;
         };
         /** @description Souhrnné hlášení — EU supplies recap for the period. */
         EcSalesListResponse: {
@@ -2640,7 +2761,7 @@ export interface components {
              */
             count: number;
         };
-        /** @description Účetní závěrka — rozvaha + VZZ totals plus per-account lines. */
+        /** @description Draft closing worksheet with explicit statutory completion gaps. */
         FinancialStatementsResponse: {
             /**
              * Format: uuid
@@ -2653,6 +2774,16 @@ export interface components {
              * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
              */
             periodId: string;
+            /** @enum {string} */
+            artifactKind: "DRAFT_CLOSING_WORKSHEET";
+            completeness: {
+                /** @enum {string} */
+                status: "WORKSHEET_READY" | "NEEDS_INPUT" | "DRAFT";
+                /** @enum {boolean} */
+                filingReady: false;
+                blockingInputs: string[];
+                unsupportedRequirements: string[];
+            };
             /**
              * @description Aktiva celkem.
              * @example 0.00
@@ -2735,7 +2866,7 @@ export interface components {
              */
             incomeStatementLine: string | null;
         };
-        /** @description Formatted rozvaha + VZZ per Decree 500/2002 přílohy. */
+        /** @description Draft rozvaha and VZZ layout with prior-period comparisons when available. */
         StatementLayoutResponse: {
             /**
              * Format: uuid
@@ -2760,6 +2891,20 @@ export interface components {
              * @enum {string}
              */
             unit: "CZK" | "THOUSANDS";
+            /** @enum {string} */
+            artifactKind: "DRAFT_CLOSING_WORKSHEET";
+            completeness: {
+                /** @enum {string} */
+                status: "WORKSHEET_READY" | "NEEDS_INPUT" | "DRAFT";
+                /** @enum {boolean} */
+                filingReady: false;
+                blockingInputs: string[];
+                unsupportedRequirements: string[];
+            };
+            comparativePeriod: {
+                periodStart: string;
+                periodEnd: string;
+            } | null;
             /** @description Rozvaha — aktiva lines. */
             aktiva: {
                 /**
@@ -2777,12 +2922,22 @@ export interface components {
                  * @example 0.00
                  */
                 amount: string;
+                /**
+                 * @description Amount for the preceding period.
+                 * @example 0.00
+                 */
+                comparativeAmount: string | null;
             }[];
             /**
              * @description Aktiva celkem.
              * @example 0.00
              */
             aktivaTotal: string;
+            /**
+             * @description Prior-period aktiva celkem.
+             * @example 0.00
+             */
+            aktivaTotalComparative: string | null;
             /** @description Rozvaha — pasiva lines. */
             pasiva: {
                 /**
@@ -2800,12 +2955,22 @@ export interface components {
                  * @example 0.00
                  */
                 amount: string;
+                /**
+                 * @description Amount for the preceding period.
+                 * @example 0.00
+                 */
+                comparativeAmount: string | null;
             }[];
             /**
              * @description Pasiva celkem.
              * @example 0.00
              */
             pasivaTotal: string;
+            /**
+             * @description Prior-period pasiva celkem.
+             * @example 0.00
+             */
+            pasivaTotalComparative: string | null;
             /** @description Výkaz zisku a ztráty lines. */
             vzz: {
                 /**
@@ -2823,6 +2988,11 @@ export interface components {
                  * @example 0.00
                  */
                 amount: string;
+                /**
+                 * @description Amount for the preceding period.
+                 * @example 0.00
+                 */
+                comparativeAmount: string | null;
             }[];
             /**
              * @description Náklady celkem.
@@ -2830,15 +3000,30 @@ export interface components {
              */
             naklady: string;
             /**
+             * @description Prior-period náklady celkem.
+             * @example 0.00
+             */
+            nakladyComparative: string | null;
+            /**
              * @description Výnosy celkem.
              * @example 0.00
              */
             vynosy: string;
             /**
+             * @description Prior-period výnosy celkem.
+             * @example 0.00
+             */
+            vynosyComparative: string | null;
+            /**
              * @description Výsledek hospodaření.
              * @example 0.00
              */
             vysledek: string;
+            /**
+             * @description Prior-period výsledek hospodaření.
+             * @example 0.00
+             */
+            vysledekComparative: string | null;
         };
         /** @description One formatted statement layout line. */
         LayoutLine: {
@@ -2857,6 +3042,11 @@ export interface components {
              * @example 0.00
              */
             amount: string;
+            /**
+             * @description Amount for the preceding period.
+             * @example 0.00
+             */
+            comparativeAmount: string | null;
         };
         /** @description Economic-event facts to classify into an accounting treatment. */
         ClassifyEventRequest: {

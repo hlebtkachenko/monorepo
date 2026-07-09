@@ -38,6 +38,16 @@ export {
   type DppoInput,
 } from "./dppo"
 export {
+  resolveDppoRate,
+  type DppoRateResolution,
+  type DppoTaxpayerCategory,
+} from "./annual-rules"
+export type {
+  AdjustmentProvenance,
+  AnnualArtifactCompleteness,
+  ProvenancedDecimal,
+} from "./annual-completeness"
+export {
   buildDph,
   type Dph,
   type DphRows,

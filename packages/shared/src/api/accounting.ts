@@ -402,6 +402,49 @@ export const DphResponseSchema = z
 export type DphResponse = z.infer<typeof DphResponseSchema>
 
 // --- DPPO (corporate income tax) ---------------------------------------------
+export const AnnualArtifactCompletenessSchema = z.object({
+  status: z.enum(["WORKSHEET_READY", "NEEDS_INPUT", "DRAFT"]),
+  filingReady: z.literal(false),
+  blockingInputs: z.array(z.string()),
+  unsupportedRequirements: z.array(z.string()),
+})
+
+const ProvenancedDecimalSchema = z.object({
+  amount: dec("Adjustment amount."),
+  provenance: z.object({
+    source: z.enum(["USER", "ADVISOR", "LEDGER"]),
+    reference: z.string(),
+    recordedAt: z.string(),
+  }),
+})
+
+const DppoRateResolutionSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("SUPPORTED"),
+    category: z.enum([
+      "STANDARD",
+      "BASIC_INVESTMENT_FUND",
+      "QUALIFYING_PENSION_INSTITUTION",
+    ]),
+    rate: dec("Effective tax rate."),
+    effectiveFrom: z.string(),
+    effectiveTo: z.string().nullable(),
+    sourceUrl: z.string().url(),
+    verifiedOn: z.string(),
+  }),
+  z.object({
+    status: z.literal("UNSUPPORTED"),
+    category: z.enum([
+      "STANDARD",
+      "BASIC_INVESTMENT_FUND",
+      "QUALIFYING_PENSION_INSTITUTION",
+      "OTHER",
+      "UNKNOWN",
+    ]),
+    reason: z.string(),
+  }),
+])
+
 /** `GET /v1/accounting/periods/{periodId}/outputs/corporate-income-tax`. */
 export const DppoResponseSchema = z
   .object({
@@ -410,21 +453,40 @@ export const DppoResponseSchema = z
       description: "Period covered.",
       example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
     }),
+    artifactKind: z.literal("DPPO_CALCULATION_WORKSHEET"),
+    periodStart: z.string(),
+    periodEnd: z.string(),
+    bookValues: z.object({
+      accountingResult: dec(
+        "Accounting profit or loss from the book balances.",
+      ),
+    }),
+    adjustments: z.object({
+      nonDeductibleExpenses: ProvenancedDecimalSchema.nullable(),
+      exemptRevenue: ProvenancedDecimalSchema.nullable(),
+      excludeLossMakingMainActivity: ProvenancedDecimalSchema.nullable(),
+      lossCarryForward: ProvenancedDecimalSchema.nullable(),
+      taxReliefs: ProvenancedDecimalSchema.nullable(),
+      advancesPaid: ProvenancedDecimalSchema.nullable(),
+    }),
+    rateResolution: DppoRateResolutionSchema,
+    completeness: AnnualArtifactCompletenessSchema,
     ucetniVysledek: dec("Účetní výsledek hospodaření."),
-    nedanoveNaklady: dec("Daňově neuznatelné náklady (§25)."),
-    osvobozeneVynosy: dec("Osvobozené/nezdaňované výnosy."),
-    zakladDane: dec("Základ daně §23/1 (před §34)."),
-    odpocetZtraty: dec("Odpočet daňové ztráty minulých let §34."),
-    zakladZaokrouhleny: dec("Zaokrouhlený základ daně."),
-    sazba: dec("Sazba daně."),
-    dan: dec("Daň."),
-    slevy: dec("Slevy na dani."),
-    danPoSlevach: dec("Daň po slevách."),
-    zalohy: dec("Zaplacené zálohy §38a."),
-    doplatek: dec("Doplatek (+) / přeplatek (−)."),
+    nedanoveNaklady: dec("Daňově neuznatelné náklady (§25).").nullable(),
+    osvobozeneVynosy: dec("Osvobozené/nezdaňované výnosy.").nullable(),
+    zakladDane: dec("Základ daně §23/1 (před §34).").nullable(),
+    odpocetZtraty: dec("Odpočet daňové ztráty minulých let §34.").nullable(),
+    zakladZaokrouhleny: dec("Zaokrouhlený základ daně.").nullable(),
+    sazba: dec("Sazba daně.").nullable(),
+    dan: dec("Daň.").nullable(),
+    slevy: dec("Slevy na dani.").nullable(),
+    danPoSlevach: dec("Daň po slevách.").nullable(),
+    zalohy: dec("Zaplacené zálohy §38a.").nullable(),
+    doplatek: dec("Doplatek (+) / přeplatek (−).").nullable(),
   })
   .openapi({
-    description: "DPPO — corporate income tax computation for the period.",
+    description:
+      "DPPO calculation worksheet. Missing category or provenanced adjustments block derived tax totals.",
   })
 export type DppoResponse = z.infer<typeof DppoResponseSchema>
 
@@ -590,6 +652,8 @@ export const FinancialStatementsResponseSchema = z
       description: "Period covered.",
       example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
     }),
+    artifactKind: z.literal("DRAFT_CLOSING_WORKSHEET"),
+    completeness: AnnualArtifactCompletenessSchema,
     aktiva: dec("Aktiva celkem."),
     pasiva: dec("Pasiva celkem."),
     naklady: dec("Náklady celkem."),
@@ -601,7 +665,7 @@ export const FinancialStatementsResponseSchema = z
   })
   .openapi({
     description:
-      "Účetní závěrka — rozvaha + VZZ totals plus per-account lines.",
+      "Draft closing worksheet with explicit statutory completion gaps.",
   })
 export type FinancialStatementsResponse = z.infer<
   typeof FinancialStatementsResponseSchema
@@ -630,6 +694,7 @@ export const LayoutLineSchema = z
       example: 3,
     }),
     amount: dec("Rolled-up amount in the presentation unit."),
+    comparativeAmount: dec("Amount for the preceding period.").nullable(),
   })
   .openapi({ description: "One formatted statement layout line." })
 export type LayoutLine = z.infer<typeof LayoutLineSchema>
@@ -648,23 +713,34 @@ export const StatementLayoutResponseSchema = z
     unit: z
       .enum(["CZK", "THOUSANDS"])
       .openapi({ description: "Presentation unit used.", example: "CZK" }),
+    artifactKind: z.literal("DRAFT_CLOSING_WORKSHEET"),
+    completeness: AnnualArtifactCompletenessSchema,
+    comparativePeriod: z
+      .object({ periodStart: z.string(), periodEnd: z.string() })
+      .nullable(),
     aktiva: z
       .array(LayoutLineSchema)
       .openapi({ description: "Rozvaha — aktiva lines." }),
     aktivaTotal: dec("Aktiva celkem."),
+    aktivaTotalComparative: dec("Prior-period aktiva celkem.").nullable(),
     pasiva: z
       .array(LayoutLineSchema)
       .openapi({ description: "Rozvaha — pasiva lines." }),
     pasivaTotal: dec("Pasiva celkem."),
+    pasivaTotalComparative: dec("Prior-period pasiva celkem.").nullable(),
     vzz: z
       .array(LayoutLineSchema)
       .openapi({ description: "Výkaz zisku a ztráty lines." }),
     naklady: dec("Náklady celkem."),
+    nakladyComparative: dec("Prior-period náklady celkem.").nullable(),
     vynosy: dec("Výnosy celkem."),
+    vynosyComparative: dec("Prior-period výnosy celkem.").nullable(),
     vysledek: dec("Výsledek hospodaření."),
+    vysledekComparative: dec("Prior-period výsledek hospodaření.").nullable(),
   })
   .openapi({
-    description: "Formatted rozvaha + VZZ per Decree 500/2002 přílohy.",
+    description:
+      "Draft rozvaha and VZZ layout with prior-period comparisons when available.",
   })
 export type StatementLayoutResponse = z.infer<
   typeof StatementLayoutResponseSchema

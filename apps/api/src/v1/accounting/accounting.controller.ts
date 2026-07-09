@@ -287,7 +287,12 @@ export class AccountingController {
   }
 
   @Get("periods/:periodId/outputs/corporate-income-tax")
-  @ApiOperation({ summary: "Get corporate income tax (DPPO)" })
+  @ApiOperation({
+    summary: "Get DPPO calculation worksheet",
+    description:
+      "Returns book-derived profit and only computes tax when the taxpayer " +
+      "category and every advisor adjustment include provenance.",
+  })
   @ApiParam({ name: "periodId", format: "uuid" })
   @ApiOkResponse({ type: DppoResponseDto })
   async getCorporateIncomeTax(
@@ -302,6 +307,13 @@ export class AccountingController {
     return {
       organizationId: principal.organizationId,
       periodId,
+      artifactKind: d.artifactKind,
+      periodStart: d.periodStart,
+      periodEnd: d.periodEnd,
+      bookValues: d.bookValues,
+      adjustments: d.adjustments,
+      rateResolution: d.rateResolution,
+      completeness: d.completeness,
       ucetniVysledek: d.ucetni_vysledek,
       nedanoveNaklady: d.nedanove_naklady,
       osvobozeneVynosy: d.osvobozene_vynosy,
@@ -404,7 +416,7 @@ export class AccountingController {
   }
 
   @Get("periods/:periodId/outputs/financial-statements")
-  @ApiOperation({ summary: "Get financial statements (účetní závěrka)" })
+  @ApiOperation({ summary: "Get draft closing worksheet" })
   @ApiParam({ name: "periodId", format: "uuid" })
   @ApiOkResponse({ type: FinancialStatementsResponseDto })
   async getFinancialStatements(
@@ -419,6 +431,8 @@ export class AccountingController {
     return {
       organizationId: principal.organizationId,
       periodId,
+      artifactKind: z.artifactKind,
+      completeness: z.completeness,
       aktiva: z.aktiva,
       pasiva: z.pasiva,
       naklady: z.naklady,
@@ -435,7 +449,7 @@ export class AccountingController {
   }
 
   @Get("periods/:periodId/outputs/statement-layout")
-  @ApiOperation({ summary: "Get formatted statement layout (rozvaha / VZZ)" })
+  @ApiOperation({ summary: "Get draft statement layout (rozvaha / VZZ)" })
   @ApiParam({ name: "periodId", format: "uuid" })
   @ApiQuery({ name: "rozsah", required: false, enum: ["FULL", "ABBREVIATED"] })
   @ApiQuery({ name: "unit", required: false, enum: ["CZK", "THOUSANDS"] })
@@ -465,24 +479,38 @@ export class AccountingController {
       principal.userId,
       (db) => buildStatementLayout(db, periodId, { rozsah, unit }),
     )
-    const line = (l: { code: string; depth: number; amount: string }) => ({
+    const line = (l: {
+      code: string
+      depth: number
+      amount: string
+      comparativeAmount: string | null
+    }) => ({
       code: l.code,
       depth: l.depth,
       amount: l.amount,
+      comparativeAmount: l.comparativeAmount,
     })
     return {
       organizationId: principal.organizationId,
       periodId,
       rozsah: s.rozsah,
       unit: s.unit,
+      artifactKind: s.artifactKind,
+      completeness: s.completeness,
+      comparativePeriod: s.comparativePeriod,
       aktiva: s.aktiva.map(line),
       aktivaTotal: s.aktiva_total,
+      aktivaTotalComparative: s.aktiva_total_comparative,
       pasiva: s.pasiva.map(line),
       pasivaTotal: s.pasiva_total,
+      pasivaTotalComparative: s.pasiva_total_comparative,
       vzz: s.vzz.map(line),
       naklady: s.naklady,
+      nakladyComparative: s.naklady_comparative,
       vynosy: s.vynosy,
+      vynosyComparative: s.vynosy_comparative,
       vysledek: s.vysledek,
+      vysledekComparative: s.vysledek_comparative,
     }
   }
 

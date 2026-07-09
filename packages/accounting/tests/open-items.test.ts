@@ -803,9 +803,24 @@ describe("TODO-7 — DPPO completeness (§34 loss, §38a zálohy, §25)", () => 
       })
 
       // base 100000, apply 30000 loss → base 70000 → daň 14700
-      const dppo = await buildDppo(db, s.periodId, {
-        lossCarryForward: "30000",
+      const value = (amount: string) => ({
+        amount,
+        provenance: {
+          source: "ADVISOR" as const,
+          reference: "test fixture",
+          recordedAt: "2055-12-31",
+        },
       })
+      const completeInput = {
+        taxpayerCategory: "STANDARD" as const,
+        nonDeductibleExpenses: value("0"),
+        exemptRevenue: value("0"),
+        excludeLossMakingMainActivity: value("0"),
+        lossCarryForward: value("30000"),
+        taxReliefs: value("0"),
+        advancesPaid: value("0"),
+      }
+      const dppo = await buildDppo(db, s.periodId, completeInput)
       expect(dppo.zaklad_dane).toBe("100000.0000")
       expect(dppo.odpocet_ztraty).toBe("30000.0000")
       expect(dppo.zaklad_zaokrouhleny).toBe("70000.0000")
@@ -813,7 +828,8 @@ describe("TODO-7 — DPPO completeness (§34 loss, §38a zálohy, §25)", () => 
 
       // a loss larger than the base is capped (never turns profit negative)
       const capped = await buildDppo(db, s.periodId, {
-        lossCarryForward: "500000",
+        ...completeInput,
+        lossCarryForward: value("500000"),
       })
       expect(capped.odpocet_ztraty).toBe("100000.0000")
       expect(capped.zaklad_zaokrouhleny).toBe("0.0000")

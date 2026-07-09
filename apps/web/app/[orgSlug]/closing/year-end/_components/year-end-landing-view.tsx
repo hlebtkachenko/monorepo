@@ -46,11 +46,12 @@ export function YearEndLandingView({ slug }: { slug: string }) {
               <Card className="h-full transition-colors hover:bg-muted/40">
                 <CardHeader>
                   <CardTitle>
-                    <h3>Statements</h3>
+                    <h3>Draft closing worksheet</h3>
                   </CardTitle>
                   <CardDescription>
-                    Účetní závěrka — rozvaha + výkaz zisku a ztráty for the
-                    active accounting period.
+                    Draft rozvaha and profit-and-loss worksheets for the active
+                    accounting period. Notes, approval, signature, and
+                    publication are tracked as missing inputs.
                   </CardDescription>
                 </CardHeader>
               </Card>

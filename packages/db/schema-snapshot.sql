@@ -1270,6 +1270,27 @@ END;
 $$;
 
 --
+-- Name: app_summary_legal_dates_period_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_summary_legal_dates_period_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM 1
+    FROM accounting_period
+   WHERE id = NEW.period_id
+   FOR SHARE;
+  PERFORM app_assert_period_writable(
+    NEW.period_id,
+    'summary_record legal-date correction',
+    NULL
+  );
+  RETURN NEW;
+END;
+$$;
+
+--
 -- Name: app_summary_period_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4301,6 +4322,12 @@ CREATE TRIGGER signature_block_truncate BEFORE TRUNCATE ON public.signature FOR 
 --
 
 CREATE TRIGGER signature_block_update BEFORE UPDATE ON public.signature FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_accounting();
+
+--
+-- Name: summary_record summary_record_legal_dates_period_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER summary_record_legal_dates_period_guard BEFORE UPDATE OF tax_point_date, received_date ON public.summary_record FOR EACH ROW WHEN (((old.tax_point_date IS DISTINCT FROM new.tax_point_date) OR (old.received_date IS DISTINCT FROM new.received_date))) EXECUTE FUNCTION public.app_summary_legal_dates_period_guard();
 
 --
 -- Name: summary_record summary_record_period_guard; Type: TRIGGER; Schema: public; Owner: -

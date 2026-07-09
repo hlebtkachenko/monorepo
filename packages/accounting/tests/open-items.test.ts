@@ -107,6 +107,7 @@ describe("TODO-1 — DPH EU (ř.3/4) vs domestic PDP (ř.10/11) split", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2050-03-01",
+        taxPointDate: "2050-03-01",
         receivedDate: "2050-03-01",
         lines: [
           {
@@ -146,6 +147,7 @@ describe("TODO-1 — DPH EU (ř.3/4) vs domestic PDP (ř.10/11) split", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2050-03-05",
+        taxPointDate: "2050-03-05",
         receivedDate: "2050-03-05",
         lines: [
           {
@@ -211,6 +213,7 @@ describe("TODO-2 — per-counterparty kontrolní hlášení", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2051-04-01",
+        taxPointDate: "2051-04-01",
         lines: [
           {
             eventId: ev1.eventId,
@@ -250,6 +253,7 @@ describe("TODO-2 — per-counterparty kontrolní hlášení", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2051-04-02",
+        taxPointDate: "2051-04-02",
         lines: [
           {
             eventId: ev2.eventId,
@@ -314,6 +318,7 @@ describe("TODO-2 — per-counterparty kontrolní hlášení", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2057-06-01",
+        taxPointDate: "2057-06-01",
         lines: [
           {
             eventId: ev1.eventId,
@@ -344,6 +349,7 @@ describe("TODO-2 — per-counterparty kontrolní hlášení", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2057-06-02",
+        taxPointDate: "2057-06-02",
         lines: [
           {
             eventId: ev2.eventId,
@@ -573,6 +579,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2054-05-01",
+        taxPointDate: "2054-05-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -632,6 +639,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2064-05-01",
+        taxPointDate: "2064-05-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -698,6 +706,7 @@ describe("TODO-6 — souhrnné hlášení §102 (EU supplies)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2065-05-01",
+        taxPointDate: "2065-05-01",
         lines: [
           {
             eventId: goodsEv.eventId,
@@ -958,6 +967,7 @@ describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2071-05-01",
+        taxPointDate: "2071-05-01",
         lines: [
           {
             eventId: evCz.eventId,
@@ -993,6 +1003,7 @@ describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2071-06-01",
+        taxPointDate: "2071-06-01",
         lines: [
           {
             eventId: evCz2.eventId,
@@ -1028,6 +1039,7 @@ describe("[#516] KH A.1 / DPH exclude EU-marked issued reverse-charge", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2071-07-01",
+        taxPointDate: "2071-07-01",
         lines: [
           {
             eventId: evEu.eventId,
@@ -1119,6 +1131,7 @@ describe("[#516] KH kód předmětu plnění (§92 commodity)", () => {
           seriesId: s.documentSeriesId,
           type: args.type,
           issuedAt: args.day,
+          taxPointDate: args.day,
           receivedDate: args.type === "RECEIVED_INVOICE" ? args.day : undefined,
           lines: [
             {

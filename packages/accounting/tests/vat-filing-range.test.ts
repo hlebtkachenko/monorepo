@@ -8,7 +8,7 @@
  */
 import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest"
 import { sql } from "drizzle-orm"
-import { withOrganization } from "@workspace/db"
+import { executeRows, withOrganization } from "@workspace/db"
 import {
   adminClient,
   seedDoubleEntryOrg,
@@ -59,6 +59,60 @@ beforeEach(async () => {
 })
 
 describe("VAT output builder evidence scopes", () => {
+  it("rejects legal-date corrections after the accounting period is closed", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    const documentId = await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Legal-date correction guard",
+        occurredAt: "2026-01-15",
+        responsibleUserId: userId,
+      })
+      const document = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2026-01-15",
+        taxPointDate: "2026-01-15",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      return document.summaryRecordId
+    })
+
+    await admin`
+      UPDATE accounting_period
+         SET status = 'CLOSED'
+       WHERE id = ${s.periodId}::uuid
+    `
+
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        db.execute(sql`
+          UPDATE summary_record
+             SET tax_point_date = '2026-02-01'
+           WHERE id = ${documentId}::uuid
+        `),
+      ),
+    ).rejects.toThrow()
+  })
+
   it("buildDph: accounting-period scope aggregates the book period and filing scope narrows by tax point", async () => {
     const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
       periodStart: "2026-01-01",
@@ -78,6 +132,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-01-15",
+        taxPointDate: "2026-01-15",
         lines: [
           {
             eventId: evJan.eventId,
@@ -107,6 +162,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-02-15",
+        taxPointDate: "2026-02-15",
         lines: [
           {
             eventId: evFeb.eventId,
@@ -167,6 +223,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-02-01T00:30:00+01:00",
+        taxPointDate: "2026-02-01",
         lines: [
           {
             eventId: event.eventId,
@@ -196,6 +253,43 @@ describe("VAT output builder evidence scopes", () => {
 
       expect(utc.rows.r1_base).toBe("1000.0000")
       expect(prague.rows.r1_base).toBe("1000.0000")
+    })
+  })
+
+  it("treats a date-only occurredAt as a Prague legal date in every session timezone", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+
+    await withOrganization(orgA, userId, async (db) => {
+      await db.execute(sql`SELECT set_config('TimeZone', 'Asia/Tokyo', true)`)
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Date-only legal event",
+        occurredAt: "2026-02-01",
+        responsibleUserId: userId,
+      })
+
+      const [stored] = await executeRows<{
+        occurred_on: string
+        occurred_at_utc: string
+      }>(
+        db,
+        sql`SELECT occurred_on::text,
+                   to_char(
+                     occurred_at AT TIME ZONE 'UTC',
+                     'YYYY-MM-DD HH24:MI:SS'
+                   ) AS occurred_at_utc
+              FROM accounting_event
+             WHERE id = ${event.eventId}::uuid`,
+      )
+
+      expect(stored).toEqual({
+        occurred_on: "2026-02-01",
+        occurred_at_utc: "2026-01-31 23:00:00",
+      })
     })
   })
 
@@ -296,6 +390,109 @@ describe("VAT output builder evidence scopes", () => {
       expect(result.completeness).toEqual({
         status: "NEEDS_INPUT",
         missingTaxPointDocuments: 0,
+        missingReceivedDateDocuments: 1,
+      })
+    })
+  })
+
+  it("does not infer a tax point from linked events at runtime", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Invoice with unresolved tax point",
+        occurredAt: "2026-01-15",
+        responsibleUserId: userId,
+      })
+      const document = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2026-01-15",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const [stored] = await db.execute<{ tax_point_date: string | null }>(sql`
+        SELECT tax_point_date::text AS tax_point_date
+          FROM summary_record
+         WHERE id = ${document.summaryRecordId}::uuid
+      `)
+      expect(stored?.tax_point_date).toBeNull()
+    })
+  })
+
+  it("counts unresolved receipts from earlier tax points only when the accounting period overlaps the filing period", async () => {
+    const old = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2025-01-01",
+      periodEnd: "2025-12-31",
+    })
+    const current = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    })
+
+    await withOrganization(orgA, userId, async (db) => {
+      const captureUnresolvedReceipt = async (
+        seed: typeof old,
+        occurredAt: string,
+        taxPointDate: string,
+      ) => {
+        const event = await createEvent(db, seed.ctx, {
+          periodId: seed.periodId,
+          seriesId: seed.eventSeriesId,
+          description: "Received invoice with unresolved receipt date",
+          occurredAt,
+          responsibleUserId: userId,
+        })
+        await captureDocument(db, seed.ctx, {
+          periodId: seed.periodId,
+          seriesId: seed.documentSeriesId,
+          type: "RECEIVED_INVOICE",
+          issuedAt: occurredAt,
+          taxPointDate,
+          lines: [
+            {
+              eventId: event.eventId,
+              partials: [
+                {
+                  baseAmount: "1000.00",
+                  vatRate: "21",
+                  vatMode: "STANDARD",
+                  vatAmount: "210.00",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        })
+      }
+
+      await captureUnresolvedReceipt(old, "2025-12-15", "2025-12-15")
+      await captureUnresolvedReceipt(current, "2026-01-05", "2025-12-20")
+
+      const result = await buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: "2026-01-01", to: "2026-01-31" },
+      })
+      expect(result.completeness).toMatchObject({
+        status: "NEEDS_INPUT",
         missingReceivedDateDocuments: 1,
       })
     })
@@ -507,6 +704,7 @@ describe("VAT output builder evidence scopes", () => {
           seriesId: seed.documentSeriesId,
           type: "ISSUED_INVOICE",
           issuedAt: "2028-03-10",
+          taxPointDate: "2028-03-10",
           lines: [
             {
               eventId: event.eventId,
@@ -564,6 +762,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-01-10",
+        taxPointDate: "2026-01-10",
         lines: [
           {
             eventId: evJan.eventId,
@@ -594,6 +793,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-02-10",
+        taxPointDate: "2026-02-10",
         lines: [
           {
             eventId: evFeb.eventId,
@@ -665,6 +865,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2026-01-12",
+        taxPointDate: "2026-01-12",
         receivedDate: "2026-01-12",
         lines: [
           {
@@ -695,6 +896,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2026-02-12",
+        taxPointDate: "2026-02-12",
         receivedDate: "2026-02-12",
         lines: [
           {
@@ -761,6 +963,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-01-18",
+        taxPointDate: "2026-01-18",
         lines: [
           {
             eventId: evJan.eventId,
@@ -790,6 +993,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-02-18",
+        taxPointDate: "2026-02-18",
         lines: [
           {
             eventId: evFeb.eventId,
@@ -861,6 +1065,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-01-20",
+        taxPointDate: "2026-01-20",
         lines: [
           {
             eventId: evJan.eventId,
@@ -891,6 +1096,7 @@ describe("VAT output builder evidence scopes", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2026-02-20",
+        taxPointDate: "2026-02-20",
         lines: [
           {
             eventId: evFeb.eventId,

@@ -19,3 +19,6 @@ export type ScaffoldErrorCode =
   | "VAT_PAYER_REQUIRES_DIC"
   | "INVALID_FISCAL_YEAR_START"
   | "OSS_REQUIRES_VAT_REGISTRATION"
+  // A requested period range intersects an existing účetní období for the org
+  // (a double-book hazard). The API seam maps this one to 409 Conflict, not 422.
+  | "PERIOD_OVERLAP"

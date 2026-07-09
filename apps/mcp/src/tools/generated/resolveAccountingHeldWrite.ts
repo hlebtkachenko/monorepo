@@ -9,7 +9,7 @@ import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 const inputShape = {
   "action": z.enum(["approve","reject"]).describe("approve = execute the stored payload through the original domain path; reject = close the review without any domain write."),
   "note": z.string().max(1000).describe("Reviewer note, persisted to the audit trail.").optional(),
-  "id": z.string().describe("Held-write id (the reviewId returned by the held write). Resolved within the API key's own organization (FORCE RLS)."),
+  "id": z.string().uuid().describe("Held-write id (the reviewId returned by the held write). Resolved within the API key's own organization (FORCE RLS)."),
 }
 
 export function registerResolveAccountingHeldWrite(

@@ -1,7 +1,7 @@
 # 25. Afframe Brain runtime — a dedicated worker lane, not the request path
 
-- Status: Proposed (amended 2026-07-01 — see Amendment)
-- Date: 2026-06-25
+- Status: Accepted (amended 2026-07-01 — see Amendment)
+- Date: 2026-06-25 (Accepted 2026-07-08)
 - Deciders: Hleb Tkachenko
 
 > Records a decision from the approved Afframe Brain plan (v1.1). The Brain (`packages/brain`,

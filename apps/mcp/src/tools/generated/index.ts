@@ -19,6 +19,7 @@ import { registerGetAccountingFinancialStatements } from "./getAccountingFinanci
 import { registerGetAccountingStatementLayout } from "./getAccountingStatementLayout"
 import { registerClassifyAccountingEvent } from "./classifyAccountingEvent"
 import { registerListAccountingNumberSeries } from "./listAccountingNumberSeries"
+import { registerCreateNumberSeries } from "./createNumberSeries"
 import { registerCreateAccountingEvent } from "./createAccountingEvent"
 import { registerCaptureAccountingDocument } from "./captureAccountingDocument"
 import { registerCreateAccountingPosting } from "./createAccountingPosting"
@@ -32,6 +33,8 @@ import { registerGetAccount } from "./getAccount"
 import { registerListOcrTemplates } from "./listOcrTemplates"
 import { registerCreateOcrTemplate } from "./createOcrTemplate"
 import { registerConfirmOcrTemplate } from "./confirmOcrTemplate"
+import { registerListAccountingPeriods } from "./listAccountingPeriods"
+import { registerCreateAccountingPeriod } from "./createAccountingPeriod"
 
 export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
   registerPing(server, client)
@@ -52,6 +55,7 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerGetAccountingStatementLayout(server, client)
   registerClassifyAccountingEvent(server, client)
   registerListAccountingNumberSeries(server, client)
+  registerCreateNumberSeries(server, client)
   registerCreateAccountingEvent(server, client)
   registerCaptureAccountingDocument(server, client)
   registerCreateAccountingPosting(server, client)
@@ -65,6 +69,8 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerListOcrTemplates(server, client)
   registerCreateOcrTemplate(server, client)
   registerConfirmOcrTemplate(server, client)
+  registerListAccountingPeriods(server, client)
+  registerCreateAccountingPeriod(server, client)
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [
@@ -86,6 +92,7 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "getAccountingStatementLayout",
   "classifyAccountingEvent",
   "listAccountingNumberSeries",
+  "createNumberSeries",
   "createAccountingEvent",
   "captureAccountingDocument",
   "createAccountingPosting",
@@ -99,4 +106,6 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "listOcrTemplates",
   "createOcrTemplate",
   "confirmOcrTemplate",
+  "listAccountingPeriods",
+  "createAccountingPeriod",
 ] as const

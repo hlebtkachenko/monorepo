@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- **ci**: add `brain` to the allowed `pr-title` conventional-commit scopes so Afframe Brain PRs pass `conv-title` with a `feat(brain):`-style scope.
+
+### Docs
+
+- **brain**: mark ADRs 0025–0029 Accepted, rewrite the stale `packages/brain/README.md` to the accurate client-not-server design, and drop the phantom `--live` flag from `brain book` help.
+
 ## [v0.17.1] — 2026-07-09
 
 Patch release: CI/CD signal and bot-deploy fixes only. No product or runtime change.
@@ -51,7 +59,6 @@ Minor release: period-mechanism completion (PR1–PR4) — real accounting-perio
 
 ### Docs
 
-- **brain**: mark ADRs 0025–0029 Accepted, rewrite the stale `packages/brain/README.md` to the accurate client-not-server design, and drop the phantom `--live` flag from `brain book` help.
 - **brain**: weave Afframe Brain into the platform docs so it is no longer orphaned — `README.md` + `ARCHITECTURE.md` gain the `brain` package, the `apps/mcp`/`apps/cli` Brain role, and a Brain subsystem section; `docs/START-HERE.md`, `docs/README.md`, and `AGENTS.md` link the Brain docs; the stale `packages/brain/README.md` + `ARCHITECTURE.md` (which described the dropped in-process/worker design) get staleness banners. Adds `docs/AFFRAME-BRAIN-STATUS.md`, a tracked v1 status/roadmap tracker (M1–M4 done/outstanding, the engineering-done boundary, what's deferred to v2, and the open GitHub issues that gate each piece). Registers the two missing material ICT assets in the DORA register (`docs/INVENTORY.md`): the Anthropic Claude API and the Brain local operator client. Verified by two independent top-tier advisor passes. (#589)
 - **brain**: add the per-key throttler `429` failure mode to the Brain troubleshooting playbook, including the operator symptom and remediation path. (#591)
 

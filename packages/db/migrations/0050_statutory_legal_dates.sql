@@ -19,8 +19,32 @@ UPDATE accounting_event
    SET occurred_on = (occurred_at AT TIME ZONE 'Europe/Prague')::date
  WHERE occurred_on IS NULL;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conname = 'accounting_event_occurred_on_present'
+       AND conrelid = 'accounting_event'::regclass
+  ) THEN
+    ALTER TABLE accounting_event
+      ADD CONSTRAINT accounting_event_occurred_on_present
+      CHECK (occurred_on IS NOT NULL) NOT VALID;
+  END IF;
+END;
+$$;
+
+ALTER TABLE accounting_event
+  VALIDATE CONSTRAINT accounting_event_occurred_on_present;
+
+-- PostgreSQL 12+ reuses the validated check and skips the table scan. Squawk
+-- cannot infer that relationship, so this one statement is suppressed.
+-- squawk-ignore adding-not-nullable-field
 ALTER TABLE accounting_event
   ALTER COLUMN occurred_on SET NOT NULL;
+
+ALTER TABLE accounting_event
+  DROP CONSTRAINT accounting_event_occurred_on_present;
 
 CREATE INDEX IF NOT EXISTS accounting_event_org_occurred_on_idx
   ON accounting_event (organization_id, occurred_on);

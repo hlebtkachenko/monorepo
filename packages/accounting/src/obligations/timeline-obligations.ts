@@ -50,12 +50,9 @@ export function statutoryVatEnvelope(
 }
 
 function obligationKey(obligation: Obligation): string {
-  return [
-    obligation.kind,
-    obligation.periodStart,
-    obligation.periodEnd,
-    obligation.applicability.status,
-  ].join(":")
+  return [obligation.kind, obligation.periodStart, obligation.periodEnd].join(
+    ":",
+  )
 }
 
 /**
@@ -74,7 +71,17 @@ export function computeTimelineObligations(input: {
   const issues: ProfileIssue[] = []
 
   const add = (rows: Obligation[]) => {
-    for (const row of rows) obligations.set(obligationKey(row), row)
+    for (const row of rows) {
+      const key = obligationKey(row)
+      const current = obligations.get(key)
+      if (
+        !current ||
+        (current.applicability.status === "CONDITION_NOT_EVALUATED" &&
+          row.applicability.status === "APPLICABLE")
+      ) {
+        obligations.set(key, row)
+      }
+    }
   }
 
   for (const segment of input.vatTimeline) {

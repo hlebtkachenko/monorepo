@@ -195,4 +195,39 @@ describe("computeTimelineObligations", () => {
       result.obligations.filter((row) => row.kind === "VAT_RETURN"),
     ).toHaveLength(4)
   })
+
+  it("merges a mid-month regime change into one filing with proven applicability", () => {
+    const vatTimeline = resolveEffectiveTimeline({
+      from: "2026-01-01",
+      to: "2026-01-31",
+      facts: [
+        {
+          sourceId: "identified",
+          validFrom: "2026-01-01",
+          validTo: "2026-01-15",
+          value: { regime: "IDENTIFIED_PERSON" as const, filingPeriod: null },
+        },
+        {
+          sourceId: "payer",
+          validFrom: "2026-01-16",
+          validTo: null,
+          value: { regime: "PAYER" as const, filingPeriod: "MONTHLY" as const },
+        },
+      ],
+    })
+
+    const result = computeTimelineObligations({
+      from: "2026-01-01",
+      to: "2026-01-31",
+      personType: "LEGAL",
+      vatTimeline,
+      payrollTimeline: [],
+    })
+    const vatReturns = result.obligations.filter(
+      (row) => row.kind === "VAT_RETURN",
+    )
+
+    expect(vatReturns).toHaveLength(1)
+    expect(vatReturns[0]?.applicability.status).toBe("APPLICABLE")
+  })
 })

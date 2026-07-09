@@ -4,10 +4,9 @@ name: Tool versions check
 # CLAUDE.md Dependency Update Coverage Rule; template:
 # _template-update-check.yml.example). Covered pins:
 #
-#   pnpm        — root package.json `packageManager` (also synced into the 3
-#                 app Dockerfiles, infra/Dockerfile.openfga-bootstrap,
-#                 .devcontainer/Dockerfile, mise.toml, and the
-#                 _deploy-aws.yml pnpm/action-setup `version` — bump together)
+#   pnpm        — root package.json `packageManager`, plus local sync checks
+#                 for the 3 app Dockerfiles, infra/Dockerfile.openfga-bootstrap,
+#                 .devcontainer/Dockerfile, mise.toml, and _deploy-aws.yml.
 #   gitleaks    — ci.yml GITLEAKS_VERSION
 #   infisical   — ci.yml INFISICAL_VERSION
 #   trufflehog  — ci.yml TRUFFLEHOG_VERSION
@@ -90,7 +89,28 @@ jobs:
 
           PNPM_CURRENT=$(node -p "require('./package.json').packageManager.split('@')[1]")
           PNPM_LATEST=$(curl -fsSL https://registry.npmjs.org/pnpm/latest | jq -r '.version')
-          compare "pnpm" "$PNPM_CURRENT" "$PNPM_LATEST" "package.json packageManager (+ 7 synced copies, see workflow header)"
+          compare "pnpm" "$PNPM_CURRENT" "$PNPM_LATEST" "package.json packageManager"
+
+          check_pnpm_copy() { # where current
+            if [ -z "$2" ]; then
+              echo "::error::$1: could not extract pnpm version (pattern rot?)"
+              exit 1
+            fi
+            if [ "$2" != "$PNPM_CURRENT" ]; then
+              add_drift "pnpm local sync" "$2" "$PNPM_CURRENT" "$1"
+            fi
+          }
+
+          for dockerfile in apps/web/Dockerfile apps/api/Dockerfile apps/admin/Dockerfile infra/Dockerfile.openfga-bootstrap; do
+            check_pnpm_copy "$dockerfile ARG PNPM_VERSION" \
+              "$(grep -oP 'ARG PNPM_VERSION=\K[0-9.]+' "$dockerfile")"
+          done
+          check_pnpm_copy ".devcontainer/Dockerfile corepack prepare" \
+            "$(grep -oP 'corepack prepare pnpm@\K[0-9.]+' .devcontainer/Dockerfile | head -1)"
+          check_pnpm_copy "mise.toml pnpm tool pin" \
+            "$(grep -oP '^pnpm\s*=\s*\"\K[0-9.]+' mise.toml)"
+          check_pnpm_copy ".github/workflows/_deploy-aws.yml pnpm/action-setup version" \
+            "$(awk '/pnpm\/action-setup@/{seen=1; next} seen && /version:/{gsub(/[" ]/, "", $2); print $2; exit}' .github/workflows/_deploy-aws.yml)"
 
           compare "gitleaks" \
             "$(grep -oP 'GITLEAKS_VERSION: "\K[0-9.]+' .github/workflows/ci.yml)" \
@@ -123,7 +143,7 @@ jobs:
             ".github/workflows/cerbos-policies-test.yml (version + sha256 line)"
 
           compare "squawk" \
-            "$(grep -oP 'cargo install squawk --locked --version \K[0-9.]+' .github/workflows/db-migration-lint.yml)" \
+            "$(grep -oP 'SQUAWK_VERSION: \"\K[0-9.]+' .github/workflows/db-migration-lint.yml)" \
             "$(latest_gh sbdchd/squawk)" \
             ".github/workflows/db-migration-lint.yml"
 

@@ -1,7 +1,8 @@
 # Postgres-side pgTap tests for invariants vitest can't reach: policy
 # existence, function ownership, trigger configuration, role grants.
 #
-# Advisory until first green PR cycle (see CLAUDE.md CI policy).
+# Advisory: not listed in the main branch ruleset. It still fails its own
+# workflow on pgTap regressions so reviewers see a real red advisory check.
 #
 # Triggered on migration or pgTap test changes.
 
@@ -31,7 +32,7 @@ jobs:
   pgtap:
     name: pgTap suite
     runs-on: ubuntu-latest
-    continue-on-error: true # ADVISORY — flip after first green run
+    timeout-minutes: 15
     permissions:
       contents: read
     services:

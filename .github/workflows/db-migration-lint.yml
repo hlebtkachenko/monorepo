@@ -4,14 +4,15 @@ name: DB migration lint (squawk)
 # Flags destructive or unsafe DDL patterns (missing NOT VALID, lock escalation
 # risks, etc.) before they reach main.
 #
-# ADVISORY — continue-on-error: true per project convention for new workflows.
-# Flip to required after a full PR cycle passes green.
+# Advisory: not listed in the main branch ruleset. It still fails its own
+# workflow on unsafe migration SQL so reviewers see a real red advisory check.
 
 on:
   pull_request:
     branches: [main]
     paths:
       - "packages/db/migrations/**"
+      - ".github/workflows/db-migration-lint.yml"
 
 permissions: {}
 
@@ -23,9 +24,11 @@ jobs:
   squawk:
     name: squawk migration lint
     runs-on: ubuntu-latest
-    continue-on-error: true # ADVISORY
+    timeout-minutes: 15
     permissions:
       contents: read
+    env:
+      SQUAWK_VERSION: "2.59.0"
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
@@ -34,14 +37,28 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore cached squawk binary
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          # Binary only: the key is version-exact and the install step
+          # early-exits on a cache hit, so cargo never reads the registry —
+          # caching ~/.cargo/registry + git would restore dead weight.
+          path: ~/.cargo/bin/squawk
+          key: squawk-${{ runner.os }}-${{ env.SQUAWK_VERSION }}
+
       - name: Install squawk via cargo
         run: |
           set -euo pipefail
           # squawk distributes via crates.io; binary releases on GitHub are
           # inconsistent across versions. cargo install is the canonical path.
           # ubuntu-latest ships cargo via rustup.
-          cargo install squawk --locked --version 2.59.0
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          if [ -x "$HOME/.cargo/bin/squawk" ] && "$HOME/.cargo/bin/squawk" --version | grep -q "$SQUAWK_VERSION"; then
+            "$HOME/.cargo/bin/squawk" --version
+            exit 0
+          fi
+          cargo install squawk --locked --version "$SQUAWK_VERSION"
+          squawk --version
 
       - name: Lint migrations
         # Rule exclusions (per project convention; revisit when retrofitting):

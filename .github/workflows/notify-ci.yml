@@ -15,6 +15,7 @@ on:
       - Container Scan
       - CodeQL
     types: [completed]
+    branches: [main]
 
 permissions: {}
 

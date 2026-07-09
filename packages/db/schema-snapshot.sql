@@ -917,6 +917,19 @@ CREATE FUNCTION public.app_is_workspace_owner(p_ws_id uuid, p_user_id uuid) RETU
 $$;
 
 --
+-- Name: app_lock_workspace_member(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_lock_workspace_member(p_workspace_id uuid, p_user_id uuid) RETURNS void
+    LANGUAGE sql
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT pg_advisory_xact_lock(
+    hashtextextended(p_workspace_id::text || ':' || p_user_id::text, 0)
+  );
+$$;
+
+--
 -- Name: app_maintain_account_balance(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1154,6 +1167,39 @@ END;
 $$;
 
 --
+-- Name: app_prevent_inactive_responsible_member(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_prevent_inactive_responsible_member() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' OR (
+    OLD.active = true
+    AND (
+      NEW.active = false
+      OR NEW.workspace_id IS DISTINCT FROM OLD.workspace_id
+      OR NEW.user_id IS DISTINCT FROM OLD.user_id
+    )
+  ) THEN
+    PERFORM public.app_lock_workspace_member(OLD.workspace_id, OLD.user_id);
+
+    IF EXISTS (
+       SELECT 1
+         FROM organization o
+        WHERE o.workspace_id = OLD.workspace_id
+          AND o.responsible_user_id = OLD.user_id
+    ) THEN
+      RAISE EXCEPTION 'responsible user must be unassigned before workspace membership is deactivated or deleted'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$;
+
+--
 -- Name: app_prevent_last_owner_demotion(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1343,32 +1389,6 @@ END;
 $$;
 
 --
--- Name: app_unassign_inactive_workspace_member(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.app_unassign_inactive_workspace_member() RETURNS trigger
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'pg_catalog'
-    AS $$
-BEGIN
-  IF (TG_OP = 'DELETE' OR OLD.active = true)
-     AND NOT EXISTS (
-       SELECT 1
-         FROM workspace_membership wm
-        WHERE wm.workspace_id = OLD.workspace_id
-          AND wm.user_id = OLD.user_id
-          AND wm.active = true
-     ) THEN
-    UPDATE organization
-       SET responsible_user_id = NULL
-     WHERE workspace_id = OLD.workspace_id
-       AND responsible_user_id = OLD.user_id;
-  END IF;
-  RETURN NULL;
-END;
-$$;
-
---
 -- Name: app_unmapped_account_groups(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1406,16 +1426,22 @@ CREATE FUNCTION public.app_validate_responsible_assignee() RETURNS trigger
     SET search_path TO 'public', 'pg_catalog'
     AS $$
 BEGIN
-  IF NEW.responsible_user_id IS NOT NULL
-     AND NOT EXISTS (
+  IF NEW.responsible_user_id IS NOT NULL THEN
+    PERFORM public.app_lock_workspace_member(
+      NEW.workspace_id,
+      NEW.responsible_user_id
+    );
+
+    IF NOT EXISTS (
        SELECT 1
          FROM workspace_membership wm
         WHERE wm.workspace_id = NEW.workspace_id
           AND wm.user_id = NEW.responsible_user_id
           AND wm.active = true
-     ) THEN
-    RAISE EXCEPTION 'responsible user must be an active member of the organization workspace'
-      USING ERRCODE = '23514';
+    ) THEN
+      RAISE EXCEPTION 'responsible user must be an active member of the organization workspace'
+        USING ERRCODE = '23514';
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -2272,6 +2298,7 @@ CREATE TABLE public.organization_tax_profile (
     valid_from date NOT NULL,
     valid_to date,
     has_employees boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
     has_standard_employment boolean,
     has_dpp boolean,
     has_dpc boolean,
@@ -2279,7 +2306,6 @@ CREATE TABLE public.organization_tax_profile (
     health_insurance_participation boolean,
     payroll_tax_advance_due boolean,
     special_rate_withholding_due boolean,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT organization_tax_profile_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to)))
 );
 
@@ -4436,10 +4462,10 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
 
 --
--- Name: workspace_membership workspace_membership_unassign_responsibility; Type: TRIGGER; Schema: public; Owner: -
+-- Name: workspace_membership workspace_membership_responsibility_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_membership_unassign_responsibility AFTER DELETE OR UPDATE OF active, workspace_id, user_id ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_unassign_inactive_workspace_member();
+CREATE TRIGGER workspace_membership_responsibility_guard BEFORE DELETE OR UPDATE OF active, workspace_id, user_id ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_inactive_responsible_member();
 
 --
 -- Name: account account_chart_fk; Type: FK CONSTRAINT; Schema: public; Owner: -

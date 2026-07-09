@@ -1,8 +1,14 @@
 // #469 — the `afframe brain run` operator command: run one live Brain booking session (or inspect its plan).
 //
-// The live path is creds + `BRAIN_RUNTIME_ACTIVE=1` gated by `runLiveBrainSession` (in @workspace/intake),
-// which fails closed before the SDK launcher is ever consulted. `--dry-run` runs today with NO creds — it
-// builds + prints the exact tool-call plan a live run would execute, so an operator can inspect it first.
+// The live path is creds-gated by `runLiveBrainSession` (in @workspace/intake), which fails closed before the
+// SDK launcher is ever consulted. `--dry-run` runs today with NO creds — it builds + prints the exact
+// tool-call plan a live run would execute, so an operator can inspect it first.
+//
+// [M0.2a] Env-collapse: a fresh session needs ONLY `BRAIN_API_KEY` pasted in. `resolveBrainEnv` (./env)
+// defaults `BRAIN_MCP_ENDPOINT` to the production REST base and `BRAIN_AGENT_SDK_AUTH` to `"ambient"` when
+// unset. The client no longer pre-blocks on `BRAIN_RUNTIME_ACTIVE` / `BRAIN_LIVE` — the SERVER admission lane
+// is the real authority and every write still HELDs there; the client always attempts, the server decides. An
+// admission-refused / lane-off run surfaces as `LANE_OFF_MESSAGE` (./session-config), not a raw 429.
 //
 // The SDK-backed launcher (`./sdk-launcher`, the only `@anthropic-ai/claude-agent-sdk` import) is loaded
 // LAZILY, inside the live branch, so `--dry-run` and every non-Brain command start without pulling in the SDK.
@@ -12,6 +18,7 @@ import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
 import type { Command } from "commander"
 import {
+  BRAIN_HARNESS_REQUIRED_ENV,
   BrainHarnessNotWiredError,
   planBrainDryRun,
   runLiveBrainSession,
@@ -31,6 +38,7 @@ import {
   renderOcrCapturePlan,
   type BookContext,
 } from "./book"
+import { resolveBrainEnv, type BrainEnv } from "./env"
 import {
   assembleExtractPlan,
   isVisionMediaPath,
@@ -38,6 +46,7 @@ import {
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
+import { renderLiveResult } from "./session-config"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
 export function registerBrainCommand(program: Command): void {
@@ -49,7 +58,8 @@ export function registerBrainCommand(program: Command): void {
     .command("run")
     .description(
       "Run one live Brain booking session against the deployed REST API (via a local stdio MCP bridge). " +
-        "Needs BRAIN_RUNTIME_ACTIVE=1 + creds; --dry-run inspects the plan with no creds.",
+        "Needs only BRAIN_API_KEY (BRAIN_MCP_ENDPOINT/BRAIN_AGENT_SDK_AUTH default; the server admission " +
+        "lane, not the client, decides whether the write lane is open); --dry-run inspects the plan with no creds.",
     )
     .requiredOption(
       "--inputs <path>",
@@ -188,20 +198,15 @@ export function registerBrainCommand(program: Command): void {
 
         // Lazy-load the SDK-backed launcher only when actually running live (mirrors `run` / `book`).
         const { sdkExtractSession } = await import("./sdk-launcher")
-        const mcpEndpoint = process.env.BRAIN_MCP_ENDPOINT ?? ""
-        const apiKey = process.env.BRAIN_API_KEY ?? ""
-        const agentSdkAuth = process.env.BRAIN_AGENT_SDK_AUTH ?? ""
-        const missing = [
-          ["BRAIN_MCP_ENDPOINT", mcpEndpoint],
-          ["BRAIN_API_KEY", apiKey],
-          ["BRAIN_AGENT_SDK_AUTH", agentSdkAuth],
-        ]
-          .filter(([, value]) => !value)
-          .map(([name]) => name)
-        if (missing.length > 0) {
-          // Fail-closed: name exactly which creds are unmet, exit non-zero, no stack.
+        // [M0.2a] mcpEndpoint/agentSdkAuth default (resolveBrainEnv); only the API key has no default — it
+        // is the one paste a fresh session needs.
+        const { mcpEndpoint, apiKey, agentSdkAuth } = resolveBrainEnv(
+          process.env,
+        )
+        if (!apiKey) {
+          // Fail-closed: name exactly which cred is unmet, exit non-zero, no stack.
           output.write(
-            `brain extract blocked: missing ${missing.join(", ")}. Set them (workspace OCR-template key) to run live.\n`,
+            "brain extract blocked: missing BRAIN_API_KEY. Set it (workspace OCR-template key) to run live.\n",
           )
           process.exit(1)
         }
@@ -402,24 +407,46 @@ async function inspectConfirmAndBook(
 }
 
 /**
+ * [M0.2a] Resolve `runLiveBrainSession`'s `readEnv` name → value for the THREE creds it still requires
+ * (`BRAIN_HARNESS_REQUIRED_ENV`), from the already-defaulted `BrainEnv` — so the harness gate sees the
+ * RESOLVED value (e.g. the prod default), not the possibly-unset raw process env. Any other name (there are
+ * none left today; kept generic for forward-compat) falls back to the raw process env.
+ */
+function readHarnessEnv(name: string, resolved: BrainEnv): string | undefined {
+  switch (name) {
+    case BRAIN_HARNESS_REQUIRED_ENV.mcpEndpoint:
+      return resolved.mcpEndpoint
+    case BRAIN_HARNESS_REQUIRED_ENV.apiKey:
+      return resolved.apiKey
+    case BRAIN_HARNESS_REQUIRED_ENV.agentSdkAuth:
+      return resolved.agentSdkAuth
+    default:
+      return process.env[name]
+  }
+}
+
+/**
  * Drive ONE inspected plan through the live loop (shared by `brain run`, the structured folder path, and the
  * OCR bridge). It fails CLOSED on the `BrainHarnessNotWiredError` — writing `${command} blocked: <message>`,
- * exiting non-zero, no stack — so the write lane can never run half-provisioned. The SDK-backed launcher is
- * lazy-loaded so non-live paths never pull in the SDK.
+ * exiting non-zero, no stack — so a run can never proceed without real creds. The SDK-backed launcher is
+ * lazy-loaded so non-live paths never pull in the SDK. [M0.2a] The write lane itself is no longer client-
+ * gated: `renderLiveResult` prints a clean human sentence for an admission-refused / lane-off server
+ * response, instead of the raw 429 tool-result text.
  */
 async function runPlanLive(
   plan: BrainDryRunPlan,
   command: string,
 ): Promise<void> {
   const { sdkAgentSessionLauncher } = await import("./sdk-launcher")
+  const brainEnv = resolveBrainEnv(process.env)
   try {
     const result = await runLiveBrainSession({
       plan,
-      mcpEndpoint: process.env.BRAIN_MCP_ENDPOINT ?? "",
-      readEnv: (name) => process.env[name],
+      mcpEndpoint: brainEnv.mcpEndpoint,
+      readEnv: (name) => readHarnessEnv(name, brainEnv),
       launcher: sdkAgentSessionLauncher,
     })
-    output.write(JSON.stringify(result, null, 2) + "\n")
+    output.write(renderLiveResult(result))
   } catch (err) {
     if (err instanceof BrainHarnessNotWiredError) {
       // Fail-closed: name exactly what is unmet, stop, exit non-zero, no stack.

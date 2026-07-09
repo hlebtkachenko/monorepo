@@ -23,7 +23,9 @@ export interface CliConfig {
 const CONFIG_DIR = join(homedir(), ".config", "afframe")
 const CONFIG_PATH = join(CONFIG_DIR, "config.toml")
 
-const DEFAULT_BASE = "https://api.afframe.com"
+/** The production Afframe public-API base URL. Exported so other CLI surfaces (e.g. `brain/env.ts`) that
+ * need the same prod default never hardcode a second copy of it. */
+export const DEFAULT_BASE = "https://api.afframe.com"
 
 interface FileShape {
   profiles: Record<string, { api_key?: string; api_base?: string }>

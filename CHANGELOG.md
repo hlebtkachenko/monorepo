@@ -19,6 +19,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- **accounting/legal-dates**: keep missing or ambiguous DUZP, DPPD, and invoice-receipt evidence unresolved, and reject legal-date corrections after an accounting period is closed.
 - **mcp**: the MCP tool codegen (`gen-tools.ts`) silently dropped JSON-Schema `format`, so `conversationId` and other UUID fields never received `.uuid()` in the generated tools; now emit `.uuid()` for `format: "uuid"` so generated tools match the API contract. (#577)
 
 ### Docs

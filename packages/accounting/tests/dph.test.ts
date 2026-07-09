@@ -286,6 +286,7 @@ describe("VAT period activity legal dates", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2045-01-10",
+        taxPointDate: "2045-01-10",
         receivedDate: "2045-03-05",
         lines: [
           {

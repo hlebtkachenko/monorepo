@@ -307,4 +307,17 @@ describe("constants", () => {
     } as BrainDryRunPlan
     expect(buildBrainKickoff(other)).not.toBe(kickoff)
   })
+
+  it("pins the deterministic idempotency-key when the bulk orchestrator supplies one", () => {
+    const plan = stubPlan()
+    const key = "brain-book-abc123"
+    const kickoff = buildBrainKickoff(plan, key)
+    // The exact key is pinned into the capture step so the session cannot generate its own — the resume-safe
+    // property the bulk orchestrator relies on (same doc → same Idempotency-Key → server dedups a re-book).
+    expect(kickoff).toContain('"idempotency-key"')
+    expect(kickoff).toContain(key)
+    expect(kickoff).toContain("do not generate your own")
+    // Absent a key, the kickoff never mentions the idempotency-key argument (unchanged single-doc behavior).
+    expect(buildBrainKickoff(plan)).not.toContain('"idempotency-key"')
+  })
 })

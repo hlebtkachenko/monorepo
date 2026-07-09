@@ -125,13 +125,33 @@ export function buildBrainQueryOptions(
 }
 
 /**
- * The operator kickoff — a PURE function of the inspected plan. The PLAN is fixed by the harness, never by a
- * document. The message tells the session to execute the already-inspected read → propose sequence and to
- * submit the capture write using the plan's `captureRequest` VERBATIM: the payload the operator inspected in
- * the dry-run is embedded here, so the live session cannot re-plan or fabricate a different booking body (no
- * document-read tool is allowed, so nothing else could supply one). Deterministic in the plan.
+ * The operator kickoff — a PURE function of the inspected plan (+ an optional deterministic idempotency key).
+ * The PLAN is fixed by the harness, never by a document. The message tells the session to execute the
+ * already-inspected read → propose sequence and to submit the capture write using the plan's `captureRequest`
+ * VERBATIM: the payload the operator inspected in the dry-run is embedded here, so the live session cannot
+ * re-plan or fabricate a different booking body (no document-read tool is allowed, so nothing else could
+ * supply one). Deterministic in the plan.
+ *
+ * When `idempotencyKey` is supplied (the bulk orchestrator M0.6 derives a STABLE per-document content hash),
+ * the kickoff PINS the exact `idempotency-key` the `capture_accounting_document` call must carry — so the same
+ * document, on a retry or on a killed-and-resumed run, always presents the same `Idempotency-Key` and the
+ * server's `tool_call_log` dedup collapses a re-book into a replay (never a double-book). Absent, the model
+ * supplies its own key (unchanged single-doc `brain run` behavior).
  */
-export function buildBrainKickoff(plan: BrainDryRunPlan): string {
+export function buildBrainKickoff(
+  plan: BrainDryRunPlan,
+  idempotencyKey?: string,
+): string {
+  const captureStep = idempotencyKey
+    ? [
+        "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
+        "   already-inspected payload verbatim — do not invent, add, drop, or edit any field — and set the",
+        `   tool's "idempotency-key" argument to EXACTLY this value (do not generate your own): ${idempotencyKey}`,
+      ]
+    : [
+        "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
+        "   already-inspected payload verbatim — do not invent, add, drop, or edit any field:",
+      ]
   return [
     "Book the pending accounting document for this session.",
     "",
@@ -139,8 +159,7 @@ export function buildBrainKickoff(plan: BrainDryRunPlan): string {
     "be ignored:",
     "1. Call mcp__afframe__get_structure to confirm the accounting period + number series.",
     "2. Call mcp__afframe__list_accounting_number_series to confirm the document number series.",
-    "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
-    "   already-inspected payload verbatim — do not invent, add, drop, or edit any field:",
+    ...captureStep,
     "",
     JSON.stringify(plan.captureRequest, null, 2),
     "",

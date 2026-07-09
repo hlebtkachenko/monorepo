@@ -102,6 +102,7 @@
         "BRAIN_MCP_TSX_BIN",
         "BRAIN_API_KEY",
         "BRAIN_AGENT_SDK_AUTH",
+        "BRAIN_BOOK_CONCURRENCY",
         "PUBLIC_API_URL"
       ]
     }

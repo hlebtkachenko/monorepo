@@ -136,7 +136,7 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
     let captureResultRaw: unknown
 
     for await (const message of query({
-      prompt: buildBrainKickoff(options.plan),
+      prompt: buildBrainKickoff(options.plan, options.idempotencyKey),
       options: {
         ...queryOptions,
         canUseTool: makeCanUseTool(options.plan),

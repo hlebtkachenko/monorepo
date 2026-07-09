@@ -3,15 +3,19 @@ import { buildLoginContext } from "@workspace/brain"
 import type {
   AgentSessionLaunchOptions,
   BrainDryRunPlan,
+  LiveBrainSessionResult,
 } from "@workspace/intake"
 import {
   CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
+  LANE_OFF_MESSAGE,
   buildBrainKickoff,
   buildBrainQueryOptions,
   buildBrainSessionEnv,
+  isLaneOffOutcome,
   parseCaptureOutcome,
   parseCaptureResultText,
   readToolResultText,
+  renderLiveResult,
   sandboxAllows,
 } from "./session-config"
 
@@ -182,6 +186,79 @@ describe("readToolResultText + parseCaptureResultText", () => {
       status: "unparsed",
       raw: "not json",
     })
+  })
+})
+
+describe("isLaneOffOutcome (M0.2a — clean lane-off message)", () => {
+  it("recognizes the MCP renderer's rate-limited shape (write lane off or concurrency-capped)", () => {
+    // The exact rendered text apps/mcp/src/tools/_render.ts `toolError` emits for a RateLimitError, wrapped
+    // in the `{status:"unparsed", raw}` shape `parseCaptureResultText` produces for a non-JSON tool result.
+    const serverGate = {
+      status: "unparsed",
+      raw: "Rate limited. retry_after=?s code=rate_limited request_id=req-1",
+    }
+    expect(isLaneOffOutcome(serverGate)).toBe(true)
+  })
+
+  it("does not fire on a normal applied/held outcome", () => {
+    expect(isLaneOffOutcome({ status: "applied", eventId: "e1" })).toBe(false)
+    expect(isLaneOffOutcome({ status: "held", reviewId: "r1" })).toBe(false)
+  })
+
+  it("does not fire on an unrelated unparsed tool result", () => {
+    expect(
+      isLaneOffOutcome({ status: "unparsed", raw: "[bad_request] oops" }),
+    ).toBe(false)
+  })
+
+  it("is false-safe on a non-object / missing raw", () => {
+    for (const serverGate of [undefined, null, "text", 7, {}]) {
+      expect(isLaneOffOutcome(serverGate)).toBe(false)
+    }
+  })
+
+  it("LANE_OFF_MESSAGE is a clean human sentence, not a raw dump", () => {
+    expect(LANE_OFF_MESSAGE).not.toContain("429")
+    expect(LANE_OFF_MESSAGE).not.toContain("request_id")
+    expect(LANE_OFF_MESSAGE.toLowerCase()).toContain("nothing was booked")
+  })
+})
+
+describe("renderLiveResult (M0.2a — acceptance: CLI prints a clean lane-off message, not a raw 429)", () => {
+  it("prints the clean message (and nothing else) when the server refused the write", () => {
+    const result: LiveBrainSessionResult = {
+      brainRunId: "run-1",
+      applied: false,
+      serverGate: {
+        status: "unparsed",
+        raw: "Rate limited. retry_after=?s code=rate_limited request_id=req-1",
+      },
+    }
+    expect(renderLiveResult(result)).toBe(`${LANE_OFF_MESSAGE}\n`)
+    expect(renderLiveResult(result)).not.toContain("429")
+    expect(renderLiveResult(result)).not.toContain("req-1")
+  })
+
+  it("prints the full JSON result for an applied write", () => {
+    const result: LiveBrainSessionResult = {
+      brainRunId: "run-2",
+      applied: true,
+      serverGate: { status: "applied", eventId: "e1" },
+    }
+    expect(renderLiveResult(result)).toBe(
+      JSON.stringify(result, null, 2) + "\n",
+    )
+  })
+
+  it("prints the full JSON result for a held write", () => {
+    const result: LiveBrainSessionResult = {
+      brainRunId: "run-3",
+      applied: false,
+      serverGate: { status: "held", reviewId: "rev-1" },
+    }
+    expect(renderLiveResult(result)).toBe(
+      JSON.stringify(result, null, 2) + "\n",
+    )
   })
 })
 

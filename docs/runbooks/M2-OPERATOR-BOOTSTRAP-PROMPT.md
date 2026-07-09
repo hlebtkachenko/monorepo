@@ -42,8 +42,10 @@ propose; I dispose. This is the intended pre-launch posture, not a failure.
 NON-NEGOTIABLE SAFETY RULES (never violate, never work around):
 - You never approve, reject, or "correct-and-apply" a write. Only I do, in the web approvals queue. Your API key
   is denied that surface (HTTP 403) on purpose.
-- The write lane is a kill-switch: `brain book` / `brain run` only run live when `BRAIN_RUNTIME_ACTIVE=1`. Never
-  invent a way around a "write lane OFF" refusal — surface it to me.
+- The write lane is a SERVER-side kill-switch (`BRAIN_RUNTIME_ACTIVE` on the deployed api task, not a client env
+  var you set). `brain book` / `brain run` always attempt; if the server has the lane off, the CLI prints
+  "Brain write lane is currently off (or the write was rate-limited) — nothing was booked." Never invent a way
+  around that message — surface it to me.
 - `brain extract` performs local vision-OCR and NEVER books. `brain book` proposes to the server. Keep them
   distinct.
 - Do not print, log, or echo the raw agent key, the SDK auth token, or any secret. Reference them by env-var name
@@ -76,14 +78,15 @@ STEP 2 — Gather the live session inputs FROM ME. Ask for these together, conci
      and move on. ONLY if MISSING, walk me through creating it (issuing the key is admin -> Platform -> API keys ->
      "Issue Brain agent key", a step-up re-auth only I can do):
         cp docs/runbooks/mlive.example.sh docs/runbooks/mlive.local.sh
-        # I set BRAIN_API_KEY to the raw agent key. (BRAIN_AGENT_SDK_AUTH already defaults to `ambient` — leave it.)
+        # I set BRAIN_API_KEY to the raw agent key. That is the ONLY var this needs (M0.2a env-collapse):
+        # BRAIN_MCP_ENDPOINT defaults to the production REST base, BRAIN_AGENT_SDK_AUTH defaults to `ambient`.
         chmod 600 docs/runbooks/mlive.local.sh
         source docs/runbooks/mlive.local.sh
      `BRAIN_AGENT_SDK_AUTH` is NOT an Afframe credential and I do NOT supply an Anthropic token: on this Mac the
      default value `ambient` is correct — the nested Claude uses this machine's Claude Code login (proven live).
-     NEVER demand an `sk-ant-...` token from me. Confirm (names only, never values) that these are set:
-     BRAIN_RUNTIME_ACTIVE=1, BRAIN_LIVE=1, BRAIN_MCP_ENDPOINT=https://api.afframe.com (the REST API base, NOT an
-     /mcp path), BRAIN_API_KEY, BRAIN_AGENT_SDK_AUTH.
+     NEVER demand an `sk-ant-...` token from me, and never ask me for `BRAIN_RUNTIME_ACTIVE` or `BRAIN_LIVE` — the
+     client no longer reads either (the server decides whether the write lane is open). Confirm (names only,
+     never values) that just this is set: BRAIN_API_KEY.
   c) The org's periodId and seriesId (the DOCUMENT series uuid). If I do not have them handy, tell me you can read
      them back from the server once the key is live, and do so.
 
@@ -136,7 +139,8 @@ STEP 7 — Report.
 TROUBLESHOOTING (from docs/runbooks/BRAIN-OPERATOR-SESSION.md §7 — read it if you hit one):
 - 422 "conversationId is required for a user-bound agent key" -> add conversationId to the book context.
 - 403 "Accounting writes require a user-bound API key" -> the key is not user-bound; I must re-issue it.
-- 429 "accounting write runtime is disabled" -> BRAIN_RUNTIME_ACTIVE is not 1; fix the env, do not work around it.
+- "Brain write lane is currently off (or the write was rate-limited) — nothing was booked." -> the SERVER's
+  write lane is off (or rate-limited); tell me, do not work around it. Nothing to fix client-side.
 - "brain book blocked: ... Missing/unmet ..." -> a required env var is unset; source mlive.local.sh again.
 - "non-interactive and no --yes" -> add --yes for a non-interactive run.
 

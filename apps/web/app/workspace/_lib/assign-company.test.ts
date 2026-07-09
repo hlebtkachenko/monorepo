@@ -241,6 +241,40 @@ describe("setCompanyAssignee", () => {
     expect(result).toEqual({ ok: true })
     expect(await responsibleUserId(org)).toBeNull()
   }, 30_000)
+
+  it("rejects an invalid assignee at the database boundary", async () => {
+    const owner = await seedUser()
+    const ws = await seedWorkspace(owner)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "assign-db-guard",
+      legalName: "Assign DB Guard s.r.o.",
+    })
+    const outsider = await seedUser()
+
+    await expect(
+      sql`UPDATE organization
+             SET responsible_user_id = ${outsider}::uuid
+           WHERE id = ${org}::uuid`,
+    ).rejects.toThrow(/active member/)
+  }, 30_000)
+
+  it("clears responsibility when the assignee membership becomes inactive", async () => {
+    const owner = await seedUser()
+    const ws = await seedWorkspace(owner)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "assign-deactivate",
+      legalName: "Assign Deactivate s.r.o.",
+    })
+    const accountant = await seedUser()
+    await ensureWorkspaceMembership(ws, accountant)
+    await setCompanyAssignee(ws, "assign-deactivate", accountant)
+
+    await deactivateMembership(ws, accountant)
+
+    expect(await responsibleUserId(org)).toBeNull()
+  }, 30_000)
 })
 
 describe("loadOrgAssignees", () => {

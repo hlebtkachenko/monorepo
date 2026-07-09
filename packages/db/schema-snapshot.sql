@@ -1343,6 +1343,32 @@ END;
 $$;
 
 --
+-- Name: app_unassign_inactive_workspace_member(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_unassign_inactive_workspace_member() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+BEGIN
+  IF (TG_OP = 'DELETE' OR OLD.active = true)
+     AND NOT EXISTS (
+       SELECT 1
+         FROM workspace_membership wm
+        WHERE wm.workspace_id = OLD.workspace_id
+          AND wm.user_id = OLD.user_id
+          AND wm.active = true
+     ) THEN
+    UPDATE organization
+       SET responsible_user_id = NULL
+     WHERE workspace_id = OLD.workspace_id
+       AND responsible_user_id = OLD.user_id;
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+--
 -- Name: app_unmapped_account_groups(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1367,6 +1393,30 @@ CREATE FUNCTION public.app_user_email_normalize() RETURNS trigger
     AS $$
 BEGIN
   NEW.email := lower(NEW.email);
+  RETURN NEW;
+END;
+$$;
+
+--
+-- Name: app_validate_responsible_assignee(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_validate_responsible_assignee() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+BEGIN
+  IF NEW.responsible_user_id IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+         FROM workspace_membership wm
+        WHERE wm.workspace_id = NEW.workspace_id
+          AND wm.user_id = NEW.responsible_user_id
+          AND wm.active = true
+     ) THEN
+    RAISE EXCEPTION 'responsible user must be an active member of the organization workspace'
+      USING ERRCODE = '23514';
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -4158,6 +4208,12 @@ CREATE TRIGGER open_item_settlement_period_guard BEFORE INSERT ON public.open_it
 CREATE TRIGGER organization_membership_ws_consistent BEFORE INSERT OR UPDATE ON public.organization_membership FOR EACH ROW EXECUTE FUNCTION public.app_organization_membership_ws_consistent();
 
 --
+-- Name: organization organization_responsible_assignee_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER organization_responsible_assignee_guard BEFORE INSERT OR UPDATE OF workspace_id, responsible_user_id ON public.organization FOR EACH ROW EXECUTE FUNCTION public.app_validate_responsible_assignee();
+
+--
 -- Name: organization organization_self_id_sync; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -4378,6 +4434,12 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 --
 
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
+
+--
+-- Name: workspace_membership workspace_membership_unassign_responsibility; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_membership_unassign_responsibility AFTER DELETE OR UPDATE OF active, workspace_id, user_id ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_unassign_inactive_workspace_member();
 
 --
 -- Name: account account_chart_fk; Type: FK CONSTRAINT; Schema: public; Owner: -

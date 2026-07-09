@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm"
 import { one, rows } from "./sql"
 import type { RowExecutor } from "./sql"
 import { allocateNumber } from "./number-series"
+import { DEFAULT_NUMBER_SERIES } from "./number-series-defaults"
 import type {
   AccountNature,
   AssetCategory,
@@ -145,17 +146,6 @@ export async function createNumberSeries(
  * Number series "restore default series" backfill — both call sites must agree
  * on the same 8 series, so this list lives here rather than being duplicated.
  */
-export const DEFAULT_NUMBER_SERIES = [
-  { entityType: "EVENT", code: "UC", pattern: "UC{YYYY}{NNNNNN}" },
-  { entityType: "DOCUMENT", code: "FV", pattern: "FV{YYYY}{NNNN}" }, // faktura vydaná
-  { entityType: "DOCUMENT", code: "FP", pattern: "FP{YYYY}{NNNN}" }, // faktura přijatá
-  { entityType: "DOCUMENT", code: "PD", pattern: "PD{YYYY}{NNNN}" }, // pokladní doklad
-  { entityType: "DOCUMENT", code: "BV", pattern: "BV{YYYY}{NNNN}" }, // bankovní výpis
-  { entityType: "DOCUMENT", code: "ID", pattern: "ID{YYYY}{NNNN}" }, // interní doklad
-  { entityType: "ASSET", code: "MAJ", pattern: "MAJ{YYYY}{NNNN}" },
-  { entityType: "INVENTORY_COUNT", code: "INV", pattern: "INV{YYYY}{NNNN}" },
-] as const
-
 /**
  * Idempotently insert every default series missing for the org. Gapless
  * numbering is legally sensitive: this NEVER touches an existing row (no

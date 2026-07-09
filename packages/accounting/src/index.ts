@@ -24,7 +24,6 @@ export {
   createVatStatus,
   createTaxProfile,
   createNumberSeries,
-  DEFAULT_NUMBER_SERIES,
   backfillDefaultNumberSeries,
   createChart,
   seedChartFromDirectives,
@@ -37,6 +36,10 @@ export {
   createInventoryCount,
   recordSignature,
 } from "./setup"
+export {
+  DEFAULT_NUMBER_SERIES,
+  DEFAULT_NUMBER_SERIES_CODES,
+} from "./number-series-defaults"
 
 // Capture (UC-1 steps 1-3)
 export { createEvent, captureDocument } from "./capture"

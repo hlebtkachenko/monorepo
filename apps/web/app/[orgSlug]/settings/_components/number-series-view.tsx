@@ -4,6 +4,10 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 
 import {
+  DEFAULT_NUMBER_SERIES,
+  DEFAULT_NUMBER_SERIES_CODES,
+} from "@workspace/accounting/number-series-defaults"
+import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
@@ -39,6 +43,13 @@ import {
 import { AppPageHeader } from "../../../_components/app-page-header"
 import type { NumberSeriesRow } from "../_lib/settings-data"
 import { backfillNumberSeriesAction } from "../actions"
+
+const DEFAULT_DESCRIPTION_BY_KEY = new Map(
+  DEFAULT_NUMBER_SERIES.map((series) => [
+    `${series.entityType}:${series.code}`,
+    series.description,
+  ]),
+)
 
 // entity_type → human label (Czech domain terms, matches the capture layer).
 const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -108,6 +119,7 @@ export function NumberSeriesView({
                     <TableRow className="hover:bg-transparent">
                       <TableHead>Type</TableHead>
                       <TableHead>Code</TableHead>
+                      <TableHead>Description</TableHead>
                       <TableHead>Pattern</TableHead>
                       <TableHead>Next number</TableHead>
                     </TableRow>
@@ -119,6 +131,11 @@ export function NumberSeriesView({
                           {ENTITY_TYPE_LABEL[r.entityType] ?? r.entityType}
                         </TableCell>
                         <TableCell className="font-mono">{r.code}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {DEFAULT_DESCRIPTION_BY_KEY.get(
+                            `${r.entityType}:${r.code}`,
+                          ) ?? "Custom series"}
+                        </TableCell>
                         <TableCell className="font-mono">{r.pattern}</TableCell>
                         <TableCell className="tabular-nums">
                           {r.nextNumber}
@@ -155,8 +172,9 @@ export function NumberSeriesView({
           <AlertDialogHeader>
             <AlertDialogTitle>Restore default series?</AlertDialogTitle>
             <AlertDialogDescription>
-              This adds any missing default series (UC, FV, FP, PD, BV, ID, MAJ,
-              INV). It never changes or removes an existing series.
+              This adds any missing default series (
+              {DEFAULT_NUMBER_SERIES_CODES}). It never changes or removes an
+              existing series.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

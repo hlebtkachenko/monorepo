@@ -22,6 +22,7 @@ import {
 import type {
   AgentSessionLaunchOptions,
   BrainDryRunPlan,
+  LiveBrainSessionResult,
 } from "@workspace/intake"
 
 /** The real capture-write MCP tool name (`mcp__afframe__capture_accounting_document`). */
@@ -218,6 +219,52 @@ export function parseCaptureResultText(text: string | undefined): unknown {
   } catch {
     return { status: "unparsed", raw: text }
   }
+}
+
+/**
+ * The exact substring the MCP tool-error renderer (`apps/mcp/src/tools/_render.ts` `toolError`) emits for
+ * EVERY 429 the public API returns (`code=rate_limited`) — the shape a `RateLimitError` renders as. It covers
+ * both admission refusals on the capture write (the write-lane kill-switch is off, or the per-org concurrency
+ * cap is hit — `apps/api/src/v1/accounting/accounting-writes.gate.ts`) and the per-API-key throttler. The
+ * nested session's tool_result carries only this rendered string, never the raw HTTP body or the server's
+ * actual message text, so it is the only client-visible signal available to tell "the server declined the
+ * write" apart from a parse/schema failure.
+ */
+const RATE_LIMITED_MARKER = "code=rate_limited"
+
+/** The clean, human-readable replacement for a raw mid-session 429 — printed instead of a JSON/stack dump. */
+export const LANE_OFF_MESSAGE =
+  "Brain write lane is currently off (or the write was rate-limited) — nothing was booked."
+
+/**
+ * True when a capture write's `serverGate` (the `CaptureOutcome.raw` a live run returns) is the MCP
+ * renderer's rate-limited shape, i.e. the server declined the write rather than merely holding or applying
+ * it. PURE: matches only on the rendered marker, no I/O. Used by `renderLiveResult` (below) to decide
+ * whether to print `LANE_OFF_MESSAGE` instead of the raw tool-result text.
+ */
+export function isLaneOffOutcome(serverGate: unknown): boolean {
+  const raw =
+    typeof serverGate === "object" &&
+    serverGate !== null &&
+    typeof (serverGate as Record<string, unknown>).raw === "string"
+      ? ((serverGate as Record<string, unknown>).raw as string)
+      : undefined
+  return raw !== undefined && raw.includes(RATE_LIMITED_MARKER)
+}
+
+/**
+ * Render a `runLiveBrainSession` result to exactly what `apps/cli/src/brain/command.ts` prints for an
+ * operator. A lane-off / admission-refused outcome renders as the clean `LANE_OFF_MESSAGE` sentence; every
+ * other outcome (applied / held / an unrelated unparsed body) renders as the full JSON result, unchanged.
+ * PURE — this is the whole CLI-visible acceptance surface for "a clean message, not a raw 429 dump".
+ */
+export function renderLiveResult(result: LiveBrainSessionResult): string {
+  // Belt-and-suspenders: only ever render the lane-off sentence when nothing was applied.
+  // The 429/lane-off marker is pre-write and mutually exclusive with an applied/held body,
+  // but guarding on !result.applied makes it structurally impossible to mask a real write.
+  if (!result.applied && isLaneOffOutcome(result.serverGate))
+    return `${LANE_OFF_MESSAGE}\n`
+  return JSON.stringify(result, null, 2) + "\n"
 }
 
 /**

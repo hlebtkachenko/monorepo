@@ -245,9 +245,11 @@ const MarkConfidentWrongSchema = z.object({
   id: z.uuid(),
   note: z.string().max(2000).optional(),
 })
+/** @public — confident-wrong increment seam input; the review UI is wired at M3 (post-auto-apply). */
 export type MarkConfidentWrongInput = z.infer<typeof MarkConfidentWrongSchema>
 
 /**
+ * @public
  * [§I8] Mark a previously AUTO-APPLIED booking as confidently wrong — the human
  * side of the confident-wrong circuit breaker. A reviewer flags a write the gate
  * auto-applied (read green, applied without a human) that turned out wrong; this

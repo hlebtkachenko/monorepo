@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- **ci**: reduce workflow drift and noise — sync the shared setup action pins, derive Dockerfile `turbo prune` from the root `turbo` dependency, make mature DB advisory checks fail visibly, trim impossible container-scan path filters, and stop PR workflow completions from spawning skipped `notify-ci` runs.
+
+## [v0.17.0] — 2026-07-09
+
+Minor release: period-mechanism completion (PR1–PR4) — real accounting-period data wires through the full closing cycle (VAT, payroll, income tax, year-end statements, obligation calendar), real Settings surfaces (number series, tax profile), and real workspace Companies + Legislation operational data. Adds the GitHub Issues tracker migration (replacing the retired Linear integration), CodeGraph developer tooling repo-wide, and numerous CI, governance, and dependency updates.
+
 ### Added
 
 - **workspace**: replace mock operational data on the Companies + Legislation surfaces with real data — a workspace-scoped statutory obligation engine (`computeWorkspaceObligations`) drives each company's next-deadline card field and the Legislation board; VAT regime and onboarding/active/archived status are now derived from `vat_status`/`accounting_period`; a new `organization.responsible_user_id` column + owner/admin-gated assignment action wires a real accountant assignee picker onto the company card and inspector. (#612)
@@ -18,7 +26,6 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
-- **ci**: reduce workflow drift and noise — sync the shared setup action pins, derive Dockerfile `turbo prune` from the root `turbo` dependency, make mature DB advisory checks fail visibly, trim impossible container-scan path filters, and stop PR workflow completions from spawning skipped `notify-ci` runs.
 - Refresh root maintenance files: set the real Code of Conduct enforcement contact, document the as-built AWS security posture in SECURITY.md, and harden .dockerignore to keep secrets and local tool dirs (.env, keys, .claude/, .codegraph/) out of the Docker build context.
 - Developer tooling: CodeGraph now ships a versioned Claude Code UserPromptSubmit hook (repo-wide per-prompt context injection), exposes the full MCP tool set (explore/node/search/status), tunes parse workers + daemon idle timeout, and makes the Conductor workspace index build best-effort so it never blocks workspace creation.
 - Developer tooling: make CodeGraph repo-local via pnpm, add Conductor workspace setup plus agent startup scripts/runbook, and remove leftover graph-index placeholders.

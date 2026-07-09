@@ -8,6 +8,8 @@ import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
   "periodId": z.string().describe("Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404."),
+  "from": z.string().describe("Calendar month or quarter start (YYYY-MM-DD)."),
+  "to": z.string().describe("Calendar month or quarter end (YYYY-MM-DD)."),
 }
 
 export function registerGetAccountingVatReturn(
@@ -18,7 +20,7 @@ export function registerGetAccountingVatReturn(
     "get_accounting_vat_return",
     {
       title: "Get VAT return (DPH přiznání)",
-      description: `Computes the DPH přiznání line values and kontrolní hlášení section totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).`,
+      description: `Computes the DPH přiznání line values and kontrolní hlášení section totals for the requested statutory calendar month or quarter from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("get"),
@@ -28,7 +30,7 @@ export function registerGetAccountingVatReturn(
     async (args): Promise<CallToolResult> => {
       try {
         const raw = args as Record<string, unknown>
-        const params = { path: { "periodId": raw["periodId"] } } as unknown as NonNullable<operations["getAccountingVatReturn"]["parameters"]>
+        const params = { path: { "periodId": raw["periodId"] }, query: { "from": raw["from"], "to": raw["to"] } } as unknown as NonNullable<operations["getAccountingVatReturn"]["parameters"]>
         const init = { params }
         const { data, error, response } = await client.GET("/v1/accounting/periods/{periodId}/outputs/vat-return", init)
         if (error) throw error

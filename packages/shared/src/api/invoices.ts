@@ -57,6 +57,16 @@ export const InvoiceSchema = z
       description: "Okamžik vyhotovení (§11/1d) — ISO timestamp.",
       example: "2025-03-14T00:00:00.000Z",
     }),
+    taxPointDate: z.iso.date().nullable().openapi({
+      description:
+        "DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.",
+      example: "2025-03-14",
+    }),
+    receivedDate: z.iso.date().nullable().openapi({
+      description:
+        "Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.",
+      example: "2025-03-16",
+    }),
     roundingAmount: z.string().openapi({
       description:
         "§37 document-total rounding (→ 548/648 at posting), decimal string.",
@@ -198,6 +208,32 @@ export const InvoiceIdParamSchema = z.object({
 })
 export type InvoiceIdParam = z.infer<typeof InvoiceIdParamSchema>
 
+export const UpdateInvoiceLegalDatesRequestSchema = z
+  .object({
+    taxPointDate: z.iso.date().nullable().optional().openapi({
+      description:
+        "Corrected DUZP/DPPD, or null when the legal date must be marked unresolved.",
+      example: "2025-03-14",
+    }),
+    receivedDate: z.iso.date().nullable().optional().openapi({
+      description:
+        "Corrected receipt date for a received invoice, or null when unresolved.",
+      example: "2025-03-16",
+    }),
+  })
+  .refine(
+    (value) =>
+      value.taxPointDate !== undefined || value.receivedDate !== undefined,
+    { message: "At least one legal date must be supplied" },
+  )
+  .openapi({
+    description:
+      "Authorized correction of the legal dates that determine VAT evidence periods.",
+  })
+export type UpdateInvoiceLegalDatesRequest = z.infer<
+  typeof UpdateInvoiceLegalDatesRequestSchema
+>
+
 // --- POST /v1/invoices ------------------------------------------------------
 // Envelope fields (confidence/rationale/conversationId) mirror the accounting
 // write surface — they are server-gate metadata, NOT tenant data, and are
@@ -250,6 +286,16 @@ export const CreateInvoiceRequestSchema = z
         description: "Okamžik vyhotovení (§11/1d) — ISO.",
         example: "2025-03-14",
       }),
+    taxPointDate: z.iso.date().nullish().openapi({
+      description:
+        "DUZP/DPPD used by VAT outputs. Missing means the legal date remains unresolved.",
+      example: "2025-03-14",
+    }),
+    receivedDate: z.iso.date().nullish().openapi({
+      description:
+        "Proven date a received invoice was obtained. Valid only when direction is received.",
+      example: "2025-03-16",
+    }),
     roundingAmount: z
       .string()
       .regex(/^-?\d{1,15}(\.\d{1,4})?$/)
@@ -264,6 +310,15 @@ export const CreateInvoiceRequestSchema = z
         "Optional evidence envelope the server scores through its own " +
         "confidence engine (fail-closed). Stripped before the domain write.",
     }),
+  })
+  .superRefine((value, ctx) => {
+    if (value.receivedDate != null && value.direction !== "received") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["receivedDate"],
+        message: "receivedDate is only valid for a received invoice",
+      })
+    }
   })
   .openapi({
     description:

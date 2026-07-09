@@ -71,6 +71,7 @@ import {
   OpenItemsQuerySchema,
   OpenItemsResponseSchema,
   PeriodIdParamSchema,
+  VatFilingPeriodQuerySchema,
   SaldoPerPartnerRowSchema,
   SaldokontoResponseSchema,
   StatementLayoutQuerySchema,
@@ -88,6 +89,7 @@ import {
   InvoicePartialSchema,
   ListInvoicesQuerySchema,
   ListInvoicesResponseSchema,
+  UpdateInvoiceLegalDatesRequestSchema,
 } from "./invoices"
 import {
   AccountSchema,
@@ -668,14 +670,17 @@ registry.registerPath({
   summary: "Get VAT return (DPH přiznání)",
   description:
     "Computes the DPH přiznání line values and kontrolní hlášení section " +
-    "totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). " +
+    "totals for the requested statutory calendar month or quarter from the posted facts (§13/§14/§16/§92e/§72-73). " +
     "Organization-scoped (FORCE RLS).",
   tags: ["Accounting"],
   security: [{ [bearerAuth.name]: [] }],
-  request: { params: PeriodIdParamSchema },
+  request: {
+    params: PeriodIdParamSchema,
+    query: VatFilingPeriodQuerySchema,
+  },
   responses: {
     "200": {
-      description: "The period's VAT return + KH totals.",
+      description: "The statutory filing period's VAT worksheet + KH totals.",
       content: { "application/json": { schema: DphResponse } },
     },
     ...ERROR_RESPONSE_REFS,
@@ -708,14 +713,17 @@ registry.registerPath({
   operationId: "getAccountingEcSalesList",
   summary: "Get EC sales list (souhrnné hlášení)",
   description:
-    "EU supplies recap (§102) for the period — per partner + kód plnění. " +
+    "EU supplies recap (§102) for the requested statutory calendar month or quarter — per partner + kód plnění. " +
     "Organization-scoped.",
   tags: ["Accounting"],
   security: [{ [bearerAuth.name]: [] }],
-  request: { params: PeriodIdParamSchema },
+  request: {
+    params: PeriodIdParamSchema,
+    query: VatFilingPeriodQuerySchema,
+  },
   responses: {
     "200": {
-      description: "The period's EU supplies recap.",
+      description: "The statutory filing period's EU supplies recap.",
       content: { "application/json": { schema: EcSalesListResponse } },
     },
     ...ERROR_RESPONSE_REFS,
@@ -728,14 +736,17 @@ registry.registerPath({
   operationId: "getAccountingControlStatement",
   summary: "Get control statement (kontrolní hlášení)",
   description:
-    "Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 " +
+    "Per-counterparty kontrolní hlášení (§101c-i) for the requested statutory calendar month or quarter — sections A.1/A.2/A.4/A.5 " +
     "and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.",
   tags: ["Accounting"],
   security: [{ [bearerAuth.name]: [] }],
-  request: { params: PeriodIdParamSchema },
+  request: {
+    params: PeriodIdParamSchema,
+    query: VatFilingPeriodQuerySchema,
+  },
   responses: {
     "200": {
-      description: "The period's control statement.",
+      description: "The statutory filing period's control statement.",
       content: { "application/json": { schema: ControlStatementResponse } },
     },
     ...ERROR_RESPONSE_REFS,
@@ -1040,6 +1051,34 @@ registry.registerPath({
     "200": {
       description: "The requested invoice with its lines.",
       content: { "application/json": { schema: GetInvoiceResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "patch",
+  path: "/v1/invoices/{invoiceId}/legal-dates",
+  operationId: "updateInvoiceLegalDates",
+  summary: "Correct invoice legal dates",
+  description:
+    "Corrects DUZP/DPPD and receipt evidence without fabricating unknown dates. " +
+    "Organization-scoped and requires the accounting:write scope.",
+  tags: ["Invoices"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    params: InvoiceIdParamSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: UpdateInvoiceLegalDatesRequestSchema },
+      },
+    },
+  },
+  responses: {
+    "200": {
+      description: "The invoice with corrected legal dates.",
+      content: { "application/json": { schema: GetInvoiceResponseSchema } },
     },
     ...ERROR_RESPONSE_REFS,
   },

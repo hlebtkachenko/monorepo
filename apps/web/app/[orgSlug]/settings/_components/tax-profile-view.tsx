@@ -26,9 +26,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@workspace/ui/components/dialog"
-import { Field, FieldLabel } from "@workspace/ui/components/field"
+import { Field, FieldError, FieldLabel } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Switch } from "@workspace/ui/components/switch"
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@workspace/ui/components/radio-group"
 import { toast } from "@workspace/ui/components/sonner"
 import {
   Table,
@@ -41,6 +44,12 @@ import {
 
 import { AppPageHeader } from "../../../_components/app-page-header"
 import type { TaxProfileData } from "../_lib/settings-data"
+import {
+  hasCompletePayrollFacts,
+  missingPayrollFactKeys,
+  PAYROLL_FACT_FIELDS,
+  toPayrollFactState,
+} from "../_lib/tax-profile-form"
 import { changeTaxProfileAction } from "../actions"
 
 /**
@@ -61,23 +70,7 @@ export function TaxProfileView({
   const history = data.history
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
-  const [hasStandardEmployment, setHasStandardEmployment] = React.useState(
-    current?.hasStandardEmployment ?? false,
-  )
-  const [hasDpp, setHasDpp] = React.useState(current?.hasDpp ?? false)
-  const [hasDpc, setHasDpc] = React.useState(current?.hasDpc ?? false)
-  const [socialInsurance, setSocialInsurance] = React.useState(
-    current?.socialInsuranceParticipation ?? false,
-  )
-  const [healthInsurance, setHealthInsurance] = React.useState(
-    current?.healthInsuranceParticipation ?? false,
-  )
-  const [payrollTaxAdvance, setPayrollTaxAdvance] = React.useState(
-    current?.payrollTaxAdvanceDue ?? false,
-  )
-  const [specialRateWithholding, setSpecialRateWithholding] = React.useState(
-    current?.specialRateWithholdingDue ?? false,
-  )
+  const [facts, setFacts] = React.useState(() => toPayrollFactState(current))
   const [validFrom, setValidFrom] = React.useState("")
   const [busy, setBusy] = React.useState(false)
 
@@ -86,15 +79,13 @@ export function TaxProfileView({
       toast.error("Effective date is required")
       return
     }
+    if (!hasCompletePayrollFacts(facts)) {
+      toast.error("All payroll facts require a Yes or No answer")
+      return
+    }
     setBusy(true)
     const result = await changeTaxProfileAction(slug, {
-      hasStandardEmployment,
-      hasDpp,
-      hasDpc,
-      socialInsuranceParticipation: socialInsurance,
-      healthInsuranceParticipation: healthInsurance,
-      payrollTaxAdvanceDue: payrollTaxAdvance,
-      specialRateWithholdingDue: specialRateWithholding,
+      ...facts,
       validFrom,
     })
     setBusy(false)
@@ -133,7 +124,10 @@ export function TaxProfileView({
                 {current ? (
                   <>
                     <Badge>
-                      {current.socialInsuranceParticipation === null ||
+                      {current.hasStandardEmployment === null ||
+                      current.hasDpp === null ||
+                      current.hasDpc === null ||
+                      current.socialInsuranceParticipation === null ||
                       current.healthInsuranceParticipation === null ||
                       current.payrollTaxAdvanceDue === null ||
                       current.specialRateWithholdingDue === null
@@ -163,13 +157,17 @@ export function TaxProfileView({
                     {history.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell>
-                          {[
-                            r.hasStandardEmployment ? "Employment" : null,
-                            r.hasDpp ? "DPP" : null,
-                            r.hasDpc ? "DPČ" : null,
-                          ]
-                            .filter(Boolean)
-                            .join(", ") || "None"}
+                          {r.hasStandardEmployment === null ||
+                          r.hasDpp === null ||
+                          r.hasDpc === null
+                            ? "Needs input"
+                            : [
+                                r.hasStandardEmployment ? "Employment" : null,
+                                r.hasDpp ? "DPP" : null,
+                                r.hasDpc ? "DPČ" : null,
+                              ]
+                                .filter(Boolean)
+                                .join(", ") || "None"}
                         </TableCell>
                         <TableCell>
                           {r.socialInsuranceParticipation === null ||
@@ -220,61 +218,65 @@ export function TaxProfileView({
                         </DialogDescription>
                       </DialogHeader>
                       <div className="flex flex-col gap-4">
-                        <Field>
-                          <div className="flex items-center justify-between">
-                            <FieldLabel htmlFor="tax-profile-employment">
-                              Standard employment active
-                            </FieldLabel>
-                            <Switch
-                              id="tax-profile-employment"
-                              checked={hasStandardEmployment}
-                              onCheckedChange={setHasStandardEmployment}
-                            />
-                          </div>
-                        </Field>
-                        {[
-                          ["tax-profile-dpp", "DPP active", hasDpp, setHasDpp],
-                          ["tax-profile-dpc", "DPČ active", hasDpc, setHasDpc],
-                          [
-                            "tax-profile-social",
-                            "Social insurance participation",
-                            socialInsurance,
-                            setSocialInsurance,
-                          ],
-                          [
-                            "tax-profile-health",
-                            "Health insurance participation",
-                            healthInsurance,
-                            setHealthInsurance,
-                          ],
-                          [
-                            "tax-profile-advance",
-                            "Payroll tax advance due",
-                            payrollTaxAdvance,
-                            setPayrollTaxAdvance,
-                          ],
-                          [
-                            "tax-profile-special",
-                            "Special-rate withholding due",
-                            specialRateWithholding,
-                            setSpecialRateWithholding,
-                          ],
-                        ].map(([id, label, checked, setter]) => (
-                          <Field key={id as string}>
-                            <div className="flex items-center justify-between gap-4">
-                              <FieldLabel htmlFor={id as string}>
-                                {label as string}
+                        {PAYROLL_FACT_FIELDS.map(({ key, id, label }) => {
+                          const value = facts[key]
+                          return (
+                            <Field
+                              key={key}
+                              data-invalid={value === null ? true : undefined}
+                            >
+                              <FieldLabel id={`${id}-label`}>
+                                {label} (required)
                               </FieldLabel>
-                              <Switch
-                                id={id as string}
-                                checked={checked as boolean}
-                                onCheckedChange={
-                                  setter as (value: boolean) => void
+                              <RadioGroup
+                                className="grid grid-cols-3 gap-3"
+                                value={
+                                  value === null
+                                    ? "unanswered"
+                                    : value
+                                      ? "yes"
+                                      : "no"
                                 }
-                              />
-                            </div>
-                          </Field>
-                        ))}
+                                aria-labelledby={`${id}-label`}
+                                aria-invalid={value === null}
+                                onValueChange={(choice) =>
+                                  setFacts((previous) => ({
+                                    ...previous,
+                                    [key]:
+                                      choice === "unanswered"
+                                        ? null
+                                        : choice === "yes",
+                                  }))
+                                }
+                              >
+                                {[
+                                  ["unanswered", "Not answered"],
+                                  ["yes", "Yes"],
+                                  ["no", "No"],
+                                ].map(([choice, choiceLabel]) => (
+                                  <div
+                                    key={choice}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <RadioGroupItem
+                                      id={`${id}-${choice}`}
+                                      value={choice as string}
+                                    />
+                                    <FieldLabel
+                                      className="font-normal"
+                                      htmlFor={`${id}-${choice}`}
+                                    >
+                                      {choiceLabel}
+                                    </FieldLabel>
+                                  </div>
+                                ))}
+                              </RadioGroup>
+                              {value === null ? (
+                                <FieldError>Choose Yes or No.</FieldError>
+                              ) : null}
+                            </Field>
+                          )
+                        })}
                         <Field>
                           <FieldLabel htmlFor="tax-profile-from">
                             Effective from
@@ -298,7 +300,9 @@ export function TaxProfileView({
                         </Button>
                         <Button
                           size="sm"
-                          disabled={busy}
+                          disabled={
+                            busy || missingPayrollFactKeys(facts).length > 0
+                          }
                           onClick={() => void onChange()}
                         >
                           {busy ? "Saving…" : "Change profile"}

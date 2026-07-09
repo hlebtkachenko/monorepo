@@ -1,7 +1,11 @@
 import type { PersonType, VatFilingPeriod, VatRegime } from "../types"
 import type { EffectiveSegment } from "./effective-timeline"
 import type { Obligation } from "./model"
-import { computeObligations, computePayrollObligations } from "./obligations"
+import {
+  computeObligations,
+  computePayrollObligations,
+  type VatPeriodActivity,
+} from "./obligations"
 
 export interface VatProfileValue {
   regime: VatRegime
@@ -73,9 +77,24 @@ export function computeTimelineObligations(input: {
   personType: PersonType
   vatTimeline: ReadonlyArray<EffectiveSegment<VatProfileValue>>
   payrollTimeline: ReadonlyArray<EffectiveSegment<PayrollProfileValue>>
+  /** Canonical transaction evidence for VAT applicability in the envelope. */
+  vatActivity?: readonly VatPeriodActivity[]
 }): TimelineObligationResult {
   const obligations = new Map<string, Obligation>()
   const issues: ProfileIssue[] = []
+  const shFirstGoodsMonthByYear =
+    input.vatActivity === undefined ? undefined : new Map<number, number>()
+  for (const activity of input.vatActivity ?? []) {
+    if (!activity.hasShGoodsSupplies) continue
+    const [year, month] = activity.month.split("-").map(Number) as [
+      number,
+      number,
+    ]
+    const current = shFirstGoodsMonthByYear?.get(year)
+    if (current === undefined || month < current) {
+      shFirstGoodsMonthByYear?.set(year, month)
+    }
+  }
 
   const add = (rows: Obligation[]) => {
     for (const row of rows) {
@@ -121,6 +140,8 @@ export function computeTimelineObligations(input: {
         vatRegimeCode: profile.regime,
         vatFilingPeriod: profile.filingPeriod,
         personType: input.personType,
+        vatActivity: input.vatActivity,
+        shFirstGoodsMonthByYear,
       }),
     )
   }

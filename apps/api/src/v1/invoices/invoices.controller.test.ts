@@ -37,6 +37,8 @@ interface SummaryRow {
   designation: string
   sequence_number: number
   issued_at: Date
+  tax_point_date: string | null
+  received_date: string | null
   rounding_amount: string
   created_at: Date
 }
@@ -99,6 +101,8 @@ vi.mock("@workspace/db/schema", () => ({
     "designation",
     "sequence_number",
     "issued_at",
+    "tax_point_date",
+    "received_date",
     "rounding_amount",
     "created_at",
   ]),
@@ -243,6 +247,26 @@ vi.mock("@workspace/db", () => {
         }
         return chain
       },
+      update() {
+        let values: Record<string, unknown> = {}
+        return {
+          set(next: Record<string, unknown>) {
+            values = next
+            return this
+          },
+          where(predicate: Pred) {
+            for (const row of state.summaryRows) {
+              if (
+                row.organization_id === orgId &&
+                matches(row as unknown as Record<string, unknown>, predicate)
+              ) {
+                Object.assign(row, values)
+              }
+            }
+            return Promise.resolve()
+          },
+        }
+      },
     }
     return fn(db)
   }
@@ -363,6 +387,8 @@ describe("InvoicesController (/v1/invoices)", () => {
         designation: "FP2025-1",
         sequence_number: 1,
         issued_at: now,
+        tax_point_date: "2025-03-14",
+        received_date: "2025-03-16",
         rounding_amount: "0.00",
         created_at: now,
       },
@@ -374,6 +400,8 @@ describe("InvoicesController (/v1/invoices)", () => {
         designation: "FV2025-1",
         sequence_number: 1,
         issued_at: now,
+        tax_point_date: "2025-03-14",
+        received_date: null,
         rounding_amount: "0.00",
         created_at: now,
       },
@@ -385,6 +413,8 @@ describe("InvoicesController (/v1/invoices)", () => {
         designation: "FP2025-1",
         sequence_number: 1,
         issued_at: now,
+        tax_point_date: null,
+        received_date: null,
         rounding_amount: "0.00",
         created_at: now,
       },
@@ -457,6 +487,8 @@ describe("InvoicesController (/v1/invoices)", () => {
       totalBase: "12100.00",
       totalVat: "2541.00",
       lineCount: 1,
+      taxPointDate: "2025-03-14",
+      receivedDate: "2025-03-16",
     })
   })
 
@@ -512,6 +544,45 @@ describe("InvoicesController (/v1/invoices)", () => {
     })
   })
 
+  it("corrects unresolved invoice legal dates within the principal tenant", async () => {
+    verifyApiKeyMock.mockResolvedValue(
+      principalFor(ORG_A, ["accounting:write"]),
+    )
+    const res = await supertest(app.getHttpServer())
+      .patch(`/v1/invoices/${INV_RECV}/legal-dates`)
+      .set("Authorization", "Bearer affk_live_a")
+      .send({ taxPointDate: "2025-04-01", receivedDate: "2025-04-03" })
+      .expect(200)
+
+    expect(res.body.invoice).toMatchObject({
+      id: INV_RECV,
+      taxPointDate: "2025-04-01",
+      receivedDate: "2025-04-03",
+    })
+  })
+
+  it("rejects receipt evidence on an issued invoice", async () => {
+    verifyApiKeyMock.mockResolvedValue(
+      principalFor(ORG_A, ["accounting:write"]),
+    )
+    await supertest(app.getHttpServer())
+      .patch(`/v1/invoices/${INV_ISSUED}/legal-dates`)
+      .set("Authorization", "Bearer affk_live_a")
+      .send({ receivedDate: "2025-04-03" })
+      .expect(400)
+  })
+
+  it("does not expose a cross-tenant invoice through legal-date correction", async () => {
+    verifyApiKeyMock.mockResolvedValue(
+      principalFor(ORG_A, ["accounting:write"]),
+    )
+    await supertest(app.getHttpServer())
+      .patch(`/v1/invoices/${INV_B}/legal-dates`)
+      .set("Authorization", "Bearer affk_live_a")
+      .send({ taxPointDate: "2025-04-01" })
+      .expect(404)
+  })
+
   it("404s a same-tenant doklad id that is not invoice-typed", async () => {
     const bank = "0196f1de-0000-7000-8000-0000000ba0a1"
     state.summaryRows.push({
@@ -522,6 +593,8 @@ describe("InvoicesController (/v1/invoices)", () => {
       designation: "BV2025-1",
       sequence_number: 1,
       issued_at: new Date("2025-03-14T09:00:00.000Z"),
+      tax_point_date: null,
+      received_date: null,
       rounding_amount: "0.00",
       created_at: new Date("2025-03-14T09:00:00.000Z"),
     })
@@ -549,6 +622,8 @@ describe("InvoicesController (/v1/invoices)", () => {
     periodId: PERIOD_1,
     seriesId: SERIES_ID,
     issuedAt: "2025-03-14",
+    taxPointDate: "2025-03-14",
+    ...(direction === "received" ? { receivedDate: "2025-03-16" } : {}),
     lines: [
       {
         eventId: EVENT_ID,
@@ -575,7 +650,11 @@ describe("InvoicesController (/v1/invoices)", () => {
       status: "applied",
       invoiceId: expect.any(String),
     })
-    expect(state.captureInputs[0]).toMatchObject({ type: "RECEIVED_INVOICE" })
+    expect(state.captureInputs[0]).toMatchObject({
+      type: "RECEIVED_INVOICE",
+      taxPointDate: "2025-03-14",
+      receivedDate: "2025-03-16",
+    })
     expect(state.captureInputs[0]).not.toHaveProperty("direction")
     expect(state.captureInputs[0]).not.toHaveProperty("confidence")
     const opts = state.gateOpts as {
@@ -649,6 +728,19 @@ describe("InvoicesController (/v1/invoices)", () => {
       .set("Idempotency-Key", "idem-5")
       .send({ ...validBody("received"), direction: "sideways" })
     expect([400, 422]).toContain(res.status)
+  })
+
+  it("rejects a received date on an issued invoice", async () => {
+    verifyApiKeyMock.mockResolvedValue(
+      principalFor(ORG_A, ["accounting:write"]),
+    )
+    const res = await supertest(app.getHttpServer())
+      .post("/v1/invoices")
+      .set("Authorization", "Bearer affk_live_a")
+      .set("Idempotency-Key", "idem-6")
+      .send({ ...validBody("issued"), receivedDate: "2025-03-16" })
+    expect([400, 422]).toContain(res.status)
+    expect(state.gateOpts).toBeNull()
   })
 })
 

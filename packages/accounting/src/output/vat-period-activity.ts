@@ -1,14 +1,26 @@
 import { sql } from "drizzle-orm"
-import { rows, type RowExecutor } from "../sql"
+import { executeRows, type AdminBypassDb } from "@workspace/db"
+import type { RowExecutor } from "../sql"
 import type { VatEvidenceScope } from "../types"
 import type { VatPeriodActivity } from "../obligations/obligations"
 import { vatClassificationPredicates } from "./vat-classification"
 import { vatEvidencePredicates } from "./vat-evidence-scope"
 
 /** Project captured VAT facts into the monthly evidence consumed by schedules. */
-export async function getVatPeriodActivity(
+export function getVatPeriodActivity(
+  db: AdminBypassDb,
+  scope: VatEvidenceScope,
+  organizationId: string,
+): Promise<VatPeriodActivity[]>
+export function getVatPeriodActivity(
   db: RowExecutor,
   scope: VatEvidenceScope,
+  organizationId?: string,
+): Promise<VatPeriodActivity[]>
+export async function getVatPeriodActivity(
+  db: RowExecutor | AdminBypassDb,
+  scope: VatEvidenceScope,
+  organizationId?: string,
 ): Promise<VatPeriodActivity[]> {
   const evidence = vatEvidencePredicates(
     scope,
@@ -32,7 +44,7 @@ export async function getVatPeriodActivity(
     OR (NOT (${deductionDated}) AND ${evidence.taxPoint})
   )`
 
-  return rows<VatPeriodActivity>(
+  return executeRows<VatPeriodActivity>(
     db,
     sql`
       SELECT to_char(date_trunc('month', ${activityDate}), 'YYYY-MM') AS month,
@@ -44,6 +56,7 @@ export async function getVatPeriodActivity(
         JOIN individual_record ir ON ir.id = pr.individual_record_id
         JOIN summary_record sr ON sr.id = ir.summary_record_id
        WHERE ${inScope}
+         AND (${organizationId ?? null}::uuid IS NULL OR sr.organization_id = ${organizationId ?? null}::uuid)
        GROUP BY date_trunc('month', ${activityDate})
        ORDER BY date_trunc('month', ${activityDate})`,
   )

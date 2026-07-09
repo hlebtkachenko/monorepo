@@ -2193,8 +2193,30 @@
           "periodId": {
             "type": "string",
             "format": "uuid",
-            "description": "The period this return covers.",
+            "description": "Accounting context used to authorize this request.",
             "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "filingPeriod": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Calendar month or quarter start (YYYY-MM-DD).",
+                "example": "2026-01-01"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Calendar month or quarter end (YYYY-MM-DD).",
+                "example": "2026-03-31"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "description": "Statutory calendar VAT filing period used for the worksheet."
           },
           "rows": {
             "type": "object",
@@ -2488,11 +2510,12 @@
         "required": [
           "organizationId",
           "periodId",
+          "filingPeriod",
           "rows",
           "kh",
           "completeness"
         ],
-        "description": "DPH přiznání (VAT return) for the period — line values plus kontrolní hlášení section totals, computed from the posted facts."
+        "description": "Partial DPH worksheet for one statutory calendar filing period — line values plus kontrolní hlášení section totals, computed from the posted facts."
       },
       "DphRows": {
         "type": "object",
@@ -3291,8 +3314,30 @@
           "periodId": {
             "type": "string",
             "format": "uuid",
-            "description": "Period covered.",
+            "description": "Accounting context used to authorize this request.",
             "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "filingPeriod": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Calendar month or quarter start (YYYY-MM-DD).",
+                "example": "2026-01-01"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Calendar month or quarter end (YYYY-MM-DD).",
+                "example": "2026-03-31"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "description": "Statutory calendar VAT filing period used for the worksheet."
           },
           "rows": {
             "type": "array",
@@ -3384,10 +3429,11 @@
         "required": [
           "organizationId",
           "periodId",
+          "filingPeriod",
           "rows",
           "completeness"
         ],
-        "description": "Souhrnné hlášení — EU supplies recap for the period."
+        "description": "Partial souhrnné hlášení worksheet for one statutory calendar filing period."
       },
       "EcSalesRow": {
         "type": "object",
@@ -3444,8 +3490,30 @@
           "periodId": {
             "type": "string",
             "format": "uuid",
-            "description": "Period covered.",
+            "description": "Accounting context used to authorize this request.",
             "example": "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10"
+          },
+          "filingPeriod": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Calendar month or quarter start (YYYY-MM-DD).",
+                "example": "2026-01-01"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Calendar month or quarter end (YYYY-MM-DD).",
+                "example": "2026-03-31"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "description": "Statutory calendar VAT filing period used for the worksheet."
           },
           "a1": {
             "type": "array",
@@ -3871,6 +3939,7 @@
         "required": [
           "organizationId",
           "periodId",
+          "filingPeriod",
           "a1",
           "a2",
           "a4",
@@ -3880,7 +3949,7 @@
           "b3",
           "completeness"
         ],
-        "description": "Kontrolní hlášení — per-counterparty control statement (§101c-i)."
+        "description": "Partial kontrolní hlášení worksheet for one statutory calendar filing period (§101c-i)."
       },
       "KhRow": {
         "type": "object",
@@ -6282,6 +6351,24 @@
             "description": "Okamžik vyhotovení (§11/1d) — ISO timestamp.",
             "example": "2025-03-14T00:00:00.000Z"
           },
+          "taxPointDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.",
+            "example": "2025-03-14"
+          },
+          "receivedDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.",
+            "example": "2025-03-16"
+          },
           "roundingAmount": {
             "type": "string",
             "description": "§37 document-total rounding (→ 548/648 at posting), decimal string.",
@@ -6316,6 +6403,8 @@
           "designation",
           "sequenceNumber",
           "issuedAt",
+          "taxPointDate",
+          "receivedDate",
           "roundingAmount",
           "totalBase",
           "totalVat",
@@ -6370,6 +6459,24 @@
             "type": "string",
             "description": "Okamžik vyhotovení (§11/1d) — ISO timestamp.",
             "example": "2025-03-14T00:00:00.000Z"
+          },
+          "taxPointDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.",
+            "example": "2025-03-14"
+          },
+          "receivedDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.",
+            "example": "2025-03-16"
           },
           "roundingAmount": {
             "type": "string",
@@ -6542,6 +6649,8 @@
           "designation",
           "sequenceNumber",
           "issuedAt",
+          "taxPointDate",
+          "receivedDate",
           "roundingAmount",
           "totalBase",
           "totalVat",
@@ -6603,6 +6712,24 @@
                   "description": "Okamžik vyhotovení (§11/1d) — ISO timestamp.",
                   "example": "2025-03-14T00:00:00.000Z"
                 },
+                "taxPointDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date",
+                  "description": "DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.",
+                  "example": "2025-03-14"
+                },
+                "receivedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date",
+                  "description": "Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.",
+                  "example": "2025-03-16"
+                },
                 "roundingAmount": {
                   "type": "string",
                   "description": "§37 document-total rounding (→ 548/648 at posting), decimal string.",
@@ -6637,6 +6764,8 @@
                 "designation",
                 "sequenceNumber",
                 "issuedAt",
+                "taxPointDate",
+                "receivedDate",
                 "roundingAmount",
                 "totalBase",
                 "totalVat",
@@ -6702,6 +6831,24 @@
                 "type": "string",
                 "description": "Okamžik vyhotovení (§11/1d) — ISO timestamp.",
                 "example": "2025-03-14T00:00:00.000Z"
+              },
+              "taxPointDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "description": "DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.",
+                "example": "2025-03-14"
+              },
+              "receivedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "description": "Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.",
+                "example": "2025-03-16"
               },
               "roundingAmount": {
                 "type": "string",
@@ -6874,6 +7021,8 @@
               "designation",
               "sequenceNumber",
               "issuedAt",
+              "taxPointDate",
+              "receivedDate",
               "roundingAmount",
               "totalBase",
               "totalVat",
@@ -6916,6 +7065,24 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2})?(\\.\\d+)?)?(Z|[+-]\\d{2}:?\\d{2})?$",
             "description": "Okamžik vyhotovení (§11/1d) — ISO.",
             "example": "2025-03-14"
+          },
+          "taxPointDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "DUZP/DPPD used by VAT outputs. Missing means the legal date remains unresolved.",
+            "example": "2025-03-14"
+          },
+          "receivedDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Proven date a received invoice was obtained. Valid only when direction is received.",
+            "example": "2025-03-16"
           },
           "roundingAmount": {
             "type": "string",
@@ -8549,7 +8716,7 @@
       "get": {
         "operationId": "getAccountingVatReturn",
         "summary": "Get VAT return (DPH přiznání)",
-        "description": "Computes the DPH přiznání line values and kontrolní hlášení section totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).",
+        "description": "Computes the DPH přiznání line values and kontrolní hlášení section totals for the requested statutory calendar month or quarter from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).",
         "tags": [
           "Accounting"
         ],
@@ -8570,11 +8737,35 @@
             "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
             "name": "periodId",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Calendar month or quarter start (YYYY-MM-DD).",
+              "example": "2026-01-01"
+            },
+            "required": true,
+            "description": "Calendar month or quarter start (YYYY-MM-DD).",
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Calendar month or quarter end (YYYY-MM-DD).",
+              "example": "2026-03-31"
+            },
+            "required": true,
+            "description": "Calendar month or quarter end (YYYY-MM-DD).",
+            "name": "to",
+            "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "The period's VAT return + KH totals.",
+            "description": "The statutory filing period's VAT worksheet + KH totals.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8667,7 +8858,7 @@
       "get": {
         "operationId": "getAccountingEcSalesList",
         "summary": "Get EC sales list (souhrnné hlášení)",
-        "description": "EU supplies recap (§102) for the period — per partner + kód plnění. Organization-scoped.",
+        "description": "EU supplies recap (§102) for the requested statutory calendar month or quarter — per partner + kód plnění. Organization-scoped.",
         "tags": [
           "Accounting"
         ],
@@ -8688,11 +8879,35 @@
             "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
             "name": "periodId",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Calendar month or quarter start (YYYY-MM-DD).",
+              "example": "2026-01-01"
+            },
+            "required": true,
+            "description": "Calendar month or quarter start (YYYY-MM-DD).",
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Calendar month or quarter end (YYYY-MM-DD).",
+              "example": "2026-03-31"
+            },
+            "required": true,
+            "description": "Calendar month or quarter end (YYYY-MM-DD).",
+            "name": "to",
+            "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "The period's EU supplies recap.",
+            "description": "The statutory filing period's EU supplies recap.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8726,7 +8941,7 @@
       "get": {
         "operationId": "getAccountingControlStatement",
         "summary": "Get control statement (kontrolní hlášení)",
-        "description": "Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.",
+        "description": "Per-counterparty kontrolní hlášení (§101c-i) for the requested statutory calendar month or quarter — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.",
         "tags": [
           "Accounting"
         ],
@@ -8747,11 +8962,35 @@
             "description": "Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404.",
             "name": "periodId",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Calendar month or quarter start (YYYY-MM-DD).",
+              "example": "2026-01-01"
+            },
+            "required": true,
+            "description": "Calendar month or quarter start (YYYY-MM-DD).",
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Calendar month or quarter end (YYYY-MM-DD).",
+              "example": "2026-03-31"
+            },
+            "required": true,
+            "description": "Calendar month or quarter end (YYYY-MM-DD).",
+            "name": "to",
+            "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "The period's control statement.",
+            "description": "The statutory filing period's control statement.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9575,6 +9814,348 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetInvoiceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/invoices/{invoiceId}/legal-dates": {
+      "patch": {
+        "operationId": "updateInvoiceLegalDates",
+        "summary": "Correct invoice legal dates",
+        "description": "Corrects DUZP/DPPD and receipt evidence without fabricating unknown dates. Organization-scoped and requires the accounting:write scope.",
+        "tags": [
+          "Invoices"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Opaque invoice identifier (UUID)."
+            },
+            "required": true,
+            "description": "Opaque invoice identifier (UUID).",
+            "name": "invoiceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taxPointDate": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date",
+                    "description": "Corrected DUZP/DPPD, or null when the legal date must be marked unresolved.",
+                    "example": "2025-03-14"
+                  },
+                  "receivedDate": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date",
+                    "description": "Corrected receipt date for a received invoice, or null when unresolved.",
+                    "example": "2025-03-16"
+                  }
+                },
+                "description": "Authorized correction of the legal dates that determine VAT evidence periods."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The invoice with corrected legal dates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invoice": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "Opaque invoice identifier (UUID)."
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "received",
+                            "issued"
+                          ],
+                          "description": "Invoice direction: `received` (faktura přijatá / purchase) or `issued` (faktura vydaná / sale).",
+                          "example": "received"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "RECEIVED_INVOICE",
+                            "ISSUED_INVOICE"
+                          ],
+                          "description": "The underlying summary_record_type.",
+                          "example": "RECEIVED_INVOICE"
+                        },
+                        "periodId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The účetní období this invoice books into.",
+                          "example": "0196f1de-0000-7000-8000-0000000000d1"
+                        },
+                        "designation": {
+                          "type": "string",
+                          "description": "Frozen Označení — the gapless government/audit document number.",
+                          "example": "FP2025-00042"
+                        },
+                        "sequenceNumber": {
+                          "type": "integer",
+                          "description": "Gapless position within its number series.",
+                          "example": 42
+                        },
+                        "issuedAt": {
+                          "type": "string",
+                          "description": "Okamžik vyhotovení (§11/1d) — ISO timestamp.",
+                          "example": "2025-03-14T00:00:00.000Z"
+                        },
+                        "taxPointDate": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date",
+                          "description": "DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.",
+                          "example": "2025-03-14"
+                        },
+                        "receivedDate": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date",
+                          "description": "Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.",
+                          "example": "2025-03-16"
+                        },
+                        "roundingAmount": {
+                          "type": "string",
+                          "description": "§37 document-total rounding (→ 548/648 at posting), decimal string.",
+                          "example": "0.00"
+                        },
+                        "totalBase": {
+                          "type": "string",
+                          "description": "Sum of line bases in the accounting currency (frozen), decimal string.",
+                          "example": "12100.00"
+                        },
+                        "totalVat": {
+                          "type": "string",
+                          "description": "Sum of line VAT in the accounting currency (frozen), decimal string.",
+                          "example": "2541.00"
+                        },
+                        "lineCount": {
+                          "type": "integer",
+                          "description": "Number of individual-record lines on the invoice.",
+                          "example": 1
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "description": "When the voucher row was created — ISO timestamp.",
+                          "example": "2025-03-14T09:12:00.000Z"
+                        },
+                        "lines": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "accountingEventId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "description": "The účetní případ (economic event) this line records."
+                              },
+                              "description": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "partials": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "format": "uuid"
+                                    },
+                                    "baseAmount": {
+                                      "type": "string",
+                                      "description": "Základ daně in the transaction currency, decimal string.",
+                                      "example": "12100.00"
+                                    },
+                                    "vatRate": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "VAT rate (e.g. `21`), or `null` for OUTSIDE_VAT.",
+                                      "example": "21"
+                                    },
+                                    "vatAmount": {
+                                      "type": "string",
+                                      "description": "Daň in the transaction currency, decimal string.",
+                                      "example": "2541.00"
+                                    },
+                                    "vatMode": {
+                                      "type": "string",
+                                      "enum": [
+                                        "STANDARD",
+                                        "REVERSE_CHARGE",
+                                        "EXEMPT",
+                                        "OUTSIDE_VAT",
+                                        "IMPORT"
+                                      ],
+                                      "description": "VAT mode driving the posting."
+                                    },
+                                    "vatJurisdiction": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "description": "Place-of-supply regime (DOMESTIC | REVERSE_CHARGE | EU | IMPORT | EXEMPT | OUTSIDE_VAT), or `null`.",
+                                      "example": "DOMESTIC"
+                                    },
+                                    "vatDeductible": {
+                                      "type": "boolean",
+                                      "description": "Whether input VAT is deductible (false folds into cost).",
+                                      "example": true
+                                    },
+                                    "currencyCode": {
+                                      "type": "string",
+                                      "description": "Transaction currency (ISO 4217).",
+                                      "example": "CZK"
+                                    },
+                                    "baseInAccountingCurrency": {
+                                      "type": "string",
+                                      "description": "Frozen base converted to the accounting currency.",
+                                      "example": "12100.00"
+                                    },
+                                    "vatInAccountingCurrency": {
+                                      "type": "string",
+                                      "description": "Frozen VAT converted to the accounting currency.",
+                                      "example": "2541.00"
+                                    },
+                                    "quantity": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "example": "1"
+                                    },
+                                    "measureUnit": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "example": "ks"
+                                    },
+                                    "unitPrice": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "example": "12100.00"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "baseAmount",
+                                    "vatRate",
+                                    "vatAmount",
+                                    "vatMode",
+                                    "vatJurisdiction",
+                                    "vatDeductible",
+                                    "currencyCode",
+                                    "baseInAccountingCurrency",
+                                    "vatInAccountingCurrency",
+                                    "quantity",
+                                    "measureUnit",
+                                    "unitPrice"
+                                  ],
+                                  "description": "A partial record (taxable-supply money row)."
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "accountingEventId",
+                              "description",
+                              "partials"
+                            ],
+                            "description": "An invoice line (individual record)."
+                          },
+                          "description": "The invoice's individual-record lines with their partials."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "direction",
+                        "type",
+                        "periodId",
+                        "designation",
+                        "sequenceNumber",
+                        "issuedAt",
+                        "taxPointDate",
+                        "receivedDate",
+                        "roundingAmount",
+                        "totalBase",
+                        "totalVat",
+                        "lineCount",
+                        "createdAt",
+                        "lines"
+                      ],
+                      "description": "An invoice with its full line/partial detail."
+                    }
+                  },
+                  "required": [
+                    "invoice"
+                  ],
+                  "description": "A single invoice with its lines."
                 }
               }
             }

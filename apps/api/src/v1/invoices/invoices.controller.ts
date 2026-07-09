@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   Headers,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Res,
@@ -64,6 +66,7 @@ import {
   GetInvoiceResponseDto,
   ListInvoicesQueryDto,
   ListInvoicesResponseDto,
+  UpdateInvoiceLegalDatesRequestDto,
 } from "../dto"
 
 const INVOICE_TYPES = ["RECEIVED_INVOICE", "ISSUED_INVOICE"] as const
@@ -150,6 +153,8 @@ export class InvoicesController {
       designation: string
       sequence_number: number
       issued_at: Date
+      tax_point_date: string | null
+      received_date: string | null
       rounding_amount: string
       created_at: Date
     },
@@ -164,6 +169,8 @@ export class InvoicesController {
       designation: r.designation,
       sequenceNumber: r.sequence_number,
       issuedAt: r.issued_at.toISOString(),
+      taxPointDate: r.tax_point_date,
+      receivedDate: r.received_date,
       roundingAmount: r.rounding_amount,
       totalBase: totals?.totalBase ?? "0",
       totalVat: totals?.totalVat ?? "0",
@@ -179,6 +186,8 @@ export class InvoicesController {
     designation: summary_record.designation,
     sequence_number: summary_record.sequence_number,
     issued_at: summary_record.issued_at,
+    tax_point_date: summary_record.tax_point_date,
+    received_date: summary_record.received_date,
     rounding_amount: summary_record.rounding_amount,
     created_at: summary_record.created_at,
   } as const
@@ -336,6 +345,66 @@ export class InvoicesController {
         }
       },
     )
+  }
+
+  @Patch(":invoiceId/legal-dates")
+  @RequireScopes("accounting:write")
+  @ApiOperation({
+    summary: "Correct invoice legal dates",
+    description:
+      "Corrects DUZP/DPPD and, for received invoices, receipt evidence. " +
+      "Requires the accounting:write scope and preserves unresolved dates as null.",
+  })
+  @ApiParam({ name: "invoiceId", format: "uuid" })
+  @ApiOkResponse({ type: GetInvoiceResponseDto })
+  async updateLegalDates(
+    @Param("invoiceId", new ParseUUIDPipe()) invoiceId: string,
+    @Body() body: UpdateInvoiceLegalDatesRequestDto,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+  ): Promise<GetInvoiceResponse> {
+    const updated = await withOrganization(
+      principal.organizationId,
+      principal.userId,
+      async (db) => {
+        const current = await db
+          .select({ type: summary_record.type })
+          .from(summary_record)
+          .where(
+            and(
+              eq(summary_record.id, invoiceId),
+              inArray(summary_record.type, INVOICE_TYPES),
+            ),
+          )
+          .limit(1)
+        const invoice = current[0]
+        if (!invoice) return false
+        if (
+          body.receivedDate !== undefined &&
+          invoice.type !== "RECEIVED_INVOICE"
+        ) {
+          throw new BadRequestException(
+            "receivedDate is only valid for a received invoice",
+          )
+        }
+        const values: {
+          tax_point_date?: string | null
+          received_date?: string | null
+        } = {}
+        if (body.taxPointDate !== undefined) {
+          values.tax_point_date = body.taxPointDate
+        }
+        if (body.receivedDate !== undefined) {
+          values.received_date = body.receivedDate
+        }
+        await db
+          .update(summary_record)
+          .set(values)
+          .where(eq(summary_record.id, invoiceId))
+        return true
+      },
+    )
+    if (!updated) throw new NotFoundError("Invoice not found")
+    return this.get(invoiceId, principal)
   }
 
   private send(res: Response, r: GatedWriteResult): Record<string, unknown> {

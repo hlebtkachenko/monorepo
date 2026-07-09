@@ -322,4 +322,102 @@ describe("computeTimelineObligations", () => {
     expect(vatReturns).toHaveLength(1)
     expect(vatReturns[0]?.applicability.status).toBe("APPLICABLE")
   })
+
+  it("uses shared VAT activity evidence to resolve conditional obligations", () => {
+    const vatTimeline = resolveEffectiveTimeline({
+      from: "2026-01-01",
+      to: "2026-01-31",
+      facts: [
+        {
+          sourceId: "payer",
+          validFrom: "2026-01-01",
+          validTo: null,
+          value: { regime: "PAYER" as const, filingPeriod: "MONTHLY" as const },
+        },
+      ],
+    })
+
+    const result = computeTimelineObligations({
+      from: "2026-01-01",
+      to: "2026-01-31",
+      personType: "LEGAL",
+      vatTimeline,
+      payrollTimeline: [],
+      vatActivity: [
+        {
+          month: "2026-01",
+          hasKhReportableTransactions: true,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: true,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ],
+    })
+
+    expect(
+      result.obligations.find((row) => row.kind === "CONTROL_STATEMENT")
+        ?.applicability.status,
+    ).toBe("APPLICABLE")
+    expect(
+      result.obligations.find((row) => row.kind === "EC_SALES_LIST")
+        ?.applicability.status,
+    ).toBe("APPLICABLE")
+  })
+
+  it("preserves monthly SH cadence across split quarterly-payer segments", () => {
+    const vatTimeline = resolveEffectiveTimeline({
+      from: "2026-01-01",
+      to: "2026-12-31",
+      facts: [
+        {
+          sourceId: "quarterly-first-half",
+          validFrom: "2026-01-01",
+          validTo: "2026-06-30",
+          value: { regime: "PAYER" as const, filingPeriod: "QUARTERLY" as const },
+        },
+        {
+          sourceId: "quarterly-second-half",
+          validFrom: "2026-07-01",
+          validTo: null,
+          value: { regime: "PAYER" as const, filingPeriod: "QUARTERLY" as const },
+        },
+      ],
+    })
+
+    const result = computeTimelineObligations({
+      from: "2026-01-01",
+      to: "2026-12-31",
+      personType: "LEGAL",
+      vatTimeline,
+      payrollTimeline: [],
+      vatActivity: [
+        {
+          month: "2026-01",
+          hasKhReportableTransactions: false,
+          hasShGoodsSupplies: true,
+          hasShServiceSupplies: false,
+          hasIdentifiedPersonVatLiability: false,
+        },
+        {
+          month: "2026-07",
+          hasKhReportableTransactions: false,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: true,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ],
+    })
+    const sh = result.obligations.filter(
+      (row) => row.kind === "EC_SALES_LIST",
+    )
+
+    expect(sh.map((row) => [row.periodStart, row.periodEnd])).toContainEqual([
+      "2026-07-01",
+      "2026-07-31",
+    ])
+    expect(sh.map((row) => [row.periodStart, row.periodEnd])).not.toContainEqual([
+      "2026-07-01",
+      "2026-09-30",
+    ])
+  })
 })

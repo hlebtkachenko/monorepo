@@ -12,6 +12,7 @@ import {
 import {
   computeTimelineObligations,
   deriveObligationPresentationStatus,
+  getVatPeriodActivity,
   resolveEffectiveTimeline,
   statutoryVatEnvelope,
   type EffectiveFact,
@@ -225,6 +226,11 @@ export async function computeWorkspaceObligations(
           to: period.periodEnd,
           facts: payrollFacts,
         }),
+        vatActivity: await getVatPeriodActivity(
+          db,
+          { kind: "FILING_PERIOD", period: vatEnvelope },
+          org.id,
+        ),
       })
 
       // Both `computeObligations` and `computePayrollObligations` already

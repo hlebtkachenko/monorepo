@@ -1,6 +1,11 @@
 import "server-only"
 
-import { computeTimelineObligations } from "@workspace/accounting"
+import {
+  computeTimelineObligations,
+  getVatPeriodActivity,
+  statutoryVatEnvelope,
+} from "@workspace/accounting"
+import { withOrganization } from "@workspace/db"
 import { czechToday } from "@/lib/czech-today"
 
 import { resolvePeriodProfile } from "./period-profile"
@@ -45,12 +50,22 @@ export async function getClosingObligations(
     vatTimeline,
     payrollTimeline,
   } = profile
+  const vatActivity = await withOrganization(
+    profile.ctx.organizationId,
+    profile.ctx.userId,
+    (db) =>
+      getVatPeriodActivity(db, {
+        kind: "FILING_PERIOD",
+        period: statutoryVatEnvelope(periodStart, periodEnd),
+      }),
+  )
   const result = computeTimelineObligations({
     from: periodStart,
     to: periodEnd,
     personType,
     vatTimeline,
     payrollTimeline,
+    vatActivity,
   })
 
   const today = czechToday()

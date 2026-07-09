@@ -1192,7 +1192,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
               "purpose": null
             },
             {
-              "label": "Personal income tax",
+              "label": "Section 7 tax-record worksheet",
               "route": "closing/income-tax/dpfo",
               "tba": false,
               "archetype": null,
@@ -1270,7 +1270,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
               "purpose": null
             },
             {
-              "label": "Statements",
+              "label": "Draft closing worksheet",
               "route": "closing/year-end/statements",
               "tba": false,
               "archetype": null,

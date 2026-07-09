@@ -248,7 +248,7 @@ describe("computeWorkspaceObligations", () => {
     expect(obligations.filter((o) => o.kind === "VAT_RETURN")).toHaveLength(12)
     expect(
       obligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
-    ).toHaveLength(12)
+    ).toHaveLength(0)
     expect(obligations.filter((o) => o.category === "PAYROLL")).toHaveLength(36)
     for (const o of obligations) {
       expect(o.organizationId).toBe(org)
@@ -474,7 +474,7 @@ describe("computeWorkspaceObligations", () => {
     ).toHaveLength(12)
     expect(
       payerObligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
-    ).toHaveLength(12)
+    ).toHaveLength(0)
     expect(
       payerObligations.filter((o) => o.category === "PAYROLL"),
     ).toHaveLength(36)

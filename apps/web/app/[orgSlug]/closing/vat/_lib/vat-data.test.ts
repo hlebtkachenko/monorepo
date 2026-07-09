@@ -254,6 +254,7 @@ async function captureStandardSale(opts: {
       seriesId: documentSeriesId,
       type: "ISSUED_INVOICE",
       issuedAt: opts.occurredAt,
+      taxPointDate: opts.occurredAt.slice(0, 10),
       lines: [
         {
           eventId: ev.eventId,
@@ -361,6 +362,53 @@ describe("getVatFilingPeriods", () => {
       from: "2026-12-01",
       to: "2026-12-31",
     })
+  }, 30_000)
+
+  it("keeps filing candidates when the payer cadence changes inside the accounting period", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "vat-payer-cadence-change",
+      legalName: "Payer Cadence Change s.r.o.",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+    })
+    await seedVatStatus({
+      orgId: org,
+      vatRegimeCode: "PAYER",
+      validFrom: "2026-01-01",
+      validTo: "2026-06-30",
+      filingPeriod: "MONTHLY",
+    })
+    await seedVatStatus({
+      orgId: org,
+      vatRegimeCode: "PAYER",
+      validFrom: "2026-07-01",
+      filingPeriod: "QUARTERLY",
+    })
+
+    sessionUserId = user
+    const result = await getVatFilingPeriods("vat-payer-cadence-change")
+
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.filingPeriod).toBeNull()
+    expect(result.filingPeriods).toEqual([
+      { label: "January 2026", from: "2026-01-01", to: "2026-01-31" },
+      { label: "February 2026", from: "2026-02-01", to: "2026-02-28" },
+      { label: "March 2026", from: "2026-03-01", to: "2026-03-31" },
+      { label: "April 2026", from: "2026-04-01", to: "2026-04-30" },
+      { label: "May 2026", from: "2026-05-01", to: "2026-05-31" },
+      { label: "June 2026", from: "2026-06-01", to: "2026-06-30" },
+      { label: "Q3 2026", from: "2026-07-01", to: "2026-09-30" },
+      { label: "Q4 2026", from: "2026-10-01", to: "2026-12-31" },
+    ])
   }, 30_000)
 
   it("NON_PAYER org -> not-payer (no VAT filing periods to show)", async () => {

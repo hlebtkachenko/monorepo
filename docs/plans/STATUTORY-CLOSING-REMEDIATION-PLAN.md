@@ -6,6 +6,24 @@
 > `53969eb`. This is a stable cross-PR reference. Execution status, assignees,
 > and merge state belong in the linked remediation PRs and GitHub Project.
 
+## Execution status
+
+Implementation completed on 2026-07-09. Final combined verification and remote
+CI promotion are tracked in Milestone 7.
+
+| Milestone | Delivery PR | Status |
+| --- | --- | --- |
+| 0-1: baseline, ADR, statutory periods, legal dates | [#626](https://github.com/hlebtkachenko/monorepo/pull/626) | Implemented, CI green |
+| 2: effective profiles and obligation truth model | [#628](https://github.com/hlebtkachenko/monorepo/pull/628) | Implemented, CI green |
+| 3: VAT obligation and output correctness | [#630](https://github.com/hlebtkachenko/monorepo/pull/630) | Implemented |
+| 4: payroll obligation correctness | [#631](https://github.com/hlebtkachenko/monorepo/pull/631) | Implemented |
+| 5: annual tax and year-end truthfulness | [#632](https://github.com/hlebtkachenko/monorepo/pull/632) | Implemented |
+| 6: workspace and canonical configuration | [#629](https://github.com/hlebtkachenko/monorepo/pull/629) | Implemented |
+| 7: combined review, verification, and PR readiness | PR stack above | In progress |
+
+The checkbox lists below remain the acceptance checklist and design history.
+The table above is the authoritative execution status.
+
 Reviewed merge set:
 
 | PR   | Merge SHA  | Scope                                                     |

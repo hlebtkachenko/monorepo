@@ -35,8 +35,9 @@ import type {
   StatementLayoutResponse,
 } from "@workspace/shared/api"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
-import { eq, withOrganization } from "@workspace/db"
-import { number_series } from "@workspace/db/schema"
+import { and, eq, sql, withOrganization } from "@workspace/db"
+import type { OrganizationBoundDb } from "@workspace/db"
+import { accounting_period, number_series } from "@workspace/db/schema"
 import {
   buildDph,
   buildDppo,
@@ -91,6 +92,85 @@ class ParseIsoDateQueryPipe implements PipeTransform<
       )
     }
     return value
+  }
+}
+
+class ParseRequiredLegalDatePipe implements PipeTransform<unknown, string> {
+  transform(value: unknown): string {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException(
+        "from and to must be ISO dates (YYYY-MM-DD)",
+      )
+    }
+    const [year, month, day] = value.split("-").map(Number) as [
+      number,
+      number,
+      number,
+    ]
+    const parsed = new Date(Date.UTC(year, month - 1, day))
+    if (
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    ) {
+      throw new BadRequestException("from and to must be valid calendar dates")
+    }
+    return value
+  }
+}
+
+function statutoryVatScope(from: string, to: string) {
+  const [fromYear, fromMonth, fromDay] = from.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ]
+  const [toYear, toMonth, toDay] = to.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ]
+  const lastDay = new Date(Date.UTC(toYear, toMonth, 0)).getUTCDate()
+  const isMonth =
+    fromYear === toYear &&
+    fromMonth === toMonth &&
+    fromDay === 1 &&
+    toDay === lastDay
+  const isQuarter =
+    fromYear === toYear &&
+    [1, 4, 7, 10].includes(fromMonth) &&
+    toMonth === fromMonth + 2 &&
+    fromDay === 1 &&
+    toDay === lastDay
+  if (!isMonth && !isQuarter) {
+    throw new BadRequestException(
+      "from and to must identify one complete calendar month or quarter",
+    )
+  }
+  return { kind: "FILING_PERIOD" as const, period: { from, to } }
+}
+
+async function assertVatPeriodContext(
+  db: OrganizationBoundDb,
+  periodId: string,
+  from: string,
+  to: string,
+): Promise<void> {
+  const rows = await db
+    .select({ id: accounting_period.id })
+    .from(accounting_period)
+    .where(
+      and(
+        eq(accounting_period.id, periodId),
+        sql`${accounting_period.period_start} <= ${to}::date`,
+        sql`${accounting_period.period_end} >= ${from}::date`,
+      ),
+    )
+    .limit(1)
+  if (rows.length === 0) {
+    throw new BadRequestException(
+      "periodId must identify an accounting period overlapping the filing period",
+    )
   }
 }
 
@@ -267,19 +347,28 @@ export class AccountingController {
       "period, computed from the posted facts.",
   })
   @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiQuery({ name: "from", required: true, type: String })
+  @ApiQuery({ name: "to", required: true, type: String })
   @ApiOkResponse({ type: DphResponseDto })
   async getVatReturn(
     @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @Query("from", new ParseRequiredLegalDatePipe()) from: string,
+    @Query("to", new ParseRequiredLegalDatePipe()) to: string,
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<DphResponse> {
+    const scope = statutoryVatScope(from, to)
     const dph = await withOrganization(
       principal.organizationId,
       principal.userId,
-      (db) => buildDph(db, { kind: "ACCOUNTING_PERIOD", periodId }),
+      async (db) => {
+        await assertVatPeriodContext(db, periodId, from, to)
+        return buildDph(db, scope)
+      },
     )
     return {
       organizationId: principal.organizationId,
       periodId,
+      filingPeriod: { from, to },
       rows: dph.rows,
       kh: dph.kh,
       completeness: dph.completeness,
@@ -332,23 +421,28 @@ export class AccountingController {
   @Get("periods/:periodId/outputs/ec-sales-list")
   @ApiOperation({ summary: "Get EC sales list (souhrnné hlášení)" })
   @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiQuery({ name: "from", required: true, type: String })
+  @ApiQuery({ name: "to", required: true, type: String })
   @ApiOkResponse({ type: EcSalesListResponseDto })
   async getEcSalesList(
     @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @Query("from", new ParseRequiredLegalDatePipe()) from: string,
+    @Query("to", new ParseRequiredLegalDatePipe()) to: string,
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<EcSalesListResponse> {
+    const scope = statutoryVatScope(from, to)
     const s = await withOrganization(
       principal.organizationId,
       principal.userId,
-      (db) =>
-        buildSouhrnneHlaseni(db, {
-          kind: "ACCOUNTING_PERIOD",
-          periodId,
-        }),
+      async (db) => {
+        await assertVatPeriodContext(db, periodId, from, to)
+        return buildSouhrnneHlaseni(db, scope)
+      },
     )
     return {
       organizationId: principal.organizationId,
       periodId,
+      filingPeriod: { from, to },
       rows: s.rows.map((r) => ({
         countryCode: r.country_code,
         taxId: r.tax_id,
@@ -363,19 +457,23 @@ export class AccountingController {
   @Get("periods/:periodId/outputs/control-statement")
   @ApiOperation({ summary: "Get control statement (kontrolní hlášení)" })
   @ApiParam({ name: "periodId", format: "uuid" })
+  @ApiQuery({ name: "from", required: true, type: String })
+  @ApiQuery({ name: "to", required: true, type: String })
   @ApiOkResponse({ type: ControlStatementResponseDto })
   async getControlStatement(
     @Param("periodId", new ParseUUIDPipe()) periodId: string,
+    @Query("from", new ParseRequiredLegalDatePipe()) from: string,
+    @Query("to", new ParseRequiredLegalDatePipe()) to: string,
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<ControlStatementResponse> {
+    const scope = statutoryVatScope(from, to)
     const k = await withOrganization(
       principal.organizationId,
       principal.userId,
-      (db) =>
-        buildKontrolniHlaseni(db, {
-          kind: "ACCOUNTING_PERIOD",
-          periodId,
-        }),
+      async (db) => {
+        await assertVatPeriodContext(db, periodId, from, to)
+        return buildKontrolniHlaseni(db, scope)
+      },
     )
     const row = (r: {
       tax_id: string | null
@@ -404,6 +502,7 @@ export class AccountingController {
     return {
       organizationId: principal.organizationId,
       periodId,
+      filingPeriod: { from, to },
       a1: k.a1.map(row),
       a2: k.a2.map(row),
       a4: k.a4.map(row),

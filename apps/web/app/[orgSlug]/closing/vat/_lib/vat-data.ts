@@ -6,10 +6,9 @@ import {
   buildDph,
   buildKontrolniHlaseni,
   buildSouhrnneHlaseni,
-  computeObligations,
+  computeTimelineObligations,
   getVatPeriodActivity,
   getVatEvidenceCompleteness,
-  singleEffectiveValue,
   statutoryVatEnvelope,
   type Dph,
   type KontrolniHlaseni,
@@ -118,14 +117,10 @@ type VatContextResolution =
   VatBaseStatus | ({ status: "ok" } & ResolvedVatContext)
 
 /**
- * Resolve the org + active period + period-effective vat_status via
- * `resolvePeriodProfile` (shared with `getClosingObligations` in
- * closing-data.ts), then derive the filing-period set for one obligation
- * `kind` (VAT_RETURN for DAP, CONTROL_STATEMENT for KH, EC_SALES_LIST for SH)
- * via the obligation engine. `computeObligations` THROWS when regime is
- * PAYER with a null filing period, so that combination is detected as
- * "vat-unconfigured" BEFORE calling it — mirrors `getClosingObligations`'s
- * guard.
+ * Resolve the org + active period + complete effective VAT timeline, then
+ * derive filing candidates from every payer segment. This preserves real
+ * cadence or registration changes inside an accounting period instead of
+ * requiring one invariant profile value for the whole period.
  */
 async function resolveVatContext(
   orgSlug: string,
@@ -136,26 +131,29 @@ async function resolveVatContext(
 
   const { ctx, periodId, periodStart, periodEnd, periodLabel, personType } =
     profile
-  const vatProfile = singleEffectiveValue(
-    profile.vatTimeline,
-    (a, b) => a.regime === b.regime && a.filingPeriod === b.filingPeriod,
+  const knownSegments = profile.vatTimeline.filter(
+    (segment) => segment.status === "KNOWN",
   )
-  if (!vatProfile) return { status: "vat-unconfigured", periodLabel }
-  const vatRegimeCode = vatProfile.regime
-  const filingPeriod = vatProfile.filingPeriod
-
-  // VAT pages only apply to a PAYER (a declared monthly/quarterly filing
-  // cadence, §99/§99a ZDPH) — NON_PAYER and IDENTIFIED_PERSON have no such
-  // cadence to select a filing period from. IDENTIFIED_PERSON still owes
-  // event-driven filings (§101/5 + §102 ZDPH), surfaced distinctly.
-  if (vatRegimeCode === "NON_PAYER") return { status: "not-payer" }
-  // The payer worksheet builders include input-tax deduction semantics that
-  // identified persons do not have. Keep that distinct regime explicit until
-  // a dedicated identified-person worksheet is implemented.
-  if (vatRegimeCode === "IDENTIFIED_PERSON")
-    return { status: "identified-person" }
-  if (vatRegimeCode === "PAYER" && filingPeriod == null)
+  const hasProfileGap = profile.vatTimeline.some(
+    (segment) => segment.status === "UNKNOWN",
+  )
+  const payerSegments = knownSegments.filter(
+    (segment) => segment.fact.value.regime === "PAYER",
+  )
+  if (
+    hasProfileGap ||
+    payerSegments.some((segment) => segment.fact.value.filingPeriod === null)
+  ) {
     return { status: "vat-unconfigured", periodLabel }
+  }
+
+  if (payerSegments.length === 0) {
+    return knownSegments.some(
+      (segment) => segment.fact.value.regime === "IDENTIFIED_PERSON",
+    )
+      ? { status: "identified-person" }
+      : { status: "not-payer" }
+  }
 
   const envelope = statutoryVatEnvelope(periodStart, periodEnd)
   const artifactKind =
@@ -184,17 +182,28 @@ async function resolveVatContext(
     }
   }
 
-  const obligations = computeObligations({
-    periodStart,
-    periodEnd,
-    vatRegimeCode,
-    vatFilingPeriod: filingPeriod,
+  const timelineResult = computeTimelineObligations({
+    from: periodStart,
+    to: periodEnd,
     personType,
+    vatTimeline: profile.vatTimeline,
+    payrollTimeline: [],
     vatActivity,
   })
+  if (timelineResult.issues.some((issue) => issue.code.startsWith("VAT_"))) {
+    return { status: "vat-unconfigured", periodLabel }
+  }
 
-  const filingPeriods: VatFilingPeriodOption[] = obligations
-    .filter((o) => o.kind === kind)
+  const filingPeriods: VatFilingPeriodOption[] = timelineResult.obligations
+    .filter(
+      (obligation) =>
+        obligation.kind === kind &&
+        payerSegments.some(
+          (segment) =>
+            obligation.periodStart <= segment.to &&
+            obligation.periodEnd >= segment.from,
+        ),
+    )
     .map((o) => ({
       label: o.periodLabel,
       from: o.periodStart,
@@ -212,14 +221,19 @@ async function resolveVatContext(
     return { status: "no-filing-activity", artifact }
   }
 
+  const filingPeriodsUsed = new Set(
+    payerSegments.map((segment) => segment.fact.value.filingPeriod),
+  )
+
   return {
     status: "ok",
     ctx,
     periodId,
     periodLabel,
     filingPeriods,
-    regime: vatRegimeCode,
-    filingPeriod,
+    regime: "PAYER",
+    filingPeriod:
+      filingPeriodsUsed.size === 1 ? ([...filingPeriodsUsed][0] ?? null) : null,
   }
 }
 

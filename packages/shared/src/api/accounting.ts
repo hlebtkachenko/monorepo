@@ -23,6 +23,27 @@ export const PeriodIdParamSchema = z.object({
     }),
 })
 
+export const VatFilingPeriodQuerySchema = z.object({
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .openapi({
+      description: "Calendar month or quarter start (YYYY-MM-DD).",
+      example: "2026-01-01",
+    }),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .openapi({
+      description: "Calendar month or quarter end (YYYY-MM-DD).",
+      example: "2026-03-31",
+    }),
+})
+
+export const VatFilingPeriodSchema = VatFilingPeriodQuerySchema.openapi({
+  description: "Statutory calendar VAT filing period used for the worksheet.",
+})
+
 /** A single deník (journal) line — one side of one posting, in book order (§13). */
 export const JournalRowSchema = z
   .object({
@@ -387,16 +408,17 @@ export const DphResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
     periodId: z.string().uuid().openapi({
-      description: "The period this return covers.",
+      description: "Accounting context used to authorize this request.",
       example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
     }),
+    filingPeriod: VatFilingPeriodSchema,
     rows: DphRowsSchema,
     kh: KontrolniHlaseniTotalsSchema,
     completeness: VatEvidenceCompletenessSchema,
   })
   .openapi({
     description:
-      "DPH přiznání (VAT return) for the period — line values plus kontrolní " +
+      "Partial DPH worksheet for one statutory calendar filing period — line values plus kontrolní " +
       "hlášení section totals, computed from the posted facts.",
   })
 export type DphResponse = z.infer<typeof DphResponseSchema>
@@ -522,16 +544,18 @@ export const EcSalesListResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
     periodId: z.string().uuid().openapi({
-      description: "Period covered.",
+      description: "Accounting context used to authorize this request.",
       example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
     }),
+    filingPeriod: VatFilingPeriodSchema,
     rows: z
       .array(EcSalesRowSchema)
       .openapi({ description: "EU supply recap rows (§102)." }),
     completeness: VatEvidenceCompletenessSchema,
   })
   .openapi({
-    description: "Souhrnné hlášení — EU supplies recap for the period.",
+    description:
+      "Partial souhrnné hlášení worksheet for one statutory calendar filing period.",
   })
 export type EcSalesListResponse = z.infer<typeof EcSalesListResponseSchema>
 
@@ -588,9 +612,10 @@ export const ControlStatementResponseSchema = z
   .object({
     organizationId: OrganizationIdSchema,
     periodId: z.string().uuid().openapi({
-      description: "Period covered.",
+      description: "Accounting context used to authorize this request.",
       example: "3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10",
     }),
+    filingPeriod: VatFilingPeriodSchema,
     a1: z.array(KhRowSchema).openapi({ description: "A.1 — PDP dodavatel." }),
     a2: z
       .array(KhRowSchema)
@@ -614,7 +639,7 @@ export const ControlStatementResponseSchema = z
   })
   .openapi({
     description:
-      "Kontrolní hlášení — per-counterparty control statement (§101c-i).",
+      "Partial kontrolní hlášení worksheet for one statutory calendar filing period (§101c-i).",
   })
 export type ControlStatementResponse = z.infer<
   typeof ControlStatementResponseSchema

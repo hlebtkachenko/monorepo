@@ -36,13 +36,7 @@ import {
 } from "./payroll-legal-rules"
 import type { ApplicabilityDecision, Obligation, ObligationKind } from "./model"
 
-export type {
-  ApplicabilityDecision,
-  Obligation,
-  ObligationCategory,
-  ObligationKind,
-  ScheduleCandidate,
-} from "./model"
+export type { Obligation, ObligationCategory, ObligationKind } from "./model"
 
 // VatRegime, VatFilingPeriod, and PersonType are reused from ./types
 // (identical unions, each backed by a DB pgEnum/reference table) via
@@ -61,6 +55,8 @@ export interface ObligationInput {
   personType: PersonType
   /** Omit when callers only know the possible schedule, not transaction evidence. */
   vatActivity?: readonly VatPeriodActivity[]
+  /** Earliest qualifying SH goods month per year across the full timeline envelope. */
+  shFirstGoodsMonthByYear?: ReadonlyMap<number, number>
 }
 
 export interface VatPeriodActivity {
@@ -448,13 +444,17 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         })
       }
     } else if (isVatPayer && input.vatFilingPeriod === "QUARTERLY") {
-      const firstGoodsMonthByYear = new Map<number, number>()
-      for (const { year, month } of months) {
-        if (activityFor(year, month)?.hasShGoodsSupplies !== true) continue
-        const current = firstGoodsMonthByYear.get(year)
-        if (current === undefined || month < current)
-          firstGoodsMonthByYear.set(year, month)
+      const localFirstGoodsMonthByYear = new Map<number, number>()
+      if (input.shFirstGoodsMonthByYear === undefined) {
+        for (const { year, month } of months) {
+          if (activityFor(year, month)?.hasShGoodsSupplies !== true) continue
+          const current = localFirstGoodsMonthByYear.get(year)
+          if (current === undefined || month < current)
+            localFirstGoodsMonthByYear.set(year, month)
+        }
       }
+      const firstGoodsMonthByYear =
+        input.shFirstGoodsMonthByYear ?? localFirstGoodsMonthByYear
       for (const quarter of quartersInRange(months)) {
         const quarterMonths = months.filter(
           ({ year, month }) =>

@@ -106,7 +106,7 @@ jobs:
           check_pnpm_copy "mise.toml pnpm tool pin" \
             "$(grep -oP '^pnpm\s*=\s*\"\K[0-9.]+' mise.toml)"
           check_pnpm_copy ".github/workflows/_deploy-aws.yml pnpm/action-setup version" \
-            "$(awk '/pnpm\/action-setup@/{seen=1; next} seen && /version:/{gsub(/[\" ]/, \"\", $2); print $2; exit}' .github/workflows/_deploy-aws.yml)"
+            "$(awk '/pnpm\/action-setup@/{seen=1; next} seen && /version:/{gsub(/[" ]/, "", $2); print $2; exit}' .github/workflows/_deploy-aws.yml)"
 
           compare "gitleaks" \
             "$(grep -oP 'GITLEAKS_VERSION: "\K[0-9.]+' .github/workflows/ci.yml)" \

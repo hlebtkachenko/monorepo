@@ -1141,7 +1141,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Payroll",
           "route": "closing/payroll",
           "icon": "Users",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": [
@@ -1798,6 +1798,16 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "VAT status",
           "route": "settings/vat-status",
           "icon": "ReceiptEuro",
+          "tba": false,
+          "archetype": null,
+          "purpose": null,
+          "subpages": []
+        },
+        {
+          "group": "Organisation",
+          "label": "Tax profile",
+          "route": "settings/tax-profile",
+          "icon": "Users",
           "tba": false,
           "archetype": null,
           "purpose": null,

@@ -2083,6 +2083,7 @@ END) STORED,
     tax_office_workplace_code character varying(4),
     registry_file_number text,
     archived_at timestamp with time zone,
+    responsible_user_id uuid,
     CONSTRAINT organization_data_box_format_chk CHECK (((data_box_id IS NULL) OR ((data_box_id)::text ~ '^[a-z0-9]{7}$'::text))),
     CONSTRAINT organization_ico_format_chk CHECK (((ico IS NULL) OR ((ico)::text ~ '^[0-9]{8}$'::text))),
     CONSTRAINT organization_legal_subject_kind_check CHECK ((legal_subject_kind = ANY (ARRAY['for_profit'::text, 'non_profit'::text]))),
@@ -3750,6 +3751,12 @@ CREATE INDEX organization_membership_workspace_idx ON public.organization_member
 CREATE INDEX organization_membership_ws_membership_idx ON public.organization_membership USING btree (workspace_membership_id);
 
 --
+-- Name: organization_responsible_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX organization_responsible_user_idx ON public.organization USING btree (responsible_user_id) WHERE (responsible_user_id IS NOT NULL);
+
+--
 -- Name: organization_self_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4886,6 +4893,13 @@ ALTER TABLE ONLY public.organization_provisioning
 
 ALTER TABLE ONLY public.organization_provisioning
     ADD CONSTRAINT organization_provisioning_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: organization organization_responsible_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.organization
+    ADD CONSTRAINT organization_responsible_user_id_fkey FOREIGN KEY (responsible_user_id) REFERENCES public.app_user(id);
 
 --
 -- Name: organization_tax_profile organization_tax_profile_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

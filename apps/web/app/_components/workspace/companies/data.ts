@@ -1,13 +1,12 @@
 /**
  * Companies (company books = organizations) table data contract for the workspace
- * tier. The identity fields (name, slug, type, fiscal year), the member stack,
- * and the accounting periods are REAL — resolved server-side from
- * `organization` / `organization_membership` / `accounting_period`. The
- * operational fields (VAT regime, status, next deadline, assignee) are MOCK:
- * no columns back them yet (`organization` has no ico/dic/vat_status/
- * status/assignee), so they are derived deterministically from the row id in
- * `enrichCompanyMock` — stable across renders (no hydration drift), clearly
- * placeholder until real sources land.
+ * tier. Every field is REAL, resolved server-side (`workspace/page.tsx`):
+ * identity + the member stack + the accounting periods from `organization` /
+ * `organization_membership` / `accounting_period`; `vatRegime` from the
+ * current `vat_status` row; `status` derived from `archived_at` + whether the
+ * org has any accounting period; `nextDeadline` from the shared obligation
+ * engine (`workspace-obligations.ts`); `assignee` from
+ * `organization.responsible_user_id ⋈ app_user`.
  */
 
 export type CompanyStatus = "Active" | "Onboarding" | "Archived"
@@ -15,6 +14,13 @@ export type CompanyVatRegime = "Payer" | "Non-payer" | "Identified person"
 
 /** A person with an active membership in the company (real, from the DB). */
 export interface CompanyMember {
+  userId: string
+  name: string
+  image?: string
+}
+
+/** The workspace staff member responsible for a company book (real, from the DB). */
+export interface CompanyAssignee {
   userId: string
   name: string
   image?: string
@@ -35,14 +41,14 @@ export interface CompanyRow {
   archived: boolean
   /** Real: the org's accounting periods, newest first (card's period picker). */
   periods: CompanyPeriod[]
-  /** MOCK. */
+  /** Real: the current `vat_status` row's regime; no row -> "Non-payer". */
   vatRegime: CompanyVatRegime
-  /** MOCK. */
+  /** Real: archived -> "Archived"; no accounting period -> "Onboarding"; else "Active". */
   status: CompanyStatus
-  /** MOCK — next obligation summary. */
+  /** Real: the org's earliest upcoming obligation, or "No upcoming deadline". */
   nextDeadline: string
-  /** MOCK — responsible accountant. */
-  assignee: string
+  /** Real: `organization.responsible_user_id ⋈ app_user`; null = unassigned. */
+  assignee: CompanyAssignee | null
 }
 
 /** An accounting period a user can jump straight into from the card. */
@@ -137,50 +143,21 @@ export function toCompanyPeriods(
   }))
 }
 
-const VAT_REGIMES: CompanyVatRegime[] = [
-  "Payer",
-  "Non-payer",
-  "Identified person",
-]
-const STATUSES: CompanyStatus[] = ["Active", "Active", "Onboarding", "Archived"]
-const ASSIGNEES = [
-  "Jana Nováková",
-  "Petr Svoboda",
-  "Lucie Dvořáková",
-  "Tomáš Novák",
-]
-const DEADLINES = [
-  "VAT return · 25th",
-  "Control statement · 25th",
-  "Payroll report · 20th",
-  "Income tax · 1 Apr",
-  "No upcoming deadline",
-]
-
-/** Stable non-negative hash of a string (djb2-ish) for deterministic mock picks. */
-function hash(input: string): number {
-  let h = 5381
-  for (let i = 0; i < input.length; i++)
-    h = (h * 33 + input.charCodeAt(i)) >>> 0
-  return h
+const VAT_REGIME_LABEL: Record<string, CompanyVatRegime> = {
+  NON_PAYER: "Non-payer",
+  PAYER: "Payer",
+  IDENTIFIED_PERSON: "Identified person",
 }
 
-/** Deterministic MOCK operational fields derived from the company id. */
-export function enrichCompanyMock(id: string): {
-  vatRegime: CompanyVatRegime
-  status: CompanyStatus
-  nextDeadline: string
-  assignee: string
-} {
-  const h = hash(id)
-  const status = STATUSES[h % STATUSES.length]!
-  return {
-    vatRegime: VAT_REGIMES[h % VAT_REGIMES.length]!,
-    status,
-    nextDeadline:
-      status === "Archived" ? "—" : DEADLINES[(h >> 3) % DEADLINES.length]!,
-    assignee: ASSIGNEES[(h >> 5) % ASSIGNEES.length]!,
-  }
+/**
+ * Map a `vat_status.vat_regime_code` to its display label. No current row
+ * (or an unrecognized code) -> "Non-payer" — the honest default (no VAT
+ * status on record means neplátce, not a gap).
+ */
+export function vatRegimeLabel(
+  code: string | null | undefined,
+): CompanyVatRegime {
+  return (code && VAT_REGIME_LABEL[code]) || "Non-payer"
 }
 
 /**
@@ -212,7 +189,7 @@ export function applySearch(rows: CompanyRow[], query: string): CompanyRow[] {
       row.typeLabel,
       row.vatRegime,
       row.status,
-      row.assignee,
+      row.assignee?.name ?? "",
     ].some((value) => value.toLowerCase().includes(q)),
   )
 }

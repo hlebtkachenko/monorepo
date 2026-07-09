@@ -9,6 +9,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Added
 
 - **brain**: automated code guards + tests for the Brain safety invariants I3 (no tenancy fields in any API request schema + full public-op allowlist), I4 (append-only ledger DELETE rejection), I7 (human-actor-required guard), I9 (no write-templates tripwire, scanning code not comments), and I10 (provenance atomicity).
+- **brain/api**: onboarding tools — `POST /v1/accounting/number-series`, `POST /v1/accounting/periods`, `GET /v1/accounting/periods` (with SDK + MCP tools). `create-period` reuses the coupled scaffold so a period is always minted with its chart of accounts + default number series (fixes #579 under-provisioning) and rejects overlapping periods with a 409 to prevent double-booking on retry.
 
 ### Changed
 

@@ -368,13 +368,15 @@ export type KontrolniHlaseniTotals = z.infer<
 
 export const VatEvidenceCompletenessSchema = z
   .object({
-    status: z.enum(["COMPLETE", "NEEDS_INPUT"]),
+    status: z.enum(["PARTIAL", "NEEDS_INPUT"]),
     missingTaxPointDocuments: z.number().int().nonnegative(),
     missingReceivedDateDocuments: z.number().int().nonnegative(),
+    missingClassificationDocuments: z.number().int().nonnegative(),
+    limitations: z.array(z.string()),
   })
   .openapi({
     description:
-      "Whether the VAT artifact has the legal-date evidence required by its included sections.",
+      "Blocking evidence gaps and declared limitations for a partial VAT worksheet.",
   })
 export type VatEvidenceCompleteness = z.infer<
   typeof VatEvidenceCompletenessSchema

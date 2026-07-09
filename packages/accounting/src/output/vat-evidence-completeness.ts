@@ -8,7 +8,7 @@ export interface VatEvidenceCompleteness {
   missingTaxPointDocuments: number
   missingReceivedDateDocuments: number
   missingClassificationDocuments: number
-  limitations: readonly string[]
+  limitations: string[]
 }
 
 export type VatArtifactKind = "DAP" | "KH" | "SH"
@@ -165,6 +165,6 @@ export async function getVatEvidenceCompleteness(
     missingTaxPointDocuments,
     missingReceivedDateDocuments,
     missingClassificationDocuments,
-    limitations: LIMITATIONS[artifact],
+    limitations: [...LIMITATIONS[artifact]],
   }
 }

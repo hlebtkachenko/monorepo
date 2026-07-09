@@ -1941,12 +1941,14 @@ export interface components {
                  */
                 b2_dan: string;
             };
-            /** @description Whether the VAT artifact has the legal-date evidence required by its included sections. */
+            /** @description Blocking evidence gaps and declared limitations for a partial VAT worksheet. */
             completeness: {
                 /** @enum {string} */
-                status: "COMPLETE" | "NEEDS_INPUT";
+                status: "PARTIAL" | "NEEDS_INPUT";
                 missingTaxPointDocuments: number;
                 missingReceivedDateDocuments: number;
+                missingClassificationDocuments: number;
+                limitations: string[];
             };
         };
         /** @description DPH přiznání line values. */
@@ -2265,12 +2267,14 @@ export interface components {
                  */
                 value: string;
             }[];
-            /** @description Whether the VAT artifact has the legal-date evidence required by its included sections. */
+            /** @description Blocking evidence gaps and declared limitations for a partial VAT worksheet. */
             completeness: {
                 /** @enum {string} */
-                status: "COMPLETE" | "NEEDS_INPUT";
+                status: "PARTIAL" | "NEEDS_INPUT";
                 missingTaxPointDocuments: number;
                 missingReceivedDateDocuments: number;
+                missingClassificationDocuments: number;
+                limitations: string[];
             };
         };
         /** @description One souhrnné hlášení row (per partner + kód plnění). */
@@ -2565,12 +2569,14 @@ export interface components {
                  */
                 count: number;
             };
-            /** @description Whether the VAT artifact has the legal-date evidence required by its included sections. */
+            /** @description Blocking evidence gaps and declared limitations for a partial VAT worksheet. */
             completeness: {
                 /** @enum {string} */
-                status: "COMPLETE" | "NEEDS_INPUT";
+                status: "PARTIAL" | "NEEDS_INPUT";
                 missingTaxPointDocuments: number;
                 missingReceivedDateDocuments: number;
+                missingClassificationDocuments: number;
+                limitations: string[];
             };
         };
         /** @description One kontrolní hlášení detail row (per doklad). */

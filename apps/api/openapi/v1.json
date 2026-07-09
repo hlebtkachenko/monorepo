@@ -2452,7 +2452,7 @@
               "status": {
                 "type": "string",
                 "enum": [
-                  "COMPLETE",
+                  "PARTIAL",
                   "NEEDS_INPUT"
                 ]
               },
@@ -2463,14 +2463,26 @@
               "missingReceivedDateDocuments": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "missingClassificationDocuments": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
               "status",
               "missingTaxPointDocuments",
-              "missingReceivedDateDocuments"
+              "missingReceivedDateDocuments",
+              "missingClassificationDocuments",
+              "limitations"
             ],
-            "description": "Whether the VAT artifact has the legal-date evidence required by its included sections."
+            "description": "Blocking evidence gaps and declared limitations for a partial VAT worksheet."
           }
         },
         "required": [
@@ -2893,7 +2905,7 @@
               "status": {
                 "type": "string",
                 "enum": [
-                  "COMPLETE",
+                  "PARTIAL",
                   "NEEDS_INPUT"
                 ]
               },
@@ -2904,14 +2916,26 @@
               "missingReceivedDateDocuments": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "missingClassificationDocuments": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
               "status",
               "missingTaxPointDocuments",
-              "missingReceivedDateDocuments"
+              "missingReceivedDateDocuments",
+              "missingClassificationDocuments",
+              "limitations"
             ],
-            "description": "Whether the VAT artifact has the legal-date evidence required by its included sections."
+            "description": "Blocking evidence gaps and declared limitations for a partial VAT worksheet."
           }
         },
         "required": [
@@ -3368,7 +3392,7 @@
               "status": {
                 "type": "string",
                 "enum": [
-                  "COMPLETE",
+                  "PARTIAL",
                   "NEEDS_INPUT"
                 ]
               },
@@ -3379,14 +3403,26 @@
               "missingReceivedDateDocuments": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "missingClassificationDocuments": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
               "status",
               "missingTaxPointDocuments",
-              "missingReceivedDateDocuments"
+              "missingReceivedDateDocuments",
+              "missingClassificationDocuments",
+              "limitations"
             ],
-            "description": "Whether the VAT artifact has the legal-date evidence required by its included sections."
+            "description": "Blocking evidence gaps and declared limitations for a partial VAT worksheet."
           }
         },
         "required": [

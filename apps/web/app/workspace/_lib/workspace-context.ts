@@ -12,7 +12,7 @@ import {
 import { presignAvatarRead } from "../../_lib/avatar-storage"
 import { readActiveWorkspaceCookie } from "../../onboarding/_lib/active-workspace-cookie"
 
-type WorkspaceRole = "owner" | "admin" | "member"
+export type WorkspaceRole = "owner" | "admin" | "member"
 
 interface WorkspaceSummary {
   id: string

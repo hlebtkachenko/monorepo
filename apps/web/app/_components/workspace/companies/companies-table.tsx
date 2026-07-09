@@ -19,6 +19,7 @@ import { useIcons } from "@workspace/ui/icon-packs"
 import { TableStatusBar } from "../_shared/table-status-bar"
 import { companyColumns } from "./columns"
 import { CompaniesTableToolbar } from "./companies-table-toolbar"
+import { CompanyAssigneeField } from "./company-card"
 import { useCompanies } from "./context"
 import {
   applySearch,
@@ -29,6 +30,7 @@ import {
 
 /** Inspector content — the detail of the selected company. */
 function CompanyDetail({ row }: { row: CompanyRow }) {
+  const { canAssign, assignableMembers } = useCompanies()
   return (
     <dl className="flex flex-col gap-3">
       <DetailField label="Type" value={row.typeLabel} />
@@ -39,7 +41,16 @@ function CompanyDetail({ row }: { row: CompanyRow }) {
         value={<Badge variant={STATUS_BADGE[row.status]}>{row.status}</Badge>}
       />
       <DetailField label="Next deadline" value={row.nextDeadline} />
-      <DetailField label="Assigned" value={row.assignee} />
+      <DetailField
+        label="Assigned"
+        value={
+          <CompanyAssigneeField
+            company={row}
+            canAssign={canAssign}
+            assignableMembers={assignableMembers}
+          />
+        }
+      />
       <DetailField label="Handle" value={`/${row.slug}`} />
     </dl>
   )

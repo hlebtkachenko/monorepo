@@ -14,6 +14,7 @@
 // LAZILY, inside the live branch, so `--dry-run` and every non-Brain command start without pulling in the SDK.
 
 import { readFileSync, statSync } from "node:fs"
+import { join } from "node:path"
 import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
 import type { Command } from "commander"
@@ -39,6 +40,14 @@ import {
   type BookContext,
 } from "./book"
 import { resolveBrainEnv, type BrainEnv } from "./env"
+import {
+  deriveIdempotencyKey,
+  renderBatchSummary,
+  runBatch,
+  type BatchJob,
+} from "./batch"
+import { liveBookOne } from "./batch-live"
+import { FileCheckpointStore } from "./checkpoint-store"
 import {
   assembleExtractPlan,
   isVisionMediaPath,
@@ -140,6 +149,59 @@ export function registerBrainCommand(program: Command): void {
           book.entries,
           opts,
         )
+      },
+    )
+
+  brain
+    .command("book-batch")
+    .description(
+      "Bulk-book a FOLDER of many structured exports through the single-document live path, with bounded " +
+        "concurrency, 429 retry/backoff, and crash-safe resume. Each document gets a DETERMINISTIC " +
+        "idempotency key (content hash), so a killed-and-resumed run skips already-booked documents and the " +
+        "server dedups any re-book into a replay — never a double-book. --dry-run assembles + prints the " +
+        "plan + keys only, no creds. Like `book`, periodId/seriesId/eventId are OPERATOR-SUPPLIED via --context.",
+    )
+    .argument(
+      "<folder>",
+      "A FOLDER of structured exports (csv / xlsx / Pohoda dataPack XML)",
+    )
+    .requiredOption(
+      "--context <path>",
+      "Path to a JSON file: { sections, captureContext } (same shape as `brain book` --context)",
+    )
+    .option(
+      "--concurrency <n>",
+      "Max live sessions in flight (default env BRAIN_BOOK_CONCURRENCY or 8)",
+    )
+    .option(
+      "--max-attempts <n>",
+      "Max attempts per document before a rate-limited doc is recorded failed (default 5)",
+    )
+    .option(
+      "--checkpoint <path>",
+      "Checkpoint file for crash-safe resume (default <folder>/.afframe-book-checkpoint.json)",
+    )
+    .option(
+      "--dry-run",
+      "Assemble + print the plan + per-document idempotency keys only; contact no endpoint (no creds needed)",
+    )
+    .option(
+      "--yes",
+      "Skip the interactive confirmation prompt on a live batch (non-interactive operators)",
+    )
+    .action(
+      async (
+        folder: string,
+        opts: {
+          context: string
+          concurrency?: string
+          maxAttempts?: string
+          checkpoint?: string
+          dryRun?: boolean
+          yes?: boolean
+        },
+      ) => {
+        await runBookBatch(folder, opts)
       },
     )
 
@@ -362,6 +424,105 @@ async function runOcrBook(
     [{ recordType: "invoice", sourceLocator: invoice.source_locator, plan }],
     opts,
   )
+}
+
+/**
+ * The bulk `book-batch` flow: assemble the folder's capture plan, then run every bookable document through the
+ * single-document live path with bounded concurrency, 429 retry/backoff, and crash-safe resume (the M0.6
+ * orchestrator). Each document's DETERMINISTIC idempotency key is derived + printed up front, so the operator
+ * can see the exact key that makes a resumed re-book a server-side replay rather than a double-book. `--dry-run`
+ * assembles + prints (plan + keys + checkpoint path) with no creds; a live run confirms, then reports the
+ * per-document summary.
+ */
+async function runBookBatch(
+  folder: string,
+  opts: {
+    context: string
+    concurrency?: string
+    maxAttempts?: string
+    checkpoint?: string
+    dryRun?: boolean
+    yes?: boolean
+  },
+): Promise<void> {
+  const ctx = readBookContext(opts.context)
+  const book = assembleBookPlan(folder, ctx, new Date().toISOString())
+  const jobs: BatchJob[] = book.entries.map((entry) => ({
+    sourceLocator: entry.sourceLocator,
+    recordType: entry.recordType,
+    plan: entry.plan,
+  }))
+
+  // Print the assembled plan (verbatim capture bodies + skips + warnings), then the per-document deterministic
+  // idempotency keys — the content-addressed, clock-free keys that make resume safe.
+  output.write(renderBookPlan(book, ctx))
+  output.write(
+    "\nDeterministic idempotency keys (content-addressed; stable across retries + resume):\n",
+  )
+  jobs.forEach((job, index) => {
+    output.write(
+      `  [${index + 1}] ${job.recordType} ${job.sourceLocator}\n      ${deriveIdempotencyKey(job)}\n`,
+    )
+  })
+
+  const checkpointPath =
+    opts.checkpoint ?? join(folder, ".afframe-book-checkpoint.json")
+  output.write(`\nCheckpoint (crash-safe resume): ${checkpointPath}\n`)
+
+  if (opts.dryRun) return
+  if (jobs.length === 0) {
+    output.write("brain book-batch: no bookable documents to run.\n")
+    return
+  }
+
+  const concurrency = parsePositiveInt(
+    opts.concurrency ?? process.env.BRAIN_BOOK_CONCURRENCY,
+    8,
+    "--concurrency",
+  )
+  const maxAttempts = parsePositiveInt(opts.maxAttempts, 5, "--max-attempts")
+
+  const confirmed = opts.yes || (await confirmLiveRun(jobs.length))
+  if (!confirmed) {
+    output.write("brain book-batch: aborted, no live run.\n")
+    return
+  }
+
+  const summary = await runBatch({
+    folderId: folder,
+    jobs,
+    runOne: liveBookOne,
+    store: new FileCheckpointStore(checkpointPath),
+    concurrency,
+    maxAttempts,
+    onProgress: (record) =>
+      output.write(
+        `  [${record.status}] ${record.recordType} ${record.sourceLocator}` +
+          (record.reviewId ? ` (review ${record.reviewId})` : "") +
+          (record.error ? `: ${record.error}` : "") +
+          "\n",
+      ),
+  })
+  output.write("\n" + renderBatchSummary(summary))
+  // Non-zero exit iff any document failed, so an operator's script can detect an incomplete batch (rerun the
+  // exact command to resume — completed documents are skipped, so nothing double-books).
+  if (summary.failed > 0) process.exitCode = 1
+}
+
+/** Parse a positive-integer CLI option, failing LOUD on a non-integer / non-positive value. */
+function parsePositiveInt(
+  raw: string | undefined,
+  fallback: number,
+  label: string,
+): number {
+  if (raw == null || raw === "") return fallback
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(
+      `brain book-batch: ${label} must be a positive integer, got ${JSON.stringify(raw)}`,
+    )
+  }
+  return n
 }
 
 /** One inspected entry the shared book tail drives through the live loop (folder record or the single OCR invoice). */

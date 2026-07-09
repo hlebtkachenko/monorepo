@@ -11,6 +11,7 @@ import {
   buildBrainKickoff,
   buildBrainQueryOptions,
   buildBrainSessionEnv,
+  detectCaptureError,
   isLaneOffOutcome,
   parseCaptureOutcome,
   parseCaptureResultText,
@@ -229,6 +230,9 @@ describe("renderLiveResult (M0.2a — acceptance: CLI prints a clean lane-off me
     const result: LiveBrainSessionResult = {
       brainRunId: "run-1",
       applied: false,
+      status: "unparsed",
+      isError: true,
+      rateLimited: true,
       serverGate: {
         status: "unparsed",
         raw: "Rate limited. retry_after=?s code=rate_limited request_id=req-1",
@@ -243,6 +247,9 @@ describe("renderLiveResult (M0.2a — acceptance: CLI prints a clean lane-off me
     const result: LiveBrainSessionResult = {
       brainRunId: "run-2",
       applied: true,
+      status: "applied",
+      isError: false,
+      rateLimited: false,
       serverGate: { status: "applied", eventId: "e1" },
     }
     expect(renderLiveResult(result)).toBe(
@@ -254,11 +261,78 @@ describe("renderLiveResult (M0.2a — acceptance: CLI prints a clean lane-off me
     const result: LiveBrainSessionResult = {
       brainRunId: "run-3",
       applied: false,
+      status: "held",
+      isError: false,
+      rateLimited: false,
       serverGate: { status: "held", reviewId: "rev-1" },
     }
     expect(renderLiveResult(result)).toBe(
       JSON.stringify(result, null, 2) + "\n",
     )
+  })
+})
+
+describe("detectCaptureError (in-session rate-limit / hard-error detector)", () => {
+  // The exact text the write MCP's `toolError` renderer emits for an admission 429 (apps/mcp/src/tools/_render.ts).
+  const rateLimitText =
+    "Rate limited. retry_after=30s code=rate_limited request_id=req_123"
+
+  it("classifies an admission rate-limit and lifts retry_after (seconds) to milliseconds", () => {
+    // The block IS an isError result, but the specific rate-limit marker takes precedence so the batch RETRIES.
+    expect(detectCaptureError(rateLimitText, true)).toEqual({
+      isError: true,
+      rateLimited: true,
+      retryAfterMs: 30_000,
+    })
+    // The marker alone is enough even if the isError flag were somehow dropped from the block.
+    expect(detectCaptureError(rateLimitText, false).rateLimited).toBe(true)
+  })
+
+  it("omits retryAfterMs when the rate-limit carried no numeric retry_after (renderer emits `?s`)", () => {
+    const noRetry =
+      "Rate limited. retry_after=?s code=rate_limited request_id=r"
+    expect(detectCaptureError(noRetry, true)).toEqual({
+      isError: true,
+      rateLimited: true,
+      retryAfterMs: undefined,
+    })
+  })
+
+  it("classifies a non-rate-limit isError block (5xx / validation) as a hard error, not a rate-limit", () => {
+    const apiError =
+      "[insufficient_scope] key lacks accounting:write (status=403 request_id=r)"
+    expect(detectCaptureError(apiError, true)).toEqual({
+      isError: true,
+      rateLimited: false,
+    })
+  })
+
+  it("treats a non-JSON body as a hard error even if the isError flag is missing (a success is always JSON)", () => {
+    expect(detectCaptureError("upstream connection reset", false)).toEqual({
+      isError: true,
+      rateLimited: false,
+    })
+  })
+
+  it("does NOT flag a genuine applied/held JSON body as an error", () => {
+    expect(
+      detectCaptureError('{"status":"applied","eventId":"e1"}', false),
+    ).toEqual({ isError: false, rateLimited: false })
+    expect(
+      detectCaptureError('{"status":"held","reviewId":"rev-9"}', false),
+    ).toEqual({ isError: false, rateLimited: false })
+  })
+
+  it("does NOT flag an absent capture result (no text) as an error", () => {
+    // A missing capture result is not an error signal here — the classifier's no-reviewId floor still fails it.
+    expect(detectCaptureError(undefined, false)).toEqual({
+      isError: false,
+      rateLimited: false,
+    })
+    expect(detectCaptureError("", false)).toEqual({
+      isError: false,
+      rateLimited: false,
+    })
   })
 })
 
@@ -306,5 +380,18 @@ describe("constants", () => {
       captureRequest: { periodId: "other-period" },
     } as BrainDryRunPlan
     expect(buildBrainKickoff(other)).not.toBe(kickoff)
+  })
+
+  it("pins the deterministic idempotency-key when the bulk orchestrator supplies one", () => {
+    const plan = stubPlan()
+    const key = "brain-book-abc123"
+    const kickoff = buildBrainKickoff(plan, key)
+    // The exact key is pinned into the capture step so the session cannot generate its own — the resume-safe
+    // property the bulk orchestrator relies on (same doc → same Idempotency-Key → server dedups a re-book).
+    expect(kickoff).toContain('"idempotency-key"')
+    expect(kickoff).toContain(key)
+    expect(kickoff).toContain("do not generate your own")
+    // Absent a key, the kickoff never mentions the idempotency-key argument (unchanged single-doc behavior).
+    expect(buildBrainKickoff(plan)).not.toContain('"idempotency-key"')
   })
 })

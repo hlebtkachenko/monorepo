@@ -161,9 +161,19 @@ export function deriveIdempotencyKey(job: BatchJob): string {
   return `brain-book-${digest}`
 }
 
-/** Stable JSON: object keys sorted recursively so the serialization is order-independent. PURE. */
+/**
+ * Stable JSON: object keys sorted recursively so the serialization is order-independent. The `bigintReplacer`
+ * renders any `bigint` (Money minor units are `bigint` in TypeScript) as a decimal string — a capture request
+ * carries none today, but this keeps the key derivation from THROWING ("Do not know how to serialize a BigInt")
+ * the moment a future adapter threads a bigint into the capture body. PURE.
+ */
 function canonicalJson(value: unknown): string {
-  return JSON.stringify(sortKeys(value))
+  return JSON.stringify(sortKeys(value), bigintReplacer)
+}
+
+/** JSON.stringify replacer that renders bigint fields as decimal strings (deterministic; defensive). PURE. */
+function bigintReplacer(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? value.toString() : value
 }
 
 function sortKeys(value: unknown): unknown {

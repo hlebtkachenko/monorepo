@@ -2,11 +2,12 @@
 // checkpoint store are INJECTED, so every property below is proven with NO live creds and NO server: a mock
 // `runOne` simulates applied / held / a 429 / a crash, and the real file-backed store proves crash-safe resume.
 
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import type { BrainDryRunPlan } from "@workspace/intake"
+import type { LoginContextSections } from "@workspace/brain"
+import type { BrainDryRunPlan, IrToCaptureContext } from "@workspace/intake"
 import {
   backoffDelayMs,
   deriveIdempotencyKey,
@@ -17,6 +18,7 @@ import {
   type CheckpointStore,
   type DocOutcome,
 } from "./batch"
+import { assembleBookPlan, type BookContext } from "./book"
 import { FileCheckpointStore } from "./checkpoint-store"
 
 // A document job whose plan carries a DISTINCT, content-bearing capture request. Only `captureRequest` is read
@@ -101,6 +103,91 @@ describe("deriveIdempotencyKey (deterministic, content-addressed, clock-free)", 
     const key = deriveIdempotencyKey(job(1))
     expect(key.length).toBeGreaterThan(0)
     expect(key.length).toBeLessThanOrEqual(255)
+  })
+})
+
+// A Pohoda dataPack export → one BOOKABLE received invoice. Used by the determinism regression below to feed
+// the REAL `assembleBookPlan` (not a hand-built stub), so the guard catches a real capture-body regression.
+const pohodaXml = `<?xml version="1.0" encoding="UTF-8"?>
+<dat:dataPack xmlns:dat="http://www.stormware.cz/schema/version_2/data.xsd"
+              xmlns:inv="http://www.stormware.cz/schema/version_2/invoice.xsd"
+              xmlns:typ="http://www.stormware.cz/schema/version_2/type.xsd">
+  <dat:dataPackItem>
+    <inv:invoice>
+      <inv:invoiceHeader>
+        <inv:invoiceType>receivedInvoice</inv:invoiceType>
+        <inv:number><typ:numberRequested>FP-2025-0042</typ:numberRequested></inv:number>
+        <inv:date>2025-03-14</inv:date>
+      </inv:invoiceHeader>
+      <inv:invoiceSummary>
+        <inv:homeCurrency>
+          <typ:priceHigh>10000.00</typ:priceHigh>
+          <typ:priceVATHigh>2100.00</typ:priceVATHigh>
+          <typ:priceHighSum>12100.00</typ:priceHighSum>
+        </inv:homeCurrency>
+      </inv:invoiceSummary>
+    </inv:invoice>
+  </dat:dataPackItem>
+</dat:dataPack>`
+
+const bookSections: LoginContextSections = {
+  constitution: "I1..In (locked)",
+  kb: { id: "kb-det-1", version: "2026-07-05" },
+  lawSummary: "law digest",
+  confidenceProtocol: "server scores; the model never self-scores",
+  escalationPolicy: "route hard cases to a human",
+}
+
+const bookCaptureContext: IrToCaptureContext = {
+  periodId: "00000000-0000-4000-8000-000000000001",
+  seriesId: "00000000-0000-4000-8000-000000000002",
+  eventId: "00000000-0000-4000-8000-000000000003",
+  confidence: 0.9,
+  rationale: "Structured export booked from a folder.",
+}
+
+const bookContext: BookContext = {
+  sections: bookSections,
+  captureContext: bookCaptureContext,
+}
+
+describe("deriveIdempotencyKey is clock-free through the REAL assembleBookPlan (regression)", () => {
+  let dir: string
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "brain-det-"))
+    writeFileSync(join(dir, "export.xml"), pohodaXml)
+  })
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("yields the identical key when the same folder is assembled at DIFFERENT ingest clocks", () => {
+    // The whole crash-safe-resume guarantee rests on the key being CLOCK-FREE: a killed-and-resumed run is a
+    // fresh process with a fresh `ingestedAt`, and it must still derive the SAME key so the server dedups the
+    // re-book. Drive the REAL folder → capture pipeline twice with two very different ingest stamps; if a
+    // future change ever folds `ingestedAt` (or the clock-derived `ir_id`) into the capture body, the two keys
+    // diverge and this fails loud.
+    const first = assembleBookPlan(dir, bookContext, "2026-07-05T00:00:00.000Z")
+    const second = assembleBookPlan(
+      dir,
+      bookContext,
+      "2030-11-30T23:59:59.999Z",
+    )
+
+    expect(first.entries).toHaveLength(1)
+    expect(second.entries).toHaveLength(1)
+
+    const keyOf = (entry: (typeof first.entries)[number]): string =>
+      deriveIdempotencyKey({
+        sourceLocator: entry.sourceLocator,
+        recordType: entry.recordType,
+        plan: entry.plan,
+      })
+
+    // Same document, two clocks → byte-identical deterministic key.
+    expect(keyOf(second.entries[0]!)).toBe(keyOf(first.entries[0]!))
+    // And it is a real content hash, not an empty/degenerate string.
+    expect(keyOf(first.entries[0]!)).toMatch(/^brain-book-[0-9a-f]{64}$/)
   })
 })
 

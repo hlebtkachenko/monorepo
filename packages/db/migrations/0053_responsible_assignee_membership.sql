@@ -1,4 +1,4 @@
--- 0052_responsible_assignee_membership.sql
+-- 0053_responsible_assignee_membership.sql
 -- Keep organization.responsible_user_id tied to an active member of the same
 -- workspace. Existing stale assignments are conservatively cleared.
 

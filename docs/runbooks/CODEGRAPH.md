@@ -20,7 +20,25 @@ The MCP server is configured in `.mcp.json` and runs the repo-pinned binary:
 pnpm exec codegraph serve --mcp
 ```
 
-Telemetry is disabled through `.mcp.json`.
+### MCP + index configuration (`.mcp.json` env)
+
+| Env var                            | Value                        | Why                                                                                                                                                                                                                                     |
+| ---------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CODEGRAPH_TELEMETRY`              | `0`                          | No anonymous usage reporting.                                                                                                                                                                                                           |
+| `CODEGRAPH_MCP_TOOLS`              | `explore,node,search,status` | Exposes all four tools, not just `codegraph_explore`. Short names are the suffix after `codegraph_`; an unset value or a wrong name (the upstream `trace,context` example) silently drops `codegraph_explore`, so keep `explore` first. |
+| `CODEGRAPH_PARSE_WORKERS`          | `8`                          | Parse-pool size. Default is core-scaled; pinned to 8 to bound peak memory on a 24 GB machine (peak ≈ workers × worker heap). Also set in `scripts/codegraph.mjs` so manual `init`/`sync` match.                                         |
+| `CODEGRAPH_DAEMON_IDLE_TIMEOUT_MS` | `1800000`                    | Keeps the daemon warm 30 min after the last client so back-to-back agent runs skip startup (default is 300 s).                                                                                                                          |
+
+The exposed tool surface is verifiable: an MCP `tools/list` against `serve --mcp` with a given `CODEGRAPH_MCP_TOOLS` returns exactly the allowlisted tools.
+
+### Always-on for every agent
+
+`.claude/settings.json` is **versioned** (un-ignored in `.gitignore`) and ships two things to every contributor and every fresh workspace:
+
+- the `mcp__codegraph__*` permission (auto-approves the tools, no prompt), and
+- a `UserPromptSubmit` hook `pnpm exec codegraph prompt-hook` that injects a `<codegraph_context>` block of matching symbols into every prompt.
+
+Personal overrides go in the still-ignored `.claude/settings.local.json`. Do not duplicate the hook there (it would run twice). An existing local workspace that already has an untracked `.claude/settings.json` may need it removed once before pulling this in.
 
 ## First setup
 
@@ -33,13 +51,15 @@ pnpm codegraph:ready
 
 For this repo, a full initial index is small enough to run locally: about 2k files and a few seconds on Hleb's Mac. The output database stays in `.codegraph/`.
 
-For new Conductor workspaces, `.conductor/settings.toml` runs the same setup automatically:
+For new Conductor workspaces, `.conductor/settings.toml` runs the setup automatically, with the index build made best-effort so it can never fail workspace creation:
 
 ```bash
-pnpm install --frozen-lockfile && pnpm codegraph:ready
+pnpm install --frozen-lockfile && { pnpm codegraph:ready || true; }
 ```
 
 This only affects workspaces created after the settings file is merged to the default branch on the remote. Existing workspaces should run `pnpm codegraph:ready` once manually.
+
+> A `setup script exited 1: bash: line 3: CONDUCTOR_ROOT_PATH: unbound variable` failure is **not** from this script — nothing in the repo references that variable. It comes from Conductor's own setup wrapper (`set -u`) when its env var is momentarily unset. Retry creating the workspace; if it persists, update Conductor. The `|| true` above ensures CodeGraph is never the cause of a failed setup.
 
 ## Scripts
 
@@ -75,7 +95,7 @@ Use CodeGraph first for:
 - impact analysis before changing shared code
 - finding affected tests for changed files
 
-For MCP-enabled agents, use the CodeGraph MCP tool before grep/read loops for structural questions. The default MCP shape intentionally exposes `codegraph_explore` as the main tool; upstream recommends the single strong tool because it returns relevant source, call paths, and blast radius in one response.
+For MCP-enabled agents, use the CodeGraph MCP tools before grep/read loops for structural questions. `codegraph_explore` is the primary tool — it returns relevant source, call paths, and blast radius in one response — and this repo also exposes `codegraph_node`, `codegraph_search`, and `codegraph_status` via `CODEGRAPH_MCP_TOOLS` (see the config table above) for targeted single-symbol reads and lookups.
 
 For non-MCP contexts, use the CLI equivalents:
 

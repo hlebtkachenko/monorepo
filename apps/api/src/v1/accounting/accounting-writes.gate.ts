@@ -1,3 +1,5 @@
+// ⚠ SAFETY SPINE — do not modify without brain-gate review
+
 import { createHash } from "node:crypto"
 
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
@@ -256,8 +258,7 @@ export async function runGatedWriteWithSeams<T>(
 
           if (log.replayed) {
             const prior = log.existingOutput as
-              | (Record<string, unknown> & { payloadHash?: string })
-              | null
+              (Record<string, unknown> & { payloadHash?: string }) | null
             if (!prior) {
               throw new ConflictError(
                 "A previous request with this idempotency key is still in progress or failed; use a new key",

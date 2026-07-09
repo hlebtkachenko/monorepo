@@ -254,6 +254,7 @@ async function captureStandardSale(opts: {
       seriesId: documentSeriesId,
       type: "ISSUED_INVOICE",
       issuedAt: opts.occurredAt,
+      taxPointDate: opts.occurredAt.slice(0, 10),
       lines: [
         {
           eventId: ev.eventId,

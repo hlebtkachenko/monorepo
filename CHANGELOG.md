@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **brain**: server-side extraction re-verifier (M3.1) — independently recomputes VAT arithmetic/sums/totals and OCR template-confirmation basis for a captured document, returning a structured field-by-field verdict. Standalone and unconsumed: the `extraction_failed` cold-start floor and `runGatedWrite` are untouched; the verdict feeds no decision path today (activation is data-gated on the M2.3 marathon + closing #565).
+
 ## [v0.17.3] — 2026-07-10
 
 Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.

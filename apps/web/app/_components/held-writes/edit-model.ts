@@ -34,6 +34,9 @@ import { z } from "zod"
 import { vatGroupLabel } from "./view-model"
 
 const DECIMAL_RE = /^\d{1,15}(\.\d{1,4})?$/
+// A double-entry posting-line amount may legitimately be negative (červené storno,
+// ČÚS 001) — allow an optional leading `-`. VAT base/vat stay non-negative on DECIMAL_RE.
+const SIGNED_DECIMAL_RE = /^-?\d{1,15}(\.\d{1,4})?$/
 
 // The three sub-schemas below are internal building blocks of
 // `HeldWriteEditSchema` (the only wire-level shape anything outside this
@@ -62,7 +65,7 @@ type HeldWriteVatAmountEdit = z.infer<typeof HeldWriteVatAmountEditSchema>
 const HeldWritePostingLineEditSchema = z.object({
   accountId: z.uuid(),
   side: z.enum(["DEBIT", "CREDIT"]),
-  amount: z.string().regex(DECIMAL_RE),
+  amount: z.string().regex(SIGNED_DECIMAL_RE),
 })
 type HeldWritePostingLineEdit = z.infer<typeof HeldWritePostingLineEditSchema>
 

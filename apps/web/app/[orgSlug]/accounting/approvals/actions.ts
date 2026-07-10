@@ -25,12 +25,24 @@ import {
 import { stripGateEnvelope } from "@workspace/shared/api"
 
 import { getOrgAccountingContext } from "../../_lib/accounting-data"
+import {
+  applyHeldWriteEdit,
+  HeldWriteEditSchema,
+} from "../../../_components/held-writes/edit-model"
 
 const ResolveSchema = z.object({
   orgSlug: z.string().min(1).max(100),
   id: z.uuid(),
   action: z.enum(["approve", "reject"]),
   note: z.string().max(2000).optional(),
+  /**
+   * [M1.7] Edit-before-approve (A-Z 2.6): the reviewer's correction to the
+   * held payload, applied to the ORIGINAL `input_json` before it replays
+   * through `stripGateEnvelope` + the domain call. Only meaningful on
+   * `action: "approve"` — a reject just marks the row rejected, nothing to
+   * edit. See `edit-model.ts` for the exact editable field set + why.
+   */
+  edit: HeldWriteEditSchema.optional(),
 })
 export type ResolveHeldWriteInput = z.infer<typeof ResolveSchema>
 
@@ -74,7 +86,7 @@ export async function resolveHeldWrite(
   if (!parsed.success) {
     return { ok: false, error: "Neplatný požadavek." }
   }
-  const { orgSlug, id, action, note } = parsed.data
+  const { orgSlug, id, action, note, edit } = parsed.data
 
   const ctx = await getOrgAccountingContext(orgSlug)
   if (!ctx) {
@@ -141,16 +153,29 @@ export async function resolveHeldWrite(
           return { ok: true }
         }
 
-        // Approve: peel the gate envelope off and replay the original payload
-        // through the SAME domain mapping the API controller uses, with the
-        // approving user as the responsible person. `stripGateEnvelope` is the
-        // single source of truth shared with the two API paths (the capture
-        // controller and the API held-write resolve), so all three re-run paths
-        // hand `captureDocument` the identical field set — no surface can drift a
-        // gate key in or out. None of the peeled fields is domain data.
-        const fields = stripGateEnvelope(
-          (row.input_json ?? {}) as Record<string, unknown>,
-        )
+        // Approve: peel the gate envelope off and replay the (possibly
+        // reviewer-EDITED, see M1.7) payload through the SAME domain mapping
+        // the API controller uses, with the approving user as the responsible
+        // person. `stripGateEnvelope` is the single source of truth shared
+        // with the two API paths (the capture controller and the API
+        // held-write resolve), so all three re-run paths hand `captureDocument`
+        // the identical field set — no surface can drift a gate key in or out.
+        // None of the peeled fields is domain data.
+        //
+        // [M1.7] `edit` merges onto the ORIGINAL `input_json` BEFORE the gate
+        // envelope is stripped — the edited fields still pass through the
+        // exact same domain call below, which re-validates them in full
+        // (balance, period lock, regime); editing changes what is proposed,
+        // never how it is validated. `input_json` itself is left untouched
+        // (the audit record of what the agent originally proposed); the
+        // edit is instead recorded on `output_json` alongside the applied
+        // result, so an approved-with-edits write is visibly distinguishable
+        // from a plain approve.
+        const rawInput = (row.input_json ?? {}) as Record<string, unknown>
+        const mergedInput = edit
+          ? applyHeldWriteEdit(row.tool_name, rawInput, edit)
+          : rawInput
+        const fields = stripGateEnvelope(mergedInput)
 
         let applied: Record<string, unknown>
         switch (row.tool_name) {
@@ -219,7 +244,14 @@ export async function resolveHeldWrite(
 
         await updateToolCallLogOutput(db, {
           toolCallLogId: id,
-          output: { resolution: "approved", ...applied },
+          // [M1.7] `edit` is recorded alongside the applied result (never on
+          // `input_json`, the untouched original proposal) so an
+          // approved-with-edits write carries its own audit trail.
+          output: {
+            resolution: "approved",
+            ...applied,
+            ...(edit ? { edit } : {}),
+          },
           approvedByUserId: ctx.userId,
         })
         return { ok: true }

@@ -54,12 +54,16 @@ For this repo, a full initial index is small enough to run locally: about 2k fil
 For new Conductor workspaces, `.conductor/settings.toml` runs the setup automatically, with the index build made best-effort so it can never fail workspace creation:
 
 ```bash
-pnpm install --frozen-lockfile && { pnpm codegraph:ready || true; }
+pnpm install --frozen-lockfile && { pnpm codegraph:ready || echo 'Warning: CodeGraph index unavailable; run pnpm codegraph:ready manually.' >&2; }
 ```
 
 This only affects workspaces created after the settings file is merged to the default branch on the remote. Existing workspaces should run `pnpm codegraph:ready` once manually.
 
-> A `setup script exited 1: bash: line 3: CONDUCTOR_ROOT_PATH: unbound variable` failure is **not** from this script — nothing in the repo references that variable. It comes from Conductor's own setup wrapper (`set -u`) when its env var is momentarily unset. Retry creating the workspace; if it persists, update Conductor. The `|| true` above ensures CodeGraph is never the cause of a failed setup.
+A `.conductor/settings.local.toml` `scripts.setup` value replaces the shared setup command on that machine. Local overrides must keep the `pnpm codegraph:ready` step or fresh workspaces will not receive an index.
+
+The Conductor CodeGraph Run action is the on-demand refresh path. It changes directory to `CONDUCTOR_WORKSPACE_PATH` before running, ensuring the refresh still targets the workspace when Spotlight testing runs the project from the repository root. It then exits the Run shell with the real command status, returning the Run button to its idle state without requiring a manual Stop.
+
+> A `setup script exited 1: bash: line 3: CONDUCTOR_ROOT_PATH: unbound variable` failure is **not** from this script — nothing in the repo references that variable. It comes from Conductor's own setup wrapper (`set -u`) when its env var is momentarily unset. Retry creating the workspace; if it persists, update Conductor. The warning branch above ensures CodeGraph is never the cause of a failed setup.
 
 ## Scripts
 

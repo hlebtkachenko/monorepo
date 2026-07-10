@@ -41,6 +41,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Clear this suite's rows so a later file's cleanup never trips the FK.
   await admin`DELETE FROM dppo_annual_adjustment`
+  await admin`DELETE FROM dppo_annual_taxpayer_category`
   await admin.end({ timeout: 5 })
 })
 
@@ -154,13 +155,14 @@ describe("saveDppoAdjustments / loadDppoAdjustments → buildDppo", () => {
       }),
     )
 
-    // Exactly one row for the period — upsert, not append (admin bypasses RLS).
+    // Exactly six rows for the period — one per answered adjustment; the save
+    // replaces the set (delete + re-insert), it does not append (admin bypasses RLS).
     const counted = await admin<Array<{ n: number }>>`
       SELECT count(*)::int AS n
         FROM dppo_annual_adjustment
        WHERE period_id = ${s.periodId}::uuid
     `
-    expect(counted[0]?.n).toBe(1)
+    expect(counted[0]?.n).toBe(6)
 
     const dppo = await withOrganization(orgB, userId, async (db) => {
       const input = await loadDppoAdjustments(db, s.periodId)

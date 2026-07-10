@@ -209,45 +209,40 @@ async function seedPeriod(opts: {
 }
 
 /**
- * Persist a COMPLETE dppo_annual_adjustment row (all six amounts answered +
- * taxpayer category) via the superuser admin client (RLS bypassed) — the state
- * that lets getCorporateIncomeTax's buildDppo compute instead of blocking.
+ * Persist a COMPLETE set of DPPO worksheet inputs (all six adjustments answered
+ * + the taxpayer category) via the superuser admin client (RLS bypassed) — the
+ * normalized state (one row per adjustment + a category row) that lets
+ * getCorporateIncomeTax's buildDppo compute instead of blocking.
  */
 async function seedDppoAdjustments(opts: {
   orgId: string
   periodId: string
 }): Promise<void> {
   await sql`
-    INSERT INTO dppo_annual_adjustment (
-      organization_id, period_id, taxpayer_category,
-      non_deductible_expenses_amount, non_deductible_expenses_source,
-      non_deductible_expenses_reference, non_deductible_expenses_recorded_at,
-      exempt_revenue_amount, exempt_revenue_source,
-      exempt_revenue_reference, exempt_revenue_recorded_at,
-      exclude_loss_making_main_activity_amount, exclude_loss_making_main_activity_source,
-      exclude_loss_making_main_activity_reference, exclude_loss_making_main_activity_recorded_at,
-      loss_carry_forward_amount, loss_carry_forward_source,
-      loss_carry_forward_reference, loss_carry_forward_recorded_at,
-      tax_reliefs_amount, tax_reliefs_source,
-      tax_reliefs_reference, tax_reliefs_recorded_at,
-      advances_paid_amount, advances_paid_source,
-      advances_paid_reference, advances_paid_recorded_at
-    ) VALUES (
-      ${opts.orgId}::uuid, ${opts.periodId}::uuid, 'STANDARD',
-      0, 'USER', '§25 none', now(),
-      0, 'USER', 'no exempt revenue', now(),
-      0, 'USER', 'not a nonprofit', now(),
-      0, 'USER', 'no §34 carry-forward', now(),
-      0, 'USER', 'no §35 relief', now(),
-      0, 'USER', 'no §38a advances', now()
-    )
+    INSERT INTO dppo_annual_taxpayer_category
+      (organization_id, period_id, taxpayer_category)
+    VALUES
+      (${opts.orgId}::uuid, ${opts.periodId}::uuid, 'STANDARD')
+  `
+  await sql`
+    INSERT INTO dppo_annual_adjustment
+      (organization_id, period_id, adjustment_key, amount, source, reference, recorded_at)
+    VALUES
+      (${opts.orgId}::uuid, ${opts.periodId}::uuid, 'nonDeductibleExpenses', 0, 'USER', '§25 none', now()),
+      (${opts.orgId}::uuid, ${opts.periodId}::uuid, 'exemptRevenue', 0, 'USER', 'no exempt revenue', now()),
+      (${opts.orgId}::uuid, ${opts.periodId}::uuid, 'excludeLossMakingMainActivity', 0, 'USER', 'not a nonprofit', now()),
+      (${opts.orgId}::uuid, ${opts.periodId}::uuid, 'lossCarryForward', 0, 'USER', 'no §34 carry-forward', now()),
+      (${opts.orgId}::uuid, ${opts.periodId}::uuid, 'taxReliefs', 0, 'USER', 'no §35 relief', now()),
+      (${opts.orgId}::uuid, ${opts.periodId}::uuid, 'advancesPaid', 0, 'USER', 'no §38a advances', now())
   `
 }
 
 async function cleanup(): Promise<void> {
-  // dppo_annual_adjustment FKs accounting_period (and is not cleared by
-  // truncateAll), so it must go before the plain accounting_period delete.
+  // dppo_annual_adjustment + dppo_annual_taxpayer_category FK accounting_period
+  // (and are not cleared by truncateAll), so they must go before the plain
+  // accounting_period delete.
   await sql`DELETE FROM dppo_annual_adjustment`
+  await sql`DELETE FROM dppo_annual_taxpayer_category`
   await sql`DELETE FROM accounting_period`
   await truncateAll(sql)
 }

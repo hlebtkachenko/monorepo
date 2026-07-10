@@ -1952,43 +1952,33 @@ CREATE TABLE public.directive_account (
 CREATE TABLE public.dppo_annual_adjustment (
     organization_id uuid NOT NULL,
     period_id uuid NOT NULL,
-    taxpayer_category text,
-    non_deductible_expenses_amount numeric(19,4),
-    non_deductible_expenses_source text,
-    non_deductible_expenses_reference text,
-    non_deductible_expenses_recorded_at timestamp with time zone,
-    exempt_revenue_amount numeric(19,4),
-    exempt_revenue_source text,
-    exempt_revenue_reference text,
-    exempt_revenue_recorded_at timestamp with time zone,
-    exclude_loss_making_main_activity_amount numeric(19,4),
-    exclude_loss_making_main_activity_source text,
-    exclude_loss_making_main_activity_reference text,
-    exclude_loss_making_main_activity_recorded_at timestamp with time zone,
-    loss_carry_forward_amount numeric(19,4),
-    loss_carry_forward_source text,
-    loss_carry_forward_reference text,
-    loss_carry_forward_recorded_at timestamp with time zone,
-    tax_reliefs_amount numeric(19,4),
-    tax_reliefs_source text,
-    tax_reliefs_reference text,
-    tax_reliefs_recorded_at timestamp with time zone,
-    advances_paid_amount numeric(19,4),
-    advances_paid_source text,
-    advances_paid_reference text,
-    advances_paid_recorded_at timestamp with time zone,
+    adjustment_key text NOT NULL,
+    amount numeric(19,4) NOT NULL,
+    source text NOT NULL,
+    reference text NOT NULL,
+    recorded_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT dppo_annual_adjustment_advances_paid_provenance_chk CHECK (((num_nulls(advances_paid_amount, advances_paid_source, advances_paid_reference, advances_paid_recorded_at) = ANY (ARRAY[0, 4])) AND ((advances_paid_source IS NULL) OR (advances_paid_source = ANY (ARRAY['USER'::text, 'ADVISOR'::text, 'LEDGER'::text]))))),
-    CONSTRAINT dppo_annual_adjustment_exclude_loss_activity_provenance_chk CHECK (((num_nulls(exclude_loss_making_main_activity_amount, exclude_loss_making_main_activity_source, exclude_loss_making_main_activity_reference, exclude_loss_making_main_activity_recorded_at) = ANY (ARRAY[0, 4])) AND ((exclude_loss_making_main_activity_source IS NULL) OR (exclude_loss_making_main_activity_source = ANY (ARRAY['USER'::text, 'ADVISOR'::text, 'LEDGER'::text]))))),
-    CONSTRAINT dppo_annual_adjustment_exempt_revenue_provenance_chk CHECK (((num_nulls(exempt_revenue_amount, exempt_revenue_source, exempt_revenue_reference, exempt_revenue_recorded_at) = ANY (ARRAY[0, 4])) AND ((exempt_revenue_source IS NULL) OR (exempt_revenue_source = ANY (ARRAY['USER'::text, 'ADVISOR'::text, 'LEDGER'::text]))))),
-    CONSTRAINT dppo_annual_adjustment_loss_carry_forward_provenance_chk CHECK (((num_nulls(loss_carry_forward_amount, loss_carry_forward_source, loss_carry_forward_reference, loss_carry_forward_recorded_at) = ANY (ARRAY[0, 4])) AND ((loss_carry_forward_source IS NULL) OR (loss_carry_forward_source = ANY (ARRAY['USER'::text, 'ADVISOR'::text, 'LEDGER'::text]))))),
-    CONSTRAINT dppo_annual_adjustment_non_deductible_expenses_provenance_chk CHECK (((num_nulls(non_deductible_expenses_amount, non_deductible_expenses_source, non_deductible_expenses_reference, non_deductible_expenses_recorded_at) = ANY (ARRAY[0, 4])) AND ((non_deductible_expenses_source IS NULL) OR (non_deductible_expenses_source = ANY (ARRAY['USER'::text, 'ADVISOR'::text, 'LEDGER'::text]))))),
-    CONSTRAINT dppo_annual_adjustment_tax_reliefs_provenance_chk CHECK (((num_nulls(tax_reliefs_amount, tax_reliefs_source, tax_reliefs_reference, tax_reliefs_recorded_at) = ANY (ARRAY[0, 4])) AND ((tax_reliefs_source IS NULL) OR (tax_reliefs_source = ANY (ARRAY['USER'::text, 'ADVISOR'::text, 'LEDGER'::text]))))),
-    CONSTRAINT dppo_annual_adjustment_taxpayer_category_chk CHECK (((taxpayer_category IS NULL) OR (taxpayer_category = ANY (ARRAY['STANDARD'::text, 'BASIC_INVESTMENT_FUND'::text, 'QUALIFYING_PENSION_INSTITUTION'::text, 'OTHER'::text]))))
+    CONSTRAINT dppo_annual_adjustment_adjustment_key_chk CHECK ((adjustment_key = ANY (ARRAY['nonDeductibleExpenses'::text, 'exemptRevenue'::text, 'excludeLossMakingMainActivity'::text, 'lossCarryForward'::text, 'taxReliefs'::text, 'advancesPaid'::text]))),
+    CONSTRAINT dppo_annual_adjustment_source_chk CHECK ((source = ANY (ARRAY['USER'::text, 'ADVISOR'::text, 'LEDGER'::text])))
 );
 
 ALTER TABLE ONLY public.dppo_annual_adjustment FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: dppo_annual_taxpayer_category; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.dppo_annual_taxpayer_category (
+    organization_id uuid NOT NULL,
+    period_id uuid NOT NULL,
+    taxpayer_category text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT dppo_annual_taxpayer_category_chk CHECK ((taxpayer_category = ANY (ARRAY['STANDARD'::text, 'BASIC_INVESTMENT_FUND'::text, 'QUALIFYING_PENSION_INSTITUTION'::text, 'OTHER'::text])))
+);
+
+ALTER TABLE ONLY public.dppo_annual_taxpayer_category FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: feature_flag; Type: TABLE; Schema: public; Owner: -
@@ -3155,7 +3145,14 @@ ALTER TABLE ONLY public.directive_account
 --
 
 ALTER TABLE ONLY public.dppo_annual_adjustment
-    ADD CONSTRAINT dppo_annual_adjustment_pkey PRIMARY KEY (organization_id, period_id);
+    ADD CONSTRAINT dppo_annual_adjustment_pkey PRIMARY KEY (organization_id, period_id, adjustment_key);
+
+--
+-- Name: dppo_annual_taxpayer_category dppo_annual_taxpayer_category_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dppo_annual_taxpayer_category
+    ADD CONSTRAINT dppo_annual_taxpayer_category_pkey PRIMARY KEY (organization_id, period_id);
 
 --
 -- Name: feature_flag feature_flag_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4890,6 +4887,20 @@ ALTER TABLE ONLY public.dppo_annual_adjustment
     ADD CONSTRAINT dppo_annual_adjustment_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
 
 --
+-- Name: dppo_annual_taxpayer_category dppo_annual_taxpayer_category_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dppo_annual_taxpayer_category
+    ADD CONSTRAINT dppo_annual_taxpayer_category_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: dppo_annual_taxpayer_category dppo_annual_taxpayer_category_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dppo_annual_taxpayer_category
+    ADD CONSTRAINT dppo_annual_taxpayer_category_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
+
+--
 -- Name: impersonation impersonation_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5665,6 +5676,12 @@ ALTER TABLE public.depreciation_plan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dppo_annual_adjustment ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: dppo_annual_taxpayer_category; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.dppo_annual_taxpayer_category ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: impersonation; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -5849,6 +5866,12 @@ CREATE POLICY organization_isolation ON public.depreciation_plan USING ((organiz
 --
 
 CREATE POLICY organization_isolation ON public.dppo_annual_adjustment USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: dppo_annual_taxpayer_category organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.dppo_annual_taxpayer_category USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: individual_record organization_isolation; Type: POLICY; Schema: public; Owner: -

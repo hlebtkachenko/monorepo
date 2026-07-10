@@ -695,8 +695,8 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
           periodId: s.periodId,
           seriesId: s.documentSeriesId,
           type: "ISSUED_INVOICE",
-        issuedAt: "2095-04-01",
-        taxPointDate: "2095-04-01",
+          issuedAt: "2095-04-01",
+          taxPointDate: "2095-04-01",
           lines: [
             {
               eventId: ev.eventId,
@@ -714,6 +714,227 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         }),
       ).rejects.toThrow(
         /ISSUED EU supply must capture as vat_mode 'REVERSE_CHARGE'/,
+      )
+    })
+  })
+})
+
+/**
+ * Export of goods to a third country (§66 vývoz, #566): osvobozeno s nárokem
+ * na odpočet (base only, no daň) — belongs on DAP ř.22, never ř.50 (§51 exempt
+ * WITHOUT deduction) and never souhrnné hlášení (SH is EU-only) or KH.
+ * Captures as vat_mode = 'EXEMPT' + vat_jurisdiction = 'IMPORT' (the canonical
+ * pair decideVat now emits, classify.ts), mirroring the #541 EU pattern.
+ */
+describe("DPH ř.22 — export of goods to a third country (§66) (#566)", () => {
+  it("routes an ISSUED export to ř.22 ONLY — not ř.50, not ř.25, not KH A.1", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2096-01-01",
+      periodEnd: "2096-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const cp = await createCounterparty(db, s.ctx, {
+        name: "Overseas Buyer LLC",
+        countryCode: "US",
+      })
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        counterpartyId: cp,
+        description: "Vývoz zboží §66",
+        occurredAt: "2096-04-01",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2096-04-01",
+        taxPointDate: "2096-04-01",
+        lines: [
+          {
+            eventId: ev.eventId,
+            partials: [
+              {
+                baseAmount: "150000.00",
+                vatMode: "EXEMPT",
+                vatJurisdiction: "IMPORT",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      // Full capture→POST→report path: S-EXPORT now carries vat_mode EXEMPT
+      // matching decideVat's export-side decision, so expand.ts no longer
+      // throws on the pre-#566 mismatch — books base-only (311/604).
+      await postFromPredkontace(db, s.ctx, {
+        partialRecordId: doc.lines[0]!.partialRecordIds[0]!,
+        periodId: s.periodId,
+        scenario: "S-EXPORT",
+        summaryRecordId: doc.summaryRecordId,
+        accountingEventId: ev.eventId,
+        postingDate: "2096-04-01",
+        responsibleUserId: userId,
+      })
+
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      // ř.22 — export, base only (osvobozeno s nárokem, daň 0)
+      expect(dph.rows.r22_base).toBe("150000.0000")
+      // NOT §51 exempt-without-deduction
+      expect(dph.rows.r50_base).toBe("0.0000")
+      // NOT domestic §92 PDP dodavatel
+      expect(dph.rows.r25_base).toBe("0.0000")
+      // NOT kontrolní hlašení A.1
+      expect(dph.kh.a1_base).toBe("0.0000")
+
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      expect(kh.a1).toHaveLength(0)
+
+      const sh = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      expect(sh.rows).toHaveLength(0)
+    })
+  })
+
+  it("does not conflate a §66 export with a §51 domestic exempt sale on ř.50", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2097-01-01",
+      periodEnd: "2097-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      // §51 domestic exempt sale (e.g. pojištění) — stays on ř.50.
+      const exemptEv = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "FV exempt §51",
+        occurredAt: "2097-04-01",
+        responsibleUserId: userId,
+      })
+      const exemptDoc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2097-04-01",
+        taxPointDate: "2097-04-01",
+        lines: [
+          {
+            eventId: exemptEv.eventId,
+            partials: [
+              {
+                baseAmount: "10000.00",
+                vatMode: "EXEMPT",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      await postFromPredkontace(db, s.ctx, {
+        partialRecordId: exemptDoc.lines[0]!.partialRecordIds[0]!,
+        periodId: s.periodId,
+        scenario: "S-EXEMPT-NO-CREDIT",
+        summaryRecordId: exemptDoc.summaryRecordId,
+        accountingEventId: exemptEv.eventId,
+        postingDate: "2097-04-01",
+        responsibleUserId: userId,
+      })
+
+      // §66 export — stays on ř.22, not ř.50.
+      const exportEv = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Vývoz zboží §66",
+        occurredAt: "2097-04-05",
+        responsibleUserId: userId,
+      })
+      const exportDoc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2097-04-05",
+        taxPointDate: "2097-04-05",
+        lines: [
+          {
+            eventId: exportEv.eventId,
+            partials: [
+              {
+                baseAmount: "20000.00",
+                vatMode: "EXEMPT",
+                vatJurisdiction: "IMPORT",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      await postFromPredkontace(db, s.ctx, {
+        partialRecordId: exportDoc.lines[0]!.partialRecordIds[0]!,
+        periodId: s.periodId,
+        scenario: "S-EXPORT",
+        summaryRecordId: exportDoc.summaryRecordId,
+        accountingEventId: exportEv.eventId,
+        postingDate: "2097-04-05",
+        responsibleUserId: userId,
+      })
+
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      expect(dph.rows.r50_base).toBe("10000.0000") // §51 only
+      expect(dph.rows.r22_base).toBe("20000.0000") // §66 only
+    })
+  })
+
+  it("rejects at the capture boundary: ISSUED + IMPORT jurisdiction + non-EXEMPT mode (#566)", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2098-01-01",
+      periodEnd: "2098-12-31",
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Export with the RECEIVED-side (IMPORT) mode misapplied",
+        occurredAt: "2098-04-01",
+        responsibleUserId: userId,
+      })
+      // A wrong-mode ISSUED export (IMPORT, the RECEIVED-side self-assessment
+      // mode) would silently misfile off ř.22 or crash the poster — the
+      // capture guard rejects it instead of reinterpreting it.
+      await expect(
+        captureDocument(db, s.ctx, {
+          periodId: s.periodId,
+          seriesId: s.documentSeriesId,
+          type: "ISSUED_INVOICE",
+          issuedAt: "2098-04-01",
+          taxPointDate: "2098-04-01",
+          lines: [
+            {
+              eventId: ev.eventId,
+              partials: [
+                {
+                  baseAmount: "20000.00",
+                  vatMode: "IMPORT",
+                  vatJurisdiction: "IMPORT",
+                  vatRate: "21",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        /ISSUED export to a third country must capture as vat_mode 'EXEMPT'/,
       )
     })
   })

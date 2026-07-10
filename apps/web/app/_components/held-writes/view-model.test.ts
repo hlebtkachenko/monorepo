@@ -317,6 +317,109 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
     ).toBe(true)
   })
 
+  it("reverses the MD/D sides for a credit note captured with negative amounts (§42 dobropis)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  // Negative base/VAT is the only credit-note signal a capture
+                  // carries — a normal supplyKind, no explicit isCreditNote fact.
+                  baseAmount: "-10000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "-2100.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    // Routed through the reverse-side template, not a normal-sided invoice.
+    expect(vm.mddPreview?.scenarioId).toBe("P-CREDIT-NOTE-STD")
+    // 321 debit (cut the payable), 518 credit (cut the cost), 343 credit (reverse input VAT).
+    const line321 = vm.mddPreview?.lines.find((l) => l.account === "321")
+    expect(line321?.side).toBe("DEBIT")
+    expect(line321?.amount).toBe("12100.00")
+    const line518 = vm.mddPreview?.lines.find((l) => l.account === "518")
+    expect(line518?.side).toBe("CREDIT")
+    expect(line518?.amount).toBe("10000.00")
+    expect(vm.mddPreview?.balanced).toBe(true)
+    // Amounts are shown as magnitudes, never the raw negatives.
+    expect(vm.mddPreview?.lines.every((l) => !l.amount.startsWith("-"))).toBe(
+      true,
+    )
+    // The reviewer is warned this is a credit note (special-regime sign caveat).
+    expect(vm.mddPreview?.caveats.some((c) => c.includes("dobropis"))).toBe(
+      true,
+    )
+  })
+
+  it("degrades a partial whose derivation throws (implausible vat_rate) to a skip + caveat, never an exception", () => {
+    const build = () =>
+      buildHeldWriteViewModel(
+        captureFixture({
+          input_json: {
+            type: "RECEIVED_INVOICE",
+            issuedAt: "2026-06-01",
+            lines: [
+              {
+                eventId: "event-1",
+                partials: [
+                  {
+                    // 99 % is not a valid CZ VAT rate — classifyEvent throws.
+                    baseAmount: "5000.00",
+                    vatMode: "STANDARD",
+                    vatRate: "99",
+                    vatAmount: "4950.00",
+                    vatJurisdiction: "DOMESTIC",
+                    supplyKind: "SERVICES",
+                    currencyCode: "CZK",
+                  },
+                  {
+                    // A valid partial in the same document still previews.
+                    baseAmount: "1000.00",
+                    vatMode: "STANDARD",
+                    vatRate: "21",
+                    vatAmount: "210.00",
+                    vatJurisdiction: "DOMESTIC",
+                    supplyKind: "SERVICES",
+                    currencyCode: "CZK",
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      )
+
+    // The bad partial must NOT crash the whole (read-only) page render.
+    expect(build).not.toThrow()
+    const vm = build()
+    expect(vm.mddPreview).not.toBeNull()
+    // Only the valid partial's lines are present; the bad one is skipped.
+    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
+      "518",
+      "343",
+      "321",
+    ])
+    expect(vm.mddPreview?.totalDebit).toBe("1210.00")
+    expect(
+      vm.mddPreview?.caveats.some((c) => c.includes("nebylo možné zařadit")),
+    ).toBe(true)
+  })
+
   it("returns null for a non-invoice capture (bank statement — not booked via předkontace)", () => {
     const vm = buildHeldWriteViewModel(
       captureFixture({

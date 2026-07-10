@@ -419,6 +419,19 @@ function directionFromCaptureType(
  * would risk showing the WRONG account to the reviewer. časové rozlišení
  * (§3/1) is never modeled here either (no serviceWindow/periodEnd on a
  * capture) — both gaps are surfaced as caveats, not silently guessed.
+ *
+ * A credit note (dobropis, §42) is detected from a NEGATIVE captured
+ * base/VAT (a capture partial carries no explicit `isCreditNote` fact) and
+ * routed through `classifyEvent` with `isCreditNote: true` — so a STANDARD
+ * credit note previews through the reverse-side template (P-/S-CREDIT-NOTE-STD)
+ * instead of a normal-sided invoice. A credit-note caveat is always surfaced
+ * because a special-VAT-regime (PDP/EU/import) credit note reverses its sign
+ * only at the posting layer, which the předkontace expander does not model.
+ *
+ * The whole per-partial derivation (`classifyEvent` + `expandScenarioEntries`)
+ * runs inside one try/catch: a derivation error (an implausible vat_rate, or a
+ * future catalogue scenario reaching a non-SQL amount basis) degrades to a
+ * SKIP + caveat for that partial, never throws up into the read-only page.
  */
 function mddPreviewFromCapture(
   input: Record<string, unknown>,
@@ -434,6 +447,8 @@ function mddPreviewFromCapture(
   const lines: MddPreviewLine[] = []
   const scenarioIds = new Set<string>()
   let skippedAsset = false
+  let skippedUnclassifiable = false
+  let hasCreditNote = false
 
   for (const p of partials) {
     const supplyKind = (asString(p["supplyKind"]) ?? "OTHER") as SupplyKind
@@ -446,11 +461,16 @@ function mddPreviewFromCapture(
     const baseAmount =
       typeof p["baseAmount"] === "string" ? p["baseAmount"] : "0"
     const vatAmount = typeof p["vatAmount"] === "string" ? p["vatAmount"] : "0"
-    // Credit-note/rounding partials may be signed (SignedDecimal) — the
-    // předkontace catalogue's credit-note scenarios already encode the
-    // reversed sides, so the entry AMOUNTS themselves are magnitudes (the
-    // caller flips a negative document total to positive before posting;
-    // see catalogue.ts's S-/P-CREDIT-NOTE-STD comments).
+    // A credit note (dobropis) may be captured with a NEGATIVE base/VAT and no
+    // explicit `isCreditNote` fact — flag it so classifyEvent routes a STANDARD
+    // one through the reverse-side template (P-/S-CREDIT-NOTE-STD). The entry
+    // AMOUNTS are magnitudes (the catalogue's credit-note scenarios already
+    // encode the reversed sides; the poster flips a negative total to positive
+    // — see catalogue.ts's S-/P-CREDIT-NOTE-STD comments).
+    const isCreditNote =
+      toNumber(baseAmount) < 0 ||
+      toNumber(vatAmount) < 0 ||
+      supplyKind === "CREDIT_NOTE"
     const base = Math.abs(toNumber(baseAmount))
     const vat = Math.abs(toNumber(vatAmount))
     const vatRate = asString(p["vatRate"])
@@ -458,9 +478,11 @@ function mddPreviewFromCapture(
       p["commodityCode"],
     ) as Section92CommodityCode | null
 
-    let decision
+    // The full derivation is inside the try: BOTH classifyEvent (implausible
+    // rate) and expandScenarioEntries (a future non-SQL-basis scenario) can
+    // throw — a failure skips this partial with a caveat, never crashes render.
     try {
-      decision = classifyEvent({
+      const decision = classifyEvent({
         direction,
         supplyKind,
         jurisdiction,
@@ -468,39 +490,50 @@ function mddPreviewFromCapture(
         vat: vat.toFixed(2),
         vatRate,
         currency: asString(p["currencyCode"]) ?? "CZK",
+        isCreditNote,
         commodityCode: commodityCode ?? undefined,
       })
-    } catch {
-      // Unclassifiable (e.g. an implausible vat_rate the agent proposed) —
-      // skip this partial's preview line, keep the rest of the document.
-      continue
-    }
-
-    const rate = vatRate ? Number(vatRate) : 0
-    const amounts = {
-      net: base.toFixed(2),
-      vat: vat.toFixed(2),
-      gross: (base + vat).toFixed(2),
-      self_assessed_vat: round2dp((base * rate) / 100).toFixed(2),
-    }
-    const scenarioLines = expandScenarioEntries(decision.scenario, amounts, {
-      accountOverrides: decision.accountOverrides,
-    })
-    scenarioIds.add(decision.scenario)
-    for (const line of scenarioLines) {
-      const account = accountByNumber(chartAccounts, line.account)
-      lines.push({
-        account: line.account,
-        side: line.side,
-        amount: line.amount,
-        label: line.description ?? account?.name ?? null,
+      const rate = vatRate ? Number(vatRate) : 0
+      const amounts = {
+        net: base.toFixed(2),
+        vat: vat.toFixed(2),
+        gross: (base + vat).toFixed(2),
+        self_assessed_vat: round2dp((base * rate) / 100).toFixed(2),
+      }
+      const scenarioLines = expandScenarioEntries(decision.scenario, amounts, {
+        accountOverrides: decision.accountOverrides,
       })
+      scenarioIds.add(decision.scenario)
+      if (isCreditNote) hasCreditNote = true
+      for (const line of scenarioLines) {
+        const account = accountByNumber(chartAccounts, line.account)
+        lines.push({
+          account: line.account,
+          side: line.side,
+          amount: line.amount,
+          label: line.description ?? account?.name ?? null,
+        })
+      }
+    } catch {
+      // Unclassifiable (implausible vat_rate) or unexpandable (a future
+      // non-SQL amount basis) — skip this partial, keep the rest of the doc.
+      skippedUnclassifiable = true
     }
   }
 
   if (skippedAsset) {
     caveats.push(
       "Dlouhodobý majetek (ASSET) v položkách dokladu — kapitalizace se u náhledu nezachycuje, protože zachycený doklad nenese informaci o době použitelnosti.",
+    )
+  }
+  if (hasCreditNote) {
+    caveats.push(
+      "Detekován dobropis (opravný daňový doklad, §42) — u standardního režimu DPH náhled obrací strany MD/D; u zvláštních režimů (PDP / EU / dovoz) ověřte směr proti zdrojovému dokladu.",
+    )
+  }
+  if (skippedUnclassifiable) {
+    caveats.push(
+      "Některou položku dokladu nebylo možné zařadit (např. neplatná sazba DPH) — v náhledu je vynechána.",
     )
   }
   if (lines.length === 0) return null

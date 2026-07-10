@@ -23,6 +23,7 @@ import type {
   CreateAccountingPeriodRequest,
   CreateNumberSeriesRequest,
 } from "@workspace/shared/api"
+import { DEFAULT_NUMBER_SERIES } from "@workspace/accounting/number-series-defaults"
 import {
   discoverBookability,
   explainBookability,
@@ -33,27 +34,25 @@ import {
 } from "@workspace/brain"
 
 /**
- * A MINIMAL, MIRRORED copy of `packages/accounting/src/number-series-defaults.ts`'s canonical
- * `DEFAULT_NUMBER_SERIES`, restricted to the two entity types a bookability gap can name (DOCUMENT, EVENT
- * — see `@workspace/brain`'s `BOOKING_REQUIRED_SERIES_ENTITY_TYPES`). Duplicated rather than imported:
- * `@workspace/accounting` depends on `@workspace/db` (a live Postgres driver + RLS session variables) —
- * pulling it into `@workspace/intake` / `apps/cli` (operator tooling that is a plain REST/MCP client with
- * NO database access, per the Brain "unprivileged outside API-key holder" boundary, A-Z §2/§3.2) would be
- * an architecture violation, not a convenience. This catalogue is a statutory/UI-facing naming convention
- * that changes rarely; keep the two lists in sync by hand.
+ * The default series the guided-create step proposes — DERIVED from the canonical `DEFAULT_NUMBER_SERIES`
+ * (`@workspace/accounting/number-series-defaults`, a PURE zero-import const array — importing it pulls no
+ * `@workspace/db` / RLS code), narrowed to the two entity types a bookability gap can name (DOCUMENT, EVENT
+ * — see `@workspace/brain`'s `BOOKING_REQUIRED_SERIES_ENTITY_TYPES`). Derived, never hand-copied, so the
+ * proposed codes + patterns cannot drift from the ones the server's coupled scaffold actually seeds
+ * (`scaffoldAccountingPeriod` → `backfillDefaultNumberSeries`). Only the three fields a
+ * `create_number_series` body needs are kept (the canonical `description` is dropped).
  */
-export const ONBOARDING_DEFAULT_NUMBER_SERIES = [
-  { entityType: "EVENT", code: "UC", pattern: "UC{YYYY}{NNNNNN}" },
-  { entityType: "DOCUMENT", code: "FV", pattern: "FV{YYYY}{NNNN}" },
-  { entityType: "DOCUMENT", code: "FP", pattern: "FP{YYYY}{NNNN}" },
-  { entityType: "DOCUMENT", code: "PD", pattern: "PD{YYYY}{NNNN}" },
-  { entityType: "DOCUMENT", code: "BV", pattern: "BV{YYYY}{NNNN}" },
-  { entityType: "DOCUMENT", code: "ID", pattern: "ID{YYYY}{NNNN}" },
-] as const satisfies readonly {
+export const ONBOARDING_DEFAULT_NUMBER_SERIES: readonly {
   entityType: NumberSeriesEntityType
   code: string
   pattern: string
-}[]
+}[] = DEFAULT_NUMBER_SERIES.filter(
+  (series) => series.entityType === "DOCUMENT" || series.entityType === "EVENT",
+).map((series) => ({
+  entityType: series.entityType,
+  code: series.code,
+  pattern: series.pattern,
+}))
 
 /** One proposed onboarding write — the real MCP/REST tool name + why + the exact verbatim request body. */
 export interface ProposedOnboardingCall {

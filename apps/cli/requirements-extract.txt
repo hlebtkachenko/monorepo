@@ -9,4 +9,4 @@
 # degrades to `null` (fail-closed to the "vision-only" extraction engine, see extraction-engine.ts)
 # when the binary is absent, so `brain extract` works with or without it installed. Operators who
 # want the digital-PDF accuracy assist run `pip install -r apps/cli/requirements-extract.txt`.
-markitdown==0.1.5
+markitdown==0.1.6

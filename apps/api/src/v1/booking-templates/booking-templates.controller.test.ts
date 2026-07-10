@@ -29,6 +29,7 @@ import {
 
 type Pred =
   | { type: "eq"; column: string; value: unknown }
+  | { type: "isNotNull"; column: string }
   | { type: "and"; conds: Pred[] }
 
 interface TemplateRow {
@@ -91,6 +92,7 @@ vi.mock("@workspace/db", () => {
     type: "and",
     conds: conds.filter((c): c is Pred => c !== undefined),
   })
+  const isNotNull = (column: string): Pred => ({ type: "isNotNull", column })
   const sql = (strings: TemplateStringsArray, ...values: unknown[]) => ({
     __sql: strings.join("?"),
     values,
@@ -102,6 +104,7 @@ vi.mock("@workspace/db", () => {
   const evalPred = (pred: Pred | undefined, row: TemplateRow): boolean => {
     if (!pred) return true
     if (pred.type === "and") return pred.conds.every((c) => evalPred(c, row))
+    if (pred.type === "isNotNull") return col(row, pred.column) !== null
     return col(row, pred.column) === pred.value
   }
 
@@ -267,7 +270,7 @@ vi.mock("@workspace/db", () => {
     return fn(db)
   }
 
-  return { eq, and, sql, withWorkspace }
+  return { eq, and, isNotNull, sql, withWorkspace }
 })
 
 const { verifyApiKey } = await import("@workspace/auth/api-key-verifier")
@@ -508,7 +511,10 @@ describe("BookingTemplatesController", () => {
       })
     })
 
-    it("NEVER returns a DRAFT (unconfirmed) template — the trust gate holds at the API boundary", async () => {
+    it("NEVER returns a DRAFT (unconfirmed) template — the trust gate holds at BOTH the SQL WHERE (isNotNull) and the domain filter", async () => {
+      // The mock's `evalPred` applies the controller's `isNotNull(human_confirmed_at)`
+      // SQL predicate, so a draft is excluded at the SQL boundary before the
+      // domain `matchBookingTemplate` is even consulted — belt-and-suspenders.
       state.rows = [templateRow({ id: TPL_A, human_confirmed_at: null })]
       verifyApiKeyMock.mockResolvedValue(principalFor(WORKSPACE_A))
       const res = await supertest(app.getHttpServer())

@@ -30,7 +30,7 @@ import {
   NotFoundError,
 } from "@workspace/shared/errors"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
-import { and, eq, sql, withWorkspace } from "@workspace/db"
+import { and, eq, isNotNull, sql, withWorkspace } from "@workspace/db"
 import { booking_template } from "@workspace/db/schema"
 import {
   matchBookingTemplate,
@@ -278,13 +278,26 @@ export class BookingTemplatesController {
     return { template: this.toTemplate(row) }
   }
 
+  // ⚠ The signature is COARSE — counterparty/direction/supplyKind/jurisdiction
+  // only. It is NOT the full `classifyEvent` input (which takes no counterparty
+  // and also keys on vatRate / isCreditNote / §92 commodityCode / deferral).
+  // A match therefore identifies the recurring RELATIONSHIP, not an identical
+  // booking: the FUTURE match-integration MUST re-derive the amount/document-
+  // driven fields (vatRate, credit-note sign, commodityCode, deferral) from the
+  // ACTUAL document and MUST NOT freeze them from the template's confirmedDecision
+  // — else a coarse match would propose a wrong rate/sign/commodity (still HELD
+  // today, but a degraded proposal). This endpoint only READS + returns the
+  // scaffold; nothing here books, and every downstream write stays gated + HELD.
   @Post("match")
   @HttpCode(200)
   @ApiOperation({
     summary: "Match a case signature against confirmed booking templates",
     description:
-      "Pure read: given a case signature, returns the workspace's matching " +
-      "CONFIRMED booking template, or null. No mutation, no write-tool call.",
+      "Pure read: given a COARSE case signature (counterparty/direction/" +
+      "supplyKind/jurisdiction — NOT the full classify input), returns the " +
+      "workspace's matching CONFIRMED booking template, or null. No mutation, " +
+      "no write-tool call. The caller must re-derive amount/document-driven " +
+      "fields (rate, sign, commodity, deferral) from the actual document.",
   })
   @ApiOkResponse({ type: MatchBookingTemplateResponseDto })
   async match(
@@ -304,6 +317,14 @@ export class BookingTemplatesController {
         .from(booking_template)
         .where(
           and(
+            // The trust gate is enforced at BOTH boundaries: this SQL
+            // `human_confirmed_at IS NOT NULL` (so a DRAFT never leaves the
+            // DB) AND the domain `matchBookingTemplate` (which re-checks
+            // `humanConfirmedAt !== null`). Belt-and-suspenders: a future
+            // refactor that drops either filter still cannot surface a draft
+            // — and migration 0054's "match query filters on
+            // human_confirmed_at IS NOT NULL" comment is now literally true.
+            isNotNull(booking_template.human_confirmed_at),
             eq(booking_template.counterparty_key, signature.counterpartyKey),
             eq(booking_template.direction, signature.direction),
             eq(booking_template.supply_kind, signature.supplyKind),

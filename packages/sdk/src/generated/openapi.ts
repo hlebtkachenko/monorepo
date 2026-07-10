@@ -5208,7 +5208,7 @@ export interface components {
              * @enum {string}
              */
             jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
-            /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+            /** @description The confirmed accounting treatment SCAFFOLD to reapply on a match — the same shape `POST /v1/accounting/classify` returns. A scaffold, not a frozen payload: on match, the amount/document-driven fields (vatRate, commodityCode, credit-note sign, deferral) must be re-derived from the actual document, since the coarse 4-field signature does not pin them. */
             confirmedDecision: {
                 /**
                  * @description VAT mode to stamp on the partial record.
@@ -5338,7 +5338,7 @@ export interface components {
                  * @enum {string}
                  */
                 jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
-                /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+                /** @description The confirmed accounting treatment SCAFFOLD to reapply on a match — the same shape `POST /v1/accounting/classify` returns. A scaffold, not a frozen payload: on match, the amount/document-driven fields (vatRate, commodityCode, credit-note sign, deferral) must be re-derived from the actual document, since the coarse 4-field signature does not pin them. */
                 confirmedDecision: {
                     /**
                      * @description VAT mode to stamp on the partial record.
@@ -5469,7 +5469,7 @@ export interface components {
                  * @enum {string}
                  */
                 jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
-                /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+                /** @description The confirmed accounting treatment SCAFFOLD to reapply on a match — the same shape `POST /v1/accounting/classify` returns. A scaffold, not a frozen payload: on match, the amount/document-driven fields (vatRate, commodityCode, credit-note sign, deferral) must be re-derived from the actual document, since the coarse 4-field signature does not pin them. */
                 confirmedDecision: {
                     /**
                      * @description VAT mode to stamp on the partial record.
@@ -5677,7 +5677,7 @@ export interface components {
         };
         /** @description The booking-template match outcome for a case signature (or null). */
         MatchBookingTemplateResponse: {
-            /** @description The matching CONFIRMED template, or null if this is a novel/unmatched case. A match never auto-applies anything — the caller still proposes the booking through the normal gated write endpoints. */
+            /** @description The matching CONFIRMED template, or null if this is a novel/unmatched case. A match is a coarse-signature RELATIONSHIP hit, not a ready-to-post booking: the caller must re-derive the amount/document-driven fields (vatRate, commodityCode, credit-note sign, deferral) from the actual document. A match never auto-applies anything — the caller still proposes the booking through the normal gated write endpoints (still HELD at cold start). */
             template: {
                 /**
                  * Format: uuid
@@ -5707,7 +5707,7 @@ export interface components {
                  * @enum {string}
                  */
                 jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
-                /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+                /** @description The confirmed accounting treatment SCAFFOLD to reapply on a match — the same shape `POST /v1/accounting/classify` returns. A scaffold, not a frozen payload: on match, the amount/document-driven fields (vatRate, commodityCode, credit-note sign, deferral) must be re-derived from the actual document, since the coarse 4-field signature does not pin them. */
                 confirmedDecision: {
                     /**
                      * @description VAT mode to stamp on the partial record.

@@ -40,8 +40,13 @@ CREATE TABLE booking_template (
   workspace_id          uuid        NOT NULL REFERENCES workspace (id),
 
   -- The recurring-case SIGNATURE this template matches. Deliberately narrow and
-  -- deterministic (no fuzzy matching): the same four facts `classifyEvent`
-  -- already keys its scenario decision on (packages/accounting/src/classify.ts).
+  -- deterministic (no fuzzy matching). NOTE: this is a COARSE signature, NOT the
+  -- full set of facts `classifyEvent` (packages/accounting/src/classify.ts) keys
+  -- on — that decision takes NO counterparty and additionally keys on vatRate,
+  -- isCreditNote, the §92 commodityCode, and serviceWindow/periodEnd/durable
+  -- (none of which are here). A signature match identifies the recurring
+  -- RELATIONSHIP; the rate/sign/commodity/deferral must be re-derived from the
+  -- actual document at match-integration time, never frozen from confirmed_decision.
   counterparty_key      text        NOT NULL,   -- IČO or normalized counterparty name
   direction             text        NOT NULL CHECK (direction IN ('RECEIVED', 'ISSUED')),
   supply_kind           text        NOT NULL CHECK (supply_kind IN (
@@ -56,10 +61,14 @@ CREATE TABLE booking_template (
   -- reserved the same way ocr_extraction_template.layout_fingerprint is.
   signature_fingerprint text,
 
-  -- The CONFIRMED accounting treatment to reapply on a match: a serialized
-  -- `PostingDecision`-shaped object (scenario id, VAT mode/jurisdiction/rate,
-  -- account overrides, saldo account, capitalise/deferral, §92 commodity code).
-  -- Opaque Brain-owned JSON, never interpreted by SQL.
+  -- The CONFIRMED accounting treatment SCAFFOLD to reapply on a match: a
+  -- serialized `PostingDecision`-shaped object (scenario id, VAT mode/
+  -- jurisdiction/rate, account overrides, saldo account, capitalise/deferral,
+  -- §92 commodity code). Opaque Brain-owned JSON, never interpreted by SQL.
+  -- ⚠ A scaffold, NOT a frozen payload: the amount/document-driven fields
+  -- (rate, credit-note sign, §92 commodity, deferral) must be re-derived from
+  -- the actual document at match-integration time — see the accounting domain
+  -- module packages/accounting/src/booking-template.ts.
   confirmed_decision    jsonb       NOT NULL,
 
   human_confirmed_at    timestamptz,             -- NULL = unconfirmed (never matchable)

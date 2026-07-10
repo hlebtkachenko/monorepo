@@ -11,13 +11,18 @@ import { ClassifyEventResponseSchema } from "./accounting-writes"
  * safety argument.
  *
  * A booking_template is a REVIEWABLE record of a recurring transaction's
- * CONFIRMED accounting treatment — a signature (counterparty + direction +
- * supply kind + VAT jurisdiction) mapped to the `PostingDecision` a human
- * already confirmed for that exact recurring case. It is NOT a write
- * template: matching it supplies input facts to the SAME typed write calls
- * (`create_accounting_event` / `create_accounting_posting`) the Brain already
- * makes after full reasoning; every write, templated or not, still runs
- * through the unchanged `runGatedWrite` and is still HELD at cold start.
+ * CONFIRMED accounting treatment — a COARSE signature (counterparty + direction
+ * + supply kind + VAT jurisdiction) mapped to the `PostingDecision`-shaped
+ * scaffold a human already confirmed for that recurring case. This signature is
+ * NOT the full `classifyEvent` input (which takes no counterparty and also keys
+ * on vatRate / isCreditNote / §92 commodityCode / deferral facts); a match
+ * identifies the recurring RELATIONSHIP, and the future match-integration must
+ * re-derive the amount/document-driven fields from the actual document, never
+ * freeze them from `confirmedDecision`. It is NOT a write template: matching it
+ * supplies input facts to the SAME typed write calls (`create_accounting_event`
+ * / `create_accounting_posting`) the Brain already makes after full reasoning;
+ * every write, templated or not, still runs through the unchanged
+ * `runGatedWrite` and is still HELD at cold start.
  *
  * WORKSPACE-scoped, NOT organization-scoped, mirroring `OcrTemplate`: a
  * recurring counterparty relationship does not change per client book, so one
@@ -85,8 +90,12 @@ export const BookingTemplateSchema = z
     ...SignatureFields,
     confirmedDecision: ClassifyEventResponseSchema.openapi({
       description:
-        "The confirmed accounting treatment to reapply on a match — the same " +
-        "shape `POST /v1/accounting/classify` returns.",
+        "The confirmed accounting treatment SCAFFOLD to reapply on a match — " +
+        "the same shape `POST /v1/accounting/classify` returns. A scaffold, " +
+        "not a frozen payload: on match, the amount/document-driven fields " +
+        "(vatRate, commodityCode, credit-note sign, deferral) must be " +
+        "re-derived from the actual document, since the coarse 4-field " +
+        "signature does not pin them.",
     }),
     humanConfirmedAt: Timestamp.nullable().openapi({
       description:
@@ -236,8 +245,12 @@ export const MatchBookingTemplateResponseSchema = z
     template: BookingTemplateSchema.nullable().openapi({
       description:
         "The matching CONFIRMED template, or null if this is a novel/unmatched " +
-        "case. A match never auto-applies anything — the caller still proposes " +
-        "the booking through the normal gated write endpoints.",
+        "case. A match is a coarse-signature RELATIONSHIP hit, not a " +
+        "ready-to-post booking: the caller must re-derive the amount/" +
+        "document-driven fields (vatRate, commodityCode, credit-note sign, " +
+        "deferral) from the actual document. A match never auto-applies " +
+        "anything — the caller still proposes the booking through the normal " +
+        "gated write endpoints (still HELD at cold start).",
     }),
   })
   .openapi({

@@ -262,8 +262,8 @@ describe("screenTemplateBasis — merged novelty + #554 OCR fail-closed", () => 
     expect(set).not.toHaveBeenCalled()
   })
 
-  it("fail-closes a MISSING extraction_method to 'ocr' (agent cannot omit its way past)", async () => {
-    // undefined/null method + no templateId → treated as ocr → ocrUnverified HOLD.
+  it("fail-closes a MISSING extraction_method to HELD (agent cannot omit its way past)", async () => {
+    // undefined/null method + no templateId → ocrUnverified HOLD regardless.
     const { db: db1 } = mkTemplateDb(null)
     expect(await screenTemplateBasis(db1, undefined, null)).toEqual({
       templateNovel: false,
@@ -276,17 +276,39 @@ describe("screenTemplateBasis — merged novelty + #554 OCR fail-closed", () => 
     })
   })
 
-  it("does NOT fire for a STRUCTURED capture with no template basis — no lookup, no hold", async () => {
-    const { db, limit } = mkTemplateDb(null)
+  // ── [#565] route-around (a): a DECLARED (not omitted) extractionMethod can
+  // no longer skip the screen — a lying client claiming "structured"/"manual"
+  // on an actually-OCR capture used to dodge `ocrUnverified` undetectably.
+  it("[#565] fires ocrUnverified for a DECLARED STRUCTURED capture with no template basis (closed route-around)", async () => {
+    // Before #565: a declared "structured" label skipped this leg entirely
+    // (no lookup, no hold) — exactly the lying-client bypass the issue names.
+    // After #565: EVERY capture with no confirmed template basis is HELD,
+    // regardless of the declared method.
+    const { db } = mkTemplateDb(null)
     const r = await screenTemplateBasis(db, "structured", null)
-    expect(r).toEqual({ templateNovel: false, ocrUnverified: false })
-    expect(limit).not.toHaveBeenCalled()
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: true })
   })
 
-  it("does NOT fire ocrUnverified for a MANUAL capture (short-circuits with no templateId)", async () => {
-    const { db, limit } = mkTemplateDb(null)
+  it("[#565] fires ocrUnverified for a DECLARED MANUAL capture with no template basis (closed route-around)", async () => {
+    const { db } = mkTemplateDb(null)
     const r = await screenTemplateBasis(db, "manual", null)
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: true })
+  })
+
+  it("[#565] fires ocrUnverified for a DECLARED STRUCTURED capture whose templateId resolves to NO row (foreign/forged)", async () => {
+    const { db, limit } = mkTemplateDb(null)
+    const r = await screenTemplateBasis(db, "structured", "tpl-foreign")
+    expect(r).toEqual({ templateNovel: false, ocrUnverified: true })
+    expect(limit).toHaveBeenCalledOnce() // the resolve still runs
+  })
+
+  it("[#565] a CONFIRMED template is still trusted regardless of the declared method (unaffected by the closure)", async () => {
+    // The confirmed-template trust path is independent of extractionMethod —
+    // it is keyed on the server-verified human_confirmed_at row, not a client
+    // claim, so the #565 tightening does not touch it.
+    const { db, set } = mkTemplateDb({ humanConfirmedAt: new Date() })
+    const r = await screenTemplateBasis(db, "structured", "tpl-confirmed")
     expect(r).toEqual({ templateNovel: false, ocrUnverified: false })
-    expect(limit).not.toHaveBeenCalled() // no templateId → no resolve
+    expect(set).not.toHaveBeenCalled()
   })
 })

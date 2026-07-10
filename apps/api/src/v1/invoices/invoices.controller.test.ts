@@ -290,6 +290,10 @@ vi.mock("@workspace/accounting", () => ({
 
 vi.mock("../accounting/accounting-veto", () => ({
   deriveCaptureVeto: vi.fn(() => ({ held: false, signals: [] })),
+  screenTemplateBasis: vi.fn(async () => ({
+    templateNovel: false,
+    ocrUnverified: false,
+  })),
 }))
 
 vi.mock("../accounting/accounting-writes.gate", () => ({
@@ -321,6 +325,7 @@ vi.mock("../accounting/accounting-writes.gate", () => ({
 
 const { verifyApiKey } = await import("@workspace/auth/api-key-verifier")
 const accounting = await import("@workspace/accounting")
+const accountingVeto = await import("../accounting/accounting-veto")
 const { ListInvoicesResponseSchema, GetInvoiceResponseSchema } =
   await import("@workspace/shared/api")
 const { InvoicesController } = await import("./invoices.controller")
@@ -328,6 +333,7 @@ const { DomainExceptionFilter } = await import("../domain-exception.filter")
 
 const verifyApiKeyMock = vi.mocked(verifyApiKey)
 const captureDocumentMock = vi.mocked(accounting.captureDocument)
+const screenTemplateBasisMock = vi.mocked(accountingVeto.screenTemplateBasis)
 
 const ORG_A = "0196f1de-0000-7000-8000-00000000000a"
 const ORG_B = "0196f1de-0000-7000-8000-00000000000b"
@@ -377,6 +383,11 @@ describe("InvoicesController (/v1/invoices)", () => {
   beforeEach(() => {
     verifyApiKeyMock.mockReset()
     captureDocumentMock.mockClear()
+    screenTemplateBasisMock.mockClear()
+    screenTemplateBasisMock.mockResolvedValue({
+      templateNovel: false,
+      ocrUnverified: false,
+    })
     const now = new Date("2025-03-14T09:00:00.000Z")
     state.summaryRows = [
       {
@@ -663,6 +674,7 @@ describe("InvoicesController (/v1/invoices)", () => {
       periodId: string
       holdAmounts: string[]
       deriveVeto: unknown
+      screenTemplateBasis: unknown
       principal: { organizationId: string }
     }
     expect(opts.operationId).toBe("createInvoice")
@@ -673,6 +685,62 @@ describe("InvoicesController (/v1/invoices)", () => {
       true,
     )
     expect(typeof opts.deriveVeto).toBe("function")
+    // [#565] The route-around this M2.4 PR closes: /v1/invoices used to run
+    // captureDocument through the gate with NEITHER template leg wired.
+    expect(typeof opts.screenTemplateBasis).toBe("function")
+  })
+
+  it("[#565] wires templateId/extractionMethod into the OCR-template basis screen (closes the /v1/invoices route-around)", async () => {
+    verifyApiKeyMock.mockResolvedValue(
+      principalFor(ORG_A, ["accounting:write"]),
+    )
+    const TEMPLATE_ID = "0196f1de-0000-7000-8000-0000000000f1"
+    await supertest(app.getHttpServer())
+      .post("/v1/invoices")
+      .set("Authorization", "Bearer affk_live_a")
+      .set("Idempotency-Key", "idem-565")
+      .send({
+        ...validBody("received"),
+        templateId: TEMPLATE_ID,
+        extractionMethod: "ocr",
+      })
+      .expect(201)
+    const opts = state.gateOpts as {
+      templateId: string | null
+      screenTemplateBasis: (db: unknown) => Promise<unknown>
+    }
+    // Persisted to the audit gate — mirrors the documents endpoint.
+    expect(opts.templateId).toBe(TEMPLATE_ID)
+    // Not domain data: never leaks into the captureDocument input.
+    expect(state.captureInputs[0]).not.toHaveProperty("templateId")
+    expect(state.captureInputs[0]).not.toHaveProperty("extractionMethod")
+    // The screen is actually wired to the SAME accounting-veto seam, with the
+    // client-declared method + templateId threaded through — never the reverse.
+    await opts.screenTemplateBasis({ marker: "fake-tx" })
+    expect(screenTemplateBasisMock).toHaveBeenCalledWith(
+      { marker: "fake-tx" },
+      "ocr",
+      TEMPLATE_ID,
+    )
+  })
+
+  it("[#565] omitting templateId/extractionMethod still wires the screen (templateId defaults to null)", async () => {
+    verifyApiKeyMock.mockResolvedValue(
+      principalFor(ORG_A, ["accounting:write"]),
+    )
+    await supertest(app.getHttpServer())
+      .post("/v1/invoices")
+      .set("Authorization", "Bearer affk_live_a")
+      .set("Idempotency-Key", "idem-566")
+      .send(validBody("issued"))
+      .expect(201)
+    const opts = state.gateOpts as {
+      templateId: string | null
+      screenTemplateBasis: (db: unknown) => Promise<unknown>
+    }
+    expect(opts.templateId).toBeNull()
+    await opts.screenTemplateBasis({})
+    expect(screenTemplateBasisMock).toHaveBeenCalledWith({}, undefined, null)
   })
 
   it("creates an ISSUED invoice: maps direction to ISSUED_INVOICE", async () => {

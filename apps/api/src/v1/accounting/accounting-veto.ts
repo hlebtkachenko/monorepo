@@ -244,18 +244,17 @@ export interface TemplateBasisResult {
  *   - templateId present + row found + `human_confirmed_at IS NULL` →
  *     `templateNovel` (bumps `held_count` in-tx for telemetry).
  *   - templateId present + row found + confirmed → neither (auto-apply-eligible).
- *   - (templateId ABSENT, or resolving to NO row under RLS) → `ocrUnverified` iff
- *     the capture IS OCR. A MISSING `extractionMethod` is fail-closed to `"ocr"`
- *     (the most conservative case) so an agent cannot OMIT the discriminator to
- *     dodge the screen; a `structured`/`manual` capture with no confirmed template
- *     basis simply fires nothing (that path does not carry an OCR extraction).
+ *   - (templateId ABSENT, or resolving to NO row under RLS) → `ocrUnverified`,
+ *     UNCONDITIONALLY — [#565] the declared `extractionMethod` (missing OR any
+ *     declared value) can no longer skip this leg; see the closure note below.
  *
  * SERVER-DERIVED, never a client signal: the row is read inside the write's own
  * transaction, never from the client envelope. A client CANNOT forge either signal
  * (a Tier-3 kind is not a Tier-2 cap, so `buildScoreInputs` drops it if asserted)
- * nor OMIT its way past `ocrUnverified` (a missing `extraction_method` and a
- * missing/foreign `templateId` both fail CLOSED). Both are add-only: they compose
- * into the three-way AND as an added hold and can never release a write.
+ * nor OMIT — nor, since [#565], DECLARE — its way past `ocrUnverified` (a missing
+ * templateId, a foreign templateId, and any `extractionMethod` value all fail
+ * CLOSED). Both are add-only: they compose into the three-way AND as an added
+ * hold and can never release a write.
  *
  * The lookup is WORKSPACE-scoped: `ocr_extraction_template` is shared across the
  * office's orgs (ADR-0029). It resolves under RLS here because the enclosing
@@ -267,29 +266,33 @@ export interface TemplateBasisResult {
  * `deriveCaptureVeto`/`derivePostingVeto` siblings — it bumps `held_count` in-tx
  * for telemetry on each `templateNovel` hold it forces.
  *
- * HONEST on what this does NOT close: the DECLARED `extractionMethod` value is
- * client-supplied and NOT server-verifiable in v1. A client that labels an
- * actually-OCR capture as `"structured"`/`"manual"` skips the `ocrUnverified` leg
- * undetectably — only the field's ABSENCE is checkable. Structured captures on
- * `/v1/invoices` are also not screened here (that path does not wire this seam).
- * Both are residual route-arounds that must be closed before the cold-start
- * `extraction_failed` floor is lifted (W3.3b) — tracked as a B2/M4 floor-lift
- * precondition. This leg only closes the OMITTED/foreign-templateId bypass; it is
- * not a substitute for verified extraction telemetry.
+ * [#565] CLOSED route-around: the DECLARED `extractionMethod` is client-supplied
+ * and NOT server-verifiable in v1 — a client that labels an actually-OCR capture
+ * `"structured"`/`"manual"` could dodge the `ocrUnverified` leg undetectably if a
+ * declared non-`"ocr"` value were trusted to SKIP it (only the field's ABSENCE
+ * used to be checkable). Until server-side extraction re-verification exists
+ * (M3.1/W3.3a), the declared method is now ADVISORY ONLY for this leg: it can
+ * never lower the hold. Every capture with NO confirmed template basis (omitted
+ * OR foreign templateId) is treated as potentially OCR-sourced, unconditionally —
+ * `extractionMethod` stays a parameter (kept for future audit/telemetry use) but
+ * is intentionally not read for this decision anymore. TIGHTENING-only: the
+ * prior "structured"/"manual" skip is gone, so `ocrUnverified` can now fire in
+ * strictly more cases than before, never fewer.
+ *
+ * `/v1/invoices` now wires this SAME seam (route-around (b) — it used to run
+ * `captureDocument` through `runGatedWrite` with neither template leg wired at
+ * all); both capture paths are covered.
  */
 export async function screenTemplateBasis(
   db: OrganizationBoundDb,
   extractionMethod: ExtractionMethod | null | undefined,
   templateId: string | null | undefined,
 ): Promise<TemplateBasisResult> {
-  // Fail-closed on a missing discriminator: an absent method is treated as "ocr"
-  // (the most conservative case) so an agent cannot omit it to dodge the screen.
-  const isOcr = extractionMethod == null || extractionMethod === "ocr"
-
-  // No templateId at all → nothing to fetch. An OCR capture with no template basis
-  // is `unverified_template`; a structured/manual one carries no OCR extraction.
+  // [#565] No templateId at all → nothing to fetch. Every capture with no
+  // confirmed template basis is `ocrUnverified` — the declared extractionMethod
+  // no longer gets a say (see the closure note above).
   if (templateId == null) {
-    return { templateNovel: false, ocrUnverified: isOcr }
+    return { templateNovel: false, ocrUnverified: true }
   }
 
   // ONE workspace-scoped fetch of {id, human_confirmed_at}; RLS narrows to this
@@ -307,7 +310,7 @@ export async function screenTemplateBasis(
   // Resolves to no row under this workspace's RLS (forged/foreign/nonexistent) →
   // the same `ocrUnverified` fail-closed case as an absent templateId.
   if (!row) {
-    return { templateNovel: false, ocrUnverified: isOcr }
+    return { templateNovel: false, ocrUnverified: true }
   }
   // Row found + already human-confirmed → trusted, no hold on either leg.
   if (row.humanConfirmedAt !== null) {

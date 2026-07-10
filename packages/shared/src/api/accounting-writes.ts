@@ -439,13 +439,12 @@ const EXTRACTION_METHOD_FIELD = EXTRACTION_METHOD.optional().openapi({
     "CLIENT-DECLARED discriminator of how this capture was produced: " +
     "'structured' (parsed from a Pohoda XML/xlsx/csv export), 'ocr' " +
     "(vision/OCR extraction from a PDF/image), or 'manual' (hand-entered). " +
-    "NOT domain data. It drives the OCR fail-closed leg: an 'ocr' capture the " +
-    "server cannot tie to a CONFIRMED template is HELD. Optional; only the " +
-    "field's ABSENCE is server-checkable, so a MISSING value is fail-closed " +
-    "to the most conservative case ('ocr') and an agent cannot OMIT its way " +
-    "past the screen. The DECLARED value is not server-verifiable in v1 (a " +
-    "false 'structured'/'manual' label is undetectable), so it is not treated " +
-    "as verified extraction telemetry. Stripped before the domain mutation.",
+    "NOT domain data, and NOT server-verifiable in v1 (a false " +
+    "'structured'/'manual' label on an actually-OCR capture is undetectable) " +
+    "— [#565] the declared value is therefore advisory only and can never " +
+    "release a hold: a capture with no CONFIRMED OCR-template basis is HELD " +
+    "regardless of what this field says (present, absent, or any value). " +
+    "Stripped before the domain mutation.",
   example: "structured",
 })
 

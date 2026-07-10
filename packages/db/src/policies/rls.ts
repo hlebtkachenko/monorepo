@@ -78,6 +78,8 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "organization_oss_registration",
   // operational tax profile (0048_organization_tax_profile.sql)
   "organization_tax_profile",
+  // DPPO annual worksheet inputs (0054_dppo_annual_adjustment.sql)
+  "dppo_annual_adjustment",
 ] as const
 
 export type OrganizationScopedTable =

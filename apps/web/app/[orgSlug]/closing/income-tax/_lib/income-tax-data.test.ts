@@ -208,7 +208,46 @@ async function seedPeriod(opts: {
   return period.id
 }
 
+/**
+ * Persist a COMPLETE dppo_annual_adjustment row (all six amounts answered +
+ * taxpayer category) via the superuser admin client (RLS bypassed) — the state
+ * that lets getCorporateIncomeTax's buildDppo compute instead of blocking.
+ */
+async function seedDppoAdjustments(opts: {
+  orgId: string
+  periodId: string
+}): Promise<void> {
+  await sql`
+    INSERT INTO dppo_annual_adjustment (
+      organization_id, period_id, taxpayer_category,
+      non_deductible_expenses_amount, non_deductible_expenses_source,
+      non_deductible_expenses_reference, non_deductible_expenses_recorded_at,
+      exempt_revenue_amount, exempt_revenue_source,
+      exempt_revenue_reference, exempt_revenue_recorded_at,
+      exclude_loss_making_main_activity_amount, exclude_loss_making_main_activity_source,
+      exclude_loss_making_main_activity_reference, exclude_loss_making_main_activity_recorded_at,
+      loss_carry_forward_amount, loss_carry_forward_source,
+      loss_carry_forward_reference, loss_carry_forward_recorded_at,
+      tax_reliefs_amount, tax_reliefs_source,
+      tax_reliefs_reference, tax_reliefs_recorded_at,
+      advances_paid_amount, advances_paid_source,
+      advances_paid_reference, advances_paid_recorded_at
+    ) VALUES (
+      ${opts.orgId}::uuid, ${opts.periodId}::uuid, 'STANDARD',
+      0, 'USER', '§25 none', now(),
+      0, 'USER', 'no exempt revenue', now(),
+      0, 'USER', 'not a nonprofit', now(),
+      0, 'USER', 'no §34 carry-forward', now(),
+      0, 'USER', 'no §35 relief', now(),
+      0, 'USER', 'no §38a advances', now()
+    )
+  `
+}
+
 async function cleanup(): Promise<void> {
+  // dppo_annual_adjustment FKs accounting_period (and is not cleared by
+  // truncateAll), so it must go before the plain accounting_period delete.
+  await sql`DELETE FROM dppo_annual_adjustment`
   await sql`DELETE FROM accounting_period`
   await truncateAll(sql)
 }
@@ -271,6 +310,39 @@ describe("getCorporateIncomeTax (DPPO)", () => {
     expect(result.dppo.completeness.blockingInputs).toEqual(
       expect.arrayContaining([expect.stringContaining("Taxpayer category")]),
     )
+  }, 30_000)
+
+  it("LEGAL org with persisted complete adjustments -> worksheet computes (no longer NEEDS_INPUT)", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "dppo-legal-ready",
+      legalName: "DPPO Ready s.r.o.",
+      personKind: "legal_entity",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    const period = await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+    })
+    await seedDppoAdjustments({ orgId: org, periodId: period })
+
+    sessionUserId = user
+    cookieValue = undefined
+
+    const result = await getCorporateIncomeTax("dppo-legal-ready")
+
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.dppo.completeness.status).toBe("WORKSHEET_READY")
+    expect(result.dppo.completeness.blockingInputs).toEqual([])
+    expect(result.dppo.zaklad_dane).not.toBeNull()
+    expect(result.dppo.sazba).toBe("0.2100")
+    // owner membership → the edit affordance is offered
+    expect(result.canEdit).toBe(true)
   }, 30_000)
 
   it("NATURAL org -> not-applicable (DPPO only applies to a legal entity)", async () => {

@@ -50,6 +50,9 @@ export * from "./organization_oss_registration"
 // operational tax profile (0048_organization_tax_profile)
 export * from "./organization_tax_profile"
 
+// DPPO annual worksheet inputs — provenanced adjustments per period (0054)
+export * from "./dppo_annual_adjustment"
+
 // v2 accounting — capture core (0027)
 export * from "./number_series"
 export * from "./accounting_event"

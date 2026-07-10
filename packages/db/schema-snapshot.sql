@@ -1946,6 +1946,45 @@ CREATE TABLE public.directive_account (
 );
 
 --
+-- Name: dppo_annual_adjustment; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.dppo_annual_adjustment (
+    organization_id uuid NOT NULL,
+    period_id uuid NOT NULL,
+    taxpayer_category text,
+    non_deductible_expenses_amount numeric(19,4),
+    non_deductible_expenses_source text,
+    non_deductible_expenses_reference text,
+    non_deductible_expenses_recorded_at timestamp with time zone,
+    exempt_revenue_amount numeric(19,4),
+    exempt_revenue_source text,
+    exempt_revenue_reference text,
+    exempt_revenue_recorded_at timestamp with time zone,
+    exclude_loss_making_main_activity_amount numeric(19,4),
+    exclude_loss_making_main_activity_source text,
+    exclude_loss_making_main_activity_reference text,
+    exclude_loss_making_main_activity_recorded_at timestamp with time zone,
+    loss_carry_forward_amount numeric(19,4),
+    loss_carry_forward_source text,
+    loss_carry_forward_reference text,
+    loss_carry_forward_recorded_at timestamp with time zone,
+    tax_reliefs_amount numeric(19,4),
+    tax_reliefs_source text,
+    tax_reliefs_reference text,
+    tax_reliefs_recorded_at timestamp with time zone,
+    advances_paid_amount numeric(19,4),
+    advances_paid_source text,
+    advances_paid_reference text,
+    advances_paid_recorded_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT dppo_annual_adjustment_taxpayer_category_chk CHECK (((taxpayer_category IS NULL) OR (taxpayer_category = ANY (ARRAY['STANDARD'::text, 'BASIC_INVESTMENT_FUND'::text, 'QUALIFYING_PENSION_INSTITUTION'::text, 'OTHER'::text]))))
+);
+
+ALTER TABLE ONLY public.dppo_annual_adjustment FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: feature_flag; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3104,6 +3143,13 @@ ALTER TABLE ONLY public.depreciation_plan
 
 ALTER TABLE ONLY public.directive_account
     ADD CONSTRAINT directive_account_pkey PRIMARY KEY (code);
+
+--
+-- Name: dppo_annual_adjustment dppo_annual_adjustment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dppo_annual_adjustment
+    ADD CONSTRAINT dppo_annual_adjustment_pkey PRIMARY KEY (organization_id, period_id);
 
 --
 -- Name: feature_flag feature_flag_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4824,6 +4870,20 @@ ALTER TABLE ONLY public.directive_account
     ADD CONSTRAINT directive_account_group_code_fkey FOREIGN KEY (group_code) REFERENCES public.account_group(code);
 
 --
+-- Name: dppo_annual_adjustment dppo_annual_adjustment_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dppo_annual_adjustment
+    ADD CONSTRAINT dppo_annual_adjustment_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: dppo_annual_adjustment dppo_annual_adjustment_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.dppo_annual_adjustment
+    ADD CONSTRAINT dppo_annual_adjustment_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
+
+--
 -- Name: impersonation impersonation_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5593,6 +5653,12 @@ CREATE POLICY counterparty_update ON public.counterparty FOR UPDATE USING (((wor
 ALTER TABLE public.depreciation_plan ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: dppo_annual_adjustment; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.dppo_annual_adjustment ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: impersonation; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -5771,6 +5837,12 @@ CREATE POLICY organization_isolation ON public.chart_of_accounts USING ((organiz
 --
 
 CREATE POLICY organization_isolation ON public.depreciation_plan USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: dppo_annual_adjustment organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.dppo_annual_adjustment USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: individual_record organization_isolation; Type: POLICY; Schema: public; Owner: -

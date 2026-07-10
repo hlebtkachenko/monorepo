@@ -4,6 +4,7 @@ import { withOrganization } from "@workspace/db"
 import {
   buildDppo,
   buildDpfo,
+  loadDppoAdjustments,
   type Dppo,
   type Dpfo,
   type PersonType,
@@ -14,6 +15,7 @@ import {
   resolvePeriodProfile,
   type PeriodProfileResult,
 } from "../../_lib/period-profile"
+import { resolveOrgContext } from "../../../settings/_lib/settings-data"
 
 /**
  * Server-side data for the Closing Income tax pages (Corporation tax / DPPO,
@@ -37,7 +39,15 @@ type IncomeTaxBase = Exclude<PeriodProfileResult, { status: "ok" }>
 export type CorporateIncomeTaxResult =
   | IncomeTaxBase
   | { status: "not-applicable"; reason: string }
-  | { status: "ok"; periodLabel: string; dppo: Dppo }
+  | {
+      status: "ok"
+      /** Slug for the edit action (`saveDppoAdjustmentsAction`). */
+      slug: string
+      /** Whether the current member may edit the adjustments (owner/admin). */
+      canEdit: boolean
+      periodLabel: string
+      dppo: Dppo
+    }
 
 export type PersonalIncomeTaxResult =
   | IncomeTaxBase
@@ -75,12 +85,26 @@ export async function getCorporateIncomeTax(
       reason: dppoRegimeNotApplicableReason(profile.regime),
     }
   }
+  // Supply the persisted, provenanced adjustments so buildDppo can actually
+  // compute (without them the worksheet can only ever report NEEDS_INPUT).
   const dppo = await withOrganization(
     profile.ctx.organizationId,
     profile.ctx.userId,
-    (db) => buildDppo(db, profile.periodId),
+    async (db) => {
+      const input = await loadDppoAdjustments(db, profile.periodId)
+      return buildDppo(db, profile.periodId, input)
+    },
   )
-  return { status: "ok", periodLabel: profile.periodLabel, dppo }
+  // Role for the edit affordance — same owner/admin gate the save action enforces.
+  const orgContext = await resolveOrgContext(orgSlug, profile.ctx.userId)
+  const canEdit = orgContext?.role === "owner" || orgContext?.role === "admin"
+  return {
+    status: "ok",
+    slug: orgSlug,
+    canEdit,
+    periodLabel: profile.periodLabel,
+    dppo,
+  }
 }
 
 /** Personal income tax (DPFO) — the active period's real figures from `buildDpfo`. NATURAL + TAX_RECORDS only. */

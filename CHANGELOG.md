@@ -10,20 +10,28 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **accounting**: DPH přiznání lines ř.12/13 — §108 residual self-assessment on receipt (place of supply CZ, supplier not established in tuzemsko: gas/electricity §7a, §10–§10d special-place services incl. §10d means-of-transport hire, goods with assembly §7(6)), carried by a new `vat_jurisdiction = 'SECTION_108'` marker (migration 0056) that splits ř.12/13 out of the domestic §92 line ř.10/11 and routes §108 receipts to kontrolní hlášení A.2 (not B.1); deductible on ř.43/44, net-neutral (#540)
 
-### Changed
-
-- Exempt Dependabot PRs from the changelog Unreleased gate (author-gated), harden dependabot.yml (cooldown + labels + PR limit on all ecosystems), and document dependency recording at release-cut
-- Bump dev-dependencies group: tsx 4.22.4->4.23.0, @cloudflare/workers-types 4->5 (type-only D1Database, non-breaking), @next/eslint-plugin-next 16.2.9->16.2.10, @aws-sdk/client-{ecs,rds,sns} 3.1077.0->3.1079.0, aws-cdk-lib 2.260.0->2.261.0 (#663)
-- Reduce AWS deployment time by overlapping cold environment warm-up with image builds, bundling migration transport, stabilizing Budget names, and narrowing helper image contexts.
-- Bump postgres digest in /infra (infra-docker group) (#657)
-- Bump postgres digest in /infra/compose/postgres (#658)
-- Bump postgres digest in /infra/compose/pgtap (#659)
-- Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
-- Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
-
 ### Fixed
 
 - **accounting**: RENT place-of-supply routing on the DPH return — renting general movable property from an EU lessor is a §9(1) service (ownership never transfers → not a §16 goods acquisition), so it now lands on ř.5/6, not ř.3/4; also fixed a latent SQL operator-precedence bug in the shared `supportedDapEvidence` predicate whose unparenthesized OR orphaned the trailing rate/deductibility guards (masked while all jurisdiction-distinct-from-EU test data was single-rate) (#540)
+- **accounting**: a §92 kód předmětu plnění (`commodityCode`) could sit on a SECTION_108 received partial and leak onto a kontrolní hlášení A.2 row, which has no §92-kód field — tightened the `partial_record_commodity_code_rc_chk` CHECK (migration 0056) to also exclude SECTION_108 and added a capture-boundary guard (#540)
+
+## [v0.17.6] — 2026-07-10
+
+Patch release: dependency maintenance (production + dev + infra image + GitHub Actions bumps, all within-major) plus Dependabot workflow hardening (changelog-gate exemption, cooldown/labels/PR-limit config) and an AWS deploy-time reduction.
+
+### Changed
+
+- Exempt Dependabot PRs from the changelog Unreleased gate (author-gated), harden dependabot.yml (cooldown + labels + PR limit on all ecosystems), and document dependency recording at release-cut (#667)
+- Reduce AWS deployment time by overlapping cold environment warm-up with image builds, bundling migration transport, stabilizing Budget names, and narrowing helper image contexts.
+
+### Dependencies
+
+- Bump production-dependencies group: 25 within-major updates incl. next 16.2.9->16.2.10, @sentry/{nextjs,node} 10.62->10.63, @aws-sdk/* 3.1063->3.1079, recharts, resend, radix-ui, react-resizable-panels, lucide-react (#665)
+- Bump dev-dependencies group: tsx 4.22.4->4.23.0, @cloudflare/workers-types 4->5 (type-only D1Database, non-breaking), @next/eslint-plugin-next, @aws-sdk/client-{ecs,rds,sns}, aws-cdk-lib (#663)
+- Bump dev-dependency @playwright/test 1.60.0->1.61.1 (#668)
+- Bump postgres base image digests in /infra, /infra/compose/postgres, /infra/compose/pgtap (#657, #658, #659)
+- Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
+- Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
 
 ## [v0.17.5] — 2026-07-10
 

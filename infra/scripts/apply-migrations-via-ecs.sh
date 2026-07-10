@@ -17,9 +17,10 @@
 #     bridge: it reuses the already-deployed Backup task definition (it has
 #     the right network + `app_owner` secret wiring) and overrides the
 #     command for one run. No new CDK resources, no new IAM grants.
-#   - Migration SQL files are uploaded to `s3://<backup-bucket>/_migrations/`,
-#     then read by the in-task script via presigned URLs (so the Backup
-#     task role does NOT need `s3:GetObject` on its own bucket).
+#   - Migration SQL files are packed into one verified archive under
+#     `s3://<backup-bucket>/_migrations/`, then read by the in-task script via
+#     one presigned URL (so the Backup task role does NOT need `s3:GetObject`
+#     on its own bucket).
 #
 # Idempotent: the in-task script journals every applied file in
 # `_app_migrations` and skips already-applied ones (matching the behavior
@@ -133,49 +134,31 @@ if [ "${#files[@]}" -eq 0 ]; then
   echo "No migrations to apply."
   exit 0
 fi
-echo "Pending file count: ${#files[@]}"
+echo "Migration file count: ${#files[@]}"
 
-# Upload to s3://bucket/_migrations/<sha-prefix>/<filename>.sql so concurrent
-# runs cannot collide. Presigned URLs short-circuit IAM on the consumer side
-# (the Backup task role does NOT carry s3:GetObject on its own bucket).
+# Upload one archive to a run-specific key so concurrent runs cannot collide.
+# The presigned URL short-circuits IAM on the consumer side (the Backup task
+# role does NOT carry s3:GetObject on its own bucket).
 #
 # The container-override JSON has a hard 8 KiB cap (AWS ECS RunTask limit).
 # Earlier iteration packed { name, sum, url } per migration into individual
 # env vars; with 21+ migrations and ~500-char presigned URLs the override
-# blew past 30 KiB and the runner aborted (deploy run 26135171654). The
-# manifest pattern below holds all per-migration metadata in a single S3
-# object; only ONE presigned URL (the manifest's) lives in the container
-# env, and the in-task script fetches + parses the manifest via jq.
+# blew past 30 KiB and the runner aborted (deploy run 26135171654). One bundle
+# now carries the SQL files plus checksum manifest; only one presigned URL
+# lives in the container environment.
 run_id=$(date -u +%Y%m%dT%H%M%SZ)-$$
 s3_prefix="_migrations/${run_id}"
-
-# Build the manifest JSON locally as we upload each SQL file. Each entry
-# carries the filename, sha256 checksum, and a 1h presigned URL. The
-# manifest itself goes to S3 as `manifest.json` under the same prefix.
-manifest_path=/tmp/_apply-migrations-manifest.json
-echo '[]' > "$manifest_path"
-for f in "${files[@]}"; do
-  name=$(basename "$f")
-  sum=$(sha256sum "$f" | awk '{print $1}')
-  s3_key="${s3_prefix}/${name}"
-  aws s3 cp "$f" "s3://${bucket}/${s3_key}" --region "$AWS_REGION" --only-show-errors
-  url=$(aws s3 presign "s3://${bucket}/${s3_key}" --expires-in 3600 --region "$AWS_REGION")
-  jq --arg n "$name" --arg s "$sum" --arg u "$url" \
-    '. + [{name: $n, sum: $s, url: $u}]' "$manifest_path" > "${manifest_path}.next"
-  mv "${manifest_path}.next" "$manifest_path"
-done
-echo "Manifest entries: $(jq 'length' "$manifest_path")"
-
-aws s3 cp "$manifest_path" "s3://${bucket}/${s3_prefix}/manifest.json" \
+bundle_path=/tmp/_apply-migrations-bundle.tar.gz
+bash "$repo_root/infra/scripts/build-migration-bundle.sh" "$mig_dir" "$bundle_path"
+aws s3 cp "$bundle_path" "s3://${bucket}/${s3_prefix}/migrations.tar.gz" \
   --region "$AWS_REGION" --only-show-errors
-manifest_url=$(aws s3 presign "s3://${bucket}/${s3_prefix}/manifest.json" \
+bundle_url=$(aws s3 presign "s3://${bucket}/${s3_prefix}/migrations.tar.gz" \
   --expires-in 3600 --region "$AWS_REGION")
 
-# Only TWO env vars now: the manifest URL + the per-env token code. All
-# per-migration metadata is fetched from S3 by the container.
+# Only two env vars: the bundle URL + the per-env token code.
 env_json_entries=(
   "{\"name\": \"AUTH_TOKEN_ENV\", \"value\": \"${token_env}\"}"
-  "{\"name\": \"MANIFEST_URL\", \"value\": $(jq -Rn --arg v "$manifest_url" '$v')}"
+  "{\"name\": \"MIGRATIONS_BUNDLE_URL\", \"value\": $(jq -Rn --arg v "$bundle_url" '$v')}"
 )
 
 # The in-task script. POSIX sh — the Backup image is alpine + busybox.
@@ -193,9 +176,10 @@ psql "$PGURL" -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS _app_migrations 
 # when re-running on a pre-checksum database.
 psql "$PGURL" -v ON_ERROR_STOP=1 -c "ALTER TABLE _app_migrations ADD COLUMN IF NOT EXISTS checksum text"
 
-# Fetch the manifest the runner produced. One presigned URL, one HTTP GET,
-# then everything else is parsed from JSON locally.
-wget -qO "$WORK/manifest.json" "$MANIFEST_URL"
+# Fetch and extract the runner-produced bundle. One presigned URL and one HTTP
+# GET replace 55 sequential S3 uploads + presigns.
+wget -qO "$WORK/migrations.tar.gz" "$MIGRATIONS_BUNDLE_URL"
+tar -xzf "$WORK/migrations.tar.gz" -C "$WORK"
 mig_count=$(jq -r '"'"'length'"'"' "$WORK/manifest.json")
 echo "Manifest entries: $mig_count"
 
@@ -203,15 +187,17 @@ apply_one() {
   i=$1
   name=$(jq -r --argjson i "$i" '"'"'.[$i].name'"'"' "$WORK/manifest.json")
   sum=$(jq -r --argjson i "$i" '"'"'.[$i].sum'"'"' "$WORK/manifest.json")
-  url=$(jq -r --argjson i "$i" '"'"'.[$i].url'"'"' "$WORK/manifest.json")
   applied=$(psql "$PGURL" -tAc "SELECT 1 FROM _app_migrations WHERE filename = '"'"'"$name"'"'"'" || true)
   if [ "$applied" = "1" ]; then
     echo "[skipped] $name"
     return 0
   fi
   echo "[applying] $name ($sum)"
-  fname="$WORK/m.sql"
-  wget -qO "$fname" "$url"
+  fname="$WORK/migrations/$name"
+  if [ ! -f "$fname" ]; then
+    echo "[missing] $name is not present in the migration bundle"
+    exit 1
+  fi
   actual=$(sha256sum "$fname" | awk '"'"'{print $1}'"'"')
   if [ "$actual" != "$sum" ]; then
     echo "[mismatch] $name: expected $sum got $actual"
@@ -242,15 +228,15 @@ overrides=$(jq -n --arg cmd "$in_task_script" --argjson env "$env_json" '{
 }')
 echo "$overrides" > /tmp/_apply-migrations-overrides.json
 
-# 8192-byte cap on container overrides. With the manifest pattern the
-# only env var that scales with content is MANIFEST_URL (one 500-char
+# 8192-byte cap on container overrides. With the bundle pattern the
+# only env var that scales with content is MIGRATIONS_BUNDLE_URL (one
 # presigned URL), so we stay well under the cap regardless of migration
 # count. Keep the gate so a future regression (e.g. inlining metadata
 # again) trips before AWS rejects the run with a less actionable error.
 size=$(wc -c < /tmp/_apply-migrations-overrides.json)
 echo "Override JSON size: ${size} bytes (AWS limit: 8192)"
 if [ "$size" -gt 8192 ]; then
-  echo "::error::Override JSON exceeds 8 KiB. The manifest pattern should keep this small — investigate before raising the limit."
+  echo "::error::Override JSON exceeds 8 KiB. The bundle pattern should keep this small — investigate before raising the limit."
   exit 1
 fi
 

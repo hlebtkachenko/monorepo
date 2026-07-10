@@ -52,7 +52,11 @@ Fail = stop. Do not proceed with an unverifiable image.
 
 ## Deploy mechanics
 
-`_deploy-aws.yml` performs a single ECS rolling deploy — there is no canary logic. The workflow renders a new ECS task definition, triggers a rolling update (two-task minimum during rollout), watches health checks for ~5 minutes, and auto-aborts with an ECS circuit-breaker rollback on failure. There is no `_rollback.yml` workflow.
+`_deploy-aws.yml` warms RDS + the current ECS revision in `deploy-prep` while
+images build, then performs a single ECS rolling deploy. There is no canary
+logic. The workflow renders a new ECS task definition, triggers a rolling
+update, watches health checks for ~5 minutes, and auto-aborts with an ECS
+circuit-breaker rollback on failure. There is no `_rollback.yml` workflow.
 
 ## Rollback triggers
 

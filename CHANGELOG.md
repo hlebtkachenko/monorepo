@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Bump postgres digest in /infra/compose/postgres (#658)
 - Bump postgres digest in /infra/compose/pgtap (#659)
 - Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
+- Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
 
 ## [v0.17.5] — 2026-07-10
 
@@ -31,7 +32,6 @@ M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the dete
 
 ### Changed
 
-- Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
 - Bump markitdown from 0.1.5 to 0.1.6 (#660)
 - **brain**: complete the M1.2 write-body wiring — the harness now threads the server's `classify_accounting_event` treatment (vatMode/vatJurisdiction/commodityCode) onto the capture write body deterministically at the launcher's canUseTool updatedInput seam. The model never edits the payload; the merge is NARROW-ONLY (only ever moves a line toward held, never widens an adapter-held OUTSIDE_VAT row into STANDARD) and never touches the amounts; confidence stays out of the model's hands; every special-regime write is still HELD by the untouched `deriveCaptureVeto` (`unverified_vat_regime`).
 - **brain**: `brain extract`'s digital-PDF path now runs a best-effort local markitdown text-layer read alongside the vision-OCR pre-pass (M1.5), and every extraction always resolves through a fail-closed `extractionMethod` discriminator (#565) — markitdown, tesseract (deferred), and vision all map to the SAME weakest wire value (`ocr`), by type construction, never a stronger one; the extract→book bridge's existing forced `ocr` stamp is unchanged.

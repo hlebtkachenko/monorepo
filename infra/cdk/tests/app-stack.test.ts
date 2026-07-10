@@ -15,8 +15,7 @@ describe("AppStack Fargate hardening", () => {
   it("all 10 containers drop ALL Linux capabilities", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = taskDef?.Properties?.ContainerDefinitions ?? []
     expect(containers.length).toBe(10)
     for (const container of containers as Array<{
@@ -31,8 +30,7 @@ describe("AppStack Fargate hardening", () => {
   it("api + cloudflared + cerbos + openfga have readonlyRootFilesystem=true (pgbouncer excluded by design)", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -54,8 +52,7 @@ describe("AppStack Fargate hardening", () => {
   it("openfga sidecar is present with postgres datastore + HTTP loopback bind", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -64,7 +61,7 @@ describe("AppStack Fargate hardening", () => {
     }>
     const fga = containers.find((c) => c.Name === "openfga")
     expect(fga).toBeDefined()
-    expect(fga?.Image).toContain("openfga/openfga:v1.18.0")
+    expect(fga?.Image).toContain("openfga/openfga:v1.18.1")
     const envByName = Object.fromEntries(
       (fga?.Environment ?? []).map((e) => [e.Name, e.Value]),
     )
@@ -76,8 +73,7 @@ describe("AppStack Fargate hardening", () => {
   it("api receives OPENFGA_API_URL + SSM-backed store/model ids + email transport", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -109,8 +105,7 @@ describe("AppStack Fargate hardening", () => {
   it("cerbos sidecar is present with telemetry disabled", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -127,8 +122,7 @@ describe("AppStack Fargate hardening", () => {
   it("web container has BETTER_AUTH_URL + trusted origins matching public domain", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -193,8 +187,7 @@ describe("AppStack Fargate hardening", () => {
     // taxonomy" requires the env code to be bound to the deploy env.
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -214,8 +207,7 @@ describe("AppStack Fargate hardening", () => {
   it("admin container BETTER_AUTH_URL is the explicit adminDomain, not derived from the web domain", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -276,8 +268,7 @@ describe("AppStack Fargate hardening", () => {
     // hardcoded parameter name (per env).
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -333,8 +324,7 @@ describe("AppStack Fargate hardening", () => {
   it("api connects to pgbouncer sidecar on localhost:6432", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -357,8 +347,7 @@ describe("AppStack Fargate hardening", () => {
   it("pgbouncer has GUC-preserving transaction-mode config", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -385,8 +374,7 @@ describe("AppStack Fargate hardening", () => {
   it("pgbouncer composes DATABASE_URLS (plural) from app_owner + app_user secrets", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -430,8 +418,7 @@ describe("AppStack Fargate hardening", () => {
     // SAME source ARN, and that ARN is DIFFERENT from api's source ARN.
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -510,8 +497,7 @@ describe("AppStack Fargate hardening", () => {
   it("every container mounts the shared tmp volume at /tmp", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string
@@ -533,8 +519,7 @@ describe("AppStack Fargate hardening", () => {
   it("init chain: openfga-bootstrap dependsOn openfga-migrate; api dependsOn openfga-bootstrap", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
-      | { Properties?: { ContainerDefinitions?: unknown[] } }
-      | undefined
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
     const containers = (taskDef?.Properties?.ContainerDefinitions ??
       []) as Array<{
       Name?: string

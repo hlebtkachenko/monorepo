@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **brain**: the M2.2 librarian distillation engine (`packages/brain/src/librarian/`) — ingest human corrections of held Brain proposals, cluster by counterparty/direction/supply_kind/jurisdiction, distill a majority-vote candidate rule, gate it against the already-locked `booking_rule_pr_gate` threshold (0.90), and emit a `status: "proposed"` reviewable JSON artifact to a caller-supplied directory — never a default path, never an opaque prod row, never a live gate/floor/constitution change. Fixture-tested only (data-gated on M2.3); the real-corrections adapter and the GitHub PR automation ADR-0027 describes are explicit follow-up.
+
 ## [v0.17.3] — 2026-07-10
 
 Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.

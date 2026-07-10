@@ -6,9 +6,19 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **brain**: booking-template library (M2.1, amends §I9) — workspace-scoped, human-confirmed `booking_template` rows keyed on counterparty/direction/supply-kind/jurisdiction; a match still proposes through the unchanged gated write path (never auto-applies, never skips `runGatedWrite`); model routing picks Haiku for a confirmed match and escalates to the default reasoning model for a novel case; the I9 write-template tripwire gains a narrow, exact-match carve-out for the new `BookingTemplateMatch` routing type.
+- **brain**: the M2.2 librarian distillation engine (`packages/brain/src/librarian/`) — ingest human corrections of held Brain proposals, cluster by counterparty/direction/supply_kind/jurisdiction, distill a majority-vote candidate rule, gate it against the already-locked `booking_rule_pr_gate` threshold (0.90), and emit a `status: "proposed"` reviewable JSON artifact to a caller-supplied directory — never a default path, never an opaque prod row, never a live gate/floor/constitution change. Fixture-tested only (data-gated on M2.3); the real-corrections adapter and the GitHub PR automation ADR-0027 describes are explicit follow-up.
+
 ### Changed
 
 - **brain**: close #565 evidence-gate floor route-arounds (M2.4) — a declared `extractionMethod` can no longer skip the OCR-template screen, and `POST /v1/invoices` now wires the same screen `POST /v1/accounting/documents` uses (tightening-only)
+- One-shot scheduled deploy workflow: staging then production from latest main at 10:00 Europe/Prague on 2026-07-11
+
+### Fixed
+
+- **brain**: harden the M2.2 librarian distillation engine's promotion preconditions (inert, no real callers yet — corrected before the M2.3 adapter feeds live corrections): (a) extend `CorrectionSignature` with the §92 `commodityCode` and §37a `isAdvance` sub-facts so distinct Czech-VAT sub-cases no longer over-cluster (#643's `BookingSignature` must gain the same sub-facts in lockstep); (b) de-masquerade the eval — `evaluateCandidate` now gates on its own `LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN` (0.90 in-sample consistency floor) instead of borrowing the held-out `booking_rule_pr_gate` number, which is wired as the real promotion gate in M2.3; (c) `candidateId` now content-addresses the signature **and** the normalized proposed decision, so a drifted re-distillation no longer silently overwrites a superseded proposal; (d) `deriveDecision` now replays a reviewer edit through a faithful per-tool re-statement of `apps/web`'s `applyHeldWriteEdit` (`librarian/replay.ts`) instead of a shallow field-spread, so the treatment the librarian votes on is byte-for-byte the treatment that would book.
 
 ## [v0.17.6] — 2026-07-10
 

@@ -75,14 +75,15 @@ describe("buildLoginContext — embedded sandbox policy", () => {
   it("defaults to the pinned real accounting policy so the session is bound to the real tools + sandboxed", () => {
     const pack = buildLoginContext(sections())
     expect(pack.toolPolicy).toEqual(BRAIN_ACCOUNTING_POLICY)
-    // The default no-toolPolicy pack emits exact per-tool patterns for the 21 allowed afframe tools (M1.1
-    // added list_accounts/get_account) and NONE for the two DENIED held-write ops (the DENY governs a REAL
-    // default session, not a placeholder).
+    // The default no-toolPolicy pack emits exact per-tool patterns for the 22 allowed afframe tools (M1.1
+    // added list_accounts/get_account, M2.1 added match_booking_template) and NONE for the two DENIED
+    // held-write ops (the DENY governs a REAL default session, not a placeholder).
     expect(pack.allowedTools).toContain("mcp__afframe__create_accounting_event")
     expect(pack.allowedTools).toContain("mcp__afframe__get_accounting_journal")
+    expect(pack.allowedTools).toContain("mcp__afframe__match_booking_template")
     expect(pack.allowedTools).toContain("mcp__afframe__list_accounts")
     expect(pack.allowedTools).toContain("mcp__afframe__get_account")
-    expect(pack.allowedTools).toHaveLength(21)
+    expect(pack.allowedTools).toHaveLength(22)
     expect(pack.allowedTools).not.toContain("mcp__afframe__*")
     expect(pack.allowedTools).not.toContain(
       "mcp__afframe__resolve_accounting_held_write",

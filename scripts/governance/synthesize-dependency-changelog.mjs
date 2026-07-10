@@ -109,7 +109,7 @@ function renderBlock(bullets) {
   ].join("\n")
 }
 
-function findUnreleasedRange(lines) {
+export function findUnreleasedRange(lines) {
   const start = lines.findIndex((line) => line.trim() === "## [Unreleased]")
   if (start === -1) {
     throw new Error(
@@ -140,7 +140,7 @@ function findDependenciesRange(lines, start, end) {
   return { start: headingIndex, end: nextHeading === -1 ? end : nextHeading }
 }
 
-function mergeIntoChangelog(markdown, bullets) {
+export function mergeIntoChangelog(markdown, bullets) {
   const hadTrailingNewline = markdown.endsWith("\n")
   const lines = markdown.replace(/\r\n/g, "\n").split("\n")
   if (lines.at(-1) === "") lines.pop()

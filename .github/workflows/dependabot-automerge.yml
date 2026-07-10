@@ -22,6 +22,11 @@
 # Until DEPENDABOT_AUTOMERGE_TOKEN is added as a Dependabot secret, the token
 # guard step below makes this workflow a no-op (exits 0, no merges) rather
 # than failing red.
+#
+# Prerequisite: repo Settings > General > Pull Requests > "Allow auto-merge"
+# must be ON, alongside the DEPENDABOT_AUTOMERGE_TOKEN (Dependabot secret)
+# above. If it's off, `gh pr merge --auto` fails and the merge-enable step
+# below logs and leaves the PR for a human instead of failing red.
 
 on:
   pull_request:
@@ -39,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: read
+      pull-requests: read
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -77,16 +82,21 @@ jobs:
           SAFE=false
           CLASS="none"
 
-          # SAFE class 1: npm dev-dependency patch/minor.
-          if [ "${DEP_TYPE}" = "direct:development" ] && { [ "${UPDATE_TYPE}" = "version-update:semver-patch" ] || [ "${UPDATE_TYPE}" = "version-update:semver-minor" ]; }; then
+          # SAFE class 1: npm dev-dependency patch/minor. fetch-metadata
+          # reports the npm ecosystem as "npm_and_yarn" (not "npm") — using
+          # "npm" here would fail-closed and silently disable this class.
+          if [ "${ECOSYSTEM}" = "npm_and_yarn" ] && [ "${DEP_TYPE}" = "direct:development" ] && { [ "${UPDATE_TYPE}" = "version-update:semver-patch" ] || [ "${UPDATE_TYPE}" = "version-update:semver-minor" ]; }; then
             SAFE=true
             CLASS="npm dev-dependency patch/minor"
           # SAFE class 2: pip patch/minor.
           elif [ "${ECOSYSTEM}" = "pip" ] && { [ "${UPDATE_TYPE}" = "version-update:semver-patch" ] || [ "${UPDATE_TYPE}" = "version-update:semver-minor" ]; }; then
             SAFE=true
             CLASS="pip patch/minor"
-          # SAFE class 3: Docker/compose digest-only refresh.
-          elif { [ "${ECOSYSTEM}" = "docker" ] || [ "${ECOSYSTEM}" = "docker_compose" ]; } && [ "${DIGEST_ONLY_BUMP}" = "true" ]; then
+          # SAFE class 3: Docker/compose digest-only refresh. Requires both
+          # the title regex AND an empty update-type — a semver tag change
+          # (e.g. a pure-hex tag) carries a "version-update:*" update-type,
+          # so this can't misclassify a tag bump as digest-only.
+          elif { [ "${ECOSYSTEM}" = "docker" ] || [ "${ECOSYSTEM}" = "docker_compose" ]; } && [ "${DIGEST_ONLY_BUMP}" = "true" ] && [ -z "${UPDATE_TYPE:-}" ]; then
             SAFE=true
             CLASS="docker digest-only refresh"
           fi
@@ -97,7 +107,11 @@ jobs:
 
           if [ "${SAFE}" = "true" ]; then
             echo "Safe auto-merge class: ${CLASS}. Enabling auto-merge (squash) for ${PR_URL}."
-            GH_TOKEN="${TOKEN}" gh pr merge --auto --squash "${PR_URL}"
+            if GH_TOKEN="${TOKEN}" gh pr merge --auto --squash "${PR_URL}"; then
+              echo "Auto-merge enabled (${CLASS})."
+            else
+              echo "Could not enable auto-merge (is the repo 'Allow auto-merge' setting on?); leaving for human."
+            fi
           else
             echo "Not a safe auto-merge class (dependency-type=${DEP_TYPE}, update-type=${UPDATE_TYPE}, ecosystem=${ECOSYSTEM}). Leaving for human review."
           fi

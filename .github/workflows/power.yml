@@ -86,11 +86,11 @@ jobs:
     # production protection rules, and makes the OIDC subject env-scoped so the
     # exact-match deploy-role trust policy accepts it.
     environment: ${{ matrix.environment }}
-    # One power action per env at a time — two concurrent toggles would race on
-    # the same ECS service / RDS instance. Keyed per matrix env, not globally,
-    # so an `all` run does not serialize staging behind production.
+    # One environment mutation per env at a time. _deploy-aws.yml uses the
+    # same group, preventing pause/resume from racing CDK, ECS, or RDS work.
+    # Keyed per matrix env so an `all` run keeps both environments parallel.
     concurrency:
-      group: power-${{ matrix.environment }}
+      group: env-mutation-${{ matrix.environment }}
       cancel-in-progress: false
     permissions:
       id-token: write # OIDC federation to assume the deploy role

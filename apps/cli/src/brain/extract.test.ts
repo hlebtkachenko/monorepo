@@ -142,12 +142,38 @@ describe("assembleExtractPlan — [M1.5 / #565] fail-closed extraction-engine cl
     expect(plan.extractionMethodStamp).toBe("ocr")
   })
 
-  it("threads the text layer into the kickoff as untrusted supplementary data", () => {
+  it("threads the text layer into the kickoff as untrusted supplementary data (digital-text-layer)", () => {
     const plan = assembleExtractPlan(block, ctx, undefined, {
-      text: "Celkem 12 100,00 Kc",
+      text: "Celkem k uhrade 12 100,00 Kc — Faktura c. 2026-00123, ICO 12345678",
     })
-    expect(plan.kickoff).toContain("Celkem 12 100,00 Kc")
+    expect(plan.extractionEngine).toBe("digital-text-layer")
+    expect(plan.kickoff).toContain("12 100,00 Kc")
     expect(plan.kickoff).toContain("UNTRUSTED")
+  })
+
+  it("[M1.5 / #565] WITHHOLDS the text-layer block from the kickoff when it classifies vision-only (ambiguous CZ amount)", () => {
+    // The ambiguous-CZ-amount read still carries substantial text, but fails closed to vision-only — so its
+    // text must NOT ride into the session prompt (it is not just the engine TAG that changes; the assist is
+    // actually withheld). This is the I8-honesty property: the vision-only downgrade does a real thing.
+    const ambiguousText = `
+      Faktura - danovy doklad c. 2026-00123
+      Dodavatel: Afframe s.r.o., ICO 12345678
+      Doplatek: 1.234 rozpis dane a polozek faktury
+    `
+    const plan = assembleExtractPlan(block, ctx, undefined, {
+      text: ambiguousText,
+    })
+    expect(plan.extractionEngine).toBe("vision-only")
+    // The text-layer block markers + the actual document text are absent from the kickoff.
+    expect(plan.kickoff).not.toContain("local text-layer extract")
+    expect(plan.kickoff).not.toContain("SUPPLEMENTARY DATA ONLY")
+    expect(plan.kickoff).not.toContain("Doplatek")
+  })
+
+  it("[M1.5 / #565] WITHHOLDS the text-layer block when the read was null (scanned/unavailable)", () => {
+    const plan = assembleExtractPlan(block, ctx, undefined, null)
+    expect(plan.extractionEngine).toBe("vision-only")
+    expect(plan.kickoff).not.toContain("local text-layer extract")
   })
 })
 

@@ -55,6 +55,7 @@ import {
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
+import { classifyExtractionEngine } from "./extraction-engine"
 import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
 
@@ -255,10 +256,17 @@ export function registerBrainCommand(program: Command): void {
           new Uint8Array(readFileSync(path)),
         )
         // [M1.5] Best-effort LOCAL digital-text-layer read (markitdown), PDF only — an image has no text-layer
-        // concept. NEVER throws (see ./markitdown-adapter); a missing/failed run degrades to `null`, which
-        // `assembleExtractPlan` classifies as the fail-closed "vision-only" engine — same as a scanned PDF.
-        const textLayer =
+        // concept. NEVER throws (see ./markitdown-adapter); a missing/failed run degrades to `null`.
+        const rawTextLayer =
           document.kind === "document" ? await tryExtractTextLayer(path) : null
+        // [M1.5 / #565] The fail-closed GATE, computed ONCE at this single upstream site. The text-layer assist
+        // rides into the session ONLY when the read positively classifies as a digital-text-layer. A vision-only
+        // classification — including the ambiguous-CZ-amount case, which fails closed like vision — withholds the
+        // text ENTIRELY. The SAME gated `textLayer` feeds BOTH the plan assembly (below) and the live session
+        // (`sdkExtractSession`), so the `--dry-run` plan and the live run can never diverge: neither embeds the
+        // withheld text. (`assembleExtractPlan` re-derives the same gate defensively for any direct caller.)
+        const engine = classifyExtractionEngine(rawTextLayer)
+        const textLayer = engine === "digital-text-layer" ? rawTextLayer : null
         const plan = assembleExtractPlan(
           document,
           ctx,

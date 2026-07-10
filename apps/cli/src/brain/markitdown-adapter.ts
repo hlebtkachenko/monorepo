@@ -37,7 +37,11 @@ export type MarkitdownRunner = (path: string) => Promise<string>
  */
 export async function runMarkitdownCli(path: string): Promise<string> {
   const bin = process.env.BRAIN_MARKITDOWN_BIN || "markitdown"
-  const { stdout } = await execFileAsync(bin, [path], {
+  // `--` ends option parsing: a filename that begins with `-` (e.g. an operator's oddly-named `-invoice.pdf`)
+  // can never be misread by markitdown's argparse as a flag. `execFile` (no shell) already blocks injection;
+  // this closes the residual arg-confusion vector too. (`execFile` also passes `path` as a single argv token,
+  // so there is no word-splitting even without `--`; the separator is defense-in-depth.)
+  const { stdout } = await execFileAsync(bin, ["--", path], {
     timeout: MARKITDOWN_TIMEOUT_MS,
     maxBuffer: MARKITDOWN_MAX_BUFFER,
   })

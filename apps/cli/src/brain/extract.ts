@@ -131,13 +131,20 @@ export function assembleExtractPlan(
   supplierHint?: string,
   textLayer?: TextLayerSignal | null,
 ): ExtractPlan {
+  const extractionEngine = classifyExtractionEngine(textLayer ?? null)
+  // [M1.5 / #565] Self-gate the kickoff assist on the fail-closed classification: the text-layer only rides
+  // into the session prompt when it positively classifies as a digital-text-layer. A vision-only
+  // classification (including the ambiguous-CZ-amount fail-closed case) withholds the text ENTIRELY, so the
+  // plan's engine tag, its extractionMethod stamp, and its kickoff can never disagree — and any direct caller
+  // of `assembleExtractPlan` gets the same guarantee the `command.ts` upstream gate gives the live path.
+  const kickoffTextLayer =
+    extractionEngine === "digital-text-layer" ? textLayer : null
   const session: ExtractSessionInputs = {
     sections: ctx.sections,
     supplierHint,
-    textLayer,
+    textLayer: kickoffTextLayer,
   }
   const loginPack = buildExtractLoginPack(session)
-  const extractionEngine = classifyExtractionEngine(textLayer ?? null)
   return {
     document: {
       kind: document.kind,
@@ -151,7 +158,7 @@ export function assembleExtractPlan(
     systemPrompt: loginPack.system,
     allowedTools: [...loginPack.allowedTools],
     disallowedTools: [...loginPack.disallowedTools],
-    kickoff: buildExtractKickoff(supplierHint, textLayer),
+    kickoff: buildExtractKickoff(supplierHint, kickoffTextLayer),
   }
 }
 

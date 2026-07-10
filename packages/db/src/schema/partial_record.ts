@@ -42,10 +42,12 @@ export const partial_record = pgTable(
     base_amount: numeric("base_amount", { precision: 19, scale: 4 }).notNull(), // základ daně
     vat_rate: numeric("vat_rate", { precision: 5, scale: 2 }), // 0/12/21…; null for OUTSIDE_VAT
     vat_mode: vatMode("vat_mode").notNull(), // DRIVES posting
-    // Place-of-supply regime (ZDPH §16/§92/§102). Splits ř.3/4 (EU acquisition)
-    // from ř.10/11 (domestic PDP) on the DPH return; NULL = legacy/undistinguished.
-    // CHECK constraint lives in migration 0038, not this DSL.
-    vat_jurisdiction: text("vat_jurisdiction"), // DOMESTIC|REVERSE_CHARGE|EU|IMPORT|EXEMPT|OUTSIDE_VAT
+    // Place-of-supply regime (ZDPH §16/§92/§102/§108). Splits ř.3/4 (EU
+    // acquisition), ř.5/6 (EU §9(1) service), ř.10/11 (domestic §92 PDP), and
+    // ř.12/13 (§108 residual — place of supply CZ, supplier not established) on
+    // the DPH return; NULL = legacy/undistinguished. CHECK constraint lives in
+    // migrations 0039 (base) + 0056 (SECTION_108), not this DSL.
+    vat_jurisdiction: text("vat_jurisdiction"), // DOMESTIC|REVERSE_CHARGE|EU|IMPORT|EXEMPT|OUTSIDE_VAT|SECTION_108
     // Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění
     // (SERVICES -> 3 service; else -> 0 goods). NULL = legacy/undistinguished
     // (kód 0). CHECK constraint lives in migration 0043, not this DSL.

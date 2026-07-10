@@ -2301,6 +2301,26 @@
                 "description": "ř.11 daň.",
                 "example": "0.00"
               },
+              "r12_base": {
+                "type": "string",
+                "description": "ř.12 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 21 %.",
+                "example": "0.00"
+              },
+              "r12_dan": {
+                "type": "string",
+                "description": "ř.12 daň.",
+                "example": "0.00"
+              },
+              "r13_base": {
+                "type": "string",
+                "description": "ř.13 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 12 %.",
+                "example": "0.00"
+              },
+              "r13_dan": {
+                "type": "string",
+                "description": "ř.13 daň.",
+                "example": "0.00"
+              },
               "r20_base": {
                 "type": "string",
                 "description": "ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.",
@@ -2399,6 +2419,10 @@
               "r10_dan",
               "r11_base",
               "r11_dan",
+              "r12_base",
+              "r12_dan",
+              "r13_base",
+              "r13_dan",
               "r20_base",
               "r21_base",
               "r22_base",
@@ -2606,6 +2630,26 @@
             "description": "ř.11 daň.",
             "example": "0.00"
           },
+          "r12_base": {
+            "type": "string",
+            "description": "ř.12 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 21 %.",
+            "example": "0.00"
+          },
+          "r12_dan": {
+            "type": "string",
+            "description": "ř.12 daň.",
+            "example": "0.00"
+          },
+          "r13_base": {
+            "type": "string",
+            "description": "ř.13 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 12 %.",
+            "example": "0.00"
+          },
+          "r13_dan": {
+            "type": "string",
+            "description": "ř.13 daň.",
+            "example": "0.00"
+          },
           "r20_base": {
             "type": "string",
             "description": "ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.",
@@ -2704,6 +2748,10 @@
           "r10_dan",
           "r11_base",
           "r11_dan",
+          "r12_base",
+          "r12_dan",
+          "r13_base",
+          "r13_dan",
           "r20_base",
           "r21_base",
           "r22_base",
@@ -4743,7 +4791,8 @@
               "EU",
               "IMPORT",
               "EXEMPT",
-              "OUTSIDE_VAT"
+              "OUTSIDE_VAT",
+              "SECTION_108"
             ],
             "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
             "example": "EU"
@@ -5261,6 +5310,7 @@
                           "IMPORT",
                           "EXEMPT",
                           "OUTSIDE_VAT",
+                          "SECTION_108",
                           null
                         ]
                       },
@@ -7161,6 +7211,7 @@
                           "IMPORT",
                           "EXEMPT",
                           "OUTSIDE_VAT",
+                          "SECTION_108",
                           null
                         ]
                       },
@@ -8320,7 +8371,8 @@
                   "EU",
                   "IMPORT",
                   "EXEMPT",
-                  "OUTSIDE_VAT"
+                  "OUTSIDE_VAT",
+                  "SECTION_108"
                 ],
                 "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                 "example": "EU"
@@ -8580,7 +8632,8 @@
                         "EU",
                         "IMPORT",
                         "EXEMPT",
-                        "OUTSIDE_VAT"
+                        "OUTSIDE_VAT",
+                        "SECTION_108"
                       ],
                       "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                       "example": "EU"
@@ -8846,7 +8899,8 @@
                       "EU",
                       "IMPORT",
                       "EXEMPT",
-                      "OUTSIDE_VAT"
+                      "OUTSIDE_VAT",
+                      "SECTION_108"
                     ],
                     "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                     "example": "EU"
@@ -9101,7 +9155,8 @@
                   "EU",
                   "IMPORT",
                   "EXEMPT",
-                  "OUTSIDE_VAT"
+                  "OUTSIDE_VAT",
+                  "SECTION_108"
                 ],
                 "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                 "example": "EU"
@@ -9363,7 +9418,8 @@
                       "EU",
                       "IMPORT",
                       "EXEMPT",
-                      "OUTSIDE_VAT"
+                      "OUTSIDE_VAT",
+                      "SECTION_108"
                     ],
                     "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                     "example": "EU"

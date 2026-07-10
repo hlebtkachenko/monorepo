@@ -1447,6 +1447,19 @@ describe("commodity_code (migration 0046)", () => {
       ),
     ).rejects.toThrow(/partial_record_commodity_code_rc_chk|commodity_code/i)
   })
+
+  // migration 0056 tightened this CHECK (partial_record_commodity_code_rc_chk)
+  // to also exclude SECTION_108 — a §92 kód predmětu plnění belongs only on a
+  // DOMESTIC §92 PDP row (KH A.1/B.1), never on a §108 residual self-assessment
+  // row (KH A.2). Same class of leak as CC6's EU case (advisor-caught, #540).
+  it("(CC7) a commodity_code on a SECTION_108 reverse-charge line is rejected (§92 kód is domestic-PDP-only; §108 = KH A.2)", async () => {
+    await expect(
+      admin.unsafe(
+        `INSERT INTO partial_record (id, organization_id, individual_record_id, base_amount, vat_mode, vat_jurisdiction, vat_amount, currency_code, base_in_accounting_currency, vat_in_accounting_currency, commodity_code)
+         VALUES ('00000000-0000-0000-0000-0000000cc006'::uuid, '${ORG_A}', '${INDIV_A}', 1000, 'REVERSE_CHARGE', 'SECTION_108', 0, 'CZK', 1000, 0, '1')`,
+      ),
+    ).rejects.toThrow(/partial_record_commodity_code_rc_chk|commodity_code/i)
+  })
 })
 
 // ===========================================================================

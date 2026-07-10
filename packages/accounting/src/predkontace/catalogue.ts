@@ -337,6 +337,46 @@ export const PURCHASE_SCENARIOS: readonly PredkontaceScenario[] = [
     ],
   },
   {
+    // §108 residual self-assessment on RECEIPT — place of supply CZ, supplier
+    // NOT established in tuzemsko (gas/electricity §7a from a non-established
+    // supplier, §10–§10d special-place services incl. §10d means-of-transport
+    // hire, goods with assembly §7(6), other §108 goods). Books identically to
+    // P-PDP (net to cost, self-assess input+output on 343↔343) — the recipient
+    // přiznává daň při přijetí — but the vat_jurisdiction = 'SECTION_108' marker
+    // routes it to DPH ř.12/13 (not ř.10/11). vat_mode REVERSE_CHARGE matches
+    // decideVat / the capture boundary, or expand.ts throws on the mismatch.
+    // Kept as a distinct scenario (not a P-PDP alias) so the reasoning trail
+    // cites §108 rather than §92e.
+    id: "P-SECTION-108",
+    label:
+      "FP — §108 samovyměření při přijetí (dodavatel neusazený v tuzemsku)",
+    documentSide: "PURCHASE",
+    vatMode: "REVERSE_CHARGE",
+    legalBasis: [`${ZDPH} §108`, `${ZDPH} §7a`, `${ZDPH} §10`, `${ZDPH} §24`],
+    confidence: "medium",
+    entries: [
+      {
+        account: "518",
+        side: "DEBIT",
+        basis: "net",
+        description: "Přijaté plnění (§108 samovyměření)",
+      },
+      { account: "321", side: "CREDIT", basis: "net" },
+      {
+        account: "343",
+        side: "DEBIT",
+        basis: "self_assessed_vat",
+        description: "DPH na vstupu (samovyměření §108)",
+      },
+      {
+        account: "343",
+        side: "CREDIT",
+        basis: "self_assessed_vat",
+        description: "DPH na výstupu (samovyměření §108)",
+      },
+    ],
+  },
+  {
     id: "P-EU-GOODS",
     label: "FP — EU intra-community goods acquisition — plátce (samovyměření)",
     documentSide: "PURCHASE",

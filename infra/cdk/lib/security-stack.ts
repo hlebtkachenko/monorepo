@@ -333,8 +333,8 @@ export class SecurityStack extends Stack {
     }
 
     for (const spec of budgets) {
-      const notificationsWithSubscribers = [
-        // 80% threshold: ops topic only (email out-of-band).
+      const criticalDestination = spec.killSwitch ? "kill-switch" : "ops"
+      const notificationContract = [
         {
           notification: {
             notificationType: "ACTUAL",
@@ -342,28 +342,9 @@ export class SecurityStack extends Stack {
             threshold: 80,
             thresholdType: "PERCENTAGE",
           },
-          subscribers: [
-            {
-              subscriptionType: "SNS",
-              address: this.killSwitchOpsTopic.topicArn,
-            },
-          ],
+          subscriptionType: "SNS",
+          destination: "ops",
         },
-        // 100% threshold. For the Total budget (killSwitch=true) this goes
-        // to the kill-switch topic → stop ECS + RDS. For alert-only budgets
-        // (DataTransfer) it goes to the ops topic instead — a sub-budget
-        // breach must page, not stop the env. AWS Budgets caps subscribers
-        // per notification at 1 SNS + 10 EMAIL, so exactly one SNS address
-        // here (verified deploy run 26127290021). For the kill-switch path,
-        // operator visibility on 100% is preserved via three other paths:
-        //   1. ECS desiredCount drops 1→0 when kill-switch fires →
-        //      CloudWatch alarm on RunningCount → email via BillingTopic.
-        //   2. killSwitchErrorsAlarm fires email on ops topic if the
-        //      kill-switch Lambda itself errors (so a silent failure of
-        //      the kill-switch handler still pages).
-        //   3. 80% threshold (above) already publishes to ops topic, so
-        //      a runaway budget surfaces in the operator inbox before
-        //      it reaches 100%.
         {
           notification: {
             notificationType: "ACTUAL",
@@ -371,18 +352,50 @@ export class SecurityStack extends Stack {
             threshold: 100,
             thresholdType: "PERCENTAGE",
           },
-          subscribers: [
-            {
-              subscriptionType: "SNS",
-              address: spec.killSwitch
-                ? this.killSwitchTopic.topicArn
-                : this.killSwitchOpsTopic.topicArn,
-            },
-          ],
+          subscriptionType: "SNS",
+          destination: criticalDestination,
         },
       ]
-      // Deterministic 8-char suffix derived from the cost filters +
-      // notifications shape. AWS::Budgets is immutable on most attributes
+      const notificationsWithSubscribers = notificationContract.map(
+        ({ notification, subscriptionType, destination }) => ({
+          notification,
+          subscribers: [
+            {
+              subscriptionType,
+              address:
+                destination === "kill-switch"
+                  ? this.killSwitchTopic.topicArn
+                  : this.killSwitchOpsTopic.topicArn,
+            },
+          ],
+        }),
+      )
+      const budgetContract = {
+        budgetType: "COST",
+        timeUnit: "MONTHLY",
+        budgetLimit: {
+          amount: spec.limitUsd,
+          unit: "USD",
+        },
+        costFilters: spec.costFilters,
+        costTypes: {
+          includeCredit: false,
+          includeRefund: false,
+          includeDiscount: true,
+          includeSubscription: true,
+          includeOtherSubscription: true,
+          includeSupport: true,
+          includeTax: true,
+          includeUpfront: true,
+          useAmortized: false,
+          useBlended: false,
+        },
+      }
+      // Deterministic 8-char suffix derived from stable semantic values.
+      // Never hash unresolved CDK tokens such as topicArn: their internal token
+      // IDs change between synth processes and used to replace every Budget on
+      // every full deploy even when the budget contract was unchanged.
+      // AWS::Budgets is immutable on most attributes
       // (subscriber adds, threshold changes, costFilter edits) and any
       // such change forces a REPLACE that fails because the old budget
       // name still exists. By baking the spec into the budget name we get
@@ -392,9 +405,8 @@ export class SecurityStack extends Stack {
       const suffix = createHash("sha256")
         .update(
           JSON.stringify({
-            costFilters: spec.costFilters,
-            notifications: notificationsWithSubscribers,
-            limitUsd: spec.limitUsd,
+            budget: budgetContract,
+            notifications: notificationContract,
           }),
         )
         .digest("hex")
@@ -402,25 +414,7 @@ export class SecurityStack extends Stack {
       new CfnBudget(this, `Budget${spec.id}`, {
         budget: {
           budgetName: `monorepo-${props.envName}-${spec.id.toLowerCase()}-${suffix}`,
-          budgetType: "COST",
-          timeUnit: "MONTHLY",
-          budgetLimit: {
-            amount: spec.limitUsd,
-            unit: "USD",
-          },
-          costFilters: spec.costFilters,
-          costTypes: {
-            includeCredit: false,
-            includeRefund: false,
-            includeDiscount: true,
-            includeSubscription: true,
-            includeOtherSubscription: true,
-            includeSupport: true,
-            includeTax: true,
-            includeUpfront: true,
-            useAmortized: false,
-            useBlended: false,
-          },
+          ...budgetContract,
         },
         notificationsWithSubscribers,
       })

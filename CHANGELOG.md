@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.17.4] — 2026-07-10
+
+Patch release: capture and compute the DPPO annual worksheet inputs, converge every OpenFGA pin to v1.18.1 (app-stack + bootstrap Dockerfile + local compose) with the version-check guard extended to all three, offer Czech in the onboarding profile locale selector, add a retrievable source for the bot `INGEST_SECRET`, and improve the Conductor CodeGraph refresh tooling.
+
 ### Added
 
 - **accounting/annual**: capture and persist the provenanced DPPO worksheet inputs (taxpayer category + the six §25/§18a/§19/§34/§35/§38a adjustments) per accounting period via a new `dppo_annual_adjustment` table and an owner/admin edit form on the Corporation tax page, so `buildDppo` computes instead of only reporting NEEDS_INPUT.

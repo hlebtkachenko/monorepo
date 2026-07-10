@@ -6,6 +6,9 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **brain**: `brain extract`'s digital-PDF path now runs a best-effort local markitdown text-layer read alongside the vision-OCR pre-pass (M1.5), and every extraction always resolves through a fail-closed `extractionMethod` discriminator (#565) — markitdown, tesseract (deferred), and vision all map to the SAME weakest wire value (`ocr`), by type construction, never a stronger one; the extract→book bridge's existing forced `ocr` stamp is unchanged.
 ### Fixed
 
 - **accounting**: resolve the decideVat↔catalogue vat_mode conflation for a §66 export of goods to a third country (S-EXPORT now captures EXEMPT, matching the catalogue) and add DPH ř.22 (vývoz zboží), routing it off ř.50 §51 exempt-without-deduction — fixes #566.

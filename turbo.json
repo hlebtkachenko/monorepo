@@ -103,6 +103,7 @@
         "BRAIN_API_KEY",
         "BRAIN_AGENT_SDK_AUTH",
         "BRAIN_BOOK_CONCURRENCY",
+        "BRAIN_MARKITDOWN_BIN",
         "PUBLIC_API_URL"
       ]
     }

@@ -2422,7 +2422,7 @@ CREATE TABLE public.partial_record (
     CONSTRAINT partial_record_qty_price_chk CHECK (((quantity IS NULL) OR (unit_price IS NULL) OR (base_amount = round((quantity * unit_price), 4)))),
     CONSTRAINT partial_record_supply_kind_chk CHECK (((supply_kind IS NULL) OR (supply_kind = ANY (ARRAY['GOODS'::text, 'MATERIAL'::text, 'SERVICES'::text, 'UTILITY'::text, 'RENT'::text, 'INSURANCE'::text, 'ASSET'::text, 'ADVANCE'::text, 'CREDIT_NOTE'::text, 'OTHER'::text])))),
     CONSTRAINT partial_record_vat_fx_requires_fx_chk CHECK (((vat_fx_rate IS NULL) OR (fx_rate IS NOT NULL))),
-    CONSTRAINT partial_record_vat_jurisdiction_chk CHECK (((vat_jurisdiction IS NULL) OR (vat_jurisdiction = ANY (ARRAY['DOMESTIC'::text, 'REVERSE_CHARGE'::text, 'EU'::text, 'IMPORT'::text, 'EXEMPT'::text, 'OUTSIDE_VAT'::text])))),
+    CONSTRAINT partial_record_vat_jurisdiction_chk CHECK (((vat_jurisdiction IS NULL) OR (vat_jurisdiction = ANY (ARRAY['DOMESTIC'::text, 'REVERSE_CHARGE'::text, 'EU'::text, 'IMPORT'::text, 'EXEMPT'::text, 'OUTSIDE_VAT'::text, 'SECTION_108'::text])))),
     CONSTRAINT partial_record_vat_tol_chk CHECK (((vat_mode <> 'STANDARD'::public.vat_mode) OR (vat_rate IS NULL) OR (abs((vat_amount - round(((base_amount * vat_rate) / (100)::numeric), 2))) <= 0.50))),
     CONSTRAINT partial_record_vat_zero_chk CHECK (((vat_mode <> ALL (ARRAY['EXEMPT'::public.vat_mode, 'OUTSIDE_VAT'::public.vat_mode, 'REVERSE_CHARGE'::public.vat_mode])) OR (vat_amount = (0)::numeric)))
 );

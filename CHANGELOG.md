@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **accounting**: DPH přiznání lines ř.12/13 — §108 residual self-assessment on receipt (place of supply CZ, supplier not established in tuzemsko: gas/electricity §7a, §10–§10d special-place services incl. §10d means-of-transport hire, goods with assembly §7(6)), carried by a new `vat_jurisdiction = 'SECTION_108'` marker (migration 0056) that splits ř.12/13 out of the domestic §92 line ř.10/11 and routes §108 receipts to kontrolní hlášení A.2 (not B.1); deductible on ř.43/44, net-neutral (#540)
+
 ### Changed
 
 - Exempt Dependabot PRs from the changelog Unreleased gate (author-gated), harden dependabot.yml (cooldown + labels + PR limit on all ecosystems), and document dependency recording at release-cut
@@ -16,6 +20,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Bump postgres digest in /infra/compose/pgtap (#659)
 - Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
 - Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
+
+### Fixed
+
+- **accounting**: RENT place-of-supply routing on the DPH return — renting general movable property from an EU lessor is a §9(1) service (ownership never transfers → not a §16 goods acquisition), so it now lands on ř.5/6, not ř.3/4; also fixed a latent SQL operator-precedence bug in the shared `supportedDapEvidence` predicate whose unparenthesized OR orphaned the trailing rate/deductibility guards (masked while all jurisdiction-distinct-from-EU test data was single-rate) (#540)
 
 ## [v0.17.5] — 2026-07-10
 

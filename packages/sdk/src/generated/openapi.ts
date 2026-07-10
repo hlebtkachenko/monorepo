@@ -1884,6 +1884,26 @@ export interface components {
                  */
                 r11_dan: string;
                 /**
+                 * @description ř.12 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 21 %.
+                 * @example 0.00
+                 */
+                r12_base: string;
+                /**
+                 * @description ř.12 daň.
+                 * @example 0.00
+                 */
+                r12_dan: string;
+                /**
+                 * @description ř.13 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 12 %.
+                 * @example 0.00
+                 */
+                r13_base: string;
+                /**
+                 * @description ř.13 daň.
+                 * @example 0.00
+                 */
+                r13_dan: string;
+                /**
                  * @description ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.
                  * @example 0.00
                  */
@@ -2099,6 +2119,26 @@ export interface components {
              * @example 0.00
              */
             r11_dan: string;
+            /**
+             * @description ř.12 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 21 %.
+             * @example 0.00
+             */
+            r12_base: string;
+            /**
+             * @description ř.12 daň.
+             * @example 0.00
+             */
+            r12_dan: string;
+            /**
+             * @description ř.13 základ — ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při přijetí (§108), 12 %.
+             * @example 0.00
+             */
+            r13_base: string;
+            /**
+             * @description ř.13 daň.
+             * @example 0.00
+             */
+            r13_dan: string;
             /**
              * @description ř.20 základ — dodání zboží do JČS (§64); osvobozeno s nárokem, bez daně.
              * @example 0.00
@@ -3240,7 +3280,7 @@ export interface components {
              * @example EU
              * @enum {string}
              */
-            vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+            vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108";
             /**
              * @description Rate to freeze (null for exempt/outside).
              * @example 21
@@ -3505,7 +3545,7 @@ export interface components {
                      */
                     vatAmount?: string;
                     /** @enum {string|null} */
-                    vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | null;
+                    vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108" | null;
                     /**
                      * @description Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> kód 0 (goods/undistinguished).
                      * @example SERVICES
@@ -4506,7 +4546,7 @@ export interface components {
                      */
                     vatAmount?: string;
                     /** @enum {string|null} */
-                    vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | null;
+                    vatJurisdiction?: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108" | null;
                     /**
                      * @description Kind of supply (ZDPH §64/§9). Drives the souhrnné hlášení §102 kód plnění (SERVICES -> 3 service; else -> 0 goods). Optional; absent -> kód 0 (goods/undistinguished).
                      * @example SERVICES

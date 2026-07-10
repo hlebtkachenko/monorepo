@@ -10,16 +10,18 @@
  *   A.1  uskutečněná plnění v režimu PDP — DODAVATEL (§92); ISSUED REVERSE_CHARGE.
  *        Per doklad: DIČ odběratele, ev. číslo, DPPD, kód předmětu plnění (§92,
  *        partial_record.commodity_code), základ (daň odvádí odběratel).
- *   A.2  přijatá plnění, kde daň přiznává příjemce z pořízení z EU / §108
- *        (RECEIVED REVERSE_CHARGE, vat_jurisdiction = 'EU'). Per doklad: DIČ
- *        dodavatele, ev. číslo, DPPD, základ + samovyměřená daň.
+ *   A.2  přijatá plnění, kde daň přiznává příjemce z pořízení z EU (§16/§9(1))
+ *        nebo §108 residual od osoby neusazené v tuzemsku (RECEIVED
+ *        REVERSE_CHARGE, vat_jurisdiction IN {'EU','SECTION_108'}). Per doklad:
+ *        DIČ dodavatele, ev. číslo, DPPD, základ + samovyměřená daň. [#540]
  *   A.4  uskutečněná zdanitelná plnění > 10 000 Kč vč. daně s DIČ odběratele
  *        (ISSUED STANDARD). Per doklad: DIČ, ev. číslo, DPPD, základ+daň dle sazby.
  *   A.5  ostatní uskutečněná zdanitelná plnění (≤ 10 000 vč. daně nebo bez DIČ) —
  *        SOUHRNNĚ (aggregate základ + daň).
  *   B.1  přijatá plnění v režimu PDP — ODBĚRATEL (§92, domestic); RECEIVED
- *        REVERSE_CHARGE, vat_jurisdiction ≠ 'EU'. Per doklad: DIČ dodavatele,
- *        ev. číslo, DPPD, kód předmětu plnění (§92), základ + samovyměřená daň.
+ *        REVERSE_CHARGE, vat_jurisdiction ≠ 'EU' AND ≠ 'SECTION_108' (§108
+ *        residual is A.2, not B.1). Per doklad: DIČ dodavatele, ev. číslo, DPPD,
+ *        kód předmětu plnění (§92), základ + samovyměřená daň.
  *   B.2  přijatá zdanitelná plnění > 10 000 Kč vč. daně s DIČ (RECEIVED STANDARD).
  *        Per doklad: DIČ, ev. číslo, DPPD, základ+daň dle sazby.
  *   B.3  ostatní přijatá zdanitelná plnění (≤ 10 000 vč. daně) — SOUHRNNĚ.
@@ -138,26 +140,33 @@ function standardDokladCte(scope: VatEvidenceScope, type: string) {
 }
 
 /**
- * Reverse-charge doklad rows (A.1 issued PDP, A.2 EU acquisition, B.1 domestic
- * PDP received): base + self-assessed daň per rate per doklad. `euFilter` selects
- * A.2 (jurisdiction = 'EU') vs B.1/A.1 (domestic, jurisdiction IS DISTINCT FROM
- * 'EU'). A.1 uses `DOMESTIC` ([#516]) so EU-marked issued reverse-charge supplies
- * (SH-only) do not leak onto the KH; the ISSUED side still carries daň 0.
+ * Reverse-charge doklad rows (A.1 issued PDP, A.2 recipient self-assessment, B.1
+ * domestic PDP received): base + self-assessed daň per rate per doklad.
+ * `euFilter` selects the SELF_ASSESSED group (A.2 — the recipient přiznává daň
+ * under §108: EU acquisitions §16/§9(1) AND §108 residual from a non-established
+ * supplier, jurisdiction IN {'EU','SECTION_108'}) vs the DOMESTIC §92 group
+ * (B.1/A.1, jurisdiction not one of those). A.1 uses `DOMESTIC` ([#516]) so
+ * EU-marked issued reverse-charge supplies (SH-only) do not leak onto the KH;
+ * the ISSUED side still carries daň 0. [#540] SECTION_108 joins the A.2 group
+ * (§108 residual) and is excluded from B.1 (it is not a domestic §92 PDP).
  */
 async function reverseChargeRows(
   db: RowExecutor,
   scope: VatEvidenceScope,
   type: string,
-  // Every caller MUST pick a jurisdiction. There is deliberately no unfiltered
-  // ("ANY") mode: that was the #516 leak that put EU-marked issued reverse-charge
-  // onto KH A.1, and dropping it from the union makes that regression
-  // unrepresentable — a new call site cannot reintroduce it.
+  // Every caller MUST pick a jurisdiction group. There is deliberately no
+  // unfiltered ("ANY") mode: that was the #516 leak that put EU-marked issued
+  // reverse-charge onto KH A.1, and dropping it from the union makes that
+  // regression unrepresentable — a new call site cannot reintroduce it.
+  // "SELF_ASSESSED" = A.2 (recipient self-assesses, §108: EU + SECTION_108);
+  // "DOMESTIC" = A.1/B.1 (§92 PDP). Named "EU" for back-compat with the two call
+  // sites; the group now also admits SECTION_108.
   euFilter: "EU" | "DOMESTIC",
 ): Promise<KhRow[]> {
   const jurisdiction =
     euFilter === "EU"
-      ? sql`AND pr.vat_jurisdiction = 'EU'`
-      : sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU'`
+      ? sql`AND pr.vat_jurisdiction IN ('EU', 'SECTION_108')`
+      : sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU' AND pr.vat_jurisdiction IS DISTINCT FROM 'SECTION_108'`
   // §92 kód předmětu plnění is grouped and emitted unconditionally: the DB CHECK
   // (partial_record_commodity_code_rc_chk, migration 0046) guarantees a non-NULL
   // commodity_code only ever sits on a DOMESTIC reverse-charge line, so on the EU

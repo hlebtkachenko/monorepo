@@ -36,6 +36,7 @@ const VAT_JURISDICTION = z.enum([
   "IMPORT",
   "EXEMPT",
   "OUTSIDE_VAT",
+  "SECTION_108",
 ])
 /**
  * How the capture was produced — a CLIENT-DECLARED discriminator that drives the

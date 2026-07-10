@@ -1,8 +1,6 @@
 "use server"
 
-import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
-import { auth } from "@workspace/auth/server"
 import { z } from "zod"
 
 import {
@@ -13,14 +11,13 @@ import {
   changeVatStatus,
   closeOssRegistration,
   removeAuthorizedPerson,
-  resolveOrgContext,
   rollForwardOrgPeriod,
   saveTaxRepresentative,
   updateOrgConfig,
-  type OrgContext,
   type PayrollProfileInput,
   type TaxRepresentativeInput,
 } from "./_lib/settings-data"
+import { authorizeOrgAdmin } from "../_lib/org-authz"
 import { dataBoxError, type OrgSettingsUpdate } from "./_lib/org-update"
 import type { VatFilingPeriod, VatRegime } from "@workspace/accounting"
 
@@ -42,22 +39,11 @@ const PayrollProfileSchema = z
   })
   .strict()
 
-async function authorize(
-  slug: string,
-): Promise<{ userId: string; ctx: OrgContext } | null> {
-  const session = await auth.api.getSession({ headers: await headers() })
-  const userId = session?.user?.id
-  if (!userId) return null
-  const ctx = await resolveOrgContext(slug, userId)
-  if (!ctx || (ctx.role !== "owner" && ctx.role !== "admin")) return null
-  return { userId, ctx }
-}
-
 export async function updateOrgSettingsAction(
   slug: string,
   values: OrgSettingsUpdate,
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   // Boundary validation for the one format-constrained column (mirrors the
   // DB CHECK); the rest are free text cleared to NULL when blank.
@@ -82,7 +68,7 @@ export async function addAuthorizedPersonAction(
     isPrimary: boolean
   },
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   if (input.givenName.trim() === "" || input.familyName.trim() === "") {
     return { ok: false, errorKey: "nameRequired" }
@@ -105,7 +91,7 @@ export async function removeAuthorizedPersonAction(
   slug: string,
   personId: string,
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   try {
     await removeAuthorizedPerson(auth.ctx, auth.userId, personId)
@@ -120,7 +106,7 @@ export async function rollForwardAction(
   slug: string,
   periodId: string,
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   try {
     await rollForwardOrgPeriod(auth.ctx, auth.userId, periodId)
@@ -139,7 +125,7 @@ export async function rollForwardAction(
 export async function backfillNumberSeriesAction(
   slug: string,
 ): Promise<SettingsResult & { added?: number }> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   let added: number
   try {
@@ -159,7 +145,7 @@ export async function changeVatStatusAction(
     filingPeriod: VatFilingPeriod | null
   },
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   if (input.validFrom.trim() === "") {
     return { ok: false, errorKey: "validFromRequired" }
@@ -184,7 +170,7 @@ export async function changeTaxProfileAction(
   slug: string,
   input: PayrollProfileInput,
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   const parsed = PayrollProfileSchema.safeParse(input)
   if (!parsed.success) return { ok: false, errorKey: "invalidInput" }
@@ -201,7 +187,7 @@ export async function addOssRegistrationAction(
   slug: string,
   input: { scheme: string; validFrom: string },
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   if (input.scheme !== "UNION" && input.scheme !== "IMPORT") {
     return { ok: false, errorKey: "invalidScheme" }
@@ -222,7 +208,7 @@ export async function closeOssRegistrationAction(
   slug: string,
   input: { id: string; validTo: string },
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   if (input.validTo.trim() === "") {
     return { ok: false, errorKey: "validToRequired" }
@@ -240,7 +226,7 @@ export async function saveTaxRepresentativeAction(
   slug: string,
   input: TaxRepresentativeInput,
 ): Promise<SettingsResult> {
-  const auth = await authorize(slug)
+  const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   try {
     await saveTaxRepresentative(auth.ctx, auth.userId, {

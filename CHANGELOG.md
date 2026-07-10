@@ -11,6 +11,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Bump postgres digest in /infra (infra-docker group) (#657)
 - Bump postgres digest in /infra/compose/postgres (#658)
 - Bump postgres digest in /infra/compose/pgtap (#659)
+- Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
 
 ## [v0.17.5] — 2026-07-10
 

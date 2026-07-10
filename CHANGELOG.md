@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Bump dev-dependencies group: tsx 4.22.4->4.23.0, @cloudflare/workers-types 4->5 (type-only D1Database, non-breaking), @next/eslint-plugin-next 16.2.9->16.2.10, @aws-sdk/client-{ecs,rds,sns} 3.1077.0->3.1079.0, aws-cdk-lib 2.260.0->2.261.0 (#663)
 - Bump postgres digest in /infra (infra-docker group) (#657)
 - Bump postgres digest in /infra/compose/postgres (#658)
 - Bump postgres digest in /infra/compose/pgtap (#659)

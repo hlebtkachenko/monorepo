@@ -27,11 +27,11 @@ const OFFICIAL_DPPO_SOURCE =
 
 const STANDARD_RATE_RULES = [
   {
+    // §21 odst. 1 zákona č. 586/1992 Sb., ve znění účinném do 31. 12. 2023
     effectiveFrom: "2010-01-01",
     effectiveTo: "2023-12-31",
     rate: "0.19",
-    sourceUrl:
-      "https://financnisprava.gov.cz/assets/cs/prilohy/d-zakony/Spojena_verze_ZDP-konsolidacni_balicek.pdf",
+    sourceUrl: OFFICIAL_DPPO_SOURCE,
     verifiedOn: "2026-07-09",
   },
   {

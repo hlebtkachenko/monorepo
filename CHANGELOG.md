@@ -10,6 +10,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **brain**: edit-before-approve on the held-write approvals inspector (M1.7, A-Z 2.6) — a reviewer can correct the header date, single-partial VAT amounts, and double-entry posting lines before approving, replaying the edited payload through the same gated resolve path.
 
+## [v0.17.3] — 2026-07-10
+
+Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.
+
 ### Changed
 
 - **accounting/annual**: resolve DPPO rates from the taxable period and explicit taxpayer category, preserve missing advisor inputs as blocking instead of zero, label DPFO and year-end outputs as incomplete worksheets, and include proven prior-period comparisons when available.
@@ -18,6 +22,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- **accounting**: correct the pre-2024 DPPO rate legal citation (§21 ZDP, not the 2024 konsolidační balíček), remove stale obligation-test scaffolding, and document the migration 0051 pre-deploy data check.
 - **accounting/statutory**: preserve unknown legal and payroll facts, resolve VAT obligations from shared effective-dated evidence, require statutory filing-period API ranges, expose guarded invoice legal-date corrections, and serialize responsible-member changes without assignment races.
 - **accounting/closing**: derive KH and SH obligations from captured VAT evidence, preserve quarterly service-only SH and the goods-triggered monthly cadence, keep identified-person schedules event-driven and separate from payer worksheets, single-source VAT classification predicates, and label DAP/KH/SH outputs as partial worksheets with blocking evidence gaps.
 - **accounting/payroll**: replace the `has_employees` shortcut with effective-dated relationship, insurance-participation, payroll-tax-advance, and special-rate-withholding facts; keep legacy rows visibly unconfigured; and resolve each remittance through dated, source-backed threshold and deadline rules.

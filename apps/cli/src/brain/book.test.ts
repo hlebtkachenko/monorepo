@@ -110,10 +110,12 @@ describe("assembleBookPlan (creds-free folder → capture plan)", () => {
     // captures are NOT mislabeled as OCR by omission (which would fail-close them to HELD via the #554 leg).
     expect(invoice.plan.captureRequest.extractionMethod).toBe("structured")
     expect(bank.plan.captureRequest.extractionMethod).toBe("structured")
-    // The plan still drives the fixed read → propose tool sequence (shared skeleton across record kinds).
+    // The plan still drives the fixed read → classify → propose tool sequence (shared skeleton across
+    // record kinds).
     expect(invoice.plan.toolPlan.map((c) => c.toolName)).toEqual([
       "mcp__afframe__get_structure",
       "mcp__afframe__list_accounting_number_series",
+      "mcp__afframe__classify_accounting_event",
       "mcp__afframe__capture_accounting_document",
     ])
     // The bank plan's write call carries the bank capture request, not an invoice body.
@@ -240,10 +242,12 @@ describe("assembleOcrCapturePlan (extract→book bridge — PDF → ocr capture)
       capSignals: ["novel_ico"],
     })
     expect(request.type).toBe("RECEIVED_INVOICE")
-    // The bridge still drives the SAME fixed read → propose tool sequence (nothing bypasses the server gate).
+    // The bridge still drives the SAME fixed read → classify → propose tool sequence (nothing bypasses the
+    // server gate).
     expect(plan.toolPlan.map((c) => c.toolName)).toEqual([
       "mcp__afframe__get_structure",
       "mcp__afframe__list_accounting_number_series",
+      "mcp__afframe__classify_accounting_event",
       "mcp__afframe__capture_accounting_document",
     ])
   })

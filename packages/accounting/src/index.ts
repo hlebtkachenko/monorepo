@@ -60,12 +60,15 @@ export {
   PREDKONTACE_BY_ID,
   getScenario,
   expandPartialRecord,
+  expandScenarioEntries,
   postFromPredkontace,
   type AmountBasis,
   type PredkontaceEntry,
   type PredkontaceScenario,
   type ExpandInput,
+  type PartialAmounts,
   type PostFromPredkontaceInput,
+  type ScenarioLine,
 } from "./predkontace/index"
 
 // FX engine

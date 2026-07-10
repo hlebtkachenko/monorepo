@@ -11,8 +11,10 @@ import { decisionKey, normalizeDecisionForVote } from "./decision"
 import { signatureKey } from "./signature"
 
 export interface CandidateRule {
-  /** Deterministic id (hash of the signature) — stable across runs, so re-distilling the same
-   * signature never produces a duplicate proposal artifact. */
+  /** Deterministic id — hash of the signature AND the normalized proposed treatment. A byte-
+   * identical re-distillation collides (idempotent regenerate-in-place, intended); a re-run that
+   * DRIFTS the treatment for the same signature gets a distinct id, so its artifact lands beside the
+   * superseded one instead of silently overwriting it. See `candidateId`. */
   id: string
   signature: CorrectionCluster["signature"]
   /** The majority decision — NOT auto-applied anywhere; a proposal only. */
@@ -30,9 +32,22 @@ export interface CandidateRule {
  * pass a stricter bound. */
 export const DEFAULT_MIN_CLUSTER_SIZE = 3
 
-export function candidateId(signature: CorrectionCluster["signature"]): string {
+/**
+ * Deterministic candidate id over BOTH the signature and the proposed treatment. Hashing the
+ * signature alone made a drifted re-run for the same signature produce the same id, so
+ * `writeProposalArtifact` would OVERWRITE the prior `<id>.json` and lose the superseded proposal.
+ * Folding in the normalized decision (the same `normalizeDecisionForVote` form the votes/gate use)
+ * gives a CHANGED proposal a distinct filename, while a byte-identical re-run still collides
+ * (idempotent regenerate). A NUL separator keeps `signature || decision` unforgeable.
+ */
+export function candidateId(
+  signature: CorrectionCluster["signature"],
+  proposedDecision: Record<string, unknown>,
+): string {
   return createHash("sha256")
     .update(signatureKey(signature))
+    .update("\u0000")
+    .update(decisionKey(normalizeDecisionForVote(proposedDecision)))
     .digest("hex")
     .slice(0, 16)
 }
@@ -48,8 +63,8 @@ export function candidateId(signature: CorrectionCluster["signature"]): string {
  * converge on the same rule, and the returned `proposedDecision` is that normalized treatment (it
  * never embeds a fixed invoice amount). Ties break on the FIRST decision reached in cluster order
  * (deterministic, never random). Whether that majority is strong enough to surface is the next
- * stage's job (`evaluateCandidate` / `booking_rule_pr_gate`, ≥0.90) — this function does not gate
- * on agreement.
+ * stage's job (`evaluateCandidate`'s in-sample consistency floor, ≥0.90; the held-out promotion gate
+ * is M2.3) — this function does not gate on agreement.
  */
 export function distillCandidate(
   cluster: CorrectionCluster,
@@ -86,7 +101,7 @@ export function distillCandidate(
   const top = winner!
 
   return {
-    id: candidateId(cluster.signature),
+    id: candidateId(cluster.signature, top.decision),
     signature: cluster.signature,
     proposedDecision: top.decision,
     supportCount: top.count,

@@ -14,6 +14,7 @@
 // the human's final verdict (`approved` as-is / `approved` with `edit` / `rejected`)" — there is no
 // other place in the schema where a human's correction of a Brain proposal is recorded.
 
+import { applyCorrectionEditReplay } from "./replay"
 import { type CorrectionSignature, readCorrectionSignature } from "./signature"
 
 export type CorrectionResolution = "approved" | "rejected"
@@ -59,8 +60,8 @@ export interface CorrectionRecord {
   /**
    * The human's final correct decision, or `null` when none is known:
    *  - approved, no edit  → the Brain's own proposal IS the confirmed-correct decision.
-   *  - approved, w/ edit  → the proposal with the human's edited fields applied (comparison-only
-   *    merge — see `deriveDecision`).
+   *  - approved, w/ edit  → the proposal with the human's edit applied through the SAME per-tool
+   *    replay that actually books it (`deriveDecision` → `applyCorrectionEditReplay`).
    *  - rejected           → `null`. A bare reject names no replacement; it is a correction SIGNAL
    *    (the proposal was wrong) but never a source of a positive rule (never guess one).
    */
@@ -103,24 +104,23 @@ export function readCorrectionEdit(value: unknown): CorrectionEdit | undefined {
 
 /**
  * The human's final correct decision for a correction, or `null` when none is known (see
- * `CorrectionRecord.decision` doc). NOT a re-implementation of the real per-tool replay merge
- * (`apps/web/app/_components/held-writes/edit-model.ts` `applyHeldWriteEdit`, which stays exactly
- * where it is and is what actually re-executes a booking) — this is a comparison-only merge that
- * exists solely so two decisions can be tested for exact equality during clustering/distillation.
+ * `CorrectionRecord.decision` doc). Uses the SAME per-tool replay that actually re-executes a
+ * booking on approve — `applyCorrectionEditReplay` (`replay.ts`), a faithful re-statement of
+ * `apps/web/app/_components/held-writes/edit-model.ts` `applyHeldWriteEdit` (which can't be imported
+ * here — it transitively pulls `@workspace/accounting`, off-limits to the Brain). This is what makes
+ * the treatment the librarian votes/distills on byte-for-byte the treatment that would book; a
+ * shallow field-spread would diverge (wrong header key, wrong VAT nesting, posting lines attached to
+ * tools that ignore them) and the librarian could vote on a payload that never books.
  */
 export function deriveDecision(
+  toolName: string,
   proposedInput: Record<string, unknown>,
   resolution: CorrectionResolution,
   edit?: CorrectionEdit,
 ): Record<string, unknown> | null {
   if (resolution === "rejected") return null
   if (!edit) return proposedInput
-  return {
-    ...proposedInput,
-    ...(edit.header ?? {}),
-    ...(edit.vatAmounts ? { vatAmounts: edit.vatAmounts } : {}),
-    ...(edit.postingLines ? { postingLines: edit.postingLines } : {}),
-  }
+  return applyCorrectionEditReplay(toolName, proposedInput, edit)
 }
 
 /**
@@ -150,7 +150,7 @@ export function ingestCorrections(
       resolution,
       edit,
       note: typeof note === "string" ? note : undefined,
-      decision: deriveDecision(row.inputJson, resolution, edit),
+      decision: deriveDecision(row.toolName, row.inputJson, resolution, edit),
     })
   }
   return records

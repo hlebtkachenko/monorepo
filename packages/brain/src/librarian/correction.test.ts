@@ -63,23 +63,70 @@ describe("readCorrectionEdit", () => {
   })
 })
 
-describe("deriveDecision", () => {
+describe("deriveDecision (faithful per-tool replay, mirrors applyHeldWriteEdit)", () => {
   it("rejected → null (no positive signal, never guess a replacement)", () => {
-    expect(deriveDecision(baseInput, "rejected")).toBeNull()
+    expect(
+      deriveDecision("createAccountingPosting", baseInput, "rejected"),
+    ).toBeNull()
   })
 
   it("approved with no edit → the proposal itself is the confirmed decision", () => {
-    expect(deriveDecision(baseInput, "approved")).toEqual(baseInput)
+    expect(
+      deriveDecision("createAccountingEvent", baseInput, "approved"),
+    ).toEqual(baseInput)
   })
 
-  it("approved with an edit → the edited fields win over the proposal", () => {
-    const decision = deriveDecision(baseInput, "approved", {
-      postingLines: [{ accountId: "504", side: "DEBIT", amount: "1000.00" }],
-    })
-    expect(decision).toEqual({
+  it("createAccountingEvent: only the header date replays (→ occurredAt)", () => {
+    const input = { ...baseInput, occurredAt: "2025-01-01" }
+    const decision = deriveDecision(
+      "createAccountingEvent",
+      input,
+      "approved",
+      {
+        header: { date: "2025-03-15" },
+      },
+    )
+    expect(decision).toEqual({ ...input, occurredAt: "2025-03-15" })
+  })
+
+  it("createAccountingEvent: IGNORES posting-line edits — an event has no editable lines (fidelity to the real replay)", () => {
+    // The prior shallow merge would have attached these; the real replay does not.
+    const decision = deriveDecision(
+      "createAccountingEvent",
+      baseInput,
+      "approved",
+      {
+        postingLines: [{ accountId: "504", side: "DEBIT", amount: "1000.00" }],
+      },
+    )
+    expect(decision).toEqual(baseInput)
+    expect(decision).not.toHaveProperty("postingLines")
+  })
+
+  it("createAccountingPosting: posting-line edits replay POSITIONALLY onto entry.lines", () => {
+    const input = {
       ...baseInput,
-      postingLines: [{ accountId: "504", side: "DEBIT", amount: "1000.00" }],
+      kind: "double",
+      entry: {
+        lines: [{ accountId: "999", side: "DEBIT", amount: "1000.00" }],
+      },
+    }
+    const decision = deriveDecision(
+      "createAccountingPosting",
+      input,
+      "approved",
+      {
+        postingLines: [{ accountId: "504", side: "DEBIT", amount: "1000.00" }],
+      },
+    )
+    expect(decision).toEqual({
+      ...input,
+      entry: {
+        lines: [{ accountId: "504", side: "DEBIT", amount: "1000.00" }],
+      },
     })
+    // NOT a top-level postingLines array (that was the diverging shallow-merge shape).
+    expect(decision).not.toHaveProperty("postingLines")
   })
 })
 
@@ -111,12 +158,22 @@ describe("ingestCorrections", () => {
       direction: "RECEIVED",
       supplyKind: "SERVICES",
       jurisdiction: "DOMESTIC",
+      commodityCode: null,
+      isAdvance: false,
     })
   })
 
-  it("ingests an approved-with-edit row with the merged decision + captured edit + note", () => {
+  it("ingests an approved-with-edit posting row with the replayed decision + captured edit + note", () => {
     const record = ingestCorrections([
       row({
+        toolName: "createAccountingPosting",
+        inputJson: {
+          ...baseInput,
+          kind: "double",
+          entry: {
+            lines: [{ accountId: "999", side: "DEBIT", amount: "1200.00" }],
+          },
+        },
         outputJson: {
           resolution: "approved",
           note: "wrong account, corrected to 504",
@@ -132,9 +189,13 @@ describe("ingestCorrections", () => {
       postingLines: [{ accountId: "504", side: "DEBIT", amount: "1200.00" }],
     })
     expect(record.note).toBe("wrong account, corrected to 504")
+    // The edit replays onto entry.lines (the real posting shape), not a top-level postingLines.
     expect(record.decision).toEqual({
       ...baseInput,
-      postingLines: [{ accountId: "504", side: "DEBIT", amount: "1200.00" }],
+      kind: "double",
+      entry: {
+        lines: [{ accountId: "504", side: "DEBIT", amount: "1200.00" }],
+      },
     })
   })
 

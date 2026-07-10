@@ -21,9 +21,9 @@ CandidateRule | null   (majority-vote over the TREATMENT-normalized decision, be
                         — may be null: too few corrections, or nothing but rejects)
         │  evaluateCandidate()            eval-gate.ts
         ▼
-CandidateEvalResult     (agreement rate vs the booking_rule_pr_gate bound, 0.90 — the
-                        SAME locked threshold, HARDCODED, no override parameter:
-                        scripts/brain-build/eval-thresholds.lock)
+CandidateEvalResult     (IN-SAMPLE agreement rate vs LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN,
+                        0.90 — an in-sample consistency floor, HARDCODED, no override
+                        parameter; NOT the held-out booking_rule_pr_gate, which is M2.3)
         │  buildProposalArtifact()        emit.ts
         ▼
 ProposalArtifact | null   (null unless evalResult.pass — a failing candidate can NEVER
@@ -43,15 +43,21 @@ recorded: `tool_call_log.input_json` (the Brain's ORIGINAL proposal, append-only
 plus `tool_call_log.output_json` after `resolveHeldWrite` runs — `{ resolution: "approved" |
 "rejected", note?, edit? }`. `edit` (the M1.7 edit-before-approve diff — `header` / `vatAmounts` /
 `postingLines`, currently only defined in `apps/web`, not exported from any package) is a DIFF, not
-a second full payload; `ingestCorrections` reconstructs the human's final decision by merging it
-onto the proposal (`deriveDecision` — a comparison-only merge, not the real per-tool replay used to
-actually book anything).
+a second full payload; `ingestCorrections` reconstructs the human's final decision by replaying it
+onto the proposal through the SAME per-tool merge that actually books it (`deriveDecision` →
+`applyCorrectionEditReplay` in `replay.ts`, a faithful re-statement of `apps/web`'s
+`applyHeldWriteEdit` — it can't be imported here because it transitively pulls `@workspace/accounting`,
+off-limits to the Brain). So the treatment the librarian votes on is byte-for-byte the treatment
+that would book.
 
-The 4-fact cluster signature (`counterpartyKey` / `direction` / `supplyKind` / `jurisdiction`) is
-read directly off `input_json` (fail-closed: unreadable ⇒ excluded, never guessed). It mirrors the
-unmerged `feat/brain-booking-templates` (#643, M2.1) `BookingSignature` shape — the same 4 facts a
-`booking_template` match already keys on — so that when M1.2 (the reasoning lane, unmerged #639)
-and M2.1 land, their real field names can replace this mirror with a straight swap, not a redesign.
+The cluster signature (`counterpartyKey` / `direction` / `supplyKind` / `jurisdiction`, plus the
+optional Czech-VAT sub-facts `commodityCode` (§92) and `isAdvance` (§37a)) is read directly off
+`input_json` (fail-closed on the four base facts: unreadable ⇒ excluded, never guessed; the
+sub-facts default to `null` / `false`). It mirrors the unmerged `feat/brain-booking-templates` (#643,
+M2.1) `BookingSignature` shape — the same base facts a `booking_template` match already keys on — so
+that when M1.2 (the reasoning lane, unmerged #639) and M2.1 land, their real field names can replace
+this mirror with a straight swap, not a redesign. #643's `BookingSignature` must gain the SAME
+`commodityCode` + `isAdvance` sub-facts before the matcher activates (cross-PR lockstep — see (a)).
 
 ## Treatment normalization (why a rule is not a payload clone)
 
@@ -99,35 +105,42 @@ treatment, never a payload with a frozen amount.
 - **Reconciling the signature mirror against #643/#639** once those merge (see above).
 - **A true held-out eval** against `.brain/evals/cases/**` golden fixtures, once fixtures exist for
   the learned-rule surface (`.brain/evals/` is empty today — see its README). Today
-  `evaluateCandidate` scores a candidate against its OWN source cluster (a same-population
-  consistency check) — the correct measure for "is there a real majority in what's been seen so
-  far", and exactly `booking_rule_pr_gate`'s stated surface, but not a generalization test.
+  `evaluateCandidate` scores a candidate against its OWN source cluster (an in-sample consistency
+  check gated by `LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN`) — the correct measure for "is there a real
+  majority in what's been seen so far", but NOT a generalization test and deliberately NOT the locked
+  held-out `booking_rule_pr_gate` bound (that gate is wired in M2.3 when the harness + labeled cases
+  exist).
 - **`aliases`/`judge`/`memory`** — this PR only builds the `rules`-shaped half of the loop (a
   proposed booking treatment for a signature). Counterparty-alias distillation and judge
   calibration are a separate, later slice (their own `.brain/` subdirs stay README-only).
 
 ## M2.3-promotion preconditions (address BEFORE the real-correction adapter lands)
 
-These are inert today (the engine has zero real callers), but each MUST be resolved before a real
-`tool_call_log → RawCorrectionRow` adapter feeds live corrections in — they are the difference
-between an honest engine and one that quietly over-clusters or misleads a reviewer:
+These were inert (the engine has zero real callers), but each had to be resolved before a real
+`tool_call_log → RawCorrectionRow` adapter feeds live corrections in — the difference between an
+honest engine and one that quietly over-clusters or misleads a reviewer. Status below.
 
-- **(a) The 4-fact signature omits decisive Czech-VAT sub-facts.** `counterpartyKey` / `direction` /
-  `supplyKind` / `jurisdiction` do not capture the §92 kód předmětu plnění (which commodity a
-  domestic reverse-charge supply reports), §37a advance-vs-final, or threshold-gated goods PDP. Two
-  corrections with the same 4-fact signature but different sub-facts would over-cluster. Extend the
-  signature (in lockstep with #643's real `BookingSignature`) before real ingestion.
-- **(b) The eval reuses the `booking_rule_pr_gate` NUMBER for a weaker measure.** `evaluateCandidate`
-  runs an in-sample agreement check; the lock's stated surface for that bound is a held-out
-  brain-eval-suite measure. The shared name/number is convenient but weaker — do not let it read as
-  the held-out gate when M2.3 wires the real one. Swap in the true held-out eval (against
-  `.brain/evals/cases/**`) as the promotion gate.
-- **(c) `candidateId = hash(signature-only)`.** A drifted re-run for the same signature produces the
-  same id, so a later artifact OVERWRITES a prior one of the same signature. Fine for a
-  regenerate-in-place proposal today; before real use, decide whether a content/version component
-  belongs in the id (or whether overwrite-in-place is the intended semantics) so a superseded
-  proposal is not silently lost.
-- **(d) `deriveDecision`'s shallow comparison-merge diverges from the real replay.** It merges the
-  edit onto the proposal for COMPARISON only; the real booking replay is `applyHeldWriteEdit`
-  (`apps/web`, per-tool). If a distilled rule is ever promoted toward booking, reconcile the two so
-  the treatment the librarian voted on is exactly the treatment that would be booked.
+- **(a) The 4-fact signature omits decisive Czech-VAT sub-facts. — PARTIALLY DONE.**
+  `CorrectionSignature` now also keys on `commodityCode` (§92 kód předmětu plnění) and `isAdvance`
+  (§37a advance/settlement discriminator, `supplyKind === "ADVANCE"` OR `advanceSettlement === true`),
+  so distinct §92 / §37a sub-cases key distinctly (`signature.ts` + `signature.test.ts`). STILL
+  PENDING: threshold-gated goods PDP is not yet modeled as a sub-fact, and #643's real
+  `BookingSignature` (`packages/db/src/schema/booking_template.ts`) MUST gain the SAME sub-facts
+  before the booking-template matcher activates (cross-PR lockstep — not edited here).
+- **(b) The eval reused the `booking_rule_pr_gate` NUMBER for a weaker measure. — DE-MASQUERADED.**
+  `evaluateCandidate` now gates on its own named `LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN` (0.90, "min"),
+  an in-sample consistency floor that is independent of — not a mirror of — the locked held-out
+  `booking_rule_pr_gate` bound, so an in-sample pass can never read as the held-out promotion gate.
+  STILL M2.3: the true held-out eval against `.brain/evals/cases/**` (which needs the harness + real
+  labeled cases, the data wall) is the promotion gate, wired when those exist.
+- **(c) `candidateId = hash(signature-only)` silently overwrote. — DONE.** `candidateId` now hashes
+  the signature AND the normalized `proposedDecision` (`normalizeDecisionForVote`), so a re-distilled
+  CHANGED proposal for the same signature gets a distinct filename instead of overwriting the prior
+  one; a byte-identical re-run still collides (idempotent regenerate, intended) — `distill.ts` +
+  `distill.test.ts`.
+- **(d) `deriveDecision`'s shallow comparison-merge diverged from the real replay. — DONE.**
+  `deriveDecision` now replays the edit through `applyCorrectionEditReplay` (`replay.ts`), a faithful
+  per-tool re-statement of `apps/web`'s `applyHeldWriteEdit` (imported cleanly is impossible — it
+  pulls `@workspace/accounting`, off-limits to the Brain — so it is replicated verbatim, single
+  source of truth noted in `replay.ts`). The treatment the librarian votes on is now byte-for-byte
+  the treatment that would book (`correction.ts` + `correction.test.ts`).

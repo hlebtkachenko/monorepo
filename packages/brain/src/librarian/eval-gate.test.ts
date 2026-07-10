@@ -1,19 +1,12 @@
-import { readFileSync } from "node:fs"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
-
 import { describe, expect, it } from "vitest"
 
 import { clusterCorrections } from "./cluster"
 import { ingestCorrections, type RawCorrectionRow } from "./correction"
 import { distillCandidate } from "./distill"
-import { BOOKING_RULE_PR_GATE_THRESHOLD, evaluateCandidate } from "./eval-gate"
-
-const HERE = dirname(fileURLToPath(import.meta.url))
-const LOCK_PATH = join(
-  HERE,
-  "../../../../scripts/brain-build/eval-thresholds.lock",
-)
+import {
+  LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN,
+  evaluateCandidate,
+} from "./eval-gate"
 
 const signatureFields = {
   counterpartyKey: "CZ12345678",
@@ -22,13 +15,21 @@ const signatureFields = {
   jurisdiction: "DOMESTIC",
 } as const
 
+// A `createAccountingPosting` (kind "double") whose reviewer edit corrects the posting-line account,
+// replayed through the SAME per-tool merge that would book it.
 function approvedRow(id: string, account: string): RawCorrectionRow {
   return {
     id,
     conversationId: null,
-    toolName: "createAccountingEvent",
+    toolName: "createAccountingPosting",
     createdAt: "2026-01-01T00:00:00.000Z",
-    inputJson: { ...signatureFields, account: "999" },
+    inputJson: {
+      ...signatureFields,
+      kind: "double",
+      entry: {
+        lines: [{ accountId: "999", side: "DEBIT", amount: "100.00" }],
+      },
+    },
     outputJson: {
       resolution: "approved",
       edit: {
@@ -38,22 +39,30 @@ function approvedRow(id: string, account: string): RawCorrectionRow {
   }
 }
 
-describe("BOOKING_RULE_PR_GATE_THRESHOLD drift guard", () => {
-  it("matches the committed booking_rule_pr_gate bound in eval-thresholds.lock", () => {
-    const lock = JSON.parse(readFileSync(LOCK_PATH, "utf8")) as {
-      thresholds: { booking_rule_pr_gate: { bound: number; dir: string } }
-    }
-    expect(BOOKING_RULE_PR_GATE_THRESHOLD.bound).toBe(
-      lock.thresholds.booking_rule_pr_gate.bound,
-    )
-    expect(BOOKING_RULE_PR_GATE_THRESHOLD.dir).toBe(
-      lock.thresholds.booking_rule_pr_gate.dir,
-    )
+describe("LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN", () => {
+  it("is a 0.90 'min' floor and is the threshold evaluateCandidate stamps onto its result", () => {
+    // It is an IN-SAMPLE consistency floor, independent of the locked held-out booking_rule_pr_gate
+    // bound — deliberately its own named constant so an in-sample number can never read as the
+    // held-out promotion gate (that gate is wired in M2.3).
+    expect(LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN).toEqual({
+      bound: 0.9,
+      dir: "min",
+    })
+
+    const records = ingestCorrections([
+      approvedRow("a", "504"),
+      approvedRow("b", "504"),
+      approvedRow("c", "504"),
+    ])
+    const [cluster] = clusterCorrections(records)
+    const candidate = distillCandidate(cluster!, 3)
+    const result = evaluateCandidate(candidate!, cluster!)
+    expect(result.threshold).toBe(LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN)
   })
 })
 
 describe("evaluateCandidate", () => {
-  it("REJECTS a candidate whose cluster agreement falls below the 0.90 bound", () => {
+  it("REJECTS a candidate whose cluster agreement falls below the 0.90 floor", () => {
     // 4 corrections, only 3 agree with the majority (75% < 90%).
     const records = ingestCorrections([
       approvedRow("a", "504"),
@@ -68,8 +77,8 @@ describe("evaluateCandidate", () => {
     expect(result.pass).toBe(false)
   })
 
-  it("PASSES a candidate whose cluster agreement clears the 0.90 bound", () => {
-    // 10 corrections, 9 agree with the majority (90% === bound, "min" direction passes on equality).
+  it("PASSES a candidate whose cluster agreement clears the 0.90 floor", () => {
+    // 10 corrections, 9 agree with the majority (90% === floor, "min" direction passes on equality).
     const rows = [
       ...Array.from({ length: 9 }, (_, i) => approvedRow(`agree-${i}`, "504")),
       approvedRow("disagree", "518"),
@@ -87,7 +96,7 @@ describe("evaluateCandidate", () => {
       {
         id: "a",
         conversationId: null,
-        toolName: "createAccountingEvent",
+        toolName: "createAccountingPosting",
         createdAt: "2026-01-01T00:00:00.000Z",
         inputJson: signatureFields,
         outputJson: { resolution: "rejected" },
@@ -95,7 +104,7 @@ describe("evaluateCandidate", () => {
       {
         id: "b",
         conversationId: null,
-        toolName: "createAccountingEvent",
+        toolName: "createAccountingPosting",
         createdAt: "2026-01-01T00:00:00.000Z",
         inputJson: signatureFields,
         outputJson: { resolution: "rejected" },
@@ -103,7 +112,7 @@ describe("evaluateCandidate", () => {
       {
         id: "c",
         conversationId: null,
-        toolName: "createAccountingEvent",
+        toolName: "createAccountingPosting",
         createdAt: "2026-01-01T00:00:00.000Z",
         inputJson: signatureFields,
         outputJson: { resolution: "rejected" },

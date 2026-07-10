@@ -32,11 +32,17 @@ function fixtureRow(
   return {
     id,
     conversationId: `conv-${id}`,
-    toolName: "createAccountingEvent",
+    toolName: "createAccountingPosting",
     createdAt: "2026-07-01T00:00:00.000Z",
     // The Brain always proposes the SAME (wrong) account "999" — every one of these fixtures is a
-    // human correcting the same recurring mistake.
-    inputJson: { ...signature, account: "999", amount: "500.00" },
+    // human correcting the same recurring mistake by editing the double-entry posting line.
+    inputJson: {
+      ...signature,
+      kind: "double",
+      entry: {
+        lines: [{ accountId: "999", side: "DEBIT", amount: "500.00" }],
+      },
+    },
     outputJson:
       resolution === "rejected"
         ? { resolution: "rejected", note: "not this supply kind at all" }
@@ -72,14 +78,19 @@ describe("librarian pipeline (ingest → cluster → distill → eval → emit)"
     expect(records).toHaveLength(10)
 
     const [cluster] = clusterCorrections(records)
-    expect(cluster!.signature).toEqual(signature)
+    expect(cluster!.signature).toEqual({
+      ...signature,
+      commodityCode: null,
+      isAdvance: false,
+    })
 
     const candidate = distillCandidate(cluster!)
     expect(candidate).not.toBeNull()
-    // The proposed treatment carries account + side, never the per-document amount.
-    expect(candidate!.proposedDecision.postingLines).toEqual([
-      { accountId: "518", side: "DEBIT" },
-    ])
+    // The proposed treatment carries account + side on entry.lines (where the real posting replay
+    // puts them), never the per-document amount.
+    expect(candidate!.proposedDecision.entry).toEqual({
+      lines: [{ accountId: "518", side: "DEBIT" }],
+    })
 
     const evalResult = evaluateCandidate(candidate!, cluster!)
     expect(evalResult.pass).toBe(true)
@@ -92,8 +103,8 @@ describe("librarian pipeline (ingest → cluster → distill → eval → emit)"
     const filePath = writeProposalArtifact(artifact!, dir)
     expect(existsSync(filePath)).toBe(true)
     const onDisk = JSON.parse(readFileSync(filePath, "utf8"))
-    expect(onDisk.proposedDecision.postingLines[0].accountId).toBe("518")
-    expect(onDisk.proposedDecision.postingLines[0]).not.toHaveProperty("amount")
+    expect(onDisk.proposedDecision.entry.lines[0].accountId).toBe("518")
+    expect(onDisk.proposedDecision.entry.lines[0]).not.toHaveProperty("amount")
     expect(onDisk.status).toBe("proposed")
   })
 

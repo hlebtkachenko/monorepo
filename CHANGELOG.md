@@ -20,6 +20,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
 - Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
 
+### Fixed
+
+- **brain**: harden the M2.2 librarian distillation engine's promotion preconditions (inert, no real callers yet — corrected before the M2.3 adapter feeds live corrections): (a) extend `CorrectionSignature` with the §92 `commodityCode` and §37a `isAdvance` sub-facts so distinct Czech-VAT sub-cases no longer over-cluster (#643's `BookingSignature` must gain the same sub-facts in lockstep); (b) de-masquerade the eval — `evaluateCandidate` now gates on its own `LIBRARIAN_IN_SAMPLE_CONSISTENCY_MIN` (0.90 in-sample consistency floor) instead of borrowing the held-out `booking_rule_pr_gate` number, which is wired as the real promotion gate in M2.3; (c) `candidateId` now content-addresses the signature **and** the normalized proposed decision, so a drifted re-distillation no longer silently overwrites a superseded proposal; (d) `deriveDecision` now replays a reviewer edit through a faithful per-tool re-statement of `apps/web`'s `applyHeldWriteEdit` (`librarian/replay.ts`) instead of a shallow field-spread, so the treatment the librarian votes on is byte-for-byte the treatment that would book.
+
 ## [v0.17.5] — 2026-07-10
 
 M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the deterministic write-body wiring that threads the server's treatment onto the capture payload (narrow-only, every special regime still HELD), the MD/D posting preview with exact minor-unit money math, edit-before-approve on the held-write inspector, conversational onboarding discovery + `brain onboard --execute`, the fail-closed markitdown extraction layer, and the §66 export (DPH ř.22) correctness fix.

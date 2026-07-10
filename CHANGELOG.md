@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Exempt Dependabot PRs from the changelog Unreleased gate (author-gated), harden dependabot.yml (cooldown + labels + PR limit on all ecosystems), and document dependency recording at release-cut
 - Bump dev-dependencies group: tsx 4.22.4->4.23.0, @cloudflare/workers-types 4->5 (type-only D1Database, non-breaking), @next/eslint-plugin-next 16.2.9->16.2.10, @aws-sdk/client-{ecs,rds,sns} 3.1077.0->3.1079.0, aws-cdk-lib 2.260.0->2.261.0 (#663)
 - Bump postgres digest in /infra (infra-docker group) (#657)
 - Bump postgres digest in /infra/compose/postgres (#658)
@@ -36,6 +37,7 @@ M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the dete
 - Bump markitdown from 0.1.5 to 0.1.6 (#660)
 - **brain**: complete the M1.2 write-body wiring — the harness now threads the server's `classify_accounting_event` treatment (vatMode/vatJurisdiction/commodityCode) onto the capture write body deterministically at the launcher's canUseTool updatedInput seam. The model never edits the payload; the merge is NARROW-ONLY (only ever moves a line toward held, never widens an adapter-held OUTSIDE_VAT row into STANDARD) and never touches the amounts; confidence stays out of the model's hands; every special-regime write is still HELD by the untouched `deriveCaptureVeto` (`unverified_vat_regime`).
 - **brain**: `brain extract`'s digital-PDF path now runs a best-effort local markitdown text-layer read alongside the vision-OCR pre-pass (M1.5), and every extraction always resolves through a fail-closed `extractionMethod` discriminator (#565) — markitdown, tesseract (deferred), and vision all map to the SAME weakest wire value (`ocr`), by type construction, never a stronger one; the extract→book bridge's existing forced `ocr` stamp is unchanged.
+
 ### Fixed
 
 - **accounting**: resolve the decideVat↔catalogue vat_mode conflation for a §66 export of goods to a third country (S-EXPORT now captures EXEMPT, matching the catalogue) and add DPH ř.22 (vývoz zboží), routing it off ř.50 §51 exempt-without-deduction — fixes #566.

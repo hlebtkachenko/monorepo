@@ -11,6 +11,7 @@ import { AccountingWritesController } from "./accounting/accounting-writes.contr
 import { HeldWritesController } from "./accounting/held-writes.controller"
 import { InvoicesController } from "./invoices/invoices.controller"
 import { AccountsController } from "./accounts/accounts.controller"
+import { BookingTemplatesController } from "./booking-templates/booking-templates.controller"
 import { ApiKeyThrottlerGuard } from "./api-key-throttler.guard"
 import { DomainExceptionFilter } from "./domain-exception.filter"
 import { FeedbackController } from "./feedback/feedback.controller"
@@ -78,6 +79,7 @@ const THROTTLE_TTL_MS = positiveInt(process.env["V1_THROTTLE_TTL_MS"], 60_000)
     InvoicesController,
     AccountsController,
     OcrTemplatesController,
+    BookingTemplatesController,
     OnboardingController,
   ],
   providers: [
@@ -103,6 +105,7 @@ export class V1Module implements NestModule {
         InvoicesController,
         AccountsController,
         OcrTemplatesController,
+        BookingTemplatesController,
         OnboardingController,
       )
   }

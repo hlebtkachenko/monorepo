@@ -95,3 +95,6 @@ export * from "./ocr_extraction_template"
 
 // Brain confident-wrong circuit breaker — workspace-scoped safety state (0050, §I8)
 export * from "./brain_confident_wrong"
+
+// Brain booking-template library — workspace-scoped learned state (0054, M2.1 / §I9)
+export * from "./booking_template"

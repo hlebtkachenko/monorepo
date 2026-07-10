@@ -15,6 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@workspace/accounting": "workspace:*",
     "@workspace/brain": "workspace:*",
     "@workspace/shared": "workspace:*",
     "fast-xml-parser": "^5.9.3",

@@ -2,6 +2,7 @@ import * as path from "node:path"
 import {
   CfnOutput,
   Duration,
+  IgnoreMode,
   RemovalPolicy,
   Stack,
   type StackProps,
@@ -180,6 +181,18 @@ export class BackupStack extends Stack {
       directory: path.join(__dirname, "..", "..", ".."),
       file: "infra/Dockerfile.backup",
       platform: Platform.LINUX_ARM64,
+      ignoreMode: IgnoreMode.DOCKER,
+      exclude: [
+        "*",
+        "!infra",
+        "infra/*",
+        "!infra/Dockerfile.backup",
+        "!infra/scripts",
+        "infra/scripts/*",
+        "!infra/scripts/pg-dump-nightly.sh",
+        "!infra/scripts/wal-archive.sh",
+        "!infra/scripts/restore-drill.sh",
+      ],
     })
 
     const dbHost = props.dataStack.database.dbInstanceEndpointAddress

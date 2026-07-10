@@ -21,7 +21,9 @@ Measured 2026-05-31 on staging: RDS stopped→available **6m 33s**; ECS scale
 ## Manual switch — the `power.yml` workflow
 
 `.github/workflows/power.yml` ("Env Power"). One job, OIDC auth (no static
-keys, no secrets printed).
+keys, no secrets printed). Power actions and AWS deploys share one
+per-environment concurrency group, preventing a pause/resume from racing CDK,
+ECS, or RDS work.
 
 **From the Actions tab:** Env Power → Run workflow → pick `environment`
 (`staging` | `production` | `all`) + `action` → Run. Production is gated by the

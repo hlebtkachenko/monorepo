@@ -10,6 +10,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - Exempt Dependabot PRs from the changelog Unreleased gate (author-gated), harden dependabot.yml (cooldown + labels + PR limit on all ecosystems), and document dependency recording at release-cut
 - Bump dev-dependencies group: tsx 4.22.4->4.23.0, @cloudflare/workers-types 4->5 (type-only D1Database, non-breaking), @next/eslint-plugin-next 16.2.9->16.2.10, @aws-sdk/client-{ecs,rds,sns} 3.1077.0->3.1079.0, aws-cdk-lib 2.260.0->2.261.0 (#663)
+- Reduce AWS deployment time by overlapping cold environment warm-up with image builds, bundling migration transport, stabilizing Budget names, and narrowing helper image contexts.
 - Bump postgres digest in /infra (infra-docker group) (#657)
 - Bump postgres digest in /infra/compose/postgres (#658)
 - Bump postgres digest in /infra/compose/pgtap (#659)

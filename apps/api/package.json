@@ -16,10 +16,10 @@
     "@nestjs/common": "^11.1.25",
     "@nestjs/core": "^11.1.25",
     "@nestjs/platform-express": "^11.1.25",
-    "@nestjs/swagger": "^11.4.4",
+    "@nestjs/swagger": "^11.4.5",
     "@nestjs/throttler": "^6.5.0",
-    "@scalar/nestjs-api-reference": "^1.2.6",
-    "@sentry/node": "^10.62.0",
+    "@scalar/nestjs-api-reference": "^1.2.8",
+    "@sentry/node": "^10.63.0",
     "@workspace/accounting": "workspace:*",
     "@workspace/auth": "workspace:*",
     "@workspace/brain": "workspace:*",
@@ -47,7 +47,7 @@
     "eslint": "^9.39.2",
     "supertest": "^7.1.0",
     "ts-loader": "^9.6.0",
-    "tsx": "^4.22.4",
+    "tsx": "^4.23.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"
   }

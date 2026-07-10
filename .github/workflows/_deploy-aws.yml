@@ -80,8 +80,9 @@ permissions: {}
 concurrency:
   # Per-env, scope-independent. `stack=app-only` and `stack=infra-only`
   # touch overlapping CFN/ECS state; sequencing them per env prevents
-  # races on shared resources (log groups, secrets, services).
-  group: deploy-aws-${{ inputs.environment }}
+  # races on shared resources (log groups, secrets, services). power.yml uses
+  # the same group so a manual pause/resume cannot race a deployment.
+  group: env-mutation-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -471,20 +472,10 @@ jobs:
           emit_services "${built[@]}"
           emit_per_service_tags "sha-$GITHUB_SHA" "${built[@]}"
 
-  # Build the 3 app images in parallel (web, api, admin) on separate
-  # runners. Sequential pre-2026-05-19 build time was web ~5m + api ~4m +
-  # admin ~1.5m ≈ 10.5 min. Matrix wall-clock = max(web) + ~30s setup
-  # overhead ≈ 5.5 min. Net saving ~5 min per deploy.
-  #
-  # `fail-fast: true` so a CRITICAL CVE on web cancels api + admin builds —
-  # the deploy can't run anyway.
-  #
-  # Skipped when stack=infra-only OR image_tag_override is set OR
-  # detect-changes determined no app source changed since the last deploy
-  # (then deploy reuses the last-deployed image tag from SSM).
-  # Runs in parallel with build-images. Pre-creates the ECS log groups
-  # that CDK references, overlapping the work with the image build so
-  # ~9s comes off the deploy critical path.
+  # Prepare the live environment in parallel with change detection + image
+  # builds. Pre-creates ECS log groups, resumes RDS, and best-effort warms the
+  # currently deployed ECS revision. A cold production resume therefore runs
+  # under the changed-app build matrix instead of adding ~6-8 min after it.
   #
   # Why not also the secret-ensure step? GitHub Actions masks the account
   # ID in logs via ::add-mask:: (good — keeps PII out of public logs),
@@ -503,11 +494,14 @@ jobs:
       needs.validate-inputs.result == 'success' &&
       inputs.stack != 'infra-only'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 55
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write
       contents: read
+    outputs:
+      ecs_was_paused: ${{ steps.initial-power.outputs.ecs_was_paused }}
+      rds_was_paused: ${{ steps.initial-power.outputs.rds_was_paused }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
@@ -548,6 +542,39 @@ jobs:
           role-session-name: gha-prep-${{ github.run_id }}
           audience: sts.amazonaws.com
           role-duration-seconds: 3600
+
+      - name: Snapshot initial power state
+        id: initial-power
+        run: |
+          set -euo pipefail
+          rds_was_paused=false
+          ecs_was_paused=false
+
+          if aws cloudformation describe-stacks --stack-name "Data-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            database_id=$(aws rds describe-db-instances --region "$AWS_REGION" --output json \
+              | jq -r --arg prefix "data-${ENV_NAME}" \
+                '[.DBInstances[] | select(.DBInstanceIdentifier | startswith($prefix)) | .DBInstanceIdentifier] | first // empty')
+            if [ -n "$database_id" ]; then
+              database_status=$(aws rds describe-db-instances --db-instance-identifier "$database_id" --region "$AWS_REGION" --query 'DBInstances[0].DBInstanceStatus' --output text)
+              case "$database_status" in
+                stopped|stopping) rds_was_paused=true ;;
+              esac
+              echo "Initial RDS status: $database_status"
+            fi
+          fi
+
+          if aws cloudformation describe-stacks --stack-name "App-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            cluster="monorepo-${ENV_NAME}"
+            service=$(aws ecs list-services --cluster "$cluster" --region "$AWS_REGION" --query 'serviceArns[0]' --output text 2>/dev/null || true)
+            if [ -n "$service" ] && [ "$service" != "None" ]; then
+              desired_count=$(aws ecs describe-services --cluster "$cluster" --services "$service" --region "$AWS_REGION" --query 'services[0].desiredCount' --output text)
+              if [ "$desired_count" = "0" ]; then ecs_was_paused=true; fi
+              echo "Initial ECS desired count: $desired_count"
+            fi
+          fi
+
+          echo "rds_was_paused=$rds_was_paused" >> "$GITHUB_OUTPUT"
+          echo "ecs_was_paused=$ecs_was_paused" >> "$GITHUB_OUTPUT"
 
       - name: Pre-create ECS log groups (only when CFN already owns them)
         # CFN's AWS::IAM::Policy GetAtt(LogGroup.Arn) hits CloudControl,
@@ -613,6 +640,49 @@ jobs:
             fi
           done
 
+      - name: Ensure RDS is available while images build
+        run: |
+          set -euo pipefail
+          if ! aws cloudformation describe-stacks --stack-name "Data-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Data-${ENV_NAME} does not exist yet - skipping RDS resume on first deploy."
+            exit 0
+          fi
+          RDS_MAX_WAIT_SECONDS=2400 bash "${GITHUB_WORKSPACE}/infra/scripts/rds-resume.sh"
+
+      - name: Warm current ECS revision while images build
+        run: |
+          set -euo pipefail
+          if ! aws cloudformation describe-stacks --stack-name "App-${ENV_NAME}" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "App-${ENV_NAME} does not exist yet - skipping ECS warm-up on first deploy."
+            exit 0
+          fi
+
+          cluster="monorepo-${ENV_NAME}"
+          service=$(aws ecs list-services --cluster "$cluster" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
+          if [ -z "$service" ] || [ "$service" = "None" ]; then
+            echo "::warning::No ECS service found in ${cluster}; CDK deploy will create or repair it."
+            exit 0
+          fi
+
+          aws ecs update-service --cluster "$cluster" --service "$service" --desired-count 1 --region "$AWS_REGION" >/dev/null
+          echo "Current ECS revision scaled to 1; waiting up to 5 minutes for steady state."
+          if timeout 300 aws ecs wait services-stable --cluster "$cluster" --services "$service" --region "$AWS_REGION"; then
+            echo "Current ECS revision is warm."
+          else
+            echo "::warning::Current ECS revision did not stabilize within 5 minutes; continuing so the new CDK revision can repair it."
+          fi
+
+  # Build only Turbo-affected app images in parallel on separate runners.
+  # When all 3 apps change, sequential pre-2026-05-19 build time was web
+  # ~5m + api ~4m + admin ~1.5m ≈ 10.5 min. Matrix wall-clock is max(web)
+  # + ~30s setup overhead ≈ 5.5 min. Net saving ~5 min on a full rebuild.
+  #
+  # `fail-fast: true` so a CRITICAL CVE on web cancels api + admin builds -
+  # the deploy can't run anyway.
+  #
+  # Skipped when stack=infra-only OR image_tag_override is set OR
+  # detect-changes determined no app source changed since the last deploy
+  # (then deploy reuses the last-deployed image tag from SSM).
   build-images:
     needs: [guard, validate-inputs, detect-changes]
     # `services_to_build` is a JSON array from detect-changes. Empty array
@@ -911,10 +981,9 @@ jobs:
       (needs.deploy-prep.result == 'success' || needs.deploy-prep.result == 'skipped') &&
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped')
     runs-on: ubuntu-latest
-    # 75, not 45: a deeply-cold (multi-day-parked) RDS can take tens of minutes
-    # to resume (the auto-resume step waits up to 40 min), on top of the CDK
-    # deploy + migrations + ECS rollout. This is a safety ceiling, not the
-    # expected duration — a warm deploy still finishes in ~20 min.
+    # Safety ceiling for migrations + a full multi-stack CDK/ECS rollout.
+    # Cold RDS/ECS resume now runs in deploy-prep under the image builds and
+    # has its own 55-minute ceiling.
     timeout-minutes: 75
     # Production deploys pause here for human approval. Configured on the
     # `production` GitHub Environment via deployment-protection-rules
@@ -1023,29 +1092,6 @@ jobs:
           # reconciliation. 3600s is the standard IAM-role default; raise
           # MaxSessionDuration on the role if your deploy regularly nears it.
           role-duration-seconds: 3600
-
-      # Ensure RDS is up BEFORE migrations + the ECS rollout. A deploy must be
-      # self-sufficient regardless of the env's power state: cold-pause stops
-      # RDS, and deploying into a stopped (or still-resuming) DB hangs the ECS
-      # health gate for the full CFN timeout — App-production wedged ~40 min on
-      # a cold RDS then circuit-broke (incident 2026-06-01) when a deploy was
-      # fired concurrently with a power-resume. This mirrors power.yml `resume`
-      # for RDS only: it does NOT scale Fargate (CDK owns desiredCount) and does
-      # NOT touch the sleeping page here (a later step unbinds the sleeping page
-      # once the ECS rollout is healthy). Idempotent — a ~1s no-op when RDS is
-      # already available, which is the common (warm) case. The deploy role
-      # already carries rds:Start/Describe/Tag (it is the same role power.yml
-      # assumes).
-      - name: Ensure RDS is available (auto-resume)
-        if: env.STACK_SCOPE != 'infra-only'
-        # Resilient cold-resume (shared single source with power.yml). Polls
-        # with a generous deadline, tolerates every transitional RDS state,
-        # re-issues start if the DB falls back to `stopped`, and re-asserts the
-        # cost-stop tag removal each iteration so the RdsRestartWatcher cannot
-        # re-stop the DB mid-resume. Replaces the old single `aws rds wait`
-        # (hard-capped ~30 min, which a deeply-cold DB exceeded — v0.7.0,
-        # 2026-06-29). See infra/scripts/rds-resume.sh.
-        run: RDS_MAX_WAIT_SECONDS=2400 bash "${GITHUB_WORKSPACE}/infra/scripts/rds-resume.sh"
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -1503,9 +1549,9 @@ jobs:
       # the next deploy reads as "last known good". See smoke job below.
 
       # A deploy must leave the env actually SERVING, not just powered on. The
-      # "Ensure RDS available" step above resumes the DB and CDK scales Fargate
-      # to 1 — but if the env was cold/warm-paused, the Cloudflare sleeping-page
-      # routes are still bound, so Cloudflare answers 503 over the now-live
+      # deploy-prep resumes the DB and warms Fargate before CDK rolls the new
+      # revision, but if the env was cold/warm-paused, the Cloudflare
+      # sleeping-page routes are still bound, so Cloudflare answers 503 over the now-live
       # origin and the smoke job (which probes THROUGH Cloudflare) fails +
       # auto-rolls-back a perfectly good deploy. Unbind here, after the ECS
       # rollout is healthy. Idempotent: a ~1s no-op when no routes for this env
@@ -1524,6 +1570,104 @@ jobs:
 
       - id: summary
         run: echo "deployed=true" >> "$GITHUB_OUTPUT"
+
+  # Parallel warm-up happens before change detection and image builds finish.
+  # If any prerequisite or the deployment fails, restore a previously paused
+  # environment so a failed release cannot leave RDS/Fargate running behind
+  # the sleeping page indefinitely. This job is skipped on successful deploys
+  # and therefore adds no happy-path latency.
+  restore-paused-state:
+    needs: [deploy-prep, deploy]
+    if: |
+      always() &&
+      needs.deploy.result != 'success' &&
+      (needs.deploy-prep.outputs.ecs_was_paused == 'true' || needs.deploy-prep.outputs.rds_was_paused == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: ${{ inputs.environment }}
+      ECS_WAS_PAUSED: ${{ needs.deploy-prep.outputs.ecs_was_paused }}
+      RDS_WAS_PAUSED: ${{ needs.deploy-prep.outputs.rds_was_paused }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging)    echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-restore-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 1800
+      - name: Restore paused AWS resources
+        run: |
+          set -euo pipefail
+          if [ "$ECS_WAS_PAUSED" = "true" ]; then
+            cluster="monorepo-${ENV_NAME}"
+            service=$(aws ecs list-services --cluster "$cluster" --region "$AWS_REGION" --query 'serviceArns[0]' --output text 2>/dev/null || true)
+            if [ -n "$service" ] && [ "$service" != "None" ]; then
+              aws ecs update-service --cluster "$cluster" --service "$service" --desired-count 0 --region "$AWS_REGION" >/dev/null
+              echo "Restored ECS desired count to 0."
+            fi
+          fi
+
+          if [ "$RDS_WAS_PAUSED" = "true" ]; then
+            database_id=$(aws rds describe-db-instances --region "$AWS_REGION" --output json \
+              | jq -r --arg prefix "data-${ENV_NAME}" \
+                '[.DBInstances[] | select(.DBInstanceIdentifier | startswith($prefix)) | .DBInstanceIdentifier] | first // empty')
+            if [ -n "$database_id" ]; then
+              account_id=$(aws sts get-caller-identity --query Account --output text)
+              echo "::add-mask::$account_id"
+              database_arn="arn:aws:rds:${AWS_REGION}:${account_id}:db:${database_id}"
+              aws rds add-tags-to-resource --resource-name "$database_arn" --tags Key=cost-stop-requested,Value=true --region "$AWS_REGION"
+              database_status=$(aws rds describe-db-instances --db-instance-identifier "$database_id" --region "$AWS_REGION" --query 'DBInstances[0].DBInstanceStatus' --output text)
+              if [ "$database_status" = "available" ]; then
+                aws rds stop-db-instance --db-instance-identifier "$database_id" --region "$AWS_REGION" >/dev/null
+                echo "Restored RDS to stopping."
+              else
+                echo "RDS status is $database_status; cost-stop tag restored so the restart watcher will stop it once available."
+              fi
+            fi
+          fi
+      - name: Rebind sleeping page
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN empty - cannot rebind sleeping page."
+            exit 0
+          fi
+          bash infra/cloudflare-sleeping/scripts/routes.sh on "$ENV_NAME"
 
   # Post-deploy smoke test of the live URL + auto-rollback on failure.
   # Probes the web /api/version + admin /api/health endpoints through

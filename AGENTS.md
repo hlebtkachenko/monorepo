@@ -308,7 +308,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## Changelog Requirement
 
-Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Use `pnpm changelog:add -- --category Changed --entry "..."` so existing entries are preserved. Do not rewrite, reorder, or remove another Unreleased entry in a normal PR. Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception: they move Unreleased entries into the new version section instead of adding a new bullet.
+Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Use `pnpm changelog:add -- --category Changed --entry "..."` so existing entries are preserved. Do not rewrite, reorder, or remove another Unreleased entry in a normal PR. Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception: they move Unreleased entries into the new version section instead of adding a new bullet. Dependabot PRs are a second exception, gated by author (`dependabot[bot]`) rather than by title: the changelog gate is skipped on those PRs, and the resulting dependency bumps are recorded at release-cut as a synthesized `### Dependencies` bullet (and `### Security` for CVE-flagged bumps) instead of a per-PR entry.
 
 ## Infrastructure
 

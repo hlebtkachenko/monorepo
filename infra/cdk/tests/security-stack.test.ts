@@ -113,6 +113,21 @@ describe("SecurityStack", () => {
     }
   })
 
+  it("keeps budget names stable across independent syntheses", () => {
+    const first = Template.fromStack(buildTestApp("stable").security)
+    const second = Template.fromStack(buildTestApp("stable").security)
+    const names = (source: Template) =>
+      Object.values(source.findResources("AWS::Budgets::Budget"))
+        .map(
+          (budget) =>
+            (budget as { Properties?: { Budget?: { BudgetName?: string } } })
+              .Properties?.Budget?.BudgetName,
+        )
+        .sort()
+
+    expect(names(second)).toEqual(names(first))
+  })
+
   it("every budget filters on the Environment cost-allocation tag (per-env measurement)", () => {
     // AFF cost review 2026-05-31 trap 1: budgets were named per-env but had
     // no env filter, so each reported the account-wide total. Both budgets

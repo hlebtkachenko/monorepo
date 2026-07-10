@@ -89,7 +89,7 @@ services:
   pg_exporter:
     # Prometheus exporter for Postgres metrics + custom pg-boss / outbox
     # queue gauges (queries.yaml). Opt-in via the `observability` profile.
-    image: prometheuscommunity/postgres-exporter:v0.20.0
+    image: prometheuscommunity/postgres-exporter:v0.20.1
     restart: unless-stopped
     profiles:
       - observability
@@ -106,7 +106,7 @@ services:
       - "9187:9187"
 
   mailpit:
-    image: axllent/mailpit:v1.30.3
+    image: axllent/mailpit:v1.30.4
     restart: unless-stopped
     profiles:
       - mailpit

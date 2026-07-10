@@ -7,6 +7,14 @@ name: OpenFGA + pgbouncer + cloudflared version check
 # are invisible to it — this workflow fills the gap per the CLAUDE.md
 # Dependency Update Coverage Rule.
 #
+# The openfga/openfga version is also pinned in two other files that
+# Dependabot doesn't cross-check against app-stack.ts:
+#   infra/Dockerfile.openfga-bootstrap        (ARG OPENFGA_VERSION)
+#   infra/openfga/docker-compose.openfga.yml  (local dev overlay)
+# The openfga job fails if any of the three pins disagree, so a skew like
+# the one fixed in #533 (bootstrap Dockerfile + compose lagging app-stack.ts)
+# is caught automatically instead of drifting silently.
+#
 # Upstream sources:
 #   openfga/openfga        — https://github.com/openfga/openfga/releases
 #   edoburu/pgbouncer      — https://github.com/edoburu/docker-pgbouncer/releases
@@ -30,7 +38,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -66,6 +74,30 @@ jobs:
             echo "has_updates=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_updates=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check openfga pin consistency across files
+        # Closes the coverage gap that let infra/Dockerfile.openfga-bootstrap
+        # and infra/openfga/docker-compose.openfga.yml lag app-stack.ts at
+        # v1.15.1 while app-stack.ts moved on (#533). Fails the job if the
+        # three pins ever disagree again.
+        run: |
+          set -euo pipefail
+          APP_STACK_VERSION="${{ steps.openfga.outputs.current }}"
+          DOCKERFILE_VERSION=$(grep -oP 'ARG OPENFGA_VERSION=v\K[0-9]+\.[0-9]+\.[0-9]+' infra/Dockerfile.openfga-bootstrap)
+          COMPOSE_VERSIONS=$(grep -oP 'openfga/openfga:v\K[0-9]+\.[0-9]+\.[0-9]+' infra/openfga/docker-compose.openfga.yml | sort -u)
+          COMPOSE_COUNT=$(printf '%s\n' "$COMPOSE_VERSIONS" | wc -l | tr -d ' ')
+          if [ "$COMPOSE_COUNT" -ne 1 ]; then
+            echo "::error::infra/openfga/docker-compose.openfga.yml pins multiple openfga versions: $COMPOSE_VERSIONS"
+            exit 1
+          fi
+          COMPOSE_VERSION="$COMPOSE_VERSIONS"
+          echo "app-stack.ts: $APP_STACK_VERSION"
+          echo "Dockerfile.openfga-bootstrap: $DOCKERFILE_VERSION"
+          echo "docker-compose.openfga.yml: $COMPOSE_VERSION"
+          if [ "$APP_STACK_VERSION" != "$DOCKERFILE_VERSION" ] || [ "$APP_STACK_VERSION" != "$COMPOSE_VERSION" ]; then
+            echo "::error::openfga version pins disagree — app-stack.ts=$APP_STACK_VERSION Dockerfile.openfga-bootstrap=$DOCKERFILE_VERSION docker-compose.openfga.yml=$COMPOSE_VERSION"
+            exit 1
           fi
 
       - name: Check edoburu/pgbouncer version

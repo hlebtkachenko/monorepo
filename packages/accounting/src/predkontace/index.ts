@@ -16,7 +16,10 @@ export {
 } from "./catalogue"
 export {
   expandPartialRecord,
+  expandScenarioEntries,
   postFromPredkontace,
   type ExpandInput,
+  type PartialAmounts,
   type PostFromPredkontaceInput,
+  type ScenarioLine,
 } from "./expand"

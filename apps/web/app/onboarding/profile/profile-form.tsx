@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
+import { locales, localeLabel, defaultLocale } from "@workspace/i18n/config"
 import { useTranslations } from "@workspace/i18n/client"
 import { ProfileSchema, type ProfileInput } from "@workspace/shared/auth"
 import {
@@ -45,12 +46,6 @@ import {
 
 import { submitProfileAction } from "../actions"
 import { clearCarriedAvatar, storeCarriedAvatar } from "../_lib/avatar-carry"
-
-type SupportedLocale = "en"
-const SUPPORTED_LOCALES: ReadonlyArray<{
-  value: SupportedLocale
-  label: string
-}> = [{ value: "en", label: "English" }]
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024 // 5 MB cap, enforced silently (not surfaced in copy)
 
@@ -99,7 +94,7 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
       firstName: initial?.firstName ?? "",
       lastName: initial?.lastName ?? "",
       phone: initial?.phone ?? "",
-      locale: initial?.locale ?? SUPPORTED_LOCALES[0]!.value,
+      locale: initial?.locale ?? defaultLocale,
       timezone: initial?.timezone ?? defaultTimezone,
     },
     mode: "onSubmit",
@@ -429,9 +424,9 @@ export function ProfileForm({ initial, initialAvatarUrl }: Props) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SUPPORTED_LOCALES.map((l) => (
-                    <SelectItem key={l.value} value={l.value}>
-                      {l.label}
+                  {locales.map((code) => (
+                    <SelectItem key={code} value={code}>
+                      {localeLabel[code]}
                     </SelectItem>
                   ))}
                 </SelectContent>

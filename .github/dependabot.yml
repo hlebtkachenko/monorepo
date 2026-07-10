@@ -15,6 +15,8 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
     cooldown:
       default-days: 7
     ignore:
@@ -37,6 +39,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # GitHub Actions — group everything together so SHA bumps land in one PR
   - package-ecosystem: github-actions
@@ -50,6 +56,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Docker base image used by apps/web Dockerfile (the Next.js runtime)
   - package-ecosystem: docker
@@ -63,6 +73,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Docker base image used by apps/api Dockerfile (the NestJS runtime)
   - package-ecosystem: docker
@@ -76,6 +90,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Docker base image used by apps/admin Dockerfile (the admin Next.js
   # runtime — deployed prod container, digest-pinned like web/api).
@@ -90,6 +108,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Docker base image used by infra/Dockerfile.backup (ECS Scheduled Task in
   # BackupStack). Pinned per ADR-0015; bumped via Dependabot.
@@ -104,6 +126,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Cerbos PDP sidecar image (ghcr.io/cerbos/cerbos) baked into the CDK
   # asset via infra/cerbos/Dockerfile. The non-recursive /infra entry above
@@ -119,6 +145,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Postgres base image used by the local-dev compose stack.
   - package-ecosystem: docker
@@ -132,6 +162,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Postgres base image used by the pgTap test container.
   - package-ecosystem: docker
@@ -145,6 +179,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Image pins inside the local-dev compose stack
   # (infra/compose/docker-compose.dev.yml: postgres-exporter, mailpit, plus
@@ -162,6 +200,10 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7
 
   # Ubuntu base image used by the devcontainer.
   - package-ecosystem: docker
@@ -175,3 +217,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: scope
+    open-pull-requests-limit: 10
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 7

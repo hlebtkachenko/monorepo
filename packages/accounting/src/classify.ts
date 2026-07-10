@@ -453,12 +453,28 @@ function decideVat(
         note: "§16/§64 ZDPH: intra-community acquisition/supply → acquirer self-assesses (§25); supply is zero-rated + souhrnné hlášení.",
       }
     case "IMPORT":
-      return {
-        vatMode: "IMPORT",
-        vatRate: ev.vatRate ?? "21",
-        scenario: isPurchase ? "P-IMPORT" : "S-EXPORT",
-        note: "§23/§66 ZDPH: import self-assessment / export zero-rated.",
-      }
+      // [#566] "IMPORT" jurisdiction marks a third-country supply on EITHER side
+      // (mirrors how "EU" marks both an EU acquisition and an EU delivery), but the
+      // two directions are legally distinct and MUST NOT share vat_mode: a RECEIVED
+      // import (§23) self-assesses on 343↔343 (vat_mode IMPORT, scenario P-IMPORT);
+      // an ISSUED export (§66) charges no VAT at all — osvobozeno s nárokem na
+      // odpočet (vat_mode EXEMPT, scenario S-EXPORT, matching the catalogue). Before
+      // this split both directions returned vat_mode "IMPORT" while the catalogue's
+      // S-EXPORT is welded to EXEMPT — a self-contradictory decision that either
+      // threw at posting (expand.ts's vat_mode match check) or silently misrouted.
+      return isPurchase
+        ? {
+            vatMode: "IMPORT",
+            vatRate: ev.vatRate ?? "21",
+            scenario: "P-IMPORT",
+            note: "§23 ZDPH: dovoz zboží ze třetí země → samovyměření DPH (celní hodnota + clo) na 343↔343.",
+          }
+        : {
+            vatMode: "EXEMPT",
+            vatRate: null,
+            scenario: "S-EXPORT",
+            note: "§66 ZDPH: vývoz zboží do třetí země → osvobozeno od daně s nárokem na odpočet (DAP ř.22), žádná daň na výstupu.",
+          }
     case "EXEMPT":
       return {
         vatMode: "EXEMPT",

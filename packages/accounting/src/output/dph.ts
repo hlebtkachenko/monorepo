@@ -27,6 +27,9 @@
  *   ř.21    poskytnutí služby s místem plnění v JČS dle §9/1 (ISSUED,
  *           REVERSE_CHARGE, vat_jurisdiction = 'EU', supply_kind = 'SERVICES');
  *           základ only, daň 0. V souhrnném hlášení kód "3"; NENÍ v KH.
+ *   ř.22    vývoz zboží do třetí země (ISSUED, EXEMPT, vat_jurisdiction =
+ *           'IMPORT', §66); osvobozeno s nárokem na odpočet, základ only, daň 0.
+ *           Nikdy v souhrnném hlášení (EU-only) ani v KH.
  *   ř.25    PDP dodavatel — dodání v režimu přenesení (ISSUED, REVERSE_CHARGE);
  *           základ only, daň 0 (odvádí odběratel, §92a)
  *   ř.40/41 odpočet daně na vstupu 21%/12%        (RECEIVED, STANDARD)
@@ -47,6 +50,18 @@
  * everything else (goods, or a legacy NULL) stays on ř.3/4. Consistent with the
  * souhrnné hlášení kód-plnění mapping (SERVICES → 3). ř.5/6 is self-assessed and
  * deductible on ř.43/44 exactly like ř.3/4, so vlastní daň is unaffected.
+ *
+ * Export vs domestic-exempt split (#566): decideVat (classify.ts) previously
+ * emitted vat_mode = 'IMPORT' for BOTH the RECEIVED import (§23) and the ISSUED
+ * export (§66) sides of the "IMPORT" jurisdiction, while the catalogue's
+ * S-EXPORT scenario is welded to vat_mode = 'EXEMPT' — a self-contradictory
+ * decision that threw at posting (expand.ts's vat_mode match check) or
+ * silently misfiled the export onto ř.50 (§51 exempt-WITHOUT-deduction, wrong:
+ * vývoz is osvobozeno S nárokem, poisoning the §76 krácení koeficient for a
+ * mixed-supply plátce). Fixed by splitting decideVat's IMPORT case per
+ * direction (RECEIVED → vat_mode IMPORT; ISSUED → vat_mode EXEMPT, matching the
+ * catalogue) and using vat_jurisdiction = 'IMPORT' as the ISSUED-side
+ * discriminator — the #541 pattern applied to the export/import pair.
  *
  * Kontrolní hlášení: this module returns SECTION TOTALS only (A.1, A.4/A.5, B.1,
  * B.2/B.3) as a period-level checksum against the přiznání. The row-level,
@@ -117,6 +132,14 @@ export interface DphRows {
    * Reported in the souhrnné hlášení (kód 3), never in kontrolní hlášení.
    */
   r21_base: Decimal
+  /**
+   * ř.22 — vývoz zboží do třetí země (§66 ZDPH): ISSUED + EXEMPT + vat_jurisdiction
+   * = 'IMPORT' (the export-side marker; 'IMPORT' jurisdiction marks a third-country
+   * supply bidirectionally, mirroring how 'EU' marks both an EU acquisition and
+   * delivery). Osvobozeno s nárokem na odpočet → základ only, no daň. Never in the
+   * souhrnné hlášení (EU-only) or the kontrolní hlášení. [#566]
+   */
+  r22_base: Decimal
   /**
    * ř.25 — domestic PDP dodavatel (§92a): základ only, daň 0 (odvádí odběratel).
    * [#516/#541] vat_jurisdiction IS DISTINCT FROM 'EU' — an EU-marked issued
@@ -254,6 +277,11 @@ export async function buildDph(
         --        supply_kind = 'SERVICES' splits these out of ř.20 (goods).
         COALESCE(SUM(base) FILTER (WHERE tax_point_in_scope AND ${ISSUED_EU_SUPPLY_DPH} AND supply_kind = 'SERVICES'), 0)::numeric(19,4) AS r21_base,
 
+        -- ř.22 — ISSUED, EXEMPT, export of goods to a third country (§66): základ only, no daň.
+        --        vat_jurisdiction = 'IMPORT' marks the export side (mirrors 'EU' marking both EU
+        --        acquisition/delivery). Osvobozeno s nárokem na odpočet; never SH or KH. [#566]
+        COALESCE(SUM(base) FILTER (WHERE tax_point_in_scope AND ${classification.issuedExport}), 0)::numeric(19,4) AS r22_base,
+
         -- ř.25 — ISSUED, domestic §92 PDP dodavatel: základ only, daň odvádí odběratel.
         -- [#516/#541] jurisdiction IS DISTINCT FROM 'EU' — an EU-marked issued reverse-charge
         -- supply (§64 goods → ř.20 / §9(1) service → ř.21) is NOT a domestic §92 PDP supply; it is
@@ -276,7 +304,10 @@ export async function buildDph(
         -- so an EXEMPT+EU row can never masquerade as §51 exempt-without-deduction here
         -- (unreachable once the capture guard + REVERSE_CHARGE normalization land, but defends
         -- any future/legacy EXEMPT+EU from double-counting against the ř.20/21 osvobozeno-s-nárokem).
-        COALESCE(SUM(base) FILTER (WHERE tax_point_in_scope AND vat_mode = 'EXEMPT' AND vat_jurisdiction IS DISTINCT FROM 'EU'), 0)::numeric(19,4) AS r50_base,
+        -- [#566] Same guard for 'IMPORT' — an EXEMPT+IMPORT row is a §66 export (ř.22,
+        -- osvobozeno S nárokem), never §51 exempt-WITHOUT-deduction; excluding it here
+        -- keeps it from poisoning the §76 krácení koeficient denominator.
+        COALESCE(SUM(base) FILTER (WHERE tax_point_in_scope AND vat_mode = 'EXEMPT' AND vat_jurisdiction IS DISTINCT FROM 'EU' AND vat_jurisdiction IS DISTINCT FROM 'IMPORT'), 0)::numeric(19,4) AS r50_base,
 
         -- totals: daň na výstupu / odpočet (incl. deductible samovyměření) / vlastní daň
         (COALESCE(SUM(dan)              FILTER (WHERE tax_point_in_scope AND type = 'ISSUED_INVOICE'   AND vat_mode = 'STANDARD'),      0)

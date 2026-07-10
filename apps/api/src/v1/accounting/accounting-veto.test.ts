@@ -218,6 +218,54 @@ describe("deriveCaptureVeto — vat_mismatch", () => {
   })
 })
 
+describe("deriveCaptureVeto — M1.2 classify-threaded special regimes stay held (regression)", () => {
+  // The M1.2 write-body wiring lets the HARNESS thread the server's classify treatment onto a capture partial
+  // (narrow-only): an adapter STANDARD row that classify identifies as a special regime is stamped with that
+  // regime BEFORE it reaches this veto. deriveCaptureVeto is untouched and rides ABOVE the merge — it HOLDS
+  // every non-STANDARD vatMode via `unverified_vat_regime` regardless of who set it or how self-consistent the
+  // (threaded) rate / vatAmount / jurisdiction / commodityCode look. This is what keeps a document from
+  // steering the treatment into an applied write. A classify verdict can only ADD held-ness here, never remove
+  // it.
+  it("HOLDS a REVERSE_CHARGE the harness threaded in, even with a plausible rate + jurisdiction + commodityCode", () => {
+    const veto = deriveCaptureVeto([
+      {
+        partials: [
+          {
+            baseAmount: "1000.00",
+            vatMode: "REVERSE_CHARGE",
+            vatRate: "21",
+            vatAmount: "210.00",
+            vatJurisdiction: "REVERSE_CHARGE",
+            commodityCode: "4",
+          },
+        ],
+      },
+    ])
+    expect(veto.held).toBe(true)
+    expect(veto.signals).toEqual(["unverified_vat_regime"])
+  })
+
+  it("HOLDS every special regime a classify result can produce (EXEMPT / IMPORT / OUTSIDE_VAT)", () => {
+    for (const vatMode of ["EXEMPT", "IMPORT", "OUTSIDE_VAT"]) {
+      const veto = deriveCaptureVeto([
+        {
+          partials: [
+            {
+              baseAmount: "1000.00",
+              vatMode,
+              vatRate: "21",
+              vatAmount: "210.00",
+              vatJurisdiction: vatMode,
+            },
+          ],
+        },
+      ])
+      expect(veto.held).toBe(true)
+      expect(veto.signals).toEqual(["unverified_vat_regime"])
+    }
+  })
+})
+
 describe("screenTemplateBasis — merged novelty + #554 OCR fail-closed", () => {
   // ── novelty leg (templateId present, row found) ──────────────────────────
   it("fires templateNovel for an UNCONFIRMED template (human_confirmed_at IS NULL)", async () => {

@@ -68,6 +68,26 @@ function assertIssuedEuIsReverseCharge(p: PartialRecordInput): void {
   }
 }
 
+/**
+ * Boundary guard on an ISSUED export of goods to a third country: an issued
+ * §66 vývoz MUST capture as vat_mode = 'EXEMPT' (the mode decideVat emits for
+ * the export side, classify.ts) so it reaches DPH ř.22 (osvobozeno s nárokem
+ * na odpočet) via the dedicated export predicate, and posts through S-EXPORT
+ * (whose vat_mode matches, or expand.ts throws). "IMPORT" jurisdiction marks a
+ * third-country supply on EITHER side (mirrors "EU"), so a caller that stamps
+ * the RECEIVED-side mode (IMPORT) on an ISSUED export would silently misfile
+ * it or crash the poster; reject it here rather than reinterpret it (#566,
+ * same guard shape as #541's EU sibling). The received side (§23 import) is
+ * unaffected — this validates the ISSUED side only.
+ */
+function assertIssuedExportIsExempt(p: PartialRecordInput): void {
+  if (p.vatJurisdiction === "IMPORT" && p.vatMode !== "EXEMPT") {
+    throw new Error(
+      `accounting: an ISSUED export to a third country must capture as vat_mode 'EXEMPT' (§66 ZDPH, osvobozeno s nárokem) — got '${p.vatMode}' (#566)`,
+    )
+  }
+}
+
 /** Create an účetní případ — the economic fact (§6/1). Allocates the Označení. */
 export async function createEvent(
   db: RowExecutor,
@@ -158,7 +178,10 @@ export async function captureDocument(
     )
     const partialRecordIds: string[] = []
     for (const p of line.partials) {
-      if (input.type === "ISSUED_INVOICE") assertIssuedEuIsReverseCharge(p)
+      if (input.type === "ISSUED_INVOICE") {
+        assertIssuedEuIsReverseCharge(p)
+        assertIssuedExportIsExempt(p)
+      }
       partialRecordIds.push(
         await insertPartial(db, ctx, indiv.id, p, accountingCurrency),
       )

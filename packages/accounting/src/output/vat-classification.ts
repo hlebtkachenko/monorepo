@@ -17,6 +17,15 @@ export function vatClassificationPredicates(columns: VatClassificationColumns) {
   const issuedEuSupply = sql`${documentType} = 'ISSUED_INVOICE' AND ${mode} = 'REVERSE_CHARGE' AND ${jurisdiction} = 'EU'`
   const issuedEuGoods = sql`${issuedEuSupply} AND ${supplyKind} = 'GOODS'`
   const issuedEuServices = sql`${issuedEuSupply} AND ${supplyKind} = 'SERVICES'`
+  /**
+   * ISSUED export of goods to a third country (§66 ZDPH, DPH ř.22). "IMPORT"
+   * jurisdiction marks a third-country supply on EITHER side (mirrors "EU"
+   * marking both an EU acquisition and delivery); the ISSUED + EXEMPT pairing
+   * is the export signature (the RECEIVED side self-assesses as vat_mode
+   * IMPORT instead, scenario P-IMPORT). Osvobozeno s nárokem na odpočet — never
+   * souhrnné hlášení (EU-only) or kontrolní hlášení (#566).
+   */
+  const issuedExport = sql`${documentType} = 'ISSUED_INVOICE' AND ${mode} = 'EXEMPT' AND ${jurisdiction} = 'IMPORT'`
   const khReportable = sql`(
     (${documentType} = 'ISSUED_INVOICE' AND ${mode} = 'STANDARD')
     OR (${documentType} = 'ISSUED_INVOICE' AND ${mode} = 'REVERSE_CHARGE' AND ${jurisdiction} IS DISTINCT FROM 'EU')
@@ -29,6 +38,7 @@ export function vatClassificationPredicates(columns: VatClassificationColumns) {
     issuedEuSupply,
     issuedEuGoods,
     issuedEuServices,
+    issuedExport,
     khReportable,
     identifiedPersonVatLiability,
     supportedDapEvidence,

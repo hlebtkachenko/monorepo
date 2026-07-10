@@ -23,7 +23,22 @@ import {
   formatDecimal,
 } from "../_shared/accounting-format"
 import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
-import type { HeldWriteHeader, HeldWriteVatSummaryRow } from "./view-model"
+import type { HeldWriteEdit } from "./edit-model"
+import {
+  draftFromRow,
+  draftToEdit,
+  HeldWriteEditFields,
+  type AccountOption,
+  type HeldWriteEditDraft,
+} from "./edit-panel"
+import type {
+  HeldWriteHeader,
+  HeldWritePostingLineRow,
+  HeldWriteVatSummaryRow,
+  MddPreview,
+} from "./view-model"
+
+export type { AccountOption } from "./edit-panel"
 
 /**
  * Held gated write as prepared by the approvals page from `fetchHeldWrites`
@@ -51,8 +66,14 @@ export interface HeldWriteListRow {
   header: HeldWriteHeader
   /** Per-VAT-rate base/VAT rollup — empty when the tool has no VAT lines (events, postings). */
   vat_summary: HeldWriteVatSummaryRow[]
+  /** [M1.3] MD/D posting preview — null when this tool/kind has none (events, monetary postings, unclassifiable captures). */
+  mdd_preview: MddPreview | null
   /** Human-readable reasons the gate HELD this write. */
   hold_reasons: string[]
+  /** [M1.7] Double-entry posting lines (accountId/side/amount) — empty unless kind "double". */
+  posting_lines: HeldWritePostingLineRow[]
+  /** [M1.7] "double" / "monetary" for a posting, else null. */
+  posting_kind: "double" | "monetary" | null
   /**
    * [WS-2] OCR extraction template this write was derived from (audit
    * `serverGate.templateId`), or null for structured-export writes.
@@ -267,14 +288,21 @@ export function buildHeldWriteColumns({
   ]
 }
 
-/** Approve / reject controls — call the `resolveHeldWrite` server action. */
+/**
+ * Approve / reject controls — call the `resolveHeldWrite` server action.
+ * [M1.7] `edit` (present only while the reviewer has the edit form open) is
+ * sent ONLY on approve — a reject never carries an edit, there is nothing to
+ * apply.
+ */
 function HeldWriteResolveActions({
   orgSlug,
   id,
+  edit,
   onResolved,
 }: {
   orgSlug: string
   id: string
+  edit?: HeldWriteEdit
   onResolved: () => void
 }) {
   const [note, setNote] = React.useState("")
@@ -289,6 +317,7 @@ function HeldWriteResolveActions({
         id,
         action,
         note: note.trim() || undefined,
+        edit: action === "approve" ? edit : undefined,
       })
       if (result.ok) {
         onResolved()
@@ -316,7 +345,11 @@ function HeldWriteResolveActions({
           disabled={isPending}
           onClick={() => resolve("approve")}
         >
-          {isPending ? "Zpracovává se…" : "Schválit a zaúčtovat"}
+          {isPending
+            ? "Zpracovává se…"
+            : edit
+              ? "Schválit upravenou verzi"
+              : "Schválit a zaúčtovat"}
         </Button>
         <Button
           size="sm"
@@ -422,6 +455,87 @@ function VatSummaryTable({
   )
 }
 
+/**
+ * [M1.3] MD/D posting preview — "see how it booked MD/D" before approving.
+ * Renders the předkontace scenario label (when re-derived from a raw
+ * capture), the account/side/amount/label lines, the Σ(MD)=Σ(Dal) balance
+ * check, and any non-blocking caveats about what the preview does NOT model
+ * (see `buildMddPreview` in `view-model.ts`). Null `mddPreview` renders
+ * nothing — an event, a monetary/cash posting, and an unclassifiable capture
+ * have no MD/D to preview.
+ */
+function MddPreviewPanel({
+  preview,
+  currency,
+}: {
+  preview: MddPreview | null
+  currency: string | null
+}) {
+  if (!preview || preview.lines.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Náhled MD/D
+        {preview.scenarioLabel ? ` — ${preview.scenarioLabel}` : null}
+      </span>
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="text-muted-foreground">Účet</TableHead>
+            <TableHead className="text-muted-foreground">MD/D</TableHead>
+            <TableHead className="text-right text-muted-foreground">
+              Částka
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {preview.lines.map((line, i) => (
+            <TableRow
+              key={`${line.account}-${i}`}
+              className="hover:bg-transparent"
+            >
+              <TableCell>
+                {line.account}
+                {line.label ? (
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {line.label}
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell>{line.side === "DEBIT" ? "MD" : "Dal"}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatCaseAmount(line.amount, currency)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <div className="flex items-center justify-between text-xs">
+        <span
+          className={
+            preview.balanced ? "text-muted-foreground" : "text-destructive"
+          }
+        >
+          {preview.balanced
+            ? "Vyrovnáno (Σ MD = Σ Dal)"
+            : "Nevyrovnáno — zkontrolujte prosím"}
+        </span>
+        <span className="text-muted-foreground tabular-nums">
+          MD {formatCaseAmount(preview.totalDebit, currency)} / Dal{" "}
+          {formatCaseAmount(preview.totalCredit, currency)}
+        </span>
+      </div>
+      {preview.caveats.length > 0 ? (
+        <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {preview.caveats.map((caveat) => (
+            <li key={caveat}>{caveat}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 /** Human-readable reasons the gate HELD this write — from `output_json.serverGate`. */
 function HoldReasonsList({ reasons }: { reasons: string[] }) {
   if (reasons.length === 0) return null
@@ -466,28 +580,60 @@ function CaseSiblingsList({ writes }: { writes: HeldWriteListRow[] }) {
 
 /**
  * Inspector detail for a single held write, with approve/reject resolution.
- * Renders the document header, per-rate VAT summary, why-held reasons, and
- * the rationale — no raw JSON. `caseWrites` are sibling held writes sharing
- * this write's `conversationId` (the účetní případ), rendered together so a
- * reviewer sees the whole case, not just one isolated write.
+ * Renders the document header, per-rate VAT summary, an MD/D posting preview,
+ * why-held reasons, and the rationale — no raw JSON. `caseWrites` are sibling
+ * held writes sharing this write's `conversationId` (the účetní případ),
+ * rendered together so a reviewer sees the whole case, not just one isolated
+ * write.
+ *
+ * [M1.7] "Upravit" toggles an edit form over the header/VAT/MD-D display
+ * (`edit-panel.tsx`); approving while it's open sends the edited payload
+ * through the SAME `resolveHeldWrite` approve path (see
+ * `HeldWriteResolveActions`). `accounts` feeds the posting-line account
+ * picker (a `createAccountingPosting`'s `accountId` is a raw uuid).
+ *
+ * `HeldWritesBody` renders this with `key={row.id}` so the draft/editing
+ * state below is freshly initialized whenever a DIFFERENT write is
+ * inspected — no reset effect needed.
  */
 export function HeldWriteDetail({
   row,
   caseWrites,
   orgSlug,
+  accounts,
   onResolved,
 }: {
   row: HeldWriteListRow
   caseWrites: HeldWriteListRow[]
   orgSlug: string
+  accounts: AccountOption[]
   onResolved: () => void
 }) {
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState<HeldWriteEditDraft>(() =>
+    draftFromRow(row),
+  )
+  const icons = useIcons()
+  const EditIcon = icons.Pencil
+
   return (
     <div className="flex flex-col gap-4">
       <dl className="flex flex-col gap-3">
         <DetailField
           label="Operace"
-          value={<Badge variant="secondary">{toolLabel(row.tool_name)}</Badge>}
+          value={
+            <div className="flex items-center justify-between gap-2">
+              <Badge variant="secondary">{toolLabel(row.tool_name)}</Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing((value) => !value)}
+              >
+                <EditIcon />
+                {editing ? "Zrušit úpravu" : "Upravit"}
+              </Button>
+            </div>
+          }
         />
         <DetailField label="Popis" value={row.summary} />
         <DetailField
@@ -524,13 +670,32 @@ export function HeldWriteDetail({
           />
         ) : null}
       </dl>
-      <HeldWriteHeaderCard header={row.header} />
-      <VatSummaryTable rows={row.vat_summary} currency={row.header.currency} />
+      {editing ? (
+        <HeldWriteEditFields
+          toolName={row.tool_name}
+          draft={draft}
+          onDraftChange={setDraft}
+          accounts={accounts}
+        />
+      ) : (
+        <>
+          <HeldWriteHeaderCard header={row.header} />
+          <VatSummaryTable
+            rows={row.vat_summary}
+            currency={row.header.currency}
+          />
+          <MddPreviewPanel
+            preview={row.mdd_preview}
+            currency={row.header.currency}
+          />
+        </>
+      )}
       <HoldReasonsList reasons={row.hold_reasons} />
       <CaseSiblingsList writes={caseWrites} />
       <HeldWriteResolveActions
         orgSlug={orgSlug}
         id={row.id}
+        edit={editing ? draftToEdit(draft, row.tool_name) : undefined}
         onResolved={onResolved}
       />
     </div>

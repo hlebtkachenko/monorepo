@@ -1894,6 +1894,11 @@ export interface components {
                  */
                 r21_base: string;
                 /**
+                 * @description ř.22 základ — vývoz zboží do třetí země (§66); osvobozeno s nárokem, bez daně.
+                 * @example 0.00
+                 */
+                r22_base: string;
+                /**
                  * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
                  * @example 0.00
                  */
@@ -2104,6 +2109,11 @@ export interface components {
              * @example 0.00
              */
             r21_base: string;
+            /**
+             * @description ř.22 základ — vývoz zboží do třetí země (§66); osvobozeno s nárokem, bez daně.
+             * @example 0.00
+             */
+            r22_base: string;
             /**
              * @description ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.
              * @example 0.00

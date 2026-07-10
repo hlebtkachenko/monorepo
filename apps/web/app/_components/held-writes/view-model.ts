@@ -1,11 +1,14 @@
 /**
  * Held-write review view-model — shapes a raw `tool_call_log` held row (the
  * gate's `input_json` + `output_json`) into what a human reviewer needs: a
- * document header, a per-rate VAT rollup, an MD/D posting preview, and the
- * human-readable reasons the gate held it. Pure data shaping — no DB, no
- * React, no `server-only` — so it is unit-testable with plain fixtures and
- * safely importable from both the server page (`accounting-data.ts` rows) and
- * the client inspector.
+ * document header, a per-rate VAT rollup, an MD/D posting preview, double-entry
+ * posting lines, and the human-readable reasons the gate held it. Pure data
+ * shaping — no DB, no React, no `server-only` — so it is unit-testable with
+ * plain fixtures and safely importable from both the server page
+ * (`accounting-data.ts` rows) and the client inspector. `edit-model.ts` (M1.7
+ * edit-before-approve) reuses the same grouping (`vatGroupLabel`) to merge a
+ * reviewer's edit back onto the ORIGINAL payload, so the two can never disagree
+ * on what a row represents.
  *
  * Money stays a decimal STRING throughout (the domain transport, see
  * `_shared/accounting-format.ts`); this module never touches a bigint minor-
@@ -58,6 +61,21 @@ export interface HeldWriteVatSummaryRow {
   base: string
   /** Rolled-up VAT amount across every line at this rate — decimal string, 2dp. */
   vat: string
+  /**
+   * [M1.7] Number of original partials rolled up into this row. The
+   * edit-before-approve UI only lets a reviewer edit a row's amounts when
+   * this is 1 — an unambiguous 1:1 mapping back onto the original partial.
+   * A rolled-up group of 2+ partials at the same rate stays read-only (no
+   * safe way to redistribute one edited total across several source lines).
+   */
+  partialCount: number
+}
+
+/** One double-entry posting line (MD/D) — accountId + side + amount, as booked. */
+export interface HeldWritePostingLineRow {
+  accountId: string
+  side: "DEBIT" | "CREDIT"
+  amount: string
 }
 
 export interface HeldWriteHeader {
@@ -119,6 +137,16 @@ export interface HeldWriteViewModel {
   /** Human-readable reasons the gate HELD this write (server veto + score verdict). */
   holdReasons: string[]
   rationale: string | null
+  /**
+   * [M1.7] Double-entry posting lines (MD/D), only for a `createAccountingPosting`
+   * of kind "double" — empty for events, document captures, and monetary/cash
+   * postings (their lines carry no accountId, see PostInput's MonetaryLineInput).
+   * Feeds the edit-before-approve draft (the reviewer edits these before
+   * approving); the read-only display of the proposed booking is `mddPreview`.
+   */
+  postingLines: HeldWritePostingLineRow[]
+  /** [M1.7] "double" / "monetary" for a posting, else null — drives whether postingLines is editable. */
+  postingKind: "double" | "monetary" | null
   /** [M1.3] MD/D posting preview — null when this tool/kind has none (see `MddPreview`). */
   mddPreview: MddPreview | null
 }
@@ -158,6 +186,16 @@ const VAT_MODE_LABELS: Record<string, string> = {
   EXEMPT: "osvobozeno",
   OUTSIDE_VAT: "mimo předmět DPH",
   IMPORT: "dovoz",
+}
+
+/**
+ * Display label for one VAT-partial group ("21 %" when a rate is present,
+ * else the VAT-mode label). Exported so `edit-model.ts` groups an edited
+ * amount back onto the SAME partials `vatSummaryFromPartials` rolled it from
+ * — single source of truth, the two can never drift apart.
+ */
+export function vatGroupLabel(rate: string | null, mode: string): string {
+  return rate ? `${rate} %` : (VAT_MODE_LABELS[mode] ?? mode)
 }
 
 // ---------------------------------------------------------------------------
@@ -298,16 +336,29 @@ function vatSummaryFromPartials(
 ): HeldWriteVatSummaryRow[] {
   const byKey = new Map<
     string,
-    { rate: string | null; rateLabel: string; base: number; vat: number }
+    {
+      rate: string | null
+      rateLabel: string
+      base: number
+      vat: number
+      partialCount: number
+    }
   >()
   for (const p of partials) {
     const rate = asString(p["vatRate"])
     const mode = asString(p["vatMode"]) ?? "STANDARD"
     const key = rate ?? `mode:${mode}`
-    const rateLabel = rate ? `${rate} %` : (VAT_MODE_LABELS[mode] ?? mode)
-    const existing = byKey.get(key) ?? { rate, rateLabel, base: 0, vat: 0 }
+    const rateLabel = vatGroupLabel(rate, mode)
+    const existing = byKey.get(key) ?? {
+      rate,
+      rateLabel,
+      base: 0,
+      vat: 0,
+      partialCount: 0,
+    }
     existing.base += toNumber(p["baseAmount"])
     existing.vat += toNumber(p["vatAmount"])
+    existing.partialCount += 1
     byKey.set(key, existing)
   }
   return [...byKey.values()]
@@ -317,7 +368,26 @@ function vatSummaryFromPartials(
       rateLabel: r.rateLabel,
       base: toDecimal(r.base),
       vat: toDecimal(r.vat),
+      partialCount: r.partialCount,
     }))
+}
+
+/**
+ * [M1.7] Double-entry posting lines for a `createAccountingPosting` of kind
+ * "double" — empty for every other tool/kind (events and document captures
+ * have no `entry.lines`; a monetary/cash posting's lines carry no accountId).
+ */
+function postingLinesFromInput(
+  input: Record<string, unknown>,
+): HeldWritePostingLineRow[] {
+  if (input["kind"] !== "double") return []
+  const entry = isRecord(input["entry"]) ? input["entry"] : {}
+  const lines = Array.isArray(entry["lines"]) ? entry["lines"] : []
+  return lines.filter(isRecord).map((line) => ({
+    accountId: asString(line["accountId"]) ?? "",
+    side: line["side"] === "CREDIT" ? "CREDIT" : "DEBIT",
+    amount: typeof line["amount"] === "string" ? line["amount"] : "0.00",
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -653,6 +723,8 @@ export function buildHeldWriteViewModel(
 
   let header: HeldWriteHeader
   let vatSummary: HeldWriteVatSummaryRow[] = []
+  let postingLines: HeldWritePostingLineRow[] = []
+  let postingKind: "double" | "monetary" | null = null
   let mddPreview: MddPreview | null = null
 
   switch (row.tool_name) {
@@ -665,6 +737,8 @@ export function buildHeldWriteViewModel(
     }
     case "createAccountingPosting":
       header = headerFromPosting(input, row.counterparty_name)
+      postingLines = postingLinesFromInput(input)
+      postingKind = input["kind"] === "monetary" ? "monetary" : "double"
       mddPreview = mddPreviewFromPosting(input, chartAccounts)
       break
     case "createAccountingEvent":
@@ -681,6 +755,8 @@ export function buildHeldWriteViewModel(
     vatSummary,
     holdReasons: holdReasonsFrom(row.output_json),
     rationale: row.rationale,
+    postingLines,
+    postingKind,
     mddPreview,
   }
 }

@@ -194,6 +194,259 @@ describe("buildHeldWriteViewModel", () => {
   })
 })
 
+describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
+  it("re-derives the předkontace scenario for a standard domestic RECEIVED service invoice", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "10000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "2100.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    expect(vm.mddPreview?.scenarioId).toBe("P-SERVICES-21")
+    expect(vm.mddPreview?.lines).toEqual([
+      {
+        account: "518",
+        side: "DEBIT",
+        amount: "10000.00",
+        label: "Ostatní služby",
+      },
+      { account: "343", side: "DEBIT", amount: "2100.00", label: null },
+      { account: "321", side: "CREDIT", amount: "12100.00", label: null },
+    ])
+    expect(vm.mddPreview?.totalDebit).toBe("12100.00")
+    expect(vm.mddPreview?.totalCredit).toBe("12100.00")
+    expect(vm.mddPreview?.balanced).toBe(true)
+  })
+
+  it("labels a preview line from the passed-in chart of accounts when the scenario entry has no description", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "10000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "2100.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      [{ id: "acc-343", number: "343", name: "DPH" }],
+    )
+
+    const line343 = vm.mddPreview?.lines.find((l) => l.account === "343")
+    expect(line343?.label).toBe("DPH")
+  })
+
+  it("skips an ASSET partial (capitalisation not derivable from a raw capture) with a caveat, but still previews the rest", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "90000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "18900.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "ASSET",
+                  currencyCode: "CZK",
+                },
+                {
+                  baseAmount: "1000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "210.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    // Only the SERVICES partial's lines — the ASSET partial is skipped, not guessed.
+    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
+      "518",
+      "343",
+      "321",
+    ])
+    expect(vm.mddPreview?.totalDebit).toBe("1210.00")
+    expect(
+      vm.mddPreview?.caveats.some((c) => c.includes("Dlouhodobý majetek")),
+    ).toBe(true)
+  })
+
+  it("returns null for a non-invoice capture (bank statement — not booked via předkontace)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "BANK_STATEMENT",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "500.00",
+                  vatMode: "OUTSIDE_VAT",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).toBeNull()
+  })
+
+  it("shows a createAccountingPosting's proposed double-entry lines verbatim, resolving accountId to a chart number/name", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "12100.00" },
+            ],
+          },
+        },
+      }),
+      [
+        { id: "acc-1", number: "321", name: "Dodavatelé" },
+        { id: "acc-2", number: "221", name: "Bankovní účty" },
+      ],
+    )
+
+    expect(vm.mddPreview).toEqual({
+      scenarioId: null,
+      scenarioLabel: null,
+      lines: [
+        {
+          account: "321",
+          side: "DEBIT",
+          amount: "12100.00",
+          label: "Dodavatelé",
+        },
+        {
+          account: "221",
+          side: "CREDIT",
+          amount: "12100.00",
+          label: "Bankovní účty",
+        },
+      ],
+      totalDebit: "12100.00",
+      totalCredit: "12100.00",
+      balanced: true,
+      caveats: [],
+    })
+  })
+
+  it("flags an unbalanced proposed posting instead of silently accepting it", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "12000.00" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview?.balanced).toBe(false)
+  })
+
+  it("returns null for a monetary (cash-regime) posting — předkontace/MD-D is double-entry only", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "monetary",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              {
+                location: "BANK",
+                direction: "OUTFLOW",
+                isTaxRelevant: false,
+                amount: "500.00",
+              },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).toBeNull()
+  })
+
+  it("returns null for a createAccountingEvent (no posting data at all)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingEvent",
+        input_json: {
+          counterpartyId: "cp-1",
+          description: "FP — nájem kanceláře",
+          occurredAt: "2026-06-01",
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).toBeNull()
+  })
+})
+
 describe("holdReasonsFrom", () => {
   it("decodes the server veto signals when the veto held", () => {
     const reasons = holdReasonsFrom({

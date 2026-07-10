@@ -1,15 +1,41 @@
 /**
  * Held-write review view-model — shapes a raw `tool_call_log` held row (the
  * gate's `input_json` + `output_json`) into what a human reviewer needs: a
- * document header, a per-rate VAT rollup, and the human-readable reasons the
- * gate held it. Pure data shaping — no DB, no React, no `server-only` — so it
- * is unit-testable with plain fixtures and safely importable from both the
- * server page (`accounting-data.ts` rows) and the client inspector.
+ * document header, a per-rate VAT rollup, an MD/D posting preview, and the
+ * human-readable reasons the gate held it. Pure data shaping — no DB, no
+ * React, no `server-only` — so it is unit-testable with plain fixtures and
+ * safely importable from both the server page (`accounting-data.ts` rows) and
+ * the client inspector.
  *
  * Money stays a decimal STRING throughout (the domain transport, see
  * `_shared/accounting-format.ts`); this module never touches a bigint minor-
  * unit amount and never rounds-trips a displayed number back into a posting.
+ *
+ * [M1.3] MD/D preview (`buildMddPreview`) — "see how it booked MD/D" before
+ * approving. It is PURE and READ-ONLY: no posting, no persisted read of its
+ * own (any chart-of-accounts labels are passed in by the caller, already
+ * fetched once for the whole page). It reuses the EXISTING předkontace
+ * pipeline verbatim — `classifyEvent` (the law-cited decision layer,
+ * `packages/accounting/src/classify.ts`) picks the scenario, and
+ * `expandScenarioEntries` (the DB-free core `expandPartialRecord` also calls,
+ * `packages/accounting/src/predkontace/expand.ts`) turns it into lines — never
+ * a second, divergent expander. A raw `captureAccountingDocument` doesn't
+ * carry a `scenario` id (that only exists once M1.2's write-body wiring
+ * lands), so the preview RE-DERIVES it from the same facts `classify_accounting_event`
+ * would have seen; a durable asset's capitalisation and časové rozlišení
+ * (§3/1) can't be re-derived (a capture payload carries no `durable`/service-window
+ * facts), so those partials are skipped with an explicit caveat rather than
+ * guessed. A `createAccountingPosting` (kind "double") already IS the MD/D —
+ * its lines are shown verbatim, no scenario involved.
  */
+import {
+  classifyEvent,
+  expandScenarioEntries,
+  getScenario,
+  type Section92CommodityCode,
+  type SupplyKind,
+  type VatJurisdiction,
+} from "@workspace/accounting"
 
 /** One held write's `input_json` + `output_json`, as read by `fetchHeldWrites`. */
 export interface HeldWriteReviewSource {
@@ -45,6 +71,45 @@ export interface HeldWriteHeader {
   currency: string | null
 }
 
+/** Chart-of-accounts row the caller already fetched once for the whole page (`fetchChartAccounts`) — used ONLY to label an account number/id for display, never to compute the preview itself. */
+export interface ChartAccountLookup {
+  id: string
+  number: string
+  name: string
+}
+
+/** One MD/D preview line — an account NUMBER (never a raw uuid), the side, the amount, and a human label. */
+interface MddPreviewLine {
+  account: string
+  side: "DEBIT" | "CREDIT"
+  /** Decimal string, 2dp — DISPLAY ONLY (see module header). */
+  amount: string
+  /** Account name, or the předkontace entry's own description — null when neither resolves. */
+  label: string | null
+}
+
+/**
+ * [M1.3] MD/D posting preview for a held write — either the předkontace
+ * scenario re-derived from a raw capture's partials, or the verbatim lines of
+ * an already-proposed `createAccountingPosting`. Null when the tool/kind has
+ * no double-entry preview to show (an event, a monetary/cash posting, or a
+ * capture whose facts can't be classified at all).
+ */
+export interface MddPreview {
+  /** Předkontace scenario id — null for a direct posting (no scenario, already MD/D) or a multi-scenario capture. */
+  scenarioId: string | null
+  scenarioLabel: string | null
+  lines: MddPreviewLine[]
+  /** Decimal string, 2dp — sum of every DEBIT line. */
+  totalDebit: string
+  /** Decimal string, 2dp — sum of every CREDIT line. */
+  totalCredit: string
+  /** Σ(MD) = Σ(Dal) — always true for a verbatim posting; a re-derived capture preview should also balance (each scenario entry set does), a mismatch signals a classification/rounding issue worth flagging to the reviewer. */
+  balanced: boolean
+  /** Non-blocking caveats about what this preview does NOT model (e.g. capitalisation, časové rozlišení). */
+  caveats: string[]
+}
+
 export interface HeldWriteViewModel {
   id: string
   toolName: string
@@ -54,6 +119,8 @@ export interface HeldWriteViewModel {
   /** Human-readable reasons the gate HELD this write (server veto + score verdict). */
   holdReasons: string[]
   rationale: string | null
+  /** [M1.3] MD/D posting preview — null when this tool/kind has none (see `MddPreview`). */
+  mddPreview: MddPreview | null
 }
 
 export interface HeldWriteCaseGroup {
@@ -253,6 +320,197 @@ function vatSummaryFromPartials(
     }))
 }
 
+// ---------------------------------------------------------------------------
+// [M1.3] MD/D preview — see the module header for the reuse contract.
+// ---------------------------------------------------------------------------
+
+function accountByNumber(
+  accounts: ChartAccountLookup[],
+  number: string,
+): ChartAccountLookup | undefined {
+  return accounts.find((a) => a.number === number)
+}
+
+function accountById(
+  accounts: ChartAccountLookup[],
+  id: string,
+): ChartAccountLookup | undefined {
+  return accounts.find((a) => a.id === id)
+}
+
+/** Round to 2dp, half-away-from-zero — matches the §37 ZDPH self_assessed_vat convention. DISPLAY ONLY. */
+function round2dp(n: number): number {
+  return (Math.sign(n) * Math.round(Math.abs(n) * 100)) / 100
+}
+
+function finalizeMddPreview(
+  scenarioId: string | null,
+  scenarioLabel: string | null,
+  lines: MddPreviewLine[],
+  caveats: string[],
+): MddPreview {
+  const totalDebit = lines
+    .filter((l) => l.side === "DEBIT")
+    .reduce((s, l) => s + toNumber(l.amount), 0)
+  const totalCredit = lines
+    .filter((l) => l.side === "CREDIT")
+    .reduce((s, l) => s + toNumber(l.amount), 0)
+  return {
+    scenarioId,
+    scenarioLabel,
+    lines,
+    totalDebit: toDecimal(totalDebit),
+    totalCredit: toDecimal(totalCredit),
+    balanced: Math.abs(totalDebit - totalCredit) < 0.005,
+    caveats,
+  }
+}
+
+/**
+ * MD/D preview for an already-proposed `createAccountingPosting`. Its lines
+ * ARE the double entry — no scenario/expander involved, just resolve each
+ * `accountId` to a number/name for display (a "monetary" kind has no
+ * double-entry lines to preview — předkontace/MD-D is double-entry only, see
+ * `expand.ts`'s own doc comment).
+ */
+function mddPreviewFromPosting(
+  input: Record<string, unknown>,
+  chartAccounts: ChartAccountLookup[],
+): MddPreview | null {
+  if (input["kind"] !== "double") return null
+  const entry = isRecord(input["entry"]) ? input["entry"] : {}
+  const rawLines = Array.isArray(entry["lines"]) ? entry["lines"] : []
+  const lines: MddPreviewLine[] = rawLines.filter(isRecord).map((l) => {
+    const accountId = asString(l["accountId"]) ?? ""
+    const account = accountById(chartAccounts, accountId)
+    return {
+      account: account?.number ?? accountId,
+      side: l["side"] === "CREDIT" ? "CREDIT" : "DEBIT",
+      amount: typeof l["amount"] === "string" ? l["amount"] : "0.00",
+      label: account?.name ?? null,
+    }
+  })
+  if (lines.length === 0) return null
+  return finalizeMddPreview(null, null, lines, [])
+}
+
+/** `captureAccountingDocument.type` → the `direction` `classifyEvent` needs; null for a non-invoice document (bank statement, cash document, …) that doesn't book through předkontace. */
+function directionFromCaptureType(
+  type: string | null,
+): "RECEIVED" | "ISSUED" | null {
+  if (type === "RECEIVED_INVOICE") return "RECEIVED"
+  if (type === "ISSUED_INVOICE") return "ISSUED"
+  return null
+}
+
+/**
+ * MD/D preview for a raw `captureAccountingDocument` — no scenario id on the
+ * payload yet (that only exists once M1.2's write-body wiring lands), so this
+ * RE-DERIVES the scenario via `classifyEvent` fed with exactly the facts a
+ * partial carries, then expands it via `expandScenarioEntries` (the SAME
+ * pure core `expandPartialRecord` uses — see the module header). Amounts are
+ * computed in JS from the partial's own decimal strings (DISPLAY ONLY, no
+ * persisted read, no posting — matches the existing `toNumber`/`toDecimal`
+ * convention already used for the VAT-rollup above).
+ *
+ * A durable-asset purchase (`supplyKind: "ASSET"`) is SKIPPED rather than
+ * guessed: capitalisation depends on `durable`/`assetThreshold`, neither of
+ * which a capture payload carries, so a confident 501/518-vs-042 preview
+ * would risk showing the WRONG account to the reviewer. časové rozlišení
+ * (§3/1) is never modeled here either (no serviceWindow/periodEnd on a
+ * capture) — both gaps are surfaced as caveats, not silently guessed.
+ */
+function mddPreviewFromCapture(
+  input: Record<string, unknown>,
+  partials: Record<string, unknown>[],
+  chartAccounts: ChartAccountLookup[],
+): MddPreview | null {
+  const direction = directionFromCaptureType(asString(input["type"]))
+  if (!direction) return null
+
+  const caveats = [
+    "Náhled je odvozen ze zachycených údajů dokladu (classifyEvent) — nezohledňuje časové rozlišení mezi obdobími (§3/1); skutečné zaúčtování rozhoduje classify_accounting_event.",
+  ]
+  const lines: MddPreviewLine[] = []
+  const scenarioIds = new Set<string>()
+  let skippedAsset = false
+
+  for (const p of partials) {
+    const supplyKind = (asString(p["supplyKind"]) ?? "OTHER") as SupplyKind
+    if (supplyKind === "ASSET") {
+      skippedAsset = true
+      continue
+    }
+    const jurisdiction = (asString(p["vatJurisdiction"]) ??
+      "DOMESTIC") as VatJurisdiction
+    const baseAmount =
+      typeof p["baseAmount"] === "string" ? p["baseAmount"] : "0"
+    const vatAmount = typeof p["vatAmount"] === "string" ? p["vatAmount"] : "0"
+    // Credit-note/rounding partials may be signed (SignedDecimal) — the
+    // předkontace catalogue's credit-note scenarios already encode the
+    // reversed sides, so the entry AMOUNTS themselves are magnitudes (the
+    // caller flips a negative document total to positive before posting;
+    // see catalogue.ts's S-/P-CREDIT-NOTE-STD comments).
+    const base = Math.abs(toNumber(baseAmount))
+    const vat = Math.abs(toNumber(vatAmount))
+    const vatRate = asString(p["vatRate"])
+    const commodityCode = asString(
+      p["commodityCode"],
+    ) as Section92CommodityCode | null
+
+    let decision
+    try {
+      decision = classifyEvent({
+        direction,
+        supplyKind,
+        jurisdiction,
+        base: base.toFixed(2),
+        vat: vat.toFixed(2),
+        vatRate,
+        currency: asString(p["currencyCode"]) ?? "CZK",
+        commodityCode: commodityCode ?? undefined,
+      })
+    } catch {
+      // Unclassifiable (e.g. an implausible vat_rate the agent proposed) —
+      // skip this partial's preview line, keep the rest of the document.
+      continue
+    }
+
+    const rate = vatRate ? Number(vatRate) : 0
+    const amounts = {
+      net: base.toFixed(2),
+      vat: vat.toFixed(2),
+      gross: (base + vat).toFixed(2),
+      self_assessed_vat: round2dp((base * rate) / 100).toFixed(2),
+    }
+    const scenarioLines = expandScenarioEntries(decision.scenario, amounts, {
+      accountOverrides: decision.accountOverrides,
+    })
+    scenarioIds.add(decision.scenario)
+    for (const line of scenarioLines) {
+      const account = accountByNumber(chartAccounts, line.account)
+      lines.push({
+        account: line.account,
+        side: line.side,
+        amount: line.amount,
+        label: line.description ?? account?.name ?? null,
+      })
+    }
+  }
+
+  if (skippedAsset) {
+    caveats.push(
+      "Dlouhodobý majetek (ASSET) v položkách dokladu — kapitalizace se u náhledu nezachycuje, protože zachycený doklad nenese informaci o době použitelnosti.",
+    )
+  }
+  if (lines.length === 0) return null
+
+  const [firstScenario] = scenarioIds
+  const scenarioId = scenarioIds.size === 1 ? (firstScenario ?? null) : null
+  const scenarioLabel = scenarioId ? getScenario(scenarioId).label : null
+  return finalizeMddPreview(scenarioId, scenarioLabel, lines, caveats)
+}
+
 function headerFromEvent(
   input: Record<string, unknown>,
   counterpartyName: string | null,
@@ -311,27 +569,34 @@ function headerFromPosting(
 
 /**
  * Shape ONE held-write row into its review view-model: document header,
- * per-rate VAT summary, why-held reasons, and the rationale. `conversationId`
- * is carried through untouched so callers can group sibling writes for the
- * same účetní případ (see `groupHeldWritesByCase`).
+ * per-rate VAT summary, an MD/D posting preview, why-held reasons, and the
+ * rationale. `conversationId` is carried through untouched so callers can
+ * group sibling writes for the same účetní případ (see
+ * `groupHeldWritesByCase`). `chartAccounts` is optional and used ONLY to
+ * label an account number/id for display in the MD/D preview — the page
+ * fetches it once (`fetchChartAccounts`) and passes it to every row.
  */
 export function buildHeldWriteViewModel(
   row: HeldWriteReviewSource,
+  chartAccounts: ChartAccountLookup[] = [],
 ): HeldWriteViewModel {
   const input = isRecord(row.input_json) ? row.input_json : {}
 
   let header: HeldWriteHeader
   let vatSummary: HeldWriteVatSummaryRow[] = []
+  let mddPreview: MddPreview | null = null
 
   switch (row.tool_name) {
     case "captureAccountingDocument": {
       const partials = capturePartials(input)
       header = headerFromCapture(input, partials, row.counterparty_name)
       vatSummary = vatSummaryFromPartials(partials)
+      mddPreview = mddPreviewFromCapture(input, partials, chartAccounts)
       break
     }
     case "createAccountingPosting":
       header = headerFromPosting(input, row.counterparty_name)
+      mddPreview = mddPreviewFromPosting(input, chartAccounts)
       break
     case "createAccountingEvent":
     default:
@@ -347,6 +612,7 @@ export function buildHeldWriteViewModel(
     vatSummary,
     holdReasons: holdReasonsFrom(row.output_json),
     rationale: row.rationale,
+    mddPreview,
   }
 }
 

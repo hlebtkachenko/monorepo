@@ -28,7 +28,6 @@ import {
   draftFromRow,
   draftToEdit,
   HeldWriteEditFields,
-  PostingLinesTable,
   type AccountOption,
   type HeldWriteEditDraft,
 } from "./edit-panel"
@@ -36,6 +35,7 @@ import type {
   HeldWriteHeader,
   HeldWritePostingLineRow,
   HeldWriteVatSummaryRow,
+  MddPreview,
 } from "./view-model"
 
 export type { AccountOption } from "./edit-panel"
@@ -66,6 +66,8 @@ export interface HeldWriteListRow {
   header: HeldWriteHeader
   /** Per-VAT-rate base/VAT rollup — empty when the tool has no VAT lines (events, postings). */
   vat_summary: HeldWriteVatSummaryRow[]
+  /** [M1.3] MD/D posting preview — null when this tool/kind has none (events, monetary postings, unclassifiable captures). */
+  mdd_preview: MddPreview | null
   /** Human-readable reasons the gate HELD this write. */
   hold_reasons: string[]
   /** [M1.7] Double-entry posting lines (accountId/side/amount) — empty unless kind "double". */
@@ -453,6 +455,87 @@ function VatSummaryTable({
   )
 }
 
+/**
+ * [M1.3] MD/D posting preview — "see how it booked MD/D" before approving.
+ * Renders the předkontace scenario label (when re-derived from a raw
+ * capture), the account/side/amount/label lines, the Σ(MD)=Σ(Dal) balance
+ * check, and any non-blocking caveats about what the preview does NOT model
+ * (see `buildMddPreview` in `view-model.ts`). Null `mddPreview` renders
+ * nothing — an event, a monetary/cash posting, and an unclassifiable capture
+ * have no MD/D to preview.
+ */
+function MddPreviewPanel({
+  preview,
+  currency,
+}: {
+  preview: MddPreview | null
+  currency: string | null
+}) {
+  if (!preview || preview.lines.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">
+        Náhled MD/D
+        {preview.scenarioLabel ? ` — ${preview.scenarioLabel}` : null}
+      </span>
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="text-muted-foreground">Účet</TableHead>
+            <TableHead className="text-muted-foreground">MD/D</TableHead>
+            <TableHead className="text-right text-muted-foreground">
+              Částka
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {preview.lines.map((line, i) => (
+            <TableRow
+              key={`${line.account}-${i}`}
+              className="hover:bg-transparent"
+            >
+              <TableCell>
+                {line.account}
+                {line.label ? (
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {line.label}
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell>{line.side === "DEBIT" ? "MD" : "Dal"}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatCaseAmount(line.amount, currency)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <div className="flex items-center justify-between text-xs">
+        <span
+          className={
+            preview.balanced ? "text-muted-foreground" : "text-destructive"
+          }
+        >
+          {preview.balanced
+            ? "Vyrovnáno (Σ MD = Σ Dal)"
+            : "Nevyrovnáno — zkontrolujte prosím"}
+        </span>
+        <span className="text-muted-foreground tabular-nums">
+          MD {formatCaseAmount(preview.totalDebit, currency)} / Dal{" "}
+          {formatCaseAmount(preview.totalCredit, currency)}
+        </span>
+      </div>
+      {preview.caveats.length > 0 ? (
+        <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {preview.caveats.map((caveat) => (
+            <li key={caveat}>{caveat}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 /** Human-readable reasons the gate HELD this write — from `output_json.serverGate`. */
 function HoldReasonsList({ reasons }: { reasons: string[] }) {
   if (reasons.length === 0) return null
@@ -497,14 +580,15 @@ function CaseSiblingsList({ writes }: { writes: HeldWriteListRow[] }) {
 
 /**
  * Inspector detail for a single held write, with approve/reject resolution.
- * Renders the document header, per-rate VAT summary, why-held reasons, and
- * the rationale — no raw JSON. `caseWrites` are sibling held writes sharing
- * this write's `conversationId` (the účetní případ), rendered together so a
- * reviewer sees the whole case, not just one isolated write.
+ * Renders the document header, per-rate VAT summary, an MD/D posting preview,
+ * why-held reasons, and the rationale — no raw JSON. `caseWrites` are sibling
+ * held writes sharing this write's `conversationId` (the účetní případ),
+ * rendered together so a reviewer sees the whole case, not just one isolated
+ * write.
  *
- * [M1.7] "Upravit" toggles an edit form over the header/VAT/posting-lines
- * display (`edit-panel.tsx`); approving while it's open sends the edited
- * payload through the SAME `resolveHeldWrite` approve path (see
+ * [M1.7] "Upravit" toggles an edit form over the header/VAT/MD-D display
+ * (`edit-panel.tsx`); approving while it's open sends the edited payload
+ * through the SAME `resolveHeldWrite` approve path (see
  * `HeldWriteResolveActions`). `accounts` feeds the posting-line account
  * picker (a `createAccountingPosting`'s `accountId` is a raw uuid).
  *
@@ -600,7 +684,10 @@ export function HeldWriteDetail({
             rows={row.vat_summary}
             currency={row.header.currency}
           />
-          <PostingLinesTable rows={row.posting_lines} accounts={accounts} />
+          <MddPreviewPanel
+            preview={row.mdd_preview}
+            currency={row.header.currency}
+          />
         </>
       )}
       <HoldReasonsList reasons={row.hold_reasons} />

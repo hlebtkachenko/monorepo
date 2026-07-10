@@ -5,7 +5,10 @@ import type {
   AccountOption,
   HeldWriteListRow,
 } from "../../../_components/held-writes/columns"
-import { buildHeldWriteViewModel } from "../../../_components/held-writes/view-model"
+import {
+  buildHeldWriteViewModel,
+  type ChartAccountLookup,
+} from "../../../_components/held-writes/view-model"
 import {
   fetchChartAccounts,
   fetchHeldWrites,
@@ -35,15 +38,24 @@ export default async function ApprovalsPage({
   const { orgSlug } = await params
   const ctx = await getOrgAccountingContext(orgSlug)
   const held = ctx ? await fetchHeldWrites(ctx) : []
-  const chartAccounts = ctx ? await fetchChartAccounts(ctx) : []
+  // Fetched ONCE for the whole page — the MD/D preview uses it only to label
+  // an account number/id for display, never to compute the preview itself.
+  const chartAccountRows = ctx ? await fetchChartAccounts(ctx) : []
+  const chartAccounts: ChartAccountLookup[] = chartAccountRows.map((a) => ({
+    id: a.id,
+    number: a.number,
+    name: a.name,
+  }))
 
-  const accounts: AccountOption[] = chartAccounts.map((a) => ({
+  // [M1.7] Edit-before-approve account picker options — a double-entry posting
+  // line's accountId is a raw uuid, so the reviewer picks by number/name.
+  const accounts: AccountOption[] = chartAccountRows.map((a) => ({
     id: a.id,
     label: `${a.number} — ${a.name}`,
   }))
 
   const rows: HeldWriteListRow[] = held.map((row) => {
-    const review = buildHeldWriteViewModel(row)
+    const review = buildHeldWriteViewModel(row, chartAccounts)
     return {
       id: row.id,
       tool_name: row.tool_name,
@@ -59,6 +71,7 @@ export default async function ApprovalsPage({
       hold_reasons: review.holdReasons,
       posting_lines: review.postingLines,
       posting_kind: review.postingKind,
+      mdd_preview: review.mddPreview,
       template_id: row.template_id,
       template_confirmed: row.template_confirmed,
     }

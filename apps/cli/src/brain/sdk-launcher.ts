@@ -23,14 +23,18 @@ import {
   type PermissionResult,
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk"
-import type {
-  AgentSessionLaunchOptions,
-  AgentSessionLauncher,
-  BrainDryRunPlan,
-  LiveBrainSessionResult,
+import {
+  applyClassifyToCapture,
+  parseClassifyThreading,
+  type AgentSessionLaunchOptions,
+  type AgentSessionLauncher,
+  type BrainDryRunPlan,
+  type ClassifyThreading,
+  type LiveBrainSessionResult,
 } from "@workspace/intake"
 import {
   CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
+  CLASSIFY_ACCOUNTING_EVENT_TOOL,
   buildBrainKickoff,
   buildBrainQueryOptions,
   buildBrainSessionEnv,
@@ -48,6 +52,7 @@ import {
   type ExtractDocumentBlock,
   type ExtractSessionInputs,
 } from "./extract-config"
+import type { TextLayerSignal } from "./extraction-engine"
 
 /**
  * DEFAULT-DENY permission gate factory shared by BOTH lanes. It builds a `canUseTool` that allows a call only
@@ -95,10 +100,19 @@ export function resolveMcpBridge(): McpBridgeSpawn {
 export function makeSandboxGate(
   allows: (toolName: string) => boolean,
   denyMessage: (toolName: string) => string,
+  rewriteInput?: (
+    toolName: string,
+    input: Parameters<CanUseTool>[1],
+  ) => Parameters<CanUseTool>[1],
 ): CanUseTool {
   return (toolName, input): Promise<PermissionResult> => {
     if (allows(toolName)) {
-      return Promise.resolve({ behavior: "allow", updatedInput: input })
+      // The `updatedInput` seam is the ONE deterministic place the HARNESS may rewrite an allowed tool's input
+      // before it runs (the model never sees or authors this rewrite). Absent a rewriter it is the identity
+      // (input echoed back verbatim, unchanged legacy behavior). The RUN lane uses it to thread the server's
+      // classify treatment onto the capture write, narrow-only (see `makeCanUseTool`).
+      const updatedInput = rewriteInput ? rewriteInput(toolName, input) : input
+      return Promise.resolve({ behavior: "allow", updatedInput })
     }
     return Promise.resolve({ behavior: "deny", message: denyMessage(toolName) })
   }
@@ -108,12 +122,25 @@ export function makeSandboxGate(
  * The RUN lane's default-deny gate: allowed only when the pinned per-TOOL `isToolAllowed` against the plan's
  * accounting policy says so; everything else (`resolve_accounting_held_write`, `list_accounting_held_writes`,
  * an off-list `afframe` tool, a foreign server, an empty name) is denied.
+ *
+ * `getClassifyThreading` (optional) supplies the server's recorded `classify_accounting_event` treatment. When
+ * present, the gate THREADS it onto the `capture_accounting_document` input via the deterministic `updatedInput`
+ * seam — HARNESS-applied, NARROW-ONLY (`applyClassifyToCapture` may only move a partial toward held; it never
+ * widens an adapter-held row into STANDARD, and never touches the amounts). The MODEL never edits the payload;
+ * a missing/undefined threading is the identity (the capture keeps the adapter's conservative treatment).
  */
-export function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
+export function makeCanUseTool(
+  plan: BrainDryRunPlan,
+  getClassifyThreading?: () => ClassifyThreading | undefined,
+): CanUseTool {
   return makeSandboxGate(
     (toolName) => sandboxAllows(toolName, plan),
     (toolName) =>
       `Brain sandbox denies ${toolName}: default-deny, not in the pinned accounting allowlist.`,
+    (toolName, input) =>
+      toolName === CAPTURE_ACCOUNTING_DOCUMENT_TOOL && getClassifyThreading
+        ? applyClassifyToCapture(input, getClassifyThreading())
+        : input,
   )
 }
 
@@ -139,34 +166,46 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
     // status, and discarding it here is exactly what would let a dropped document be mis-recorded as HELD.
     let captureResultText: string | undefined
     let captureIsError = false
+    // The SERVER's classify_accounting_event result, recorded from its tool_result so the capture gate can
+    // thread its treatment onto the write body (narrow-only). classify is an ORDERED step BEFORE the capture
+    // (see buildBrainKickoff): under the SDK's message-stream semantics its tool_result is consumed by this
+    // loop before the capture tool_use requests permission, so `classifyThreading` is populated by the time the
+    // capture `canUseTool` runs. It stays undefined if classify never ran / errored / was unparseable — then
+    // the merge is the identity and the capture keeps the adapter's already-conservative treatment (fail-safe).
+    let classifyToolUseId: string | undefined
+    let classifyThreading: ClassifyThreading | undefined
 
     for await (const message of query({
       prompt: buildBrainKickoff(options.plan, options.idempotencyKey),
       options: {
         ...queryOptions,
-        canUseTool: makeCanUseTool(options.plan),
+        canUseTool: makeCanUseTool(options.plan, () => classifyThreading),
         env: buildBrainSessionEnv(process.env, options.agentSdkAuth),
       },
     })) {
       if (message.type === "assistant") {
         for (const block of message.message.content) {
-          if (
-            block.type === "tool_use" &&
-            block.name === CAPTURE_ACCOUNTING_DOCUMENT_TOOL
-          ) {
-            captureToolUseId = block.id
+          if (block.type === "tool_use") {
+            if (block.name === CAPTURE_ACCOUNTING_DOCUMENT_TOOL) {
+              captureToolUseId = block.id
+            } else if (block.name === CLASSIFY_ACCOUNTING_EVENT_TOOL) {
+              classifyToolUseId = block.id
+            }
           }
         }
       } else if (message.type === "user") {
         const content = message.message.content
         if (Array.isArray(content)) {
           for (const block of content) {
-            if (
-              block.type === "tool_result" &&
-              block.tool_use_id === captureToolUseId
-            ) {
+            if (block.type !== "tool_result") continue
+            if (block.tool_use_id === captureToolUseId) {
               captureResultText = readToolResultText(block.content)
               captureIsError = block.is_error === true
+            } else if (block.tool_use_id === classifyToolUseId) {
+              // Server-authoritative treatment. A malformed/errored body parses to undefined → identity merge.
+              classifyThreading = parseClassifyThreading(
+                readToolResultText(block.content),
+              )
             }
           }
         }
@@ -238,10 +277,14 @@ export interface ExtractSessionResult {
  * Build the one-message `AsyncIterable<SDKUserMessage>` the extract session boots with: the fixed kickoff
  * text plus the operator-named file as an image/document content block. The bytes ride in the message
  * content, NOT through any tool — this is the whole point of the extract lane's safety design.
+ *
+ * [M1.5] `textLayer` (optional, already resolved by the caller — see `./markitdown-adapter`) rides into the
+ * SAME kickoff text as untrusted supplementary context; it never changes the content block itself.
  */
 async function* extractPromptStream(
   document: ExtractDocumentBlock,
   supplierHint?: string,
+  textLayer?: TextLayerSignal | null,
 ): AsyncIterable<SDKUserMessage> {
   const source = { type: "base64" as const, data: document.base64 }
   const contentBlock =
@@ -265,7 +308,7 @@ async function* extractPromptStream(
     message: {
       role: "user",
       content: [
-        { type: "text", text: buildExtractKickoff(supplierHint) },
+        { type: "text", text: buildExtractKickoff(supplierHint, textLayer) },
         contentBlock,
       ],
     },
@@ -293,7 +336,11 @@ export async function sdkExtractSession(
   let report = ""
 
   for await (const message of query({
-    prompt: extractPromptStream(options.document, options.session.supplierHint),
+    prompt: extractPromptStream(
+      options.document,
+      options.session.supplierHint,
+      options.session.textLayer,
+    ),
     options: {
       ...queryOptions,
       canUseTool: makeExtractCanUseTool(),

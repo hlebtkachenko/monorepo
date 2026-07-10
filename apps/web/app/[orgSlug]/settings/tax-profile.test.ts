@@ -64,7 +64,7 @@ vi.mock("../_lib/request-session", () => ({
 }))
 
 let loadTaxProfile: (typeof import("./_lib/settings-data"))["loadTaxProfile"]
-let resolveOrgContext: (typeof import("./_lib/settings-data"))["resolveOrgContext"]
+let resolveOrgContext: (typeof import("../_lib/org-authz"))["resolveOrgContext"]
 let getClosingObligations: (typeof import("../closing/_lib/closing-data"))["getClosingObligations"]
 let adminClient: (typeof import("@workspace/db/tests/fixtures"))["adminClient"]
 let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
@@ -246,8 +246,8 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   ;({ adminClient, truncateAll } = await import("@workspace/db/tests/fixtures"))
-  ;({ loadTaxProfile, resolveOrgContext } =
-    await import("./_lib/settings-data"))
+  ;({ loadTaxProfile } = await import("./_lib/settings-data"))
+  ;({ resolveOrgContext } = await import("../_lib/org-authz"))
   ;({ getClosingObligations } = await import("../closing/_lib/closing-data"))
   sql = adminClient()
   await cleanup()

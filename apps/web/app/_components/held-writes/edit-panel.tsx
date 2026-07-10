@@ -120,50 +120,6 @@ export function draftToEdit(
   return edit
 }
 
-function accountLabel(accounts: AccountOption[], accountId: string): string {
-  return accounts.find((a) => a.id === accountId)?.label ?? accountId
-}
-
-/** Read-only double-entry posting lines — account/side/amount, never shown before M1.7. */
-export function PostingLinesTable({
-  rows,
-  accounts,
-}: {
-  rows: HeldWritePostingLineRow[]
-  accounts: AccountOption[]
-}) {
-  if (rows.length === 0) return null
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted-foreground">
-        Zápisy (MD/D)
-      </span>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="text-muted-foreground">Účet</TableHead>
-            <TableHead className="text-muted-foreground">Strana</TableHead>
-            <TableHead className="text-right text-muted-foreground">
-              Částka
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((line, i) => (
-            <TableRow key={i} className="hover:bg-transparent">
-              <TableCell>{accountLabel(accounts, line.accountId)}</TableCell>
-              <TableCell>{line.side === "DEBIT" ? "MD" : "Dal"}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                {line.amount}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
 /** The editable date field — replaces the read-only "Datum" row while editing. */
 function DateEditField({
   value,

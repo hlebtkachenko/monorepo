@@ -93,10 +93,11 @@ describe("planBrainDryRun (creds-free)", () => {
     ).not.toThrow()
     expect(plan.captureRequest.type).toBe("RECEIVED_INVOICE")
 
-    // The plan reads structure/series, then proposes exactly one write.
+    // The plan reads structure/series, classifies the reasoned facts (M1.2), then proposes exactly one write.
     expect(plan.toolPlan.map((c) => c.toolName)).toEqual([
       "mcp__afframe__get_structure",
       "mcp__afframe__list_accounting_number_series",
+      "mcp__afframe__classify_accounting_event",
       "mcp__afframe__capture_accounting_document",
     ])
     // Every planned tool is allowed by the pinned sandbox (the plan never schedules a denied tool).
@@ -108,6 +109,13 @@ describe("planBrainDryRun (creds-free)", () => {
     const write = plan.toolPlan.at(-1)!
     expect(write.toolName).toBe("mcp__afframe__capture_accounting_document")
     expect(write.input).toBe(plan.captureRequest)
+    // classify is scheduled BEFORE the write — reason/classify, then propose (never the reverse).
+    const classify = plan.toolPlan.find(
+      (c) => c.toolName === "mcp__afframe__classify_accounting_event",
+    )!
+    expect(plan.toolPlan.indexOf(classify)).toBeLessThan(
+      plan.toolPlan.indexOf(write),
+    )
   })
 
   it("is deterministic — identical inputs yield an identical plan", () => {
@@ -146,10 +154,11 @@ describe("planForCapture (shared skeleton, any record kind)", () => {
     // The write body is the EXACT passed request — no re-derivation, no skeleton swap.
     expect(plan.captureRequest).toBe(captureRequest)
     expect(plan.policy).toBe(BRAIN_ACCOUNTING_POLICY)
-    // The fixed read → propose sequence is assembled around whatever request it is handed.
+    // The fixed read → classify → propose sequence is assembled around whatever request it is handed.
     expect(plan.toolPlan.map((c) => c.toolName)).toEqual([
       "mcp__afframe__get_structure",
       "mcp__afframe__list_accounting_number_series",
+      "mcp__afframe__classify_accounting_event",
       "mcp__afframe__capture_accounting_document",
     ])
     // The write call carries the passed request verbatim (the operator-inspect-then-embed property).

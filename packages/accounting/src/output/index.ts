@@ -38,6 +38,13 @@ export {
   type DppoInput,
 } from "./dppo"
 export {
+  loadDppoAdjustments,
+  saveDppoAdjustments,
+  type DppoAdjustmentKey,
+  type DppoAdjustmentEntry,
+  type DppoAdjustmentSaveInput,
+} from "./dppo-adjustments"
+export {
   resolveDppoRate,
   type DppoRateResolution,
   type DppoTaxpayerCategory,

@@ -25,6 +25,7 @@ import {
   runLiveBrainSession,
   type BrainDryRunInputs,
   type BrainDryRunPlan,
+  type OnboardingPlan,
 } from "@workspace/intake"
 import { assembleLoginSections } from "@workspace/brain"
 import type {
@@ -55,7 +56,12 @@ import {
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
-import { fetchOnboardingPlan, renderOnboardingPlan } from "./onboard"
+import {
+  executeOnboardingPlan,
+  fetchOnboardingPlan,
+  renderOnboardingExecuteResults,
+  renderOnboardingPlan,
+} from "./onboard"
 import { renderLiveResult } from "./session-config"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
@@ -292,18 +298,50 @@ export function registerBrainCommand(program: Command): void {
     .description(
       "Discover whether this organization is bookable (an OPEN accounting period + a DOCUMENT/EVENT " +
         "number series) and, if not, print the exact create_accounting_period/create_number_series calls " +
-        "that would fix it. READ-ONLY: two GETs, no writes, no agent session — the create calls are " +
-        "PROPOSED, never executed. Needs only BRAIN_API_KEY.",
+        "that would fix it. READ-ONLY by default: two GETs, no writes, no agent session — the create " +
+        "calls are PROPOSED, never executed. Only with --execute (+ explicit confirmation) are they " +
+        "actually POSTed, immediately applied, via the operator's own BRAIN_API_KEY. Needs only BRAIN_API_KEY.",
     )
-    .action(async () => {
+    .option(
+      "--execute",
+      "Actually run the proposed create calls (immediately-applied writes) after an explicit confirmation. " +
+        "Default is print-only.",
+    )
+    .action(async (opts: { execute?: boolean }) => {
       const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
       if (!apiKey) {
         output.write("brain onboard blocked: missing BRAIN_API_KEY.\n")
         process.exit(1)
       }
       const today = new Date().toISOString().slice(0, 10)
-      const plan = await fetchOnboardingPlan(apiKey, mcpEndpoint, today)
+      const { plan, client } = await fetchOnboardingPlan(
+        apiKey,
+        mcpEndpoint,
+        today,
+      )
       output.write(renderOnboardingPlan(plan))
+
+      if (!opts.execute) return
+
+      if (plan.proposedCalls.length === 0) {
+        output.write("brain onboard: nothing to execute — already bookable.\n")
+        return
+      }
+
+      const results = await executeOnboardingPlan(
+        plan,
+        client,
+        confirmOnboardingExecute,
+      )
+      if (results === null) {
+        output.write("brain onboard: aborted, nothing executed.\n")
+        return
+      }
+
+      output.write("\n" + renderOnboardingExecuteResults(results))
+      if (results.some((result) => result.status === "failed")) {
+        process.exitCode = 1
+      }
     })
 }
 
@@ -679,6 +717,35 @@ async function confirmLiveRun(count: number): Promise<boolean> {
   const answer = (
     await rl.question(
       `Run ${count} live booking session(s) with the plan above? [y/N]: `,
+    )
+  )
+    .trim()
+    .toLowerCase()
+  rl.close()
+  return answer === "y" || answer === "yes"
+}
+
+/**
+ * The `brain onboard --execute` confirmation gate — mirrors `confirmLiveRun` above exactly (same TTY check,
+ * same fail-closed non-interactive default, same `readline` prompt shape), but names EXACTLY what will be
+ * created: these are immediately-applied writes (a 201 on success, not a review-queue HELD), so the prompt
+ * spells out each proposed call's tool name before asking. Returns true only on an explicit yes.
+ */
+async function confirmOnboardingExecute(plan: OnboardingPlan): Promise<boolean> {
+  if (!input.isTTY) {
+    output.write(
+      "brain onboard: non-interactive and no confirmation possible — refusing to execute without one.\n",
+    )
+    return false
+  }
+  const summary = plan.proposedCalls
+    .map((call, index) => `  [${index + 1}] ${call.tool} — ${call.purpose}`)
+    .join("\n")
+  const rl = createInterface({ input, output })
+  const answer = (
+    await rl.question(
+      `This will CREATE the following (immediately applied, not a dry run):\n${summary}\n` +
+        `Proceed? [y/N]: `,
     )
   )
     .trim()

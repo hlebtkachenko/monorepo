@@ -335,6 +335,12 @@ export function registerBrainCommand(program: Command): void {
       )
       if (results === null) {
         output.write("brain onboard: aborted, nothing executed.\n")
+        // Work was pending (proposedCalls > 0, checked above) but nothing was
+        // created. A NON-TTY run auto-refused the confirm (fail-closed) — signal
+        // non-zero so automation can tell "refused, nothing created" from the
+        // exit-0 "already bookable" path above. An INTERACTIVE decline (user
+        // typed "n") stays exit 0: the operator deliberately chose not to.
+        if (!input.isTTY) process.exitCode = 1
         return
       }
 
@@ -731,7 +737,9 @@ async function confirmLiveRun(count: number): Promise<boolean> {
  * created: these are immediately-applied writes (a 201 on success, not a review-queue HELD), so the prompt
  * spells out each proposed call's tool name before asking. Returns true only on an explicit yes.
  */
-async function confirmOnboardingExecute(plan: OnboardingPlan): Promise<boolean> {
+export async function confirmOnboardingExecute(
+  plan: OnboardingPlan,
+): Promise<boolean> {
   if (!input.isTTY) {
     output.write(
       "brain onboard: non-interactive and no confirmation possible — refusing to execute without one.\n",

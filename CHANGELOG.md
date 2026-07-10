@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- One-shot scheduled deploy workflow: staging then production from latest main at 10:00 Europe/Prague on 2026-07-11
+
 ## [v0.17.6] — 2026-07-10
 
 Patch release: dependency maintenance (production + dev + infra image + GitHub Actions bumps, all within-major) plus Dependabot workflow hardening (changelog-gate exemption, cooldown/labels/PR-limit config) and an AWS deploy-time reduction.

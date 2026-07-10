@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **accounting/annual**: capture and persist the provenanced DPPO worksheet inputs (taxpayer category + the six §25/§18a/§19/§34/§35/§38a adjustments) per accounting period via a new `dppo_annual_adjustment` table and an owner/admin edit form on the Corporation tax page, so `buildDppo` computes instead of only reporting NEEDS_INPUT.
 - scripts/bot-dev-vars.sh materializes apps/bot/.dev.vars INGEST_SECRET from Vault/SSM, with docs and rotation path (#398)
 
 ## [v0.17.3] — 2026-07-10

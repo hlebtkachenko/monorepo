@@ -88,6 +88,42 @@ function assertIssuedExportIsExempt(p: PartialRecordInput): void {
   }
 }
 
+/**
+ * Boundary guard on the SECTION_108 place-of-supply marker: §108 is a
+ * self-assessment on RECEIPT (place of supply CZ, supplier not established in
+ * tuzemsko → the Czech recipient přiznává daň při přijetí, DPH ř.12/13). It is
+ * definitionally a received-side plnění, so it MUST NOT sit on an ISSUED
+ * invoice. Rejecting it here keeps a stray SECTION_108 off the issued domestic
+ * §92 PDP line (ř.25) + KH A.1 and makes the received-only invariant
+ * DB-consistent (buildDph's ř.12/13 filter is RECEIVED_INVOICE only). Same guard
+ * shape as the #541 (EU) / #566 (export) issued-side siblings.
+ */
+function assertSection108IsReceived(p: PartialRecordInput): void {
+  if (p.vatJurisdiction === "SECTION_108") {
+    throw new Error(
+      "accounting: SECTION_108 (§108 samovyměření při přijetí) is a received-side jurisdiction — it cannot sit on an ISSUED invoice (#540)",
+    )
+  }
+}
+
+/**
+ * Boundary guard: a §92 kód předmětu plnění (commodityCode) belongs ONLY on a
+ * DOMESTIC §92 PDP row — it is meaningless on a SECTION_108 (§108 residual
+ * self-assessment) row. The two land on different kontrolní hlášení sections
+ * (A.1/B.1 domestic PDP vs A.2 self-assessment, kontrolni-hlaseni.ts) and only
+ * A.1/B.1 has a kód field. The DB CHECK (partial_record_commodity_code_rc_chk,
+ * migration 0046, tightened by 0056) is the authoritative backstop; this guard
+ * gives a friendlier error at the capture boundary instead of a raw
+ * constraint-violation message (#540).
+ */
+function assertNoCommodityCodeOnSection108(p: PartialRecordInput): void {
+  if (p.vatJurisdiction === "SECTION_108" && p.commodityCode != null) {
+    throw new Error(
+      `accounting: a §92 kód předmětu plnění (commodityCode) cannot sit on a SECTION_108 partial — §92 domestic PDP (KH A.1/B.1) and §108 residual self-assessment (KH A.2) are different kontrolní hlášení lines — got commodityCode "${p.commodityCode}" (#540)`,
+    )
+  }
+}
+
 /** Create an účetní případ — the economic fact (§6/1). Allocates the Označení. */
 export async function createEvent(
   db: RowExecutor,
@@ -181,7 +217,9 @@ export async function captureDocument(
       if (input.type === "ISSUED_INVOICE") {
         assertIssuedEuIsReverseCharge(p)
         assertIssuedExportIsExempt(p)
+        assertSection108IsReceived(p)
       }
+      assertNoCommodityCodeOnSection108(p)
       partialRecordIds.push(
         await insertPartial(db, ctx, indiv.id, p, accountingCurrency),
       )

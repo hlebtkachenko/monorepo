@@ -33,6 +33,10 @@ import { registerGetAccount } from "./getAccount"
 import { registerListOcrTemplates } from "./listOcrTemplates"
 import { registerCreateOcrTemplate } from "./createOcrTemplate"
 import { registerConfirmOcrTemplate } from "./confirmOcrTemplate"
+import { registerListBookingTemplates } from "./listBookingTemplates"
+import { registerCreateBookingTemplate } from "./createBookingTemplate"
+import { registerConfirmBookingTemplate } from "./confirmBookingTemplate"
+import { registerMatchBookingTemplate } from "./matchBookingTemplate"
 import { registerListAccountingPeriods } from "./listAccountingPeriods"
 import { registerCreateAccountingPeriod } from "./createAccountingPeriod"
 
@@ -69,6 +73,10 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerListOcrTemplates(server, client)
   registerCreateOcrTemplate(server, client)
   registerConfirmOcrTemplate(server, client)
+  registerListBookingTemplates(server, client)
+  registerCreateBookingTemplate(server, client)
+  registerConfirmBookingTemplate(server, client)
+  registerMatchBookingTemplate(server, client)
   registerListAccountingPeriods(server, client)
   registerCreateAccountingPeriod(server, client)
 }
@@ -106,6 +114,10 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "listOcrTemplates",
   "createOcrTemplate",
   "confirmOcrTemplate",
+  "listBookingTemplates",
+  "createBookingTemplate",
+  "confirmBookingTemplate",
+  "matchBookingTemplate",
   "listAccountingPeriods",
   "createAccountingPeriod",
 ] as const

@@ -1,6 +1,10 @@
 import { z } from "zod"
 
-import { EVIDENCE_SIGNALS, IndividualRecordSchema } from "./accounting-writes"
+import {
+  EVIDENCE_SIGNALS,
+  GATE_ENVELOPE,
+  IndividualRecordSchema,
+} from "./accounting-writes"
 import { InvoiceIdSchema } from "./primitives"
 import "./zod-openapi"
 
@@ -266,6 +270,10 @@ const CONVERSATION_ID = z.string().uuid().optional().openapi({
  * those first via `POST /v1/accounting/events`. `seriesId` is a DOCUMENT number
  * series (discover via `GET /v1/accounting/number-series`). This mirrors
  * `POST /v1/accounting/documents`; it does not auto-create events.
+ *
+ * `templateId`/`extractionMethod` ([#565]) feed the SAME OCR-template basis
+ * screen `POST /v1/accounting/documents` wires — not domain data, stripped
+ * before the domain write.
  */
 export const CreateInvoiceRequestSchema = z
   .object({
@@ -310,6 +318,13 @@ export const CreateInvoiceRequestSchema = z
         "Optional evidence envelope the server scores through its own " +
         "confidence engine (fail-closed). Stripped before the domain write.",
     }),
+    // [#565] Reused verbatim from GATE_ENVELOPE (single source of truth) so this
+    // capture path feeds the SAME OCR-template basis screen as
+    // `POST /v1/accounting/documents` — closing the route-around where this
+    // endpoint ran captureDocument through the gate with neither template leg
+    // wired at all.
+    templateId: GATE_ENVELOPE.templateId,
+    extractionMethod: GATE_ENVELOPE.extractionMethod,
   })
   .superRefine((value, ctx) => {
     if (value.receivedDate != null && value.direction !== "received") {

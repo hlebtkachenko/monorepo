@@ -8,6 +8,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **brain**: `afframe brain onboard --execute` runs the already-assembled onboarding create calls (create_accounting_period / create_number_series) via the operator's own API client, behind an explicit confirmation gate mirroring `brain book --live` — immediately-applied writes, default stays print-only (M1.4 completion).
+- **brain**: onboarding discovery — a pure `discoverBookability` predicate (an OPEN period + DOCUMENT/EVENT number series) plus `afframe brain onboard`, a read-only CLI command that reports whether an organization is bookable and, if not, proposes (never executes) the exact `create_accounting_period`/`create_number_series` calls that would fix it (M1.4 discovery + guided-create slice; the live conversational wizard is follow-up).
 - **brain**: wire the reasoning lane (M1.1+M1.2) — `list_accounts`/`get_account` join the book-lane read allowlist, and the login-pack + live kickoff now require the Brain to reason the transaction facts and call `classify_accounting_event` (a pure, ungated decision) before every capture/posting proposal, instead of being handed a pre-decided treatment. Every proposal is still HELD/gated exactly as before — classify never mutates, never bypasses the server gate, and the write body is unchanged in this PR.
 
 ### Changed
@@ -33,6 +35,10 @@ Patch release: capture and compute the DPPO annual worksheet inputs, converge ev
 - Bump OpenFGA image pin to v1.18.1 in the CDK app-stack (#564)
 - Converge OpenFGA bootstrap Dockerfile + local compose pins to v1.18.1 and extend the version-check guard to all three pin files (#533)
 - Onboarding profile locale selector now offers Czech, sourced from the @workspace/i18n registry (#532)
+
+### Fixed
+
+- **brain**: `afframe brain onboard --execute` now exits non-zero when a NON-TTY run auto-refuses the confirmation with onboarding work still pending, so automation can distinguish "refused, nothing created" from the already-bookable no-op. An interactive decline stays exit 0.
 
 ## [v0.17.3] — 2026-07-10
 

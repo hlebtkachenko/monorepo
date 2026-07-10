@@ -14,6 +14,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - Developer tooling: make the Conductor CodeGraph refresh target the active workspace under Spotlight, preserve exit status, and close its Run shell automatically.
 - Bump OpenFGA image pin to v1.18.1 in the CDK app-stack (#564)
+- Converge OpenFGA bootstrap Dockerfile + local compose pins to v1.18.1 and extend the version-check guard to all three pin files (#533)
 
 ## [v0.17.3] — 2026-07-10
 

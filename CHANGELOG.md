@@ -8,6 +8,11 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **brain**: M1.3 MD/D posting preview on the held-write approvals inspector — reuses the existing předkontace expander (classifyEvent + expandScenarioEntries) as a pure, read-only view over a held write's proposed input, no posting, no persisted read.
+
+### Fixed
+
+- **brain**: exact integer-minor-unit money math in the MD/D held-write preview totals — replaced the float sum + `< 0.005` epsilon balance check with exact numeric(19,4) minor-unit arithmetic (domain rule: never native `number` for money); display output unchanged.
 - **brain**: `afframe brain onboard --execute` runs the already-assembled onboarding create calls (create_accounting_period / create_number_series) via the operator's own API client, behind an explicit confirmation gate mirroring `brain book --live` — immediately-applied writes, default stays print-only (M1.4 completion).
 - **brain**: onboarding discovery — a pure `discoverBookability` predicate (an OPEN period + DOCUMENT/EVENT number series) plus `afframe brain onboard`, a read-only CLI command that reports whether an organization is bookable and, if not, proposes (never executes) the exact `create_accounting_period`/`create_number_series` calls that would fix it (M1.4 discovery + guided-create slice; the live conversational wizard is follow-up).
 - **brain**: wire the reasoning lane (M1.1+M1.2) — `list_accounts`/`get_account` join the book-lane read allowlist, and the login-pack + live kickoff now require the Brain to reason the transaction facts and call `classify_accounting_event` (a pure, ungated decision) before every capture/posting proposal, instead of being handed a pre-decided treatment. Every proposal is still HELD/gated exactly as before — classify never mutates, never bypasses the server gate, and the write body is unchanged in this PR.

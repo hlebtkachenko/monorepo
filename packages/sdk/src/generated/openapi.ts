@@ -642,6 +642,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/booking-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List booking templates
+         * @description Returns the workspace's booking templates — the Brain's reviewable, human-confirmed recurring-case treatments (M2.1), WORKSPACE-scoped (FORCE RLS) and shared across every organization in the accountant's office. Optionally filter by `counterpartyKey`. Both human and agent keys may read.
+         */
+        get: operations["listBookingTemplates"];
+        put?: never;
+        /**
+         * Create a booking template
+         * @description Creates a NEW, UNCONFIRMED booking template in the caller's workspace. The server pins `humanConfirmedAt` to null and `matchCount`/`heldCount` to 0 — a fresh template is never auto-trusted and NEVER matchable until a human confirms it via `POST /v1/booking-templates/{id}/confirm`. Agent keys may create (the DRAFT itself carries no write authority). Requires the `accounting:write` scope. The workspace comes from the API key.
+         */
+        post: operations["createBookingTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/booking-templates/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a booking template
+         * @description Marks a booking template as human-confirmed (sets `humanConfirmedAt` to now) — the ONLY way a template becomes matchable. HUMAN-ACTOR ONLY: an agent-actor key is rejected with 403 — confirmation is the trust boundary that a human, not the Brain, must cross (§I9 amendment: a booking template is created only from a human-confirmed booking treatment). Returns 404 when the template is not visible to the caller's workspace, and 409 when the workspace already has a CONFIRMED template for the same signature.
+         */
+        post: operations["confirmBookingTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/booking-templates/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Match a case signature against confirmed booking templates
+         * @description Pure read: given a recurring case's signature (counterparty/direction/supplyKind/jurisdiction), returns the workspace's matching CONFIRMED booking template, or null for a novel/unmatched case. No mutation, no write-tool call — a match only supplies input facts to the SAME typed write calls the Brain already makes after full reasoning; every write, templated or not, still runs through the unchanged gate and is still HELD at cold start.
+         */
+        post: operations["matchBookingTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/accounting/periods": {
         parameters: {
             query?: never;
@@ -5114,6 +5178,634 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** @description A workspace-shared, human-confirmed booking template. Workspace-scoped (FORCE RLS) — shared across every organization in the office. Never matchable until `humanConfirmedAt` is set. */
+        BookingTemplate: {
+            /**
+             * Format: uuid
+             * @description Template id.
+             * @example 0196f1de-0000-7000-8000-0000000000f1
+             */
+            id: string;
+            /**
+             * @description Counterparty identity — an IČO or normalized name.
+             * @example 27082440
+             */
+            counterpartyKey: string;
+            /**
+             * @description FP (RECEIVED) vs FV (ISSUED).
+             * @enum {string}
+             */
+            direction: "RECEIVED" | "ISSUED";
+            /**
+             * @description Kind of supply.
+             * @example SERVICES
+             * @enum {string}
+             */
+            supplyKind: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+            /**
+             * @description VAT jurisdiction.
+             * @example DOMESTIC
+             * @enum {string}
+             */
+            jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+            /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+            confirmedDecision: {
+                /**
+                 * @description VAT mode to stamp on the partial record.
+                 * @example STANDARD
+                 * @enum {string}
+                 */
+                vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                /**
+                 * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
+                 * @example EU
+                 * @enum {string}
+                 */
+                vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                /**
+                 * @description Rate to freeze (null for exempt/outside).
+                 * @example 21
+                 */
+                vatRate: string | null;
+                /**
+                 * @description Předkontace scenario id.
+                 * @example PURCHASE_SERVICE_STANDARD
+                 */
+                scenario: string;
+                /** @description Template→tenant account remap. */
+                accountOverrides?: {
+                    [key: string]: string;
+                };
+                /**
+                 * @description Open-item account, or null.
+                 * @example 321
+                 * @enum {string|null}
+                 */
+                saldoAccount: "311" | "321" | null;
+                /** @description Route net to an acquisition account. */
+                capitalise?: {
+                    acquisitionAccount: string;
+                };
+                /** @description Defer the future part to a bridge account. */
+                deferral?: {
+                    /** @enum {string} */
+                    bridge: "381" | "384";
+                    reason: string;
+                };
+                /**
+                 * @description §92 kód předmětu plnění to stamp on the partial record for kontrolní hlášení A.1/B.1; null unless this is a domestic reverse-charge supply.
+                 * @example 4
+                 * @enum {string|null}
+                 */
+                commodityCode: "1" | "3" | "4" | "5" | null;
+                /** @description Law-cited decision trail. */
+                reasoning: string[];
+            };
+            /**
+             * @description When a human confirmed this template. NULL = unconfirmed (the trust gate) — an unconfirmed template is NEVER matchable; only a human-actor key may set it via the confirm endpoint.
+             * @example null
+             */
+            humanConfirmedAt: string | null;
+            /**
+             * @description How many times this template has been matched/reused.
+             * @example 0
+             */
+            matchCount: number;
+            /**
+             * @description How many bookings proposed from this template were HELD for review. A learning signal; not client-settable.
+             * @example 0
+             */
+            heldCount: number;
+            /**
+             * @description When a booking proposed from this template was last rejected, or null.
+             * @example null
+             */
+            lastRejectAt: string | null;
+            /**
+             * @description Refinement version.
+             * @example 1
+             */
+            version: number;
+            /**
+             * @description When the template was first learned.
+             * @example 2026-07-05T10:15:00.000Z
+             */
+            learnedAt: string;
+            /** @description Opaque provenance blob (e.g. the tool_call_log id of the approved booking this template was learned from). */
+            provenance: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * @description Row creation timestamp.
+             * @example 2026-07-05T10:15:00.000Z
+             */
+            createdAt: string;
+            /**
+             * @description Row last-update timestamp.
+             * @example 2026-07-05T10:15:00.000Z
+             */
+            updatedAt: string;
+        };
+        /** @description The workspace's booking templates (workspace-scoped, FORCE RLS). */
+        ListBookingTemplatesResponse: {
+            /** @description Booking templates in the caller's workspace matching filters. */
+            templates: {
+                /**
+                 * Format: uuid
+                 * @description Template id.
+                 * @example 0196f1de-0000-7000-8000-0000000000f1
+                 */
+                id: string;
+                /**
+                 * @description Counterparty identity — an IČO or normalized name.
+                 * @example 27082440
+                 */
+                counterpartyKey: string;
+                /**
+                 * @description FP (RECEIVED) vs FV (ISSUED).
+                 * @enum {string}
+                 */
+                direction: "RECEIVED" | "ISSUED";
+                /**
+                 * @description Kind of supply.
+                 * @example SERVICES
+                 * @enum {string}
+                 */
+                supplyKind: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                /**
+                 * @description VAT jurisdiction.
+                 * @example DOMESTIC
+                 * @enum {string}
+                 */
+                jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+                confirmedDecision: {
+                    /**
+                     * @description VAT mode to stamp on the partial record.
+                     * @example STANDARD
+                     * @enum {string}
+                     */
+                    vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    /**
+                     * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
+                     * @example EU
+                     * @enum {string}
+                     */
+                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                    /**
+                     * @description Rate to freeze (null for exempt/outside).
+                     * @example 21
+                     */
+                    vatRate: string | null;
+                    /**
+                     * @description Předkontace scenario id.
+                     * @example PURCHASE_SERVICE_STANDARD
+                     */
+                    scenario: string;
+                    /** @description Template→tenant account remap. */
+                    accountOverrides?: {
+                        [key: string]: string;
+                    };
+                    /**
+                     * @description Open-item account, or null.
+                     * @example 321
+                     * @enum {string|null}
+                     */
+                    saldoAccount: "311" | "321" | null;
+                    /** @description Route net to an acquisition account. */
+                    capitalise?: {
+                        acquisitionAccount: string;
+                    };
+                    /** @description Defer the future part to a bridge account. */
+                    deferral?: {
+                        /** @enum {string} */
+                        bridge: "381" | "384";
+                        reason: string;
+                    };
+                    /**
+                     * @description §92 kód předmětu plnění to stamp on the partial record for kontrolní hlášení A.1/B.1; null unless this is a domestic reverse-charge supply.
+                     * @example 4
+                     * @enum {string|null}
+                     */
+                    commodityCode: "1" | "3" | "4" | "5" | null;
+                    /** @description Law-cited decision trail. */
+                    reasoning: string[];
+                };
+                /**
+                 * @description When a human confirmed this template. NULL = unconfirmed (the trust gate) — an unconfirmed template is NEVER matchable; only a human-actor key may set it via the confirm endpoint.
+                 * @example null
+                 */
+                humanConfirmedAt: string | null;
+                /**
+                 * @description How many times this template has been matched/reused.
+                 * @example 0
+                 */
+                matchCount: number;
+                /**
+                 * @description How many bookings proposed from this template were HELD for review. A learning signal; not client-settable.
+                 * @example 0
+                 */
+                heldCount: number;
+                /**
+                 * @description When a booking proposed from this template was last rejected, or null.
+                 * @example null
+                 */
+                lastRejectAt: string | null;
+                /**
+                 * @description Refinement version.
+                 * @example 1
+                 */
+                version: number;
+                /**
+                 * @description When the template was first learned.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                learnedAt: string;
+                /** @description Opaque provenance blob (e.g. the tool_call_log id of the approved booking this template was learned from). */
+                provenance: {
+                    [key: string]: unknown;
+                } | null;
+                /**
+                 * @description Row creation timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                createdAt: string;
+                /**
+                 * @description Row last-update timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                updatedAt: string;
+            }[];
+        };
+        /** @description A single booking template. */
+        BookingTemplateResponse: {
+            /** @description A workspace-shared, human-confirmed booking template. Workspace-scoped (FORCE RLS) — shared across every organization in the office. Never matchable until `humanConfirmedAt` is set. */
+            template: {
+                /**
+                 * Format: uuid
+                 * @description Template id.
+                 * @example 0196f1de-0000-7000-8000-0000000000f1
+                 */
+                id: string;
+                /**
+                 * @description Counterparty identity — an IČO or normalized name.
+                 * @example 27082440
+                 */
+                counterpartyKey: string;
+                /**
+                 * @description FP (RECEIVED) vs FV (ISSUED).
+                 * @enum {string}
+                 */
+                direction: "RECEIVED" | "ISSUED";
+                /**
+                 * @description Kind of supply.
+                 * @example SERVICES
+                 * @enum {string}
+                 */
+                supplyKind: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                /**
+                 * @description VAT jurisdiction.
+                 * @example DOMESTIC
+                 * @enum {string}
+                 */
+                jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+                confirmedDecision: {
+                    /**
+                     * @description VAT mode to stamp on the partial record.
+                     * @example STANDARD
+                     * @enum {string}
+                     */
+                    vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    /**
+                     * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
+                     * @example EU
+                     * @enum {string}
+                     */
+                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                    /**
+                     * @description Rate to freeze (null for exempt/outside).
+                     * @example 21
+                     */
+                    vatRate: string | null;
+                    /**
+                     * @description Předkontace scenario id.
+                     * @example PURCHASE_SERVICE_STANDARD
+                     */
+                    scenario: string;
+                    /** @description Template→tenant account remap. */
+                    accountOverrides?: {
+                        [key: string]: string;
+                    };
+                    /**
+                     * @description Open-item account, or null.
+                     * @example 321
+                     * @enum {string|null}
+                     */
+                    saldoAccount: "311" | "321" | null;
+                    /** @description Route net to an acquisition account. */
+                    capitalise?: {
+                        acquisitionAccount: string;
+                    };
+                    /** @description Defer the future part to a bridge account. */
+                    deferral?: {
+                        /** @enum {string} */
+                        bridge: "381" | "384";
+                        reason: string;
+                    };
+                    /**
+                     * @description §92 kód předmětu plnění to stamp on the partial record for kontrolní hlášení A.1/B.1; null unless this is a domestic reverse-charge supply.
+                     * @example 4
+                     * @enum {string|null}
+                     */
+                    commodityCode: "1" | "3" | "4" | "5" | null;
+                    /** @description Law-cited decision trail. */
+                    reasoning: string[];
+                };
+                /**
+                 * @description When a human confirmed this template. NULL = unconfirmed (the trust gate) — an unconfirmed template is NEVER matchable; only a human-actor key may set it via the confirm endpoint.
+                 * @example null
+                 */
+                humanConfirmedAt: string | null;
+                /**
+                 * @description How many times this template has been matched/reused.
+                 * @example 0
+                 */
+                matchCount: number;
+                /**
+                 * @description How many bookings proposed from this template were HELD for review. A learning signal; not client-settable.
+                 * @example 0
+                 */
+                heldCount: number;
+                /**
+                 * @description When a booking proposed from this template was last rejected, or null.
+                 * @example null
+                 */
+                lastRejectAt: string | null;
+                /**
+                 * @description Refinement version.
+                 * @example 1
+                 */
+                version: number;
+                /**
+                 * @description When the template was first learned.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                learnedAt: string;
+                /** @description Opaque provenance blob (e.g. the tool_call_log id of the approved booking this template was learned from). */
+                provenance: {
+                    [key: string]: unknown;
+                } | null;
+                /**
+                 * @description Row creation timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                createdAt: string;
+                /**
+                 * @description Row last-update timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                updatedAt: string;
+            };
+        };
+        /** @description Create a new UNCONFIRMED booking template. `humanConfirmedAt` (null), `matchCount` (0), and `heldCount` (0) are server-pinned; the workspace comes from the API key. */
+        CreateBookingTemplateRequest: {
+            /**
+             * @description Counterparty identity — an IČO or normalized name.
+             * @example 27082440
+             */
+            counterpartyKey: string;
+            /**
+             * @description FP (RECEIVED) vs FV (ISSUED).
+             * @enum {string}
+             */
+            direction: "RECEIVED" | "ISSUED";
+            /**
+             * @description Kind of supply.
+             * @example SERVICES
+             * @enum {string}
+             */
+            supplyKind: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+            /**
+             * @description VAT jurisdiction.
+             * @example DOMESTIC
+             * @enum {string}
+             */
+            jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+            /** @description The accounting treatment decided from the facts (with reasoning). */
+            confirmedDecision: {
+                /**
+                 * @description VAT mode to stamp on the partial record.
+                 * @example STANDARD
+                 * @enum {string}
+                 */
+                vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                /**
+                 * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
+                 * @example EU
+                 * @enum {string}
+                 */
+                vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                /**
+                 * @description Rate to freeze (null for exempt/outside).
+                 * @example 21
+                 */
+                vatRate: string | null;
+                /**
+                 * @description Předkontace scenario id.
+                 * @example PURCHASE_SERVICE_STANDARD
+                 */
+                scenario: string;
+                /** @description Template→tenant account remap. */
+                accountOverrides?: {
+                    [key: string]: string;
+                };
+                /**
+                 * @description Open-item account, or null.
+                 * @example 321
+                 * @enum {string|null}
+                 */
+                saldoAccount: "311" | "321" | null;
+                /** @description Route net to an acquisition account. */
+                capitalise?: {
+                    acquisitionAccount: string;
+                };
+                /** @description Defer the future part to a bridge account. */
+                deferral?: {
+                    /** @enum {string} */
+                    bridge: "381" | "384";
+                    reason: string;
+                };
+                /**
+                 * @description §92 kód předmětu plnění to stamp on the partial record for kontrolní hlášení A.1/B.1; null unless this is a domestic reverse-charge supply.
+                 * @example 4
+                 * @enum {string|null}
+                 */
+                commodityCode: "1" | "3" | "4" | "5" | null;
+                /** @description Law-cited decision trail. */
+                reasoning: string[];
+            };
+            /** @description Opaque provenance blob. */
+            provenance?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** @description The recurring case's signature to match against the workspace's CONFIRMED booking templates. */
+        MatchBookingTemplateRequest: {
+            /**
+             * @description Counterparty identity — an IČO or normalized name.
+             * @example 27082440
+             */
+            counterpartyKey: string;
+            /**
+             * @description FP (RECEIVED) vs FV (ISSUED).
+             * @enum {string}
+             */
+            direction: "RECEIVED" | "ISSUED";
+            /**
+             * @description Kind of supply.
+             * @example SERVICES
+             * @enum {string}
+             */
+            supplyKind: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+            /**
+             * @description VAT jurisdiction.
+             * @example DOMESTIC
+             * @enum {string}
+             */
+            jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+        };
+        /** @description The booking-template match outcome for a case signature (or null). */
+        MatchBookingTemplateResponse: {
+            /** @description The matching CONFIRMED template, or null if this is a novel/unmatched case. A match never auto-applies anything — the caller still proposes the booking through the normal gated write endpoints. */
+            template: {
+                /**
+                 * Format: uuid
+                 * @description Template id.
+                 * @example 0196f1de-0000-7000-8000-0000000000f1
+                 */
+                id: string;
+                /**
+                 * @description Counterparty identity — an IČO or normalized name.
+                 * @example 27082440
+                 */
+                counterpartyKey: string;
+                /**
+                 * @description FP (RECEIVED) vs FV (ISSUED).
+                 * @enum {string}
+                 */
+                direction: "RECEIVED" | "ISSUED";
+                /**
+                 * @description Kind of supply.
+                 * @example SERVICES
+                 * @enum {string}
+                 */
+                supplyKind: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                /**
+                 * @description VAT jurisdiction.
+                 * @example DOMESTIC
+                 * @enum {string}
+                 */
+                jurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                /** @description The confirmed accounting treatment to reapply on a match — the same shape `POST /v1/accounting/classify` returns. */
+                confirmedDecision: {
+                    /**
+                     * @description VAT mode to stamp on the partial record.
+                     * @example STANDARD
+                     * @enum {string}
+                     */
+                    vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    /**
+                     * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
+                     * @example EU
+                     * @enum {string}
+                     */
+                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                    /**
+                     * @description Rate to freeze (null for exempt/outside).
+                     * @example 21
+                     */
+                    vatRate: string | null;
+                    /**
+                     * @description Předkontace scenario id.
+                     * @example PURCHASE_SERVICE_STANDARD
+                     */
+                    scenario: string;
+                    /** @description Template→tenant account remap. */
+                    accountOverrides?: {
+                        [key: string]: string;
+                    };
+                    /**
+                     * @description Open-item account, or null.
+                     * @example 321
+                     * @enum {string|null}
+                     */
+                    saldoAccount: "311" | "321" | null;
+                    /** @description Route net to an acquisition account. */
+                    capitalise?: {
+                        acquisitionAccount: string;
+                    };
+                    /** @description Defer the future part to a bridge account. */
+                    deferral?: {
+                        /** @enum {string} */
+                        bridge: "381" | "384";
+                        reason: string;
+                    };
+                    /**
+                     * @description §92 kód předmětu plnění to stamp on the partial record for kontrolní hlášení A.1/B.1; null unless this is a domestic reverse-charge supply.
+                     * @example 4
+                     * @enum {string|null}
+                     */
+                    commodityCode: "1" | "3" | "4" | "5" | null;
+                    /** @description Law-cited decision trail. */
+                    reasoning: string[];
+                };
+                /**
+                 * @description When a human confirmed this template. NULL = unconfirmed (the trust gate) — an unconfirmed template is NEVER matchable; only a human-actor key may set it via the confirm endpoint.
+                 * @example null
+                 */
+                humanConfirmedAt: string | null;
+                /**
+                 * @description How many times this template has been matched/reused.
+                 * @example 0
+                 */
+                matchCount: number;
+                /**
+                 * @description How many bookings proposed from this template were HELD for review. A learning signal; not client-settable.
+                 * @example 0
+                 */
+                heldCount: number;
+                /**
+                 * @description When a booking proposed from this template was last rejected, or null.
+                 * @example null
+                 */
+                lastRejectAt: string | null;
+                /**
+                 * @description Refinement version.
+                 * @example 1
+                 */
+                version: number;
+                /**
+                 * @description When the template was first learned.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                learnedAt: string;
+                /** @description Opaque provenance blob (e.g. the tool_call_log id of the approved booking this template was learned from). */
+                provenance: {
+                    [key: string]: unknown;
+                } | null;
+                /**
+                 * @description Row creation timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                createdAt: string;
+                /**
+                 * @description Row last-update timestamp.
+                 * @example 2026-07-05T10:15:00.000Z
+                 */
+                updatedAt: string;
+            } | null;
+        };
         /** @description Create a gapless number series. */
         CreateNumberSeriesRequest: {
             /**
@@ -6720,6 +7412,124 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OcrTemplateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listBookingTemplates: {
+        parameters: {
+            query?: {
+                /** @description Filter to one counterparty. */
+                counterpartyKey?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workspace's booking templates matching the filters. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListBookingTemplatesResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createBookingTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBookingTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created (unconfirmed) booking template. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingTemplateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    confirmBookingTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking template id, resolved within the API key's workspace. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The confirmed booking template. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingTemplateResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    matchBookingTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MatchBookingTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description The match outcome (a confirmed template, or null). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchBookingTemplateResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

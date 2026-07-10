@@ -119,7 +119,18 @@ export const BRAIN_ACCOUNTING_WRITE_TOOLS = [
 
 /**
  * The read tools the Brain may call: the 10 `get_accounting_*` report getters + org/structure/status +
- * the number-series lookup. Deliberately EXCLUDES `list_accounting_held_writes` (see the deny note below).
+ * the number-series lookup + the M2.1 booking-template matcher. Deliberately EXCLUDES
+ * `list_accounting_held_writes` (see the deny note below).
+ *
+ * `match_booking_template` [M2.1, §I9 amendment]: pure read, mirrors `classify_accounting_event`'s
+ * shape — given the case's signature (counterparty/direction/supplyKind/jurisdiction) it returns the
+ * workspace's matching CONFIRMED booking template, if any, or null. It never mutates and never posts:
+ * a match only supplies input facts to the SAME `create_accounting_event`/`create_accounting_posting`
+ * calls the Brain already makes after full reasoning, which still run through the unchanged
+ * `runGatedWrite` and are still HELD at cold start. Deliberately excludes `create_booking_template` and
+ * `confirm_booking_template` (not in this list, and not in `BRAIN_ACCOUNTING_WRITE_TOOLS` below) — the
+ * Brain can only ever READ a confirmed template, never write or confirm one itself; that trust boundary
+ * is human-only (mirrors `confirm_ocr_template`'s exclusion, tightened one step further).
  */
 export const BRAIN_ACCOUNTING_READ_TOOLS = [
   "get_accounting_vat_return",
@@ -136,6 +147,7 @@ export const BRAIN_ACCOUNTING_READ_TOOLS = [
   "get_structure",
   "get_status",
   "list_accounting_number_series",
+  "match_booking_template",
 ] as const
 
 /**

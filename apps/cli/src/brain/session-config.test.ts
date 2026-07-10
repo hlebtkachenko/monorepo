@@ -108,6 +108,44 @@ describe("buildBrainQueryOptions", () => {
     expect(cfg.permissionMode).not.toBe("bypassPermissions")
     expect(cfg.settingSources).toEqual([])
   })
+
+  describe("M2.1 model routing (bookingTemplateMatched)", () => {
+    it("omits `model` entirely when bookingTemplateMatched is absent — ZERO behavior change for every caller today", () => {
+      const cfg = buildBrainQueryOptions(launchOptions(), BRIDGE)
+      expect(cfg.model).toBeUndefined()
+      expect("model" in cfg).toBe(false)
+    })
+
+    it("pins the cheap model when a confirmed booking template matched", () => {
+      const cfg = buildBrainQueryOptions(
+        { ...launchOptions(), bookingTemplateMatched: true },
+        BRIDGE,
+      )
+      expect(cfg.model).toBe("haiku")
+    })
+
+    it("explicitly pins the stronger default model for a confirmed-novel (checked, unmatched) case", () => {
+      const cfg = buildBrainQueryOptions(
+        { ...launchOptions(), bookingTemplateMatched: false },
+        BRIDGE,
+      )
+      expect(cfg.model).toBe("sonnet")
+    })
+
+    it("never touches the sandbox / tool lists — routing is model-only", () => {
+      const matched = buildBrainQueryOptions(
+        { ...launchOptions(), bookingTemplateMatched: true },
+        BRIDGE,
+      )
+      const unmatched = buildBrainQueryOptions(
+        { ...launchOptions(), bookingTemplateMatched: false },
+        BRIDGE,
+      )
+      expect(matched.allowedTools).toEqual(unmatched.allowedTools)
+      expect(matched.disallowedTools).toEqual(unmatched.disallowedTools)
+      expect(matched.systemPrompt).toBe(unmatched.systemPrompt)
+    })
+  })
 })
 
 describe("sandboxAllows (default-deny)", () => {

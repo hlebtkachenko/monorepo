@@ -134,6 +134,14 @@ export {
   type CashDecision,
 } from "./classify"
 
+// Booking-template match (M2.1, §I9 amendment) — pure decision over a
+// workspace's CONFIRMED booking_template rows (migration 0054)
+export {
+  matchBookingTemplate,
+  type BookingSignature,
+  type ConfirmedBookingTemplate,
+} from "./booking-template"
+
 // Časové rozlišení (accruals / deferrals — 381/383/384/385, §3/1 matching)
 export {
   postAccrual,

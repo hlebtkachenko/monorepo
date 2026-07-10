@@ -17,6 +17,8 @@
 import {
   AFFRAME_MCP_SERVER,
   isToolAllowed,
+  selectBrainModel,
+  type BrainModelAlias,
   type LoginContextPack,
 } from "@workspace/brain"
 import type {
@@ -78,6 +80,17 @@ export interface BrainQueryOptions {
   permissionMode: "default"
   /** Empty → NO filesystem settings (no CLAUDE.md / project config) leak into the Brain session. */
   settingSources: []
+  /**
+   * OPTIONAL M2.1 model-routing pin (`@workspace/brain`'s `selectBrainModel`
+   * alias). UNSET (the field is simply absent) unless the caller supplied an
+   * explicit `bookingTemplateMatched` signal — so every caller that has not
+   * wired the match check yet (all of them today) gets EXACTLY today's
+   * behavior (the Agent-SDK's own default model), not a silently-pinned one.
+   * This is a pure client-side routing choice; it never touches the
+   * server-side gate (`runGatedWrite` does not read it, and every write —
+   * from either model — is still HELD identically at cold start).
+   */
+  model?: BrainModelAlias
 }
 
 /**
@@ -93,6 +106,7 @@ export function buildQueryOptions(
   bridge: McpBridgeSpawn,
   apiBase: string,
   apiKey: string,
+  model?: BrainModelAlias,
 ): BrainQueryOptions {
   return {
     systemPrompt: loginPack.system,
@@ -109,6 +123,7 @@ export function buildQueryOptions(
     },
     permissionMode: "default",
     settingSources: [],
+    ...(model !== undefined ? { model } : {}),
   }
 }
 
@@ -116,12 +131,27 @@ export function buildQueryOptions(
  * Map the inspected launch options + the resolved bridge → the Agent-SDK query options for the RUN lane. Thin
  * wrapper over `buildQueryOptions`, reading the pack from the inspected plan (single source of truth) + the
  * resolved creds. `o.mcpEndpoint` carries the deployed REST API BASE URL, consumed by the local stdio bridge.
+ *
+ * M2.1 model routing: `o.bookingTemplateMatched` is UNDEFINED for every caller that has not wired the
+ * pre-session `match_booking_template` check (all of them today) — `model` is then omitted entirely, so
+ * behavior is IDENTICAL to before M2.1. Once a caller supplies the signal (`true`/`false`), `selectBrainModel`
+ * picks the cheap model for a match or explicitly pins the stronger default model for a confirmed-novel case.
  */
 export function buildBrainQueryOptions(
   o: AgentSessionLaunchOptions,
   bridge: McpBridgeSpawn,
 ): BrainQueryOptions {
-  return buildQueryOptions(o.plan.loginPack, bridge, o.mcpEndpoint, o.apiKey)
+  const model =
+    o.bookingTemplateMatched === undefined
+      ? undefined
+      : selectBrainModel({ matched: o.bookingTemplateMatched })
+  return buildQueryOptions(
+    o.plan.loginPack,
+    bridge,
+    o.mcpEndpoint,
+    o.apiKey,
+    model,
+  )
 }
 
 /**

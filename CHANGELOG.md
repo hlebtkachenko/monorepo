@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Fixed
+
+- **accounting**: resolve the decideVat↔catalogue vat_mode conflation for a §66 export of goods to a third country (S-EXPORT now captures EXEMPT, matching the catalogue) and add DPH ř.22 (vývoz zboží), routing it off ř.50 §51 exempt-without-deduction — fixes #566.
+
 ## [v0.17.3] — 2026-07-10
 
 Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.

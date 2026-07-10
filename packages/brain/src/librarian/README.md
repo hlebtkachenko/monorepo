@@ -144,3 +144,23 @@ honest engine and one that quietly over-clusters or misleads a reviewer. Status 
   pulls `@workspace/accounting`, off-limits to the Brain — so it is replicated verbatim, single
   source of truth noted in `replay.ts`). The treatment the librarian votes on is now byte-for-byte
   the treatment that would book (`correction.ts` + `correction.test.ts`).
+- **(e) FLAT-vs-NESTED input contract — LOAD-BEARING, STILL M2.3 (the #1 wire-up precondition).**
+  `readCorrectionSignature` reads `counterpartyKey` / `supplyKind` / `jurisdiction` / `commodityCode`
+  / `advanceSettlement` at the TOP LEVEL of the correction input — the librarian's own synthetic flat
+  contract (what the fixtures feed). In the REAL `tool_call_log.input_json`, `commodityCode` /
+  `advanceSettlement` (and the base facts) live NESTED under `lines[].partials[]`, and
+  `counterpartyKey` is not present at all. So against a raw real row every field is `undefined` and
+  the row is skipped. The `tool_call_log → RawCorrectionRow` adapter (M2.3) MUST resolve the
+  flat→nested mapping AND a multi-partial ambiguity (a document with several partials of differing
+  `commodityCode`/`advanceSettlement` has no single document-level value) before any real correction
+  is ingested. This is pre-existing to the librarian's flat design; fixes (a)–(d) extend the same
+  contract, they do not close this. (Two independent Advisor reviews flagged this as the load-bearing
+  item.)
+- **Follow-ups (non-blocking, tracked):** (1) `decision.ts` `normalizeDecisionForVote` strips
+  `date`/`issueDate` but NOT the real payload date keys `occurredAt`/`issuedAt`/`entry.postingDate`,
+  so per-document dates leak into the voted decision + `candidateId` (same-treatment corrections with
+  different dates fail to converge); fix (d)'s faithful replay lands an edited date on those
+  un-stripped keys, slightly widening the pre-existing leak — reconcile `PER_DOCUMENT_FIELDS` at
+  wire-up. (2) The `replay.ts` ↔ `apps/web` `edit-model.ts` lockstep is enforced only by a comment —
+  add a shared-fixture parity guard (or CODEOWNERS coupling) so a future `edit-model.ts` change can't
+  silently drift the replay.

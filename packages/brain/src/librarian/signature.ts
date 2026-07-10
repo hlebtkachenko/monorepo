@@ -49,8 +49,9 @@ export type CorrectionDirection = (typeof CORRECTION_DIRECTIONS)[number]
  * optional sub-facts below split those sub-cases apart:
  *   - `commodityCode` — §92 kód předmětu plnění (the commodity a DOMESTIC reverse-charge supply
  *     reports on kontrolní hlášení A.1/B.1: "1" zlato / "3" nemovitost / "4" stavební-montážní /
- *     "5" příloha 5). Distinct §92 codes book/report distinctly; already persisted as
- *     `partial_record.commodity_code` (`packages/accounting/src/capture.ts`).
+ *     "5" příloha 5). Distinct §92 codes book/report distinctly. In the DB this lives NESTED as a
+ *     per-partial `partial_record.commodity_code` (`packages/accounting/src/capture.ts`), NOT as a
+ *     top-level field — see the flat-vs-nested contract note on `readCorrectionSignature` below.
  *   - `isAdvance` — §37a advance discriminator. True when the correction sits in an advance flow:
  *     an advance-payment capture (`supplyKind === "ADVANCE"`) OR a §37a final-settlement document
  *     (`advanceSettlement === true`, the daňový doklad k záloze). Deriving from `supplyKind` ALONE
@@ -106,6 +107,16 @@ function isCorrectionJurisdiction(
  * guessing/defaulting — a correction whose base signature can't be read cannot be clustered or
  * distilled. The optional sub-facts never fail the read: an absent/mistyped `commodityCode` reads as
  * `null`, and `isAdvance` is always a definite boolean.
+ */
+/**
+ * ⚠ FLAT-vs-NESTED CONTRACT (M2.3 wire-up precondition). This reads every field at the TOP LEVEL of
+ * `input` — the librarian's own synthetic FLAT correction contract (what the fixtures feed). In the
+ * REAL `tool_call_log.input_json`, `commodityCode` / `advanceSettlement` (and the base facts) are
+ * NESTED under `lines[].partials[]`, and `counterpartyKey` is not present at all — so against a raw
+ * real row every field is `undefined` and the row is skipped. The `tool_call_log → RawCorrectionRow`
+ * adapter (M2.3) MUST resolve the flat→nested mapping AND the multi-partial ambiguity (a document
+ * with partials of differing `commodityCode`/`advanceSettlement` has no single document-level value)
+ * before any real correction is ingested. See README precondition (e).
  */
 export function readCorrectionSignature(
   input: Record<string, unknown>,

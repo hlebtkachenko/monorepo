@@ -88,6 +88,10 @@ const DAP_LINES: DapLine[] = [
       "ř.21 – Poskytnutí služby s místem plnění v jiném členském státě (§9 odst. 1)",
   },
   {
+    base: "r22_base",
+    label: "ř.22 – Vývoz zboží (§66)",
+  },
+  {
     base: "r25_base",
     label: "ř.25 – Dodání s režimem přenesení daňové povinnosti (§92a)",
   },

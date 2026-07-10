@@ -128,10 +128,13 @@ export interface PartialRecordInput {
   /** DRIVES posting (STANDARD / REVERSE_CHARGE / EXEMPT / OUTSIDE_VAT / IMPORT). */
   vatMode: VatMode
   /**
-   * Place-of-supply regime (ZDPH §16/§92/§102) — DOMESTIC/REVERSE_CHARGE/EU/
-   * IMPORT/EXEMPT/OUTSIDE_VAT. Splits ř.3/4 (EU acquisition) from ř.10/11
-   * (domestic PDP) on the DPH return and drives the §102 souhrnné hlášení.
-   * Omit → NULL (legacy: a REVERSE_CHARGE receipt defaults to domestic ř.10/11).
+   * Place-of-supply regime (ZDPH §16/§92/§102/§108) — DOMESTIC/REVERSE_CHARGE/
+   * EU/IMPORT/EXEMPT/OUTSIDE_VAT/SECTION_108. Splits the self-assessed received
+   * lines that all capture as REVERSE_CHARGE: 'EU' → ř.3/4 (§16 goods) or ř.5/6
+   * (§9(1) service); 'SECTION_108' → ř.12/13 (§108 residual — place of supply
+   * CZ, supplier not established); anything else → ř.10/11 (domestic §92 PDP).
+   * Also drives the §102 souhrnné hlášení. Omit → NULL (legacy: a REVERSE_CHARGE
+   * receipt defaults to domestic ř.10/11).
    */
   vatJurisdiction?: VatJurisdiction | null
   /**

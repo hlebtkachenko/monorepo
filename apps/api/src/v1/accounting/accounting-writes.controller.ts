@@ -202,13 +202,13 @@ export class AccountingWritesController {
             (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
           ),
         ),
-      // [WS-2 / B1.5 / #554] Server-derived OCR-template basis screen. Always wired
-      // for the capture path (the gate runs it in-tx only for an AGENT key). ONE
-      // fetch yields both holds: an UNCONFIRMED template forces the score sub-green
-      // (`novel_template`); an OCR capture with no confirmed template basis (OMITTED
-      // or foreign templateId — the bypass #554 closes) forces it sub-green
-      // (`unverified_template`). A MISSING `extractionMethod` is treated as "ocr"
-      // (most conservative) inside `screenTemplateBasis`.
+      // [WS-2 / B1.5 / #554 / #565] Server-derived OCR-template basis screen.
+      // Always wired for the capture path (the gate runs it in-tx only for an
+      // AGENT key). ONE fetch yields both holds: an UNCONFIRMED template forces
+      // the score sub-green (`novel_template`); ANY capture with no confirmed
+      // template basis (omitted OR foreign templateId) forces it sub-green
+      // (`unverified_template`) UNCONDITIONALLY — [#565] the declared
+      // `extractionMethod` can no longer skip this leg, present or absent.
       screenTemplateBasis: (db) =>
         screenTemplateBasis(db, extractionMethod, templateId ?? null),
       run: (db, ctx) =>

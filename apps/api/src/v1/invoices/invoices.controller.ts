@@ -24,6 +24,7 @@ import {
 } from "@nestjs/swagger"
 import type { Response } from "express"
 import type {
+  ExtractionMethod,
   GetInvoiceResponse,
   Invoice,
   InvoiceDirection,
@@ -54,7 +55,10 @@ import {
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
 import { RequireScopes } from "../../auth/require-scopes.decorator"
-import { deriveCaptureVeto } from "../accounting/accounting-veto"
+import {
+  deriveCaptureVeto,
+  screenTemplateBasis,
+} from "../accounting/accounting-veto"
 import type { EvidenceEnvelope } from "../accounting/evidence-gate"
 import {
   runGatedWrite,
@@ -104,7 +108,10 @@ interface InvoiceTotals {
  * Distinct from `POST /v1/accounting/documents` (captures any doklad type):
  * `POST /v1/invoices` is invoice-only and pins the type from `direction`, but
  * runs through the SAME server safety gate (`runGatedWrite`) so it never
- * bypasses the Brain safety spine.
+ * bypasses the Brain safety spine — [#565] including the SAME OCR-template
+ * basis screen (`screenTemplateBasis`) `POST /v1/accounting/documents` wires;
+ * this endpoint used to run `captureDocument` through the gate with neither
+ * template leg wired at all, a route-around now closed.
  */
 @ApiTags("Invoices")
 @ApiBearerAuth()
@@ -437,6 +444,8 @@ export class InvoicesController {
       conversationId,
       signals,
       direction,
+      templateId,
+      extractionMethod,
       ...fields
     } = body as unknown as CreateInvoiceRequestDto & {
       confidence: number
@@ -444,6 +453,8 @@ export class InvoicesController {
       conversationId?: string
       signals?: EvidenceEnvelope | null
       direction: InvoiceDirection
+      templateId?: string | null
+      extractionMethod?: ExtractionMethod | null
     }
     const type = typeOf(direction)
 
@@ -488,12 +499,24 @@ export class InvoicesController {
       conversationId,
       signals,
       holdAmounts,
+      // [#565] The OCR template this capture was derived from (null for a
+      // structured-export capture). NOT domain data — destructured out of
+      // `fields` above so it never reaches `captureDocument`; persisted only
+      // with the gated write's audit `serverGate` (mirrors the documents
+      // endpoint).
+      templateId: templateId ?? null,
       deriveVeto: () =>
         Promise.resolve(
           deriveCaptureVeto(
             (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
           ),
         ),
+      // [#565] Server-derived OCR-template basis screen — the SAME seam
+      // `POST /v1/accounting/documents` wires. Closes the route-around where
+      // this endpoint ran `captureDocument` through the gate with neither the
+      // novelty nor the OCR fail-closed leg wired at all.
+      screenTemplateBasis: (db) =>
+        screenTemplateBasis(db, extractionMethod, templateId ?? null),
       run: (db, ctx) =>
         captureDocument(db, ctx, {
           ...fields,

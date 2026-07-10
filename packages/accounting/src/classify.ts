@@ -45,6 +45,7 @@ export type VatJurisdiction =
   | "IMPORT" // 3rd country
   | "EXEMPT" // §51/§70
   | "OUTSIDE_VAT" // neplátce supplier / mimo předmět
+  | "SECTION_108" // §108 residual — place of supply CZ, supplier not established (DPH ř.12/13)
 
 /**
  * §92 kód předmětu plnění (kontrolní hlášení A.1/B.1) — the commodity code a
@@ -234,7 +235,11 @@ export function classifyEvent(ev: EconomicEvent): PostingDecision {
     // remap the scenario's default expense account (504 goods / 518 services / 548 outside)
     if (scenario === "P-GOODS-21" || scenario === "P-CREDIT-NOTE-STD")
       overrides["504"] = costAccount
-    else if (scenario === "P-SERVICES-21" || scenario === "P-PDP")
+    else if (
+      scenario === "P-SERVICES-21" ||
+      scenario === "P-PDP" ||
+      scenario === "P-SECTION-108"
+    )
       overrides["518"] = costAccount
     else if (scenario === "P-OUTSIDE-VAT") overrides["548"] = costAccount
     else if (scenario === "P-EXEMPT-RECEIVED") overrides["518"] = costAccount
@@ -475,6 +480,24 @@ function decideVat(
             scenario: "S-EXPORT",
             note: "§66 ZDPH: vývoz zboží do třetí země → osvobozeno od daně s nárokem na odpočet (DAP ř.22), žádná daň na výstupu.",
           }
+    case "SECTION_108":
+      // §108 residual self-assessment on RECEIPT: place of supply is CZ but the
+      // supplier is NOT established in tuzemsko, so the Czech recipient přiznává
+      // daň při přijetí (gas/electricity §7a from a non-established supplier,
+      // §10–§10d special-place-of-supply services incl. short-term hire of a
+      // means of transport §10d, goods with assembly/installation §7(6), other
+      // §108 goods). Self-assessed on 343↔343 like any reverse charge and
+      // deductible on ř.43/44 → nets to zero for a full-deduction plátce; the
+      // vat_jurisdiction = 'SECTION_108' marker is what routes it to DPH ř.12/13
+      // (not the domestic §92 line ř.10/11). Received-side only — an ISSUED
+      // §108 is nonsensical and rejected at the capture boundary; the sale slot
+      // reuses S-PDP (also REVERSE_CHARGE) purely to keep decideVat total.
+      return {
+        vatMode: "REVERSE_CHARGE",
+        vatRate: ev.vatRate ?? "21",
+        scenario: isPurchase ? "P-SECTION-108" : "S-PDP",
+        note: "§108 ZDPH: přijetí plnění s místem plnění v tuzemsku od osoby neusazené v tuzemsku → povinnost přiznat daň při přijetí (samovyměření na 343↔343), DPH ř.12/13.",
+      }
     case "EXEMPT":
       return {
         vatMode: "EXEMPT",

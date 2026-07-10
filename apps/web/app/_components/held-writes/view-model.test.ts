@@ -109,12 +109,14 @@ describe("buildHeldWriteViewModel", () => {
       rateLabel: "21 %",
       base: "10500.00", // 10000 + 500, the two 21 % lines rolled into one row
       vat: "2205.00", // 2100 + 105
+      partialCount: 2, // rolled up from TWO partials — ambiguous, not 1:1 editable
     })
     expect(rate12).toEqual({
       rate: "12",
       rateLabel: "12 %",
       base: "1000.00",
       vat: "120.00",
+      partialCount: 1, // a single source partial — safely 1:1 editable
     })
   })
 
@@ -141,7 +143,13 @@ describe("buildHeldWriteViewModel", () => {
     )
 
     expect(vm.vatSummary).toEqual([
-      { rate: null, rateLabel: "osvobozeno", base: "5000.00", vat: "0.00" },
+      {
+        rate: null,
+        rateLabel: "osvobozeno",
+        base: "5000.00",
+        vat: "0.00",
+        partialCount: 1,
+      },
     ])
   })
 
@@ -168,6 +176,9 @@ describe("buildHeldWriteViewModel", () => {
     expect(vm.header.totalAmount).toBeNull()
     expect(vm.header.currency).toBeNull()
     expect(vm.vatSummary).toEqual([])
+    // [M1.7] No posting lines on an event — nothing to edit at that level.
+    expect(vm.postingLines).toEqual([])
+    expect(vm.postingKind).toBeNull()
   })
 
   it("shapes a createAccountingPosting header from the debit side of a double entry", () => {
@@ -191,6 +202,465 @@ describe("buildHeldWriteViewModel", () => {
     expect(vm.header.totalAmount).toBe("12100.00")
     expect(vm.header.currency).toBe("CZK")
     expect(vm.vatSummary).toEqual([])
+  })
+
+  it("[M1.7] exposes double-entry posting lines (accountId/side/amount) for kind=double", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "12100.00" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.postingKind).toBe("double")
+    expect(vm.postingLines).toEqual([
+      { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+      { accountId: "acc-2", side: "CREDIT", amount: "12100.00" },
+    ])
+  })
+
+  it("[M1.7] a monetary/cash posting has no editable posting lines", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "monetary",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              {
+                location: "BANK",
+                direction: "OUTFLOW",
+                isTaxRelevant: false,
+                amount: "500.00",
+              },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.postingKind).toBe("monetary")
+    expect(vm.postingLines).toEqual([])
+  })
+})
+
+describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
+  it("re-derives the předkontace scenario for a standard domestic RECEIVED service invoice", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "10000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "2100.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    expect(vm.mddPreview?.scenarioId).toBe("P-SERVICES-21")
+    expect(vm.mddPreview?.lines).toEqual([
+      {
+        account: "518",
+        side: "DEBIT",
+        amount: "10000.00",
+        label: "Ostatní služby",
+      },
+      { account: "343", side: "DEBIT", amount: "2100.00", label: null },
+      { account: "321", side: "CREDIT", amount: "12100.00", label: null },
+    ])
+    expect(vm.mddPreview?.totalDebit).toBe("12100.00")
+    expect(vm.mddPreview?.totalCredit).toBe("12100.00")
+    expect(vm.mddPreview?.balanced).toBe(true)
+  })
+
+  it("labels a preview line from the passed-in chart of accounts when the scenario entry has no description", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "10000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "2100.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      [{ id: "acc-343", number: "343", name: "DPH" }],
+    )
+
+    const line343 = vm.mddPreview?.lines.find((l) => l.account === "343")
+    expect(line343?.label).toBe("DPH")
+  })
+
+  it("skips an ASSET partial (capitalisation not derivable from a raw capture) with a caveat, but still previews the rest", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "90000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "18900.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "ASSET",
+                  currencyCode: "CZK",
+                },
+                {
+                  baseAmount: "1000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "210.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    // Only the SERVICES partial's lines — the ASSET partial is skipped, not guessed.
+    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
+      "518",
+      "343",
+      "321",
+    ])
+    expect(vm.mddPreview?.totalDebit).toBe("1210.00")
+    expect(
+      vm.mddPreview?.caveats.some((c) => c.includes("Dlouhodobý majetek")),
+    ).toBe(true)
+  })
+
+  it("reverses the MD/D sides for a credit note captured with negative amounts (§42 dobropis)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  // Negative base/VAT is the only credit-note signal a capture
+                  // carries — a normal supplyKind, no explicit isCreditNote fact.
+                  baseAmount: "-10000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "-2100.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    // Routed through the reverse-side template, not a normal-sided invoice.
+    expect(vm.mddPreview?.scenarioId).toBe("P-CREDIT-NOTE-STD")
+    // 321 debit (cut the payable), 518 credit (cut the cost), 343 credit (reverse input VAT).
+    const line321 = vm.mddPreview?.lines.find((l) => l.account === "321")
+    expect(line321?.side).toBe("DEBIT")
+    expect(line321?.amount).toBe("12100.00")
+    const line518 = vm.mddPreview?.lines.find((l) => l.account === "518")
+    expect(line518?.side).toBe("CREDIT")
+    expect(line518?.amount).toBe("10000.00")
+    expect(vm.mddPreview?.balanced).toBe(true)
+    // Amounts are shown as magnitudes, never the raw negatives.
+    expect(vm.mddPreview?.lines.every((l) => !l.amount.startsWith("-"))).toBe(
+      true,
+    )
+    // The reviewer is warned this is a credit note (special-regime sign caveat).
+    expect(vm.mddPreview?.caveats.some((c) => c.includes("dobropis"))).toBe(
+      true,
+    )
+  })
+
+  it("degrades a partial whose derivation throws (implausible vat_rate) to a skip + caveat, never an exception", () => {
+    const build = () =>
+      buildHeldWriteViewModel(
+        captureFixture({
+          input_json: {
+            type: "RECEIVED_INVOICE",
+            issuedAt: "2026-06-01",
+            lines: [
+              {
+                eventId: "event-1",
+                partials: [
+                  {
+                    // 99 % is not a valid CZ VAT rate — classifyEvent throws.
+                    baseAmount: "5000.00",
+                    vatMode: "STANDARD",
+                    vatRate: "99",
+                    vatAmount: "4950.00",
+                    vatJurisdiction: "DOMESTIC",
+                    supplyKind: "SERVICES",
+                    currencyCode: "CZK",
+                  },
+                  {
+                    // A valid partial in the same document still previews.
+                    baseAmount: "1000.00",
+                    vatMode: "STANDARD",
+                    vatRate: "21",
+                    vatAmount: "210.00",
+                    vatJurisdiction: "DOMESTIC",
+                    supplyKind: "SERVICES",
+                    currencyCode: "CZK",
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      )
+
+    // The bad partial must NOT crash the whole (read-only) page render.
+    expect(build).not.toThrow()
+    const vm = build()
+    expect(vm.mddPreview).not.toBeNull()
+    // Only the valid partial's lines are present; the bad one is skipped.
+    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
+      "518",
+      "343",
+      "321",
+    ])
+    expect(vm.mddPreview?.totalDebit).toBe("1210.00")
+    expect(
+      vm.mddPreview?.caveats.some((c) => c.includes("nebylo možné zařadit")),
+    ).toBe(true)
+  })
+
+  it("returns null for a non-invoice capture (bank statement — not booked via předkontace)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "BANK_STATEMENT",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "500.00",
+                  vatMode: "OUTSIDE_VAT",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).toBeNull()
+  })
+
+  it("shows a createAccountingPosting's proposed double-entry lines verbatim, resolving accountId to a chart number/name", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "12100.00" },
+            ],
+          },
+        },
+      }),
+      [
+        { id: "acc-1", number: "321", name: "Dodavatelé" },
+        { id: "acc-2", number: "221", name: "Bankovní účty" },
+      ],
+    )
+
+    expect(vm.mddPreview).toEqual({
+      scenarioId: null,
+      scenarioLabel: null,
+      lines: [
+        {
+          account: "321",
+          side: "DEBIT",
+          amount: "12100.00",
+          label: "Dodavatelé",
+        },
+        {
+          account: "221",
+          side: "CREDIT",
+          amount: "12100.00",
+          label: "Bankovní účty",
+        },
+      ],
+      totalDebit: "12100.00",
+      totalCredit: "12100.00",
+      balanced: true,
+      caveats: [],
+    })
+  })
+
+  it("flags an unbalanced proposed posting instead of silently accepting it", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "12000.00" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview?.balanced).toBe(false)
+  })
+
+  it("flags a sub-half-cent imbalance the old float epsilon (< 0.005) masked (exact integer minor-unit math)", () => {
+    // DEBIT 100.00 vs CREDIT 100.004: the old `Math.abs(100 - 100.004) < 0.005`
+    // float check reported this as BALANCED; exact ten-thousandth minor units
+    // (1000000 ≠ 1000040) correctly flag it. The displayed 2dp totals are
+    // identical ("100.00"), so ONLY the exact `balanced` boolean distinguishes
+    // the fix — this test fails under the old float summation, passes under it.
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "100.004" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview?.totalDebit).toBe("100.00")
+    expect(vm.mddPreview?.totalCredit).toBe("100.00")
+    expect(vm.mddPreview?.balanced).toBe(false)
+  })
+
+  it("sums posting totals with exact integer minor-unit math, no float drift", () => {
+    // 0.10 + 0.20 float-sums to 0.30000000000000004, and 0.10 × 3 to the same;
+    // exact minor units give a clean 0.30 on both sides and a balanced entry.
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "0.10" },
+              { accountId: "acc-1", side: "DEBIT", amount: "0.20" },
+              { accountId: "acc-2", side: "CREDIT", amount: "0.10" },
+              { accountId: "acc-2", side: "CREDIT", amount: "0.10" },
+              { accountId: "acc-2", side: "CREDIT", amount: "0.10" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview?.totalDebit).toBe("0.30")
+    expect(vm.mddPreview?.totalCredit).toBe("0.30")
+    expect(vm.mddPreview?.balanced).toBe(true)
+  })
+
+  it("returns null for a monetary (cash-regime) posting — předkontace/MD-D is double-entry only", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "monetary",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              {
+                location: "BANK",
+                direction: "OUTFLOW",
+                isTaxRelevant: false,
+                amount: "500.00",
+              },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).toBeNull()
+  })
+
+  it("returns null for a createAccountingEvent (no posting data at all)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingEvent",
+        input_json: {
+          counterpartyId: "cp-1",
+          description: "FP — nájem kanceláře",
+          occurredAt: "2026-06-01",
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).toBeNull()
   })
 })
 

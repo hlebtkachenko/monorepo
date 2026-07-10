@@ -23,9 +23,11 @@
 // those are server-injected from the API-key principal. This module emits only @workspace/shared request
 // DTOs and never imports @workspace/accounting.
 
-import type {
-  CaptureAccountingDocumentRequest,
-  GateEnvelope,
+import {
+  ClassifyEventResponseSchema,
+  type CaptureAccountingDocumentRequest,
+  type ClassifyEventResponse,
+  type GateEnvelope,
 } from "@workspace/shared/api"
 import { minorToDecimal } from "@workspace/brain/confidence"
 import type {
@@ -240,4 +242,144 @@ export function bankToCapture(
     ],
     ...gateEnvelope(ctx),
   }
+}
+
+// ── M1.2 — thread the server's classify_accounting_event treatment into the capture write body ──────────────
+//
+// HARNESS-DETERMINISTIC (design b): the SERVER's `classify_accounting_event` result parametrizes the capture
+// partials' TREATMENT — the MODEL never edits the write body; the HARNESS does, from a server-authoritative
+// result. It is threaded at the live launcher's `canUseTool` `updatedInput` seam (apps/cli sdk-launcher.ts),
+// so the model transcribes the operator-inspected payload VERBATIM and the harness merges classify's answer
+// onto it BELOW the model. This module owns the PURE merge so it is unit-tested next to the adapter it refines.
+//
+// SAFETY — NARROW-ONLY. `deriveCaptureVeto` (apps/api/src/v1/accounting/accounting-veto.ts) holds EVERY
+// non-STANDARD `vatMode` via `unverified_vat_regime`, so STANDARD is the ONLY auto-applicable mode. The merge
+// may only move a partial TOWARD held: it never widens an adapter-HELD OUTSIDE_VAT / rate-less row into a
+// verifiable-looking STANDARD one. Money (`baseAmount` / `vatAmount` / `currencyCode`) AND the source `vatRate`
+// the server's `base * rate` check reads are NEVER touched — classify sets only the TREATMENT (how a supply is
+// taxed), never the amounts. `confidence` is never produced here (it stays operator/harness-supplied and
+// server-degraded). The change rides BELOW the veto: a special regime the harness threads in is stamped for the
+// reviewer and still HELD. `deriveCaptureVeto` itself is untouched — it is what keeps every special-regime
+// write HELD after threading.
+
+/**
+ * The classify-result subset the harness threads. `vatMode` / `vatJurisdiction` / `commodityCode` are the
+ * treatment fields shared by BOTH the classify response AND `PartialRecordSchema`; `reasoning` feeds the
+ * (audit-only) capture `rationale`. classify's posting-side fields (`scenario` / `saldoAccount` / `capitalise`
+ * / `deferral` / `accountOverrides`) are OUT OF SCOPE for the capture body, and `vatRate` / the amounts stay
+ * 100% document-sourced (see the module note) — so none of those is included here.
+ */
+export type ClassifyThreading = Pick<
+  ClassifyEventResponse,
+  "vatMode" | "vatJurisdiction" | "commodityCode" | "reasoning"
+>
+
+/** Mirrors the RATIONALE cap in accounting-writes.ts (the capture `rationale` is `.max(2000)`). */
+const RATIONALE_MAX = 2000
+
+/**
+ * Parse a `classify_accounting_event` tool-result body (the JSON text the MCP tool returned) into the
+ * threadable subset. Validates the FULL classify response with its own contract schema (zero-drift,
+ * server-authoritative), so a malformed / partial / errored body threads NOTHING (returns `undefined` → the
+ * merge is the identity, keeping the adapter's conservative treatment). PURE.
+ */
+export function parseClassifyThreading(
+  text: string | undefined,
+): ClassifyThreading | undefined {
+  if (text === undefined) return undefined
+  let body: unknown
+  try {
+    body = JSON.parse(text)
+  } catch {
+    return undefined
+  }
+  const result = ClassifyEventResponseSchema.safeParse(body)
+  if (!result.success) return undefined
+  const { vatMode, vatJurisdiction, commodityCode, reasoning } = result.data
+  return { vatMode, vatJurisdiction, commodityCode, reasoning }
+}
+
+/**
+ * NARROW-ONLY treatment merge for ONE capture partial (see the module note). STANDARD is the only
+ * auto-applicable `vatMode`, so:
+ *   - adapter already non-STANDARD → keep it VERBATIM (never widen a held row into STANDARD).
+ *   - adapter STANDARD + classify STANDARD → keep the adapter's SOURCE treatment verbatim (source `vatRate` +
+ *     `vatAmount` untouched, so the server's `base * rate` arithmetic check cannot be steered).
+ *   - adapter STANDARD + classify special-regime → stamp the special regime (+ its `vatJurisdiction` /
+ *     `commodityCode`); `deriveCaptureVeto` then HOLDS it via `unverified_vat_regime`. Money is NEVER touched.
+ * The result `vatMode` is STANDARD IFF BOTH sides said STANDARD, so a non-STANDARD adapter row can never
+ * become STANDARD (auto-applicable) through the merge.
+ */
+function narrowMergePartial(
+  partial: CapturePartial,
+  t: ClassifyThreading,
+): CapturePartial {
+  if (partial.vatMode !== "STANDARD") return partial
+  if (t.vatMode === "STANDARD") return partial
+  return {
+    ...partial,
+    vatMode: t.vatMode,
+    ...(t.vatJurisdiction ? { vatJurisdiction: t.vatJurisdiction } : {}),
+    ...(t.commodityCode ? { commodityCode: t.commodityCode } : {}),
+  }
+}
+
+/**
+ * Derive the capture `rationale` from classify's law-cited `reasoning[]` — ADDITIVE + bounded. Preserves the
+ * operator/harness rationale and appends the classify trail (bounded to the schema's 2000-char cap). No
+ * reasoning → `undefined` (keep the original). Audit-only: the server strips `rationale` before the domain
+ * mutation, so it never affects the veto or the auto-apply decision.
+ */
+function deriveRationale(
+  current: string,
+  reasoning: readonly string[] | undefined,
+): string | undefined {
+  const trail = (reasoning ?? []).filter(
+    (r): r is string => typeof r === "string" && r.length > 0,
+  )
+  if (trail.length === 0) return undefined
+  const combined = current
+    ? `${current} [classify: ${trail.join("; ")}]`
+    : `classify: ${trail.join("; ")}`
+  return combined.length > RATIONALE_MAX
+    ? combined.slice(0, RATIONALE_MAX)
+    : combined
+}
+
+/**
+ * Thread a parsed `classify_accounting_event` result onto a capture request — HARNESS-DETERMINISTIC, NARROW-
+ * ONLY (see the module note). Returns a FRESH request; the input is untouched. `classify === undefined` is the
+ * identity (fail-safe: the capture keeps the adapter's already-conservative treatment). DEFENSIVE: it runs on
+ * the model-transcribed capture tool INPUT, so `lines` / `partials` are array-guarded and a non-object partial
+ * passes through untouched — the server re-validates every field below this merge regardless. Generic in the
+ * request shape so the launcher can thread the raw `Record<string, unknown>` tool input and get the same shape
+ * back (its extra `idempotency-key` field is preserved by the spread), while tests thread a typed request.
+ */
+export function applyClassifyToCapture<T extends Record<string, unknown>>(
+  request: T,
+  classify: ClassifyThreading | undefined,
+): T {
+  if (!classify) return request
+  const raw = request as { lines?: unknown; rationale?: unknown }
+  const lines = Array.isArray(raw.lines) ? raw.lines : []
+  const mergedLines = lines.map((line) => {
+    const partials = Array.isArray((line as { partials?: unknown })?.partials)
+      ? (line as { partials: unknown[] }).partials
+      : []
+    return {
+      ...(line && typeof line === "object" ? line : {}),
+      partials: partials.map((p) =>
+        p && typeof p === "object"
+          ? narrowMergePartial(p as CapturePartial, classify)
+          : p,
+      ),
+    }
+  })
+  const out: Record<string, unknown> = { ...request, lines: mergedLines }
+  const rationale = deriveRationale(
+    typeof raw.rationale === "string" ? raw.rationale : "",
+    classify.reasoning,
+  )
+  if (rationale !== undefined) out.rationale = rationale
+  return out as T
 }

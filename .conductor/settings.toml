@@ -3,8 +3,8 @@
 [scripts]
 # CodeGraph is optional local dev tooling; it must never fail workspace
 # creation. `pnpm install` must succeed; the index build is best-effort.
-setup = "pnpm install --frozen-lockfile && { pnpm codegraph:ready || true; }"
+setup = "pnpm install --frozen-lockfile && { pnpm codegraph:ready || echo 'Warning: CodeGraph index unavailable; run pnpm codegraph:ready manually.' >&2; }"
 
 [scripts.run.codegraph]
-command = "pnpm codegraph:ready"
+command = "if cd \"$CONDUCTOR_WORKSPACE_PATH\" && pnpm codegraph:ready; then echo 'CodeGraph index ready.'; exit 0; else exit_code=$?; echo 'CodeGraph index build failed.' >&2; exit \"$exit_code\"; fi"
 icon = "network"

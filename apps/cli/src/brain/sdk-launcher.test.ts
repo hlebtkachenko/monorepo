@@ -12,8 +12,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import type { PermissionResult } from "@anthropic-ai/claude-agent-sdk"
 import { buildLoginContext } from "@workspace/brain"
-import type { BrainDryRunPlan } from "@workspace/intake"
+import type { BrainDryRunPlan, ClassifyThreading } from "@workspace/intake"
 
+import { CAPTURE_ACCOUNTING_DOCUMENT_TOOL } from "./session-config"
 import {
   makeCanUseTool,
   makeExtractCanUseTool,
@@ -177,6 +178,126 @@ describe("makeCanUseTool (RUN/BOOK lane live gate)", () => {
       const result = mustResult(await gate(toolName, {}, STUB_TOOL_OPTIONS))
       expect(result.behavior).toBe("deny")
     }
+  })
+})
+
+describe("makeCanUseTool — classify treatment threading at the updatedInput seam (M1.2)", () => {
+  // A flat capture tool input (what the model transcribes from the embedded plan.captureRequest, plus the
+  // idempotency-key argument). `partials` is the field the harness threads classify's treatment onto.
+  const captureInput = (
+    partials: Array<Record<string, unknown>>,
+  ): Record<string, unknown> => ({
+    periodId: "p",
+    seriesId: "s",
+    type: "RECEIVED_INVOICE",
+    issuedAt: "2025-03-14",
+    lines: [{ eventId: "e", description: "d", partials }],
+    confidence: 0.9,
+    rationale: "operator rationale",
+    "idempotency-key": "doc-1",
+  })
+  const STANDARD_PARTIAL = {
+    baseAmount: "1000.00",
+    vatMode: "STANDARD",
+    vatRate: "21",
+    vatAmount: "210.00",
+    vatJurisdiction: "DOMESTIC",
+    currencyCode: "CZK",
+  }
+  const OUTSIDE_PARTIAL = {
+    baseAmount: "500.00",
+    vatMode: "OUTSIDE_VAT",
+    currencyCode: "CZK",
+  }
+  const reverseCharge: ClassifyThreading = {
+    vatMode: "REVERSE_CHARGE",
+    vatJurisdiction: "REVERSE_CHARGE",
+    commodityCode: "4",
+    reasoning: ["§92e stavební a montážní práce"],
+  }
+  const standard: ClassifyThreading = {
+    vatMode: "STANDARD",
+    vatJurisdiction: "DOMESTIC",
+    commodityCode: null,
+    reasoning: [],
+  }
+
+  async function capturePartials(
+    threading: ClassifyThreading | undefined,
+    input: Record<string, unknown>,
+  ): Promise<Array<Record<string, unknown>>> {
+    const gate = makeCanUseTool(stubPlan(), () => threading)
+    const result = mustResult(
+      await gate(CAPTURE_ACCOUNTING_DOCUMENT_TOOL, input, STUB_TOOL_OPTIONS),
+    )
+    if (result.behavior !== "allow") throw new Error("expected allow")
+    const updated = result.updatedInput as Record<string, unknown>
+    const line = (updated.lines as Array<Record<string, unknown>>)[0]!
+    return line.partials as Array<Record<string, unknown>>
+  }
+
+  it("stamps a special regime from classify onto an adapter STANDARD partial (→ the server veto HOLDS it)", async () => {
+    const partials = await capturePartials(
+      reverseCharge,
+      captureInput([{ ...STANDARD_PARTIAL }]),
+    )
+    expect(partials[0]!.vatMode).toBe("REVERSE_CHARGE")
+    expect(partials[0]!.vatJurisdiction).toBe("REVERSE_CHARGE")
+    expect(partials[0]!.commodityCode).toBe("4")
+    // Money stays document-sourced — classify sets the treatment, never the amounts.
+    expect(partials[0]!.baseAmount).toBe("1000.00")
+    expect(partials[0]!.vatAmount).toBe("210.00")
+  })
+
+  it("NARROW-ONLY: a classify STANDARD verdict cannot widen an adapter OUTSIDE_VAT partial", async () => {
+    const partials = await capturePartials(
+      standard,
+      captureInput([{ ...OUTSIDE_PARTIAL }]),
+    )
+    expect(partials[0]!.vatMode).toBe("OUTSIDE_VAT")
+    expect(partials[0]!.vatMode).not.toBe("STANDARD")
+  })
+
+  it("is the identity when no threading accessor is supplied (unchanged legacy gate)", async () => {
+    const gate = makeCanUseTool(stubPlan())
+    const input = captureInput([{ ...STANDARD_PARTIAL }])
+    const result = mustResult(
+      await gate(CAPTURE_ACCOUNTING_DOCUMENT_TOOL, input, STUB_TOOL_OPTIONS),
+    )
+    if (result.behavior !== "allow") throw new Error("expected allow")
+    expect(result.updatedInput).toEqual(input)
+  })
+
+  it("preserves the idempotency-key argument through the merge", async () => {
+    const gate = makeCanUseTool(stubPlan(), () => reverseCharge)
+    const result = mustResult(
+      await gate(
+        CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
+        captureInput([{ ...STANDARD_PARTIAL }]),
+        STUB_TOOL_OPTIONS,
+      ),
+    )
+    if (result.behavior !== "allow") throw new Error("expected allow")
+    expect(result.updatedInput!["idempotency-key"]).toBe("doc-1")
+  })
+})
+
+describe("makeSandboxGate — optional deterministic input rewrite", () => {
+  it("applies rewriteInput on allow and never on deny", async () => {
+    const gate = makeSandboxGate(
+      (toolName) => toolName === "ok_tool",
+      (toolName) => `denied: ${toolName}`,
+      (_toolName, input) => ({ ...input, rewritten: true }),
+    )
+    const allowed = mustResult(
+      await gate("ok_tool", { a: 1 }, STUB_TOOL_OPTIONS),
+    )
+    expect(allowed).toEqual({
+      behavior: "allow",
+      updatedInput: { a: 1, rewritten: true },
+    })
+    const denied = mustResult(await gate("bad", { a: 1 }, STUB_TOOL_OPTIONS))
+    expect(denied.behavior).toBe("deny")
   })
 })
 

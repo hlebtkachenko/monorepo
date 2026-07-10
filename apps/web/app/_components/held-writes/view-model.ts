@@ -343,6 +343,42 @@ function round2dp(n: number): number {
   return (Math.sign(n) * Math.round(Math.abs(n) * 100)) / 100
 }
 
+// ---------------------------------------------------------------------------
+// Exact money math for the MD/D balance. Money is a decimal STRING at
+// numeric(19,4) precision (ADR-0013 — the `Money<Currency>` brand is
+// compile-time only, the domain does its arithmetic in SQL). The MD/D preview
+// still has to prove Σ(MD) = Σ(Dal), so it sums line amounts as EXACT integer
+// minor units (ten-thousandths) and compares them for equality — never a float
+// sum, never a `< 0.005` epsilon (repo domain rule: never native `number` for
+// money). bigint, not number: a numeric(19,4) amount can exceed 2^53 minor
+// units (see packages/shared `MoneySchema`). Display stays 2dp.
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a decimal money string ("12100.00", "-100.0040") to exact integer
+ * minor units (ten-thousandths, matching numeric(19,4)). A non-numeric input
+ * returns 0n — mirrors the display-safe `toNumber` fallback so a malformed
+ * amount degrades quietly instead of crashing the read-only review render.
+ */
+function toMinorUnits(value: string): bigint {
+  const match = /^(-?)(\d*)(?:\.(\d+))?$/.exec(value.trim())
+  if (!match) return 0n
+  const [, sign, whole = "", frac = ""] = match
+  const fracScaled = (frac + "0000").slice(0, 4)
+  const units = BigInt(whole || "0") * 10000n + BigInt(fracScaled || "0")
+  return sign === "-" ? -units : units
+}
+
+/** Format exact integer minor units (ten-thousandths) back to a canonical 2dp decimal string — DISPLAY ONLY. */
+function formatMinorUnits(units: bigint): string {
+  const negative = units < 0n
+  const abs = negative ? -units : units
+  // Round ten-thousandths → hundredths, half away from zero (abs is non-negative).
+  const cents = (abs + 50n) / 100n
+  const formatted = `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`
+  return negative ? `-${formatted}` : formatted
+}
+
 function finalizeMddPreview(
   scenarioId: string | null,
   scenarioLabel: string | null,
@@ -351,17 +387,17 @@ function finalizeMddPreview(
 ): MddPreview {
   const totalDebit = lines
     .filter((l) => l.side === "DEBIT")
-    .reduce((s, l) => s + toNumber(l.amount), 0)
+    .reduce((sum, l) => sum + toMinorUnits(l.amount), 0n)
   const totalCredit = lines
     .filter((l) => l.side === "CREDIT")
-    .reduce((s, l) => s + toNumber(l.amount), 0)
+    .reduce((sum, l) => sum + toMinorUnits(l.amount), 0n)
   return {
     scenarioId,
     scenarioLabel,
     lines,
-    totalDebit: toDecimal(totalDebit),
-    totalCredit: toDecimal(totalCredit),
-    balanced: Math.abs(totalDebit - totalCredit) < 0.005,
+    totalDebit: formatMinorUnits(totalDebit),
+    totalCredit: formatMinorUnits(totalCredit),
+    balanced: totalDebit === totalCredit,
     caveats,
   }
 }

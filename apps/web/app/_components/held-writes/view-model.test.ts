@@ -510,6 +510,60 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
     expect(vm.mddPreview?.balanced).toBe(false)
   })
 
+  it("flags a sub-half-cent imbalance the old float epsilon (< 0.005) masked (exact integer minor-unit math)", () => {
+    // DEBIT 100.00 vs CREDIT 100.004: the old `Math.abs(100 - 100.004) < 0.005`
+    // float check reported this as BALANCED; exact ten-thousandth minor units
+    // (1000000 ≠ 1000040) correctly flag it. The displayed 2dp totals are
+    // identical ("100.00"), so ONLY the exact `balanced` boolean distinguishes
+    // the fix — this test fails under the old float summation, passes under it.
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "100.004" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview?.totalDebit).toBe("100.00")
+    expect(vm.mddPreview?.totalCredit).toBe("100.00")
+    expect(vm.mddPreview?.balanced).toBe(false)
+  })
+
+  it("sums posting totals with exact integer minor-unit math, no float drift", () => {
+    // 0.10 + 0.20 float-sums to 0.30000000000000004, and 0.10 × 3 to the same;
+    // exact minor units give a clean 0.30 on both sides and a balanced entry.
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "0.10" },
+              { accountId: "acc-1", side: "DEBIT", amount: "0.20" },
+              { accountId: "acc-2", side: "CREDIT", amount: "0.10" },
+              { accountId: "acc-2", side: "CREDIT", amount: "0.10" },
+              { accountId: "acc-2", side: "CREDIT", amount: "0.10" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.mddPreview?.totalDebit).toBe("0.30")
+    expect(vm.mddPreview?.totalCredit).toBe("0.30")
+    expect(vm.mddPreview?.balanced).toBe(true)
+  })
+
   it("returns null for a monetary (cash-regime) posting — předkontace/MD-D is double-entry only", () => {
     const vm = buildHeldWriteViewModel(
       captureFixture({

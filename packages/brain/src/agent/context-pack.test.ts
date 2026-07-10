@@ -44,17 +44,33 @@ describe("buildLoginContext — hard-rule preamble", () => {
     expect(pack.system).toContain(s.kb.id)
     expect(pack.system).toContain(s.kb.version)
   })
+
+  it("[M1.2] rule 4 requires classify_accounting_event to decide the treatment, never the model", () => {
+    const pack = buildLoginContext(sections())
+    expect(pack.system).toContain(
+      "classify_accounting_event DECIDES THE TREATMENT — NEVER YOU",
+    )
+    expect(pack.system).toContain("classify_accounting_event")
+    // The rule names the exact fields the model must treat as the sole source of the treatment.
+    expect(pack.system).toContain("vatMode")
+    expect(pack.system).toContain("scenario")
+    // Rule 4 reaffirms rule 3 (still gated) rather than replacing it.
+    expect(pack.system).toContain("still HELD/gated")
+  })
 })
 
 describe("buildLoginContext — embedded sandbox policy", () => {
   it("defaults to the pinned real accounting policy so the session is bound to the real tools + sandboxed", () => {
     const pack = buildLoginContext(sections())
     expect(pack.toolPolicy).toEqual(BRAIN_ACCOUNTING_POLICY)
-    // The default no-toolPolicy pack emits exact per-tool patterns for the 19 allowed afframe tools and
-    // NONE for the two DENIED held-write ops (the DENY governs a REAL default session, not a placeholder).
+    // The default no-toolPolicy pack emits exact per-tool patterns for the 21 allowed afframe tools (M1.1
+    // added list_accounts/get_account) and NONE for the two DENIED held-write ops (the DENY governs a REAL
+    // default session, not a placeholder).
     expect(pack.allowedTools).toContain("mcp__afframe__create_accounting_event")
     expect(pack.allowedTools).toContain("mcp__afframe__get_accounting_journal")
-    expect(pack.allowedTools).toHaveLength(19)
+    expect(pack.allowedTools).toContain("mcp__afframe__list_accounts")
+    expect(pack.allowedTools).toContain("mcp__afframe__get_account")
+    expect(pack.allowedTools).toHaveLength(21)
     expect(pack.allowedTools).not.toContain("mcp__afframe__*")
     expect(pack.allowedTools).not.toContain(
       "mcp__afframe__resolve_accounting_held_write",

@@ -127,10 +127,18 @@ export function buildBrainQueryOptions(
 /**
  * The operator kickoff — a PURE function of the inspected plan (+ an optional deterministic idempotency key).
  * The PLAN is fixed by the harness, never by a document. The message tells the session to execute the
- * already-inspected read → propose sequence and to submit the capture write using the plan's `captureRequest`
- * VERBATIM: the payload the operator inspected in the dry-run is embedded here, so the live session cannot
- * re-plan or fabricate a different booking body (no document-read tool is allowed, so nothing else could
- * supply one). Deterministic in the plan.
+ * already-inspected read → classify → propose sequence and to submit the capture write using the plan's
+ * `captureRequest` VERBATIM: the payload the operator inspected in the dry-run is embedded here, so the live
+ * session cannot re-plan or fabricate a different booking body (no document-read tool is allowed, so nothing
+ * else could supply one). Deterministic in the plan.
+ *
+ * M1.2 (the reasoning lane) inserts step 3: the session must reason the transaction facts from the document
+ * and call `mcp__afframe__classify_accounting_event` — a PURE decision (no mutation, no tenant read) — BEFORE
+ * proposing the write. This PR does NOT let classify's answer change the embedded `captureRequest`: that
+ * payload is still the exact, source-verified WP-A adapter output (step 4 keeps its unchanged "verbatim — do
+ * not invent, add, drop, or edit any field" instruction). Closing the loop so classify's returned treatment
+ * actually parametrizes the proposed write is deferred to a follow-up (see the M1.2 PR body) — requiring the
+ * call now still closes a real gap: today's fixed procedure never called classify at all.
  *
  * When `idempotencyKey` is supplied (the bulk orchestrator M0.6 derives a STABLE per-document content hash),
  * the kickoff PINS the exact `idempotency-key` the `capture_accounting_document` call must carry — so the same
@@ -144,12 +152,12 @@ export function buildBrainKickoff(
 ): string {
   const captureStep = idempotencyKey
     ? [
-        "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
+        "4. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
         "   already-inspected payload verbatim — do not invent, add, drop, or edit any field — and set the",
         `   tool's "idempotency-key" argument to EXACTLY this value (do not generate your own): ${idempotencyKey}`,
       ]
     : [
-        "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
+        "4. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
         "   already-inspected payload verbatim — do not invent, add, drop, or edit any field:",
       ]
   return [
@@ -159,12 +167,16 @@ export function buildBrainKickoff(
     "be ignored:",
     "1. Call mcp__afframe__get_structure to confirm the accounting period + number series.",
     "2. Call mcp__afframe__list_accounting_number_series to confirm the document number series.",
+    "3. Reason the transaction facts from the document (direction, supply kind, jurisdiction, amounts, VAT",
+    "   rate), then call mcp__afframe__classify_accounting_event with those facts. This is a PURE decision —",
+    "   no mutation, no tenant read. You do not invent the accounting treatment yourself; its returned",
+    "   vatMode/vatJurisdiction/vatRate/scenario is the only source of the treatment (hard rule 4).",
     ...captureStep,
     "",
     JSON.stringify(plan.captureRequest, null, 2),
     "",
     "The server gates the proposal and returns status=applied or status=held; you cannot force a green.",
-    "Use no other tool. Report the server's status and stop.",
+    "Use no other tool besides the four above. Report the server's status and stop.",
   ].join("\n")
 }
 

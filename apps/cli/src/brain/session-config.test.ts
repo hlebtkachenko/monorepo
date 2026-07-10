@@ -359,11 +359,27 @@ describe("constants", () => {
     )
   })
 
-  it("the kickoff drives the fixed read → propose sequence", () => {
+  it("the kickoff drives the fixed read → classify → propose sequence", () => {
     const kickoff = buildBrainKickoff(stubPlan())
     expect(kickoff).toContain("mcp__afframe__get_structure")
     expect(kickoff).toContain("mcp__afframe__list_accounting_number_series")
+    expect(kickoff).toContain("mcp__afframe__classify_accounting_event")
     expect(kickoff).toContain("mcp__afframe__capture_accounting_document")
+    // classify (step 3) is ordered before the capture write (step 4).
+    expect(
+      kickoff.indexOf("mcp__afframe__classify_accounting_event"),
+    ).toBeLessThan(kickoff.indexOf("mcp__afframe__capture_accounting_document"))
+  })
+
+  it("[M1.2] the kickoff tells the session to reason facts, never invent the treatment", () => {
+    const kickoff = buildBrainKickoff(stubPlan())
+    expect(kickoff).toContain("Reason the transaction facts")
+    expect(kickoff).toContain("PURE decision")
+    expect(kickoff).toContain("hard rule 4")
+    // The write step's "verbatim" instruction is unchanged by the reasoning step's addition.
+    expect(kickoff).toContain(
+      "already-inspected payload verbatim — do not invent, add, drop, or edit any field",
+    )
   })
 
   it("the kickoff embeds the inspected captureRequest verbatim (no re-planning)", () => {

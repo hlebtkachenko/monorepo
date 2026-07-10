@@ -10,6 +10,15 @@
 //     (`invoiceToCapture`), and returns the EXACT tool-call plan + the sandbox policy the live session would
 //     use. This is the creds-free half of the E2E: a caller can inspect precisely what a live run would do.
 //
+//   - M1.2 (the reasoning lane): the plan now schedules `classify_accounting_event` BETWEEN the discovery
+//     reads and the capture write — reason the facts, then classify, then propose (see `planForCapture`).
+//     Its planned input here is an ILLUSTRATIVE placeholder (the same pattern the two read calls already
+//     use): a live session supplies the facts it actually reasoned from the document, which this creds-free
+//     dry-run cannot fabricate without a real model. This PR does NOT feed the classify result back into the
+//     capture request body — `captureRequest` is still the exact, source-verified WP-A adapter output,
+//     unchanged. Wiring classify's answer INTO the write body is a follow-up (needs the capture/posting
+//     write contract to accept a classification override, which does not exist yet — see the PR body).
+//
 //   - `runLiveBrainSession` — CREDS-GATED. It launches a real Claude Code session (Agent-SDK), which spawns a
 //     LOCAL stdio MCP bridge pointed at the deployed REST API, and drives the session against the real tools +
 //     the server gate.
@@ -125,9 +134,10 @@ export interface BrainDryRunInputs {
 
 /**
  * Build the creds-free dry-run plan for ONE ALREADY-MAPPED capture request. This is the SINGLE source of
- * truth for the login pack + the fixed read → propose tool sequence across every record kind (invoice /
- * bank / cash): the caller maps the IR record to a `CaptureAccountingDocumentRequest` via the right WP-A
- * adapter, and this assembles the plan the live session would drive with THAT request as the write body.
+ * truth for the login pack + the fixed read → classify → propose tool sequence across every record kind
+ * (invoice / bank / cash): the caller maps the IR record to a `CaptureAccountingDocumentRequest` via the
+ * right WP-A adapter, and this assembles the plan the live session would drive with THAT request as the
+ * write body.
  *
  * PURE. It (1) assembles the login pack via WP-B `buildLoginContext` (which embeds the sandbox policy and
  * fails closed on a self-contradictory policy), and (2) returns the ordered tool-call plan the live session
@@ -135,8 +145,12 @@ export interface BrainDryRunInputs {
  * endpoint is contacted — this is the plan, not the run.
  *
  * The plan a live run derives from this is DECIDED by the sandbox + the server gate, never by a document:
- * the tool set is fixed here (read structure/series → propose the capture write), and the write is HELD or
- * applied by the SERVER gate over infra signals, never by the model's verbalized confidence.
+ * the tool set is fixed here (read structure/series → classify the reasoned facts → propose the capture
+ * write), and the write is HELD or applied by the SERVER gate over infra signals, never by the model's
+ * verbalized confidence. M1.2 inserts `classify_accounting_event` (a PURE, ungated decision call — no
+ * mutation, no tenant read) between the reads and the write: the tool ORDER is fixed here exactly like the
+ * two reads before it, but its real input (the facts a live session reasoned from the document) cannot be
+ * fabricated in a creds-free dry run, so it carries the same illustrative placeholder shape the reads use.
  */
 export function planForCapture(
   captureRequest: CaptureAccountingDocumentRequest,
@@ -153,9 +167,10 @@ export function planForCapture(
   })
 
   // The fixed tool-call plan for a single-document session. The reads locate the tenant-side rows the write
-  // references (the harness supplies the resolved uuids in the capture request); the write is the only
-  // mutation and it is subject to the SERVER gate. Every tool name is the real `mcp__afframe__<tool>` name so
-  // the sandbox decision is asserted verbatim, not approximated.
+  // references (the harness supplies the resolved uuids in the capture request); classify is the reasoning
+  // step (M1.2, pure decision, no mutation/tenant-read); the write is the ONLY mutation and it is subject to
+  // the SERVER gate. Every tool name is the real `mcp__afframe__<tool>` name so the sandbox decision is
+  // asserted verbatim, not approximated.
   const toolPlan: PlannedToolCall[] = [
     tool(
       "mcp__afframe__get_structure",
@@ -168,6 +183,14 @@ export function planForCapture(
       "Look up the DOCUMENT number-series the capture write hangs off.",
       policy,
       { as: "read" },
+    ),
+    tool(
+      "mcp__afframe__classify_accounting_event",
+      "Reason the transaction facts from the document, then classify them into the accounting treatment " +
+        "(vatMode/vatJurisdiction/vatRate/scenario) — a PURE decision, no mutation, no tenant read. A live " +
+        "session supplies the facts it actually reasoned; this dry-run plan only fixes the tool's ORDER.",
+      policy,
+      { as: "reason" },
     ),
     tool(
       "mcp__afframe__capture_accounting_document",

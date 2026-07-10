@@ -108,8 +108,8 @@ main() {
   trap 'rm -f "$tmp"' EXIT
 
   if grep -q '^INGEST_SECRET=' "$DEV_VARS" 2>/dev/null; then
-    awk -v val="INGEST_SECRET=${value}" '
-      /^INGEST_SECRET=/ { print val; next }
+    INGEST_VAL="$value" awk '
+      /^INGEST_SECRET=/ { print "INGEST_SECRET=" ENVIRON["INGEST_VAL"]; next }
       { print }
     ' "$DEV_VARS" >"$tmp"
   else

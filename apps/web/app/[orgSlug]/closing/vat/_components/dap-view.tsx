@@ -79,6 +79,18 @@ const DAP_LINES: DapLine[] = [
       "ř.11 – Přijetí zdanitelného plnění (režim přenesení daňové povinnosti), sazba 12 %",
   },
   {
+    base: "r12_base",
+    dan: "r12_dan",
+    label:
+      "ř.12 – Ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při jejich přijetí (§108), sazba 21 %",
+  },
+  {
+    base: "r13_base",
+    dan: "r13_dan",
+    label:
+      "ř.13 – Ostatní zdanitelná plnění, u kterých je povinnost přiznat daň při jejich přijetí (§108), sazba 12 %",
+  },
+  {
     base: "r20_base",
     label: "ř.20 – Dodání zboží do jiného členského státu (§64)",
   },

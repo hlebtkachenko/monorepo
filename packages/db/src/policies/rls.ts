@@ -106,6 +106,7 @@ export type OrganizationScopedTable =
  *   - 0035_accounting_enforcement.sql §2 — counterparty
  *   - 0047_ocr_extraction_template.sql   — ocr_extraction_template
  *   - 0050_brain_confident_wrong.sql     — brain_confident_wrong (§I8 breaker)
+ *   - 0055_booking_template.sql          — booking_template (M2.1, §I9 amendment)
  *
  * If you add a workspace-scoped table, add it here AND to a migration that
  * creates its 4 command-specific policies with the NULLIF guard.
@@ -116,6 +117,7 @@ export const WORKSPACE_SCOPED_TABLES = [
   "counterparty",
   "ocr_extraction_template",
   "brain_confident_wrong",
+  "booking_template",
 ] as const
 
 export type WorkspaceScopedTable = (typeof WORKSPACE_SCOPED_TABLES)[number]

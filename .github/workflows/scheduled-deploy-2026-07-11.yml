@@ -1,0 +1,67 @@
+name: scheduled-deploy-2026-07-11
+
+# One-shot scheduled deploy: staging then production, from the latest main,
+# at 10:00 Europe/Prague on 2026-07-11. Runs on GitHub infrastructure, so it
+# fires even when the operator's machine is offline.
+#
+# DST note: GitHub cron is UTC with no DST. 2026-07-11 is CEST (UTC+2), so
+# 10:00 Prague == 08:00 UTC. The `date-guard` job pins execution to the single
+# target Prague date, so a stray future fire (the cron day/month repeats yearly)
+# is a no-op. Cron dispatch can lag ~5-15 min under load; treat 10:00 as a floor.
+#
+# This file is disposable: delete it after the run (or leave it — the guard
+# prevents any re-fire).
+
+on:
+  schedule:
+    - cron: "0 8 11 7 *" # 08:00 UTC = 10:00 Europe/Prague (CEST) on 2026-07-11
+  workflow_dispatch: {} # manual test fire; still honours the date guard
+
+permissions: {}
+
+jobs:
+  date-guard:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - id: check
+        run: |
+          today="$(TZ=Europe/Prague date +%F)"
+          if [ "$today" = "2026-07-11" ]; then
+            echo "Target date reached ($today); proceeding."
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not the target date ($today); skipping deploy."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  staging:
+    needs: date-guard
+    if: needs.date-guard.outputs.go == 'true'
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_deploy-aws.yml
+    with:
+      environment: staging
+      stack: all
+      # Mirror the manual-dispatch pre-launch default; workflow_call defaults to
+      # "" (CDK default OFF), which would silently kill the Brain write-lane.
+      brain_runtime_active: "1"
+    secrets: inherit
+
+  production:
+    needs: [date-guard, staging]
+    if: needs.date-guard.outputs.go == 'true'
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_deploy-aws.yml
+    with:
+      environment: production
+      stack: all
+      # Preserve the Brain write-lane state (see staging note above).
+      brain_runtime_active: "1"
+    secrets: inherit

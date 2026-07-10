@@ -29,6 +29,13 @@ import type {
 export const CAPTURE_ACCOUNTING_DOCUMENT_TOOL = `mcp__${AFFRAME_MCP_SERVER}__capture_accounting_document`
 
 /**
+ * The real classify decision MCP tool name (`mcp__afframe__classify_accounting_event`). SERVER-authoritative
+ * (a pure decision, no mutation, no tenant read), so its result is threaded onto the capture write body by the
+ * HARNESS (never by the model) at the launcher's `canUseTool` `updatedInput` seam — see `sdk-launcher.ts`.
+ */
+export const CLASSIFY_ACCOUNTING_EVENT_TOOL = `mcp__${AFFRAME_MCP_SERVER}__classify_accounting_event`
+
+/**
  * The LOCAL stdio MCP bridge spawn descriptor: the `tsx` runner + the args that run the `@afframe/mcp` stdio
  * server SOURCE. Resolved by the impure launcher (never here — this module stays env-free) and threaded in, so
  * the bridge's command/args/env are fixed by trusted CLI code, never by the model or a document. Brain v1 keeps
@@ -134,11 +141,15 @@ export function buildBrainQueryOptions(
  *
  * M1.2 (the reasoning lane) inserts step 3: the session must reason the transaction facts from the already-inspected payload
  * and call `mcp__afframe__classify_accounting_event` — a PURE decision (no mutation, no tenant read) — BEFORE
- * proposing the write. This PR does NOT let classify's answer change the embedded `captureRequest`: that
- * payload is still the exact, source-verified WP-A adapter output (step 4 keeps its unchanged "verbatim — do
- * not invent, add, drop, or edit any field" instruction). Closing the loop so classify's returned treatment
- * actually parametrizes the proposed write is deferred to a follow-up (see the M1.2 PR body) — requiring the
- * call now still closes a real gap: today's fixed procedure never called classify at all.
+ * proposing the write. The MODEL still submits the embedded `captureRequest` VERBATIM (step 4 keeps its
+ * unchanged "verbatim — do not invent, add, drop, or edit any field" instruction): it never edits the payload.
+ * The M1.2 completion closes the loop WITHOUT touching the model's contract — the HARNESS threads classify's
+ * server-authoritative treatment onto the submitted body deterministically at the `canUseTool` `updatedInput`
+ * seam (see `sdk-launcher.ts` + `applyClassifyToCapture` in @workspace/intake). That merge is NARROW-ONLY: it
+ * may only move a partial toward held/more-conservative (a special regime the harness stamps is HELD by the
+ * server's `unverified_vat_regime` veto), never widen an adapter-held row into an auto-appliable STANDARD one,
+ * and it never touches the amounts. So the kickoff text is unchanged: from the model's view the payload is
+ * still submitted verbatim; the harness (not the model) applies classify's answer below it, still server-gated.
  *
  * When `idempotencyKey` is supplied (the bulk orchestrator M0.6 derives a STABLE per-document content hash),
  * the kickoff PINS the exact `idempotency-key` the `capture_accounting_document` call must carry — so the same
@@ -172,9 +183,11 @@ export function buildBrainKickoff(
     "   payload IS your fact source. Then call mcp__afframe__classify_accounting_event with those facts. This",
     "   is a PURE decision — no mutation, no tenant read. You do not invent the accounting treatment yourself;",
     "   its returned vatMode/vatJurisdiction/vatRate/scenario is the only source of the treatment (hard rule 4).",
-    "   In this increment classify's answer NEVER edits the payload: if it disagrees with the payload's",
+    "   In this increment YOU never edit the payload: if classify disagrees with the payload's",
     "   vatMode/vatJurisdiction/vatRate, submit the payload VERBATIM in step 4 anyway and report the mismatch",
-    "   as a discrepancy for the human reviewer — never reconcile it yourself.",
+    "   as a discrepancy for the human reviewer — never reconcile it yourself. The HARNESS applies classify's",
+    "   server treatment onto the payload deterministically and narrow-only (below you); the server still holds",
+    "   every special regime.",
     ...captureStep,
     "",
     JSON.stringify(plan.captureRequest, null, 2),

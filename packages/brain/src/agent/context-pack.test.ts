@@ -56,11 +56,13 @@ describe("buildLoginContext — hard-rule preamble", () => {
     expect(pack.system).toContain("scenario")
     // Rule 4 reaffirms rule 3 (still gated) rather than replacing it.
     expect(pack.system).toContain("still HELD/gated")
-    // brain-gate #639: rule 4 must NOT let its "sole source of the treatment" wording override the
-    // capture step's verbatim rule — classify never edits the payload; a disagreement is reported, not reconciled.
-    expect(pack.system).toContain(
-      "classify's answer NEVER modifies the capture/posting payload",
-    )
+    // brain-gate #639 (preserved through the M1.2 write-body wiring): rule 4 must NOT let its "sole source of
+    // the treatment" wording override the capture step's verbatim rule — the MODEL never edits/reconciles the
+    // payload; a disagreement is reported, not reconciled. M1.2 completion: the treatment IS applied to the
+    // payload, but by the HARNESS (deterministically, narrow-only), never by the model.
+    expect(pack.system).toContain("applied to the payload by the HARNESS")
+    expect(pack.system).toContain("NARROW-ONLY")
+    expect(pack.system).toContain("YOU NEVER EDIT THE WRITE PAYLOAD")
     expect(pack.system).toContain("submit the")
     expect(pack.system).toContain("VERBATIM anyway")
     expect(pack.system).toContain("reconcile or edit the payload yourself")

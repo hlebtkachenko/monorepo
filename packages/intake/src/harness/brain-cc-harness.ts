@@ -14,10 +14,13 @@
 //     reads and the capture write — reason the facts, then classify, then propose (see `planForCapture`).
 //     Its planned input here is an ILLUSTRATIVE placeholder (the same pattern the two read calls already
 //     use): a live session supplies the facts it actually reasoned from the document, which this creds-free
-//     dry-run cannot fabricate without a real model. This PR does NOT feed the classify result back into the
-//     capture request body — `captureRequest` is still the exact, source-verified WP-A adapter output,
-//     unchanged. Wiring classify's answer INTO the write body is a follow-up (needs the capture/posting
-//     write contract to accept a classification override, which does not exist yet — see the PR body).
+//     dry-run cannot fabricate without a real model. The dry-run `captureRequest` remains the exact,
+//     source-verified WP-A adapter output (pre-classify). The M1.2-completion loop-close happens on the LIVE
+//     path only: the launcher (`apps/cli` sdk-launcher.ts) records the server's classify result and threads
+//     its treatment onto the submitted capture body deterministically at the `canUseTool` `updatedInput` seam
+//     (`applyClassifyToCapture`), NARROW-ONLY and below the model — the model never edits the payload, and
+//     every write is still HELD/gated by the server (a threaded special regime is held via
+//     `unverified_vat_regime`). This creds-free dry-run has no classify result to thread, so it is unchanged.
 //
 //   - `runLiveBrainSession` — CREDS-GATED. It launches a real Claude Code session (Agent-SDK), which spawns a
 //     LOCAL stdio MCP bridge pointed at the deployed REST API, and drives the session against the real tools +

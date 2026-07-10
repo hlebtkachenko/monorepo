@@ -10,6 +10,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **brain**: wire the reasoning lane (M1.1+M1.2) — `list_accounts`/`get_account` join the book-lane read allowlist, and the login-pack + live kickoff now require the Brain to reason the transaction facts and call `classify_accounting_event` (a pure, ungated decision) before every capture/posting proposal, instead of being handed a pre-decided treatment. Every proposal is still HELD/gated exactly as before — classify never mutates, never bypasses the server gate, and the write body is unchanged in this PR.
 
+### Changed
+
+- **brain**: complete the M1.2 write-body wiring — the harness now threads the server's `classify_accounting_event` treatment (vatMode/vatJurisdiction/commodityCode) onto the capture write body deterministically at the launcher's canUseTool updatedInput seam. The model never edits the payload; the merge is NARROW-ONLY (only ever moves a line toward held, never widens an adapter-held OUTSIDE_VAT row into STANDARD) and never touches the amounts; confidence stays out of the model's hands; every special-regime write is still HELD by the untouched `deriveCaptureVeto` (`unverified_vat_regime`).
+
 ## [v0.17.3] — 2026-07-10
 
 Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.

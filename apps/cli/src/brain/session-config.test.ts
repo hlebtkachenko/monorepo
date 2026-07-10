@@ -7,6 +7,7 @@ import type {
 } from "@workspace/intake"
 import {
   CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
+  CLASSIFY_ACCOUNTING_EVENT_TOOL,
   LANE_OFF_MESSAGE,
   buildBrainKickoff,
   buildBrainQueryOptions,
@@ -359,6 +360,12 @@ describe("constants", () => {
     )
   })
 
+  it("pins the real classify tool name (the server treatment the harness threads onto the write)", () => {
+    expect(CLASSIFY_ACCOUNTING_EVENT_TOOL).toBe(
+      "mcp__afframe__classify_accounting_event",
+    )
+  })
+
   it("the kickoff drives the fixed read → classify → propose sequence", () => {
     const kickoff = buildBrainKickoff(stubPlan())
     expect(kickoff).toContain("mcp__afframe__get_structure")
@@ -382,11 +389,13 @@ describe("constants", () => {
     )
     // brain-gate #639: the fact source is the embedded payload, NOT an (inaccessible) document read.
     expect(kickoff).toContain("you have no document-read tool")
-    // brain-gate #639: on a classify-vs-payload disagreement the session submits verbatim + reports a
-    // discrepancy, and never reconciles the treatment fields into the write body itself.
-    expect(kickoff).toContain("classify's answer NEVER edits the payload")
+    // brain-gate #639 (preserved through M1.2): on a classify-vs-payload disagreement the MODEL submits
+    // verbatim + reports a discrepancy, and never reconciles the treatment fields into the write body itself.
+    expect(kickoff).toContain("YOU never edit the payload")
     expect(kickoff).toContain("submit the payload VERBATIM in step 4 anyway")
     expect(kickoff).toContain("never reconcile it yourself")
+    // M1.2 completion: the HARNESS (not the model) applies classify's treatment, narrow-only.
+    expect(kickoff).toContain("The HARNESS applies classify's")
   })
 
   it("the kickoff embeds the inspected captureRequest verbatim (no re-planning)", () => {

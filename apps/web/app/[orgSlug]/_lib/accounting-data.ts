@@ -41,8 +41,6 @@ export interface OrgAccountingContext {
   userId: string
   /** The caller's membership role for the org (drives owner/admin edit affordances). */
   role: "owner" | "admin" | "member" | "agent" | "guest"
-  /** Whether the caller's org membership is active. */
-  active: boolean
   /** Active accounting period resolved from the `afframe_period` shell cookie, or null when the org has no books yet. */
   periodId: string | null
   periodStart: string | null
@@ -61,7 +59,6 @@ export async function getOrgAccountingContext(
       .select({
         id: organization.id,
         role: organization_membership.role,
-        active: organization_membership.active,
       })
       .from(organization)
       .innerJoin(
@@ -69,6 +66,7 @@ export async function getOrgAccountingContext(
         and(
           eq(organization_membership.organization_id, organization.id),
           eq(organization_membership.user_id, userId),
+          eq(organization_membership.active, true),
         ),
       )
       .where(eq(organization.slug, orgSlug))
@@ -88,7 +86,6 @@ export async function getOrgAccountingContext(
     organizationId: org.id,
     userId,
     role: org.role,
-    active: org.active,
     periodId: period?.id ?? null,
     periodStart: period?.period_start ?? null,
     periodEnd: period?.period_end ?? null,

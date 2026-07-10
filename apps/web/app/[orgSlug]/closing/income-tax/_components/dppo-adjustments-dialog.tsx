@@ -45,6 +45,8 @@ const SAVE_ERROR_MESSAGES: Record<SaveErrorKey, string> = {
   invalidInput:
     "Check that each answered amount is a number with its reference.",
   noPeriod: "No active accounting period.",
+  stalePeriod:
+    "The active accounting period changed. Reload the page and re-enter the values.",
   saveFailed: "Could not save the DPPO inputs. Please try again.",
 }
 
@@ -57,9 +59,11 @@ const SAVE_ERROR_MESSAGES: Record<SaveErrorKey, string> = {
  */
 export function DppoAdjustmentsDialog({
   slug,
+  periodId,
   dppo,
 }: {
   slug: string
+  periodId: string
   dppo: Dppo
 }) {
   const router = useRouter()
@@ -95,7 +99,7 @@ export function DppoAdjustmentsDialog({
       return
     }
     setBusy(true)
-    const result = await saveDppoAdjustmentsAction(slug, parsed.data)
+    const result = await saveDppoAdjustmentsAction(slug, periodId, parsed.data)
     setBusy(false)
     if (result.ok) {
       toast.success("DPPO inputs saved")

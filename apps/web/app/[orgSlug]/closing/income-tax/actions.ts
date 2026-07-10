@@ -21,7 +21,8 @@ export type IncomeTaxActionResult =
   | { ok: true }
   | {
       ok: false
-      errorKey: "forbidden" | "invalidInput" | "noPeriod" | "saveFailed"
+      errorKey:
+        "forbidden" | "invalidInput" | "noPeriod" | "stalePeriod" | "saveFailed"
     }
 
 /**
@@ -31,11 +32,16 @@ export type IncomeTaxActionResult =
  * cookie) without re-resolving session + membership. The period is resolved
  * SERVER-SIDE, never accepted from the client, and organization/workspace
  * tenancy is injected from the resolved context — the Zod input schema carries
- * none of it. buildDppo reads the saved row on the next render (see
- * income-tax-data.ts).
+ * none of it. `expectedPeriodId` is the period the dialog was prefilled from
+ * (the page render); it is only ever compared for equality against the
+ * server-resolved period, never used to select it — this guards against a
+ * multi-tab session switching the active period out from under an open
+ * dialog, which would otherwise retarget the write to the WRONG period.
+ * buildDppo reads the saved row on the next render (see income-tax-data.ts).
  */
 export async function saveDppoAdjustmentsAction(
   slug: string,
+  expectedPeriodId: string,
   input: DppoAdjustmentInput,
 ): Promise<IncomeTaxActionResult> {
   const gate = await authorizeOrgAdmin(slug)
@@ -54,6 +60,9 @@ export async function saveDppoAdjustmentsAction(
   )
   const periodId = period?.id
   if (!periodId) return { ok: false, errorKey: "noPeriod" }
+  if (periodId !== expectedPeriodId) {
+    return { ok: false, errorKey: "stalePeriod" }
+  }
 
   const orgCtx: OrgCtx = {
     organizationId: gate.ctx.organizationId,

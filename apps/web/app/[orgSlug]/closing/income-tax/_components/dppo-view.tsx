@@ -137,7 +137,11 @@ function DppoWorksheet({ data }: { data: OkResult }) {
 
       {data.canEdit ? (
         <div className="flex items-center justify-end">
-          <DppoAdjustmentsDialog slug={data.slug} dppo={data.dppo} />
+          <DppoAdjustmentsDialog
+            slug={data.slug}
+            periodId={data.periodId}
+            dppo={data.dppo}
+          />
         </div>
       ) : null}
     </div>

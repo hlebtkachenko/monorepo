@@ -11,6 +11,7 @@ import {
   type Regime,
 } from "@workspace/accounting"
 
+import { isOrgAdmin } from "../../../_lib/org-authz"
 import {
   resolvePeriodProfile,
   type PeriodProfileResult,
@@ -44,6 +45,8 @@ export type CorporateIncomeTaxResult =
       slug: string
       /** Whether the current member may edit the adjustments (owner/admin). */
       canEdit: boolean
+      /** The rendered period's id — passed back to the save action so it can reject a stale-period write. */
+      periodId: string
       periodLabel: string
       dppo: Dppo
     }
@@ -96,14 +99,14 @@ export async function getCorporateIncomeTax(
   )
   // Edit affordance — same owner/admin gate the save action enforces, read from
   // the membership already resolved by resolvePeriodProfile (no extra query, no
-  // cross-feature seam into settings).
-  const canEdit =
-    profile.ctx.active &&
-    (profile.ctx.role === "owner" || profile.ctx.role === "admin")
+  // cross-feature seam into settings). The join in getOrgAccountingContext
+  // already filters to an active membership, so only the role predicate remains.
+  const canEdit = isOrgAdmin(profile.ctx.role)
   return {
     status: "ok",
     slug: orgSlug,
     canEdit,
+    periodId: profile.periodId,
     periodLabel: profile.periodLabel,
     dppo,
   }

@@ -21,6 +21,10 @@ export interface OrgContext {
   role: "owner" | "admin" | "member" | "agent" | "guest"
 }
 
+export function isOrgAdmin(role: OrgContext["role"]): boolean {
+  return role === "owner" || role === "admin"
+}
+
 export async function resolveOrgContext(
   slug: string,
   userId: string,
@@ -61,6 +65,6 @@ export async function authorizeOrgAdmin(
   const userId = session?.user?.id
   if (!userId) return null
   const ctx = await resolveOrgContext(slug, userId)
-  if (!ctx || (ctx.role !== "owner" && ctx.role !== "admin")) return null
+  if (!ctx || !isOrgAdmin(ctx.role)) return null
   return { userId, ctx }
 }

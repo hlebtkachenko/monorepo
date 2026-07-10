@@ -14,6 +14,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- **accounting**: correct the pre-2024 DPPO rate legal citation (§21 ZDP, not the 2024 konsolidační balíček), remove stale obligation-test scaffolding, and document the migration 0051 pre-deploy data check.
 - **accounting/statutory**: preserve unknown legal and payroll facts, resolve VAT obligations from shared effective-dated evidence, require statutory filing-period API ranges, expose guarded invoice legal-date corrections, and serialize responsible-member changes without assignment races.
 - **accounting/closing**: derive KH and SH obligations from captured VAT evidence, preserve quarterly service-only SH and the goods-triggered monthly cadence, keep identified-person schedules event-driven and separate from payer worksheets, single-source VAT classification predicates, and label DAP/KH/SH outputs as partial worksheets with blocking evidence gaps.
 - **accounting/payroll**: replace the `has_employees` shortcut with effective-dated relationship, insurance-participation, payroll-tax-advance, and special-rate-withholding facts; keep legacy rows visibly unconfigured; and resolve each remittance through dated, source-backed threshold and deadline rules.

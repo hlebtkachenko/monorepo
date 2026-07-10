@@ -289,7 +289,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "MONTHLY",
       personType: "LEGAL",
-      hasEmployees: false,
       vatActivity: [],
     })
     expect(obligations.filter((o) => o.kind === "VAT_RETURN")).toHaveLength(12)
@@ -304,7 +303,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "MONTHLY",
       personType: "LEGAL",
-      hasEmployees: false,
       vatActivity: [
         {
           month: "2026-03",
@@ -337,7 +335,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "QUARTERLY",
       personType: "LEGAL",
-      hasEmployees: false,
       vatActivity: [activity({ month: "2026-05", services: true })],
     }).filter((o) => o.kind === "EC_SALES_LIST")
     expect(serviceOnly.map((o) => o.periodLabel)).toEqual(["Q2 2026"])
@@ -347,7 +344,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "PAYER",
       vatFilingPeriod: "QUARTERLY",
       personType: "LEGAL",
-      hasEmployees: false,
       vatActivity: [
         activity({ month: "2026-04", services: true }),
         activity({ month: "2026-05", goods: true }),
@@ -369,7 +365,6 @@ describe("computeObligations", () => {
       vatRegimeCode: "IDENTIFIED_PERSON",
       vatFilingPeriod: null,
       personType: "NATURAL",
-      hasEmployees: false,
       vatActivity: [
         {
           month: "2026-01",

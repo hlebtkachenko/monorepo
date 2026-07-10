@@ -836,10 +836,10 @@ describe("VAT output builder evidence scopes", () => {
   })
 
   it("buildKontrolniHlaseni: a monthly filing range narrows B.1 (received domestic §92 PDP, self-assessed) to that month's doklad only", async () => {
-    // Exercises reverseChargeRows's filingRangeFilter directly — the section
+    // Exercises reverseChargeRows's VatEvidenceScope filter directly — the section
     // the existing A.4 assertion above never touches (A.4 goes through
     // standardRowsOverThreshold / standardDokladCte instead). B.1 is also the
-    // RECEIVED side, so this doubles as the RECEIVED-side range-lock.
+    // RECEIVED side, so this doubles as the RECEIVED-side scope-lock.
     const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
       periodStart: "2026-01-01",
       periodEnd: "2026-12-31",
@@ -943,7 +943,7 @@ describe("VAT output builder evidence scopes", () => {
   it("buildKontrolniHlaseni: a monthly filing range narrows A.5 (aggregate, under the §101d threshold) to that month's dokladů only", async () => {
     // Exercises standardAggregate's own call site into standardDokladCte —
     // a distinct call from the one A.4 already locks (standardRowsOverThreshold),
-    // so a dropped filingRange specific to the aggregate query would not have
+    // so a dropped VatEvidenceScope specific to the aggregate query would not have
     // been caught by the A.4 assertion above.
     const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
       periodStart: "2026-01-01",

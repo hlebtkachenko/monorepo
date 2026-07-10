@@ -20,6 +20,22 @@ Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` r
 - [ ] Synthetic checks green for the last 24h on staging (`https://status.afframe.com`).
 - [ ] No SEV1/SEV2 incident open against this surface.
 
+## Pre-deploy data check — migration 0051
+
+Before deploying the release that contains DB migrations 0050–0053, verify data compatibility with `0051_vat_status_filing_period_guard.sql`. That migration runs `VALIDATE CONSTRAINT vat_status_filing_period_regime_check`, which hard-fails the migration (and aborts the deploy) if any `vat_status` row has `vat_regime_code <> 'PAYER'` AND `filing_period IS NOT NULL`. A later migration cannot rescue it — 0051 aborts the batch first.
+
+Run the check below before deploying; it must return `0`.
+
+```sql
+SELECT count(*) FROM vat_status WHERE vat_regime_code <> 'PAYER' AND filing_period IS NOT NULL;
+```
+
+If the count is non-zero, inspect the offending rows to confirm which orgs carry bad data, then null the stray `filing_period` values and re-run the check:
+
+```sql
+UPDATE vat_status SET filing_period = NULL WHERE vat_regime_code <> 'PAYER' AND filing_period IS NOT NULL;
+```
+
 ## Cosign verify
 
 ```bash

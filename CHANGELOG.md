@@ -9,6 +9,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Changed
 
 - Bump postgres digest in /infra (infra-docker group) (#657)
+- Bump postgres digest in /infra/compose/postgres (#658)
 
 ## [v0.17.5] — 2026-07-10
 

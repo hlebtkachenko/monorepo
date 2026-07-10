@@ -18,7 +18,10 @@ function makeObligation(
     periodStart: "2026-01-01",
     periodEnd: "2026-01-31",
     dueDate,
-    conditional: false,
+    applicability: {
+      status: "APPLICABLE",
+      reason: "Configured statutory schedule applies.",
+    },
     status: "Upcoming",
     ...overrides,
   }

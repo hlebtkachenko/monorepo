@@ -213,7 +213,7 @@ closed (the assembler refuses to boot a login pack with a hole in its safety fra
     "kb": { "id": "…", "version": "…" }, // which KB snapshot the session is grounded on
     "lawSummary": "…", // the accounting-law digest the session reasons against
     "confidenceProtocol": "…", // how the SERVER gate scores (the model never self-scores)
-    "escalationPolicy": "…" // when + how to route to a human
+    "escalationPolicy": "…", // when + how to route to a human
   },
   "captureContext": {
     "periodId": "…uuid…", // open accounting period (NOT MCP-resolved)

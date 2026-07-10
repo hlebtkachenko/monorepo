@@ -1,26 +1,35 @@
-/** Obligation name with the "conditional (only if the event occurred)" marker + note. */
+import type { ObligationApplicability } from "./data"
+
+/** Obligation name with an explicit unresolved-applicability marker and reason. */
 export function ObligationTitle({
   obligation,
-  conditional,
-  note,
+  applicability,
+  reason,
 }: {
   obligation: string
-  conditional: boolean
-  note?: string
+  applicability: ObligationApplicability
+  reason?: string
 }) {
+  const marker =
+    applicability === "CONDITION_NOT_EVALUATED"
+      ? "condition not evaluated"
+      : applicability === "NEEDS_INPUT"
+        ? "needs input"
+        : null
+
   return (
     <div className="flex flex-col gap-0.5">
       <span className="font-medium">
         {obligation}
-        {conditional ? (
+        {marker ? (
           <span className="font-normal text-muted-foreground">
-            {" "}
-            · conditional
+            {" · "}
+            {marker}
           </span>
         ) : null}
       </span>
-      {conditional && note ? (
-        <span className="text-xs text-muted-foreground">{note}</span>
+      {marker && reason ? (
+        <span className="text-xs text-muted-foreground">{reason}</span>
       ) : null}
     </div>
   )

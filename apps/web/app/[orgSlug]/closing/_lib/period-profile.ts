@@ -4,10 +4,14 @@ import { sql } from "drizzle-orm"
 import { executeRows, withOrganization } from "@workspace/db"
 import {
   getPeriodRegime,
+  resolveEffectiveTimeline,
+  statutoryVatEnvelope,
+  type EffectiveFact,
+  type EffectiveSegment,
+  type PayrollProfileValue,
   type PersonType,
   type Regime,
-  type VatFilingPeriod,
-  type VatRegime,
+  type VatProfileValue,
 } from "@workspace/accounting"
 
 import {
@@ -21,7 +25,7 @@ import { formatIsoDate } from "./closing-shared"
  * period (not merely the current one; the active period can be a historical
  * one the user switched to) — the vat_status, person_type, and accounting
  * regime in one `withOrganization` round trip. This is the single
- * period-scoped profile every Closing loader builds on before branching into
+ * period-scoped profile timeline every Closing loader builds on before branching into
  * its own kind-specific logic:
  *   - `getClosingObligations` (closing-data.ts) + `resolveVatContext`
  *     (vat-data.ts) branch on vat_status + person_type;
@@ -38,11 +42,10 @@ export type PeriodProfileResult =
       periodStart: string
       periodEnd: string
       periodLabel: string
-      vatRegimeCode: VatRegime | null
-      filingPeriod: VatFilingPeriod | null
       personType: PersonType
       regime: Regime
-      hasEmployees: boolean
+      vatTimeline: EffectiveSegment<VatProfileValue>[]
+      payrollTimeline: EffectiveSegment<PayrollProfileValue>[]
     }
 
 export async function resolvePeriodProfile(
@@ -62,58 +65,103 @@ export async function resolvePeriodProfile(
   const periodEnd = ctx.periodEnd
   const periodLabel = `${formatIsoDate(periodStart)} – ${formatIsoDate(periodEnd)}`
 
-  const { vatRegimeCode, filingPeriod, personType, regime, hasEmployees } =
-    await withOrganization(ctx.organizationId, ctx.userId, async (db) => {
-      const [vatStatus] = await executeRows<{
-        vat_regime_code: string
-        filing_period: string | null
-      }>(
-        db,
-        // Regime effective FOR the active period (not merely current), so a
-        // historical period reports its own regime. Mid-period regime
-        // changes are approximated by the latest overlapping row — the
-        // engine is single-regime-per-period; a mid-year change is a known
-        // simplification to revisit if it matters.
-        sql`SELECT vat_regime_code, filing_period FROM vat_status
-            WHERE organization_id = ${ctx.organizationId}::uuid
-              AND valid_from <= ${periodEnd}
-              AND (valid_to IS NULL OR valid_to >= ${periodStart})
-            ORDER BY valid_from DESC LIMIT 1`,
-      )
-      const [org] = await executeRows<{ person_type: string }>(
-        db,
-        sql`SELECT person_type FROM organization WHERE id = ${ctx.organizationId}::uuid`,
-      )
-      const regime = await getPeriodRegime(db, periodId)
-      const [taxRow] = await executeRows<{ has_employees: boolean }>(
-        db,
-        // Same period-effective predicate as the vat_status read above —
-        // and the same single-value-per-period simplification: if MORE THAN
-        // ONE organization_tax_profile row overlaps the active period (e.g.
-        // a mid-period hire or termination), `ORDER BY valid_from DESC
-        // LIMIT 1` reduces it to the latest overlapping row's value. Splitting
-        // payroll obligations at the mid-period boundary is deferred.
-        sql`SELECT has_employees FROM organization_tax_profile
-            WHERE organization_id = ${ctx.organizationId}::uuid
-              AND valid_from <= ${periodEnd}
-              AND (valid_to IS NULL OR valid_to >= ${periodStart})
-            ORDER BY valid_from DESC LIMIT 1`,
+  const vatEnvelope = statutoryVatEnvelope(periodStart, periodEnd)
+  const { personType, regime, vatFacts, payrollFacts } = await withOrganization(
+    ctx.organizationId,
+    ctx.userId,
+    async (db) => {
+      const [vatRows, orgRows, regime, taxRows] = await Promise.all([
+        executeRows<{
+          id: string
+          vat_regime_code: VatProfileValue["regime"]
+          filing_period: VatProfileValue["filingPeriod"]
+          valid_from: string
+          valid_to: string | null
+        }>(
+          db,
+          sql`SELECT id, vat_regime_code, filing_period, valid_from, valid_to
+                FROM vat_status
+               WHERE organization_id = ${ctx.organizationId}::uuid
+                 AND valid_from <= ${vatEnvelope.to}
+                 AND (valid_to IS NULL OR valid_to >= ${vatEnvelope.from})
+               ORDER BY valid_from`,
+        ),
+        executeRows<{ person_type: PersonType }>(
+          db,
+          sql`SELECT person_type FROM organization WHERE id = ${ctx.organizationId}::uuid`,
+        ),
+        getPeriodRegime(db, periodId),
+        executeRows<{
+          id: string
+          has_standard_employment: boolean | null
+          has_dpp: boolean | null
+          has_dpc: boolean | null
+          social_insurance_participation: boolean | null
+          health_insurance_participation: boolean | null
+          payroll_tax_advance_due: boolean | null
+          special_rate_withholding_due: boolean | null
+          valid_from: string
+          valid_to: string | null
+        }>(
+          db,
+          sql`SELECT id, has_standard_employment, has_dpp, has_dpc,
+                     social_insurance_participation, health_insurance_participation,
+                     payroll_tax_advance_due, special_rate_withholding_due,
+                     valid_from, valid_to
+                FROM organization_tax_profile
+               WHERE organization_id = ${ctx.organizationId}::uuid
+                 AND valid_from <= ${periodEnd}
+                 AND (valid_to IS NULL OR valid_to >= ${periodStart})
+               ORDER BY valid_from`,
+        ),
+      ])
+      const org = orgRows[0]
+      if (!org) throw new Error("Organization profile not found")
+
+      const vatFacts: EffectiveFact<VatProfileValue>[] = vatRows.map((row) => ({
+        sourceId: row.id,
+        validFrom: row.valid_from,
+        validTo: row.valid_to,
+        value: {
+          regime: row.vat_regime_code,
+          filingPeriod: row.filing_period,
+        },
+      }))
+      const payrollFacts: EffectiveFact<PayrollProfileValue>[] = taxRows.map(
+        (row) => ({
+          sourceId: row.id,
+          validFrom: row.valid_from,
+          validTo: row.valid_to,
+          value: {
+            hasStandardEmployment: row.has_standard_employment,
+            hasDpp: row.has_dpp,
+            hasDpc: row.has_dpc,
+            socialInsuranceParticipation: row.social_insurance_participation,
+            healthInsuranceParticipation: row.health_insurance_participation,
+            payrollTaxAdvanceDue: row.payroll_tax_advance_due,
+            specialRateWithholdingDue: row.special_rate_withholding_due,
+          },
+        }),
       )
       return {
-        // No vat_status row overlapping the period -> treat as no VAT
-        // obligations (same effect as NON_PAYER: computeObligations only
-        // branches on "PAYER" and "IDENTIFIED_PERSON").
-        vatRegimeCode: (vatStatus?.vat_regime_code ?? null) as VatRegime | null,
-        filingPeriod: (vatStatus?.filing_period ??
-          null) as VatFilingPeriod | null,
-        personType: (org?.person_type ?? "LEGAL") as PersonType,
+        personType: org.person_type,
         regime,
-        // No organization_tax_profile row overlapping the period -> no
-        // payroll obligations, the honest default (no profile set = no
-        // employees on record).
-        hasEmployees: taxRow?.has_employees ?? false,
+        vatFacts,
+        payrollFacts,
       }
-    })
+    },
+  )
+
+  const vatTimeline = resolveEffectiveTimeline({
+    from: vatEnvelope.from,
+    to: vatEnvelope.to,
+    facts: vatFacts,
+  })
+  const payrollTimeline = resolveEffectiveTimeline({
+    from: periodStart,
+    to: periodEnd,
+    facts: payrollFacts,
+  })
 
   return {
     status: "ok",
@@ -122,10 +170,9 @@ export async function resolvePeriodProfile(
     periodStart,
     periodEnd,
     periodLabel,
-    vatRegimeCode,
-    filingPeriod,
     personType,
     regime,
-    hasEmployees,
+    vatTimeline,
+    payrollTimeline,
   }
 }

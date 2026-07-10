@@ -54,7 +54,10 @@ describe("assembleLoginSections — byte-equality with the canonical constitutio
     const smuggled = {
       ...operatorSections(),
       constitution: "STALE hand-copied constitution",
-      toolPolicy: { allowedMcpServers: ["evil"], allowedBuiltinTools: ["Bash"] },
+      toolPolicy: {
+        allowedMcpServers: ["evil"],
+        allowedBuiltinTools: ["Bash"],
+      },
     } as unknown as OperatorLoginSections
     const sections = assembleLoginSections(smuggled)
     expect(sections.constitution).toBe(golden)
@@ -88,32 +91,29 @@ describe("assembleLoginSections — fail-closed (never a blank safety section)",
   it("throws when the canonical constitution source is whitespace-only", () => {
     expect(() =>
       assembleLoginSections(operatorSections(), () => "   \n\t  "),
-    ).toThrow(/constitution.*is empty/,
-    )
+    ).toThrow(/constitution.*is empty/)
   })
 
-  it.each([
-    "lawSummary",
-    "confidenceProtocol",
-    "escalationPolicy",
-  ] as const)("throws when the operator-supplied %s is blank", (field) => {
-    const op = { ...operatorSections(), [field]: "   " }
-    expect(() => assembleLoginSections(op)).toThrow(
-      new RegExp(`${field}.*missing or empty`),
-    )
-  })
+  it.each(["lawSummary", "confidenceProtocol", "escalationPolicy"] as const)(
+    "throws when the operator-supplied %s is blank",
+    (field) => {
+      const op = { ...operatorSections(), [field]: "   " }
+      expect(() => assembleLoginSections(op)).toThrow(
+        new RegExp(`${field}.*missing or empty`),
+      )
+    },
+  )
 
-  it.each([
-    "lawSummary",
-    "confidenceProtocol",
-    "escalationPolicy",
-  ] as const)("throws when the operator-supplied %s is missing", (field) => {
-    const op = { ...operatorSections() }
-    delete (op as Record<string, unknown>)[field]
-    expect(() => assembleLoginSections(op)).toThrow(
-      new RegExp(`${field}.*missing or empty`),
-    )
-  })
+  it.each(["lawSummary", "confidenceProtocol", "escalationPolicy"] as const)(
+    "throws when the operator-supplied %s is missing",
+    (field) => {
+      const op = { ...operatorSections() }
+      delete (op as Record<string, unknown>)[field]
+      expect(() => assembleLoginSections(op)).toThrow(
+        new RegExp(`${field}.*missing or empty`),
+      )
+    },
+  )
 
   it("throws when the KB pointer id or version is blank", () => {
     expect(() =>

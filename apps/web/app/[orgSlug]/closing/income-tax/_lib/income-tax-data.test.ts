@@ -237,7 +237,7 @@ beforeEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe("getCorporateIncomeTax (DPPO)", () => {
-  it("LEGAL org with an active period -> ok, real (zeroed) DPPO shape", async () => {
+  it("LEGAL org exposes book values and blocks DPPO totals when statutory inputs are missing", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -262,10 +262,15 @@ describe("getCorporateIncomeTax (DPPO)", () => {
     expect(result.status).toBe("ok")
     if (result.status !== "ok") return
     expect(result.dppo.type).toBe("CORPORATE_INCOME_TAX")
+    expect(result.dppo.artifactKind).toBe("DPPO_CALCULATION_WORKSHEET")
     expect(result.dppo.ucetni_vysledek).toBe("0.0000")
-    expect(result.dppo.zaklad_dane).toBe("0.0000")
-    expect(result.dppo.dan).toBe("0.0000")
-    expect(result.dppo.sazba).toBe("0.2100")
+    expect(result.dppo.zaklad_dane).toBeNull()
+    expect(result.dppo.dan).toBeNull()
+    expect(result.dppo.sazba).toBeNull()
+    expect(result.dppo.completeness.status).toBe("NEEDS_INPUT")
+    expect(result.dppo.completeness.blockingInputs).toEqual(
+      expect.arrayContaining([expect.stringContaining("Taxpayer category")]),
+    )
   }, 30_000)
 
   it("NATURAL org -> not-applicable (DPPO only applies to a legal entity)", async () => {
@@ -370,6 +375,9 @@ describe("getPersonalIncomeTax (DPFO)", () => {
     expect(result.status).toBe("ok")
     if (result.status !== "ok") return
     expect(result.dpfo.type).toBe("PERSONAL_INCOME_TAX")
+    expect(result.dpfo.artifactKind).toBe("SECTION_7_TAX_RECORD_WORKSHEET")
+    expect(result.dpfo.completeness.status).toBe("DRAFT")
+    expect(result.dpfo.completeness.filingReady).toBe(false)
     expect(result.dpfo.prijmy_danove).toBe("0.0000")
     expect(result.dpfo.vydaje_danove).toBe("0.0000")
     expect(result.dpfo.zaklad_dane).toBe("0.0000")

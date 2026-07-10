@@ -106,6 +106,7 @@ describe("capture → předkontace → read-model (DOUBLE_ENTRY)", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2026-03-10",
+        receivedDate: "2026-03-10",
         lines: [
           {
             eventId: ev.eventId,
@@ -164,6 +165,7 @@ describe("capture → předkontace → read-model (DOUBLE_ENTRY)", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2026-04-01",
+        receivedDate: "2026-04-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -313,6 +315,7 @@ describe("corrections (REVERSAL / červené storno)", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2028-02-01",
+        receivedDate: "2028-02-01",
         lines: [
           {
             eventId: ev.eventId,

@@ -93,7 +93,11 @@ function inboxNav(): SidebarNavEntry[] {
 
 function legislationNav(): SidebarNavEntry[] {
   return [
-    { label: "All obligations", href: `${BASE}/legislation`, icon: "BookOpen" },
+    {
+      label: "Periodic obligations",
+      href: `${BASE}/legislation`,
+      icon: "BookOpen",
+    },
   ]
 }
 

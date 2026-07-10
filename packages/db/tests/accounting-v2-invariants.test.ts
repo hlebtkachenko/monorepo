@@ -900,7 +900,7 @@ describe("period guard (R12 §17 + datum ∈ období)", () => {
     expect(row).toBeUndefined()
   })
 
-  it("(15) an accounting_event occurred_at outside the period is rejected", async () => {
+  it("(15) an accounting_event legal date outside the period is rejected", async () => {
     await expect(
       admin.begin(async (tx) => {
         await tx.unsafe(
@@ -916,6 +916,31 @@ describe("period guard (R12 §17 + datum ∈ období)", () => {
       `SELECT id FROM accounting_event WHERE id = '00000000-0000-0000-0000-0000000e1599'::uuid`,
     )
     expect(row).toBeUndefined()
+  })
+
+  it("(16) derives occurred_on in Europe/Prague independently of the session timezone", async () => {
+    await admin.begin(async (tx) => {
+      await tx.unsafe(`SELECT set_config('TimeZone', 'UTC', true)`)
+      await tx.unsafe(
+        `SELECT set_config('app.organization_id', '${ORG_A}', true)`,
+      )
+      await tx.unsafe(`
+        INSERT INTO accounting_event
+          (id, organization_id, workspace_id, period_id, number_series_id,
+           sequence_number, designation, description, occurred_at,
+           responsible_user_id)
+        VALUES
+          ('00000000-0000-0000-0000-0000000e1600', '${ORG_A}', '${WORKSPACE}',
+           '${PERIOD_A}', '${SERIES_EV}', 100, 'EV0100', 'Prague legal date',
+           '2025-03-01T00:30:00+01:00', '${USER}')
+      `)
+    })
+    const [row] = await admin.unsafe<Array<{ occurred_on: string }>>(`
+      SELECT occurred_on::text AS occurred_on
+        FROM accounting_event
+       WHERE id = '00000000-0000-0000-0000-0000000e1600'::uuid
+    `)
+    expect(row?.occurred_on).toBe("2025-03-01")
   })
 
   it("(14d) app_user cannot reopen a CLOSED period (reopen gate)", async () => {

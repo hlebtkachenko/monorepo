@@ -33,6 +33,7 @@ import {
   ListAccountsResponseSchema,
   GetAccountResponseSchema,
   UpdateAccountRequestSchema,
+  UpdateInvoiceLegalDatesRequestSchema,
   ListOcrTemplatesQuerySchema,
   ListOcrTemplatesResponseSchema,
   OcrTemplateResponseSchema,
@@ -125,6 +126,9 @@ export class CreateInvoiceRequestDto extends createZodDto(
 ) {}
 export class CreateInvoiceResponseDto extends createZodDto(
   CreateInvoiceResponseSchema,
+) {}
+export class UpdateInvoiceLegalDatesRequestDto extends createZodDto(
+  UpdateInvoiceLegalDatesRequestSchema,
 ) {}
 export class ListAccountsQueryDto extends createZodDto(
   ListAccountsQuerySchema,

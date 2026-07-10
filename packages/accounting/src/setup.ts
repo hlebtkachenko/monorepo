@@ -11,6 +11,7 @@ import { sql } from "drizzle-orm"
 import { one, rows } from "./sql"
 import type { RowExecutor } from "./sql"
 import { allocateNumber } from "./number-series"
+import { DEFAULT_NUMBER_SERIES } from "./number-series-defaults"
 import type {
   AccountNature,
   AssetCategory,
@@ -68,6 +69,9 @@ export async function createVatStatus(
     filingPeriod?: VatFilingPeriod | null
   },
 ): Promise<string> {
+  if (input.vatRegimeCode !== "PAYER" && input.filingPeriod != null) {
+    throw new Error("VAT filing period is only valid for VAT payers.")
+  }
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO vat_status (organization_id, vat_regime_code, valid_from, valid_to, filing_period)
@@ -79,9 +83,8 @@ export async function createVatStatus(
 }
 
 /**
- * Register an organization_tax_profile range — currently just has_employees,
- * the operational attribute the statutory obligation engine needs but cannot
- * derive from the books. One open row per org (valid_to = null); the
+ * Register an organization_tax_profile range with explicit relationship and
+ * remittance facts. One open row per org (valid_to = null); the
  * organization_tax_profile_no_overlap gist EXCLUDE bars overlaps. Mirrors
  * createVatStatus: insert-only — the caller (changeTaxProfile) closes any
  * currently-open row before calling this.
@@ -90,16 +93,29 @@ export async function createTaxProfile(
   db: RowExecutor,
   ctx: OrgCtx,
   input: {
-    hasEmployees: boolean
+    hasStandardEmployment: boolean
+    hasDpp: boolean
+    hasDpc: boolean
+    socialInsuranceParticipation: boolean
+    healthInsuranceParticipation: boolean
+    payrollTaxAdvanceDue: boolean
+    specialRateWithholdingDue: boolean
     validFrom: string
     validTo?: string | null
   },
 ): Promise<string> {
   const r = await one<{ id: string }>(
     db,
-    sql`INSERT INTO organization_tax_profile (organization_id, has_employees, valid_from, valid_to)
-        VALUES (${ctx.organizationId}::uuid, ${input.hasEmployees}, ${input.validFrom}::date,
-                ${input.validTo ?? null})
+    sql`INSERT INTO organization_tax_profile
+          (organization_id, has_employees, has_standard_employment, has_dpp, has_dpc,
+           social_insurance_participation, health_insurance_participation,
+           payroll_tax_advance_due, special_rate_withholding_due, valid_from, valid_to)
+        VALUES (${ctx.organizationId}::uuid,
+                ${input.hasStandardEmployment || input.hasDpp || input.hasDpc},
+                ${input.hasStandardEmployment}, ${input.hasDpp}, ${input.hasDpc},
+                ${input.socialInsuranceParticipation}, ${input.healthInsuranceParticipation},
+                ${input.payrollTaxAdvanceDue}, ${input.specialRateWithholdingDue},
+                ${input.validFrom}::date, ${input.validTo ?? null})
         RETURNING id`,
   )
   return r.id
@@ -130,17 +146,6 @@ export async function createNumberSeries(
  * Number series "restore default series" backfill — both call sites must agree
  * on the same 8 series, so this list lives here rather than being duplicated.
  */
-export const DEFAULT_NUMBER_SERIES = [
-  { entityType: "EVENT", code: "UC", pattern: "UC{YYYY}{NNNNNN}" },
-  { entityType: "DOCUMENT", code: "FV", pattern: "FV{YYYY}{NNNN}" }, // faktura vydaná
-  { entityType: "DOCUMENT", code: "FP", pattern: "FP{YYYY}{NNNN}" }, // faktura přijatá
-  { entityType: "DOCUMENT", code: "PD", pattern: "PD{YYYY}{NNNN}" }, // pokladní doklad
-  { entityType: "DOCUMENT", code: "BV", pattern: "BV{YYYY}{NNNN}" }, // bankovní výpis
-  { entityType: "DOCUMENT", code: "ID", pattern: "ID{YYYY}{NNNN}" }, // interní doklad
-  { entityType: "ASSET", code: "MAJ", pattern: "MAJ{YYYY}{NNNN}" },
-  { entityType: "INVENTORY_COUNT", code: "INV", pattern: "INV{YYYY}{NNNN}" },
-] as const
-
 /**
  * Idempotently insert every default series missing for the org. Gapless
  * numbering is legally sensitive: this NEVER touches an existing row (no

@@ -18,5 +18,5 @@ export default async function ClosingCalendarPage({
   const data = await getClosingObligations(orgSlug)
   if (data.status === "no-access") notFound()
 
-  return <ClosingCalendarView slug={orgSlug} data={data} />
+  return <ClosingCalendarView data={data} />
 }

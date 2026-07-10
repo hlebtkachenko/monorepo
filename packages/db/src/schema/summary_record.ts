@@ -10,6 +10,7 @@
  */
 import {
   bigint,
+  date,
   foreignKey,
   numeric,
   pgTable,
@@ -38,6 +39,8 @@ export const summary_record = pgTable(
     designation: text("designation").notNull(), // FROZEN Označení string (gov/audit id)
     type: summaryRecordType("type").notNull(),
     issued_at: timestamp("issued_at", { withTimezone: true }).notNull(), // okamžik vyhotovení (§11/1d)
+    tax_point_date: date("tax_point_date"), // DUZP/DPPD; required for complete VAT outputs
+    received_date: date("received_date"), // proven document-receipt date for input-VAT eligibility
     rounding_amount: numeric("rounding_amount", { precision: 19, scale: 4 })
       .notNull()
       .default("0"), // §37 doc-total rounding -> 548/648 at posting
@@ -57,10 +60,7 @@ export const summary_record = pgTable(
     foreignKey({
       name: "summary_record_period_fk",
       columns: [t.period_id, t.organization_id],
-      foreignColumns: [
-        accounting_period.id,
-        accounting_period.organization_id,
-      ],
+      foreignColumns: [accounting_period.id, accounting_period.organization_id],
     }),
     foreignKey({
       name: "summary_record_series_fk",

@@ -14,6 +14,7 @@ import {
   buildDph,
   buildKontrolniHlaseni,
   buildSouhrnneHlaseni,
+  getVatPeriodActivity,
   captureDocument,
   createCounterparty,
   createEvent,
@@ -57,6 +58,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2044-03-01",
+        taxPointDate: "2044-03-01",
         lines: [
           {
             eventId: ev1.eventId,
@@ -95,6 +97,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2044-03-05",
+        taxPointDate: "2044-03-05",
         lines: [
           {
             eventId: ev2.eventId,
@@ -133,6 +136,8 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "RECEIVED_INVOICE",
         issuedAt: "2044-03-10",
+        taxPointDate: "2044-03-10",
+        receivedDate: "2044-03-10",
         lines: [
           {
             eventId: ev3.eventId,
@@ -170,6 +175,7 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2044-03-15",
+        taxPointDate: "2044-03-15",
         lines: [
           {
             eventId: ev4.eventId,
@@ -193,7 +199,10 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
 
       expect(dph.type).toBe("VAT_RETURN")
 
@@ -239,6 +248,76 @@ describe("DPH (VAT return + kontrolní hlášení section totals)", () => {
       expect(dph.kh.b1_dan).toBe("105.0000")
       expect(dph.kh.a1_base).toBe("0.0000")
       expect(dph.kh.b2_base).toBe("0.0000")
+
+      const activity = await getVatPeriodActivity(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      expect(activity).toEqual([
+        {
+          month: "2044-03",
+          hasKhReportableTransactions: true,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: false,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ])
+    })
+  })
+})
+
+describe("VAT period activity legal dates", () => {
+  it("places a received standard invoice in its proven deduction month", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2045-01-01",
+      periodEnd: "2045-12-31",
+    })
+
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Late-received standard invoice",
+        occurredAt: "2045-01-10",
+        responsibleUserId: userId,
+      })
+      await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2045-01-10",
+        taxPointDate: "2045-01-10",
+        receivedDate: "2045-03-05",
+        lines: [
+          {
+            eventId: event.eventId,
+            partials: [
+              {
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatAmount: "210.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+
+      const activity = await getVatPeriodActivity(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+
+      expect(activity).toEqual([
+        {
+          month: "2045-03",
+          hasKhReportableTransactions: true,
+          hasShGoodsSupplies: false,
+          hasShServiceSupplies: false,
+          hasIdentifiedPersonVatLiability: false,
+        },
+      ])
     })
   })
 })
@@ -276,6 +355,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2091-04-01",
+        taxPointDate: "2091-04-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -304,7 +384,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // ř.20 — EU goods, base only (osvobozené s nárokem, daň 0)
       expect(dph.rows.r20_base).toBe("50000.0000")
       // ř.21 — no EU service
@@ -316,7 +399,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
       // NOT kontrolní hlášení A.1 (EU excluded, #516/#541)
       expect(dph.kh.a1_base).toBe("0.0000")
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(kh.a1).toHaveLength(0)
     })
   })
@@ -345,6 +431,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2092-04-01",
+        taxPointDate: "2092-04-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -371,7 +458,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // ř.21 — EU service, base only
       expect(dph.rows.r21_base).toBe("30000.0000")
       // ř.20 — no EU goods
@@ -381,7 +471,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
       expect(dph.rows.r50_base).toBe("0.0000")
       expect(dph.kh.a1_base).toBe("0.0000")
 
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(kh.a1).toHaveLength(0)
     })
   })
@@ -410,6 +503,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2093-04-01",
+        taxPointDate: "2093-04-01",
         lines: [
           {
             eventId: ev.eventId,
@@ -436,7 +530,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       // ř.25 — domestic §92 PDP dodavatel, base only (daň odvádí odběratel)
       expect(dph.rows.r25_base).toBe("80000.0000")
       // NOT EU lines
@@ -446,7 +543,10 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
       expect(dph.kh.a1_base).toBe("80000.0000")
 
       // KH A.1 row-level: the §92e domestic PDP supply IS reported (kód 4)
-      const kh = await buildKontrolniHlaseni(db, s.periodId)
+      const kh = await buildKontrolniHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
       expect(kh.a1).toHaveLength(1)
       expect(kh.a1[0]!.tax_id).toBe("CZ12345678")
       expect(kh.a1[0]!.kod).toBe("4")
@@ -479,6 +579,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2094-04-01",
+        taxPointDate: "2094-04-01",
         lines: [
           {
             eventId: goodsEv.eventId,
@@ -517,6 +618,7 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         seriesId: s.documentSeriesId,
         type: "ISSUED_INVOICE",
         issuedAt: "2094-05-01",
+        taxPointDate: "2094-05-01",
         lines: [
           {
             eventId: svcEv.eventId,
@@ -542,8 +644,14 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
         responsibleUserId: userId,
       })
 
-      const dph = await buildDph(db, s.periodId)
-      const sh = await buildSouhrnneHlaseni(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
+      const sh = await buildSouhrnneHlaseni(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
 
       const shByKod = Object.fromEntries(
         sh.rows.map((r) => [r.kod_plneni, r.value]),
@@ -587,7 +695,8 @@ describe("DPH ř.20/21 — issued EU supplies (§64 goods / §9/1 service) (#541
           periodId: s.periodId,
           seriesId: s.documentSeriesId,
           type: "ISSUED_INVOICE",
-          issuedAt: "2095-04-01",
+        issuedAt: "2095-04-01",
+        taxPointDate: "2095-04-01",
           lines: [
             {
               eventId: ev.eventId,

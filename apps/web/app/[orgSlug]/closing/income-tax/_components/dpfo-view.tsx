@@ -1,4 +1,3 @@
-import type { Dpfo } from "@workspace/accounting"
 import {
   ContentHeader,
   ContentPanel,
@@ -18,9 +17,10 @@ import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { PersonalIncomeTaxResult } from "../_lib/income-tax-data"
 import { AnnualStatusMessage } from "../../_components/annual-status-message"
+import { AnnualCompletenessAlert } from "../../_components/annual-completeness-alert"
 
 interface DpfoLine {
-  key: Exclude<keyof Dpfo, "type">
+  key: "prijmy_danove" | "vydaje_danove" | "zaklad_dane"
   label: string
 }
 
@@ -31,19 +31,14 @@ const DPFO_LINES: DpfoLine[] = [
 ]
 
 /**
- * Personal income tax (DPFO — daň z příjmů fyzických osob, §7b ZDP) — the
- * active accounting period's real computed figures from `buildDpfo`.
- * Annual: one computation per period, no filing-period picker (unlike VAT).
- * The full statutory line set renders unconditionally — these are the fixed
- * fields of the DPFO computation, so a zero value is an honest answer, not a
- * fabricated row. Honest "no accounting period" / "not applicable"
- * (legal-entity org) states otherwise.
+ * Section 7 tax-record worksheet. It contains only book-derived taxable income
+ * and expense totals and explicitly does not claim to be a complete DPFO return.
  */
 export function DpfoView({ data }: { data: PersonalIncomeTaxResult }) {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Personal income tax" />
+        <ContentHeader title="Section 7 tax-record worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
@@ -54,6 +49,8 @@ export function DpfoView({ data }: { data: PersonalIncomeTaxResult }) {
               <p className="text-sm text-muted-foreground">
                 {data.periodLabel}
               </p>
+
+              <AnnualCompletenessAlert completeness={data.dpfo.completeness} />
 
               <Card className="p-0">
                 <CardContent className="p-0">

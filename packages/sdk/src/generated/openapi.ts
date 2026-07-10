@@ -213,7 +213,7 @@ export interface paths {
         };
         /**
          * Get VAT return (DPH přiznání)
-         * @description Computes the DPH přiznání line values and kontrolní hlášení section totals for the period from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).
+         * @description Computes the DPH přiznání line values and kontrolní hlášení section totals for the requested statutory calendar month or quarter from the posted facts (§13/§14/§16/§92e/§72-73). Organization-scoped (FORCE RLS).
          */
         get: operations["getAccountingVatReturn"];
         put?: never;
@@ -253,7 +253,7 @@ export interface paths {
         };
         /**
          * Get EC sales list (souhrnné hlášení)
-         * @description EU supplies recap (§102) for the period — per partner + kód plnění. Organization-scoped.
+         * @description EU supplies recap (§102) for the requested statutory calendar month or quarter — per partner + kód plnění. Organization-scoped.
          */
         get: operations["getAccountingEcSalesList"];
         put?: never;
@@ -273,7 +273,7 @@ export interface paths {
         };
         /**
          * Get control statement (kontrolní hlášení)
-         * @description Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.
+         * @description Per-counterparty kontrolní hlášení (§101c-i) for the requested statutory calendar month or quarter — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.
          */
         get: operations["getAccountingControlStatement"];
         put?: never;
@@ -512,6 +512,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/invoices/{invoiceId}/legal-dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Correct invoice legal dates
+         * @description Corrects DUZP/DPPD and receipt evidence without fabricating unknown dates. Organization-scoped and requires the accounting:write scope.
+         */
+        patch: operations["updateInvoiceLegalDates"];
         trace?: never;
     };
     "/v1/accounts": {
@@ -1755,7 +1775,7 @@ export interface components {
              */
             openTotal: string;
         };
-        /** @description DPH přiznání (VAT return) for the period — line values plus kontrolní hlášení section totals, computed from the posted facts. */
+        /** @description Partial DPH worksheet for one statutory calendar filing period — line values plus kontrolní hlášení section totals, computed from the posted facts. */
         DphResponse: {
             /**
              * Format: uuid
@@ -1764,10 +1784,23 @@ export interface components {
             organizationId: string;
             /**
              * Format: uuid
-             * @description The period this return covers.
+             * @description Accounting context used to authorize this request.
              * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
              */
             periodId: string;
+            /** @description Statutory calendar VAT filing period used for the worksheet. */
+            filingPeriod: {
+                /**
+                 * @description Calendar month or quarter start (YYYY-MM-DD).
+                 * @example 2026-01-01
+                 */
+                from: string;
+                /**
+                 * @description Calendar month or quarter end (YYYY-MM-DD).
+                 * @example 2026-03-31
+                 */
+                to: string;
+            };
             /** @description DPH přiznání line values. */
             rows: {
                 /**
@@ -1968,6 +2001,15 @@ export interface components {
                  * @example 0.00
                  */
                 b2_dan: string;
+            };
+            /** @description Blocking evidence gaps and declared limitations for a partial VAT worksheet. */
+            completeness: {
+                /** @enum {string} */
+                status: "PARTIAL" | "NEEDS_INPUT";
+                missingTaxPointDocuments: number;
+                missingReceivedDateDocuments: number;
+                missingClassificationDocuments: number;
+                limitations: string[];
             };
         };
         /** @description DPH přiznání line values. */
@@ -2171,7 +2213,7 @@ export interface components {
              */
             b2_dan: string;
         };
-        /** @description DPPO — corporate income tax computation for the period. */
+        /** @description DPPO calculation worksheet. Missing category or provenanced adjustments block derived tax totals. */
         DppoResponse: {
             /**
              * Format: uuid
@@ -2184,6 +2226,127 @@ export interface components {
              * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
              */
             periodId: string;
+            /** @enum {string} */
+            artifactKind: "DPPO_CALCULATION_WORKSHEET";
+            periodStart: string;
+            periodEnd: string;
+            bookValues: {
+                /**
+                 * @description Accounting profit or loss from the book balances.
+                 * @example 0.00
+                 */
+                accountingResult: string;
+            };
+            adjustments: {
+                nonDeductibleExpenses: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                exemptRevenue: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                excludeLossMakingMainActivity: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                lossCarryForward: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                taxReliefs: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+                advancesPaid: {
+                    /**
+                     * @description Adjustment amount.
+                     * @example 0.00
+                     */
+                    amount: string;
+                    provenance: {
+                        /** @enum {string} */
+                        source: "USER" | "ADVISOR" | "LEDGER";
+                        reference: string;
+                        recordedAt: string;
+                    };
+                } | null;
+            };
+            rateResolution: {
+                /** @enum {string} */
+                status: "SUPPORTED";
+                /** @enum {string} */
+                category: "STANDARD" | "BASIC_INVESTMENT_FUND" | "QUALIFYING_PENSION_INSTITUTION";
+                /**
+                 * @description Effective tax rate.
+                 * @example 0.00
+                 */
+                rate: string;
+                effectiveFrom: string;
+                effectiveTo: string | null;
+                /** Format: uri */
+                sourceUrl: string;
+                verifiedOn: string;
+            } | {
+                /** @enum {string} */
+                status: "UNSUPPORTED";
+                /** @enum {string} */
+                category: "STANDARD" | "BASIC_INVESTMENT_FUND" | "QUALIFYING_PENSION_INSTITUTION" | "OTHER" | "UNKNOWN";
+                reason: string;
+            };
+            completeness: {
+                /** @enum {string} */
+                status: "WORKSHEET_READY" | "NEEDS_INPUT" | "DRAFT";
+                /** @enum {boolean} */
+                filingReady: false;
+                blockingInputs: string[];
+                unsupportedRequirements: string[];
+            };
             /**
              * @description Účetní výsledek hospodaření.
              * @example 0.00
@@ -2193,59 +2356,59 @@ export interface components {
              * @description Daňově neuznatelné náklady (§25).
              * @example 0.00
              */
-            nedanoveNaklady: string;
+            nedanoveNaklady: string | null;
             /**
              * @description Osvobozené/nezdaňované výnosy.
              * @example 0.00
              */
-            osvobozeneVynosy: string;
+            osvobozeneVynosy: string | null;
             /**
              * @description Základ daně §23/1 (před §34).
              * @example 0.00
              */
-            zakladDane: string;
+            zakladDane: string | null;
             /**
              * @description Odpočet daňové ztráty minulých let §34.
              * @example 0.00
              */
-            odpocetZtraty: string;
+            odpocetZtraty: string | null;
             /**
              * @description Zaokrouhlený základ daně.
              * @example 0.00
              */
-            zakladZaokrouhleny: string;
+            zakladZaokrouhleny: string | null;
             /**
              * @description Sazba daně.
              * @example 0.00
              */
-            sazba: string;
+            sazba: string | null;
             /**
              * @description Daň.
              * @example 0.00
              */
-            dan: string;
+            dan: string | null;
             /**
              * @description Slevy na dani.
              * @example 0.00
              */
-            slevy: string;
+            slevy: string | null;
             /**
              * @description Daň po slevách.
              * @example 0.00
              */
-            danPoSlevach: string;
+            danPoSlevach: string | null;
             /**
              * @description Zaplacené zálohy §38a.
              * @example 0.00
              */
-            zalohy: string;
+            zalohy: string | null;
             /**
              * @description Doplatek (+) / přeplatek (−).
              * @example 0.00
              */
-            doplatek: string;
+            doplatek: string | null;
         };
-        /** @description Souhrnné hlášení — EU supplies recap for the period. */
+        /** @description Partial souhrnné hlášení worksheet for one statutory calendar filing period. */
         EcSalesListResponse: {
             /**
              * Format: uuid
@@ -2254,10 +2417,23 @@ export interface components {
             organizationId: string;
             /**
              * Format: uuid
-             * @description Period covered.
+             * @description Accounting context used to authorize this request.
              * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
              */
             periodId: string;
+            /** @description Statutory calendar VAT filing period used for the worksheet. */
+            filingPeriod: {
+                /**
+                 * @description Calendar month or quarter start (YYYY-MM-DD).
+                 * @example 2026-01-01
+                 */
+                from: string;
+                /**
+                 * @description Calendar month or quarter end (YYYY-MM-DD).
+                 * @example 2026-03-31
+                 */
+                to: string;
+            };
             /** @description EU supply recap rows (§102). */
             rows: {
                 /**
@@ -2286,6 +2462,15 @@ export interface components {
                  */
                 value: string;
             }[];
+            /** @description Blocking evidence gaps and declared limitations for a partial VAT worksheet. */
+            completeness: {
+                /** @enum {string} */
+                status: "PARTIAL" | "NEEDS_INPUT";
+                missingTaxPointDocuments: number;
+                missingReceivedDateDocuments: number;
+                missingClassificationDocuments: number;
+                limitations: string[];
+            };
         };
         /** @description One souhrnné hlášení row (per partner + kód plnění). */
         EcSalesRow: {
@@ -2315,7 +2500,7 @@ export interface components {
              */
             value: string;
         };
-        /** @description Kontrolní hlášení — per-counterparty control statement (§101c-i). */
+        /** @description Partial kontrolní hlášení worksheet for one statutory calendar filing period (§101c-i). */
         ControlStatementResponse: {
             /**
              * Format: uuid
@@ -2324,10 +2509,23 @@ export interface components {
             organizationId: string;
             /**
              * Format: uuid
-             * @description Period covered.
+             * @description Accounting context used to authorize this request.
              * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
              */
             periodId: string;
+            /** @description Statutory calendar VAT filing period used for the worksheet. */
+            filingPeriod: {
+                /**
+                 * @description Calendar month or quarter start (YYYY-MM-DD).
+                 * @example 2026-01-01
+                 */
+                from: string;
+                /**
+                 * @description Calendar month or quarter end (YYYY-MM-DD).
+                 * @example 2026-03-31
+                 */
+                to: string;
+            };
             /** @description A.1 — PDP dodavatel. */
             a1: {
                 /**
@@ -2579,6 +2777,15 @@ export interface components {
                  */
                 count: number;
             };
+            /** @description Blocking evidence gaps and declared limitations for a partial VAT worksheet. */
+            completeness: {
+                /** @enum {string} */
+                status: "PARTIAL" | "NEEDS_INPUT";
+                missingTaxPointDocuments: number;
+                missingReceivedDateDocuments: number;
+                missingClassificationDocuments: number;
+                limitations: string[];
+            };
         };
         /** @description One kontrolní hlášení detail row (per doklad). */
         KhRow: {
@@ -2641,7 +2848,7 @@ export interface components {
              */
             count: number;
         };
-        /** @description Účetní závěrka — rozvaha + VZZ totals plus per-account lines. */
+        /** @description Draft closing worksheet with explicit statutory completion gaps. */
         FinancialStatementsResponse: {
             /**
              * Format: uuid
@@ -2654,6 +2861,16 @@ export interface components {
              * @example 3f5b2c14-8d9a-4e2b-b1f0-2a6d7c9e4a10
              */
             periodId: string;
+            /** @enum {string} */
+            artifactKind: "DRAFT_CLOSING_WORKSHEET";
+            completeness: {
+                /** @enum {string} */
+                status: "WORKSHEET_READY" | "NEEDS_INPUT" | "DRAFT";
+                /** @enum {boolean} */
+                filingReady: false;
+                blockingInputs: string[];
+                unsupportedRequirements: string[];
+            };
             /**
              * @description Aktiva celkem.
              * @example 0.00
@@ -2736,7 +2953,7 @@ export interface components {
              */
             incomeStatementLine: string | null;
         };
-        /** @description Formatted rozvaha + VZZ per Decree 500/2002 přílohy. */
+        /** @description Draft rozvaha and VZZ layout with prior-period comparisons when available. */
         StatementLayoutResponse: {
             /**
              * Format: uuid
@@ -2761,6 +2978,20 @@ export interface components {
              * @enum {string}
              */
             unit: "CZK" | "THOUSANDS";
+            /** @enum {string} */
+            artifactKind: "DRAFT_CLOSING_WORKSHEET";
+            completeness: {
+                /** @enum {string} */
+                status: "WORKSHEET_READY" | "NEEDS_INPUT" | "DRAFT";
+                /** @enum {boolean} */
+                filingReady: false;
+                blockingInputs: string[];
+                unsupportedRequirements: string[];
+            };
+            comparativePeriod: {
+                periodStart: string;
+                periodEnd: string;
+            } | null;
             /** @description Rozvaha — aktiva lines. */
             aktiva: {
                 /**
@@ -2778,12 +3009,22 @@ export interface components {
                  * @example 0.00
                  */
                 amount: string;
+                /**
+                 * @description Amount for the preceding period.
+                 * @example 0.00
+                 */
+                comparativeAmount: string | null;
             }[];
             /**
              * @description Aktiva celkem.
              * @example 0.00
              */
             aktivaTotal: string;
+            /**
+             * @description Prior-period aktiva celkem.
+             * @example 0.00
+             */
+            aktivaTotalComparative: string | null;
             /** @description Rozvaha — pasiva lines. */
             pasiva: {
                 /**
@@ -2801,12 +3042,22 @@ export interface components {
                  * @example 0.00
                  */
                 amount: string;
+                /**
+                 * @description Amount for the preceding period.
+                 * @example 0.00
+                 */
+                comparativeAmount: string | null;
             }[];
             /**
              * @description Pasiva celkem.
              * @example 0.00
              */
             pasivaTotal: string;
+            /**
+             * @description Prior-period pasiva celkem.
+             * @example 0.00
+             */
+            pasivaTotalComparative: string | null;
             /** @description Výkaz zisku a ztráty lines. */
             vzz: {
                 /**
@@ -2824,6 +3075,11 @@ export interface components {
                  * @example 0.00
                  */
                 amount: string;
+                /**
+                 * @description Amount for the preceding period.
+                 * @example 0.00
+                 */
+                comparativeAmount: string | null;
             }[];
             /**
              * @description Náklady celkem.
@@ -2831,15 +3087,30 @@ export interface components {
              */
             naklady: string;
             /**
+             * @description Prior-period náklady celkem.
+             * @example 0.00
+             */
+            nakladyComparative: string | null;
+            /**
              * @description Výnosy celkem.
              * @example 0.00
              */
             vynosy: string;
             /**
+             * @description Prior-period výnosy celkem.
+             * @example 0.00
+             */
+            vynosyComparative: string | null;
+            /**
              * @description Výsledek hospodaření.
              * @example 0.00
              */
             vysledek: string;
+            /**
+             * @description Prior-period výsledek hospodaření.
+             * @example 0.00
+             */
+            vysledekComparative: string | null;
         };
         /** @description One formatted statement layout line. */
         LayoutLine: {
@@ -2858,6 +3129,11 @@ export interface components {
              * @example 0.00
              */
             amount: string;
+            /**
+             * @description Amount for the preceding period.
+             * @example 0.00
+             */
+            comparativeAmount: string | null;
         };
         /** @description Economic-event facts to classify into an accounting treatment. */
         ClassifyEventRequest: {
@@ -3092,6 +3368,12 @@ export interface components {
              */
             occurredAt: string;
             /**
+             * Format: date
+             * @description Explicit Czech legal date for period membership. Legacy callers may omit it and the server derives Europe/Prague from occurredAt.
+             * @example 2026-03-14
+             */
+            occurredOn?: string;
+            /**
              * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
              * @example 0.95
              */
@@ -3177,6 +3459,18 @@ export interface components {
              * @example 2025-03-14
              */
             issuedAt: string;
+            /**
+             * Format: date
+             * @description DUZP/DPPD used by VAT outputs. Missing means the legal date remains unresolved.
+             * @example 2026-03-14
+             */
+            taxPointDate?: string | null;
+            /**
+             * Format: date
+             * @description Proven date a received invoice was obtained. Missing means input-VAT eligibility is incomplete.
+             * @example 2026-03-14
+             */
+            receivedDate?: string | null;
             /**
              * @description §37 doc-total rounding → 548/648.
              * @example -500.00
@@ -3737,6 +4031,18 @@ export interface components {
              */
             issuedAt: string;
             /**
+             * Format: date
+             * @description DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.
+             * @example 2025-03-14
+             */
+            taxPointDate: string | null;
+            /**
+             * Format: date
+             * @description Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.
+             * @example 2025-03-16
+             */
+            receivedDate: string | null;
+            /**
              * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
              * @example 0.00
              */
@@ -3802,6 +4108,18 @@ export interface components {
              * @example 2025-03-14T00:00:00.000Z
              */
             issuedAt: string;
+            /**
+             * Format: date
+             * @description DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.
+             * @example 2025-03-14
+             */
+            taxPointDate: string | null;
+            /**
+             * Format: date
+             * @description Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.
+             * @example 2025-03-16
+             */
+            receivedDate: string | null;
             /**
              * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
              * @example 0.00
@@ -3937,6 +4255,18 @@ export interface components {
                  */
                 issuedAt: string;
                 /**
+                 * Format: date
+                 * @description DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.
+                 * @example 2025-03-14
+                 */
+                taxPointDate: string | null;
+                /**
+                 * Format: date
+                 * @description Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.
+                 * @example 2025-03-16
+                 */
+                receivedDate: string | null;
+                /**
                  * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
                  * @example 0.00
                  */
@@ -4005,6 +4335,18 @@ export interface components {
                  * @example 2025-03-14T00:00:00.000Z
                  */
                 issuedAt: string;
+                /**
+                 * Format: date
+                 * @description DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.
+                 * @example 2025-03-14
+                 */
+                taxPointDate: string | null;
+                /**
+                 * Format: date
+                 * @description Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.
+                 * @example 2025-03-16
+                 */
+                receivedDate: string | null;
                 /**
                  * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
                  * @example 0.00
@@ -4121,6 +4463,18 @@ export interface components {
              * @example 2025-03-14
              */
             issuedAt: string;
+            /**
+             * Format: date
+             * @description DUZP/DPPD used by VAT outputs. Missing means the legal date remains unresolved.
+             * @example 2025-03-14
+             */
+            taxPointDate?: string | null;
+            /**
+             * Format: date
+             * @description Proven date a received invoice was obtained. Valid only when direction is received.
+             * @example 2025-03-16
+             */
+            receivedDate?: string | null;
             /** @description §37 doc-total rounding → 548/648. */
             roundingAmount?: string;
             lines: {
@@ -5401,7 +5755,12 @@ export interface operations {
     };
     getAccountingVatReturn: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Calendar month or quarter start (YYYY-MM-DD). */
+                from: string;
+                /** @description Calendar month or quarter end (YYYY-MM-DD). */
+                to: string;
+            };
             header?: never;
             path: {
                 /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
@@ -5411,7 +5770,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The period's VAT return + KH totals. */
+            /** @description The statutory filing period's VAT worksheet + KH totals. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5459,7 +5818,12 @@ export interface operations {
     };
     getAccountingEcSalesList: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Calendar month or quarter start (YYYY-MM-DD). */
+                from: string;
+                /** @description Calendar month or quarter end (YYYY-MM-DD). */
+                to: string;
+            };
             header?: never;
             path: {
                 /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
@@ -5469,7 +5833,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The period's EU supplies recap. */
+            /** @description The statutory filing period's EU supplies recap. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5488,7 +5852,12 @@ export interface operations {
     };
     getAccountingControlStatement: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Calendar month or quarter start (YYYY-MM-DD). */
+                from: string;
+                /** @description Calendar month or quarter end (YYYY-MM-DD). */
+                to: string;
+            };
             header?: never;
             path: {
                 /** @description Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404. */
@@ -5498,7 +5867,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The period's control statement. */
+            /** @description The statutory filing period's control statement. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5944,6 +6313,197 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetInvoiceResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    updateInvoiceLegalDates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Opaque invoice identifier (UUID). */
+                invoiceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: date
+                     * @description Corrected DUZP/DPPD, or null when the legal date must be marked unresolved.
+                     * @example 2025-03-14
+                     */
+                    taxPointDate?: string | null;
+                    /**
+                     * Format: date
+                     * @description Corrected receipt date for a received invoice, or null when unresolved.
+                     * @example 2025-03-16
+                     */
+                    receivedDate?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The invoice with corrected legal dates. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description An invoice with its full line/partial detail. */
+                        invoice: {
+                            /**
+                             * Format: uuid
+                             * @description Opaque invoice identifier (UUID).
+                             */
+                            id: string;
+                            /**
+                             * @description Invoice direction: `received` (faktura přijatá / purchase) or `issued` (faktura vydaná / sale).
+                             * @example received
+                             * @enum {string}
+                             */
+                            direction: "received" | "issued";
+                            /**
+                             * @description The underlying summary_record_type.
+                             * @example RECEIVED_INVOICE
+                             * @enum {string}
+                             */
+                            type: "RECEIVED_INVOICE" | "ISSUED_INVOICE";
+                            /**
+                             * Format: uuid
+                             * @description The účetní období this invoice books into.
+                             * @example 0196f1de-0000-7000-8000-0000000000d1
+                             */
+                            periodId: string;
+                            /**
+                             * @description Frozen Označení — the gapless government/audit document number.
+                             * @example FP2025-00042
+                             */
+                            designation: string;
+                            /**
+                             * @description Gapless position within its number series.
+                             * @example 42
+                             */
+                            sequenceNumber: number;
+                            /**
+                             * @description Okamžik vyhotovení (§11/1d) — ISO timestamp.
+                             * @example 2025-03-14T00:00:00.000Z
+                             */
+                            issuedAt: string;
+                            /**
+                             * Format: date
+                             * @description DUZP/DPPD used by VAT outputs, or null when the legal date is unresolved.
+                             * @example 2025-03-14
+                             */
+                            taxPointDate: string | null;
+                            /**
+                             * Format: date
+                             * @description Proven date a received invoice was obtained, or null when unresolved. Always null for issued invoices.
+                             * @example 2025-03-16
+                             */
+                            receivedDate: string | null;
+                            /**
+                             * @description §37 document-total rounding (→ 548/648 at posting), decimal string.
+                             * @example 0.00
+                             */
+                            roundingAmount: string;
+                            /**
+                             * @description Sum of line bases in the accounting currency (frozen), decimal string.
+                             * @example 12100.00
+                             */
+                            totalBase: string;
+                            /**
+                             * @description Sum of line VAT in the accounting currency (frozen), decimal string.
+                             * @example 2541.00
+                             */
+                            totalVat: string;
+                            /**
+                             * @description Number of individual-record lines on the invoice.
+                             * @example 1
+                             */
+                            lineCount: number;
+                            /**
+                             * @description When the voucher row was created — ISO timestamp.
+                             * @example 2025-03-14T09:12:00.000Z
+                             */
+                            createdAt: string;
+                            /** @description The invoice's individual-record lines with their partials. */
+                            lines: {
+                                /** Format: uuid */
+                                id: string;
+                                /**
+                                 * Format: uuid
+                                 * @description The účetní případ (economic event) this line records.
+                                 */
+                                accountingEventId: string;
+                                description: string | null;
+                                partials: {
+                                    /** Format: uuid */
+                                    id: string;
+                                    /**
+                                     * @description Základ daně in the transaction currency, decimal string.
+                                     * @example 12100.00
+                                     */
+                                    baseAmount: string;
+                                    /**
+                                     * @description VAT rate (e.g. `21`), or `null` for OUTSIDE_VAT.
+                                     * @example 21
+                                     */
+                                    vatRate: string | null;
+                                    /**
+                                     * @description Daň in the transaction currency, decimal string.
+                                     * @example 2541.00
+                                     */
+                                    vatAmount: string;
+                                    /**
+                                     * @description VAT mode driving the posting.
+                                     * @enum {string}
+                                     */
+                                    vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                                    /**
+                                     * @description Place-of-supply regime (DOMESTIC | REVERSE_CHARGE | EU | IMPORT | EXEMPT | OUTSIDE_VAT), or `null`.
+                                     * @example DOMESTIC
+                                     */
+                                    vatJurisdiction: string | null;
+                                    /**
+                                     * @description Whether input VAT is deductible (false folds into cost).
+                                     * @example true
+                                     */
+                                    vatDeductible: boolean;
+                                    /**
+                                     * @description Transaction currency (ISO 4217).
+                                     * @example CZK
+                                     */
+                                    currencyCode: string;
+                                    /**
+                                     * @description Frozen base converted to the accounting currency.
+                                     * @example 12100.00
+                                     */
+                                    baseInAccountingCurrency: string;
+                                    /**
+                                     * @description Frozen VAT converted to the accounting currency.
+                                     * @example 2541.00
+                                     */
+                                    vatInAccountingCurrency: string;
+                                    /** @example 1 */
+                                    quantity: string | null;
+                                    /** @example ks */
+                                    measureUnit: string | null;
+                                    /** @example 12100.00 */
+                                    unitPrice: string | null;
+                                }[];
+                            }[];
+                        };
+                    };
                 };
             };
             401: components["responses"]["Unauthorized"];

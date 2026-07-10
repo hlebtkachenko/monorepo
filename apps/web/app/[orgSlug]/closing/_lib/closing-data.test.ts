@@ -57,6 +57,22 @@ let truncateAll: (typeof import("@workspace/db/tests/fixtures"))["truncateAll"]
 
 let sql: postgres.Sql
 
+function obligationWithDueDate(dueDate: string) {
+  return {
+    kind: "VAT_RETURN" as const,
+    category: "VAT" as const,
+    title: "VAT return",
+    periodLabel: "June 2026",
+    periodStart: "2026-06-01",
+    periodEnd: "2026-06-30",
+    dueDate,
+    applicability: {
+      status: "APPLICABLE" as const,
+      reason: "Configured statutory schedule applies.",
+    },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Seed helpers (raw SQL via the superuser admin client) — mirrors
 // accounting-data.test.ts
@@ -235,7 +251,7 @@ beforeEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe("getClosingObligations", () => {
-  it("PAYER + MONTHLY org, calendar-2026 open period -> ok with 36 obligations (12 VAT + 12 KH + 12 SH-conditional), 0 payroll", async () => {
+  it("PAYER + MONTHLY org with no VAT activity -> only the 12 standing VAT returns", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -266,26 +282,30 @@ describe("getClosingObligations", () => {
     if (result.status !== "ok") return
     expect(result.periodStart).toBe("2026-01-01")
     expect(result.periodEnd).toBe("2026-12-31")
-    expect(result.obligations).toHaveLength(36)
+    expect(result.obligations).toHaveLength(12)
     expect(
       result.obligations.filter((o) => o.kind === "VAT_RETURN"),
     ).toHaveLength(12)
     expect(
       result.obligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
-    ).toHaveLength(12)
+    ).toHaveLength(0)
     expect(
       result.obligations.filter((o) => o.kind === "EC_SALES_LIST"),
-    ).toHaveLength(12)
+    ).toHaveLength(0)
     expect(
       result.obligations.filter((o) => o.category === "PAYROLL"),
     ).toHaveLength(0)
     // Every row carries a derived display status.
     for (const o of result.obligations) {
-      expect(["Overdue", "Due soon", "Upcoming"]).toContain(o.status)
+      expect([
+        "Past due date",
+        "Due soon",
+        "Upcoming",
+      ]).toContain(o.status)
     }
   }, 30_000)
 
-  it("PAYER with filing_period NULL -> vat-unconfigured (engine not called, no throw)", async () => {
+  it("PAYER with filing_period NULL -> explicit missing-cadence issue (no throw)", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -312,9 +332,15 @@ describe("getClosingObligations", () => {
 
     const result = await getClosingObligations("closing-payer-unconfigured")
 
-    expect(result.status).toBe("vat-unconfigured")
-    if (result.status !== "vat-unconfigured") return
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
     expect(result.periodLabel).toContain("2026")
+    expect(result.obligations.filter((o) => o.category === "VAT")).toEqual([])
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "VAT_FILING_PERIOD_MISSING" }),
+      ]),
+    )
   }, 30_000)
 
   it("org with no accounting_period -> no-period", async () => {
@@ -422,11 +448,11 @@ describe("getClosingObligations", () => {
     const result2026 = await getClosingObligations("closing-regime-change")
     expect(result2026.status).toBe("ok")
     if (result2026.status === "ok") {
-      expect(result2026.obligations).toHaveLength(36)
+      expect(result2026.obligations).toHaveLength(12)
     }
   }, 30_000)
 
-  it("NATURAL person + PAYER/QUARTERLY -> 4 VAT_RETURN + 4 CONTROL_STATEMENT (quarterly KH, §101e ZDPH) + 12 EC_SALES_LIST", async () => {
+  it("NATURAL person + PAYER/QUARTERLY with no activity -> 4 standing VAT returns", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -461,28 +487,40 @@ describe("getClosingObligations", () => {
     ).toHaveLength(4)
     expect(
       result.obligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
-    ).toHaveLength(4)
+    ).toHaveLength(0)
     expect(
       result.obligations.filter((o) => o.kind === "EC_SALES_LIST"),
-    ).toHaveLength(12)
+    ).toHaveLength(0)
   }, 30_000)
 })
 
 describe("deriveObligationStatus", () => {
   const today = "2026-07-08"
 
-  it("a due date in the past is Overdue", () => {
-    expect(deriveObligationStatus("2026-07-01", today)).toBe("Overdue")
+  it("a due date in the past is Past due date without asserting non-compliance", () => {
+    expect(
+      deriveObligationStatus(obligationWithDueDate("2026-07-01"), today),
+    ).toBe("Past due date")
   })
 
   it("a due date within the next 14 days (inclusive) is Due soon", () => {
-    expect(deriveObligationStatus("2026-07-08", today)).toBe("Due soon")
-    expect(deriveObligationStatus("2026-07-15", today)).toBe("Due soon")
-    expect(deriveObligationStatus("2026-07-22", today)).toBe("Due soon")
+    expect(
+      deriveObligationStatus(obligationWithDueDate("2026-07-08"), today),
+    ).toBe("Due soon")
+    expect(
+      deriveObligationStatus(obligationWithDueDate("2026-07-15"), today),
+    ).toBe("Due soon")
+    expect(
+      deriveObligationStatus(obligationWithDueDate("2026-07-22"), today),
+    ).toBe("Due soon")
   })
 
   it("a due date beyond 14 days out is Upcoming", () => {
-    expect(deriveObligationStatus("2026-07-23", today)).toBe("Upcoming")
-    expect(deriveObligationStatus("2026-09-01", today)).toBe("Upcoming")
+    expect(
+      deriveObligationStatus(obligationWithDueDate("2026-07-23"), today),
+    ).toBe("Upcoming")
+    expect(
+      deriveObligationStatus(obligationWithDueDate("2026-09-01"), today),
+    ).toBe("Upcoming")
   })
 })

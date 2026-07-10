@@ -23,16 +23,19 @@ import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { FinancialStatementsResult } from "../_lib/year-end-data"
 import { AnnualStatusMessage } from "../../_components/annual-status-message"
+import { AnnualCompletenessAlert } from "../../_components/annual-completeness-alert"
 
 /** One rolled-up statutory rozvaha/VZZ line — indented by its dotted-code depth. */
 function LayoutTable({
   title,
   lines,
   unit,
+  hasComparative,
 }: {
   title: string
   lines: LayoutLine[]
   unit: StatementUnit
+  hasComparative: boolean
 }) {
   if (lines.length === 0) return null
   return (
@@ -51,6 +54,9 @@ function LayoutTable({
             <TableRow className="hover:bg-transparent">
               <TableHead>Line</TableHead>
               <TableHead className="text-right">Amount</TableHead>
+              {hasComparative ? (
+                <TableHead className="text-right">Prior period</TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -64,6 +70,13 @@ function LayoutTable({
                 <TableCell className="text-right tabular-nums">
                   {formatDecimal(line.amount)}
                 </TableCell>
+                {hasComparative ? (
+                  <TableCell className="text-right tabular-nums">
+                    {line.comparativeAmount == null
+                      ? "Not available"
+                      : formatDecimal(line.comparativeAmount)}
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>
@@ -74,19 +87,14 @@ function LayoutTable({
 }
 
 /**
- * Financial statements (účetní závěrka, §18 ZoÚ) — the active accounting
- * period's real totals + per-account lines from `buildZaverka`, plus the
- * statutory rozvaha + VZZ layout from `buildStatementLayout`. Annual: one
- * computation per period, no filing-period picker (unlike VAT). Totals
- * always render (a fixed computed form, so zero is honest); per-account /
- * rolled-up line sections show an empty state when there is nothing to
- * report, never a fabricated row.
+ * Draft year-end worksheet from book balances. Missing notes, approval,
+ * signature, publication, and unsupported asset columns remain explicit.
  */
 export function StatementsView({ data }: { data: FinancialStatementsResult }) {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Statements" />
+        <ContentHeader title="Draft closing worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
@@ -97,6 +105,10 @@ export function StatementsView({ data }: { data: FinancialStatementsResult }) {
               <p className="text-sm text-muted-foreground">
                 {data.periodLabel}
               </p>
+
+              <AnnualCompletenessAlert
+                completeness={data.layout.completeness}
+              />
 
               <Card>
                 <CardHeader>
@@ -142,16 +154,19 @@ export function StatementsView({ data }: { data: FinancialStatementsResult }) {
                 title="Rozvaha — Aktiva"
                 lines={data.layout.aktiva}
                 unit={data.layout.unit}
+                hasComparative={data.layout.comparativePeriod != null}
               />
               <LayoutTable
                 title="Rozvaha — Pasiva"
                 lines={data.layout.pasiva}
                 unit={data.layout.unit}
+                hasComparative={data.layout.comparativePeriod != null}
               />
               <LayoutTable
                 title="Výkaz zisku a ztráty"
                 lines={data.layout.vzz}
                 unit={data.layout.unit}
+                hasComparative={data.layout.comparativePeriod != null}
               />
 
               {data.zaverka.lines.length > 0 ? (

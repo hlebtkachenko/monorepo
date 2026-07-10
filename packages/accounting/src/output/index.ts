@@ -38,11 +38,26 @@ export {
   type DppoInput,
 } from "./dppo"
 export {
+  resolveDppoRate,
+  type DppoRateResolution,
+  type DppoTaxpayerCategory,
+} from "./annual-rules"
+export type {
+  AdjustmentProvenance,
+  AnnualArtifactCompleteness,
+  ProvenancedDecimal,
+} from "./annual-completeness"
+export {
   buildDph,
   type Dph,
   type DphRows,
   type KontrolniHlaseniTotals,
 } from "./dph"
+export {
+  getVatEvidenceCompleteness,
+  type VatEvidenceCompleteness,
+} from "./vat-evidence-completeness"
+export { getVatPeriodActivity } from "./vat-period-activity"
 export {
   buildKontrolniHlaseni,
   KH_ROW_THRESHOLD,

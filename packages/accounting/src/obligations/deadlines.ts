@@ -47,3 +47,18 @@ export function vatMonthlyDeadline(year: number, month: number): string {
 export function payrollMonthlyDeadline(year: number, month: number): string {
   return shiftToBusinessDay(nthOfNextMonth(year, month, 20))
 }
+
+/** Special-rate withholding is remitted by the end of the following month. */
+export function specialRateWithholdingDeadline(
+  year: number,
+  month: number,
+): string {
+  const followingMonth = month === 12 ? 1 : month + 1
+  const followingYear = month === 12 ? year + 1 : year
+  const lastDay = new Date(
+    Date.UTC(followingYear, followingMonth, 0),
+  ).getUTCDate()
+  return shiftToBusinessDay(
+    `${followingYear}-${pad2(followingMonth)}-${pad2(lastDay)}`,
+  )
+}

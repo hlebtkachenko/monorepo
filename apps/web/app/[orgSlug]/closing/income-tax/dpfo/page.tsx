@@ -3,11 +3,10 @@ import { notFound } from "next/navigation"
 import { DpfoView } from "../_components/dpfo-view"
 import { getPersonalIncomeTax } from "../_lib/income-tax-data"
 
-export const metadata = { title: "Personal income tax" }
+export const metadata = { title: "Section 7 tax-record worksheet" }
 
 /**
- * Personal income tax (DPFO) — the active accounting period's real computed
- * figures from `buildDpfo`. Annual output, no filing-period picker.
+ * Section 7 tax-record worksheet from the active accounting period.
  */
 export default async function DpfoPage({
   params,

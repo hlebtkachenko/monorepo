@@ -1,4 +1,9 @@
-import type { Obligation } from "@workspace/accounting"
+import {
+  deriveObligationPresentationStatus,
+  type Obligation,
+  type ObligationPresentationStatus,
+  type ProfileIssue,
+} from "@workspace/accounting/obligations"
 
 /**
  * Pure, presentational Closing types + helpers shared by the server-only
@@ -34,25 +39,9 @@ export function formatIsoDate(iso: string): string {
   return `${day} ${MONTH_NAMES[month - 1]} ${year}`
 }
 
-export type ClosingObligationStatus = "Overdue" | "Due soon" | "Upcoming"
+export type ClosingObligationStatus = ObligationPresentationStatus
 
-/**
- * Derive a display status from an obligation's due date relative to a
- * reference date (both ISO "YYYY-MM-DD", so string comparison is exact for
- * "past"). "Due soon" covers the next 14 days inclusive of today. There is no
- * "Filed" status yet — filing state doesn't exist until PR5 wires actual
- * submission tracking.
- */
-export function deriveObligationStatus(
-  dueDate: string,
-  today: string,
-): ClosingObligationStatus {
-  if (dueDate < today) return "Overdue"
-  const dueMs = Date.parse(`${dueDate}T00:00:00Z`)
-  const todayMs = Date.parse(`${today}T00:00:00Z`)
-  const diffDays = Math.round((dueMs - todayMs) / (24 * 60 * 60 * 1000))
-  return diffDays <= 14 ? "Due soon" : "Upcoming"
-}
+export const deriveObligationStatus = deriveObligationPresentationStatus
 
 export type ObligationWithStatus = Obligation & {
   status: ClosingObligationStatus
@@ -61,13 +50,13 @@ export type ObligationWithStatus = Obligation & {
 export type ClosingObligationsResult =
   | { status: "no-access" }
   | { status: "no-period" }
-  | { status: "vat-unconfigured"; periodLabel: string }
   | {
       status: "ok"
       periodLabel: string
       periodStart: string
       periodEnd: string
       obligations: ObligationWithStatus[]
+      issues: ProfileIssue[]
     }
 
 const FULL_MONTH_NAMES = [

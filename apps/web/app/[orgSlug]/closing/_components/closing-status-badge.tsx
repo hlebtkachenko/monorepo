@@ -4,11 +4,14 @@ import type { ClosingObligationStatus } from "../_lib/closing-shared"
 
 const VARIANT: Record<
   ClosingObligationStatus,
-  "destructive" | "default" | "secondary"
+  "destructive" | "default" | "secondary" | "outline"
 > = {
-  Overdue: "destructive",
+  "Past due date": "outline",
   "Due soon": "default",
   Upcoming: "secondary",
+  "Condition not evaluated": "outline",
+  "Needs input": "destructive",
+  Filed: "secondary",
 }
 
 /** Shared Overview/Calendar status pill — one color mapping, no drift between pages. */

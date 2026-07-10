@@ -677,6 +677,10 @@ async function confirmLiveRun(count: number): Promise<boolean> {
  */
 export function readInputs(path: string): BrainDryRunInputs {
   return withAssembledSections(
-    readContextFile(path, "--inputs", ["invoice", "sections", "captureContext"]),
+    readContextFile(path, "--inputs", [
+      "invoice",
+      "sections",
+      "captureContext",
+    ]),
   ) as BrainDryRunInputs
 }

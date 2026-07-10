@@ -8,6 +8,8 @@ import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
   "periodId": z.string().uuid().describe("Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404."),
+  "from": z.string().describe("Calendar month or quarter start (YYYY-MM-DD)."),
+  "to": z.string().describe("Calendar month or quarter end (YYYY-MM-DD)."),
 }
 
 export function registerGetAccountingEcSalesList(
@@ -18,7 +20,7 @@ export function registerGetAccountingEcSalesList(
     "get_accounting_ec_sales_list",
     {
       title: "Get EC sales list (souhrnné hlášení)",
-      description: `EU supplies recap (§102) for the period — per partner + kód plnění. Organization-scoped.`,
+      description: `EU supplies recap (§102) for the requested statutory calendar month or quarter — per partner + kód plnění. Organization-scoped.`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("get"),
@@ -28,7 +30,7 @@ export function registerGetAccountingEcSalesList(
     async (args): Promise<CallToolResult> => {
       try {
         const raw = args as Record<string, unknown>
-        const params = { path: { "periodId": raw["periodId"] } } as unknown as NonNullable<operations["getAccountingEcSalesList"]["parameters"]>
+        const params = { path: { "periodId": raw["periodId"] }, query: { "from": raw["from"], "to": raw["to"] } } as unknown as NonNullable<operations["getAccountingEcSalesList"]["parameters"]>
         const init = { params }
         const { data, error, response } = await client.GET("/v1/accounting/periods/{periodId}/outputs/ec-sales-list", init)
         if (error) throw error

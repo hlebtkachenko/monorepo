@@ -8,6 +8,8 @@ import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
   "periodId": z.string().uuid().describe("Accounting period id to read. Resolved within the API key's own organization (FORCE RLS); a period from another tenant returns 404."),
+  "from": z.string().describe("Calendar month or quarter start (YYYY-MM-DD)."),
+  "to": z.string().describe("Calendar month or quarter end (YYYY-MM-DD)."),
 }
 
 export function registerGetAccountingControlStatement(
@@ -18,7 +20,7 @@ export function registerGetAccountingControlStatement(
     "get_accounting_control_statement",
     {
       title: "Get control statement (kontrolní hlášení)",
-      description: `Per-counterparty kontrolní hlášení (§101c-i) — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.`,
+      description: `Per-counterparty kontrolní hlášení (§101c-i) for the requested statutory calendar month or quarter — sections A.1/A.2/A.4/A.5 and B.1/B.2/B.3 with DIČ + doklad. Organization-scoped.`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("get"),
@@ -28,7 +30,7 @@ export function registerGetAccountingControlStatement(
     async (args): Promise<CallToolResult> => {
       try {
         const raw = args as Record<string, unknown>
-        const params = { path: { "periodId": raw["periodId"] } } as unknown as NonNullable<operations["getAccountingControlStatement"]["parameters"]>
+        const params = { path: { "periodId": raw["periodId"] }, query: { "from": raw["from"], "to": raw["to"] } } as unknown as NonNullable<operations["getAccountingControlStatement"]["parameters"]>
         const init = { params }
         const { data, error, response } = await client.GET("/v1/accounting/periods/{periodId}/outputs/control-statement", init)
         if (error) throw error

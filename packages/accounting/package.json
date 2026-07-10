@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./obligations": "./src/obligations/index.ts",
+    "./number-series-defaults": "./src/number-series-defaults.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -85,7 +85,7 @@ export function closingNav(base: string): SidebarNavEntry[] {
               href: `${base}/income-tax/dppo`,
             },
             {
-              label: "Personal income tax",
+              label: "Section 7 tax-record worksheet",
               href: `${base}/income-tax/dpfo`,
             },
             {
@@ -142,7 +142,7 @@ export function closingNav(base: string): SidebarNavEntry[] {
               tba: true,
             },
             {
-              label: "Statements",
+              label: "Draft closing worksheet",
               href: `${base}/year-end/statements`,
             },
             {

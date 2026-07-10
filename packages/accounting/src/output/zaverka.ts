@@ -14,6 +14,7 @@ import { sql } from "drizzle-orm"
 import { one, rows } from "../sql"
 import type { RowExecutor } from "../sql"
 import type { Decimal } from "../types"
+import type { AnnualArtifactCompleteness } from "./annual-completeness"
 
 export interface ZaverkaTotals {
   aktiva: Decimal
@@ -33,6 +34,8 @@ export interface StatementLineRow {
 
 export interface Zaverka extends ZaverkaTotals {
   type: "FINANCIAL_STATEMENTS"
+  artifactKind: "DRAFT_CLOSING_WORKSHEET"
+  completeness: AnnualArtifactCompleteness
   lines: StatementLineRow[]
 }
 
@@ -84,5 +87,23 @@ export async function buildZaverka(
        ORDER BY a.number`,
   )
 
-  return { type: "FINANCIAL_STATEMENTS", ...totals, lines }
+  return {
+    type: "FINANCIAL_STATEMENTS",
+    artifactKind: "DRAFT_CLOSING_WORKSHEET",
+    completeness: {
+      status: "DRAFT",
+      filingReady: false,
+      blockingInputs: [
+        "Prior-period comparative values are not included in this account-balance worksheet.",
+        "Asset gross values and corrections are not classified by the current account read model.",
+        "Notes to the financial statements are missing.",
+        "Approval, signature, audit applicability, and publication have not been recorded.",
+      ],
+      unsupportedRequirements: [
+        "This draft worksheet is not an approved statutory financial statement.",
+      ],
+    },
+    ...totals,
+    lines,
+  }
 }

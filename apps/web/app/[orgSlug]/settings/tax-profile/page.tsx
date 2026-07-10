@@ -7,7 +7,7 @@ export const metadata = { title: "Tax profile" }
 
 /**
  * Tax profile — the organization_tax_profile history: currently just
- * has_employees, the operational fact the statutory obligation engine needs
+ * effective payroll relationship and remittance facts the statutory engine needs
  * to know whether payroll obligations exist for a period. Reads inside
  * `withOrganization` (FORCE RLS); each change is a gated (owner/admin) server
  * action. Changing the profile closes the open row and inserts the new one

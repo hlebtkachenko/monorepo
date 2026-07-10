@@ -57,16 +57,15 @@ export function ObligationsTable({
                   <div className="flex flex-col gap-0.5">
                     <span>
                       {o.title}
-                      {o.conditional ? (
+                      {o.applicability.status === "CONDITION_NOT_EVALUATED" ? (
                         <span className="text-muted-foreground">
-                          {" "}
-                          · conditional
+                          {" · condition not evaluated"}
                         </span>
                       ) : null}
                     </span>
-                    {o.conditional && o.note ? (
+                    {o.applicability.status === "CONDITION_NOT_EVALUATED" ? (
                       <span className="text-xs text-muted-foreground">
-                        {o.note}
+                        {o.applicability.reason}
                       </span>
                     ) : null}
                   </div>

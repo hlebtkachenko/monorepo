@@ -52,13 +52,13 @@ export function IncomeTaxLandingView({
                       <h3>
                         {data.personType === "LEGAL"
                           ? "Corporation tax"
-                          : "Personal income tax"}
+                          : "Section 7 tax-record worksheet"}
                       </h3>
                     </CardTitle>
                     <CardDescription>
                       {data.personType === "LEGAL"
                         ? "Daň z příjmů právnických osob — DPPO."
-                        : "Daň z příjmů fyzických osob — DPFO."}
+                        : "Book-derived Section 7 income and expense worksheet. It is not a complete DPFO return."}
                     </CardDescription>
                   </CardHeader>
                 </Card>

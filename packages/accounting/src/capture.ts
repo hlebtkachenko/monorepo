@@ -74,6 +74,15 @@ export async function createEvent(
   ctx: OrgCtx,
   input: EventInput,
 ): Promise<CapturedEvent> {
+  const occurredAtIsDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(input.occurredAt)
+  const occurredAt = occurredAtIsDateOnly
+    ? sql`${input.occurredAt}::date::timestamp AT TIME ZONE 'Europe/Prague'`
+    : sql`${input.occurredAt}::timestamptz`
+  const occurredOn = input.occurredOn
+    ? sql`${input.occurredOn}::date`
+    : occurredAtIsDateOnly
+      ? sql`${input.occurredAt}::date`
+      : sql`(${input.occurredAt}::timestamptz AT TIME ZONE 'Europe/Prague')::date`
   const allocated = await allocateNumber(
     db,
     input.seriesId,
@@ -84,11 +93,11 @@ export async function createEvent(
     db,
     sql`INSERT INTO accounting_event
           (organization_id, workspace_id, period_id, number_series_id, sequence_number, designation,
-           party_id, counterparty_id, description, content, occurred_at, responsible_user_id)
+           party_id, counterparty_id, description, content, occurred_at, occurred_on, responsible_user_id)
         VALUES
           (${ctx.organizationId}::uuid, ${ctx.workspaceId}::uuid, ${input.periodId}::uuid, ${input.seriesId}::uuid,
            ${allocated.sequenceNumber}, ${allocated.designation}, ${input.partyId ?? null}, ${input.counterpartyId ?? null},
-           ${input.description}, ${input.content ?? null}, ${input.occurredAt}::timestamptz, ${input.responsibleUserId}::uuid)
+           ${input.description}, ${input.content ?? null}, ${occurredAt}, ${occurredOn}, ${input.responsibleUserId}::uuid)
         RETURNING id`,
   )
   return {
@@ -109,6 +118,16 @@ export async function captureDocument(
   ctx: OrgCtx,
   input: DocumentInput,
 ): Promise<CapturedDocument> {
+  const isInvoice =
+    input.type === "RECEIVED_INVOICE" || input.type === "ISSUED_INVOICE"
+  if (input.taxPointDate != null && !isInvoice) {
+    throw new Error("accounting: taxPointDate is only valid for an invoice")
+  }
+  if (input.receivedDate != null && input.type !== "RECEIVED_INVOICE") {
+    throw new Error(
+      "accounting: receivedDate is only valid for a received invoice",
+    )
+  }
   const accountingCurrency = await periodAccountingCurrency(db, input.periodId)
   const allocated = await allocateNumber(
     db,
@@ -120,10 +139,12 @@ export async function captureDocument(
   const doc = await one<{ id: string }>(
     db,
     sql`INSERT INTO summary_record
-          (organization_id, workspace_id, period_id, number_series_id, sequence_number, designation, type, issued_at, rounding_amount)
+          (organization_id, workspace_id, period_id, number_series_id, sequence_number, designation,
+           type, issued_at, tax_point_date, received_date, rounding_amount)
         VALUES
           (${ctx.organizationId}::uuid, ${ctx.workspaceId}::uuid, ${input.periodId}::uuid, ${input.seriesId}::uuid,
-           ${allocated.sequenceNumber}, ${allocated.designation}, ${input.type}, ${input.issuedAt}::timestamptz, ${input.roundingAmount ?? "0"})
+           ${allocated.sequenceNumber}, ${allocated.designation}, ${input.type}, ${input.issuedAt}::timestamptz,
+           ${input.taxPointDate ?? null}::date, ${input.receivedDate ?? null}::date, ${input.roundingAmount ?? "0"})
         RETURNING id`,
   )
 

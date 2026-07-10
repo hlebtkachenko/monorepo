@@ -746,7 +746,10 @@ CREATE FUNCTION public.app_event_period_guard() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-  PERFORM app_assert_period_writable(NEW.period_id, 'accounting_event', NEW.occurred_at::date);
+  IF NEW.occurred_on IS NULL THEN
+    NEW.occurred_on := (NEW.occurred_at AT TIME ZONE 'Europe/Prague')::date;
+  END IF;
+  PERFORM app_assert_period_writable(NEW.period_id, 'accounting_event', NEW.occurred_on);
   RETURN NEW;
 END;
 $$;
@@ -910,6 +913,19 @@ CREATE FUNCTION public.app_is_workspace_owner(p_ws_id uuid, p_user_id uuid) RETU
       AND user_id      = p_user_id
       AND role         = 'owner'
       AND active       = true
+  );
+$$;
+
+--
+-- Name: app_lock_workspace_member(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_lock_workspace_member(p_workspace_id uuid, p_user_id uuid) RETURNS void
+    LANGUAGE sql
+    SET search_path TO 'pg_catalog'
+    AS $$
+  SELECT pg_advisory_xact_lock(
+    hashtextextended(p_workspace_id::text || ':' || p_user_id::text, 0)
   );
 $$;
 
@@ -1151,6 +1167,39 @@ END;
 $$;
 
 --
+-- Name: app_prevent_inactive_responsible_member(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_prevent_inactive_responsible_member() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' OR (
+    OLD.active = true
+    AND (
+      NEW.active = false
+      OR NEW.workspace_id IS DISTINCT FROM OLD.workspace_id
+      OR NEW.user_id IS DISTINCT FROM OLD.user_id
+    )
+  ) THEN
+    PERFORM public.app_lock_workspace_member(OLD.workspace_id, OLD.user_id);
+
+    IF EXISTS (
+       SELECT 1
+         FROM organization o
+        WHERE o.workspace_id = OLD.workspace_id
+          AND o.responsible_user_id = OLD.user_id
+    ) THEN
+      RAISE EXCEPTION 'responsible user must be unassigned before workspace membership is deactivated or deleted'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$;
+
+--
 -- Name: app_prevent_last_owner_demotion(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1267,6 +1316,27 @@ END;
 $$;
 
 --
+-- Name: app_summary_legal_dates_period_guard(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_summary_legal_dates_period_guard() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  PERFORM 1
+    FROM accounting_period
+   WHERE id = NEW.period_id
+   FOR SHARE;
+  PERFORM app_assert_period_writable(
+    NEW.period_id,
+    'summary_record legal-date correction',
+    NULL
+  );
+  RETURN NEW;
+END;
+$$;
+
+--
 -- Name: app_summary_period_guard(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1343,6 +1413,36 @@ CREATE FUNCTION public.app_user_email_normalize() RETURNS trigger
     AS $$
 BEGIN
   NEW.email := lower(NEW.email);
+  RETURN NEW;
+END;
+$$;
+
+--
+-- Name: app_validate_responsible_assignee(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_validate_responsible_assignee() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_catalog'
+    AS $$
+BEGIN
+  IF NEW.responsible_user_id IS NOT NULL THEN
+    PERFORM public.app_lock_workspace_member(
+      NEW.workspace_id,
+      NEW.responsible_user_id
+    );
+
+    IF NOT EXISTS (
+       SELECT 1
+         FROM workspace_membership wm
+        WHERE wm.workspace_id = NEW.workspace_id
+          AND wm.user_id = NEW.responsible_user_id
+          AND wm.active = true
+    ) THEN
+      RAISE EXCEPTION 'responsible user must be an active member of the organization workspace'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -1449,7 +1549,8 @@ CREATE TABLE public.accounting_event (
     occurred_at timestamp with time zone NOT NULL,
     responsible_user_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    occurred_on date NOT NULL
 );
 
 ALTER TABLE ONLY public.accounting_event FORCE ROW LEVEL SECURITY;
@@ -2218,6 +2319,13 @@ CREATE TABLE public.organization_tax_profile (
     valid_to date,
     has_employees boolean NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    has_standard_employment boolean,
+    has_dpp boolean,
+    has_dpc boolean,
+    social_insurance_participation boolean,
+    health_insurance_participation boolean,
+    payroll_tax_advance_due boolean,
+    special_rate_withholding_due boolean,
     CONSTRAINT organization_tax_profile_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to)))
 );
 
@@ -2489,7 +2597,9 @@ CREATE TABLE public.summary_record (
     issued_at timestamp with time zone NOT NULL,
     rounding_amount numeric(19,4) DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    tax_point_date date,
+    received_date date
 );
 
 ALTER TABLE ONLY public.summary_record FORCE ROW LEVEL SECURITY;
@@ -2594,7 +2704,8 @@ CREATE TABLE public.vat_status (
     valid_to date,
     filing_period public.vat_filing_period,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT vat_status_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to)))
+    CONSTRAINT vat_status_dates_chk CHECK (((valid_to IS NULL) OR (valid_from <= valid_to))),
+    CONSTRAINT vat_status_filing_period_regime_check CHECK (((vat_regime_code = 'PAYER'::text) OR (filing_period IS NULL)))
 );
 
 ALTER TABLE ONLY public.vat_status FORCE ROW LEVEL SECURITY;
@@ -3514,6 +3625,12 @@ CREATE INDEX account_period_balance_updated_idx ON public.account_period_balance
 CREATE INDEX account_synthetic_code_idx ON public.account USING btree (synthetic_code);
 
 --
+-- Name: accounting_event_org_occurred_on_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX accounting_event_org_occurred_on_idx ON public.accounting_event USING btree (organization_id, occurred_on);
+
+--
 -- Name: accounting_event_period_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3952,6 +4069,18 @@ CREATE INDEX signature_event_idx ON public.signature USING btree (event_id);
 CREATE INDEX signature_posting_idx ON public.signature USING btree (posting_id);
 
 --
+-- Name: summary_record_org_received_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX summary_record_org_received_date_idx ON public.summary_record USING btree (organization_id, received_date) WHERE (received_date IS NOT NULL);
+
+--
+-- Name: summary_record_org_tax_point_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX summary_record_org_tax_point_date_idx ON public.summary_record USING btree (organization_id, tax_point_date) WHERE (tax_point_date IS NOT NULL);
+
+--
 -- Name: summary_record_period_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4132,6 +4261,12 @@ CREATE TRIGGER open_item_settlement_period_guard BEFORE INSERT ON public.open_it
 CREATE TRIGGER organization_membership_ws_consistent BEFORE INSERT OR UPDATE ON public.organization_membership FOR EACH ROW EXECUTE FUNCTION public.app_organization_membership_ws_consistent();
 
 --
+-- Name: organization organization_responsible_assignee_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER organization_responsible_assignee_guard BEFORE INSERT OR UPDATE OF workspace_id, responsible_user_id ON public.organization FOR EACH ROW EXECUTE FUNCTION public.app_validate_responsible_assignee();
+
+--
 -- Name: organization organization_self_id_sync; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -4306,6 +4441,12 @@ CREATE TRIGGER signature_block_truncate BEFORE TRUNCATE ON public.signature FOR 
 CREATE TRIGGER signature_block_update BEFORE UPDATE ON public.signature FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_accounting();
 
 --
+-- Name: summary_record summary_record_legal_dates_period_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER summary_record_legal_dates_period_guard BEFORE UPDATE OF tax_point_date, received_date ON public.summary_record FOR EACH ROW WHEN (((old.tax_point_date IS DISTINCT FROM new.tax_point_date) OR (old.received_date IS DISTINCT FROM new.received_date))) EXECUTE FUNCTION public.app_summary_legal_dates_period_guard();
+
+--
 -- Name: summary_record summary_record_period_guard; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -4346,6 +4487,12 @@ CREATE TRIGGER workspace_billing_email_normalize BEFORE INSERT OR UPDATE ON publ
 --
 
 CREATE TRIGGER workspace_membership_prevent_last_owner_demotion BEFORE INSERT OR DELETE OR UPDATE ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_last_owner_demotion();
+
+--
+-- Name: workspace_membership workspace_membership_responsibility_guard; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_membership_responsibility_guard BEFORE DELETE OR UPDATE OF active, workspace_id, user_id ON public.workspace_membership FOR EACH ROW EXECUTE FUNCTION public.app_prevent_inactive_responsible_member();
 
 --
 -- Name: account account_chart_fk; Type: FK CONSTRAINT; Schema: public; Owner: -

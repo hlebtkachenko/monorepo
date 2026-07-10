@@ -17,6 +17,7 @@ import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { VatEcSalesListResult } from "../_lib/vat-data"
 import { FilingPeriodSelector } from "./filing-period-selector"
+import { VatEvidenceAlert } from "./vat-evidence-alert"
 import { VatStatusMessage } from "./vat-status-message"
 
 /** kód plnění (Pokyny k SH) — see souhrnne-hlaseni.ts module doc. */
@@ -45,7 +46,7 @@ export function ShView({
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="EC Sales List" />
+        <ContentHeader title="EC Sales List worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
@@ -61,6 +62,7 @@ export function ShView({
               <p className="text-sm text-muted-foreground">
                 {data.selected.label}
               </p>
+              <VatEvidenceAlert completeness={data.sh.completeness} />
 
               {rows.length > 0 ? (
                 <Card className="p-0">

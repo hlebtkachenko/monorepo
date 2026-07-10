@@ -58,6 +58,8 @@ async function captureEuReceipt(
     seriesId: seed.documentSeriesId,
     type: "RECEIVED_INVOICE",
     issuedAt: args.day,
+    taxPointDate: args.day,
+    receivedDate: args.day,
     lines: [
       {
         eventId: ev.eventId,
@@ -104,7 +106,7 @@ describe("DPH ř.5/6 — EU services received split (#449)", () => {
         vatRate: "21",
         day: "2081-04-01",
       })
-      // Legacy NULL supply_kind — defaults to goods (ř.3), not services
+      // Legacy NULL supply_kind — excluded until classified.
       await captureEuReceipt(db, s.ctx, s, {
         supplyKind: null,
         baseAmount: "300.00",
@@ -112,7 +114,10 @@ describe("DPH ř.5/6 — EU services received split (#449)", () => {
         day: "2081-05-01",
       })
 
-      const dph = await buildDph(db, s.periodId)
+      const dph = await buildDph(db, {
+        kind: "ACCOUNTING_PERIOD",
+        periodId: s.periodId,
+      })
 
       // ř.5/6 — EU services received, self-assessed
       expect(dph.rows.r5_base).toBe("1000.0000")
@@ -120,9 +125,9 @@ describe("DPH ř.5/6 — EU services received split (#449)", () => {
       expect(dph.rows.r6_base).toBe("2000.0000")
       expect(dph.rows.r6_dan).toBe("240.0000") // round(2000 * 12/100)
 
-      // ř.3/4 — EU goods (500) + legacy NULL (300) at 21%; nothing at 12%
-      expect(dph.rows.r3_base).toBe("800.0000")
-      expect(dph.rows.r3_dan).toBe("168.0000") // 105 + 63
+      // ř.3/4 — only the explicitly classified EU goods entry.
+      expect(dph.rows.r3_base).toBe("500.0000")
+      expect(dph.rows.r3_dan).toBe("105.0000")
       expect(dph.rows.r4_base).toBe("0.0000")
       expect(dph.rows.r4_dan).toBe("0.0000")
 
@@ -131,16 +136,20 @@ describe("DPH ř.5/6 — EU services received split (#449)", () => {
       expect(dph.rows.r11_base).toBe("0.0000")
 
       // ř.43/44 — the self-assessed input is deductible for goods AND services
-      // (21% bucket = 500 + 300 + 1000 = 1800; 12% bucket = 2000)
-      expect(dph.rows.r43_base).toBe("1800.0000")
-      expect(dph.rows.r43_dan).toBe("378.0000") // 105 + 63 + 210
+      // (21% bucket = 500 + 1000 = 1500; 12% bucket = 2000)
+      expect(dph.rows.r43_base).toBe("1500.0000")
+      expect(dph.rows.r43_dan).toBe("315.0000")
       expect(dph.rows.r44_base).toBe("2000.0000")
       expect(dph.rows.r44_dan).toBe("240.0000")
 
       // Fully deductible self-assessment → vlastní daň nets to zero.
-      expect(dph.rows.dan_na_vystupu).toBe("618.0000") // 210 + 240 + 168
-      expect(dph.rows.odpocet).toBe("618.0000")
+      expect(dph.rows.dan_na_vystupu).toBe("555.0000")
+      expect(dph.rows.odpocet).toBe("555.0000")
       expect(dph.rows.vlastni_dan).toBe("0.0000")
+      expect(dph.completeness).toMatchObject({
+        status: "NEEDS_INPUT",
+        missingClassificationDocuments: 1,
+      })
     })
   })
 })

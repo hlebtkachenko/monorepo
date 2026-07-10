@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { KhView } from "../_components/kh-view"
 import { getControlStatement } from "../_lib/vat-data"
 
-export const metadata = { title: "Control statement" }
+export const metadata = { title: "Control statement worksheet" }
 
 /**
  * Control statement (kontrolní hlášení) — the selected filing period's real

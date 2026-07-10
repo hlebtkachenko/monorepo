@@ -18,27 +18,26 @@
  * the emitted SQL byte-identical to the hand-written predicate.
  */
 import { sql } from "drizzle-orm"
-
-/** Build the issued-EU predicate over three (already-qualified) column identifiers. */
-const issuedEuSupply = (typeCol: string, modeCol: string, jurCol: string) =>
-  sql`${sql.raw(typeCol)} = 'ISSUED_INVOICE' AND ${sql.raw(modeCol)} = 'REVERSE_CHARGE' AND ${sql.raw(jurCol)} = 'EU'`
+import { vatClassificationPredicates } from "./vat-classification"
 
 /**
  * Predicate for the DPH builder (dph.ts), where the CTE projects `type` and bare
  * `vat_mode` / `vat_jurisdiction` columns. Used inside FILTER (WHERE …).
  */
-export const ISSUED_EU_SUPPLY_DPH = issuedEuSupply(
-  "type",
-  "vat_mode",
-  "vat_jurisdiction",
-)
+export const ISSUED_EU_SUPPLY_DPH = vatClassificationPredicates({
+  documentType: sql`type`,
+  mode: sql`vat_mode`,
+  jurisdiction: sql`vat_jurisdiction`,
+  supplyKind: sql`supply_kind`,
+}).issuedEuSupply
 
 /**
  * Predicate for the souhrnné hlášení builder (souhrnne-hlaseni.ts), which joins
  * summary_record `sr` and partial_record `pr` directly. Used inside WHERE …
  */
-export const ISSUED_EU_SUPPLY_SH = issuedEuSupply(
-  "sr.type",
-  "pr.vat_mode",
-  "pr.vat_jurisdiction",
-)
+export const ISSUED_EU_SUPPLY_SH = vatClassificationPredicates({
+  documentType: sql`sr.type`,
+  mode: sql`pr.vat_mode`,
+  jurisdiction: sql`pr.vat_jurisdiction`,
+  supplyKind: sql`pr.supply_kind`,
+}).issuedEuSupply

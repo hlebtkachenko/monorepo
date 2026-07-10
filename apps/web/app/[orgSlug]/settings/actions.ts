@@ -3,6 +3,7 @@
 import { headers } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { auth } from "@workspace/auth/server"
+import { z } from "zod"
 
 import {
   addAuthorizedPerson,
@@ -17,6 +18,7 @@ import {
   saveTaxRepresentative,
   updateOrgConfig,
   type OrgContext,
+  type PayrollProfileInput,
   type TaxRepresentativeInput,
 } from "./_lib/settings-data"
 import { dataBoxError, type OrgSettingsUpdate } from "./_lib/org-update"
@@ -26,6 +28,19 @@ export interface SettingsResult {
   ok: boolean
   errorKey?: string
 }
+
+const PayrollProfileSchema = z
+  .object({
+    hasStandardEmployment: z.boolean(),
+    hasDpp: z.boolean(),
+    hasDpc: z.boolean(),
+    socialInsuranceParticipation: z.boolean(),
+    healthInsuranceParticipation: z.boolean(),
+    payrollTaxAdvanceDue: z.boolean(),
+    specialRateWithholdingDue: z.boolean(),
+    validFrom: z.iso.date(),
+  })
+  .strict()
 
 async function authorize(
   slug: string,
@@ -167,15 +182,14 @@ export async function changeVatStatusAction(
 
 export async function changeTaxProfileAction(
   slug: string,
-  input: { hasEmployees: boolean; validFrom: string },
+  input: PayrollProfileInput,
 ): Promise<SettingsResult> {
   const auth = await authorize(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
-  if (input.validFrom.trim() === "") {
-    return { ok: false, errorKey: "validFromRequired" }
-  }
+  const parsed = PayrollProfileSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, errorKey: "invalidInput" }
   try {
-    await changeTaxProfile(auth.ctx, auth.userId, input)
+    await changeTaxProfile(auth.ctx, auth.userId, parsed.data)
   } catch {
     return { ok: false, errorKey: "changeTaxProfileFailed" }
   }

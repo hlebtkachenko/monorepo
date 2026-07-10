@@ -18,10 +18,23 @@ import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { CorporateIncomeTaxResult } from "../_lib/income-tax-data"
 import { AnnualStatusMessage } from "../../_components/annual-status-message"
+import { AnnualCompletenessAlert } from "../../_components/annual-completeness-alert"
 
 /** One DPPO computation line — `sazba` is a rate (§21), every other field is a Kč amount. */
 interface DppoLine {
-  key: Exclude<keyof Dppo, "type">
+  key:
+    | "ucetni_vysledek"
+    | "nedanove_naklady"
+    | "osvobozene_vynosy"
+    | "zaklad_dane"
+    | "odpocet_ztraty"
+    | "zaklad_zaokrouhleny"
+    | "sazba"
+    | "dan"
+    | "slevy"
+    | "dan_po_slevach"
+    | "zalohy"
+    | "doplatek"
   label: string
   format?: "rate"
 }
@@ -56,14 +69,17 @@ function formatRate(value: string): string {
   return `${(n * 100).toFixed(0)} %`
 }
 
+function formatDppoValue(dppo: Dppo, line: DppoLine): string {
+  const value = dppo[line.key]
+  if (value == null) return "Needs input"
+  return line.format === "rate" ? formatRate(value) : formatDecimal(value)
+}
+
 /**
  * Corporation tax (DPPO — daň z příjmů právnických osob, Act 586/1992 Sb.) —
  * the active accounting period's real computed figures from `buildDppo`.
  * Annual: one computation per period, no filing-period picker (unlike VAT).
- * The full statutory line set renders unconditionally — these are the fixed
- * fields of the DPPO computation, so a zero value is an honest answer, not a
- * fabricated row. Honest "no accounting period" / "not applicable"
- * (natural-person org) states otherwise.
+ * Book values remain visible while missing advisor inputs block derived totals.
  */
 export function DppoView({ data }: { data: CorporateIncomeTaxResult }) {
   return (
@@ -81,6 +97,8 @@ export function DppoView({ data }: { data: CorporateIncomeTaxResult }) {
                 {data.periodLabel}
               </p>
 
+              <AnnualCompletenessAlert completeness={data.dppo.completeness} />
+
               <Card className="p-0">
                 <CardContent className="p-0">
                   <Table>
@@ -95,9 +113,7 @@ export function DppoView({ data }: { data: CorporateIncomeTaxResult }) {
                         <TableRow key={line.key}>
                           <TableCell>{line.label}</TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {line.format === "rate"
-                              ? formatRate(data.dppo[line.key])
-                              : formatDecimal(data.dppo[line.key])}
+                            {formatDppoValue(data.dppo, line)}
                           </TableCell>
                         </TableRow>
                       ))}

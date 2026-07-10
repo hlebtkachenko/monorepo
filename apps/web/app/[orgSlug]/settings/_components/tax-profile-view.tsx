@@ -26,9 +26,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@workspace/ui/components/dialog"
-import { Field, FieldLabel } from "@workspace/ui/components/field"
+import { Field, FieldError, FieldLabel } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
-import { Switch } from "@workspace/ui/components/switch"
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@workspace/ui/components/radio-group"
 import { toast } from "@workspace/ui/components/sonner"
 import {
   Table,
@@ -41,14 +44,18 @@ import {
 
 import { AppPageHeader } from "../../../_components/app-page-header"
 import type { TaxProfileData } from "../_lib/settings-data"
+import {
+  hasCompletePayrollFacts,
+  missingPayrollFactKeys,
+  PAYROLL_FACT_FIELDS,
+  toPayrollFactState,
+} from "../_lib/tax-profile-form"
 import { changeTaxProfileAction } from "../actions"
 
 /**
- * Tax profile — the current + historical has_employees fact
- * (organization_tax_profile), the operational attribute the statutory
- * obligation engine uses to decide whether payroll obligations exist for a
- * period. Reads are server-loaded; each change is a gated (owner/admin)
- * server action.
+ * Effective-dated payroll relationship and remittance facts. Each supported
+ * obligation is configured independently; an existing legacy row remains a
+ * visible needs-input state instead of being treated as no obligation.
  */
 export function TaxProfileView({
   slug,
@@ -63,9 +70,7 @@ export function TaxProfileView({
   const history = data.history
   const router = useRouter()
   const [open, setOpen] = React.useState(false)
-  const [hasEmployees, setHasEmployees] = React.useState(
-    current?.hasEmployees ?? false,
-  )
+  const [facts, setFacts] = React.useState(() => toPayrollFactState(current))
   const [validFrom, setValidFrom] = React.useState("")
   const [busy, setBusy] = React.useState(false)
 
@@ -74,9 +79,13 @@ export function TaxProfileView({
       toast.error("Effective date is required")
       return
     }
+    if (!hasCompletePayrollFacts(facts)) {
+      toast.error("All payroll facts require a Yes or No answer")
+      return
+    }
     setBusy(true)
     const result = await changeTaxProfileAction(slug, {
-      hasEmployees,
+      ...facts,
       validFrom,
     })
     setBusy(false)
@@ -105,8 +114,8 @@ export function TaxProfileView({
                 <h2>Tax profile</h2>
               </CardTitle>
               <CardDescription>
-                Whether the organization currently has employees, and its
-                history. Drives payroll obligations on the Closing cockpit.
+                Effective-dated facts for payroll relationships, insurance
+                participation, and each supported tax remittance.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -115,16 +124,22 @@ export function TaxProfileView({
                 {current ? (
                   <>
                     <Badge>
-                      {current.hasEmployees ? "Has employees" : "No employees"}
+                      {current.hasStandardEmployment === null ||
+                      current.hasDpp === null ||
+                      current.hasDpc === null ||
+                      current.socialInsuranceParticipation === null ||
+                      current.healthInsuranceParticipation === null ||
+                      current.payrollTaxAdvanceDue === null ||
+                      current.specialRateWithholdingDue === null
+                        ? "Needs input"
+                        : "Configured"}
                     </Badge>
                     <span className="text-muted-foreground">
                       since {current.validFrom}
                     </span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">
-                    Not set (no employees)
-                  </span>
+                  <span className="text-muted-foreground">Not configured</span>
                 )}
               </div>
 
@@ -132,7 +147,8 @@ export function TaxProfileView({
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead>Has employees</TableHead>
+                      <TableHead>Relationships</TableHead>
+                      <TableHead>Remittances</TableHead>
                       <TableHead>From</TableHead>
                       <TableHead>To</TableHead>
                     </TableRow>
@@ -140,7 +156,40 @@ export function TaxProfileView({
                   <TableBody>
                     {history.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell>{r.hasEmployees ? "Yes" : "No"}</TableCell>
+                        <TableCell>
+                          {r.hasStandardEmployment === null ||
+                          r.hasDpp === null ||
+                          r.hasDpc === null
+                            ? "Needs input"
+                            : [
+                                r.hasStandardEmployment ? "Employment" : null,
+                                r.hasDpp ? "DPP" : null,
+                                r.hasDpc ? "DPČ" : null,
+                              ]
+                                .filter(Boolean)
+                                .join(", ") || "None"}
+                        </TableCell>
+                        <TableCell>
+                          {r.socialInsuranceParticipation === null ||
+                          r.healthInsuranceParticipation === null ||
+                          r.payrollTaxAdvanceDue === null ||
+                          r.specialRateWithholdingDue === null
+                            ? "Needs input"
+                            : [
+                                r.socialInsuranceParticipation
+                                  ? "Social"
+                                  : null,
+                                r.healthInsuranceParticipation
+                                  ? "Health"
+                                  : null,
+                                r.payrollTaxAdvanceDue ? "Tax advance" : null,
+                                r.specialRateWithholdingDue
+                                  ? "Special-rate withholding"
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(", ") || "None"}
+                        </TableCell>
                         <TableCell className="tabular-nums">
                           {r.validFrom}
                         </TableCell>
@@ -163,23 +212,71 @@ export function TaxProfileView({
                       <DialogHeader>
                         <DialogTitle>Change tax profile</DialogTitle>
                         <DialogDescription>
-                          Closes the current row and opens a new one from the
-                          effective date.
+                          Closes the current interval and opens a new one from
+                          the effective date. Select only facts confirmed by
+                          payroll records.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="flex flex-col gap-4">
-                        <Field>
-                          <div className="flex items-center justify-between">
-                            <FieldLabel htmlFor="tax-profile-has-employees">
-                              Has employees
-                            </FieldLabel>
-                            <Switch
-                              id="tax-profile-has-employees"
-                              checked={hasEmployees}
-                              onCheckedChange={setHasEmployees}
-                            />
-                          </div>
-                        </Field>
+                        {PAYROLL_FACT_FIELDS.map(({ key, id, label }) => {
+                          const value = facts[key]
+                          return (
+                            <Field
+                              key={key}
+                              data-invalid={value === null ? true : undefined}
+                            >
+                              <FieldLabel id={`${id}-label`}>
+                                {label} (required)
+                              </FieldLabel>
+                              <RadioGroup
+                                className="grid grid-cols-3 gap-3"
+                                value={
+                                  value === null
+                                    ? "unanswered"
+                                    : value
+                                      ? "yes"
+                                      : "no"
+                                }
+                                aria-labelledby={`${id}-label`}
+                                aria-invalid={value === null}
+                                onValueChange={(choice) =>
+                                  setFacts((previous) => ({
+                                    ...previous,
+                                    [key]:
+                                      choice === "unanswered"
+                                        ? null
+                                        : choice === "yes",
+                                  }))
+                                }
+                              >
+                                {[
+                                  ["unanswered", "Not answered"],
+                                  ["yes", "Yes"],
+                                  ["no", "No"],
+                                ].map(([choice, choiceLabel]) => (
+                                  <div
+                                    key={choice}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <RadioGroupItem
+                                      id={`${id}-${choice}`}
+                                      value={choice as string}
+                                    />
+                                    <FieldLabel
+                                      className="font-normal"
+                                      htmlFor={`${id}-${choice}`}
+                                    >
+                                      {choiceLabel}
+                                    </FieldLabel>
+                                  </div>
+                                ))}
+                              </RadioGroup>
+                              {value === null ? (
+                                <FieldError>Choose Yes or No.</FieldError>
+                              ) : null}
+                            </Field>
+                          )
+                        })}
                         <Field>
                           <FieldLabel htmlFor="tax-profile-from">
                             Effective from
@@ -203,7 +300,9 @@ export function TaxProfileView({
                         </Button>
                         <Button
                           size="sm"
-                          disabled={busy}
+                          disabled={
+                            busy || missingPayrollFactKeys(facts).length > 0
+                          }
                           onClick={() => void onChange()}
                         >
                           {busy ? "Saving…" : "Change profile"}

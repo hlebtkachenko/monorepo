@@ -27,11 +27,10 @@ export const metadata = { title: "Legislation" }
  * obligations for now simply contributes no rows — an honest empty board, not
  * a fake one, when the workspace has nothing due.
  *
- * Forward-looking + conditional-marked, mirroring the org Closing surface:
- * there is no persisted filing state yet, so a past obligation can't be
- * truthfully labelled "overdue" or "filed" — only rows with `dueDate >=
- * today` are shown, and conditional obligations (SH, identified-person VAT
- * return) carry `conditional`/`note` instead of being asserted as hard.
+ * Past schedule dates remain visible but are not labelled overdue without a
+ * persisted filing record. Conditional candidates carry an explicit
+ * applicability decision and missing profile intervals become needs-input
+ * rows instead of disappearing.
  */
 export default async function LegislationPage() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -40,7 +39,6 @@ export default async function LegislationPage() {
   const ctx = await getWorkspaceContext(session.user.id)
   if (!ctx.activeWorkspaceId) return null
 
-  const today = new Date().toISOString().slice(0, 10)
   const obligationsByOrg = await computeWorkspaceObligations(
     ctx.activeWorkspaceId,
   )
@@ -58,13 +56,11 @@ export default async function LegislationPage() {
     const assigneeByOrg = await loadOrgAssignees(db, orgIds)
 
     const flattened: ObligationRow[] = []
-    for (const [orgId, obligations] of obligationsByOrg) {
+    for (const [orgId, result] of obligationsByOrg) {
       const legalName = legalNameByOrg.get(orgId)
       if (!legalName) continue // defensive; the org backing this id must exist
       const assignee = assigneeByOrg.get(orgId)?.name ?? null
-      for (const o of obligations) {
-        if (o.dueDate < today) continue // no filing state -> can't truthfully call a past obligation overdue/filed
-        if (o.status === "Overdue") continue // defensive; dueDate >= today should never derive Overdue
+      for (const o of result.obligations) {
         const status: ObligationStatus = o.status
         flattened.push({
           id: `${orgId}-${o.kind}-${o.dueDate}`,
@@ -72,8 +68,20 @@ export default async function LegislationPage() {
           company: legalName,
           dueDate: o.dueDate,
           status,
-          conditional: o.conditional,
-          note: o.note,
+          applicability: o.applicability.status,
+          note: o.applicability.reason,
+          assignee,
+        })
+      }
+      for (const issue of result.issues) {
+        flattened.push({
+          id: `${orgId}-${issue.code}-${issue.from}`,
+          obligation: "Configuration needed",
+          company: legalName,
+          dueDate: issue.from,
+          status: "Needs input",
+          applicability: "NEEDS_INPUT",
+          note: `${issue.message} ${issue.from} to ${issue.to}.`,
           assignee,
         })
       }

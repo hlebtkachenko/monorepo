@@ -14,7 +14,7 @@ import {
 } from "../../_lib/period-profile"
 
 /**
- * Server-side data for the Closing Year-end > Statements page. Like Income
+ * Server-side data for the Closing Year-end draft worksheet. Like Income
  * tax this is ANNUAL — one computation per accounting period, no
  * filing-period picker.
  *
@@ -40,7 +40,7 @@ export type FinancialStatementsResult =
 const NOT_DOUBLE_ENTRY_REASON =
   "Financial statements (účetní závěrka) apply to double-entry bookkeeping only — this company's active accounting period is not kept in double-entry regime."
 
-/** Financial statements (účetní závěrka) — the active period's real totals + layout. */
+/** Draft closing worksheet from the active period's book totals and layout. */
 export async function getFinancialStatements(
   orgSlug: string,
 ): Promise<FinancialStatementsResult> {

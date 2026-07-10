@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { ShView } from "../_components/sh-view"
 import { getEcSalesList } from "../_lib/vat-data"
 
-export const metadata = { title: "EC Sales List" }
+export const metadata = { title: "EC Sales List worksheet" }
 
 /**
  * EC Sales List (souhrnné hlášení) — the selected filing period's real rows

@@ -29,23 +29,20 @@
  */
 
 import type { PersonType, VatFilingPeriod, VatRegime } from "../types"
-import { payrollMonthlyDeadline, vatMonthlyDeadline } from "./deadlines"
+import { vatMonthlyDeadline } from "./deadlines"
+import {
+  payrollDeadlineForMonth,
+  type PayrollObligationKind,
+} from "./payroll-legal-rules"
+import type { ApplicabilityDecision, Obligation, ObligationKind } from "./model"
+
+export type { Obligation, ObligationCategory, ObligationKind } from "./model"
 
 // VatRegime, VatFilingPeriod, and PersonType are reused from ./types
 // (identical unions, each backed by a DB pgEnum/reference table) via
 // type-only imports — erased at compile, so the pure engine keeps no runtime
 // DB dependency. Local copies would be exported-but-unused (knip), since the
 // package index already re-exports the ./types ones.
-
-export type ObligationCategory = "VAT" | "PAYROLL"
-
-export type ObligationKind =
-  | "VAT_RETURN"
-  | "CONTROL_STATEMENT"
-  | "EC_SALES_LIST"
-  | "SOCIAL_INSURANCE"
-  | "HEALTH_INSURANCE"
-  | "WITHHOLDING_TAX"
 
 export interface ObligationInput {
   /** ISO date — the annual accounting_period start. */
@@ -56,27 +53,30 @@ export interface ObligationInput {
   /** null unless vatRegimeCode === "PAYER". */
   vatFilingPeriod: VatFilingPeriod | null
   personType: PersonType
-  /** Caller-supplied; treated as false if undeclared. */
-  hasEmployees: boolean
+  /** Omit when callers only know the possible schedule, not transaction evidence. */
+  vatActivity?: readonly VatPeriodActivity[]
+  /** Earliest qualifying SH goods month per year across the full timeline envelope. */
+  shFirstGoodsMonthByYear?: ReadonlyMap<number, number>
 }
 
-export interface Obligation {
-  kind: ObligationKind
-  category: ObligationCategory
-  /** English label, e.g. "VAT return", "Control statement (KH)". */
-  title: string
-  /** Filing period label, e.g. "June 2026" or "Q2 2026". */
-  periodLabel: string
-  /** ISO date — start of the filing sub-period this obligation covers. */
-  periodStart: string
-  /** ISO date — end of the filing sub-period this obligation covers. */
-  periodEnd: string
-  /** ISO date, business-day-shifted. */
-  dueDate: string
-  /** true = only applies if the underlying event occurred (e.g. SH). */
-  conditional: boolean
-  note?: string
+export interface VatPeriodActivity {
+  /** Calendar month in YYYY-MM form. */
+  month: string
+  hasKhReportableTransactions: boolean
+  hasShGoodsSupplies: boolean
+  hasShServiceSupplies: boolean
+  hasIdentifiedPersonVatLiability: boolean
 }
+
+const APPLICABLE = (reason: string): ApplicabilityDecision => ({
+  status: "APPLICABLE",
+  reason,
+})
+
+const CONDITION_NOT_EVALUATED = (reason: string): ApplicabilityDecision => ({
+  status: "CONDITION_NOT_EVALUATED",
+  reason,
+})
 
 const TITLES: Record<ObligationKind, string> = {
   VAT_RETURN: "VAT return",
@@ -84,7 +84,8 @@ const TITLES: Record<ObligationKind, string> = {
   EC_SALES_LIST: "EC sales list (SH)",
   SOCIAL_INSURANCE: "Social insurance",
   HEALTH_INSURANCE: "Health insurance",
-  WITHHOLDING_TAX: "Withholding tax",
+  PAYROLL_TAX_ADVANCE: "Payroll tax advance",
+  SPECIAL_RATE_WITHHOLDING_TAX: "Special-rate withholding tax",
 }
 
 const MONTH_NAMES = [
@@ -177,29 +178,18 @@ function quarterBounds(
   }
 }
 
-/** The later of two ISO dates (string comparison works on ISO YYYY-MM-DD). */
-function maxIso(a: string, b: string): string {
-  return a > b ? a : b
-}
-
-/** The earlier of two ISO dates (string comparison works on ISO YYYY-MM-DD). */
-function minIso(a: string, b: string): string {
-  return a < b ? a : b
-}
-
 /**
  * Emit one quarterly obligation (VAT_RETURN or CONTROL_STATEMENT) per true
- * calendar quarter touched by `months`. The reported periodStart/periodEnd
- * are clipped to [input.periodStart, input.periodEnd] so a non-calendar
- * fiscal year never reports a sub-period outside the accounting period, but
- * `dueDate` is always derived from the TRUE (unclipped) calendar-quarter end
- * — the statutory deadline is fixed by the calendar quarter, not by the
- * fiscal-year clip.
+ * calendar quarter touched by `months`. Statutory VAT periods are complete
+ * calendar quarters even when the accounting period starts or ends partway
+ * through one. The deadline is derived from the calendar-quarter end too.
  */
 function quarterlyObligations(
   kind: "VAT_RETURN" | "CONTROL_STATEMENT",
   months: { year: number; month: number }[],
-  input: ObligationInput,
+  applicability: ApplicabilityDecision = APPLICABLE(
+    "VAT payer filing cadence applies.",
+  ),
 ): Obligation[] {
   return quartersInRange(months).map(({ year, quarter }) => {
     const bounds = quarterBounds(year, quarter)
@@ -209,10 +199,10 @@ function quarterlyObligations(
       category: "VAT",
       title: TITLES[kind],
       periodLabel: `Q${quarter} ${year}`,
-      periodStart: maxIso(bounds.periodStart, input.periodStart),
-      periodEnd: minIso(bounds.periodEnd, input.periodEnd),
+      periodStart: bounds.periodStart,
+      periodEnd: bounds.periodEnd,
       dueDate: vatMonthlyDeadline(year, lastMonthOfQuarter),
-      conditional: false,
+      applicability,
     }
   })
 }
@@ -226,9 +216,11 @@ function quarterlyObligations(
 export function computePayrollObligations(input: {
   periodStart: string
   periodEnd: string
-  hasEmployees: boolean
+  socialInsuranceParticipation: boolean
+  healthInsuranceParticipation: boolean
+  payrollTaxAdvanceDue: boolean
+  specialRateWithholdingDue: boolean
 }): Obligation[] {
-  if (!input.hasEmployees) return []
   const obligations: Obligation[] = []
   for (const { year, month } of monthsInRange(
     input.periodStart,
@@ -239,24 +231,60 @@ export function computePayrollObligations(input: {
       periodLabel: monthLabel(year, month),
       periodStart: toIso(year, month, 1),
       periodEnd: lastDayOfMonthIso(year, month),
-      dueDate: payrollMonthlyDeadline(year, month),
-      conditional: false,
     }
-    obligations.push({
-      kind: "SOCIAL_INSURANCE",
-      title: TITLES.SOCIAL_INSURANCE,
-      ...shared,
-    })
-    obligations.push({
-      kind: "HEALTH_INSURANCE",
-      title: TITLES.HEALTH_INSURANCE,
-      ...shared,
-    })
-    obligations.push({
-      kind: "WITHHOLDING_TAX",
-      title: TITLES.WITHHOLDING_TAX,
-      ...shared,
-    })
+    const deadline = (kind: PayrollObligationKind): string => {
+      const dueDate = payrollDeadlineForMonth(kind, year, month)
+      if (!dueDate) {
+        throw new Error(
+          `No verified payroll deadline rule for ${kind} in ${shared.periodStart}.`,
+        )
+      }
+      return dueDate
+    }
+    if (input.socialInsuranceParticipation) {
+      obligations.push({
+        kind: "SOCIAL_INSURANCE",
+        title: TITLES.SOCIAL_INSURANCE,
+        ...shared,
+        dueDate: deadline("SOCIAL_INSURANCE"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm social-insurance participation.",
+        ),
+      })
+    }
+    if (input.healthInsuranceParticipation) {
+      obligations.push({
+        kind: "HEALTH_INSURANCE",
+        title: TITLES.HEALTH_INSURANCE,
+        ...shared,
+        dueDate: deadline("HEALTH_INSURANCE"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm health-insurance participation.",
+        ),
+      })
+    }
+    if (input.payrollTaxAdvanceDue) {
+      obligations.push({
+        kind: "PAYROLL_TAX_ADVANCE",
+        title: TITLES.PAYROLL_TAX_ADVANCE,
+        ...shared,
+        dueDate: deadline("PAYROLL_TAX_ADVANCE"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm an employee income-tax advance.",
+        ),
+      })
+    }
+    if (input.specialRateWithholdingDue) {
+      obligations.push({
+        kind: "SPECIAL_RATE_WITHHOLDING_TAX",
+        title: TITLES.SPECIAL_RATE_WITHHOLDING_TAX,
+        ...shared,
+        dueDate: deadline("SPECIAL_RATE_WITHHOLDING_TAX"),
+        applicability: APPLICABLE(
+          "Monthly payroll facts confirm special-rate withholding tax.",
+        ),
+      })
+    }
   }
   return obligations
 }
@@ -278,6 +306,14 @@ export function computeObligations(input: ObligationInput): Obligation[] {
   const isIdentifiedPerson = input.vatRegimeCode === "IDENTIFIED_PERSON"
 
   const obligations: Obligation[] = []
+  const activityByMonth = new Map(
+    input.vatActivity?.map((activity) => [activity.month, activity]),
+  )
+  const hasActivityEvidence = input.vatActivity !== undefined
+  const activityFor = (year: number, month: number) =>
+    activityByMonth.get(`${year}-${pad2(month)}`)
+  const khApplies = (year: number, month: number) =>
+    activityFor(year, month)?.hasKhReportableTransactions === true
 
   // VAT_RETURN — monthly or quarterly payer.
   if (isVatPayer && input.vatFilingPeriod === "MONTHLY") {
@@ -290,11 +326,11 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         periodStart: toIso(year, month, 1),
         periodEnd: lastDayOfMonthIso(year, month),
         dueDate: vatMonthlyDeadline(year, month),
-        conditional: false,
+        applicability: APPLICABLE("Monthly VAT payer filing cadence applies."),
       })
     }
   } else if (isVatPayer && input.vatFilingPeriod === "QUARTERLY") {
-    obligations.push(...quarterlyObligations("VAT_RETURN", months, input))
+    obligations.push(...quarterlyObligations("VAT_RETURN", months))
   } else if (isVatPayer) {
     // Defensive: the top-of-function guard only rules out null, so a future
     // third VatFilingPeriod enum value would otherwise silently fall through
@@ -310,6 +346,9 @@ export function computeObligations(input: ObligationInput): Obligation[] {
   // monthly/quarterly obligation above.
   if (isIdentifiedPerson) {
     for (const { year, month } of months) {
+      const applies =
+        activityFor(year, month)?.hasIdentifiedPersonVatLiability === true
+      if (hasActivityEvidence && !applies) continue
       obligations.push({
         kind: "VAT_RETURN",
         category: "VAT",
@@ -318,8 +357,13 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         periodStart: toIso(year, month, 1),
         periodEnd: lastDayOfMonthIso(year, month),
         dueDate: vatMonthlyDeadline(year, month),
-        conditional: true,
-        note: "Only in months a VAT liability arose (e.g. service received from abroad or intra-EU acquisition)",
+        applicability: applies
+          ? APPLICABLE(
+              "Captured evidence includes a VAT-liability event in this month.",
+            )
+          : CONDITION_NOT_EVALUATED(
+              "Requires a VAT-liability event in the month, such as a service received from abroad or an intra-EU acquisition.",
+            ),
       })
     }
   }
@@ -331,11 +375,33 @@ export function computeObligations(input: ObligationInput): Obligation[] {
   const khQuarterly =
     input.personType === "NATURAL" && input.vatFilingPeriod === "QUARTERLY"
   if (isVatPayer && khQuarterly) {
-    obligations.push(
-      ...quarterlyObligations("CONTROL_STATEMENT", months, input),
-    )
+    for (const quarter of quartersInRange(months)) {
+      const quarterMonths = months.filter(
+        ({ year, month }) =>
+          year === quarter.year && calendarQuarter(month) === quarter.quarter,
+      )
+      const applies = quarterMonths.some(({ year, month }) =>
+        khApplies(year, month),
+      )
+      if (hasActivityEvidence && !applies) continue
+      obligations.push(
+        ...quarterlyObligations(
+          "CONTROL_STATEMENT",
+          quarterMonths,
+          applies
+            ? APPLICABLE(
+                "Captured evidence includes a KH-reportable transaction in this quarter.",
+              )
+            : CONDITION_NOT_EVALUATED(
+                "Requires a KH-reportable transaction in this quarter; no nil KH is asserted.",
+              ),
+        ),
+      )
+    }
   } else if (isVatPayer) {
     for (const { year, month } of months) {
+      const applies = khApplies(year, month)
+      if (hasActivityEvidence && !applies) continue
       obligations.push({
         kind: "CONTROL_STATEMENT",
         category: "VAT",
@@ -344,37 +410,137 @@ export function computeObligations(input: ObligationInput): Obligation[] {
         periodStart: toIso(year, month, 1),
         periodEnd: lastDayOfMonthIso(year, month),
         dueDate: vatMonthlyDeadline(year, month),
-        conditional: false,
+        applicability: applies
+          ? APPLICABLE(
+              "Captured evidence includes a KH-reportable transaction in this month.",
+            )
+          : CONDITION_NOT_EVALUATED(
+              "Requires a KH-reportable transaction in this month; no nil KH is asserted.",
+            ),
       })
     }
   }
 
-  // EC_SALES_LIST (SH) — payer or identified person, conditional on EU
-  // supplies actually occurring that month, always monthly.
+  // EC_SALES_LIST (SH) is evidence-driven. A quarterly payer with service-only
+  // qualifying supplies files for the quarter. The first qualifying goods
+  // supply switches SH to monthly from the start of that quarter through year
+  // end, but empty months produce no nil SH. Verified 2026-07-09 against the
+  // Financial Administration §102 guidance:
+  // https://financnisprava.gov.cz/cs/dane/dane/dan-z-pridane-hodnoty/informace-stanoviska-a-sdeleni/souhrnna-hlaseni/podavani-souhrnneho-hlaseni-od-roku-2010-a-dale
   if (isVatPayer || isIdentifiedPerson) {
-    for (const { year, month } of months) {
-      obligations.push({
-        kind: "EC_SALES_LIST",
-        category: "VAT",
-        title: TITLES.EC_SALES_LIST,
-        periodLabel: monthLabel(year, month),
-        periodStart: toIso(year, month, 1),
-        periodEnd: lastDayOfMonthIso(year, month),
-        dueDate: vatMonthlyDeadline(year, month),
-        conditional: true,
-        note: "Only in months with EU supplies (ICD or cross-border B2B services)",
-      })
+    if (!hasActivityEvidence) {
+      for (const { year, month } of months) {
+        obligations.push({
+          kind: "EC_SALES_LIST",
+          category: "VAT",
+          title: TITLES.EC_SALES_LIST,
+          periodLabel: monthLabel(year, month),
+          periodStart: toIso(year, month, 1),
+          periodEnd: lastDayOfMonthIso(year, month),
+          dueDate: vatMonthlyDeadline(year, month),
+          applicability: CONDITION_NOT_EVALUATED(
+            "Requires a qualifying EU goods supply or cross-border B2B service.",
+          ),
+        })
+      }
+    } else if (isVatPayer && input.vatFilingPeriod === "QUARTERLY") {
+      const localFirstGoodsMonthByYear = new Map<number, number>()
+      if (input.shFirstGoodsMonthByYear === undefined) {
+        for (const { year, month } of months) {
+          if (activityFor(year, month)?.hasShGoodsSupplies !== true) continue
+          const current = localFirstGoodsMonthByYear.get(year)
+          if (current === undefined || month < current)
+            localFirstGoodsMonthByYear.set(year, month)
+        }
+      }
+      const firstGoodsMonthByYear =
+        input.shFirstGoodsMonthByYear ?? localFirstGoodsMonthByYear
+      for (const quarter of quartersInRange(months)) {
+        const quarterMonths = months.filter(
+          ({ year, month }) =>
+            year === quarter.year && calendarQuarter(month) === quarter.quarter,
+        )
+        const firstGoodsMonth = firstGoodsMonthByYear.get(quarter.year)
+        const firstGoodsQuarter =
+          firstGoodsMonth === undefined
+            ? undefined
+            : calendarQuarter(firstGoodsMonth)
+        const monthlyCadence =
+          firstGoodsQuarter !== undefined &&
+          quarter.quarter >= firstGoodsQuarter
+        if (monthlyCadence) {
+          for (const { year, month } of quarterMonths) {
+            const activity = activityFor(year, month)
+            if (
+              activity?.hasShGoodsSupplies !== true &&
+              activity?.hasShServiceSupplies !== true
+            )
+              continue
+            obligations.push({
+              kind: "EC_SALES_LIST",
+              category: "VAT",
+              title: TITLES.EC_SALES_LIST,
+              periodLabel: monthLabel(year, month),
+              periodStart: toIso(year, month, 1),
+              periodEnd: lastDayOfMonthIso(year, month),
+              dueDate:
+                quarter.quarter === firstGoodsQuarter &&
+                firstGoodsMonth !== undefined &&
+                month < firstGoodsMonth
+                  ? vatMonthlyDeadline(year, firstGoodsMonth)
+                  : vatMonthlyDeadline(year, month),
+              applicability: APPLICABLE(
+                "A qualifying goods supply requires monthly EC Sales List cadence through the end of the calendar year.",
+              ),
+            })
+          }
+        } else if (
+          quarterMonths.some(
+            ({ year, month }) =>
+              activityFor(year, month)?.hasShServiceSupplies === true,
+          )
+        ) {
+          const bounds = quarterBounds(quarter.year, quarter.quarter)
+          obligations.push({
+            kind: "EC_SALES_LIST",
+            category: "VAT",
+            title: TITLES.EC_SALES_LIST,
+            periodLabel: `Q${quarter.quarter} ${quarter.year}`,
+            periodStart: bounds.periodStart,
+            periodEnd: bounds.periodEnd,
+            dueDate: vatMonthlyDeadline(
+              quarter.year,
+              (quarter.quarter - 1) * 3 + 3,
+            ),
+            applicability: APPLICABLE(
+              "Quarterly payer has service-only qualifying EU supplies in this quarter.",
+            ),
+          })
+        }
+      }
+    } else {
+      for (const { year, month } of months) {
+        const activity = activityFor(year, month)
+        const applies = isIdentifiedPerson
+          ? activity?.hasShServiceSupplies === true
+          : activity?.hasShGoodsSupplies === true ||
+            activity?.hasShServiceSupplies === true
+        if (!applies) continue
+        obligations.push({
+          kind: "EC_SALES_LIST",
+          category: "VAT",
+          title: TITLES.EC_SALES_LIST,
+          periodLabel: monthLabel(year, month),
+          periodStart: toIso(year, month, 1),
+          periodEnd: lastDayOfMonthIso(year, month),
+          dueDate: vatMonthlyDeadline(year, month),
+          applicability: APPLICABLE(
+            "Captured evidence includes a qualifying EU goods supply or cross-border B2B service.",
+          ),
+        })
+      }
     }
   }
-
-  // Payroll — social/health insurance + withholding tax remittances, monthly.
-  obligations.push(
-    ...computePayrollObligations({
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      hasEmployees: input.hasEmployees,
-    }),
-  )
 
   return obligations.sort((a, b) => {
     if (a.dueDate !== b.dueDate) return a.dueDate < b.dueDate ? -1 : 1

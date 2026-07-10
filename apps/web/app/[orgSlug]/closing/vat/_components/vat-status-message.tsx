@@ -73,5 +73,28 @@ export function VatStatusMessage({
       </Alert>
     )
   }
+  if (data.status === "no-filing-activity") {
+    return (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">
+          No captured transactions require a {data.artifact} for this period. No
+          nil filing is asserted.
+        </CardContent>
+      </Card>
+    )
+  }
+  if (data.status === "vat-evidence-incomplete") {
+    return (
+      <Alert>
+        <AlertTriangle />
+        <AlertTitle>VAT evidence needs input</AlertTitle>
+        <AlertDescription>
+          The {data.artifact} schedule cannot be decided because legal dates,
+          VAT classification, or required counterparty identity is missing.
+          Complete the evidence before treating this period as having no filing.
+        </AlertDescription>
+      </Alert>
+    )
+  }
   return null
 }

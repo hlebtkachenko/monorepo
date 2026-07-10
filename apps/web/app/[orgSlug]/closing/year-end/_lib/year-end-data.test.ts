@@ -233,6 +233,13 @@ describe("getFinancialStatements", () => {
     await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
     await seedPeriod({
       orgId: org,
+      start: "2025-01-01",
+      end: "2025-12-31",
+      status: "CLOSED",
+      regimeCode: "DOUBLE_ENTRY",
+    })
+    await seedPeriod({
+      orgId: org,
       start: "2026-01-01",
       end: "2026-12-31",
       status: "OPEN",
@@ -247,11 +254,19 @@ describe("getFinancialStatements", () => {
     expect(result.status).toBe("ok")
     if (result.status !== "ok") return
     expect(result.zaverka.type).toBe("FINANCIAL_STATEMENTS")
+    expect(result.zaverka.artifactKind).toBe("DRAFT_CLOSING_WORKSHEET")
     expect(result.zaverka.aktiva).toBe("0.0000")
     expect(result.zaverka.pasiva).toBe("0.0000")
     expect(result.zaverka.vysledek).toBe("0.0000")
     expect(result.zaverka.lines).toEqual([])
     expect(result.layout.type).toBe("STATEMENT_LAYOUT")
+    expect(result.layout.artifactKind).toBe("DRAFT_CLOSING_WORKSHEET")
+    expect(result.layout.completeness.status).toBe("DRAFT")
+    expect(result.layout.comparativePeriod).toEqual({
+      periodStart: "2025-01-01",
+      periodEnd: "2025-12-31",
+    })
+    expect(result.layout.aktiva_total_comparative).toBe("0.0000")
     expect(result.layout.aktiva).toEqual([])
     expect(result.layout.pasiva).toEqual([])
     expect(result.layout.vzz).toEqual([])

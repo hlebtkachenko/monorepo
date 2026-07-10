@@ -23,6 +23,7 @@ import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { VatReturnResult } from "../_lib/vat-data"
 import { FilingPeriodSelector } from "./filing-period-selector"
+import { VatEvidenceAlert } from "./vat-evidence-alert"
 import { VatStatusMessage } from "./vat-status-message"
 
 /** One přiznání line: the base-amount field, and the daň field when the line carries VAT (base-only lines — ř.20/21/25/50 — omit `dan`). */
@@ -142,7 +143,7 @@ export function DapView({
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="VAT return" />
+        <ContentHeader title="VAT return worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
@@ -158,6 +159,7 @@ export function DapView({
               <p className="text-sm text-muted-foreground">
                 {data.selected.label}
               </p>
+              <VatEvidenceAlert completeness={data.dph.completeness} />
 
               {populated.length > 0 ? (
                 <>

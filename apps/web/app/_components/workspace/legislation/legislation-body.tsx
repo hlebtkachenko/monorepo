@@ -20,7 +20,12 @@ import { TableStatusBar } from "../_shared/table-status-bar"
 import { obligationColumns } from "./columns"
 import { useLegislation } from "./context"
 import { LegislationToolbar } from "./legislation-toolbar"
-import { OBLIGATION_TABS, formatDueDate, type ObligationRow } from "./data"
+import {
+  OBLIGATION_STATUS_BADGE_VARIANT,
+  OBLIGATION_TABS,
+  formatDueDate,
+  type ObligationRow,
+} from "./data"
 import { ObligationTitle } from "./obligation-title"
 
 /** Free-text search across the obligation's readable fields. */
@@ -43,8 +48,8 @@ function ObligationDetail({ row }: { row: ObligationRow }) {
         value={
           <ObligationTitle
             obligation={row.obligation}
-            conditional={row.conditional}
-            note={row.note}
+            applicability={row.applicability}
+            reason={row.note}
           />
         }
       />
@@ -52,7 +57,11 @@ function ObligationDetail({ row }: { row: ObligationRow }) {
       <DetailField label="Due date" value={formatDueDate(row.dueDate)} />
       <DetailField
         label="Status"
-        value={<Badge variant="secondary">{row.status}</Badge>}
+        value={
+          <Badge variant={OBLIGATION_STATUS_BADGE_VARIANT[row.status]}>
+            {row.status}
+          </Badge>
+        }
       />
       <DetailField label="Assigned" value={row.assignee ?? "Unassigned"} />
     </dl>

@@ -23,6 +23,7 @@ import { AppPageHeader } from "../../../../_components/app-page-header"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { VatControlStatementResult } from "../_lib/vat-data"
 import { FilingPeriodSelector } from "./filing-period-selector"
+import { VatEvidenceAlert } from "./vat-evidence-alert"
 import { VatStatusMessage } from "./vat-status-message"
 
 function KhRowsSection({ title, rows }: { title: string; rows: KhRow[] }) {
@@ -135,7 +136,7 @@ export function KhView({
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Control statement" />
+        <ContentHeader title="Control statement worksheet" />
       </AppPageHeader>
       <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
         <RecordWorkspace maxWidth="5xl">
@@ -151,6 +152,7 @@ export function KhView({
               <p className="text-sm text-muted-foreground">
                 {data.selected.label}
               </p>
+              <VatEvidenceAlert completeness={data.kh.completeness} />
 
               {hasMovement ? (
                 <>

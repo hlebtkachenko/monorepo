@@ -254,6 +254,7 @@ async function captureStandardSale(opts: {
       seriesId: documentSeriesId,
       type: "ISSUED_INVOICE",
       issuedAt: opts.occurredAt,
+      taxPointDate: opts.occurredAt.slice(0, 10),
       lines: [
         {
           eventId: ev.eventId,
@@ -363,6 +364,53 @@ describe("getVatFilingPeriods", () => {
     })
   }, 30_000)
 
+  it("keeps filing candidates when the payer cadence changes inside the accounting period", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "vat-payer-cadence-change",
+      legalName: "Payer Cadence Change s.r.o.",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    await seedPeriod({
+      orgId: org,
+      start: "2026-01-01",
+      end: "2026-12-31",
+      status: "OPEN",
+    })
+    await seedVatStatus({
+      orgId: org,
+      vatRegimeCode: "PAYER",
+      validFrom: "2026-01-01",
+      validTo: "2026-06-30",
+      filingPeriod: "MONTHLY",
+    })
+    await seedVatStatus({
+      orgId: org,
+      vatRegimeCode: "PAYER",
+      validFrom: "2026-07-01",
+      filingPeriod: "QUARTERLY",
+    })
+
+    sessionUserId = user
+    const result = await getVatFilingPeriods("vat-payer-cadence-change")
+
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.filingPeriod).toBeNull()
+    expect(result.filingPeriods).toEqual([
+      { label: "January 2026", from: "2026-01-01", to: "2026-01-31" },
+      { label: "February 2026", from: "2026-02-01", to: "2026-02-28" },
+      { label: "March 2026", from: "2026-03-01", to: "2026-03-31" },
+      { label: "April 2026", from: "2026-04-01", to: "2026-04-30" },
+      { label: "May 2026", from: "2026-05-01", to: "2026-05-31" },
+      { label: "June 2026", from: "2026-06-01", to: "2026-06-30" },
+      { label: "Q3 2026", from: "2026-07-01", to: "2026-09-30" },
+      { label: "Q4 2026", from: "2026-10-01", to: "2026-12-31" },
+    ])
+  }, 30_000)
+
   it("NON_PAYER org -> not-payer (no VAT filing periods to show)", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
@@ -441,7 +489,7 @@ describe("getVatFilingPeriods", () => {
     expect(result.status).toBe("no-period")
   }, 30_000)
 
-  it("IDENTIFIED_PERSON org -> identified-person (event-driven filer, no standing cadence)", async () => {
+  it("IDENTIFIED_PERSON keeps its distinct unsupported worksheet state", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -472,8 +520,8 @@ describe("getVatFilingPeriods", () => {
   }, 30_000)
 })
 
-describe("per-kind filing cadence divergence (KH quarterly, SH always monthly)", () => {
-  it("NATURAL person + PAYER/QUARTERLY -> KH 4 quarterly, SH 12 monthly, DAP 4 quarterly", async () => {
+describe("evidence-driven filing periods", () => {
+  it("quarterly payer without activity has DAP periods but no nil KH or SH", async () => {
     const user = await seedUser()
     const ws = await seedWorkspace(user)
     const org = await seedOrg({
@@ -500,20 +548,16 @@ describe("per-kind filing cadence divergence (KH quarterly, SH always monthly)",
     cookieValue = undefined
 
     const kh = await getControlStatement("vat-natural-quarterly")
-    expect(kh.status).toBe("ok")
-    if (kh.status !== "ok") return
-    expect(kh.filingPeriods).toHaveLength(4)
-    expect(kh.filingPeriods.map((fp) => fp.label)).toEqual([
-      "Q1 2026",
-      "Q2 2026",
-      "Q3 2026",
-      "Q4 2026",
-    ])
+    expect(kh).toEqual({
+      status: "no-filing-activity",
+      artifact: "control statement",
+    })
 
     const sh = await getEcSalesList("vat-natural-quarterly")
-    expect(sh.status).toBe("ok")
-    if (sh.status !== "ok") return
-    expect(sh.filingPeriods).toHaveLength(12)
+    expect(sh).toEqual({
+      status: "no-filing-activity",
+      artifact: "EC Sales List",
+    })
 
     const dap = await getVatFilingPeriods("vat-natural-quarterly")
     expect(dap.status).toBe("ok")
@@ -583,6 +627,71 @@ describe("getVatReturn", () => {
     expect(april.dph.rows.r1_base).toBe("0.0000")
     expect(april.dph.rows.r1_dan).toBe("0.0000")
     expect(april.dph.rows.vlastni_dan).toBe("0.0000")
+  }, 30_000)
+
+  it("aggregates one statutory quarter across two fiscal accounting periods", async () => {
+    const user = await seedUser()
+    const ws = await seedWorkspace(user)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "vat-return-cross-period",
+      legalName: "VAT Cross Period s.r.o.",
+    })
+    await addOrgMember({ orgId: org, workspaceId: ws, userId: user })
+    const firstPeriodId = await seedPeriod({
+      orgId: org,
+      start: "2025-02-01",
+      end: "2026-01-31",
+      status: "OPEN",
+    })
+    const secondPeriodId = await seedPeriod({
+      orgId: org,
+      start: "2026-02-01",
+      end: "2027-01-31",
+      status: "OPEN",
+    })
+    await seedVatStatus({
+      orgId: org,
+      vatRegimeCode: "PAYER",
+      validFrom: "2025-01-01",
+      filingPeriod: "QUARTERLY",
+    })
+    await captureStandardSale({
+      orgId: org,
+      workspaceId: ws,
+      userId: user,
+      periodId: firstPeriodId,
+      occurredAt: "2026-01-15",
+      baseAmount: "1000.00",
+      vatAmount: "210.00",
+    })
+    await captureStandardSale({
+      orgId: org,
+      workspaceId: ws,
+      userId: user,
+      periodId: secondPeriodId,
+      occurredAt: "2026-02-15",
+      baseAmount: "2000.00",
+      vatAmount: "420.00",
+    })
+
+    sessionUserId = user
+    cookieValue = secondPeriodId
+
+    const result = await getVatReturn(
+      "vat-return-cross-period",
+      "2026-01-01",
+      "2026-03-31",
+    )
+    expect(result.status).toBe("ok")
+    if (result.status !== "ok") return
+    expect(result.selected).toEqual({
+      label: "Q1 2026",
+      from: "2026-01-01",
+      to: "2026-03-31",
+    })
+    expect(result.dph.rows.r1_base).toBe("3000.0000")
+    expect(result.dph.rows.r1_dan).toBe("630.0000")
   }, 30_000)
 
   it("a crafted/stale `?fp=` value that doesn't name a real filing period falls back to a real one, not an arbitrary range", async () => {

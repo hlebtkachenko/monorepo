@@ -241,6 +241,174 @@ describe("setCompanyAssignee", () => {
     expect(result).toEqual({ ok: true })
     expect(await responsibleUserId(org)).toBeNull()
   }, 30_000)
+
+  it("rejects an invalid assignee at the database boundary", async () => {
+    const owner = await seedUser()
+    const ws = await seedWorkspace(owner)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "assign-db-guard",
+      legalName: "Assign DB Guard s.r.o.",
+    })
+    const outsider = await seedUser()
+
+    await expect(
+      sql`UPDATE organization
+             SET responsible_user_id = ${outsider}::uuid
+           WHERE id = ${org}::uuid`,
+    ).rejects.toThrow(/active member/)
+  }, 30_000)
+
+  it("requires responsibility to be cleared before membership deactivation", async () => {
+    const owner = await seedUser()
+    const ws = await seedWorkspace(owner)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "assign-deactivate",
+      legalName: "Assign Deactivate s.r.o.",
+    })
+    const accountant = await seedUser()
+    await ensureWorkspaceMembership(ws, accountant)
+    await setCompanyAssignee(ws, "assign-deactivate", accountant)
+
+    await expect(deactivateMembership(ws, accountant)).rejects.toThrow(
+      /must be unassigned/,
+    )
+    expect(await responsibleUserId(org)).toBe(accountant)
+
+    await setCompanyAssignee(ws, "assign-deactivate", null)
+    await deactivateMembership(ws, accountant)
+    expect(await responsibleUserId(org)).toBeNull()
+  }, 30_000)
+
+  it("serializes assignment against an in-flight membership deactivation", async () => {
+    const owner = await seedUser()
+    const ws = await seedWorkspace(owner)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "assign-race",
+      legalName: "Assign Race s.r.o.",
+    })
+    const accountant = await seedUser()
+    await ensureWorkspaceMembership(ws, accountant)
+
+    let deactivationReady: (() => void) | undefined
+    const deactivationReached = new Promise<void>((resolve) => {
+      deactivationReady = resolve
+    })
+    let releaseDeactivation: (() => void) | undefined
+    const mayCommitDeactivation = new Promise<void>((resolve) => {
+      releaseDeactivation = resolve
+    })
+
+    const deactivation = sql.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL ROLE app_admin`)
+      await tx.unsafe(`SET LOCAL app.app_user_role_name = 'app_user'`)
+      await tx`
+        SELECT public.app_lock_workspace_member(
+          ${ws}::uuid,
+          ${accountant}::uuid
+        )
+      `
+      await tx`
+        UPDATE workspace_membership
+           SET active = false
+         WHERE workspace_id = ${ws}::uuid
+           AND user_id = ${accountant}::uuid
+      `
+      deactivationReady?.()
+      await mayCommitDeactivation
+    })
+
+    await deactivationReached
+
+    const assignmentSql = adminClient()
+    let assignmentSettled = false
+    const assignment = assignmentSql`
+      UPDATE organization
+         SET responsible_user_id = ${accountant}::uuid
+       WHERE id = ${org}::uuid
+    `
+      .then(
+        () => ({ ok: true as const, error: null }),
+        (error: unknown) => ({ ok: false as const, error }),
+      )
+      .finally(() => {
+        assignmentSettled = true
+      })
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(assignmentSettled).toBe(false)
+
+    releaseDeactivation?.()
+    await deactivation
+    const assignmentResult = await assignment
+
+    expect(assignmentResult.ok).toBe(false)
+    expect(String(assignmentResult.error)).toMatch(/active member/)
+    expect(await responsibleUserId(org)).toBeNull()
+    await assignmentSql.end({ timeout: 5 })
+  }, 30_000)
+
+  it("avoids deadlock when assignment reaches the shared lock first", async () => {
+    const owner = await seedUser()
+    const ws = await seedWorkspace(owner)
+    const org = await seedOrg({
+      workspaceId: ws,
+      slug: "assign-lock-order",
+      legalName: "Assign Lock Order s.r.o.",
+    })
+    const accountant = await seedUser()
+    await ensureWorkspaceMembership(ws, accountant)
+
+    let assignmentReady: (() => void) | undefined
+    const assignmentReached = new Promise<void>((resolve) => {
+      assignmentReady = resolve
+    })
+    let releaseAssignment: (() => void) | undefined
+    const mayCommitAssignment = new Promise<void>((resolve) => {
+      releaseAssignment = resolve
+    })
+
+    const assignment = sql.begin(async (tx) => {
+      await tx.unsafe(`SET LOCAL ROLE app_admin`)
+      await tx.unsafe(`SET LOCAL app.app_user_role_name = 'app_user'`)
+      await tx`
+        SELECT public.app_lock_workspace_member(
+          ${ws}::uuid,
+          ${accountant}::uuid
+        )
+      `
+      await tx`
+        UPDATE organization
+           SET responsible_user_id = ${accountant}::uuid
+         WHERE id = ${org}::uuid
+      `
+      assignmentReady?.()
+      await mayCommitAssignment
+    })
+
+    await assignmentReached
+    let deactivationSettled = false
+    const deactivation = deactivateMembership(ws, accountant)
+      .then(
+        () => ({ ok: true as const, error: null }),
+        (error: unknown) => ({ ok: false as const, error }),
+      )
+      .finally(() => {
+        deactivationSettled = true
+      })
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(deactivationSettled).toBe(false)
+
+    releaseAssignment?.()
+    await assignment
+    const deactivationResult = await deactivation
+    expect(deactivationResult.ok).toBe(false)
+    expect(String(deactivationResult.error)).toMatch(/must be unassigned/)
+    expect(await responsibleUserId(org)).toBe(accountant)
+  }, 30_000)
 })
 
 describe("loadOrgAssignees", () => {

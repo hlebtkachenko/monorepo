@@ -170,8 +170,13 @@ async function seedTaxProfile(opts: {
   validFrom: string
 }): Promise<void> {
   await sql`
-    INSERT INTO organization_tax_profile (organization_id, has_employees, valid_from)
-    VALUES (${opts.orgId}::uuid, ${opts.hasEmployees}, ${opts.validFrom})
+    INSERT INTO organization_tax_profile
+      (organization_id, has_employees, has_standard_employment, has_dpp, has_dpc,
+       social_insurance_participation, health_insurance_participation,
+       payroll_tax_advance_due, special_rate_withholding_due, valid_from)
+    VALUES (${opts.orgId}::uuid, ${opts.hasEmployees}, ${opts.hasEmployees}, false, false,
+            ${opts.hasEmployees}, ${opts.hasEmployees}, ${opts.hasEmployees}, false,
+            ${opts.validFrom})
   `
 }
 
@@ -238,12 +243,12 @@ describe("computeWorkspaceObligations", () => {
     })
 
     const result = await computeWorkspaceObligations(ws)
-    const obligations = result.get(org) ?? []
+    const obligations = result.get(org)?.obligations ?? []
 
     expect(obligations.filter((o) => o.kind === "VAT_RETURN")).toHaveLength(12)
     expect(
       obligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
-    ).toHaveLength(12)
+    ).toHaveLength(0)
     expect(obligations.filter((o) => o.category === "PAYROLL")).toHaveLength(36)
     for (const o of obligations) {
       expect(o.organizationId).toBe(org)
@@ -278,7 +283,7 @@ describe("computeWorkspaceObligations", () => {
     })
 
     const result = await computeWorkspaceObligations(ws)
-    const obligations = result.get(org) ?? []
+    const obligations = result.get(org)?.obligations ?? []
 
     expect(obligations).toHaveLength(36)
     expect(obligations.every((o) => o.category === "PAYROLL")).toBe(true)
@@ -360,11 +365,11 @@ describe("computeWorkspaceObligations", () => {
     })
 
     const result = await computeWorkspaceObligations(ws)
-    const obligations = result.get(org) ?? []
+    const obligations = result.get(org)?.obligations ?? []
 
     expect(obligations.length).toBeGreaterThan(0)
     for (const o of obligations) {
-      expect(["Overdue", "Due soon", "Upcoming"]).toContain(o.status)
+      expect(["Past due date", "Due soon", "Upcoming"]).toContain(o.status)
     }
     const dueDates = obligations.map((o) => o.dueDate)
     expect(dueDates).toEqual([...dueDates].sort())
@@ -460,7 +465,7 @@ describe("computeWorkspaceObligations", () => {
     )
     expect(result.has(otherWorkspaceOrg)).toBe(false)
 
-    const payerObligations = result.get(payerOrg) ?? []
+    const payerObligations = result.get(payerOrg)?.obligations ?? []
     expect(payerObligations.every((o) => o.organizationId === payerOrg)).toBe(
       true,
     )
@@ -469,14 +474,14 @@ describe("computeWorkspaceObligations", () => {
     ).toHaveLength(12)
     expect(
       payerObligations.filter((o) => o.kind === "CONTROL_STATEMENT"),
-    ).toHaveLength(12)
+    ).toHaveLength(0)
     expect(
       payerObligations.filter((o) => o.category === "PAYROLL"),
     ).toHaveLength(36)
 
     // NON_PAYER with no employees generates no obligations — the honest
     // empty answer, not a fabricated schedule (see obligations.ts doc).
-    const nonPayerObligations = result.get(nonPayerOrg) ?? []
+    const nonPayerObligations = result.get(nonPayerOrg)?.obligations ?? []
     expect(
       nonPayerObligations.every((o) => o.organizationId === nonPayerOrg),
     ).toBe(true)

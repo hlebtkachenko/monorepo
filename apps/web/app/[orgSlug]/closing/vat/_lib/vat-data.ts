@@ -1,11 +1,15 @@
 import "server-only"
 
 import { withOrganization } from "@workspace/db"
+import { czechToday } from "@/lib/czech-today"
 import {
   buildDph,
   buildKontrolniHlaseni,
   buildSouhrnneHlaseni,
-  computeObligations,
+  computeTimelineObligations,
+  getVatPeriodActivity,
+  getVatEvidenceCompleteness,
+  statutoryVatEnvelope,
   type Dph,
   type KontrolniHlaseni,
   type ObligationKind,
@@ -53,6 +57,14 @@ export type VatBaseStatus =
   | { status: "no-period" }
   | { status: "not-payer" }
   | { status: "identified-person" }
+  | {
+      status: "no-filing-activity"
+      artifact: "VAT return" | "control statement" | "EC Sales List"
+    }
+  | {
+      status: "vat-evidence-incomplete"
+      artifact: "control statement" | "EC Sales List"
+    }
   | { status: "vat-unconfigured"; periodLabel: string }
 
 export type VatFilingPeriodsResult =
@@ -62,7 +74,7 @@ export type VatFilingPeriodsResult =
       periodId: string
       filingPeriods: VatFilingPeriodOption[]
       regime: VatRegime
-      filingPeriod: VatFilingPeriod
+      filingPeriod: VatFilingPeriod | null
     }
 
 export type VatReturnResult =
@@ -98,21 +110,17 @@ interface ResolvedVatContext {
   periodLabel: string
   filingPeriods: VatFilingPeriodOption[]
   regime: VatRegime
-  filingPeriod: VatFilingPeriod
+  filingPeriod: VatFilingPeriod | null
 }
 
 type VatContextResolution =
   VatBaseStatus | ({ status: "ok" } & ResolvedVatContext)
 
 /**
- * Resolve the org + active period + period-effective vat_status via
- * `resolvePeriodProfile` (shared with `getClosingObligations` in
- * closing-data.ts), then derive the filing-period set for one obligation
- * `kind` (VAT_RETURN for DAP, CONTROL_STATEMENT for KH, EC_SALES_LIST for SH)
- * via the obligation engine. `computeObligations` THROWS when regime is
- * PAYER with a null filing period, so that combination is detected as
- * "vat-unconfigured" BEFORE calling it — mirrors `getClosingObligations`'s
- * guard.
+ * Resolve the org + active period + complete effective VAT timeline, then
+ * derive filing candidates from every payer segment. This preserves real
+ * cadence or registration changes inside an accounting period instead of
+ * requiring one invariant profile value for the whole period.
  */
 async function resolveVatContext(
   orgSlug: string,
@@ -121,37 +129,81 @@ async function resolveVatContext(
   const profile = await resolvePeriodProfile(orgSlug)
   if (profile.status !== "ok") return profile
 
-  const {
-    ctx,
-    periodId,
-    periodStart,
-    periodEnd,
-    periodLabel,
-    vatRegimeCode,
-    filingPeriod,
-    personType,
-  } = profile
+  const { ctx, periodId, periodStart, periodEnd, periodLabel, personType } =
+    profile
+  const knownSegments = profile.vatTimeline.filter(
+    (segment) => segment.status === "KNOWN",
+  )
+  const hasProfileGap = profile.vatTimeline.some(
+    (segment) => segment.status === "UNKNOWN",
+  )
+  const payerSegments = knownSegments.filter(
+    (segment) => segment.fact.value.regime === "PAYER",
+  )
+  if (
+    hasProfileGap ||
+    payerSegments.some((segment) => segment.fact.value.filingPeriod === null)
+  ) {
+    return { status: "vat-unconfigured", periodLabel }
+  }
 
-  // VAT pages only apply to a PAYER (a declared monthly/quarterly filing
-  // cadence, §99/§99a ZDPH) — NON_PAYER and IDENTIFIED_PERSON have no such
-  // cadence to select a filing period from. IDENTIFIED_PERSON still owes
-  // event-driven filings (§101/5 + §102 ZDPH), surfaced distinctly.
-  if (vatRegimeCode === "IDENTIFIED_PERSON")
-    return { status: "identified-person" }
-  if (vatRegimeCode !== "PAYER") return { status: "not-payer" }
-  if (filingPeriod == null) return { status: "vat-unconfigured", periodLabel }
+  if (payerSegments.length === 0) {
+    return knownSegments.some(
+      (segment) => segment.fact.value.regime === "IDENTIFIED_PERSON",
+    )
+      ? { status: "identified-person" }
+      : { status: "not-payer" }
+  }
 
-  const obligations = computeObligations({
-    periodStart,
-    periodEnd,
-    vatRegimeCode,
-    vatFilingPeriod: filingPeriod,
+  const envelope = statutoryVatEnvelope(periodStart, periodEnd)
+  const artifactKind =
+    kind === "CONTROL_STATEMENT"
+      ? "KH"
+      : kind === "EC_SALES_LIST"
+        ? "SH"
+        : "DAP"
+  const [vatActivity, completeness] = await withOrganization(
+    ctx.organizationId,
+    ctx.userId,
+    (db) => {
+      const scope = { kind: "FILING_PERIOD" as const, period: envelope }
+      return Promise.all([
+        getVatPeriodActivity(db, scope),
+        getVatEvidenceCompleteness(db, scope, artifactKind),
+      ])
+    },
+  )
+
+  if (kind !== "VAT_RETURN" && completeness.status === "NEEDS_INPUT") {
+    return {
+      status: "vat-evidence-incomplete",
+      artifact:
+        kind === "CONTROL_STATEMENT" ? "control statement" : "EC Sales List",
+    }
+  }
+
+  const timelineResult = computeTimelineObligations({
+    from: periodStart,
+    to: periodEnd,
     personType,
-    hasEmployees: profile.hasEmployees,
+    vatTimeline: profile.vatTimeline,
+    payrollTimeline: [],
+    vatActivity,
   })
+  if (timelineResult.issues.some((issue) => issue.code.startsWith("VAT_"))) {
+    return { status: "vat-unconfigured", periodLabel }
+  }
 
-  const filingPeriods: VatFilingPeriodOption[] = obligations
-    .filter((o) => o.kind === kind)
+  const filingPeriods: VatFilingPeriodOption[] = timelineResult.obligations
+    .filter(
+      (obligation) =>
+        obligation.kind === kind &&
+        payerSegments.some(
+          (segment) =>
+            obligation.periodStart <= segment.to &&
+            obligation.periodEnd >= segment.from,
+        ),
+    )
     .map((o) => ({
       label: o.periodLabel,
       from: o.periodStart,
@@ -159,14 +211,29 @@ async function resolveVatContext(
     }))
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0))
 
+  if (filingPeriods.length === 0) {
+    const artifact =
+      kind === "VAT_RETURN"
+        ? "VAT return"
+        : kind === "CONTROL_STATEMENT"
+          ? "control statement"
+          : "EC Sales List"
+    return { status: "no-filing-activity", artifact }
+  }
+
+  const filingPeriodsUsed = new Set(
+    payerSegments.map((segment) => segment.fact.value.filingPeriod),
+  )
+
   return {
     status: "ok",
     ctx,
     periodId,
     periodLabel,
     filingPeriods,
-    regime: vatRegimeCode,
-    filingPeriod,
+    regime: "PAYER",
+    filingPeriod:
+      filingPeriodsUsed.size === 1 ? ([...filingPeriodsUsed][0] ?? null) : null,
   }
 }
 
@@ -205,10 +272,7 @@ function selectFilingPeriod(
     )
     if (match) return match
   }
-  return pickDefaultFilingPeriod(
-    filingPeriods,
-    new Date().toISOString().slice(0, 10),
-  )
+  return pickDefaultFilingPeriod(filingPeriods, czechToday())
 }
 
 /**
@@ -246,9 +310,9 @@ export async function getVatReturn(
     resolved.ctx.organizationId,
     resolved.ctx.userId,
     (db) =>
-      buildDph(db, resolved.periodId, {
-        from: selected.from,
-        to: selected.to,
+      buildDph(db, {
+        kind: "FILING_PERIOD",
+        period: { from: selected.from, to: selected.to },
       }),
   )
   return { status: "ok", filingPeriods: resolved.filingPeriods, selected, dph }
@@ -269,9 +333,9 @@ export async function getControlStatement(
     resolved.ctx.organizationId,
     resolved.ctx.userId,
     (db) =>
-      buildKontrolniHlaseni(db, resolved.periodId, {
-        from: selected.from,
-        to: selected.to,
+      buildKontrolniHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: selected.from, to: selected.to },
       }),
   )
   return { status: "ok", filingPeriods: resolved.filingPeriods, selected, kh }
@@ -292,9 +356,9 @@ export async function getEcSalesList(
     resolved.ctx.organizationId,
     resolved.ctx.userId,
     (db) =>
-      buildSouhrnneHlaseni(db, resolved.periodId, {
-        from: selected.from,
-        to: selected.to,
+      buildSouhrnneHlaseni(db, {
+        kind: "FILING_PERIOD",
+        period: { from: selected.from, to: selected.to },
       }),
   )
   return { status: "ok", filingPeriods: resolved.filingPeriods, selected, sh }

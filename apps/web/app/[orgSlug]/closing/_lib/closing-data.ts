@@ -1,6 +1,12 @@
 import "server-only"
 
-import { computeObligations } from "@workspace/accounting"
+import {
+  computeTimelineObligations,
+  getVatPeriodActivity,
+  statutoryVatEnvelope,
+} from "@workspace/accounting"
+import { withOrganization } from "@workspace/db"
+import { czechToday } from "@/lib/czech-today"
 
 import { resolvePeriodProfile } from "./period-profile"
 import {
@@ -18,16 +24,10 @@ export {
 
 /**
  * Server-side data for the Closing Overview + Calendar pages — resolves the
- * org's active accounting period and current VAT/person profile, then runs
- * them through `computeObligations` (the pure `@workspace/accounting`
- * obligation engine). Real, computed rows only: an org that owes nothing
- * (e.g. NON_PAYER, no employees) legitimately gets an empty obligations
- * array — that is the correct answer, not a gap.
- *
- * `computeObligations` THROWS when `vatRegimeCode === "PAYER"` and
- * `vatFilingPeriod` is null (a payer must declare a filing cadence) — the
- * "vat-unconfigured" result branch below detects that combination BEFORE
- * calling the engine.
+ * org's active accounting period and effective VAT/payroll timelines, then
+ * runs them through the pure `@workspace/accounting` obligation engine. Real,
+ * computed rows only: an org that owes nothing legitimately gets an empty
+ * array, while unknown intervals remain explicit configuration issues.
  */
 
 /**
@@ -46,35 +46,39 @@ export async function getClosingObligations(
     periodStart,
     periodEnd,
     periodLabel,
-    vatRegimeCode,
-    filingPeriod,
     personType,
-    hasEmployees,
+    vatTimeline,
+    payrollTimeline,
   } = profile
-
-  if (vatRegimeCode === "PAYER" && filingPeriod == null) {
-    return { status: "vat-unconfigured", periodLabel }
-  }
-
-  const obligations = computeObligations({
-    periodStart,
-    periodEnd,
-    vatRegimeCode,
-    vatFilingPeriod: filingPeriod,
+  const vatActivity = await withOrganization(
+    profile.ctx.organizationId,
+    profile.ctx.userId,
+    (db) =>
+      getVatPeriodActivity(db, {
+        kind: "FILING_PERIOD",
+        period: statutoryVatEnvelope(periodStart, periodEnd),
+      }),
+  )
+  const result = computeTimelineObligations({
+    from: periodStart,
+    to: periodEnd,
     personType,
-    hasEmployees,
+    vatTimeline,
+    payrollTimeline,
+    vatActivity,
   })
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = czechToday()
 
   return {
     status: "ok",
     periodLabel,
     periodStart,
     periodEnd,
-    obligations: obligations.map((o) => ({
+    issues: result.issues,
+    obligations: result.obligations.map((o) => ({
       ...o,
-      status: deriveObligationStatus(o.dueDate, today),
+      status: deriveObligationStatus(o, today),
     })),
   }
 }

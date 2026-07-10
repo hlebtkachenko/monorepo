@@ -20,5 +20,5 @@ export default async function ClosingPage({
   const data = await getClosingObligations(orgSlug)
   if (data.status === "no-access") notFound()
 
-  return <ClosingOverviewView slug={orgSlug} data={data} />
+  return <ClosingOverviewView data={data} />
 }

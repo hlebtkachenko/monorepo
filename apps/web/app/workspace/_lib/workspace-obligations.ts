@@ -2,6 +2,7 @@ import "server-only"
 
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
+import { czechToday } from "@/lib/czech-today"
 import {
   accounting_period,
   organization,
@@ -9,21 +10,29 @@ import {
   vat_status,
 } from "@workspace/db/schema"
 import {
-  computeObligations,
-  computePayrollObligations,
-  type Obligation,
+  computeTimelineObligations,
+  deriveObligationPresentationStatus,
+  getVatPeriodActivity,
+  resolveEffectiveTimeline,
+  statutoryVatEnvelope,
+  type EffectiveFact,
+  type PayrollProfileValue,
   type PersonType,
+  type ProfileIssue,
   type VatFilingPeriod,
+  type VatProfileValue,
   type VatRegime,
 } from "@workspace/accounting"
 
-import {
-  deriveObligationStatus,
-  type ObligationWithStatus,
-} from "../../[orgSlug]/closing/_lib/closing-shared"
+import type { ObligationWithStatus } from "../../[orgSlug]/closing/_lib/closing-shared"
 
 export interface WorkspaceObligation extends ObligationWithStatus {
   organizationId: string
+}
+
+export interface WorkspaceObligationResult {
+  obligations: WorkspaceObligation[]
+  issues: ProfileIssue[]
 }
 
 type PeriodRow = {
@@ -34,6 +43,7 @@ type PeriodRow = {
 }
 
 type VersionedRow = {
+  id: string
   organizationId: string
   validFrom: string
   validTo: string | null
@@ -45,7 +55,13 @@ type VatStatusRow = VersionedRow & {
 }
 
 type TaxProfileRow = VersionedRow & {
-  hasEmployees: boolean
+  hasStandardEmployment: boolean | null
+  hasDpp: boolean | null
+  hasDpc: boolean | null
+  socialInsuranceParticipation: boolean | null
+  healthInsuranceParticipation: boolean | null
+  payrollTaxAdvanceDue: boolean | null
+  specialRateWithholdingDue: boolean | null
 }
 
 /** The org's current period: contains today, else newest by period_start. */
@@ -55,27 +71,6 @@ function pickCurrentPeriod(
 ): PeriodRow | undefined {
   return (
     rows.find((r) => r.periodStart <= today && today <= r.periodEnd) ?? rows[0]
-  )
-}
-
-/**
- * The row PERIOD-EFFECTIVE for [periodStart, periodEnd]: `valid_from <=
- * periodEnd AND (valid_to IS NULL OR valid_to >= periodStart)`, newest
- * `valid_from` wins. Mirrors the predicate in `closing/_lib/period-profile.ts`.
- */
-function pickEffective<T extends VersionedRow>(
-  rows: T[],
-  periodStart: string,
-  periodEnd: string,
-): T | undefined {
-  const candidates = rows.filter(
-    (r) =>
-      r.validFrom <= periodEnd &&
-      (r.validTo === null || r.validTo >= periodStart),
-  )
-  if (candidates.length === 0) return undefined
-  return candidates.reduce((newest, r) =>
-    r.validFrom > newest.validFrom ? r : newest,
   )
 }
 
@@ -102,20 +97,16 @@ function groupByOrg<T extends { organizationId: string }>(
  *   - "current period" = the period containing today's date; if none does,
  *     the org's newest period by `period_start`. An org with no period at
  *     all contributes no obligations (still onboarding).
- *   - a VAT payer with no filing period configured (`vat_status.filing_period
- *     IS NULL`) cannot run through `computeObligations` (it throws), so only
- *     payroll is computed for that org — an honest partial, not a fabricated
- *     VAT schedule.
- *   - vat_status / organization_tax_profile are versioned by [valid_from,
- *     valid_to]; if more than one row overlaps the chosen period, the row
- *     with the latest `valid_from` wins (single-value-per-period, same
- *     simplification as `period-profile.ts`).
+ *   - missing VAT cadence or profile intervals remain explicit issues while
+ *     independently known payroll intervals are still computed.
+ *   - vat_status / organization_tax_profile are resolved as complete
+ *     effective-dated timelines; gaps are preserved and overlaps fail loudly.
  */
 export async function computeWorkspaceObligations(
   activeWorkspaceId: string,
-): Promise<Map<string, WorkspaceObligation[]>> {
-  const today = new Date().toISOString().slice(0, 10)
-  const result = new Map<string, WorkspaceObligation[]>()
+): Promise<Map<string, WorkspaceObligationResult>> {
+  const today = czechToday()
+  const result = new Map<string, WorkspaceObligationResult>()
 
   await withAdminBypass(async (db) => {
     const orgs = await db
@@ -148,6 +139,7 @@ export async function computeWorkspaceObligations(
 
     const vatStatusRows: VatStatusRow[] = await db
       .select({
+        id: vat_status.id,
         organizationId: vat_status.organization_id,
         vatRegimeCode: vat_status.vat_regime_code,
         filingPeriod: vat_status.filing_period,
@@ -159,8 +151,18 @@ export async function computeWorkspaceObligations(
 
     const taxProfileRows: TaxProfileRow[] = await db
       .select({
+        id: organization_tax_profile.id,
         organizationId: organization_tax_profile.organization_id,
-        hasEmployees: organization_tax_profile.has_employees,
+        hasStandardEmployment: organization_tax_profile.has_standard_employment,
+        hasDpp: organization_tax_profile.has_dpp,
+        hasDpc: organization_tax_profile.has_dpc,
+        socialInsuranceParticipation:
+          organization_tax_profile.social_insurance_participation,
+        healthInsuranceParticipation:
+          organization_tax_profile.health_insurance_participation,
+        payrollTaxAdvanceDue: organization_tax_profile.payroll_tax_advance_due,
+        specialRateWithholdingDue:
+          organization_tax_profile.special_rate_withholding_due,
         validFrom: organization_tax_profile.valid_from,
         validTo: organization_tax_profile.valid_to,
       })
@@ -178,59 +180,75 @@ export async function computeWorkspaceObligations(
       const period = pickCurrentPeriod(orgPeriods, today)
       if (!period) continue // defensive; orgPeriods is non-empty
 
-      const effectiveVat = pickEffective(
-        vatByOrg.get(org.id) ?? [],
+      const vatEnvelope = statutoryVatEnvelope(
         period.periodStart,
         period.periodEnd,
       )
-      const effectiveTax = pickEffective(
-        taxByOrg.get(org.id) ?? [],
-        period.periodStart,
-        period.periodEnd,
-      )
-
-      const vatRegimeCode = (effectiveVat?.vatRegimeCode ??
-        null) as VatRegime | null
-      const filingPeriod = effectiveVat?.filingPeriod ?? null
-      const personType = (org.personType ?? "LEGAL") as PersonType
-      const hasEmployees = effectiveTax?.hasEmployees ?? false
-
-      let obligations: Obligation[]
-      if (vatRegimeCode === "PAYER" && filingPeriod == null) {
-        // VAT-unconfigured payer: computeObligations throws on this
-        // combination. Compute payroll only — a real, honest partial.
-        obligations = computePayrollObligations({
-          periodStart: period.periodStart,
-          periodEnd: period.periodEnd,
-          hasEmployees,
-        })
-      } else {
-        obligations = computeObligations({
-          periodStart: period.periodStart,
-          periodEnd: period.periodEnd,
-          vatRegimeCode: vatRegimeCode ?? "NON_PAYER",
-          vatFilingPeriod: filingPeriod,
-          personType,
-          hasEmployees,
-        })
-      }
+      const vatFacts: EffectiveFact<VatProfileValue>[] = (
+        vatByOrg.get(org.id) ?? []
+      ).map((row) => ({
+        sourceId: row.id,
+        validFrom: row.validFrom,
+        validTo: row.validTo,
+        value: {
+          // Backed by vat_status.vat_regime_code -> vat_regime(code).
+          regime: row.vatRegimeCode as VatRegime,
+          filingPeriod: row.filingPeriod,
+        },
+      }))
+      const payrollFacts: EffectiveFact<PayrollProfileValue>[] = (
+        taxByOrg.get(org.id) ?? []
+      ).map((row) => ({
+        sourceId: row.id,
+        validFrom: row.validFrom,
+        validTo: row.validTo,
+        value: {
+          hasStandardEmployment: row.hasStandardEmployment,
+          hasDpp: row.hasDpp,
+          hasDpc: row.hasDpc,
+          socialInsuranceParticipation: row.socialInsuranceParticipation,
+          healthInsuranceParticipation: row.healthInsuranceParticipation,
+          payrollTaxAdvanceDue: row.payrollTaxAdvanceDue,
+          specialRateWithholdingDue: row.specialRateWithholdingDue,
+        },
+      }))
+      const computed = computeTimelineObligations({
+        from: period.periodStart,
+        to: period.periodEnd,
+        personType: org.personType as PersonType,
+        vatTimeline: resolveEffectiveTimeline({
+          from: vatEnvelope.from,
+          to: vatEnvelope.to,
+          facts: vatFacts,
+        }),
+        payrollTimeline: resolveEffectiveTimeline({
+          from: period.periodStart,
+          to: period.periodEnd,
+          facts: payrollFacts,
+        }),
+        vatActivity: await getVatPeriodActivity(
+          db,
+          { kind: "FILING_PERIOD", period: vatEnvelope },
+          org.id,
+        ),
+      })
 
       // Both `computeObligations` and `computePayrollObligations` already
       // return dueDate-ascending rows; this sort is redundant today but makes
       // the dueDate-ascending contract explicit rather than an implicit
       // coupling to the engine's internal ordering — the Companies page's
       // `.find(first upcoming)` (see `workspace/page.tsx`) relies on it.
-      const withStatus: WorkspaceObligation[] = obligations
+      const withStatus: WorkspaceObligation[] = computed.obligations
         .map((o) => ({
           ...o,
           organizationId: org.id,
-          status: deriveObligationStatus(o.dueDate, today),
+          status: deriveObligationPresentationStatus(o, today),
         }))
         .sort((a, b) =>
           a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0,
         )
 
-      result.set(org.id, withStatus)
+      result.set(org.id, { obligations: withStatus, issues: computed.issues })
     }
   })
 

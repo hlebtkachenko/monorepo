@@ -25,7 +25,7 @@ export function LegislationHeader() {
 
   return (
     <ContentHeader
-      title="All obligations"
+      title="Periodic obligations"
       tabs={tabs}
       value={activeTab}
       onValueChange={setActiveTab}

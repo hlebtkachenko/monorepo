@@ -124,7 +124,10 @@ function readCanonicalSection(
 }
 
 /** Assert an operator-supplied safety section text is a present, non-blank string; throw fail-closed otherwise. */
-function requireNonBlank(name: string, value: unknown): asserts value is string {
+function requireNonBlank(
+  name: string,
+  value: unknown,
+): asserts value is string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error(
       `login-pack safety section "${name}" is missing or empty — refusing to assemble a login pack with a blank safety section`,

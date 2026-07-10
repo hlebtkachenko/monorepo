@@ -30,64 +30,196 @@ import { sql } from "drizzle-orm"
 import { one } from "../sql"
 import type { RowExecutor } from "../sql"
 import type { Decimal } from "../types"
+import type {
+  AnnualArtifactCompleteness,
+  ProvenancedDecimal,
+} from "./annual-completeness"
+import {
+  resolveDppoRate,
+  type DppoRateResolution,
+  type DppoTaxpayerCategory,
+} from "./annual-rules"
 
 export interface DppoInput {
+  taxpayerCategory?: DppoTaxpayerCategory
   /** Daňově neuznatelné náklady per §25 (added back to the base). */
-  nonDeductibleExpenses?: Decimal
+  nonDeductibleExpenses?: ProvenancedDecimal
   /** Osvobozené / nezahrnované výnosy per §18a/§19 (removed from the base). */
-  exemptRevenue?: Decimal
+  exemptRevenue?: ProvenancedDecimal
   /**
    * §18a/1: for a veřejně prospěšný poplatník, remove the result of a
    * loss-making hlavní činnost from the base (pass its accounting result here —
    * positive = loss amount to remove). Typically the whole accounting loss.
    */
-  excludeLossMakingMainActivity?: Decimal
+  excludeLossMakingMainActivity?: ProvenancedDecimal
   /**
    * §34/1 daňová ztráta minulých let available to deduct. Applied AFTER the
    * §23/1 base, capped at the (non-negative) base — never turns a profit into a
-   * loss. Defaults 0.
+   * loss. Required with provenance, including when the confirmed amount is zero.
    */
-  lossCarryForward?: Decimal
-  /** Sazba daně (default 0.21 — 21 % from 2024). Use 0.19 for periods ≤ 2023. */
-  taxRate?: Decimal
+  lossCarryForward?: ProvenancedDecimal
   /** Slevy na dani §35 (deducted from the computed tax). */
-  taxReliefs?: Decimal
+  taxReliefs?: ProvenancedDecimal
   /** Zaplacené zálohy na daň (§38a). */
-  advancesPaid?: Decimal
+  advancesPaid?: ProvenancedDecimal
 }
 
 export interface Dppo {
   type: "CORPORATE_INCOME_TAX"
+  artifactKind: "DPPO_CALCULATION_WORKSHEET"
+  periodStart: string
+  periodEnd: string
+  bookValues: { accountingResult: Decimal }
+  adjustments: {
+    nonDeductibleExpenses: ProvenancedDecimal | null
+    exemptRevenue: ProvenancedDecimal | null
+    excludeLossMakingMainActivity: ProvenancedDecimal | null
+    lossCarryForward: ProvenancedDecimal | null
+    taxReliefs: ProvenancedDecimal | null
+    advancesPaid: ProvenancedDecimal | null
+  }
+  rateResolution: DppoRateResolution
+  completeness: AnnualArtifactCompleteness
   ucetni_vysledek: Decimal
-  nedanove_naklady: Decimal
-  osvobozene_vynosy: Decimal
+  nedanove_naklady: Decimal | null
+  osvobozene_vynosy: Decimal | null
   /** základ daně §23/1 (before the §34 loss deduction). */
-  zaklad_dane: Decimal
+  zaklad_dane: Decimal | null
   /** odpočet daňové ztráty minulých let §34 (applied, ≤ zaklad_dane). */
-  odpocet_ztraty: Decimal
-  zaklad_zaokrouhleny: Decimal
-  sazba: Decimal
-  dan: Decimal
-  slevy: Decimal
-  dan_po_slevach: Decimal
-  zalohy: Decimal
-  doplatek: Decimal
+  odpocet_ztraty: Decimal | null
+  zaklad_zaokrouhleny: Decimal | null
+  sazba: Decimal | null
+  dan: Decimal | null
+  slevy: Decimal | null
+  dan_po_slevach: Decimal | null
+  zalohy: Decimal | null
+  doplatek: Decimal | null
 }
+
+const REQUIRED_ADJUSTMENTS = [
+  "nonDeductibleExpenses",
+  "exemptRevenue",
+  "excludeLossMakingMainActivity",
+  "lossCarryForward",
+  "taxReliefs",
+  "advancesPaid",
+] as const
+
+const DPPO_UNSUPPORTED_REQUIREMENTS = [
+  "Tax credits beyond the modeled relief input and withholding are not modeled.",
+  "This worksheet does not generate, validate, sign, or submit a DPPO return.",
+]
+
+type DppoAdjustmentKey = (typeof REQUIRED_ADJUSTMENTS)[number]
+
+type DppoCalculation = Pick<
+  Dppo,
+  | "nedanove_naklady"
+  | "osvobozene_vynosy"
+  | "zaklad_dane"
+  | "odpocet_ztraty"
+  | "zaklad_zaokrouhleny"
+  | "sazba"
+  | "dan"
+  | "slevy"
+  | "dan_po_slevach"
+  | "zalohy"
+  | "doplatek"
+>
 
 export async function buildDppo(
   db: RowExecutor,
   periodId: string,
   input: DppoInput = {},
 ): Promise<Dppo> {
-  const rate = input.taxRate ?? "0.21"
-  const nonDeductible = input.nonDeductibleExpenses ?? "0"
-  const exempt = input.exemptRevenue ?? "0"
-  const excludeLoss = input.excludeLossMakingMainActivity ?? "0"
-  const lossCF = input.lossCarryForward ?? "0"
-  const reliefs = input.taxReliefs ?? "0"
-  const advances = input.advancesPaid ?? "0"
+  const book = await one<{
+    period_start: string
+    period_end: string
+    accounting_result: Decimal
+  }>(
+    db,
+    sql`SELECT p.period_start, p.period_end,
+               (COALESCE(SUM(-b.closing_balance) FILTER (WHERE a.nature = 'REVENUE'), 0)
+                - COALESCE(SUM(b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE'), 0))::numeric(19,4)
+                 AS accounting_result
+          FROM accounting_period p
+          LEFT JOIN account_period_balance b ON b.period_id = p.id
+          LEFT JOIN account a ON a.id = b.account_id
+         WHERE p.id = ${periodId}::uuid
+         GROUP BY p.period_start, p.period_end`,
+  )
+  const rateResolution = resolveDppoRate(
+    book.period_start,
+    input.taxpayerCategory,
+  )
+  const missingAdjustments = REQUIRED_ADJUSTMENTS.filter(
+    (key) => input[key] == null,
+  )
+  const blockingInputs = missingAdjustments.map(
+    (key) => `Provide ${key} with source, reference, and recorded date.`,
+  )
+  if (rateResolution.status === "UNSUPPORTED") {
+    blockingInputs.unshift(rateResolution.reason)
+  }
 
-  const r = await one<Omit<Dppo, "type">>(
+  const adjustments: Dppo["adjustments"] = {
+    nonDeductibleExpenses: input.nonDeductibleExpenses ?? null,
+    exemptRevenue: input.exemptRevenue ?? null,
+    excludeLossMakingMainActivity: input.excludeLossMakingMainActivity ?? null,
+    lossCarryForward: input.lossCarryForward ?? null,
+    taxReliefs: input.taxReliefs ?? null,
+    advancesPaid: input.advancesPaid ?? null,
+  }
+
+  const base = {
+    type: "CORPORATE_INCOME_TAX" as const,
+    artifactKind: "DPPO_CALCULATION_WORKSHEET" as const,
+    periodStart: book.period_start,
+    periodEnd: book.period_end,
+    bookValues: { accountingResult: book.accounting_result },
+    adjustments,
+    rateResolution,
+    ucetni_vysledek: book.accounting_result,
+  }
+
+  if (blockingInputs.length > 0 || rateResolution.status !== "SUPPORTED") {
+    const empty: DppoCalculation = {
+      nedanove_naklady: null,
+      osvobozene_vynosy: null,
+      zaklad_dane: null,
+      odpocet_ztraty: null,
+      zaklad_zaokrouhleny: null,
+      sazba: null,
+      dan: null,
+      slevy: null,
+      dan_po_slevach: null,
+      zalohy: null,
+      doplatek: null,
+    }
+    return {
+      ...base,
+      ...empty,
+      completeness: {
+        status: "NEEDS_INPUT",
+        filingReady: false,
+        blockingInputs,
+        unsupportedRequirements: DPPO_UNSUPPORTED_REQUIREMENTS,
+      },
+    }
+  }
+
+  const values = Object.fromEntries(
+    REQUIRED_ADJUSTMENTS.map((key) => [key, input[key]!.amount]),
+  ) as Record<DppoAdjustmentKey, Decimal>
+  const rate = rateResolution.rate
+  const nonDeductible = values.nonDeductibleExpenses
+  const exempt = values.exemptRevenue
+  const excludeLoss = values.excludeLossMakingMainActivity
+  const lossCF = values.lossCarryForward
+  const reliefs = values.taxReliefs
+  const advances = values.advancesPaid
+
+  const r = await one<DppoCalculation>(
     db,
     sql`
       WITH result AS (
@@ -150,7 +282,16 @@ export async function buildDppo(
         (dan_po_slevach - ${advances}::numeric)::numeric(19,4)                      AS doplatek
       FROM slevy`,
   )
-  return { type: "CORPORATE_INCOME_TAX", ...r }
+  return {
+    ...base,
+    ...r,
+    completeness: {
+      status: "WORKSHEET_READY",
+      filingReady: false,
+      blockingInputs: [],
+      unsupportedRequirements: DPPO_UNSUPPORTED_REQUIREMENTS,
+    },
+  }
 }
 
 /**

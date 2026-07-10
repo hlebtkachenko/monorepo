@@ -21,12 +21,12 @@
 # Pinned per ADR-0015. Bump via Dependabot docker ecosystem.
 
 ARG NODE_VERSION=24
-ARG OPENFGA_VERSION=v1.15.1
+ARG OPENFGA_VERSION=v1.18.1
 ARG PNPM_VERSION=11.9.0
 
 # ---------- openfga-bin: extract the standalone OpenFGA server binary -------
 # The official image ships a static `/openfga` binary; we copy only that out.
-FROM openfga/openfga:${OPENFGA_VERSION}@sha256:8543200bf85878c968d73da46c4f0e31ba1f63ed3675b71122f1133b0e9d97eb AS openfga-bin
+FROM openfga/openfga:${OPENFGA_VERSION}@sha256:efde89d24487da1a8bc37d85b61341f1fb7024943a1ded65f4b7d51a75666688 AS openfga-bin
 
 # ---------- pruner: turbo prune to a minimal subtree for the package --------
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS pruner

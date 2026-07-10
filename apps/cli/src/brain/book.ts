@@ -133,9 +133,9 @@ function walkFiles(folder: string): string[] {
 /**
  * Assemble the `BrainDryRunPlan` a live run drives for one BOOKABLE record. Every record kind maps to its
  * capture request through the record-type-matched WP-A adapter (`invoiceToCapture` / `bankToCapture` /
- * `cashDocumentToCapture`), then `planForCapture` assembles the login pack + fixed read→propose toolPlan
- * around that request — one source of truth for the sandbox + tool sequence across all three record kinds,
- * only the write body differs.
+ * `cashDocumentToCapture`), then `planForCapture` assembles the login pack + fixed read→classify→propose
+ * toolPlan around that request — one source of truth for the sandbox + tool sequence across all three record
+ * kinds, only the write body differs.
  */
 function planForRecord(
   record: BookableRecord,
@@ -290,8 +290,9 @@ export function renderBookPlan(book: BookPlan, ctx: BookContext): string {
  *   - `signals` / `confidence` are carried verbatim from the extraction (never forged; degraded server-side).
  *
  * PURE of network + creds: `planBrainDryRun` maps the IR through the WP-A adapter and assembles the login
- * pack + fixed read→propose tool plan under the pinned `BRAIN_ACCOUNTING_POLICY` — the SAME `BrainDryRunPlan`
- * a live run drives. No booking here — the live capture (and the server gate) still hold every write.
+ * pack + fixed read→classify→propose tool plan under the pinned `BRAIN_ACCOUNTING_POLICY` — the SAME
+ * `BrainDryRunPlan` a live run drives. No booking here — the live capture (and the server gate) still hold
+ * every write.
  */
 export function assembleOcrCapturePlan(
   invoice: Invoice,

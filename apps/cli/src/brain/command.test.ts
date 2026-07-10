@@ -1,9 +1,9 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { planBrainDryRun } from "@workspace/intake"
-import { readInputs } from "./command"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { planBrainDryRun, type OnboardingPlan } from "@workspace/intake"
+import { confirmOnboardingExecute, readInputs } from "./command"
 
 // [W1.3] `brain run --inputs <file.json>` used to break on the IR money fields: they are `bigint` minor
 // units (haléř) in TypeScript, but `JSON.parse` produces `number`, so the values arrived as the wrong type
@@ -137,5 +137,47 @@ describe("readInputs (brain run --inputs bigint reviver) [W1.3]", () => {
       inputsFile({ total: 9007199254740993, base: "100000", tax: "21000" }),
     )
     expect(() => readInputs(path)).toThrow(/total_minor/)
+  })
+})
+
+describe("confirmOnboardingExecute fail-closed posture", () => {
+  // `input` in command.ts is a binding to `process.stdin`, so mutating
+  // `process.stdin.isTTY` drives the gate's own `!input.isTTY` check.
+  const originalIsTTY = process.stdin.isTTY
+
+  afterEach(() => {
+    ;(process.stdin as { isTTY?: boolean }).isTTY = originalIsTTY
+    vi.restoreAllMocks()
+  })
+
+  it("returns false without ever prompting when stdin is not a TTY (non-interactive auto-refusal)", async () => {
+    ;(process.stdin as { isTTY?: boolean }).isTTY = false
+    const writeSpy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true)
+
+    const plan: OnboardingPlan = {
+      report: {
+        bookable: false,
+        hasOpenPeriod: false,
+        requiredEntityTypes: ["DOCUMENT", "EVENT"],
+        missingSeriesEntityTypes: [],
+      },
+      explanation: "not bookable",
+      proposedCalls: [
+        {
+          tool: "create_accounting_period",
+          purpose: "No OPEN accounting period exists.",
+          request: { periodStart: "2026-07-10" },
+        },
+      ],
+    }
+
+    await expect(confirmOnboardingExecute(plan)).resolves.toBe(false)
+    // It fails closed by construction: it prints the refusal and never opens a
+    // readline prompt — so a non-interactive run can never hang or auto-approve.
+    expect(writeSpy).toHaveBeenCalledWith(
+      expect.stringContaining("non-interactive"),
+    )
   })
 })

@@ -20,11 +20,6 @@ import { getRequestSession } from "../../_lib/request-session"
 import { resolveOrgContext, type OrgContext } from "../../_lib/org-authz"
 import { collectOrgUpdates, type OrgSettingsUpdate } from "./org-update"
 
-// Re-exported so existing settings imports (and the tax-profile test) keep
-// working; the implementations now live in ../../_lib/org-authz.
-export { resolveOrgContext }
-export type { OrgContext }
-
 /** Next účetní období bounds: prior end + 1 day → + 1 year − 1 day. */
 function nextBounds(priorEnd: string): { start: string; end: string } {
   const d = new Date(`${priorEnd}T00:00:00Z`)

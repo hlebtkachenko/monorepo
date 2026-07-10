@@ -16,9 +16,7 @@
  * RLS). RLS policy + CHECK constraint live in the migration, not this DSL
  * (repo convention — no schema file declares pgPolicy / CHECK).
  */
-import { sql } from "drizzle-orm"
 import {
-  check,
   foreignKey,
   numeric,
   pgTable,
@@ -135,32 +133,5 @@ export const dppo_annual_adjustment = pgTable(
       columns: [t.period_id, t.organization_id],
       foreignColumns: [accounting_period.id, accounting_period.organization_id],
     }),
-    // Provenance is all-or-none per adjustment group: each group's four columns
-    // are either all NULL (unanswered) or all set (answered). Mirrors the
-    // num_nulls(...) IN (0, 4) CHECK constraints in the migration.
-    check(
-      "dppo_annual_adjustment_non_deductible_expenses_provenance_chk",
-      sql`num_nulls(${t.non_deductible_expenses_amount}, ${t.non_deductible_expenses_source}, ${t.non_deductible_expenses_reference}, ${t.non_deductible_expenses_recorded_at}) in (0, 4)`,
-    ),
-    check(
-      "dppo_annual_adjustment_exempt_revenue_provenance_chk",
-      sql`num_nulls(${t.exempt_revenue_amount}, ${t.exempt_revenue_source}, ${t.exempt_revenue_reference}, ${t.exempt_revenue_recorded_at}) in (0, 4)`,
-    ),
-    check(
-      "dppo_annual_adjustment_exclude_loss_activity_provenance_chk",
-      sql`num_nulls(${t.exclude_loss_making_main_activity_amount}, ${t.exclude_loss_making_main_activity_source}, ${t.exclude_loss_making_main_activity_reference}, ${t.exclude_loss_making_main_activity_recorded_at}) in (0, 4)`,
-    ),
-    check(
-      "dppo_annual_adjustment_loss_carry_forward_provenance_chk",
-      sql`num_nulls(${t.loss_carry_forward_amount}, ${t.loss_carry_forward_source}, ${t.loss_carry_forward_reference}, ${t.loss_carry_forward_recorded_at}) in (0, 4)`,
-    ),
-    check(
-      "dppo_annual_adjustment_tax_reliefs_provenance_chk",
-      sql`num_nulls(${t.tax_reliefs_amount}, ${t.tax_reliefs_source}, ${t.tax_reliefs_reference}, ${t.tax_reliefs_recorded_at}) in (0, 4)`,
-    ),
-    check(
-      "dppo_annual_adjustment_advances_paid_provenance_chk",
-      sql`num_nulls(${t.advances_paid_amount}, ${t.advances_paid_source}, ${t.advances_paid_reference}, ${t.advances_paid_recorded_at}) in (0, 4)`,
-    ),
   ],
 )

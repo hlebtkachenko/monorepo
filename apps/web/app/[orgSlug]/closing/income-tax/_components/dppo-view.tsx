@@ -19,6 +19,7 @@ import { formatDecimal } from "../../../../_components/_shared/accounting-format
 import type { CorporateIncomeTaxResult } from "../_lib/income-tax-data"
 import { AnnualStatusMessage } from "../../_components/annual-status-message"
 import { AnnualCompletenessAlert } from "../../_components/annual-completeness-alert"
+import { DppoAdjustmentsDialog } from "./dppo-adjustments-dialog"
 
 /** One DPPO computation line — `sazba` is a rate (§21), every other field is a Kč amount. */
 interface DppoLine {
@@ -75,11 +76,14 @@ function formatDppoValue(dppo: Dppo, line: DppoLine): string {
   return line.format === "rate" ? formatRate(value) : formatDecimal(value)
 }
 
+type OkResult = Extract<CorporateIncomeTaxResult, { status: "ok" }>
+
 /**
  * Corporation tax (DPPO — daň z příjmů právnických osob, Act 586/1992 Sb.) —
  * the active accounting period's real computed figures from `buildDppo`.
  * Annual: one computation per period, no filing-period picker (unlike VAT).
- * Book values remain visible while missing advisor inputs block derived totals.
+ * Server-rendered read-only worksheet; owners/admins get a client edit dialog
+ * ({@link DppoAdjustmentsDialog}) mounted alongside it.
  */
 export function DppoView({ data }: { data: CorporateIncomeTaxResult }) {
   return (
@@ -92,39 +96,54 @@ export function DppoView({ data }: { data: CorporateIncomeTaxResult }) {
           {data.status !== "ok" ? (
             <AnnualStatusMessage data={data} />
           ) : (
-            <div className="flex flex-col gap-4">
-              <p className="text-sm text-muted-foreground">
-                {data.periodLabel}
-              </p>
-
-              <AnnualCompletenessAlert completeness={data.dppo.completeness} />
-
-              <Card className="p-0">
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Line</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {DPPO_LINES.map((line) => (
-                        <TableRow key={line.key}>
-                          <TableCell>{line.label}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatDppoValue(data.dppo, line)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </div>
+            <DppoWorksheet data={data} />
           )}
         </RecordWorkspace>
       </ContentPanel>
     </>
+  )
+}
+
+/** The read-only worksheet + (owner/admin only) the client adjustments editor. */
+function DppoWorksheet({ data }: { data: OkResult }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">{data.periodLabel}</p>
+
+      <AnnualCompletenessAlert completeness={data.dppo.completeness} />
+
+      <Card className="p-0">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Line</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {DPPO_LINES.map((line) => (
+                <TableRow key={line.key}>
+                  <TableCell>{line.label}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatDppoValue(data.dppo, line)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {data.canEdit ? (
+        <div className="flex items-center justify-end">
+          <DppoAdjustmentsDialog
+            slug={data.slug}
+            periodId={data.periodId}
+            dppo={data.dppo}
+          />
+        </div>
+      ) : null}
+    </div>
   )
 }

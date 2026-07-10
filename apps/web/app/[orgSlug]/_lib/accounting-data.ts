@@ -39,6 +39,8 @@ import {
 export interface OrgAccountingContext {
   organizationId: string
   userId: string
+  /** The caller's membership role for the org (drives owner/admin edit affordances). */
+  role: "owner" | "admin" | "member" | "agent" | "guest"
   /** Active accounting period resolved from the `afframe_period` shell cookie, or null when the org has no books yet. */
   periodId: string | null
   periodStart: string | null
@@ -54,13 +56,17 @@ export async function getOrgAccountingContext(
 
   const org = await withAdminBypass(async (db) => {
     const rows = await db
-      .select({ id: organization.id })
+      .select({
+        id: organization.id,
+        role: organization_membership.role,
+      })
       .from(organization)
       .innerJoin(
         organization_membership,
         and(
           eq(organization_membership.organization_id, organization.id),
           eq(organization_membership.user_id, userId),
+          eq(organization_membership.active, true),
         ),
       )
       .where(eq(organization.slug, orgSlug))
@@ -79,6 +85,7 @@ export async function getOrgAccountingContext(
   return {
     organizationId: org.id,
     userId,
+    role: org.role,
     periodId: period?.id ?? null,
     periodStart: period?.period_start ?? null,
     periodEnd: period?.period_end ?? null,

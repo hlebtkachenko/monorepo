@@ -168,12 +168,13 @@ async function reverseChargeRows(
       ? sql`AND pr.vat_jurisdiction IN ('EU', 'SECTION_108')`
       : sql`AND pr.vat_jurisdiction IS DISTINCT FROM 'EU' AND pr.vat_jurisdiction IS DISTINCT FROM 'SECTION_108'`
   // §92 kód předmětu plnění is grouped and emitted unconditionally: the DB CHECK
-  // (partial_record_commodity_code_rc_chk, migration 0046) guarantees a non-NULL
-  // commodity_code only ever sits on a DOMESTIC reverse-charge line, so on the EU
-  // filter (A.2) every code is provably NULL — grouping by an all-NULL column is
-  // a no-op and kod comes out NULL, no read-side masking needed. On A.1/B.1 the
-  // kód is part of the grouping key, so a doklad mixing §92 commodities yields a
-  // row per kód.
+  // (partial_record_commodity_code_rc_chk, migration 0046, tightened by 0056)
+  // guarantees a non-NULL commodity_code only ever sits on a DOMESTIC
+  // reverse-charge line — the constraint excludes BOTH 'EU' AND 'SECTION_108' —
+  // so on the SELF_ASSESSED filter (A.2) every code is provably NULL: grouping
+  // by an all-NULL column is a no-op and kod comes out NULL, no read-side
+  // masking needed. On A.1/B.1 the kód is part of the grouping key, so a doklad
+  // mixing §92 commodities yields a row per kód.
   //
   // A.1 (ISSUED PDP dodavatel) carries no daň — the odběratel self-assesses; the
   // A.1 form has základ + kód only. On the received side the příjemce self-assesses.

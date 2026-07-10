@@ -106,6 +106,24 @@ function assertSection108IsReceived(p: PartialRecordInput): void {
   }
 }
 
+/**
+ * Boundary guard: a §92 kód předmětu plnění (commodityCode) belongs ONLY on a
+ * DOMESTIC §92 PDP row — it is meaningless on a SECTION_108 (§108 residual
+ * self-assessment) row. The two land on different kontrolní hlášení sections
+ * (A.1/B.1 domestic PDP vs A.2 self-assessment, kontrolni-hlaseni.ts) and only
+ * A.1/B.1 has a kód field. The DB CHECK (partial_record_commodity_code_rc_chk,
+ * migration 0046, tightened by 0056) is the authoritative backstop; this guard
+ * gives a friendlier error at the capture boundary instead of a raw
+ * constraint-violation message (#540).
+ */
+function assertNoCommodityCodeOnSection108(p: PartialRecordInput): void {
+  if (p.vatJurisdiction === "SECTION_108" && p.commodityCode != null) {
+    throw new Error(
+      `accounting: a §92 kód předmětu plnění (commodityCode) cannot sit on a SECTION_108 partial — §92 domestic PDP (KH A.1/B.1) and §108 residual self-assessment (KH A.2) are different kontrolní hlášení lines — got commodityCode "${p.commodityCode}" (#540)`,
+    )
+  }
+}
+
 /** Create an účetní případ — the economic fact (§6/1). Allocates the Označení. */
 export async function createEvent(
   db: RowExecutor,
@@ -201,6 +219,7 @@ export async function captureDocument(
         assertIssuedExportIsExempt(p)
         assertSection108IsReceived(p)
       }
+      assertNoCommodityCodeOnSection108(p)
       partialRecordIds.push(
         await insertPartial(db, ctx, indiv.id, p, accountingCurrency),
       )

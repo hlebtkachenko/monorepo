@@ -2416,7 +2416,7 @@ CREATE TABLE public.partial_record (
     supply_kind text,
     commodity_code text,
     CONSTRAINT partial_record_commodity_code_chk CHECK (((commodity_code IS NULL) OR (commodity_code = ANY (ARRAY['1'::text, '3'::text, '4'::text, '5'::text])))),
-    CONSTRAINT partial_record_commodity_code_rc_chk CHECK (((commodity_code IS NULL) OR ((vat_mode = 'REVERSE_CHARGE'::public.vat_mode) AND (vat_jurisdiction IS DISTINCT FROM 'EU'::text)))),
+    CONSTRAINT partial_record_commodity_code_rc_chk CHECK (((commodity_code IS NULL) OR ((vat_mode = 'REVERSE_CHARGE'::public.vat_mode) AND (vat_jurisdiction IS DISTINCT FROM 'EU'::text) AND (vat_jurisdiction IS DISTINCT FROM 'SECTION_108'::text)))),
     CONSTRAINT partial_record_fx_pair_chk CHECK (((fx_rate IS NULL) = (fx_rate_kind IS NULL))),
     CONSTRAINT partial_record_fx_positive_chk CHECK (((fx_rate IS NULL) OR (fx_rate > (0)::numeric))),
     CONSTRAINT partial_record_qty_price_chk CHECK (((quantity IS NULL) OR (unit_price IS NULL) OR (base_amount = round((quantity * unit_price), 4)))),

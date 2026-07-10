@@ -40,4 +40,30 @@ ALTER TABLE partial_record
 COMMENT ON COLUMN partial_record.vat_jurisdiction IS
   'VAT place-of-supply regime (ZDPH §16/§92/§102/§108): DOMESTIC/REVERSE_CHARGE/EU/IMPORT/EXEMPT/OUTSIDE_VAT/SECTION_108. Splits ř.3/4 (EU acquisition), ř.5/6 (EU §9(1) service), ř.10/11 (domestic §92 PDP), and ř.12/13 (§108 residual — place of supply CZ, supplier not established) on the DPH return; NULL = legacy/undistinguished.';
 
+-- Tighten the §92 kód-vs-jurisdiction coupling (migration 0046,
+-- partial_record_commodity_code_rc_chk) to also exclude SECTION_108.
+-- 'SECTION_108' IS DISTINCT FROM 'EU' is TRUE, so without this the 0046
+-- constraint (written before SECTION_108 existed) would still let a
+-- SECTION_108 received partial carry a non-NULL §92 commodity_code. That code
+-- would then be part of reverseChargeRows()'s GROUP BY (kontrolni-hlaseni.ts)
+-- and get emitted as `kod` onto a kontrolní hlášení A.2 row — but A.2 (§108
+-- residual self-assessment) has no §92-kód field; a §92 kód only belongs on a
+-- DOMESTIC §92 PDP row (A.1/B.1). SECTION_108 is brand-new as of this
+-- migration (zero existing rows), so tightening the CHECK in place is safe.
+-- Same DROP + re-ADD shape as the vat_jurisdiction_chk change above (a CHECK
+-- cannot be altered in place); idempotent.
+ALTER TABLE partial_record
+  DROP CONSTRAINT IF EXISTS partial_record_commodity_code_rc_chk;
+
+ALTER TABLE partial_record
+  ADD CONSTRAINT partial_record_commodity_code_rc_chk
+  CHECK (
+    commodity_code IS NULL
+    OR (
+      vat_mode = 'REVERSE_CHARGE'
+      AND vat_jurisdiction IS DISTINCT FROM 'EU'
+      AND vat_jurisdiction IS DISTINCT FROM 'SECTION_108'
+    )
+  );
+
 COMMIT;

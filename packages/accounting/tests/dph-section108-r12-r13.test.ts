@@ -254,4 +254,47 @@ describe("DPH ř.12/13 — §108 residual + RENT place-of-supply fix (#540)", ()
       ).rejects.toThrow(/SECTION_108/)
     })
   })
+
+  it("rejects a §92 commodityCode on a RECEIVED SECTION_108 partial (KH A.2 metadata leak)", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2088-01-01",
+      periodEnd: "2088-12-31",
+    })
+
+    await withOrganization(orgA, userId, async (db) => {
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "§108 residual with a stray §92 kód",
+        occurredAt: "2088-06-01",
+        responsibleUserId: userId,
+      })
+      await expect(
+        captureDocument(db, s.ctx, {
+          periodId: s.periodId,
+          seriesId: s.documentSeriesId,
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2088-06-01",
+          taxPointDate: "2088-06-01",
+          receivedDate: "2088-06-01",
+          lines: [
+            {
+              eventId: ev.eventId,
+              partials: [
+                {
+                  baseAmount: "1000.00",
+                  vatRate: "21",
+                  vatMode: "REVERSE_CHARGE",
+                  vatJurisdiction: "SECTION_108",
+                  supplyKind: "UTILITY",
+                  commodityCode: "5",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        }),
+      ).rejects.toThrow(/commodityCode/)
+    })
+  })
 })

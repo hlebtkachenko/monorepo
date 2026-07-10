@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.17.2] — 2026-07-10
+
+Patch release: Afframe Brain M0 — the test-phase enabler set. Raised pre-launch admission caps + env-configurable throttler, one-paste env-collapse (only `BRAIN_API_KEY`), a real held-write review UI, onboarding create-period / number-series / list-periods tools (fixes #579), a bulk `brain book-batch` orchestrator, code guards for every safety invariant (including the I8 confident-wrong circuit-breaker), gate-integrity + stale-held alerts, and a fail-closed login-pack constitution assembler. Additive and gated: every accounting write is still HELD at cold start.
+
 ### Added
 
 - **brain**: automated code guards + tests for the Brain safety invariants I3 (no tenancy fields in any API request schema + full public-op allowlist), I4 (append-only ledger DELETE rejection), I7 (human-actor-required guard), I9 (no write-templates tripwire, scanning code not comments), and I10 (provenance atomicity).

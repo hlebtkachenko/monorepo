@@ -5,7 +5,7 @@
 # pg_restore), aws-cli (for s3 cp), zstd (compression), bash, jq.
 #
 # Pinned per ADR-0015 (no :latest). Bumped via Dependabot docker ecosystem.
-FROM postgres:18-alpine@sha256:1b1689b20d16a014a3d195653381cf2caa75a41a92d93b255a9d6ea29fd353aa
+FROM postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
 
 # aws-cli on alpine ships via apk's "aws-cli" package (v2 since alpine 3.20).
 # jq is used by future per-org filtering helpers; tiny and worth pre-installing.

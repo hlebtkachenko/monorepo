@@ -6,8 +6,34 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- Bump postgres digest in /infra (infra-docker group) (#657)
+- Bump postgres digest in /infra/compose/postgres (#658)
+- Bump postgres digest in /infra/compose/pgtap (#659)
+- Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
+- Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
+
+## [v0.17.5] — 2026-07-10
+
+M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the deterministic write-body wiring that threads the server's treatment onto the capture payload (narrow-only, every special regime still HELD), the MD/D posting preview with exact minor-unit money math, edit-before-approve on the held-write inspector, conversational onboarding discovery + `brain onboard --execute`, the fail-closed markitdown extraction layer, and the §66 export (DPH ř.22) correctness fix.
+
 ### Added
 
+- **brain**: edit-before-approve on the held-write approvals inspector (M1.7, A-Z 2.6) — a reviewer can correct the header date, single-partial VAT amounts, and double-entry posting lines before approving, replaying the edited payload through the same gated resolve path.
+- **brain**: M1.3 MD/D posting preview on the held-write approvals inspector — reuses the existing předkontace expander (classifyEvent + expandScenarioEntries) as a pure, read-only view over a held write's proposed input, no posting, no persisted read.
+
+### Fixed
+
+- **brain**: exact integer-minor-unit money math in the MD/D held-write preview totals — replaced the float sum + `< 0.005` epsilon balance check with exact numeric(19,4) minor-unit arithmetic (domain rule: never native `number` for money); display output unchanged.
+- **brain**: `afframe brain onboard --execute` runs the already-assembled onboarding create calls (create_accounting_period / create_number_series) via the operator's own API client, behind an explicit confirmation gate mirroring `brain book --live` — immediately-applied writes, default stays print-only (M1.4 completion).
+- **brain**: onboarding discovery — a pure `discoverBookability` predicate (an OPEN period + DOCUMENT/EVENT number series) plus `afframe brain onboard`, a read-only CLI command that reports whether an organization is bookable and, if not, proposes (never executes) the exact `create_accounting_period`/`create_number_series` calls that would fix it (M1.4 discovery + guided-create slice; the live conversational wizard is follow-up).
+- **brain**: wire the reasoning lane (M1.1+M1.2) — `list_accounts`/`get_account` join the book-lane read allowlist, and the login-pack + live kickoff now require the Brain to reason the transaction facts and call `classify_accounting_event` (a pure, ungated decision) before every capture/posting proposal, instead of being handed a pre-decided treatment. Every proposal is still HELD/gated exactly as before — classify never mutates, never bypasses the server gate, and the write body is unchanged in this PR.
+
+### Changed
+
+- Bump markitdown from 0.1.5 to 0.1.6 (#660)
+- **brain**: complete the M1.2 write-body wiring — the harness now threads the server's `classify_accounting_event` treatment (vatMode/vatJurisdiction/commodityCode) onto the capture write body deterministically at the launcher's canUseTool updatedInput seam. The model never edits the payload; the merge is NARROW-ONLY (only ever moves a line toward held, never widens an adapter-held OUTSIDE_VAT row into STANDARD) and never touches the amounts; confidence stays out of the model's hands; every special-regime write is still HELD by the untouched `deriveCaptureVeto` (`unverified_vat_regime`).
 - **brain**: `brain extract`'s digital-PDF path now runs a best-effort local markitdown text-layer read alongside the vision-OCR pre-pass (M1.5), and every extraction always resolves through a fail-closed `extractionMethod` discriminator (#565) — markitdown, tesseract (deferred), and vision all map to the SAME weakest wire value (`ocr`), by type construction, never a stronger one; the extract→book bridge's existing forced `ocr` stamp is unchanged.
 ### Fixed
 
@@ -28,6 +54,10 @@ Patch release: capture and compute the DPPO annual worksheet inputs, converge ev
 - Bump OpenFGA image pin to v1.18.1 in the CDK app-stack (#564)
 - Converge OpenFGA bootstrap Dockerfile + local compose pins to v1.18.1 and extend the version-check guard to all three pin files (#533)
 - Onboarding profile locale selector now offers Czech, sourced from the @workspace/i18n registry (#532)
+
+### Fixed
+
+- **brain**: `afframe brain onboard --execute` now exits non-zero when a NON-TTY run auto-refuses the confirmation with onboarding work still pending, so automation can distinguish "refused, nothing created" from the already-bookable no-op. An interactive decline stays exit 0.
 
 ## [v0.17.3] — 2026-07-10
 

@@ -312,6 +312,9 @@ importers:
       '@workspace/intake':
         specifier: workspace:*
         version: link:../../packages/intake
+      '@workspace/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -875,6 +878,9 @@ importers:
 
   packages/intake:
     dependencies:
+      '@workspace/accounting':
+        specifier: workspace:*
+        version: link:../accounting
       '@workspace/brain':
         specifier: workspace:*
         version: link:../brain

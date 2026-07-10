@@ -2311,6 +2311,11 @@
                 "description": "ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.",
                 "example": "0.00"
               },
+              "r22_base": {
+                "type": "string",
+                "description": "ř.22 základ — vývoz zboží do třetí země (§66); osvobozeno s nárokem, bez daně.",
+                "example": "0.00"
+              },
               "r25_base": {
                 "type": "string",
                 "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
@@ -2396,6 +2401,7 @@
               "r11_dan",
               "r20_base",
               "r21_base",
+              "r22_base",
               "r25_base",
               "r40_base",
               "r40_dan",
@@ -2610,6 +2616,11 @@
             "description": "ř.21 základ — poskytnutí služby s místem plnění v JČS dle §9/1; bez daně.",
             "example": "0.00"
           },
+          "r22_base": {
+            "type": "string",
+            "description": "ř.22 základ — vývoz zboží do třetí země (§66); osvobozeno s nárokem, bez daně.",
+            "example": "0.00"
+          },
           "r25_base": {
             "type": "string",
             "description": "ř.25 základ — PDP dodavatel (§92a); daň odvádí odběratel.",
@@ -2695,6 +2706,7 @@
           "r11_dan",
           "r20_base",
           "r21_base",
+          "r22_base",
           "r25_base",
           "r40_base",
           "r40_dan",

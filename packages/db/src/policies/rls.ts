@@ -78,6 +78,9 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "organization_oss_registration",
   // operational tax profile (0048_organization_tax_profile.sql)
   "organization_tax_profile",
+  // DPPO annual worksheet inputs (0054_dppo_annual_adjustment.sql)
+  "dppo_annual_adjustment",
+  "dppo_annual_taxpayer_category",
 ] as const
 
 export type OrganizationScopedTable =
@@ -103,7 +106,7 @@ export type OrganizationScopedTable =
  *   - 0035_accounting_enforcement.sql §2 — counterparty
  *   - 0047_ocr_extraction_template.sql   — ocr_extraction_template
  *   - 0050_brain_confident_wrong.sql     — brain_confident_wrong (§I8 breaker)
- *   - 0054_booking_template.sql          — booking_template (M2.1, §I9 amendment)
+ *   - 0055_booking_template.sql          — booking_template (M2.1, §I9 amendment)
  *
  * If you add a workspace-scoped table, add it here AND to a migration that
  * creates its 4 command-specific policies with the NULLIF guard.

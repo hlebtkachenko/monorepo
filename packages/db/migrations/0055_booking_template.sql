@@ -1,4 +1,4 @@
--- 0054_booking_template.sql
+-- 0055_booking_template.sql
 --
 -- Brain booking-template library — M2.1 (amends constitution §I9).
 --

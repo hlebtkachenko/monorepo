@@ -66,7 +66,7 @@ import { describe, expect, it } from "vitest"
  *   facts to the SAME `create_accounting_event` / `create_accounting_posting`
  *   typed calls the Brain already makes after full reasoning, still through
  *   the unchanged `runGatedWrite`, still HELD at cold start. See
- *   `packages/db/migrations/0054_booking_template.sql` and
+ *   `packages/db/migrations/0055_booking_template.sql` and
  *   `apps/api/src/v1/booking-templates/booking-templates.controller.ts` for
  *   the server-side half of this argument.
  */

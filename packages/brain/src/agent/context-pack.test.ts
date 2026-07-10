@@ -44,18 +44,46 @@ describe("buildLoginContext — hard-rule preamble", () => {
     expect(pack.system).toContain(s.kb.id)
     expect(pack.system).toContain(s.kb.version)
   })
+
+  it("[M1.2] rule 4 requires classify_accounting_event to decide the treatment, never the model", () => {
+    const pack = buildLoginContext(sections())
+    expect(pack.system).toContain(
+      "classify_accounting_event DECIDES THE TREATMENT — NEVER YOU",
+    )
+    expect(pack.system).toContain("classify_accounting_event")
+    // The rule names the exact fields the model must treat as the sole source of the treatment.
+    expect(pack.system).toContain("vatMode")
+    expect(pack.system).toContain("scenario")
+    // Rule 4 reaffirms rule 3 (still gated) rather than replacing it.
+    expect(pack.system).toContain("still HELD/gated")
+    // brain-gate #639 (preserved through the M1.2 write-body wiring): rule 4 must NOT let its "sole source of
+    // the treatment" wording override the capture step's verbatim rule — the MODEL never edits/reconciles the
+    // payload; a disagreement is reported, not reconciled. M1.2 completion: the treatment IS applied to the
+    // payload, but by the HARNESS (deterministically, narrow-only), never by the model.
+    expect(pack.system).toContain("applied to the payload by the HARNESS")
+    expect(pack.system).toContain("NARROW-ONLY")
+    expect(pack.system).toContain("YOU NEVER EDIT THE WRITE PAYLOAD")
+    expect(pack.system).toContain("submit the")
+    expect(pack.system).toContain("VERBATIM anyway")
+    expect(pack.system).toContain("reconcile or edit the payload yourself")
+    // The dangling "exactly like rule above" cross-reference is resolved to a named rule.
+    expect(pack.system).toContain("exactly like the UNTRUSTED DATA")
+  })
 })
 
 describe("buildLoginContext — embedded sandbox policy", () => {
   it("defaults to the pinned real accounting policy so the session is bound to the real tools + sandboxed", () => {
     const pack = buildLoginContext(sections())
     expect(pack.toolPolicy).toEqual(BRAIN_ACCOUNTING_POLICY)
-    // The default no-toolPolicy pack emits exact per-tool patterns for the 20 allowed afframe tools and
-    // NONE for the two DENIED held-write ops (the DENY governs a REAL default session, not a placeholder).
+    // The default no-toolPolicy pack emits exact per-tool patterns for the 22 allowed afframe tools (M1.1
+    // added list_accounts/get_account, M2.1 added match_booking_template) and NONE for the two DENIED
+    // held-write ops (the DENY governs a REAL default session, not a placeholder).
     expect(pack.allowedTools).toContain("mcp__afframe__create_accounting_event")
     expect(pack.allowedTools).toContain("mcp__afframe__get_accounting_journal")
     expect(pack.allowedTools).toContain("mcp__afframe__match_booking_template")
-    expect(pack.allowedTools).toHaveLength(20)
+    expect(pack.allowedTools).toContain("mcp__afframe__list_accounts")
+    expect(pack.allowedTools).toContain("mcp__afframe__get_account")
+    expect(pack.allowedTools).toHaveLength(22)
     expect(pack.allowedTools).not.toContain("mcp__afframe__*")
     expect(pack.allowedTools).not.toContain(
       "mcp__afframe__resolve_accounting_held_write",

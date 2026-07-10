@@ -1,0 +1,12 @@
+# [M1.5] Pin for the OPTIONAL `markitdown` CLI `brain extract` shells out to for a digital-PDF
+# text-layer read (apps/cli/src/brain/markitdown-adapter.ts). NOT a Python project: nothing in this
+# repo's build/test/deploy pipeline installs from this file. It exists so Dependabot's `pip`
+# ecosystem (see .github/dependabot.yml) tracks the pinned version and files an update PR — the
+# Dependency Update Coverage Rule (AGENTS.md) requires every versioned dependency to have automated
+# update tracking, and a bare version mentioned only in a code comment would not get one.
+#
+# Missing/unpinned locally is NOT a build break: `tryExtractTextLayer` (markitdown-adapter.ts)
+# degrades to `null` (fail-closed to the "vision-only" extraction engine, see extraction-engine.ts)
+# when the binary is absent, so `brain extract` works with or without it installed. Operators who
+# want the digital-PDF accuracy assist run `pip install -r apps/cli/requirements-extract.txt`.
+markitdown==0.1.6

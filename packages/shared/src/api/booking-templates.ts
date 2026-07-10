@@ -6,7 +6,7 @@ import { ClassifyEventResponseSchema } from "./accounting-writes"
 /**
  * Public-API view of a `booking_template` (M2.1) — the workspace-shared Brain
  * booking-template library that AMENDS constitution §I9 ("no write templates").
- * See `packages/db/migrations/0054_booking_template.sql` and
+ * See `packages/db/migrations/0055_booking_template.sql` and
  * `packages/brain/src/no-write-templates.boundary.test.ts` for the full
  * safety argument.
  *

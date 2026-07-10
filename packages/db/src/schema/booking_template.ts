@@ -1,7 +1,7 @@
 /**
  * booking_template — workspace-shared Brain booking-template library (M2.1).
  *
- * Mirrors: packages/db/migrations/0054_booking_template.sql
+ * Mirrors: packages/db/migrations/0055_booking_template.sql
  *
  * A REVIEWABLE record of a recurring transaction's CONFIRMED accounting
  * treatment. See the migration header and `packages/brain/.brain/constitution.md`

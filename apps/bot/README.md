@@ -50,8 +50,31 @@ The 06:00 scan doubles as a daily briefing (health + heartbeat freshness).
 ## Secrets
 
 Local: `apps/bot/.dev.vars` (gitignored, chmod 600) — `BOT_TOKEN`, `TELEGRAM_USER_ID`,
-`WEBHOOK_SECRET`, `INGEST_SECRET`, `GITHUB_DISPATCH_TOKEN`. Prod: `wrangler secret put`
+`WEBHOOK_SECRET`, `INGEST_SECRET`, `GITHUB_DISPATCH_TOKEN`. Copy
+`apps/bot/.dev.vars.example` as a starting template. Prod: `wrangler secret put`
 each (done by `deploy-bot.yml`).
+
+### Obtain / rotate INGEST_SECRET
+
+`INGEST_SECRET` is the same shared bearer as the app's `NOTIFY_SHARED_SECRET`
+(see `docs/env-vars.md`). It is not bot-specific — do not generate a new value
+for the bot alone.
+
+- **Local dev**: run `scripts/bot-dev-vars.sh` from the repo root. It fetches
+  the current value from AWS SSM (`AWS_PROFILE=hleb`, `eu-central-1`) by
+  default, or `--source vault` to read Vault directly, and writes/updates the
+  `INGEST_SECRET=` line in `apps/bot/.dev.vars` — it never prints the value.
+- **Rotation**:
+  1. Generate the new value and write it to Vault:
+     `vault kv put platform/<env>/notify-shared-secret value=<new-value>`.
+  2. Wait up to 5 minutes for the Vault → SSM sync timer to pick it up.
+  3. Update the GitHub repo secret **`INGEST_SECRET`** to the same value.
+  4. Re-run `deploy-bot.yml` (or push a change to `apps/bot/`) so the Worker
+     picks up the new value via `wrangler secret put`.
+
+  The app side (`NOTIFY_SHARED_SECRET` on ECS) picks up the SSM change on its
+  own rollover cadence — see `docs/runbooks/VAULT-OPS.md` for the full
+  write/rotate procedure.
 
 ## Run locally
 

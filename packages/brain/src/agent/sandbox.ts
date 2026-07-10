@@ -119,8 +119,15 @@ export const BRAIN_ACCOUNTING_WRITE_TOOLS = [
 
 /**
  * The read tools the Brain may call: the 10 `get_accounting_*` report getters + org/structure/status +
- * the number-series lookup + the M2.1 booking-template matcher. Deliberately EXCLUDES
- * `list_accounting_held_writes` (see the deny note below).
+ * the number-series lookup + (M1.1) the chart-of-accounts reads + the M2.1 booking-template matcher.
+ * Deliberately EXCLUDES `list_accounting_held_writes` (see the deny note below).
+ *
+ * M1.1 adds `list_accounts` / `get_account` — the reasoning lane (M1.2) needs the Brain to look up real
+ * tenant account numbers/ids while reasoning a proposal, e.g. to confirm an `acquisitionAccount` or an
+ * `accountOverrides` target exists before citing it. Both are pure reads (no mutation, no tenant-scope
+ * escape — same `withOrganization` read path as every other getter here), so they carry the same risk
+ * profile as the existing report getters: low-risk, but the allowlist edit itself gets a light
+ * (brain-gate-lite) review per the milestone plan.
  *
  * `match_booking_template` [M2.1, §I9 amendment]: pure read, mirrors `classify_accounting_event`'s
  * shape — given the case's signature (counterparty/direction/supplyKind/jurisdiction) it returns the
@@ -147,6 +154,8 @@ export const BRAIN_ACCOUNTING_READ_TOOLS = [
   "get_structure",
   "get_status",
   "list_accounting_number_series",
+  "list_accounts",
+  "get_account",
   "match_booking_template",
 ] as const
 

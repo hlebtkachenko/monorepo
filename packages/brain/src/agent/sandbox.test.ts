@@ -215,6 +215,17 @@ describe("BRAIN_ACCOUNTING_POLICY — pinned real accounting allowlist", () => {
     ).toBe(true)
   })
 
+  it("[M1.1] allows the chart-of-accounts reads (list_accounts / get_account)", () => {
+    expect(
+      isToolAllowed("mcp__afframe__list_accounts", BRAIN_ACCOUNTING_POLICY),
+    ).toBe(true)
+    expect(
+      isToolAllowed("mcp__afframe__get_account", BRAIN_ACCOUNTING_POLICY),
+    ).toBe(true)
+    expect(BRAIN_ACCOUNTING_READ_TOOLS).toContain("list_accounts")
+    expect(BRAIN_ACCOUNTING_READ_TOOLS).toContain("get_account")
+  })
+
   it("DENIES resolve_accounting_held_write (self-approval bypass) and list_accounting_held_writes (injection surface)", () => {
     // The two are the whole point of per-tool granularity: the afframe server is allowed, these are not.
     expect(

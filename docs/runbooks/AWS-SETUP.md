@@ -334,9 +334,22 @@ Both staging and production run vanilla `cdk deploy` (no `--hotswap`). Full CFN 
 
 Staging used to run `--hotswap-fallback` to shave ~150s off app-only deploys, but it was removed (2026-06-01): hotswap left staging's CFN state stale vs live resources, and its direct-API path forwarded CloudFormation's reserved `aws:cloudformation:*` tags to the CloudWatch API on any Observability dashboard/alarm change, which AWS rejects (`aws: prefixed tag key names are not allowed for external use`) — wedging every Observability deploy on staging. The ~150s was not worth a class of staging-only failures.
 
-#### Deploys are power-state safe (auto-resume RDS)
+#### Deploys are power-state safe (parallel environment warm-up)
 
-A deploy no longer needs the env to be running first. The deploy job's **"Ensure RDS is available (auto-resume)"** step starts a cold-paused RDS instance and waits for `available` before migrations + the ECS rollout, so deploying into a cold-paused (or still-resuming) env just works. This removed the failure mode where a deploy fired concurrently with `power.yml resume` hung the ECS health gate for the full CFN timeout (App-production wedged ~40 min, incident 2026-06-01). The step is a ~1s no-op when RDS is already available. It does **not** scale Fargate (CDK owns `desiredCount`) and does **not** touch the sleeping page. To re-park after a deploy, run `power.yml … action=cold-pause` as a separate step.
+A deploy no longer needs the env to be running first. `deploy-prep` starts a
+cold-paused RDS instance, waits for `available`, then best-effort warms the
+currently deployed ECS revision. This job runs under change detection and the
+changed-app image build matrix, hiding the normal 6-8 minute cold resume from
+the deploy critical path. The later CDK rollout therefore replaces one warm
+task instead of first starting the old revision and then starting the new one.
+
+If a prerequisite or the deploy fails after warm-up, `restore-paused-state`
+returns ECS and RDS to their initial paused state and rebinds the sleeping page.
+
+`_deploy-aws.yml` and `power.yml` share one per-environment concurrency group,
+so a manual pause/resume cannot race a deployment. The sleeping page remains
+bound until CDK finishes and the post-deploy step unbinds it. To re-park after
+a deploy, run `power.yml … action=cold-pause` separately.
 
 #### Audited replace-guard overrides
 
@@ -410,11 +423,11 @@ A consistent non-2xx on one column points at the broken endpoint. If all columns
 
 ### When to use which `stack` value
 
-| Stack value  | When to use                                                                     | Time       |
-| ------------ | ------------------------------------------------------------------------------- | ---------- |
-| `app-only`   | Code change in `apps/**` or `packages/**`. **Default for ~99% of deploys.**     | ~8-12 min  |
-| `infra-only` | Change to `infra/cdk/lib/*-stack.ts` only (no app code change).                 | ~5-15 min  |
-| `all`        | Both infra + app changes in the same release, OR first-time setup of a new env. | ~15-25 min |
+| Stack value  | When to use                                                                                                        | Time       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `all`        | **Default.** Deploy the full CDK stack set; changed-app detection still rebuilds only affected application images. | ~15-25 min |
+| `app-only`   | Explicit override when intentionally deploying only `AppStack`.                                                    | ~8-12 min  |
+| `infra-only` | Explicit override for Network + Data only, with no app deployment.                                                 | ~5-15 min  |
 
 ### Deploy to production
 
@@ -423,7 +436,7 @@ Same workflow, `environment=production`:
 ```bash
 gh workflow run _deploy-aws.yml \
   -f environment=production \
-  -f stack=app-only \
+  -f stack=all \
   --repo hlebtkachenko/monorepo \
   --ref main
 ```
@@ -733,7 +746,7 @@ Trip-wired for later (see ADR 0008 trip-wire section):
 - Object Lock buckets for audit
 - RDS Multi-AZ + Read Replica
 - RDS Proxy
-- Drizzle migration ECS task (**LANDED 2026-05-20**) — `_deploy-aws.yml`'s "Apply DB migrations via one-off ECS task" step calls `infra/scripts/apply-migrations-via-ecs.sh`, which uploads `packages/db/migrations/*.sql` to the Backup S3 bucket, presigns them, and runs the Backup TaskDef with an overridden command that fetches + applies each in order (journaling to `_app_migrations`). Replaces the operator-driven bastion `pnpm db:migrate` step described earlier. Re-runs are no-ops; failure prints the full task log and aborts the deploy before `cdk deploy App-*`.
+- Drizzle migration ECS task (**LANDED 2026-05-20**) - `_deploy-aws.yml`'s "Apply DB migrations via one-off ECS task" step calls `infra/scripts/apply-migrations-via-ecs.sh`, which packs `packages/db/migrations/*.sql` plus checksums into one archive, uploads and presigns that single S3 object, then runs the Backup TaskDef with an overridden command that verifies and applies each migration in order (journaling to `_app_migrations`). Replaces the operator-driven bastion `pnpm db:migrate` step described earlier. Re-runs are no-ops; failure prints the full task log and aborts the deploy before `cdk deploy App-*`.
 - Workers / Upstash Redis (deferred)
 - ALB + ACM cert (replaced by Cloudflare Tunnel)
 - Status page / uptime monitoring — `status.afframe.com` runs OpenStatus on the OVH VPS, **not AWS**, and is not part of any `cdk deploy` / `_deploy-aws.yml` run. See `docs/runbooks/STATUS-PAGE.md` and `docs/adr/0019-status-page-and-uptime-monitoring.md`.

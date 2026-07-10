@@ -1,0 +1,103 @@
+# Auto-merge for SAFE Dependabot PRs only.
+#
+# What it does: classifies each Dependabot PR by ecosystem + dependency-type +
+# update-type, and for a narrow allowlist of low-risk classes (npm dev-deps
+# patch/minor, pip patch/minor, Docker/compose digest-only refreshes) calls
+# `gh pr merge --auto --squash`. Everything else (GitHub Actions bumps, npm
+# production deps, any semver-major, Docker tag/version changes) is left
+# untouched for human review — this workflow only ever enables auto-merge, it
+# never approves or force-merges.
+#
+# Why a Dependabot secret PAT, not GITHUB_TOKEN: Actions secrets are not
+# exposed to workflow runs triggered by Dependabot PRs (GitHub strips them for
+# supply-chain safety), so the merge step reads a token stored in the
+# repo's Dependabot secret store (Settings > Secrets and variables >
+# Dependabot), not the Actions secret store. `DEPENDABOT_AUTOMERGE_TOKEN` is a
+# fine-scoped PAT (pull-requests: write) used only for `gh pr merge --auto`.
+#
+# `--auto` enables GitHub's auto-merge queue on the PR; GitHub only performs
+# the merge once all required status checks pass, so this can never merge a
+# red or still-running PR. It also respects branch protection / rulesets.
+#
+# Until DEPENDABOT_AUTOMERGE_TOKEN is added as a Dependabot secret, the token
+# guard step below makes this workflow a no-op (exits 0, no merges) rather
+# than failing red.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: dependabot-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  automerge:
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        id: meta
+
+      - name: Evaluate auto-merge safety and merge if safe
+        env:
+          TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+          DEP_TYPE: ${{ steps.meta.outputs.dependency-type }}
+          ECOSYSTEM: ${{ steps.meta.outputs.package-ecosystem }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TOKEN}" ]; then
+            echo "No DEPENDABOT_AUTOMERGE_TOKEN (Dependabot secret) set — auto-merge inert; skipping."
+            exit 0
+          fi
+
+          # Docker/compose digest-only refresh detection (title bumps one
+          # short-sha digest to another, no semver tag change). Backticks in
+          # the single-quoted pattern below are literal, not command
+          # substitution.
+          DIGEST_ONLY_BUMP=false
+          # shellcheck disable=SC2016
+          if echo "${PR_TITLE}" | grep -Eq 'from `[0-9a-f]{7,}` to `[0-9a-f]{7,}`'; then
+            DIGEST_ONLY_BUMP=true
+          fi
+
+          SAFE=false
+          CLASS="none"
+
+          # SAFE class 1: npm dev-dependency patch/minor.
+          if [ "${DEP_TYPE}" = "direct:development" ] && { [ "${UPDATE_TYPE}" = "version-update:semver-patch" ] || [ "${UPDATE_TYPE}" = "version-update:semver-minor" ]; }; then
+            SAFE=true
+            CLASS="npm dev-dependency patch/minor"
+          # SAFE class 2: pip patch/minor.
+          elif [ "${ECOSYSTEM}" = "pip" ] && { [ "${UPDATE_TYPE}" = "version-update:semver-patch" ] || [ "${UPDATE_TYPE}" = "version-update:semver-minor" ]; }; then
+            SAFE=true
+            CLASS="pip patch/minor"
+          # SAFE class 3: Docker/compose digest-only refresh.
+          elif { [ "${ECOSYSTEM}" = "docker" ] || [ "${ECOSYSTEM}" = "docker_compose" ]; } && [ "${DIGEST_ONLY_BUMP}" = "true" ]; then
+            SAFE=true
+            CLASS="docker digest-only refresh"
+          fi
+
+          # Everything else (github_actions bumps, npm production deps, any
+          # semver-major, Docker tag/version changes) falls through as
+          # unsafe by default — this is an allowlist, not a blocklist.
+
+          if [ "${SAFE}" = "true" ]; then
+            echo "Safe auto-merge class: ${CLASS}. Enabling auto-merge (squash) for ${PR_URL}."
+            GH_TOKEN="${TOKEN}" gh pr merge --auto --squash "${PR_URL}"
+          else
+            echo "Not a safe auto-merge class (dependency-type=${DEP_TYPE}, update-type=${UPDATE_TYPE}, ecosystem=${ECOSYSTEM}). Leaving for human review."
+          fi

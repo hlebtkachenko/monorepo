@@ -42,8 +42,14 @@ export interface ExpandInput {
   extraAmounts?: Record<string, Decimal>
 }
 
-/** The SQL-computed amount bases (kept separate from vat_mode so it can't be indexed as an amount). */
-interface PartialAmounts {
+/**
+ * The amount bases a předkontace entry can post — `net`/`vat`/`gross` from the
+ * partial, `self_assessed_vat` for reverse-charge/import self-assessment.
+ * `expandPartialRecord` computes these in SQL (exact decimals); a DB-free
+ * caller (the MD/D preview) computes them itself and passes them straight to
+ * `expandScenarioEntries`.
+ */
+export interface PartialAmounts {
   net: Decimal
   vat: Decimal
   gross: Decimal
@@ -52,6 +58,50 @@ interface PartialAmounts {
 
 function resolveScenario(s: PredkontaceScenario | string): PredkontaceScenario {
   return typeof s === "string" ? getScenario(s) : s
+}
+
+/** One scenario entry expanded against known amounts — account NUMBER (not yet
+ * resolved to an `account_id`), so this is safe to compute with no DB access. */
+export interface ScenarioLine {
+  /** Account NUMBER, after `accountOverrides` — the caller resolves this to an `account_id`. */
+  account: string
+  side: DoubleEntryLineInput["side"]
+  amount: Decimal
+  description?: string
+}
+
+/**
+ * Pure core of the předkontace expansion: turn one scenario's `entries` into
+ * concrete lines given ALREADY-KNOWN amounts — no DB, no persisted read, no
+ * side effects. `expandPartialRecord` calls this after reading the partial's
+ * SQL-computed amounts (exact decimals) and resolving each line's account
+ * NUMBER to the period's `account_id`. Anything that already has the amounts
+ * in hand (e.g. a held-write MD/D PREVIEW, computed from the proposed
+ * `input_json` before anything is posted) can call this directly and skip the
+ * DB round-trip entirely — same scenario table, same entry→line mapping, zero
+ * duplicated logic.
+ */
+export function expandScenarioEntries(
+  scenario: PredkontaceScenario | string,
+  amounts: PartialAmounts,
+  opts?: {
+    accountOverrides?: Record<string, string>
+    extraAmounts?: Record<string, Decimal>
+  },
+): ScenarioLine[] {
+  const s = resolveScenario(scenario)
+  return s.entries.map((entry) => {
+    const account = opts?.accountOverrides?.[entry.account] ?? entry.account
+    const amount = SQL_BASES.has(entry.basis)
+      ? amounts[entry.basis as keyof PartialAmounts]
+      : opts?.extraAmounts?.[entry.basis]
+    if (amount === undefined) {
+      throw new Error(
+        `accounting: předkontace "${s.id}" entry needs amount for basis "${entry.basis}" — pass it in extraAmounts`,
+      )
+    }
+    return { account, side: entry.side, amount, description: entry.description }
+  })
 }
 
 /** Expand a partial_record into double-entry lines using a předkontace scenario. */
@@ -82,29 +132,19 @@ export async function expandPartialRecord(
     )
   }
 
-  const numbers = scenario.entries.map(
-    (e) => input.accountOverrides?.[e.account] ?? e.account,
-  )
+  const lines = expandScenarioEntries(scenario, amounts, {
+    accountOverrides: input.accountOverrides,
+    extraAmounts: input.extraAmounts,
+  })
+  const numbers = lines.map((line) => line.account)
   const accountIds = await resolveAccountIds(db, input.periodId, numbers)
 
-  return scenario.entries.map((entry, i) => {
-    const number = numbers[i] as string
-    const accountId = accountIds.get(number) as string
-    const amount = SQL_BASES.has(entry.basis)
-      ? amounts[entry.basis as keyof PartialAmounts]
-      : input.extraAmounts?.[entry.basis]
-    if (amount === undefined) {
-      throw new Error(
-        `accounting: předkontace "${scenario.id}" entry needs amount for basis "${entry.basis}" — pass it in extraAmounts`,
-      )
-    }
-    return {
-      accountId,
-      side: entry.side,
-      amount: amount as Decimal,
-      partialRecordId: input.partialRecordId,
-    }
-  })
+  return lines.map((line) => ({
+    accountId: accountIds.get(line.account) as string,
+    side: line.side,
+    amount: line.amount,
+    partialRecordId: input.partialRecordId,
+  }))
 }
 
 export interface PostFromPredkontaceInput extends ExpandInput {

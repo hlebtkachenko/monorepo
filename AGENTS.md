@@ -47,7 +47,7 @@ From code: `@workspace/notify` → `ask({question,options,allowCustom})` / `askC
 - `callbackUrl` (+ `callbackToken`) — the bot POSTs `{id,kind,decision,text,asker}` there on resolve. For a service agent with an endpoint.
 - Only a resident process that stays alive should use `waitForAnswer(id)` (a poll loop) or the `ask.ts` CLI (it blocks). `GET /answer/:id` remains a durable fallback floor — the answer is always persisted.
 
-Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally).
+Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally, materialized via `scripts/bot-dev-vars.sh`).
 
 ## Architecture
 
@@ -308,7 +308,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 
 ## Changelog Requirement
 
-Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Use `pnpm changelog:add -- --category Changed --entry "..."` so existing entries are preserved. Do not rewrite, reorder, or remove another Unreleased entry in a normal PR. Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception: they move Unreleased entries into the new version section instead of adding a new bullet.
+Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Use `pnpm changelog:add -- --category Changed --entry "..."` so existing entries are preserved. Do not rewrite, reorder, or remove another Unreleased entry in a normal PR. Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception: they move Unreleased entries into the new version section instead of adding a new bullet. Dependabot PRs are a second exception, gated by author (`dependabot[bot]`) rather than by title: the changelog gate is skipped on those PRs, and the resulting dependency bumps are recorded at release-cut as a synthesized `### Dependencies` bullet (and `### Security` for CVE-flagged bumps) instead of a per-PR entry.
 
 ## Infrastructure
 

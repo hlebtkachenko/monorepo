@@ -25,6 +25,7 @@ import {
   runLiveBrainSession,
   type BrainDryRunInputs,
   type BrainDryRunPlan,
+  type OnboardingPlan,
 } from "@workspace/intake"
 import { assembleLoginSections } from "@workspace/brain"
 import type {
@@ -55,6 +56,14 @@ import {
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
+import {
+  executeOnboardingPlan,
+  fetchOnboardingPlan,
+  renderOnboardingExecuteResults,
+  renderOnboardingPlan,
+} from "./onboard"
+import { classifyExtractionEngine } from "./extraction-engine"
+import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
@@ -209,9 +218,12 @@ export function registerBrainCommand(program: Command): void {
     .command("extract")
     .description(
       "LOCAL vision-OCR pre-pass: read a PDF/image and produce an IR Invoice + field-level provenance + a " +
-        "layout fingerprint, using the workspace OCR template library. It runs OUTSIDE the booking sandbox and " +
-        "NEVER books. The file is fed to the model as an image/document CONTENT BLOCK (not a Read tool). " +
-        "--dry-run assembles + prints the session config only, no creds.",
+        "layout fingerprint, using the workspace OCR template library. For a PDF, a best-effort local " +
+        "markitdown digital-text-layer read (if the `markitdown` CLI is installed) is fed in as untrusted " +
+        "supplementary context (M1.5) — this NEVER changes extractionMethod, which the extract→book bridge " +
+        "always forces to 'ocr'. It runs OUTSIDE the booking sandbox and NEVER books. The file is fed to the " +
+        "model as an image/document CONTENT BLOCK (not a Read tool). --dry-run assembles + prints the " +
+        "session config only, no creds.",
     )
     .argument(
       "<path>",
@@ -250,7 +262,24 @@ export function registerBrainCommand(program: Command): void {
           path,
           new Uint8Array(readFileSync(path)),
         )
-        const plan = assembleExtractPlan(document, ctx, opts.supplier)
+        // [M1.5] Best-effort LOCAL digital-text-layer read (markitdown), PDF only — an image has no text-layer
+        // concept. NEVER throws (see ./markitdown-adapter); a missing/failed run degrades to `null`.
+        const rawTextLayer =
+          document.kind === "document" ? await tryExtractTextLayer(path) : null
+        // [M1.5 / #565] The fail-closed GATE, computed ONCE at this single upstream site. The text-layer assist
+        // rides into the session ONLY when the read positively classifies as a digital-text-layer. A vision-only
+        // classification — including the ambiguous-CZ-amount case, which fails closed like vision — withholds the
+        // text ENTIRELY. The SAME gated `textLayer` feeds BOTH the plan assembly (below) and the live session
+        // (`sdkExtractSession`), so the `--dry-run` plan and the live run can never diverge: neither embeds the
+        // withheld text. (`assembleExtractPlan` re-derives the same gate defensively for any direct caller.)
+        const engine = classifyExtractionEngine(rawTextLayer)
+        const textLayer = engine === "digital-text-layer" ? rawTextLayer : null
+        const plan = assembleExtractPlan(
+          document,
+          ctx,
+          opts.supplier,
+          textLayer,
+        )
 
         // Always PRINT the assembled session config first (default-deny tool lists, the content-block fact,
         // the fixed kickoff), so an operator sees exactly what a live run would do before it runs.
@@ -274,7 +303,11 @@ export function registerBrainCommand(program: Command): void {
         }
 
         const result = await sdkExtractSession({
-          session: { sections: ctx.sections, supplierHint: opts.supplier },
+          session: {
+            sections: ctx.sections,
+            supplierHint: opts.supplier,
+            textLayer,
+          },
           mcpEndpoint,
           apiKey,
           agentSdkAuth,
@@ -285,6 +318,63 @@ export function registerBrainCommand(program: Command): void {
         )
       },
     )
+
+  brain
+    .command("onboard")
+    .description(
+      "Discover whether this organization is bookable (an OPEN accounting period + a DOCUMENT/EVENT " +
+        "number series) and, if not, print the exact create_accounting_period/create_number_series calls " +
+        "that would fix it. READ-ONLY by default: two GETs, no writes, no agent session — the create " +
+        "calls are PROPOSED, never executed. Only with --execute (+ explicit confirmation) are they " +
+        "actually POSTed, immediately applied, via the operator's own BRAIN_API_KEY. Needs only BRAIN_API_KEY.",
+    )
+    .option(
+      "--execute",
+      "Actually run the proposed create calls (immediately-applied writes) after an explicit confirmation. " +
+        "Default is print-only.",
+    )
+    .action(async (opts: { execute?: boolean }) => {
+      const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
+      if (!apiKey) {
+        output.write("brain onboard blocked: missing BRAIN_API_KEY.\n")
+        process.exit(1)
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      const { plan, client } = await fetchOnboardingPlan(
+        apiKey,
+        mcpEndpoint,
+        today,
+      )
+      output.write(renderOnboardingPlan(plan))
+
+      if (!opts.execute) return
+
+      if (plan.proposedCalls.length === 0) {
+        output.write("brain onboard: nothing to execute — already bookable.\n")
+        return
+      }
+
+      const results = await executeOnboardingPlan(
+        plan,
+        client,
+        confirmOnboardingExecute,
+      )
+      if (results === null) {
+        output.write("brain onboard: aborted, nothing executed.\n")
+        // Work was pending (proposedCalls > 0, checked above) but nothing was
+        // created. A NON-TTY run auto-refused the confirm (fail-closed) — signal
+        // non-zero so automation can tell "refused, nothing created" from the
+        // exit-0 "already bookable" path above. An INTERACTIVE decline (user
+        // typed "n") stays exit 0: the operator deliberately chose not to.
+        if (!input.isTTY) process.exitCode = 1
+        return
+      }
+
+      output.write("\n" + renderOnboardingExecuteResults(results))
+      if (results.some((result) => result.status === "failed")) {
+        process.exitCode = 1
+      }
+    })
 }
 
 /**
@@ -659,6 +749,37 @@ async function confirmLiveRun(count: number): Promise<boolean> {
   const answer = (
     await rl.question(
       `Run ${count} live booking session(s) with the plan above? [y/N]: `,
+    )
+  )
+    .trim()
+    .toLowerCase()
+  rl.close()
+  return answer === "y" || answer === "yes"
+}
+
+/**
+ * The `brain onboard --execute` confirmation gate — mirrors `confirmLiveRun` above exactly (same TTY check,
+ * same fail-closed non-interactive default, same `readline` prompt shape), but names EXACTLY what will be
+ * created: these are immediately-applied writes (a 201 on success, not a review-queue HELD), so the prompt
+ * spells out each proposed call's tool name before asking. Returns true only on an explicit yes.
+ */
+export async function confirmOnboardingExecute(
+  plan: OnboardingPlan,
+): Promise<boolean> {
+  if (!input.isTTY) {
+    output.write(
+      "brain onboard: non-interactive and no confirmation possible — refusing to execute without one.\n",
+    )
+    return false
+  }
+  const summary = plan.proposedCalls
+    .map((call, index) => `  [${index + 1}] ${call.tool} — ${call.purpose}`)
+    .join("\n")
+  const rl = createInterface({ input, output })
+  const answer = (
+    await rl.question(
+      `This will CREATE the following (immediately applied, not a dry run):\n${summary}\n` +
+        `Proceed? [y/N]: `,
     )
   )
     .trim()

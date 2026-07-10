@@ -91,7 +91,7 @@ jobs:
     outputs:
       go: ${{ steps.flag.outputs.go }}
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -134,7 +134,7 @@ jobs:
       # independent of deploys. (M6 — AFF-245.)
       EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
       - name: Assert required vars + secrets are present
@@ -189,7 +189,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -246,7 +246,7 @@ jobs:
       # Defaults to true on first/unknown/failed-last-deploy (safe).
       migrations_changed: ${{ steps.decide.outputs.migrations_changed }}
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -280,7 +280,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -512,7 +512,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -541,7 +541,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -641,7 +641,7 @@ jobs:
       IMAGE_TAG: sha-${{ github.sha }}
       SERVICE: ${{ matrix.service }}
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -712,7 +712,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -963,7 +963,7 @@ jobs:
       # them is stack=infra-only.
       SKIP_IMAGE_BUILD: ${{ inputs.stack == 'infra-only' && 'true' || 'false' }}
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -1013,7 +1013,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1564,7 +1564,7 @@ jobs:
       IMAGE_TAG_API: ${{ needs.detect-changes.outputs.image_tag_api || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
       IMAGE_TAG_ADMIN: ${{ needs.detect-changes.outputs.image_tag_admin || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
     steps:
-      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
       - id: env
@@ -1590,7 +1590,7 @@ jobs:
       # Both the success record + failure rollback need AWS now; doing it
       # once keeps the step graph simpler and avoids re-assuming the role
       # twice on the rollback path.
-      - uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}

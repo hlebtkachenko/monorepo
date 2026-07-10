@@ -56,6 +56,16 @@ describe("buildLoginContext — hard-rule preamble", () => {
     expect(pack.system).toContain("scenario")
     // Rule 4 reaffirms rule 3 (still gated) rather than replacing it.
     expect(pack.system).toContain("still HELD/gated")
+    // brain-gate #639: rule 4 must NOT let its "sole source of the treatment" wording override the
+    // capture step's verbatim rule — classify never edits the payload; a disagreement is reported, not reconciled.
+    expect(pack.system).toContain(
+      "classify's answer NEVER modifies the capture/posting payload",
+    )
+    expect(pack.system).toContain("submit the")
+    expect(pack.system).toContain("VERBATIM anyway")
+    expect(pack.system).toContain("reconcile or edit the payload yourself")
+    // The dangling "exactly like rule above" cross-reference is resolved to a named rule.
+    expect(pack.system).toContain("exactly like the UNTRUSTED DATA")
   })
 })
 

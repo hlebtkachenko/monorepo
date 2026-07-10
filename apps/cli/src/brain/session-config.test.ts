@@ -380,6 +380,13 @@ describe("constants", () => {
     expect(kickoff).toContain(
       "already-inspected payload verbatim — do not invent, add, drop, or edit any field",
     )
+    // brain-gate #639: the fact source is the embedded payload, NOT an (inaccessible) document read.
+    expect(kickoff).toContain("you have no document-read tool")
+    // brain-gate #639: on a classify-vs-payload disagreement the session submits verbatim + reports a
+    // discrepancy, and never reconciles the treatment fields into the write body itself.
+    expect(kickoff).toContain("classify's answer NEVER edits the payload")
+    expect(kickoff).toContain("submit the payload VERBATIM in step 4 anyway")
+    expect(kickoff).toContain("never reconcile it yourself")
   })
 
   it("the kickoff embeds the inspected captureRequest verbatim (no re-planning)", () => {

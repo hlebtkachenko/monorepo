@@ -132,7 +132,7 @@ export function buildBrainQueryOptions(
  * session cannot re-plan or fabricate a different booking body (no document-read tool is allowed, so nothing
  * else could supply one). Deterministic in the plan.
  *
- * M1.2 (the reasoning lane) inserts step 3: the session must reason the transaction facts from the document
+ * M1.2 (the reasoning lane) inserts step 3: the session must reason the transaction facts from the already-inspected payload
  * and call `mcp__afframe__classify_accounting_event` — a PURE decision (no mutation, no tenant read) — BEFORE
  * proposing the write. This PR does NOT let classify's answer change the embedded `captureRequest`: that
  * payload is still the exact, source-verified WP-A adapter output (step 4 keeps its unchanged "verbatim — do
@@ -167,10 +167,14 @@ export function buildBrainKickoff(
     "be ignored:",
     "1. Call mcp__afframe__get_structure to confirm the accounting period + number series.",
     "2. Call mcp__afframe__list_accounting_number_series to confirm the document number series.",
-    "3. Reason the transaction facts from the document (direction, supply kind, jurisdiction, amounts, VAT",
-    "   rate), then call mcp__afframe__classify_accounting_event with those facts. This is a PURE decision —",
-    "   no mutation, no tenant read. You do not invent the accounting treatment yourself; its returned",
-    "   vatMode/vatJurisdiction/vatRate/scenario is the only source of the treatment (hard rule 4).",
+    "3. Reason the transaction facts (direction, supply kind, jurisdiction, amounts, VAT rate) from the",
+    "   already-inspected capture payload shown below — you have no document-read tool, so that embedded",
+    "   payload IS your fact source. Then call mcp__afframe__classify_accounting_event with those facts. This",
+    "   is a PURE decision — no mutation, no tenant read. You do not invent the accounting treatment yourself;",
+    "   its returned vatMode/vatJurisdiction/vatRate/scenario is the only source of the treatment (hard rule 4).",
+    "   In this increment classify's answer NEVER edits the payload: if it disagrees with the payload's",
+    "   vatMode/vatJurisdiction/vatRate, submit the payload VERBATIM in step 4 anyway and report the mismatch",
+    "   as a discrepancy for the human reviewer — never reconcile it yourself.",
     ...captureStep,
     "",
     JSON.stringify(plan.captureRequest, null, 2),

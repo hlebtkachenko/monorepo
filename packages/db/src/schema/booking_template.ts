@@ -10,7 +10,7 @@
  * WORKSPACE-scoped (NOT organization-scoped): a recurring counterparty
  * relationship is a workspace fact — it does not change per client book, so
  * one confirmed template is shared across every org in the office. 4
- * command-specific RLS policies on workspace_id land in 0054, so this table is
+ * command-specific RLS policies on workspace_id land in 0055, so this table is
  * absent from ORGANIZATION_SCOPED_TABLES and present in WORKSPACE_SCOPED_TABLES.
  * UNIQUE(id, workspace_id) is the composite-FK target for org-tier tables that
  * may later reference a template, closing the cross-workspace FK-bypass hole via

@@ -1,6 +1,6 @@
 /**
  * Booking-template match (M2.1) — pure decision layer over a workspace's
- * CONFIRMED `booking_template` rows (migration 0054).
+ * CONFIRMED `booking_template` rows (migration 0055).
  *
  * A `booking_template` is a REVIEWABLE record of a recurring transaction's
  * confirmed accounting treatment: given a COARSE recurring-case signature
@@ -77,7 +77,7 @@ export interface ConfirmedBookingTemplate extends BookingSignature {
  *
  * Exact-match only (no fuzzy scoring): all four COARSE signature fields must
  * agree, and the template must be confirmed. The DB's partial unique index
- * (`booking_template_confirmed_signature_unique`, migration 0054) guarantees
+ * (`booking_template_confirmed_signature_unique`, migration 0055) guarantees
  * at most one confirmed template per signature per workspace; if more than
  * one candidate somehow reaches this function (a caller not backed by that
  * constraint), the most recently confirmed one wins — deterministic, never

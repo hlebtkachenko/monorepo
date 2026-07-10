@@ -49,7 +49,7 @@ import { describe, expect, it } from "vitest"
  *   one layer removed: `OcrTemplate` names a read-side EXTRACTION template;
  *   `BookingTemplateMatch` names the OUTCOME of matching against a
  *   workspace-confirmed `booking_template` row (a REVIEWABLE DB record
- *   created only from a human-confirmed booking, migration 0054) — never a
+ *   created only from a human-confirmed booking, migration 0055) — never a
  *   template that RENDERS a booking itself.
  * - The exception is scoped to an EXACT, hand-enumerated allowlist of
  *   identifiers (`M2_1_BOOKING_TEMPLATE_ALLOWLIST` below), not a regex

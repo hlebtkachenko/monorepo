@@ -138,7 +138,7 @@ export {
 } from "./classify"
 
 // Booking-template match (M2.1, §I9 amendment) — pure decision over a
-// workspace's CONFIRMED booking_template rows (migration 0054)
+// workspace's CONFIRMED booking_template rows (migration 0055)
 export {
   matchBookingTemplate,
   type BookingSignature,

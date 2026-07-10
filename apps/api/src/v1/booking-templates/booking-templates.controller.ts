@@ -322,7 +322,7 @@ export class BookingTemplatesController {
             // DB) AND the domain `matchBookingTemplate` (which re-checks
             // `humanConfirmedAt !== null`). Belt-and-suspenders: a future
             // refactor that drops either filter still cannot surface a draft
-            // — and migration 0054's "match query filters on
+            // — and migration 0055's "match query filters on
             // human_confirmed_at IS NOT NULL" comment is now literally true.
             isNotNull(booking_template.human_confirmed_at),
             eq(booking_template.counterparty_key, signature.counterpartyKey),

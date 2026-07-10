@@ -203,7 +203,7 @@ vi.mock("@workspace/db", () => {
                 created_at: now,
                 updated_at: now,
               }
-              // Emulate the partial unique index (0054): reject a SECOND
+              // Emulate the partial unique index (0055): reject a SECOND
               // confirmed row for the same signature within a workspace.
               if (row.human_confirmed_at) {
                 const clash = state.rows.some(

@@ -6,8 +6,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- Bump postgres digest in /infra (infra-docker group) (#657)
+- Bump postgres digest in /infra/compose/postgres (#658)
+
+## [v0.17.5] — 2026-07-10
+
+M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the deterministic write-body wiring that threads the server's treatment onto the capture payload (narrow-only, every special regime still HELD), the MD/D posting preview with exact minor-unit money math, edit-before-approve on the held-write inspector, conversational onboarding discovery + `brain onboard --execute`, the fail-closed markitdown extraction layer, and the §66 export (DPH ř.22) correctness fix.
+
 ### Added
 
+- **brain**: edit-before-approve on the held-write approvals inspector (M1.7, A-Z 2.6) — a reviewer can correct the header date, single-partial VAT amounts, and double-entry posting lines before approving, replaying the edited payload through the same gated resolve path.
 - **brain**: M1.3 MD/D posting preview on the held-write approvals inspector — reuses the existing předkontace expander (classifyEvent + expandScenarioEntries) as a pure, read-only view over a held write's proposed input, no posting, no persisted read.
 
 ### Fixed

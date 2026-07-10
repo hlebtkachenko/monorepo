@@ -20,6 +20,12 @@ import {
   type ExtractDocumentBlock,
   type ExtractSessionInputs,
 } from "./extract-config"
+import {
+  classifyExtractionEngine,
+  resolveExtractionMethod,
+  type ExtractionEngine,
+  type TextLayerSignal,
+} from "./extraction-engine"
 import { indent } from "./render"
 
 /** The operator-supplied context an `extract` run needs: JUST the login-pack safety spine — NO tenancy keys. */
@@ -88,6 +94,16 @@ export interface ExtractPlan {
   }
   /** The optional (unverified) supplier hint the session narrows its template lookup by. */
   supplierHint?: string
+  /** [M1.5 / #565] Which local engine grounds this extraction — "digital-text-layer" when a markitdown
+   * read of the PDF passed the digital heuristic, else "vision-only" (the fail-closed default: a raster
+   * image, a scanned PDF, an unavailable markitdown run, or a locale-ambiguous CZ amount all land here).
+   * Purely informational — see `extractionMethodStamp`. */
+  extractionEngine: ExtractionEngine
+  /** [M1.5 / #565] The `extractionMethod` value ANY capture built from this session's IR will be FORCED to
+   * at the extract→book bridge (`assembleOcrCapturePlan`, ./book.ts) — always `"ocr"`, regardless of
+   * `extractionEngine`. Surfaced here so an operator (and brain-gate) sees the fail-closed guarantee
+   * BEFORE a live run, not just trusts it. */
+  extractionMethodStamp: "ocr"
   /** The extract-session system prompt (login pack under the extract policy). */
   systemPrompt: string
   /** The per-TOOL allowlist — exactly the ocr-template read + propose pair. */
@@ -99,18 +115,29 @@ export interface ExtractPlan {
 }
 
 /**
- * Assemble the creds-free extract plan for one document. PURE given `document`: it builds the extract login
- * pack (under `BRAIN_EXTRACT_POLICY`) and the fixed kickoff, and echoes the sandbox lists + the document
- * descriptor (with the raw bytes ELIDED — only the byte count is surfaced). No live session is launched and
- * no MCP endpoint is contacted — this is the plan, not the run.
+ * Assemble the creds-free extract plan for one document. PURE given `document` + `textLayer`: it builds the
+ * extract login pack (under `BRAIN_EXTRACT_POLICY`) and the fixed kickoff, classifies the extraction engine
+ * (#565 fail-closed — see `./extraction-engine`), and echoes the sandbox lists + the document descriptor
+ * (with the raw bytes ELIDED — only the byte count is surfaced). No live session is launched and no MCP
+ * endpoint is contacted — this is the plan, not the run.
+ *
+ * [M1.5] `textLayer` is the (optional) already-resolved local digital-text-layer read — the CALLER performs
+ * that I/O (mirroring how `document`'s bytes are already-read before this function sees them; see
+ * `./markitdown-adapter`'s `tryExtractTextLayer`), keeping this assembly itself pure/creds-free/I/O-free.
  */
 export function assembleExtractPlan(
   document: ExtractDocumentBlock,
   ctx: ExtractContext,
   supplierHint?: string,
+  textLayer?: TextLayerSignal | null,
 ): ExtractPlan {
-  const session: ExtractSessionInputs = { sections: ctx.sections, supplierHint }
+  const session: ExtractSessionInputs = {
+    sections: ctx.sections,
+    supplierHint,
+    textLayer,
+  }
   const loginPack = buildExtractLoginPack(session)
+  const extractionEngine = classifyExtractionEngine(textLayer ?? null)
   return {
     document: {
       kind: document.kind,
@@ -119,10 +146,12 @@ export function assembleExtractPlan(
       byteCount: Buffer.from(document.base64, "base64").length,
     },
     supplierHint,
+    extractionEngine,
+    extractionMethodStamp: resolveExtractionMethod(extractionEngine),
     systemPrompt: loginPack.system,
     allowedTools: [...loginPack.allowedTools],
     disallowedTools: [...loginPack.disallowedTools],
-    kickoff: buildExtractKickoff(supplierHint),
+    kickoff: buildExtractKickoff(supplierHint, textLayer),
   }
 }
 
@@ -154,6 +183,14 @@ export function renderExtractPlan(plan: ExtractPlan): string {
   lines.push(`  bytes      = ${plan.document.byteCount}`)
   lines.push(
     `  supplier   = ${plan.supplierHint ? `${plan.supplierHint} (UNVERIFIED hint)` : "(none — resolve from the document)"}`,
+  )
+  lines.push("")
+  lines.push(`Extraction engine (#565 fail-closed): ${plan.extractionEngine}`)
+  lines.push(
+    `  extractionMethod stamp = "${plan.extractionMethodStamp}" (ALWAYS "ocr" for this lane — the extract→book`,
+  )
+  lines.push(
+    `  bridge forces it regardless of which engine grounded the read; see book.ts / extraction-engine.ts).`,
   )
   lines.push("")
   lines.push(`Allowed tools (default-deny — ocr-template read/propose ONLY):`)

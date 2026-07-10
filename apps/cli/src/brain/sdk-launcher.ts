@@ -48,6 +48,7 @@ import {
   type ExtractDocumentBlock,
   type ExtractSessionInputs,
 } from "./extract-config"
+import type { TextLayerSignal } from "./extraction-engine"
 
 /**
  * DEFAULT-DENY permission gate factory shared by BOTH lanes. It builds a `canUseTool` that allows a call only
@@ -238,10 +239,14 @@ export interface ExtractSessionResult {
  * Build the one-message `AsyncIterable<SDKUserMessage>` the extract session boots with: the fixed kickoff
  * text plus the operator-named file as an image/document content block. The bytes ride in the message
  * content, NOT through any tool — this is the whole point of the extract lane's safety design.
+ *
+ * [M1.5] `textLayer` (optional, already resolved by the caller — see `./markitdown-adapter`) rides into the
+ * SAME kickoff text as untrusted supplementary context; it never changes the content block itself.
  */
 async function* extractPromptStream(
   document: ExtractDocumentBlock,
   supplierHint?: string,
+  textLayer?: TextLayerSignal | null,
 ): AsyncIterable<SDKUserMessage> {
   const source = { type: "base64" as const, data: document.base64 }
   const contentBlock =
@@ -265,7 +270,7 @@ async function* extractPromptStream(
     message: {
       role: "user",
       content: [
-        { type: "text", text: buildExtractKickoff(supplierHint) },
+        { type: "text", text: buildExtractKickoff(supplierHint, textLayer) },
         contentBlock,
       ],
     },
@@ -293,7 +298,11 @@ export async function sdkExtractSession(
   let report = ""
 
   for await (const message of query({
-    prompt: extractPromptStream(options.document, options.session.supplierHint),
+    prompt: extractPromptStream(
+      options.document,
+      options.session.supplierHint,
+      options.session.textLayer,
+    ),
     options: {
       ...queryOptions,
       canUseTool: makeExtractCanUseTool(),

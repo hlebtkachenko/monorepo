@@ -55,6 +55,7 @@ import {
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
+import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
@@ -209,9 +210,12 @@ export function registerBrainCommand(program: Command): void {
     .command("extract")
     .description(
       "LOCAL vision-OCR pre-pass: read a PDF/image and produce an IR Invoice + field-level provenance + a " +
-        "layout fingerprint, using the workspace OCR template library. It runs OUTSIDE the booking sandbox and " +
-        "NEVER books. The file is fed to the model as an image/document CONTENT BLOCK (not a Read tool). " +
-        "--dry-run assembles + prints the session config only, no creds.",
+        "layout fingerprint, using the workspace OCR template library. For a PDF, a best-effort local " +
+        "markitdown digital-text-layer read (if the `markitdown` CLI is installed) is fed in as untrusted " +
+        "supplementary context (M1.5) — this NEVER changes extractionMethod, which the extract→book bridge " +
+        "always forces to 'ocr'. It runs OUTSIDE the booking sandbox and NEVER books. The file is fed to the " +
+        "model as an image/document CONTENT BLOCK (not a Read tool). --dry-run assembles + prints the " +
+        "session config only, no creds.",
     )
     .argument(
       "<path>",
@@ -250,7 +254,17 @@ export function registerBrainCommand(program: Command): void {
           path,
           new Uint8Array(readFileSync(path)),
         )
-        const plan = assembleExtractPlan(document, ctx, opts.supplier)
+        // [M1.5] Best-effort LOCAL digital-text-layer read (markitdown), PDF only — an image has no text-layer
+        // concept. NEVER throws (see ./markitdown-adapter); a missing/failed run degrades to `null`, which
+        // `assembleExtractPlan` classifies as the fail-closed "vision-only" engine — same as a scanned PDF.
+        const textLayer =
+          document.kind === "document" ? await tryExtractTextLayer(path) : null
+        const plan = assembleExtractPlan(
+          document,
+          ctx,
+          opts.supplier,
+          textLayer,
+        )
 
         // Always PRINT the assembled session config first (default-deny tool lists, the content-block fact,
         // the fixed kickoff), so an operator sees exactly what a live run would do before it runs.
@@ -274,7 +288,11 @@ export function registerBrainCommand(program: Command): void {
         }
 
         const result = await sdkExtractSession({
-          session: { sections: ctx.sections, supplierHint: opts.supplier },
+          session: {
+            sections: ctx.sections,
+            supplierHint: opts.supplier,
+            textLayer,
+          },
           mcpEndpoint,
           apiKey,
           agentSdkAuth,

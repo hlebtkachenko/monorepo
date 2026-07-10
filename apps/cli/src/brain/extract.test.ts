@@ -97,6 +97,60 @@ describe("assembleExtractPlan (creds-free — no network, no clock)", () => {
   })
 })
 
+describe("assembleExtractPlan — [M1.5 / #565] fail-closed extraction-engine classification", () => {
+  const block = toDocumentBlock(
+    "/tmp/faktura.pdf",
+    new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+  )
+
+  it("classifies vision-only + stamps 'ocr' when NO text layer was resolved (scanned/unavailable)", () => {
+    const plan = assembleExtractPlan(block, ctx, undefined, null)
+    expect(plan.extractionEngine).toBe("vision-only")
+    expect(plan.extractionMethodStamp).toBe("ocr")
+  })
+
+  it("classifies vision-only + stamps 'ocr' when assembled with NO textLayer argument at all (default)", () => {
+    const plan = assembleExtractPlan(block, ctx)
+    expect(plan.extractionEngine).toBe("vision-only")
+    expect(plan.extractionMethodStamp).toBe("ocr")
+  })
+
+  it("classifies digital-text-layer for a substantial, unambiguous text signal — but STILL stamps 'ocr'", () => {
+    const digitalText = `
+      Faktura - danovy doklad c. 2026-00123
+      Dodavatel: Afframe s.r.o., ICO 12345678
+      Celkem k uhrade: 12 100,00 Kc
+    `
+    const plan = assembleExtractPlan(block, ctx, undefined, {
+      text: digitalText,
+    })
+    expect(plan.extractionEngine).toBe("digital-text-layer")
+    // The whole point of #565: a stronger-LOOKING engine can NEVER lift the wire stamp above "ocr".
+    expect(plan.extractionMethodStamp).toBe("ocr")
+  })
+
+  it("fails closed to vision-only + 'ocr' on a locale-ambiguous CZ amount, even with plenty of text", () => {
+    const ambiguousText = `
+      Faktura - danovy doklad c. 2026-00123
+      Dodavatel: Afframe s.r.o., ICO 12345678
+      Doplatek: 1.234
+    `
+    const plan = assembleExtractPlan(block, ctx, undefined, {
+      text: ambiguousText,
+    })
+    expect(plan.extractionEngine).toBe("vision-only")
+    expect(plan.extractionMethodStamp).toBe("ocr")
+  })
+
+  it("threads the text layer into the kickoff as untrusted supplementary data", () => {
+    const plan = assembleExtractPlan(block, ctx, undefined, {
+      text: "Celkem 12 100,00 Kc",
+    })
+    expect(plan.kickoff).toContain("Celkem 12 100,00 Kc")
+    expect(plan.kickoff).toContain("UNTRUSTED")
+  })
+})
+
 describe("renderExtractPlan (--dry-run inspection — no creds)", () => {
   it("states the file is a content block (NOT a Read) and shows the deny surface", () => {
     // No env, no creds, no network — pure text assembly (the --dry-run half).
@@ -120,5 +174,20 @@ describe("renderExtractPlan (--dry-run inspection — no creds)", () => {
     expect(rendered).toContain("confirm_ocr_template are DENIED")
     // Provenance/fingerprint intent is visible in the kickoff echo.
     expect(rendered.toLowerCase()).toContain("layout fingerprint")
+  })
+
+  it("[M1.5 / #565] states the classified engine + that the extractionMethod stamp is ALWAYS 'ocr'", () => {
+    const plan = assembleExtractPlan(
+      toDocumentBlock(
+        "/tmp/faktura.pdf",
+        new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      ),
+      ctx,
+      undefined,
+      null,
+    )
+    const rendered = renderExtractPlan(plan)
+    expect(rendered).toContain("vision-only")
+    expect(rendered).toContain('extractionMethod stamp = "ocr"')
   })
 })

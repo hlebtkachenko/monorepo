@@ -6,6 +6,19 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- **accounting/annual**: resolve DPPO rates from the taxable period and explicit taxpayer category, preserve missing advisor inputs as blocking instead of zero, label DPFO and year-end outputs as incomplete worksheets, and include proven prior-period comparisons when available.
+- **accounting/closing**: resolve VAT and payroll profiles as effective-dated timelines, preserve missing intervals as configuration issues, separate schedule applicability from filing status, and stop labelling past dates as overdue without filing evidence.
+- **workspace/settings**: label the scoped board as periodic obligations, render default number-series descriptions from the canonical catalogue, and enforce responsible-assignee workspace membership in PostgreSQL.
+
+### Fixed
+
+- **accounting/statutory**: preserve unknown legal and payroll facts, resolve VAT obligations from shared effective-dated evidence, require statutory filing-period API ranges, expose guarded invoice legal-date corrections, and serialize responsible-member changes without assignment races.
+- **accounting/closing**: derive KH and SH obligations from captured VAT evidence, preserve quarterly service-only SH and the goods-triggered monthly cadence, keep identified-person schedules event-driven and separate from payer worksheets, single-source VAT classification predicates, and label DAP/KH/SH outputs as partial worksheets with blocking evidence gaps.
+- **accounting/payroll**: replace the `has_employees` shortcut with effective-dated relationship, insurance-participation, payroll-tax-advance, and special-rate-withholding facts; keep legacy rows visibly unconfigured; and resolve each remittance through dated, source-backed threshold and deadline rules.
+- **accounting/vat**: model statutory VAT periods independently from accounting periods, preserve Czech legal dates, and report incomplete VAT evidence instead of asserting unsupported deductions.
+
 ## [v0.17.2] — 2026-07-10
 
 Patch release: Afframe Brain M0 — the test-phase enabler set. Raised pre-launch admission caps + env-configurable throttler, one-paste env-collapse (only `BRAIN_API_KEY`), a real held-write review UI, onboarding create-period / number-series / list-periods tools (fixes #579), a bulk `brain book-batch` orchestrator, code guards for every safety invariant (including the I8 confident-wrong circuit-breaker), gate-integrity + stale-held alerts, and a fail-closed login-pack constitution assembler. Additive and gated: every accounting write is still HELD at cold start.
@@ -28,7 +41,6 @@ Patch release: Afframe Brain M0 — the test-phase enabler set. Raised pre-launc
 
 ### Fixed
 
-- **accounting/legal-dates**: keep missing or ambiguous DUZP, DPPD, and invoice-receipt evidence unresolved, and reject legal-date corrections after an accounting period is closed.
 - **mcp**: the MCP tool codegen (`gen-tools.ts`) silently dropped JSON-Schema `format`, so `conversationId` and other UUID fields never received `.uuid()` in the generated tools; now emit `.uuid()` for `format: "uuid"` so generated tools match the API contract. (#577)
 
 ### Docs
@@ -42,18 +54,11 @@ Patch release: CI/CD signal and bot-deploy fixes only. No product or runtime cha
 
 ### Changed
 
-- **accounting/annual**: resolve DPPO rates from the taxable period and explicit taxpayer category, preserve missing advisor inputs as blocking instead of zero, label DPFO and year-end outputs as incomplete worksheets, and include proven prior-period comparisons when available.
 - **ci**: reduce workflow drift and noise — sync the shared setup action pins, derive Dockerfile `turbo prune` from the root `turbo` dependency, make mature DB advisory checks fail visibly, trim impossible container-scan path filters, and stop PR workflow completions from spawning skipped `notify-ci` runs.
-- **accounting/closing**: resolve VAT and payroll profiles as effective-dated timelines, preserve missing intervals as configuration issues, separate schedule applicability from filing status, and stop labelling past dates as overdue without filing evidence.
-- **workspace/settings**: label the scoped board as periodic obligations, render default number-series descriptions from the canonical catalogue, and enforce responsible-assignee workspace membership in PostgreSQL.
 
 ### Fixed
 
-- **accounting/statutory**: preserve unknown legal and payroll facts, resolve VAT obligations from shared effective-dated evidence, require statutory filing-period API ranges, expose guarded invoice legal-date corrections, and serialize responsible-member changes without assignment races.
-- **accounting/closing**: derive KH and SH obligations from captured VAT evidence, preserve quarterly service-only SH and the goods-triggered monthly cadence, keep identified-person schedules event-driven and separate from payer worksheets, single-source VAT classification predicates, and label DAP/KH/SH outputs as partial worksheets with blocking evidence gaps.
-- **accounting/payroll**: replace the `has_employees` shortcut with effective-dated relationship, insurance-participation, payroll-tax-advance, and special-rate-withholding facts; keep legacy rows visibly unconfigured; and resolve each remittance through dated, source-backed threshold and deadline rules.
 - **ci/bot**: let deploy-bot use the pnpm-installed wrangler instead of a stale wrangler-action version pin, avoiding npm workspace protocol failures during Worker deploys.
-- Model statutory VAT periods independently from accounting periods, preserve Czech legal dates, and report incomplete VAT evidence instead of asserting unsupported deductions.
 
 ## [v0.17.0] — 2026-07-09
 

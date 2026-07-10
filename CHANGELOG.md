@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **brain**: edit-before-approve on the held-write approvals inspector (M1.7, A-Z 2.6) — a reviewer can correct the header date, single-partial VAT amounts, and double-entry posting lines before approving, replaying the edited payload through the same gated resolve path.
 - **brain**: M1.3 MD/D posting preview on the held-write approvals inspector — reuses the existing předkontace expander (classifyEvent + expandScenarioEntries) as a pure, read-only view over a held write's proposed input, no posting, no persisted read.
 
 ### Fixed

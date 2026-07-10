@@ -214,6 +214,22 @@ export class HeldWritesController {
             )
           }
 
+          // [F1 / M3.2] The gate's audit `serverGate` (incl. `.shadow` — the M3
+          // calibration x-axis, see shadow-score.ts) read ONCE here so it can be
+          // (a) used for the reject-branch templateId lookup below and (b)
+          // FORWARDED into the resolved `output_json`. `updateToolCallLogOutput`
+          // fully REPLACES `output_json`, so without (b) the shadow score
+          // persisted at HOLD time is silently wiped the instant a human
+          // resolves the write — exactly when `ingestReviewedRunLog` (M3.3)
+          // needs BOTH `resolution` and `serverGate.shadow` on the SAME row.
+          // Forwarding ONLY this field (never the whole prior body) keeps the
+          // change additive-only: `status`/`reviewId`/`payloadHash` are
+          // untouched, so nothing about the resolve decision, replay behavior,
+          // or any other persisted field changes.
+          const priorServerGate = (
+            row.output_json as { serverGate?: unknown } | null
+          )?.serverGate
+
           if (action === "reject") {
             // [WS-2] Reject-reset: a booking derived from an OCR template that a
             // human rejects is evidence the template's locators produced a bad
@@ -224,8 +240,8 @@ export class HeldWritesController {
             // approve must never touch a template. Absent templateId → no-op.
             // The same shared helper backs the web approvals reject path.
             const templateId = ((
-              row.output_json as { serverGate?: { templateId?: unknown } }
-            )?.serverGate?.templateId ?? null) as string | null
+              priorServerGate as { templateId?: unknown } | undefined
+            )?.templateId ?? null) as string | null
             await unconfirmTemplateOnReject(db, templateId)
             const [nowRow] = await executeRows<{ now: Date | string }>(
               db,
@@ -241,6 +257,9 @@ export class HeldWritesController {
                 resolution: "rejected",
                 note: note ?? null,
                 resolvedAt,
+                ...(priorServerGate !== undefined
+                  ? { serverGate: priorServerGate }
+                  : {}),
               },
               approvedByUserId: userId,
             })
@@ -259,7 +278,14 @@ export class HeldWritesController {
           )
           await updateToolCallLogOutput(db, {
             toolCallLogId: id,
-            output: { resolution: "approved", note: note ?? null, ...result },
+            output: {
+              resolution: "approved",
+              note: note ?? null,
+              ...result,
+              ...(priorServerGate !== undefined
+                ? { serverGate: priorServerGate }
+                : {}),
+            },
             approvedByUserId: userId,
           })
           return { id, resolution: "approved", result }

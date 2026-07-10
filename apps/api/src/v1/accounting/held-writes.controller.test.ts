@@ -721,5 +721,111 @@ describe("HeldWritesController", () => {
       expect(createEventMock).not.toHaveBeenCalled()
       expect(updateLogMock).not.toHaveBeenCalled()
     })
+
+    describe("[F1 / M3.2] serverGate.shadow survives resolve (the calibration data prerequisite)", () => {
+      // `updateToolCallLogOutput` fully REPLACES `output_json`, so without the
+      // fix a resolved row would have `resolution` but NOT `serverGate.shadow`
+      // — the M3 calibration pipeline (`ingestReviewedRunLog`, #646) needs BOTH
+      // on the SAME row to yield a real fit sample. These pin that a resolved
+      // row now carries both.
+      const SHADOW_ID_REJECT = "0196f1de-0000-7000-8000-000000000020"
+      const SHADOW_ID_APPROVE = "0196f1de-0000-7000-8000-000000000021"
+
+      const heldOutputWithShadow = {
+        status: "held",
+        payloadHash: "hash",
+        reviewId: "unused",
+        serverGate: {
+          veto: { held: false, signals: [] },
+          score: { cRaw: 0, cFinal: 0, isGreen: false, blocked: true },
+          shadow: {
+            v: 1,
+            serverLane: { cRaw: 0.42 },
+            claimLane: { cRaw: 0.9 },
+          },
+          templateId: null,
+        },
+      }
+
+      it("REJECT forwards serverGate.shadow alongside resolution", async () => {
+        state.rows.push(
+          logRow({ id: SHADOW_ID_REJECT, output_json: heldOutputWithShadow }),
+        )
+        verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+        await supertest(app.getHttpServer())
+          .post(`/v1/accounting/held-writes/${SHADOW_ID_REJECT}/resolve`)
+          .set("Authorization", "Bearer affk_live_a")
+          .send({ action: "reject" })
+          .expect(200)
+
+        expect(updateLogMock).toHaveBeenCalledWith(expect.anything(), {
+          toolCallLogId: SHADOW_ID_REJECT,
+          output: expect.objectContaining({
+            resolution: "rejected",
+            serverGate: expect.objectContaining({
+              shadow: expect.objectContaining({
+                serverLane: expect.objectContaining({ cRaw: 0.42 }),
+              }),
+            }),
+          }),
+          approvedByUserId: APPROVER,
+        })
+      })
+
+      it("APPROVE forwards serverGate.shadow alongside resolution", async () => {
+        state.rows.push(
+          logRow({ id: SHADOW_ID_APPROVE, output_json: heldOutputWithShadow }),
+        )
+        verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+        createEventMock.mockResolvedValue({
+          eventId: "0196f1de-0000-7000-8000-000000000501",
+          designation: "UP2026050",
+          sequenceNumber: 5,
+        } as never)
+
+        await supertest(app.getHttpServer())
+          .post(`/v1/accounting/held-writes/${SHADOW_ID_APPROVE}/resolve`)
+          .set("Authorization", "Bearer affk_live_a")
+          .send({ action: "approve" })
+          .expect(200)
+
+        expect(updateLogMock).toHaveBeenCalledWith(expect.anything(), {
+          toolCallLogId: SHADOW_ID_APPROVE,
+          output: expect.objectContaining({
+            resolution: "approved",
+            serverGate: expect.objectContaining({
+              shadow: expect.objectContaining({
+                serverLane: expect.objectContaining({ cRaw: 0.42 }),
+              }),
+            }),
+          }),
+          approvedByUserId: APPROVER,
+        })
+      })
+
+      it("a row with NO prior serverGate (pre-W1.5) resolves without fabricating one", async () => {
+        // logRow()'s default output_json ({status:"held", payloadHash:"hash"})
+        // carries no serverGate key at all. The fix must not invent one — the
+        // EXACT-shape assertion in "reject marks the row resolved without any
+        // domain write" (above) already pins this (no serverGate key appears),
+        // this test names the invariant explicitly against a fresh row.
+        const NO_SHADOW_ID = "0196f1de-0000-7000-8000-000000000022"
+        state.rows.push(logRow({ id: NO_SHADOW_ID }))
+        verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+        await supertest(app.getHttpServer())
+          .post(`/v1/accounting/held-writes/${NO_SHADOW_ID}/resolve`)
+          .set("Authorization", "Bearer affk_live_a")
+          .send({ action: "reject" })
+          .expect(200)
+
+        expect(updateLogMock).toHaveBeenCalledWith(expect.anything(), {
+          toolCallLogId: NO_SHADOW_ID,
+          output: expect.not.objectContaining({
+            serverGate: expect.anything(),
+          }),
+          approvedByUserId: APPROVER,
+        })
+      })
+    })
   })
 })

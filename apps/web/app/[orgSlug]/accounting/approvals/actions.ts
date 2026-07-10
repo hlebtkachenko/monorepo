@@ -49,6 +49,13 @@ interface HeldLogRow {
    * `output_json.serverGate.templateId` (NULL for structured-export writes).
    */
   template_id: string | null
+  /**
+   * [F1 / M3.2] The full audit `serverGate` blob (veto + score + `.shadow` — the
+   * M3 calibration x-axis, see shadow-score.ts), forwarded verbatim into the
+   * resolved `output_json` so it survives `updateToolCallLogOutput`'s
+   * full-column replace. `null` for a pre-W1.5 row with no shadow score.
+   */
+  server_gate: unknown
 }
 
 /**
@@ -109,7 +116,8 @@ export async function resolveHeldWrite(
           db,
           sql`select tool_name, input_json, auto_applied,
                      approved_by_user_id::text as approved_by_user_id,
-                     (output_json->'serverGate'->>'templateId') as template_id
+                     (output_json->'serverGate'->>'templateId') as template_id,
+                     (output_json->'serverGate') as server_gate
               from tool_call_log
               where id = ${id}::uuid`,
         )
@@ -135,7 +143,19 @@ export async function resolveHeldWrite(
           await unconfirmTemplateOnReject(db, row.template_id)
           await updateToolCallLogOutput(db, {
             toolCallLogId: id,
-            output: { resolution: "rejected", note: note ?? null },
+            output: {
+              resolution: "rejected",
+              note: note ?? null,
+              // [F1 / M3.2] Forward the audit `serverGate` (incl. `.shadow`)
+              // FORWARD across resolve — `updateToolCallLogOutput` fully
+              // replaces `output_json`, so without this the shadow score
+              // persisted at HOLD time would be silently wiped the instant a
+              // reviewer resolves the write. See held-writes.controller.ts's
+              // matching API-side fix for the full rationale.
+              ...(row.server_gate !== null
+                ? { serverGate: row.server_gate }
+                : {}),
+            },
             approvedByUserId: ctx.userId,
           })
           return { ok: true }
@@ -219,7 +239,15 @@ export async function resolveHeldWrite(
 
         await updateToolCallLogOutput(db, {
           toolCallLogId: id,
-          output: { resolution: "approved", ...applied },
+          output: {
+            resolution: "approved",
+            ...applied,
+            // [F1 / M3.2] See the reject branch above — forward `serverGate`
+            // so the shadow score survives resolve.
+            ...(row.server_gate !== null
+              ? { serverGate: row.server_gate }
+              : {}),
+          },
           approvedByUserId: ctx.userId,
         })
         return { ok: true }

@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **api/brain**: wire the confidence gate to consult a (default-safe, cold-start-identity) calibration model + a guarded refit entry point (M3.2, #569 degenerate-fit/domain guards); cold-start stays HELD (the `extraction_failed` floor forces the block short-circuit regardless of the model). Preserve `serverGate` (incl. `.shadow`) forward across held-write resolve (F1) so a resolved row carries both `resolution` and the shadow score the M3.3 run-log ingestion pipeline needs.
+
 ## [v0.17.3] — 2026-07-10
 
 Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.

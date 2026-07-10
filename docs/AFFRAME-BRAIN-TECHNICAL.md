@@ -550,15 +550,26 @@ templates; I10 provenance/průkaznost. **Only I2, I3, I5 have executable checks*
 defense** for I2/I5 (the ESLint `require-with-organization` rule enforces I1 but _permits_ `withAdminBypass`).
 I1/I4/I6/I7/I8/I9/I10 have **no** automated check — human review + advisor gate.
 
-### 6.5 The `.brain/` store + the librarian — MOSTLY NOT BUILT
+### 6.5 The `.brain/` store + the librarian — ENGINE BUILT, NOT YET CONNECTED TO REAL DATA
 
 `packages/brain/.brain/` today: `constitution.md` (real, locked), `protocol.md`, `CHANGELOG.md` (one entry), and
 six subdirs (`rules/`, `aliases/`, `memory/`, `judge/`, `evals/`, `agents/`) that each contain **only a
-README.md** stating "Empty at M0, librarian-populated via GitHub PR". **The librarian is not built** — `grep -r
-librarian --include=*.ts` returns zero; there is no `packages/brain/src/librarian/`. So the OCR-template library is
-real+wired, but the **broader self-improving learning loop (correction clustering → distilled rule → PR + eval
-gate) is scaffolding + ADRs only** — no writer, no learned artifacts. Do not describe Brain as "self-improving"
-today; it _proposes bookings and holds them_. The learn-on-confirm / layout-drift re-detection is open item #518.
+README.md** stating "Empty at M0, librarian-populated via GitHub PR" — still true, all six are empty. **The
+librarian ENGINE (M2.2) is built at `packages/brain/src/librarian/`**: `ingestCorrections` (raw `tool_call_log`
+rows → `CorrectionRecord`, reading the `resolution`/`edit` a human recorded via `resolveHeldWrite`) →
+`clusterCorrections` (group by the 4-fact signature — counterparty/direction/supply_kind/jurisdiction, mirroring
+the unmerged #643 `BookingSignature`) → `distillCandidate` (majority-vote a `CandidateRule`) → `evaluateCandidate`
+(gate on the already-locked `booking_rule_pr_gate` bound, 0.90) → `buildProposalArtifact` +
+`writeProposalArtifact` (emit a `status:"proposed"` JSON file to a caller-supplied directory — never a default
+path, never `.brain/rules/` directly). Fixture-tested only (42 tests, `pipeline.test.ts` runs the whole chain
+end-to-end). **Still NOT built:** a real `tool_call_log` → `RawCorrectionRow` adapter (needs real corrections,
+M2.3), and the `workflow_dispatch` PR-automation ADR-0027 describes (artifact → GitHub PR is a human/automation
+step outside this engine). So the OCR-template library is real+wired, and the librarian's core distillation
+engine now exists and is unit-tested, but **the learning loop is not yet connected end-to-end on real data** — no
+artifact has ever been produced from a real correction, and none of the six `.brain/` learned-content dirs has
+gained a file. Do not describe Brain as "self-improving" in production today; it _proposes bookings and holds
+them_, and the mechanism that WOULD make it self-improving is built but unconnected. The learn-on-confirm /
+layout-drift re-detection is open item #518.
 
 ---
 
@@ -600,10 +611,14 @@ An accuracy ledger, so nobody re-derives a stale roadmap:
   for I2/I3/I5, tenant isolation + composite FKs.
 - **Built but NOT wired into the live path:** the calibration refit (`refitCalibration`, PAV, Brier) — zero
   non-test callers; the live gate is pinned to the cold-start identity map. Green is unreachable until M3 wires a
-  fitted map _and_ server-side re-verification un-floors the base signals (W3.3b).
-- **NOT built (scaffolding/ADRs only):** the **librarian** and the whole self-improving learning loop
-  (correction clustering → `.brain/rules|aliases|memory|judge` → PR + eval gate). The `.brain/` learned dirs are
-  README-only. Learn-on-confirm / layout-drift re-detection = open #518.
+  fitted map _and_ server-side re-verification un-floors the base signals (W3.3b). The **librarian's distillation
+  engine** (`packages/brain/src/librarian/`, M2.2) — ingest → cluster → distill → eval-gate → emit — is built and
+  unit-tested (fixtures only), but has zero real callers: no adapter reads real `tool_call_log` corrections into
+  it, and nothing invokes `writeProposalArtifact` against a real directory. Data-gated on M2.3.
+- **NOT built:** the `RawCorrectionRow` real-data adapter, and the `workflow_dispatch` PR-automation ADR-0027
+  describes (artifact → GitHub PR). The `.brain/rules|aliases|memory|judge|evals` learned dirs are still
+  README-only — the engine that would populate `rules/` exists now, but has produced zero real artifacts. Learn-
+  on-confirm / layout-drift re-detection = open #518.
 - **Known code/doc drift to fix:** the `canUseTool` layer is shadowed by `allowedTools` — GH #578; the create-org
   wizard doesn't always scaffold period/series — GH #579; `packages/brain/README.md` describes the superseded
   in-process design; the schema-comment migration numbers are +1 off for accounting `≥0025`; `brain book`'s help

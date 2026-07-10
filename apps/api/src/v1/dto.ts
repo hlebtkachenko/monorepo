@@ -39,6 +39,12 @@ import {
   OcrTemplateResponseSchema,
   CreateOcrTemplateRequestSchema,
   UpdateOcrTemplateRequestSchema,
+  ListBookingTemplatesQuerySchema,
+  ListBookingTemplatesResponseSchema,
+  BookingTemplateResponseSchema,
+  CreateBookingTemplateRequestSchema,
+  MatchBookingTemplateRequestSchema,
+  MatchBookingTemplateResponseSchema,
   CreateNumberSeriesRequestSchema,
   CreateNumberSeriesResponseSchema,
   CreateAccountingPeriodRequestSchema,
@@ -156,6 +162,24 @@ export class CreateOcrTemplateRequestDto extends createZodDto(
 ) {}
 export class UpdateOcrTemplateRequestDto extends createZodDto(
   UpdateOcrTemplateRequestSchema,
+) {}
+export class ListBookingTemplatesQueryDto extends createZodDto(
+  ListBookingTemplatesQuerySchema,
+) {}
+export class ListBookingTemplatesResponseDto extends createZodDto(
+  ListBookingTemplatesResponseSchema,
+) {}
+export class BookingTemplateResponseDto extends createZodDto(
+  BookingTemplateResponseSchema,
+) {}
+export class CreateBookingTemplateRequestDto extends createZodDto(
+  CreateBookingTemplateRequestSchema,
+) {}
+export class MatchBookingTemplateRequestDto extends createZodDto(
+  MatchBookingTemplateRequestSchema,
+) {}
+export class MatchBookingTemplateResponseDto extends createZodDto(
+  MatchBookingTemplateResponseSchema,
 ) {}
 export class CreateNumberSeriesRequestDto extends createZodDto(
   CreateNumberSeriesRequestSchema,

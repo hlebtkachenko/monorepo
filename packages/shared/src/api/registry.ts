@@ -109,6 +109,16 @@ import {
   UpdateOcrTemplateRequestSchema,
 } from "./ocr-templates"
 import {
+  BookingTemplateIdParamSchema,
+  BookingTemplateResponseSchema,
+  BookingTemplateSchema,
+  CreateBookingTemplateRequestSchema,
+  ListBookingTemplatesQuerySchema,
+  ListBookingTemplatesResponseSchema,
+  MatchBookingTemplateRequestSchema,
+  MatchBookingTemplateResponseSchema,
+} from "./booking-templates"
+import {
   AccountingPeriodSchema,
   CreateAccountingPeriodRequestSchema,
   CreateAccountingPeriodResponseSchema,
@@ -323,6 +333,27 @@ const CreateOcrTemplateRequest = registry.register(
 const UpdateOcrTemplateRequest = registry.register(
   "UpdateOcrTemplateRequest",
   UpdateOcrTemplateRequestSchema,
+)
+registry.register("BookingTemplate", BookingTemplateSchema)
+const ListBookingTemplatesResponse = registry.register(
+  "ListBookingTemplatesResponse",
+  ListBookingTemplatesResponseSchema,
+)
+const BookingTemplateResponse = registry.register(
+  "BookingTemplateResponse",
+  BookingTemplateResponseSchema,
+)
+const CreateBookingTemplateRequest = registry.register(
+  "CreateBookingTemplateRequest",
+  CreateBookingTemplateRequestSchema,
+)
+const MatchBookingTemplateRequest = registry.register(
+  "MatchBookingTemplateRequest",
+  MatchBookingTemplateRequestSchema,
+)
+const MatchBookingTemplateResponse = registry.register(
+  "MatchBookingTemplateResponse",
+  MatchBookingTemplateResponseSchema,
 )
 const CreateNumberSeriesRequest = registry.register(
   "CreateNumberSeriesRequest",
@@ -1325,6 +1356,115 @@ registry.registerPath({
     "200": {
       description: "The confirmed template.",
       content: { "application/json": { schema: OcrTemplateResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/booking-templates",
+  operationId: "listBookingTemplates",
+  summary: "List booking templates",
+  description:
+    "Returns the workspace's booking templates — the Brain's reviewable, " +
+    "human-confirmed recurring-case treatments (M2.1), WORKSPACE-scoped " +
+    "(FORCE RLS) and shared across every organization in the accountant's " +
+    "office. Optionally filter by `counterpartyKey`. Both human and agent " +
+    "keys may read.",
+  tags: ["Booking Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: ListBookingTemplatesQuerySchema },
+  responses: {
+    "200": {
+      description: "The workspace's booking templates matching the filters.",
+      content: {
+        "application/json": { schema: ListBookingTemplatesResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/booking-templates",
+  operationId: "createBookingTemplate",
+  summary: "Create a booking template",
+  description:
+    "Creates a NEW, UNCONFIRMED booking template in the caller's workspace. " +
+    "The server pins `humanConfirmedAt` to null and `matchCount`/`heldCount` " +
+    "to 0 — a fresh template is never auto-trusted and NEVER matchable until " +
+    "a human confirms it via `POST /v1/booking-templates/{id}/confirm`. " +
+    "Agent keys may create (the DRAFT itself carries no write authority). " +
+    "Requires the `accounting:write` scope. The workspace comes from the API key.",
+  tags: ["Booking Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: CreateBookingTemplateRequest } },
+    },
+  },
+  responses: {
+    "201": {
+      description: "The created (unconfirmed) booking template.",
+      content: { "application/json": { schema: BookingTemplateResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/booking-templates/{id}/confirm",
+  operationId: "confirmBookingTemplate",
+  summary: "Confirm a booking template",
+  description:
+    "Marks a booking template as human-confirmed (sets `humanConfirmedAt` to " +
+    "now) — the ONLY way a template becomes matchable. HUMAN-ACTOR ONLY: an " +
+    "agent-actor key is rejected with 403 — confirmation is the trust boundary " +
+    "that a human, not the Brain, must cross (§I9 amendment: a booking template " +
+    "is created only from a human-confirmed booking treatment). Returns 404 " +
+    "when the template is not visible to the caller's workspace, and 409 when " +
+    "the workspace already has a CONFIRMED template for the same signature.",
+  tags: ["Booking Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: BookingTemplateIdParamSchema },
+  responses: {
+    "200": {
+      description: "The confirmed booking template.",
+      content: { "application/json": { schema: BookingTemplateResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/booking-templates/match",
+  operationId: "matchBookingTemplate",
+  summary: "Match a case signature against confirmed booking templates",
+  description:
+    "Pure read: given a recurring case's signature (counterparty/direction/" +
+    "supplyKind/jurisdiction), returns the workspace's matching CONFIRMED " +
+    "booking template, or null for a novel/unmatched case. No mutation, no " +
+    "write-tool call — a match only supplies input facts to the SAME typed " +
+    "write calls the Brain already makes after full reasoning; every write, " +
+    "templated or not, still runs through the unchanged gate and is still " +
+    "HELD at cold start.",
+  tags: ["Booking Templates"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: MatchBookingTemplateRequest } },
+    },
+  },
+  responses: {
+    "200": {
+      description: "The match outcome (a confirmed template, or null).",
+      content: { "application/json": { schema: MatchBookingTemplateResponse } },
     },
     ...ERROR_RESPONSE_REFS,
   },

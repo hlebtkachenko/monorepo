@@ -1792,6 +1792,35 @@ CREATE TABLE public.auth_verification (
 );
 
 --
+-- Name: booking_template; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.booking_template (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    counterparty_key text NOT NULL,
+    direction text NOT NULL,
+    supply_kind text NOT NULL,
+    jurisdiction text NOT NULL,
+    signature_fingerprint text,
+    confirmed_decision jsonb NOT NULL,
+    human_confirmed_at timestamp with time zone,
+    match_count integer DEFAULT 0 NOT NULL,
+    held_count integer DEFAULT 0 NOT NULL,
+    last_reject_at timestamp with time zone,
+    version integer DEFAULT 1 NOT NULL,
+    learned_at timestamp with time zone DEFAULT now() NOT NULL,
+    provenance jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT booking_template_direction_check CHECK ((direction = ANY (ARRAY['RECEIVED'::text, 'ISSUED'::text]))),
+    CONSTRAINT booking_template_jurisdiction_check CHECK ((jurisdiction = ANY (ARRAY['DOMESTIC'::text, 'REVERSE_CHARGE'::text, 'EU'::text, 'IMPORT'::text, 'EXEMPT'::text, 'OUTSIDE_VAT'::text]))),
+    CONSTRAINT booking_template_supply_kind_check CHECK ((supply_kind = ANY (ARRAY['GOODS'::text, 'MATERIAL'::text, 'SERVICES'::text, 'UTILITY'::text, 'RENT'::text, 'INSURANCE'::text, 'ASSET'::text, 'ADVANCE'::text, 'CREDIT_NOTE'::text, 'OTHER'::text])))
+);
+
+ALTER TABLE ONLY public.booking_template FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: brain_confident_wrong; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2416,13 +2445,13 @@ CREATE TABLE public.partial_record (
     supply_kind text,
     commodity_code text,
     CONSTRAINT partial_record_commodity_code_chk CHECK (((commodity_code IS NULL) OR (commodity_code = ANY (ARRAY['1'::text, '3'::text, '4'::text, '5'::text])))),
-    CONSTRAINT partial_record_commodity_code_rc_chk CHECK (((commodity_code IS NULL) OR ((vat_mode = 'REVERSE_CHARGE'::public.vat_mode) AND (vat_jurisdiction IS DISTINCT FROM 'EU'::text)))),
+    CONSTRAINT partial_record_commodity_code_rc_chk CHECK (((commodity_code IS NULL) OR ((vat_mode = 'REVERSE_CHARGE'::public.vat_mode) AND (vat_jurisdiction IS DISTINCT FROM 'EU'::text) AND (vat_jurisdiction IS DISTINCT FROM 'SECTION_108'::text)))),
     CONSTRAINT partial_record_fx_pair_chk CHECK (((fx_rate IS NULL) = (fx_rate_kind IS NULL))),
     CONSTRAINT partial_record_fx_positive_chk CHECK (((fx_rate IS NULL) OR (fx_rate > (0)::numeric))),
     CONSTRAINT partial_record_qty_price_chk CHECK (((quantity IS NULL) OR (unit_price IS NULL) OR (base_amount = round((quantity * unit_price), 4)))),
     CONSTRAINT partial_record_supply_kind_chk CHECK (((supply_kind IS NULL) OR (supply_kind = ANY (ARRAY['GOODS'::text, 'MATERIAL'::text, 'SERVICES'::text, 'UTILITY'::text, 'RENT'::text, 'INSURANCE'::text, 'ASSET'::text, 'ADVANCE'::text, 'CREDIT_NOTE'::text, 'OTHER'::text])))),
     CONSTRAINT partial_record_vat_fx_requires_fx_chk CHECK (((vat_fx_rate IS NULL) OR (fx_rate IS NOT NULL))),
-    CONSTRAINT partial_record_vat_jurisdiction_chk CHECK (((vat_jurisdiction IS NULL) OR (vat_jurisdiction = ANY (ARRAY['DOMESTIC'::text, 'REVERSE_CHARGE'::text, 'EU'::text, 'IMPORT'::text, 'EXEMPT'::text, 'OUTSIDE_VAT'::text])))),
+    CONSTRAINT partial_record_vat_jurisdiction_chk CHECK (((vat_jurisdiction IS NULL) OR (vat_jurisdiction = ANY (ARRAY['DOMESTIC'::text, 'REVERSE_CHARGE'::text, 'EU'::text, 'IMPORT'::text, 'EXEMPT'::text, 'OUTSIDE_VAT'::text, 'SECTION_108'::text])))),
     CONSTRAINT partial_record_vat_tol_chk CHECK (((vat_mode <> 'STANDARD'::public.vat_mode) OR (vat_rate IS NULL) OR (abs((vat_amount - round(((base_amount * vat_rate) / (100)::numeric), 2))) <= 0.50))),
     CONSTRAINT partial_record_vat_zero_chk CHECK (((vat_mode <> ALL (ARRAY['EXEMPT'::public.vat_mode, 'OUTSIDE_VAT'::public.vat_mode, 'REVERSE_CHARGE'::public.vat_mode])) OR (vat_amount = (0)::numeric)))
 );
@@ -3020,6 +3049,20 @@ ALTER TABLE ONLY public.auth_token
 
 ALTER TABLE ONLY public.auth_verification
     ADD CONSTRAINT auth_verification_pkey PRIMARY KEY (id);
+
+--
+-- Name: booking_template booking_template_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.booking_template
+    ADD CONSTRAINT booking_template_id_workspace_unique UNIQUE (id, workspace_id);
+
+--
+-- Name: booking_template booking_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.booking_template
+    ADD CONSTRAINT booking_template_pkey PRIMARY KEY (id);
 
 --
 -- Name: brain_confident_wrong brain_confident_wrong_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -3816,6 +3859,12 @@ CREATE INDEX auth_verification_identifier_idx ON public.auth_verification USING 
 --
 
 CREATE INDEX auth_verification_workspace_idx ON public.auth_verification USING btree (workspace_id);
+
+--
+-- Name: booking_template_confirmed_signature_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX booking_template_confirmed_signature_unique ON public.booking_template USING btree (workspace_id, counterparty_key, direction, supply_kind, jurisdiction) WHERE (human_confirmed_at IS NOT NULL);
 
 --
 -- Name: depreciation_plan_asset_idx; Type: INDEX; Schema: public; Owner: -
@@ -4803,6 +4852,13 @@ ALTER TABLE ONLY public.auth_verification
     ADD CONSTRAINT auth_verification_workspace_fk FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
+-- Name: booking_template booking_template_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.booking_template
+    ADD CONSTRAINT booking_template_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
 -- Name: brain_confident_wrong brain_confident_wrong_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5590,6 +5646,36 @@ ALTER TABLE public.auth_token ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY auth_token_deny_all ON public.auth_token USING (false) WITH CHECK (false);
+
+--
+-- Name: booking_template; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.booking_template ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: booking_template booking_template_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY booking_template_delete ON public.booking_template FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: booking_template booking_template_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY booking_template_insert ON public.booking_template FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: booking_template booking_template_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY booking_template_select ON public.booking_template FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: booking_template booking_template_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY booking_template_update ON public.booking_template FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: brain_confident_wrong; Type: ROW SECURITY; Schema: public; Owner: -

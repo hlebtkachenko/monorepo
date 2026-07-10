@@ -127,10 +127,13 @@ commit**. Fail-safe: an unreachable channel leaves the tenant untouched.
 calibration. Never let confident-wrong rise. Confidence is gated on **infrastructure signals**, never
 model-verbalized confidence.
 
-## I9 — Read-side IR only; no write templates
+## I9 — Read-side IR only; no OPAQUE write templates
 
 Canonical IR + per-format mapping rules are **parse-side only**. The write side is agent conversation
-with the typed functions — no XML / transformation templates.
+with the typed functions — no XML / transformation templates that RENDER a write payload. EXCEPTION
+(M2.1): a `booking_template` is a REVIEWABLE, human-confirmed record of a recurring case's confirmed
+treatment (never an opaque compiled artifact); matching it supplies input facts to the SAME typed write
+functions, never a rendered/transformed payload, and never bypasses the gate.
 
 ## I10 — Provenance / průkaznost
 

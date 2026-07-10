@@ -63,18 +63,28 @@ Release PRs are the only exception: a PR titled `chore(release): vX.Y.Z` or
 `chore(release): vX.Y.Z-rc.N` moves the current Unreleased bullets into the new
 version section and does not add a new Unreleased bullet.
 
+Dependabot PRs are a second exception, gated by author (`dependabot[bot]`)
+rather than by title: the changelog gate is skipped on those PRs. Their
+dependency bumps are not lost, they are recorded at release-cut instead of
+per-PR, see "How to cut a release" below.
+
 ## How to cut a release
 
 ```bash
-# 1. Move the bullets from [Unreleased] to a new section in CHANGELOG.md
-#    e.g. ## [v0.2.0] — 2026-05-21
+# 1. Review the Dependabot PRs merged since the last tag (they skipped the
+#    per-PR changelog gate) and write one summary bullet by hand.
+git log --oneline <last-tag>..HEAD --grep='^chore(deps)'
+
+# 2. Move the [Unreleased] bullets into a new section in CHANGELOG.md, add a
+#    synthesized "### Dependencies" bullet from step 1 (and "### Security"
+#    if any bump fixed a CVE), e.g. ## [v0.2.0] — 2026-05-21
 $EDITOR CHANGELOG.md
 
-# 2. Stage + commit the changelog
+# 3. Stage + commit the changelog
 git add CHANGELOG.md
 git commit -m "chore(release): v0.2.0"
 
-# 3. Push the commit, then create + push the tag
+# 4. Push the commit, then create + push the tag
 git push origin main
 git tag v0.2.0
 git push origin v0.2.0
@@ -105,18 +115,24 @@ So in the canonical flow, **no extra flag is needed** — just tag, then deploy.
 ### Production: tag, then deploy
 
 ```bash
-# 1. Move bullets from [Unreleased] to a new section in CHANGELOG.md
+# 1. Review the Dependabot PRs merged since the last tag (they skipped the
+#    per-PR changelog gate) and write one summary bullet by hand.
+git log --oneline <last-tag>..HEAD --grep='^chore(deps)'
+
+# 2. Move bullets from [Unreleased] to a new section in CHANGELOG.md, adding
+#    a synthesized "### Dependencies" bullet from step 1 (and "### Security"
+#    if any bump fixed a CVE).
 $EDITOR CHANGELOG.md
 git add CHANGELOG.md
 git commit -m "chore(release): v0.2.0"
 git push origin main
 
-# 2. Tag and push.
+# 3. Tag and push.
 git tag v0.2.0
 git push origin v0.2.0
 #    → release.yml builds the tarball + SLSA + SBOM, creates the GitHub Release
 
-# 3. Deploy the same commit to production. The build-images job runs
+# 4. Deploy the same commit to production. The build-images job runs
 #    `git describe --exact-match HEAD`, picks up v0.2.0, and bakes
 #    BUILD_VERSION=0.2.0 into the image.
 gh workflow run _deploy-aws.yml \

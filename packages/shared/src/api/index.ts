@@ -1,6 +1,7 @@
 export * from "./accounting"
 export * from "./accounting-writes"
 export * from "./accounts"
+export * from "./booking-templates"
 export * from "./common"
 export * from "./feedback"
 export * from "./invoices"

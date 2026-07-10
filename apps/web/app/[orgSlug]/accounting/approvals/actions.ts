@@ -6,6 +6,7 @@ import {
   eq,
   executeRows,
   lockPeriodInTx,
+  recordConfidentWrong,
   sql,
   unconfirmTemplateOnReject,
   updateToolCallLogOutput,
@@ -237,4 +238,62 @@ export async function resolveHeldWrite(
     revalidatePath(`/${orgSlug}/accounting/approvals`)
   }
   return result
+}
+
+const MarkConfidentWrongSchema = z.object({
+  orgSlug: z.string().min(1).max(100),
+  id: z.uuid(),
+  note: z.string().max(2000).optional(),
+})
+/** @public — confident-wrong increment seam input; the review UI is wired at M3 (post-auto-apply). */
+export type MarkConfidentWrongInput = z.infer<typeof MarkConfidentWrongSchema>
+
+/**
+ * @public
+ * [§I8] Mark a previously AUTO-APPLIED booking as confidently wrong — the human
+ * side of the confident-wrong circuit breaker. A reviewer flags a write the gate
+ * auto-applied (read green, applied without a human) that turned out wrong; this
+ * TRIPS the workspace breaker so `runGatedWrite` refuses every autonomous write
+ * until an operator investigates and clears it.
+ *
+ * This is a HUMAN-ONLY path: it is a session-authenticated Server Action, never
+ * reachable by an agent (agents hold API keys against apps/api, not a web
+ * session). The `recordConfidentWrong` seam GUARDS on `auto_applied = true`, so a
+ * held / rejected write can never be marked confident-wrong. DORMANT at cold
+ * start: no write is ever auto-applied, so the guard always refuses today.
+ *
+ * Identity comes only from the session; the client supplies the row id + note.
+ */
+export async function markConfidentWrong(
+  input: MarkConfidentWrongInput,
+): Promise<ResolveHeldWriteResult> {
+  const parsed = MarkConfidentWrongSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: "Neplatný požadavek." }
+  }
+  const { orgSlug, id, note } = parsed.data
+
+  const ctx = await getOrgAccountingContext(orgSlug)
+  if (!ctx) {
+    return { ok: false, error: "Organizace nebyla nalezena." }
+  }
+
+  try {
+    await withOrganization(ctx.organizationId, ctx.userId, (db) =>
+      recordConfidentWrong(db, {
+        toolCallLogId: id,
+        actorUserId: ctx.userId,
+        note: note ?? null,
+      }),
+    )
+  } catch (err) {
+    // The seam refuses a non-auto-applied write (the guard) or a missing row.
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Operace se nezdařila.",
+    }
+  }
+
+  revalidatePath(`/${orgSlug}/accounting/approvals`)
+  return { ok: true }
 }

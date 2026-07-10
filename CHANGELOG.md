@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.17.2] — 2026-07-10
+
+Patch release: Afframe Brain M0 — the test-phase enabler set. Raised pre-launch admission caps + env-configurable throttler, one-paste env-collapse (only `BRAIN_API_KEY`), a real held-write review UI, onboarding create-period / number-series / list-periods tools (fixes #579), a bulk `brain book-batch` orchestrator, code guards for every safety invariant (including the I8 confident-wrong circuit-breaker), gate-integrity + stale-held alerts, and a fail-closed login-pack constitution assembler. Additive and gated: every accounting write is still HELD at cold start.
+
 ### Added
 
 - **brain**: automated code guards + tests for the Brain safety invariants I3 (no tenancy fields in any API request schema + full public-op allowlist), I4 (append-only ledger DELETE rejection), I7 (human-actor-required guard), I9 (no write-templates tripwire, scanning code not comments), and I10 (provenance atomicity).
@@ -13,6 +17,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - **brain**: the held-write review surface now renders a real reviewable view for each Brain proposal — document header (counterparty, date, total), per-rate VAT summary, human-readable why-held reasons in Czech, and the rationale, grouped by účetní případ — instead of a raw JSON dump.
 - **brain**: the Brain live-session login pack now assembles its safety-spine constitution section byte-verbatim from the locked `.brain/constitution.md` (the operator no longer hand-copies the 13KB locked file, removing a drift/truncation risk) and fail-closes — it throws rather than boot a session with any missing or empty safety section. The three sections with no canonical committed source stay operator-supplied (auto-authoring safety text is deliberately refused).
 - **brain**: observability alerts for the Brain write gate — a CRITICAL alert (deduped GitHub issue + Telegram) fires if a fresh accounting write ever auto-applies (HTTP 201) at the cold-start posture (structurally impossible today — a broken-gate alarm), and a stale-held-review-queue warning reports held writes older than a configurable threshold, wired to an opt-in recurring scheduler (`ACCOUNTING_STALE_HELD_ALERT_ENABLED`, dormant by default). Both route through `@workspace/notify` and are fully fail-swallowed; the gate hook is purely observational (returns the decision unchanged).
+- **brain**: bulk document booking — a new `brain book-batch <folder>` command runs many documents through the held write loop with bounded concurrency, rate-limit retry/backoff, and crash-safe checkpoint/resume keyed on a deterministic (clock-free) per-document idempotency key that threads to the server `Idempotency-Key` so a killed-and-resumed run never double-books. Non-applied outcomes are classified (rate-limited → retried; hard error / no review handle → failed and re-attempted) so a document is never silently recorded as held.
+- **brain**: confident-wrong circuit-breaker (constitution invariant I8) is now real in code — a persisted, workspace-scoped `brain_confident_wrong` counter (FORCE RLS) plus a fail-closed startup halt in the write gate that refuses autonomous writes once a human marks a previously auto-applied booking confidently wrong, until an operator investigates and clears it. Tightening-only and dormant at cold start (green is unreachable, so nothing is auto-applied and the count stays 0); the increment is a human-only review action and the reset is operator-only.
 
 ### Changed
 

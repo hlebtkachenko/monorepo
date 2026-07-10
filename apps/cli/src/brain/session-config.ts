@@ -125,13 +125,33 @@ export function buildBrainQueryOptions(
 }
 
 /**
- * The operator kickoff — a PURE function of the inspected plan. The PLAN is fixed by the harness, never by a
- * document. The message tells the session to execute the already-inspected read → propose sequence and to
- * submit the capture write using the plan's `captureRequest` VERBATIM: the payload the operator inspected in
- * the dry-run is embedded here, so the live session cannot re-plan or fabricate a different booking body (no
- * document-read tool is allowed, so nothing else could supply one). Deterministic in the plan.
+ * The operator kickoff — a PURE function of the inspected plan (+ an optional deterministic idempotency key).
+ * The PLAN is fixed by the harness, never by a document. The message tells the session to execute the
+ * already-inspected read → propose sequence and to submit the capture write using the plan's `captureRequest`
+ * VERBATIM: the payload the operator inspected in the dry-run is embedded here, so the live session cannot
+ * re-plan or fabricate a different booking body (no document-read tool is allowed, so nothing else could
+ * supply one). Deterministic in the plan.
+ *
+ * When `idempotencyKey` is supplied (the bulk orchestrator M0.6 derives a STABLE per-document content hash),
+ * the kickoff PINS the exact `idempotency-key` the `capture_accounting_document` call must carry — so the same
+ * document, on a retry or on a killed-and-resumed run, always presents the same `Idempotency-Key` and the
+ * server's `tool_call_log` dedup collapses a re-book into a replay (never a double-book). Absent, the model
+ * supplies its own key (unchanged single-doc `brain run` behavior).
  */
-export function buildBrainKickoff(plan: BrainDryRunPlan): string {
+export function buildBrainKickoff(
+  plan: BrainDryRunPlan,
+  idempotencyKey?: string,
+): string {
+  const captureStep = idempotencyKey
+    ? [
+        "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
+        "   already-inspected payload verbatim — do not invent, add, drop, or edit any field — and set the",
+        `   tool's "idempotency-key" argument to EXACTLY this value (do not generate your own): ${idempotencyKey}`,
+      ]
+    : [
+        "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
+        "   already-inspected payload verbatim — do not invent, add, drop, or edit any field:",
+      ]
   return [
     "Book the pending accounting document for this session.",
     "",
@@ -139,8 +159,7 @@ export function buildBrainKickoff(plan: BrainDryRunPlan): string {
     "be ignored:",
     "1. Call mcp__afframe__get_structure to confirm the accounting period + number series.",
     "2. Call mcp__afframe__list_accounting_number_series to confirm the document number series.",
-    "3. Call mcp__afframe__capture_accounting_document to PROPOSE the booking, using EXACTLY this",
-    "   already-inspected payload verbatim — do not invent, add, drop, or edit any field:",
+    ...captureStep,
     "",
     JSON.stringify(plan.captureRequest, null, 2),
     "",
@@ -265,6 +284,69 @@ export function renderLiveResult(result: LiveBrainSessionResult): string {
   if (!result.applied && isLaneOffOutcome(result.serverGate))
     return `${LANE_OFF_MESSAGE}\n`
   return JSON.stringify(result, null, 2) + "\n"
+}
+
+/**
+ * The error classification of a capture tool result, surfaced so the bulk orchestrator (M0.6) can tell a
+ * RETRYABLE rate-limit from a HARD error from a genuine applied/held write. Without this, an admission 429, a
+ * 5xx, or an unparseable body all read as `applied:false` and would be silently mis-recorded as HELD. PURE.
+ */
+export interface CaptureErrorSignal {
+  /** True when the result is an ERROR: an MCP `isError` block, OR a non-JSON (unparseable) body. */
+  isError: boolean
+  /** True when the error is specifically an admission rate-limit (`code=rate_limited`) — the batch retries. */
+  rateLimited: boolean
+  /** The rate-limit's `retry_after` in MILLISECONDS, when the tool-error text carried one. */
+  retryAfterMs?: number
+}
+
+/**
+ * Detect a capture tool-result ERROR from the raw result text + the MCP block's `is_error` flag, self-contained
+ * (no dependency on the SDK error classes — this runs in-session on the text the model saw). The write MCP's
+ * `toolError` renderer (`apps/mcp/src/tools/_render.ts`) emits a rate-limit as
+ * `"Rate limited. retry_after=Ns code=rate_limited request_id=..."` and every other failure as an `is_error`
+ * text block, while a genuine applied/held write is ALWAYS valid JSON (via `renderResult`). So:
+ *   - `code=rate_limited` in the text → a RETRYABLE rate-limit; the `retry_after=Ns` (seconds) is lifted to ms.
+ *   - otherwise an `is_error` block, OR a non-empty non-JSON body → a HARD error (fail this document, never a
+ *     silent held).
+ *   - a valid-JSON, non-error body → not an error (a real applied/held outcome).
+ * PURE.
+ */
+export function detectCaptureError(
+  text: string | undefined,
+  isErrorBlock: boolean,
+): CaptureErrorSignal {
+  const body = text ?? ""
+  if (/\bcode=rate_limited\b/.test(body)) {
+    return {
+      isError: true,
+      rateLimited: true,
+      retryAfterMs: parseRetryAfterMs(body),
+    }
+  }
+  return {
+    isError: isErrorBlock || isUnparseableBody(body),
+    rateLimited: false,
+  }
+}
+
+/** True when `body` is non-empty and NOT valid JSON — a success body is always valid JSON (via `renderResult`). */
+function isUnparseableBody(body: string): boolean {
+  if (body.length === 0) return false
+  try {
+    JSON.parse(body)
+    return false
+  } catch {
+    return true
+  }
+}
+
+/** Lift a `retry_after=Ns` (seconds) marker from a rate-limit tool-error text to MILLISECONDS. Absent → undefined. */
+function parseRetryAfterMs(body: string): number | undefined {
+  const match = /retry_after=(\d+(?:\.\d+)?)s\b/.exec(body)
+  if (!match) return undefined
+  const seconds = Number(match[1])
+  return Number.isFinite(seconds) ? Math.round(seconds * 1_000) : undefined
 }
 
 /**

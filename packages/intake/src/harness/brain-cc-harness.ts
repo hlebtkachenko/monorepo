@@ -229,6 +229,15 @@ export interface AgentSessionLaunchOptions {
   apiKey: string
   /** Agent-SDK auth token (subscription for dev; AWS creds for the Bedrock spike). */
   agentSdkAuth: string
+  /**
+   * OPTIONAL deterministic idempotency key for the capture write. When the bulk orchestrator (M0.6) drives a
+   * folder of many documents, it derives a STABLE per-document key (content hash) and threads it here so the
+   * session's `capture_accounting_document` call carries EXACTLY that `Idempotency-Key`. Identical across a
+   * retry and across a killed-and-resumed run, so the server's `tool_call_log` dedup collapses a re-book of
+   * an already-applied document into a replay — never a double-book. Absent for a single-doc `brain run`
+   * (the model then supplies its own key), so this change is additive + backward-compatible.
+   */
+  idempotencyKey?: string
 }
 
 /**
@@ -265,6 +274,12 @@ export interface LiveBrainSessionInputs {
    * SDK-backed one lives in `apps/cli`, so `@workspace/intake` carries no SDK dependency.
    */
   launcher?: AgentSessionLauncher
+  /**
+   * OPTIONAL deterministic idempotency key for the capture write (see `AgentSessionLaunchOptions`). Forwarded
+   * verbatim to the launcher so the bulk orchestrator's stable per-document key reaches the server as the
+   * `Idempotency-Key`. Absent for a single-doc run.
+   */
+  idempotencyKey?: string
 }
 
 /**
@@ -276,6 +291,31 @@ export interface LiveBrainSessionResult {
   brainRunId: string
   /** Whether the server gate APPLIED the capture write (true) or HELD it for human review (false). */
   applied: boolean
+  /**
+   * The parsed capture status string the launcher read back (`"applied"` / `"held"` / `"unknown"` /
+   * `"unparsed"`). Surfaced so a caller can distinguish a genuine HELD write from a non-applied result that was
+   * never a real hold — the bulk orchestrator (M0.6) records only a real `held` as a terminal success.
+   */
+  status: string
+  /**
+   * The held-write review handle. Present ONLY on a genuine HELD write. Its ABSENCE on a non-applied result is
+   * the load-bearing signal that the result is NOT a real hold (a rate-limit / error / unparseable body), so it
+   * must be recorded failed — never silently held (which would drop the document from the batch).
+   */
+  reviewId?: string
+  /**
+   * True when the capture tool result was an ERROR — an MCP `isError` result (rate-limit, 5xx, validation) OR
+   * an unparseable body. An error result can NEVER be a genuine applied/held write.
+   */
+  isError: boolean
+  /**
+   * True when the error is specifically an admission rate-limit (`code=rate_limited`) surfaced IN-SESSION as a
+   * tool error (not a thrown `RateLimitError`). Lets the batch engine's backoff/retry fire instead of failing
+   * the document.
+   */
+  rateLimited: boolean
+  /** The rate-limit's `retry_after` in MILLISECONDS, when the tool-error carried one. */
+  retryAfterMs?: number
   /** The server gate's persisted verdict (`tool_call_log.output_json.serverGate`), echoed for the run log. */
   serverGate: unknown
 }
@@ -351,10 +391,13 @@ export async function runLiveBrainSession(
   // Creds are complete and a launcher is present. Hand the launcher the INSPECTED plan (it reads the login
   // pack's system prompt + allow/deny lists directly) + endpoint + creds, and delegate. The SERVER gate — not
   // this function — decides whether the write lane is open.
+  // The optional deterministic idempotency key rides through so a bulk-orchestrated capture carries its
+  // stable per-document `Idempotency-Key` (the server dedups a resumed re-book into a replay).
   return inputs.launcher.launch({
     plan: inputs.plan,
     mcpEndpoint: inputs.mcpEndpoint,
     apiKey,
     agentSdkAuth,
+    idempotencyKey: inputs.idempotencyKey,
   })
 }

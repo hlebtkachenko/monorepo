@@ -88,3 +88,6 @@ export * from "./period_output"
 
 // Brain OCR template library — workspace-scoped learned state (0046)
 export * from "./ocr_extraction_template"
+
+// Brain confident-wrong circuit breaker — workspace-scoped safety state (0050, §I8)
+export * from "./brain_confident_wrong"

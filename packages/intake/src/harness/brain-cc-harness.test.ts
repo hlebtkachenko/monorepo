@@ -325,7 +325,11 @@ describe("runLiveBrainSession (creds-gated)", () => {
         return Promise.resolve({
           brainRunId: "run-1",
           applied: false,
-          serverGate: { held: true },
+          status: "held",
+          reviewId: "rev-1",
+          isError: false,
+          rateLimited: false,
+          serverGate: { status: "held", reviewId: "rev-1" },
         })
       },
     }
@@ -367,6 +371,9 @@ describe("runLiveBrainSession (creds-gated)", () => {
         Promise.resolve({
           brainRunId: "run-2",
           applied: false,
+          status: "held",
+          isError: false,
+          rateLimited: false,
           serverGate: { held: true },
         }),
     }

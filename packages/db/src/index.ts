@@ -53,6 +53,19 @@ export * from "./audit/index"
 // Accounting-domain DB helpers (trust-state writes shared across surfaces)
 export { unconfirmTemplateOnReject } from "./accounting/ocr-template-trust"
 
+// Confident-wrong circuit-breaker seams (constitution §I8): the gate reads the
+// count fail-closed at run entry; the human review surface increments it; an
+// operator clears it. See packages/brain/.brain/constitution.md §I8.
+export {
+  readConfidentWrongCount,
+  recordConfidentWrong,
+  resetConfidentWrongCount,
+} from "./brain/confident-wrong"
+export type {
+  RecordConfidentWrongInput,
+  ResetConfidentWrongInput,
+} from "./brain/confident-wrong"
+
 // Marshrutizátor core (ADR-0028): per-(org, period) write serialization +
 // admission caps. `lockPeriodInTx` is wired into the accounting write gate + the
 // approve-replay lanes; `withPeriodLock` (own-tx form) + `closePeriod` locking

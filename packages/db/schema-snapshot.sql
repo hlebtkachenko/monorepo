@@ -1792,6 +1792,26 @@ CREATE TABLE public.auth_verification (
 );
 
 --
+-- Name: brain_confident_wrong; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.brain_confident_wrong (
+    workspace_id uuid NOT NULL,
+    confident_wrong_count integer DEFAULT 0 NOT NULL,
+    last_incident_at timestamp with time zone,
+    last_incident_tool_call_log_id uuid,
+    last_incident_note text,
+    cleared_at timestamp with time zone,
+    cleared_by_user_id uuid,
+    cleared_note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT brain_confident_wrong_count_nonneg CHECK ((confident_wrong_count >= 0))
+);
+
+ALTER TABLE ONLY public.brain_confident_wrong FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: business_activity; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2965,6 +2985,13 @@ ALTER TABLE ONLY public.auth_token
 
 ALTER TABLE ONLY public.auth_verification
     ADD CONSTRAINT auth_verification_pkey PRIMARY KEY (id);
+
+--
+-- Name: brain_confident_wrong brain_confident_wrong_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.brain_confident_wrong
+    ADD CONSTRAINT brain_confident_wrong_pkey PRIMARY KEY (workspace_id);
 
 --
 -- Name: business_activity business_activity_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4727,6 +4754,13 @@ ALTER TABLE ONLY public.auth_verification
     ADD CONSTRAINT auth_verification_workspace_fk FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
+-- Name: brain_confident_wrong brain_confident_wrong_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.brain_confident_wrong
+    ADD CONSTRAINT brain_confident_wrong_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
 -- Name: business_activity business_activity_parent_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5479,6 +5513,36 @@ ALTER TABLE public.auth_token ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY auth_token_deny_all ON public.auth_token USING (false) WITH CHECK (false);
+
+--
+-- Name: brain_confident_wrong; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.brain_confident_wrong ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: brain_confident_wrong brain_confident_wrong_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY brain_confident_wrong_delete ON public.brain_confident_wrong FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: brain_confident_wrong brain_confident_wrong_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY brain_confident_wrong_insert ON public.brain_confident_wrong FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: brain_confident_wrong brain_confident_wrong_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY brain_confident_wrong_select ON public.brain_confident_wrong FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: brain_confident_wrong brain_confident_wrong_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY brain_confident_wrong_update ON public.brain_confident_wrong FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: category; Type: ROW SECURITY; Schema: public; Owner: -

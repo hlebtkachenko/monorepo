@@ -62,6 +62,8 @@ import {
   renderOnboardingExecuteResults,
   renderOnboardingPlan,
 } from "./onboard"
+import { classifyExtractionEngine } from "./extraction-engine"
+import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
@@ -216,9 +218,12 @@ export function registerBrainCommand(program: Command): void {
     .command("extract")
     .description(
       "LOCAL vision-OCR pre-pass: read a PDF/image and produce an IR Invoice + field-level provenance + a " +
-        "layout fingerprint, using the workspace OCR template library. It runs OUTSIDE the booking sandbox and " +
-        "NEVER books. The file is fed to the model as an image/document CONTENT BLOCK (not a Read tool). " +
-        "--dry-run assembles + prints the session config only, no creds.",
+        "layout fingerprint, using the workspace OCR template library. For a PDF, a best-effort local " +
+        "markitdown digital-text-layer read (if the `markitdown` CLI is installed) is fed in as untrusted " +
+        "supplementary context (M1.5) — this NEVER changes extractionMethod, which the extract→book bridge " +
+        "always forces to 'ocr'. It runs OUTSIDE the booking sandbox and NEVER books. The file is fed to the " +
+        "model as an image/document CONTENT BLOCK (not a Read tool). --dry-run assembles + prints the " +
+        "session config only, no creds.",
     )
     .argument(
       "<path>",
@@ -257,7 +262,24 @@ export function registerBrainCommand(program: Command): void {
           path,
           new Uint8Array(readFileSync(path)),
         )
-        const plan = assembleExtractPlan(document, ctx, opts.supplier)
+        // [M1.5] Best-effort LOCAL digital-text-layer read (markitdown), PDF only — an image has no text-layer
+        // concept. NEVER throws (see ./markitdown-adapter); a missing/failed run degrades to `null`.
+        const rawTextLayer =
+          document.kind === "document" ? await tryExtractTextLayer(path) : null
+        // [M1.5 / #565] The fail-closed GATE, computed ONCE at this single upstream site. The text-layer assist
+        // rides into the session ONLY when the read positively classifies as a digital-text-layer. A vision-only
+        // classification — including the ambiguous-CZ-amount case, which fails closed like vision — withholds the
+        // text ENTIRELY. The SAME gated `textLayer` feeds BOTH the plan assembly (below) and the live session
+        // (`sdkExtractSession`), so the `--dry-run` plan and the live run can never diverge: neither embeds the
+        // withheld text. (`assembleExtractPlan` re-derives the same gate defensively for any direct caller.)
+        const engine = classifyExtractionEngine(rawTextLayer)
+        const textLayer = engine === "digital-text-layer" ? rawTextLayer : null
+        const plan = assembleExtractPlan(
+          document,
+          ctx,
+          opts.supplier,
+          textLayer,
+        )
 
         // Always PRINT the assembled session config first (default-deny tool lists, the content-block fact,
         // the fixed kickoff), so an operator sees exactly what a live run would do before it runs.
@@ -281,7 +303,11 @@ export function registerBrainCommand(program: Command): void {
         }
 
         const result = await sdkExtractSession({
-          session: { sections: ctx.sections, supplierHint: opts.supplier },
+          session: {
+            sections: ctx.sections,
+            supplierHint: opts.supplier,
+            textLayer,
+          },
           mcpEndpoint,
           apiKey,
           agentSdkAuth,

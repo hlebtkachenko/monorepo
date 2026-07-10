@@ -10,7 +10,31 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **brain**: `afframe brain onboard --execute` runs the already-assembled onboarding create calls (create_accounting_period / create_number_series) via the operator's own API client, behind an explicit confirmation gate mirroring `brain book --live` — immediately-applied writes, default stays print-only (M1.4 completion).
 - **brain**: onboarding discovery — a pure `discoverBookability` predicate (an OPEN period + DOCUMENT/EVENT number series) plus `afframe brain onboard`, a read-only CLI command that reports whether an organization is bookable and, if not, proposes (never executes) the exact `create_accounting_period`/`create_number_series` calls that would fix it (M1.4 discovery + guided-create slice; the live conversational wizard is follow-up).
+- **brain**: wire the reasoning lane (M1.1+M1.2) — `list_accounts`/`get_account` join the book-lane read allowlist, and the login-pack + live kickoff now require the Brain to reason the transaction facts and call `classify_accounting_event` (a pure, ungated decision) before every capture/posting proposal, instead of being handed a pre-decided treatment. Every proposal is still HELD/gated exactly as before — classify never mutates, never bypasses the server gate, and the write body is unchanged in this PR.
+
+### Changed
+
+- **brain**: complete the M1.2 write-body wiring — the harness now threads the server's `classify_accounting_event` treatment (vatMode/vatJurisdiction/commodityCode) onto the capture write body deterministically at the launcher's canUseTool updatedInput seam. The model never edits the payload; the merge is NARROW-ONLY (only ever moves a line toward held, never widens an adapter-held OUTSIDE_VAT row into STANDARD) and never touches the amounts; confidence stays out of the model's hands; every special-regime write is still HELD by the untouched `deriveCaptureVeto` (`unverified_vat_regime`).
+- **brain**: `brain extract`'s digital-PDF path now runs a best-effort local markitdown text-layer read alongside the vision-OCR pre-pass (M1.5), and every extraction always resolves through a fail-closed `extractionMethod` discriminator (#565) — markitdown, tesseract (deferred), and vision all map to the SAME weakest wire value (`ocr`), by type construction, never a stronger one; the extract→book bridge's existing forced `ocr` stamp is unchanged.
+### Fixed
+
+- **accounting**: resolve the decideVat↔catalogue vat_mode conflation for a §66 export of goods to a third country (S-EXPORT now captures EXEMPT, matching the catalogue) and add DPH ř.22 (vývoz zboží), routing it off ř.50 §51 exempt-without-deduction — fixes #566.
+
+## [v0.17.4] — 2026-07-10
+
+Patch release: capture and compute the DPPO annual worksheet inputs, converge every OpenFGA pin to v1.18.1 (app-stack + bootstrap Dockerfile + local compose) with the version-check guard extended to all three, offer Czech in the onboarding profile locale selector, add a retrievable source for the bot `INGEST_SECRET`, and improve the Conductor CodeGraph refresh tooling.
+
+### Added
+
 - **accounting/annual**: capture and persist the provenanced DPPO worksheet inputs (taxpayer category + the six §25/§18a/§19/§34/§35/§38a adjustments) per accounting period via a new `dppo_annual_adjustment` table and an owner/admin edit form on the Corporation tax page, so `buildDppo` computes instead of only reporting NEEDS_INPUT.
+- scripts/bot-dev-vars.sh materializes apps/bot/.dev.vars INGEST_SECRET from Vault/SSM, with docs and rotation path (#398)
+
+### Changed
+
+- Developer tooling: make the Conductor CodeGraph refresh target the active workspace under Spotlight, preserve exit status, and close its Run shell automatically.
+- Bump OpenFGA image pin to v1.18.1 in the CDK app-stack (#564)
+- Converge OpenFGA bootstrap Dockerfile + local compose pins to v1.18.1 and extend the version-check guard to all three pin files (#533)
+- Onboarding profile locale selector now offers Czech, sourced from the @workspace/i18n registry (#532)
 
 ### Fixed
 

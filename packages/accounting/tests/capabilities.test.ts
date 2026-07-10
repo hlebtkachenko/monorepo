@@ -246,6 +246,26 @@ describe("decision layer — the domain DECIDES from raw facts", () => {
     ).toBe("IMPORT")
   })
 
+  it("splits the IMPORT jurisdiction's vat_mode per direction — RECEIVED import vs ISSUED export (#566)", () => {
+    // RECEIVED §23 import self-assesses on 343↔343 → vat_mode IMPORT, scenario P-IMPORT.
+    const received = classifyEvent(facts({ jurisdiction: "IMPORT" }))
+    expect(received.scenario).toBe("P-IMPORT")
+    expect(received.vatMode).toBe("IMPORT")
+    expect(received.vatJurisdiction).toBe("IMPORT")
+
+    // ISSUED §66 export charges no VAT at all → vat_mode EXEMPT (matching the
+    // S-EXPORT catalogue scenario, not IMPORT — the pre-#566 conflation that
+    // made expand.ts throw at posting or silently misrouted onto ř.50).
+    const issued = classifyEvent(
+      facts({ direction: "ISSUED", jurisdiction: "IMPORT" }),
+    )
+    expect(issued.scenario).toBe("S-EXPORT")
+    expect(issued.vatMode).toBe("EXEMPT")
+    expect(issued.vatRate).toBeNull()
+    // Still carries jurisdiction 'IMPORT' verbatim — the DPH ř.22 discriminator.
+    expect(issued.vatJurisdiction).toBe("IMPORT")
+  })
+
   it("compares the service window by DATE part, not raw strings (mixed formats)", () => {
     // ends INSIDE the period, but stated as a timestamp — a raw string compare
     // would see "2026-12-31T09:00" > "2026-12-31" and wrongly defer

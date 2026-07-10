@@ -25,6 +25,19 @@ updates:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
 
+  # [M1.5] pip — the OPTIONAL `markitdown` CLI pin `brain extract` shells out to for a digital-PDF
+  # text-layer read (apps/cli/src/brain/markitdown-adapter.ts). No install step in this repo's CI/CD
+  # reads this file — it exists purely so Dependabot tracks the pinned version. See
+  # apps/cli/requirements-extract.txt for the "why a manifest with nothing installing from it" note.
+  - package-ecosystem: pip
+    directory: /apps/cli
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore"
+      include: scope
+
   # GitHub Actions — group everything together so SHA bumps land in one PR
   - package-ecosystem: github-actions
     directory: /

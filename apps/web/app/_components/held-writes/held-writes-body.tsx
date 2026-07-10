@@ -26,6 +26,7 @@ import {
   HeldWriteDetail,
   TOOL_OPTIONS,
   toolLabel,
+  type AccountOption,
   type HeldWriteListRow,
 } from "./columns"
 
@@ -57,9 +58,12 @@ function applySearch(
 export function HeldWritesBody({
   rows,
   orgSlug,
+  accounts,
 }: {
   rows: HeldWriteListRow[]
   orgSlug: string
+  /** [M1.7] Chart-of-accounts options for the edit-before-approve account picker. */
+  accounts: AccountOption[]
 }) {
   const [search, setSearch] = React.useState("")
   const [inspected, setInspected] = React.useState<HeldWriteListRow | null>(
@@ -114,9 +118,13 @@ export function HeldWritesBody({
       inspector={
         inspected ? (
           <HeldWriteDetail
+            // [M1.7] Remounts the edit/draft state below whenever a DIFFERENT
+            // write is inspected — see the HeldWriteDetail doc comment.
+            key={inspected.id}
             row={inspected}
             caseWrites={caseWrites}
             orgSlug={orgSlug}
+            accounts={accounts}
             onResolved={() => {
               setInspectorOpen(false)
               setInspected(null)

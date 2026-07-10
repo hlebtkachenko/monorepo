@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **brain**: edit-before-approve on the held-write approvals inspector (M1.7, A-Z 2.6) — a reviewer can correct the header date, single-partial VAT amounts, and double-entry posting lines before approving, replaying the edited payload through the same gated resolve path.
+
 ### Changed
 
 - **accounting/annual**: resolve DPPO rates from the taxable period and explicit taxpayer category, preserve missing advisor inputs as blocking instead of zero, label DPFO and year-end outputs as incomplete worksheets, and include proven prior-period comparisons when available.

@@ -23,7 +23,22 @@ import {
   formatDecimal,
 } from "../_shared/accounting-format"
 import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
-import type { HeldWriteHeader, HeldWriteVatSummaryRow } from "./view-model"
+import type { HeldWriteEdit } from "./edit-model"
+import {
+  draftFromRow,
+  draftToEdit,
+  HeldWriteEditFields,
+  PostingLinesTable,
+  type AccountOption,
+  type HeldWriteEditDraft,
+} from "./edit-panel"
+import type {
+  HeldWriteHeader,
+  HeldWritePostingLineRow,
+  HeldWriteVatSummaryRow,
+} from "./view-model"
+
+export type { AccountOption } from "./edit-panel"
 
 /**
  * Held gated write as prepared by the approvals page from `fetchHeldWrites`
@@ -53,6 +68,10 @@ export interface HeldWriteListRow {
   vat_summary: HeldWriteVatSummaryRow[]
   /** Human-readable reasons the gate HELD this write. */
   hold_reasons: string[]
+  /** [M1.7] Double-entry posting lines (accountId/side/amount) — empty unless kind "double". */
+  posting_lines: HeldWritePostingLineRow[]
+  /** [M1.7] "double" / "monetary" for a posting, else null. */
+  posting_kind: "double" | "monetary" | null
   /**
    * [WS-2] OCR extraction template this write was derived from (audit
    * `serverGate.templateId`), or null for structured-export writes.
@@ -267,14 +286,21 @@ export function buildHeldWriteColumns({
   ]
 }
 
-/** Approve / reject controls — call the `resolveHeldWrite` server action. */
+/**
+ * Approve / reject controls — call the `resolveHeldWrite` server action.
+ * [M1.7] `edit` (present only while the reviewer has the edit form open) is
+ * sent ONLY on approve — a reject never carries an edit, there is nothing to
+ * apply.
+ */
 function HeldWriteResolveActions({
   orgSlug,
   id,
+  edit,
   onResolved,
 }: {
   orgSlug: string
   id: string
+  edit?: HeldWriteEdit
   onResolved: () => void
 }) {
   const [note, setNote] = React.useState("")
@@ -289,6 +315,7 @@ function HeldWriteResolveActions({
         id,
         action,
         note: note.trim() || undefined,
+        edit: action === "approve" ? edit : undefined,
       })
       if (result.ok) {
         onResolved()
@@ -316,7 +343,11 @@ function HeldWriteResolveActions({
           disabled={isPending}
           onClick={() => resolve("approve")}
         >
-          {isPending ? "Zpracovává se…" : "Schválit a zaúčtovat"}
+          {isPending
+            ? "Zpracovává se…"
+            : edit
+              ? "Schválit upravenou verzi"
+              : "Schválit a zaúčtovat"}
         </Button>
         <Button
           size="sm"
@@ -470,24 +501,55 @@ function CaseSiblingsList({ writes }: { writes: HeldWriteListRow[] }) {
  * the rationale — no raw JSON. `caseWrites` are sibling held writes sharing
  * this write's `conversationId` (the účetní případ), rendered together so a
  * reviewer sees the whole case, not just one isolated write.
+ *
+ * [M1.7] "Upravit" toggles an edit form over the header/VAT/posting-lines
+ * display (`edit-panel.tsx`); approving while it's open sends the edited
+ * payload through the SAME `resolveHeldWrite` approve path (see
+ * `HeldWriteResolveActions`). `accounts` feeds the posting-line account
+ * picker (a `createAccountingPosting`'s `accountId` is a raw uuid).
+ *
+ * `HeldWritesBody` renders this with `key={row.id}` so the draft/editing
+ * state below is freshly initialized whenever a DIFFERENT write is
+ * inspected — no reset effect needed.
  */
 export function HeldWriteDetail({
   row,
   caseWrites,
   orgSlug,
+  accounts,
   onResolved,
 }: {
   row: HeldWriteListRow
   caseWrites: HeldWriteListRow[]
   orgSlug: string
+  accounts: AccountOption[]
   onResolved: () => void
 }) {
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState<HeldWriteEditDraft>(() =>
+    draftFromRow(row),
+  )
+  const icons = useIcons()
+  const EditIcon = icons.Pencil
+
   return (
     <div className="flex flex-col gap-4">
       <dl className="flex flex-col gap-3">
         <DetailField
           label="Operace"
-          value={<Badge variant="secondary">{toolLabel(row.tool_name)}</Badge>}
+          value={
+            <div className="flex items-center justify-between gap-2">
+              <Badge variant="secondary">{toolLabel(row.tool_name)}</Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing((value) => !value)}
+              >
+                <EditIcon />
+                {editing ? "Zrušit úpravu" : "Upravit"}
+              </Button>
+            </div>
+          }
         />
         <DetailField label="Popis" value={row.summary} />
         <DetailField
@@ -524,13 +586,29 @@ export function HeldWriteDetail({
           />
         ) : null}
       </dl>
-      <HeldWriteHeaderCard header={row.header} />
-      <VatSummaryTable rows={row.vat_summary} currency={row.header.currency} />
+      {editing ? (
+        <HeldWriteEditFields
+          toolName={row.tool_name}
+          draft={draft}
+          onDraftChange={setDraft}
+          accounts={accounts}
+        />
+      ) : (
+        <>
+          <HeldWriteHeaderCard header={row.header} />
+          <VatSummaryTable
+            rows={row.vat_summary}
+            currency={row.header.currency}
+          />
+          <PostingLinesTable rows={row.posting_lines} accounts={accounts} />
+        </>
+      )}
       <HoldReasonsList reasons={row.hold_reasons} />
       <CaseSiblingsList writes={caseWrites} />
       <HeldWriteResolveActions
         orgSlug={orgSlug}
         id={row.id}
+        edit={editing ? draftToEdit(draft, row.tool_name) : undefined}
         onResolved={onResolved}
       />
     </div>

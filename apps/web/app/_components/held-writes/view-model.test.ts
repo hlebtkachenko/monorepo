@@ -109,12 +109,14 @@ describe("buildHeldWriteViewModel", () => {
       rateLabel: "21 %",
       base: "10500.00", // 10000 + 500, the two 21 % lines rolled into one row
       vat: "2205.00", // 2100 + 105
+      partialCount: 2, // rolled up from TWO partials — ambiguous, not 1:1 editable
     })
     expect(rate12).toEqual({
       rate: "12",
       rateLabel: "12 %",
       base: "1000.00",
       vat: "120.00",
+      partialCount: 1, // a single source partial — safely 1:1 editable
     })
   })
 
@@ -141,7 +143,13 @@ describe("buildHeldWriteViewModel", () => {
     )
 
     expect(vm.vatSummary).toEqual([
-      { rate: null, rateLabel: "osvobozeno", base: "5000.00", vat: "0.00" },
+      {
+        rate: null,
+        rateLabel: "osvobozeno",
+        base: "5000.00",
+        vat: "0.00",
+        partialCount: 1,
+      },
     ])
   })
 
@@ -168,6 +176,9 @@ describe("buildHeldWriteViewModel", () => {
     expect(vm.header.totalAmount).toBeNull()
     expect(vm.header.currency).toBeNull()
     expect(vm.vatSummary).toEqual([])
+    // [M1.7] No posting lines on an event — nothing to edit at that level.
+    expect(vm.postingLines).toEqual([])
+    expect(vm.postingKind).toBeNull()
   })
 
   it("shapes a createAccountingPosting header from the debit side of a double entry", () => {
@@ -191,6 +202,55 @@ describe("buildHeldWriteViewModel", () => {
     expect(vm.header.totalAmount).toBe("12100.00")
     expect(vm.header.currency).toBe("CZK")
     expect(vm.vatSummary).toEqual([])
+  })
+
+  it("[M1.7] exposes double-entry posting lines (accountId/side/amount) for kind=double", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "double",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+              { accountId: "acc-2", side: "CREDIT", amount: "12100.00" },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.postingKind).toBe("double")
+    expect(vm.postingLines).toEqual([
+      { accountId: "acc-1", side: "DEBIT", amount: "12100.00" },
+      { accountId: "acc-2", side: "CREDIT", amount: "12100.00" },
+    ])
+  })
+
+  it("[M1.7] a monetary/cash posting has no editable posting lines", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingPosting",
+        input_json: {
+          kind: "monetary",
+          entry: {
+            postingDate: "2026-06-01",
+            lines: [
+              {
+                location: "BANK",
+                direction: "OUTFLOW",
+                isTaxRelevant: false,
+                amount: "500.00",
+              },
+            ],
+          },
+        },
+      }),
+    )
+
+    expect(vm.postingKind).toBe("monetary")
+    expect(vm.postingLines).toEqual([])
   })
 })
 

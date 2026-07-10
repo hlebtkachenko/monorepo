@@ -44,7 +44,13 @@ export interface ReviewedRunLogRow {
   conversationId: string | null
   /** `tool_call_log.created_at` — when the write was originally proposed (ISO string or `Date`). */
   createdAt: string | Date
-  /** `tool_call_log.output_json` — carries BOTH `serverGate.shadow` and the human `resolution`. */
+  /**
+   * `tool_call_log.output_json`. NOTE: `serverGate.shadow` (written at held-write time) and the human
+   * `resolution` (written at resolve time) only COEXIST on one row once the resolve path preserves
+   * `serverGate` forward — the F1 fix in PR #648 (M3.2). Before that fix, `updateToolCallLogOutput`
+   * full-replaces `output_json` at resolve, wiping the shadow, so this ingestion yields zero samples on
+   * real data. A row needs both to produce a `CalibrationSample`; rows with only one are skipped.
+   */
   outputJson: unknown
 }
 

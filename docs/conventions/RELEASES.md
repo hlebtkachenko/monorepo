@@ -71,13 +71,15 @@ per-PR, see "How to cut a release" below.
 ## How to cut a release
 
 ```bash
-# 1. Review the Dependabot PRs merged since the last tag (they skipped the
-#    per-PR changelog gate) and write one summary bullet by hand.
-git log --oneline <last-tag>..HEAD --grep='^chore(deps)'
+# 1. Synthesize the "### Dependencies" section from chore(deps) commits
+#    merged since the last tag (Dependabot PRs skip the per-PR changelog
+#    gate) and merge it into CHANGELOG.md's ## [Unreleased] section.
+node scripts/governance/synthesize-dependency-changelog.mjs --write
 
-# 2. Move the [Unreleased] bullets into a new section in CHANGELOG.md, add a
-#    synthesized "### Dependencies" bullet from step 1 (and "### Security"
-#    if any bump fixed a CVE), e.g. ## [v0.2.0] — 2026-05-21
+# 2. Move the [Unreleased] bullets (including the Dependencies section just
+#    merged) into a new version section in CHANGELOG.md, e.g.
+#    ## [v0.2.0] — 2026-05-21. Add a "### Security" bullet by hand if any
+#    dependency bump fixed a CVE.
 $EDITOR CHANGELOG.md
 
 # 3. Stage + commit the changelog
@@ -115,13 +117,14 @@ So in the canonical flow, **no extra flag is needed** — just tag, then deploy.
 ### Production: tag, then deploy
 
 ```bash
-# 1. Review the Dependabot PRs merged since the last tag (they skipped the
-#    per-PR changelog gate) and write one summary bullet by hand.
-git log --oneline <last-tag>..HEAD --grep='^chore(deps)'
+# 1. Synthesize the "### Dependencies" section from chore(deps) commits
+#    merged since the last tag (Dependabot PRs skip the per-PR changelog
+#    gate) and merge it into CHANGELOG.md's ## [Unreleased] section.
+node scripts/governance/synthesize-dependency-changelog.mjs --write
 
-# 2. Move bullets from [Unreleased] to a new section in CHANGELOG.md, adding
-#    a synthesized "### Dependencies" bullet from step 1 (and "### Security"
-#    if any bump fixed a CVE).
+# 2. Move bullets from [Unreleased] (including the Dependencies section just
+#    merged) to a new version section in CHANGELOG.md. Add a "### Security"
+#    bullet by hand if any dependency bump fixed a CVE.
 $EDITOR CHANGELOG.md
 git add CHANGELOG.md
 git commit -m "chore(release): v0.2.0"

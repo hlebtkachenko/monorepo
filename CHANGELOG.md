@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **accounting/annual**: capture and persist the provenanced DPPO worksheet inputs (taxpayer category + the six §25/§18a/§19/§34/§35/§38a adjustments) per accounting period via a new `dppo_annual_adjustment` table and an owner/admin edit form on the Corporation tax page, so `buildDppo` computes instead of only reporting NEEDS_INPUT.
+
 ## [v0.17.3] — 2026-07-10
 
 Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.

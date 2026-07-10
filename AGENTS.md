@@ -47,7 +47,7 @@ From code: `@workspace/notify` → `ask({question,options,allowCustom})` / `askC
 - `callbackUrl` (+ `callbackToken`) — the bot POSTs `{id,kind,decision,text,asker}` there on resolve. For a service agent with an endpoint.
 - Only a resident process that stays alive should use `waitForAnswer(id)` (a poll loop) or the `ask.ts` CLI (it blocks). `GET /answer/:id` remains a durable fallback floor — the answer is always persisted.
 
-Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally).
+Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally, materialized via `scripts/bot-dev-vars.sh`).
 
 ## Architecture
 

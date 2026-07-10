@@ -28,8 +28,12 @@ interface BuiltApp {
   readonly backup: BackupStack
 }
 
-export function buildTestApp(envName: string = TEST_ENV_NAME): BuiltApp {
+export function buildTestApp(
+  envName: string = TEST_ENV_NAME,
+  outdir?: string,
+): BuiltApp {
   const app = new App({
+    outdir,
     context: {
       [`availability-zones:account=${TEST_ACCOUNT}:region=${TEST_REGION}`]: [
         "eu-central-1a",

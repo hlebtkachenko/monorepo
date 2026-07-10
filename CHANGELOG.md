@@ -10,11 +10,21 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - **brain**: server-side extraction re-verifier (M3.1) — independently recomputes VAT arithmetic/sums/totals and OCR template-confirmation basis for a captured document, returning a structured field-by-field verdict. Standalone and unconsumed: the `extraction_failed` cold-start floor and `runGatedWrite` are untouched; the verdict feeds no decision path today (activation is data-gated on the M2.3 marathon + closing #565).
 
+## [v0.17.6] — 2026-07-10
+
+Patch release: dependency maintenance (production + dev + infra image + GitHub Actions bumps, all within-major) plus Dependabot workflow hardening (changelog-gate exemption, cooldown/labels/PR-limit config) and an AWS deploy-time reduction.
+
 ### Changed
 
-- Bump postgres digest in /infra (infra-docker group) (#657)
-- Bump postgres digest in /infra/compose/postgres (#658)
-- Bump postgres digest in /infra/compose/pgtap (#659)
+- Exempt Dependabot PRs from the changelog Unreleased gate (author-gated), harden dependabot.yml (cooldown + labels + PR limit on all ecosystems), and document dependency recording at release-cut (#667)
+- Reduce AWS deployment time by overlapping cold environment warm-up with image builds, bundling migration transport, stabilizing Budget names, and narrowing helper image contexts.
+
+### Dependencies
+
+- Bump production-dependencies group: 25 within-major updates incl. next 16.2.9->16.2.10, @sentry/{nextjs,node} 10.62->10.63, @aws-sdk/* 3.1063->3.1079, recharts, resend, radix-ui, react-resizable-panels, lucide-react (#665)
+- Bump dev-dependencies group: tsx 4.22.4->4.23.0, @cloudflare/workers-types 4->5 (type-only D1Database, non-breaking), @next/eslint-plugin-next, @aws-sdk/client-{ecs,rds,sns}, aws-cdk-lib (#663)
+- Bump dev-dependency @playwright/test 1.60.0->1.61.1 (#668)
+- Bump postgres base image digests in /infra, /infra/compose/postgres, /infra/compose/pgtap (#657, #658, #659)
 - Bump infra-compose-images group: postgres-exporter v0.20.0->v0.20.1, mailpit v1.30.3->v1.30.4 (#661)
 - Bump github-actions group: aws-actions/configure-aws-credentials v6.2.1->v6.2.2, github/codeql-action v4.36.3->v4.37.0, step-security/harden-runner v2.19.4->v2.20.0 (#662)
 
@@ -39,6 +49,7 @@ M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the dete
 - Bump markitdown from 0.1.5 to 0.1.6 (#660)
 - **brain**: complete the M1.2 write-body wiring — the harness now threads the server's `classify_accounting_event` treatment (vatMode/vatJurisdiction/commodityCode) onto the capture write body deterministically at the launcher's canUseTool updatedInput seam. The model never edits the payload; the merge is NARROW-ONLY (only ever moves a line toward held, never widens an adapter-held OUTSIDE_VAT row into STANDARD) and never touches the amounts; confidence stays out of the model's hands; every special-regime write is still HELD by the untouched `deriveCaptureVeto` (`unverified_vat_regime`).
 - **brain**: `brain extract`'s digital-PDF path now runs a best-effort local markitdown text-layer read alongside the vision-OCR pre-pass (M1.5), and every extraction always resolves through a fail-closed `extractionMethod` discriminator (#565) — markitdown, tesseract (deferred), and vision all map to the SAME weakest wire value (`ocr`), by type construction, never a stronger one; the extract→book bridge's existing forced `ocr` stamp is unchanged.
+
 ### Fixed
 
 - **accounting**: resolve the decideVat↔catalogue vat_mode conflation for a §66 export of goods to a third country (S-EXPORT now captures EXEMPT, matching the catalogue) and add DPH ř.22 (vývoz zboží), routing it off ř.50 §51 exempt-without-deduction — fixes #566.

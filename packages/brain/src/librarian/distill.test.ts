@@ -79,9 +79,12 @@ describe("distillCandidate", () => {
     expect(candidate!.supportCount).toBe(3)
     expect(candidate!.clusterSize).toBe(4)
     expect(candidate!.sourceCorrectionIds).toEqual(["a", "b", "c", "d"])
+    // proposedDecision is the TREATMENT-normalized rule — account + side only, the per-document
+    // `amount` stripped (a booking rule is not a payload clone).
     expect(candidate!.proposedDecision.postingLines).toEqual([
-      { accountId: "504", side: "DEBIT", amount: "100.00" },
+      { accountId: "504", side: "DEBIT" },
     ])
+    expect(candidate!.proposedDecision).not.toHaveProperty("amount")
     expect(candidate!.id).toBe(candidateId(cluster!.signature))
   })
 
@@ -96,5 +99,38 @@ describe("distillCandidate", () => {
     expect(candidate).not.toBeNull()
     expect(candidate!.clusterSize).toBe(3)
     expect(candidate!.supportCount).toBe(2)
+  })
+
+  it("corrections that differ ONLY in per-document amount converge on ONE treatment", () => {
+    // Same supplier, same supply, same corrected account "504" + side — but every invoice a
+    // different amount. Before normalization these would be 3 distinct decisions (support 1 each)
+    // and never converge; after normalization they are ONE rule with full support.
+    function editedAmount(id: string, amount: string): RawCorrectionRow {
+      return {
+        id,
+        conversationId: null,
+        toolName: "createAccountingEvent",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        inputJson: { ...signatureFields, account: "999", amount },
+        outputJson: {
+          resolution: "approved",
+          edit: { postingLines: [{ accountId: "504", side: "DEBIT", amount }] },
+        },
+      }
+    }
+    const records = ingestCorrections([
+      editedAmount("a", "1200.00"),
+      editedAmount("b", "3499.90"),
+      editedAmount("c", "58.00"),
+    ])
+    const [cluster] = clusterCorrections(records)
+    const candidate = distillCandidate(cluster!, 3)
+    expect(candidate).not.toBeNull()
+    // Full support: all three converge despite three different amounts.
+    expect(candidate!.supportCount).toBe(3)
+    expect(candidate!.clusterSize).toBe(3)
+    expect(candidate!.proposedDecision.postingLines).toEqual([
+      { accountId: "504", side: "DEBIT" },
+    ])
   })
 })

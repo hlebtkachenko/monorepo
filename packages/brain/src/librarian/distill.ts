@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto"
 
 import type { CorrectionCluster } from "./cluster"
-import { decisionKey } from "./decision"
+import { decisionKey, normalizeDecisionForVote } from "./decision"
 import { signatureKey } from "./signature"
 
 export interface CandidateRule {
@@ -43,10 +43,13 @@ export function candidateId(signature: CorrectionCluster["signature"]): string {
  *  - every correction in the cluster is a bare reject (no decision known) → refuse (no positive
  *    signal exists to propose FROM — I8: never fabricate a "corrected" decision no human stated).
  *
- * The returned candidate's `proposedDecision` is the majority-vote decision among the cluster's
- * decided corrections; ties break on the FIRST decision reached in cluster order (deterministic,
- * never random). Whether that majority is strong enough to surface is the next stage's job
- * (`evaluateCandidate` / `booking_rule_pr_gate`, ≥0.90) — this function does not gate on agreement.
+ * The vote is over the TREATMENT-NORMALIZED decision (`normalizeDecisionForVote` — per-document
+ * amounts / dates / document ids stripped), so two corrections that differ only in invoice amount
+ * converge on the same rule, and the returned `proposedDecision` is that normalized treatment (it
+ * never embeds a fixed invoice amount). Ties break on the FIRST decision reached in cluster order
+ * (deterministic, never random). Whether that majority is strong enough to surface is the next
+ * stage's job (`evaluateCandidate` / `booking_rule_pr_gate`, ≥0.90) — this function does not gate
+ * on agreement.
  */
 export function distillCandidate(
   cluster: CorrectionCluster,
@@ -68,10 +71,11 @@ export function distillCandidate(
     { decision: Record<string, unknown>; count: number }
   >()
   for (const correction of decided) {
-    const key = decisionKey(correction.decision)
+    const treatment = normalizeDecisionForVote(correction.decision)
+    const key = decisionKey(treatment)
     const existing = votes.get(key)
     if (existing) existing.count += 1
-    else votes.set(key, { decision: correction.decision, count: 1 })
+    else votes.set(key, { decision: treatment, count: 1 })
   }
 
   let winner: { decision: Record<string, unknown>; count: number } | null = null

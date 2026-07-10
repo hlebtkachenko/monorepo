@@ -8,7 +8,7 @@
 // equality, so any future change to the locked bound without updating this constant fails CI.
 
 import type { CorrectionCluster } from "./cluster"
-import { decisionKey } from "./decision"
+import { decisionKey, normalizeDecisionForVote } from "./decision"
 import type { CandidateRule } from "./distill"
 import { checkThreshold, type ThresholdSpec } from "../eval/metric"
 
@@ -20,8 +20,8 @@ export const BOOKING_RULE_PR_GATE_THRESHOLD: ThresholdSpec = {
 }
 
 export interface CandidateEvalResult {
-  /** Fraction of the cluster's DECIDED (non-rejected) corrections whose decision exactly matches
-   * the candidate's `proposedDecision`. */
+  /** Fraction of the cluster's DECIDED (non-rejected) corrections whose TREATMENT-NORMALIZED
+   * decision matches the candidate's `proposedDecision`. */
   agreementRate: number
   matchedCount: number
   decidedCount: number
@@ -33,28 +33,42 @@ export interface CandidateEvalResult {
 
 /**
  * Score a candidate against its own source cluster: what fraction of the cluster's decided
- * corrections agree with the candidate's proposed decision, and does that rate clear the
+ * corrections agree with the candidate's proposed treatment, and does that rate clear the
  * `booking_rule_pr_gate` bound? A cluster with a strong-but-imperfect majority (distilled by
  * `distillCandidate`) can still fail here — distill proposes, this gates.
  *
+ * The threshold is HARDCODED to `BOOKING_RULE_PR_GATE_THRESHOLD` — deliberately NOT a parameter.
+ * The lock file's doctrine is "never loosen a bound to make a red gate pass"; an overridable
+ * threshold sitting next to the drift-guarded constant would be exactly the loosening seam that
+ * doctrine forbids, so the gate can only ever use the one drift-guarded value.
+ *
+ * Comparison is over the TREATMENT-NORMALIZED decision (`normalizeDecisionForVote`), matching how
+ * `distillCandidate` votes — so per-document amount/date/id differences never split otherwise-equal
+ * treatments.
+ *
  * Honest scope note: with a single cluster as both the distillation source AND the scoring
- * population, this is a same-population consistency check, not a held-out generalization test.
- * That is the correct measure for "is there a real majority in what's been seen so far" and is
- * exactly the `.brain/rules` PR gate's stated surface (`eval-thresholds.lock`); a true held-out
- * eval against `.brain/evals/cases/**` golden fixtures is a documented follow-up once real
- * fixtures exist for the learned-rule surface (`.brain/evals/` is empty at M0/M2, per its README).
+ * population, this is a same-population consistency check, not a held-out generalization test — it
+ * reuses the `booking_rule_pr_gate` NUMBER, which is weaker than that bound's stated held-out
+ * brain-eval-suite surface. That is the correct measure for "is there a real majority in what's
+ * been seen so far", and a true held-out eval against `.brain/evals/cases/**` golden fixtures is a
+ * documented follow-up (see the librarian README) once real fixtures exist for the learned-rule
+ * surface (`.brain/evals/` is empty at M0/M2, per its README).
  */
 export function evaluateCandidate(
   candidate: CandidateRule,
   cluster: CorrectionCluster,
-  threshold: ThresholdSpec = BOOKING_RULE_PR_GATE_THRESHOLD,
 ): CandidateEvalResult {
+  const threshold = BOOKING_RULE_PR_GATE_THRESHOLD
   const decided = cluster.corrections.filter(
     (correction) => correction.decision !== null,
   )
-  const candidateKey = decisionKey(candidate.proposedDecision)
+  const candidateKey = decisionKey(
+    normalizeDecisionForVote(candidate.proposedDecision),
+  )
   const matched = decided.filter(
-    (correction) => decisionKey(correction.decision!) === candidateKey,
+    (correction) =>
+      decisionKey(normalizeDecisionForVote(correction.decision!)) ===
+      candidateKey,
   ).length
   const decidedCount = decided.length
   const agreementRate = decidedCount === 0 ? 0 : matched / decidedCount

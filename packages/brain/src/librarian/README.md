@@ -17,12 +17,12 @@ CorrectionRecord[]  (signature + proposedInput + resolution + decision)
 CorrectionCluster[] (grouped by 4-fact signature)
         │  distillCandidate()             distill.ts
         ▼
-CandidateRule | null   (majority-vote decision, best-effort — may be null: too few
-                        corrections, or nothing but rejects)
+CandidateRule | null   (majority-vote over the TREATMENT-normalized decision, best-effort
+                        — may be null: too few corrections, or nothing but rejects)
         │  evaluateCandidate()            eval-gate.ts
         ▼
 CandidateEvalResult     (agreement rate vs the booking_rule_pr_gate bound, 0.90 — the
-                        SAME threshold already locked in
+                        SAME locked threshold, HARDCODED, no override parameter:
                         scripts/brain-build/eval-thresholds.lock)
         │  buildProposalArtifact()        emit.ts
         ▼
@@ -52,6 +52,18 @@ read directly off `input_json` (fail-closed: unreadable ⇒ excluded, never gues
 unmerged `feat/brain-booking-templates` (#643, M2.1) `BookingSignature` shape — the same 4 facts a
 `booking_template` match already keys on — so that when M1.2 (the reasoning lane, unmerged #639)
 and M2.1 land, their real field names can replace this mirror with a straight swap, not a redesign.
+
+## Treatment normalization (why a rule is not a payload clone)
+
+The vote and the eval agreement run over the **treatment-normalized** decision, not the full
+payload. `normalizeDecisionForVote` (`decision.ts`) strips `PER_DOCUMENT_FIELDS` — per-invoice
+amounts (`amount` / `base` / `vat` / …), dates, and document-specific ids — wherever they appear
+(top-level and inside `postingLines` / `vatAmounts`), keeping only the generalizable treatment
+(account / side / scenario / vatMode / vatJurisdiction / vatRate / rateLabel). Without this, two
+invoices from the same supplier for the same supply would count as different decisions (every amount
+differs) and clusters would almost never converge; and any candidate that did emerge would embed one
+invoice's fixed amount — domain-wrong. The emitted `proposedDecision` is therefore the normalized
+treatment, never a payload with a frozen amount.
 
 ## The safety argument (read before touching this directory)
 
@@ -93,3 +105,29 @@ and M2.1 land, their real field names can replace this mirror with a straight sw
 - **`aliases`/`judge`/`memory`** — this PR only builds the `rules`-shaped half of the loop (a
   proposed booking treatment for a signature). Counterparty-alias distillation and judge
   calibration are a separate, later slice (their own `.brain/` subdirs stay README-only).
+
+## M2.3-promotion preconditions (address BEFORE the real-correction adapter lands)
+
+These are inert today (the engine has zero real callers), but each MUST be resolved before a real
+`tool_call_log → RawCorrectionRow` adapter feeds live corrections in — they are the difference
+between an honest engine and one that quietly over-clusters or misleads a reviewer:
+
+- **(a) The 4-fact signature omits decisive Czech-VAT sub-facts.** `counterpartyKey` / `direction` /
+  `supplyKind` / `jurisdiction` do not capture the §92 kód předmětu plnění (which commodity a
+  domestic reverse-charge supply reports), §37a advance-vs-final, or threshold-gated goods PDP. Two
+  corrections with the same 4-fact signature but different sub-facts would over-cluster. Extend the
+  signature (in lockstep with #643's real `BookingSignature`) before real ingestion.
+- **(b) The eval reuses the `booking_rule_pr_gate` NUMBER for a weaker measure.** `evaluateCandidate`
+  runs an in-sample agreement check; the lock's stated surface for that bound is a held-out
+  brain-eval-suite measure. The shared name/number is convenient but weaker — do not let it read as
+  the held-out gate when M2.3 wires the real one. Swap in the true held-out eval (against
+  `.brain/evals/cases/**`) as the promotion gate.
+- **(c) `candidateId = hash(signature-only)`.** A drifted re-run for the same signature produces the
+  same id, so a later artifact OVERWRITES a prior one of the same signature. Fine for a
+  regenerate-in-place proposal today; before real use, decide whether a content/version component
+  belongs in the id (or whether overwrite-in-place is the intended semantics) so a superseded
+  proposal is not silently lost.
+- **(d) `deriveDecision`'s shallow comparison-merge diverges from the real replay.** It merges the
+  edit onto the proposal for COMPARISON only; the real booking replay is `applyHeldWriteEdit`
+  (`apps/web`, per-tool). If a distilled rule is ever promoted toward booking, reconcile the two so
+  the treatment the librarian voted on is exactly the treatment that would be booked.

@@ -76,8 +76,9 @@ describe("librarian pipeline (ingest → cluster → distill → eval → emit)"
 
     const candidate = distillCandidate(cluster!)
     expect(candidate).not.toBeNull()
+    // The proposed treatment carries account + side, never the per-document amount.
     expect(candidate!.proposedDecision.postingLines).toEqual([
-      { accountId: "518", side: "DEBIT", amount: "500.00" },
+      { accountId: "518", side: "DEBIT" },
     ])
 
     const evalResult = evaluateCandidate(candidate!, cluster!)
@@ -92,6 +93,7 @@ describe("librarian pipeline (ingest → cluster → distill → eval → emit)"
     expect(existsSync(filePath)).toBe(true)
     const onDisk = JSON.parse(readFileSync(filePath, "utf8"))
     expect(onDisk.proposedDecision.postingLines[0].accountId).toBe("518")
+    expect(onDisk.proposedDecision.postingLines[0]).not.toHaveProperty("amount")
     expect(onDisk.status).toBe("proposed")
   })
 

@@ -109,13 +109,16 @@ export function dppoAdjustmentFormFromWorksheet(
   }
 }
 
-// A signed decimal with up to four fractional places (numeric(19,4)), or blank.
-const AMOUNT_PATTERN = /^-?\d+(\.\d{1,4})?$/
+// A signed decimal with up to 15 integer digits + 4 fractional places, so it
+// fits the numeric(19,4) column — an over-large value fails here with a clear
+// message instead of a generic DB `saveFailed`.
+const AMOUNT_PATTERN = /^-?\d{1,15}(\.\d{1,4})?$/
 
 const AmountSchema = z
   .string()
   .refine((value) => value.trim() === "" || AMOUNT_PATTERN.test(value.trim()), {
-    error: "Enter a decimal amount (up to 4 places) or leave blank.",
+    error:
+      "Enter a decimal amount (up to 15 digits and 4 decimal places) or leave blank.",
   })
 
 const FieldSchema = z.object({
@@ -138,14 +141,16 @@ export const DppoAdjustmentInputSchema = z
         "OTHER",
       ])
       .nullable(),
-    fields: z.object({
-      nonDeductibleExpenses: FieldSchema,
-      exemptRevenue: FieldSchema,
-      excludeLossMakingMainActivity: FieldSchema,
-      lossCarryForward: FieldSchema,
-      taxReliefs: FieldSchema,
-      advancesPaid: FieldSchema,
-    }),
+    fields: z
+      .object({
+        nonDeductibleExpenses: FieldSchema,
+        exemptRevenue: FieldSchema,
+        excludeLossMakingMainActivity: FieldSchema,
+        lossCarryForward: FieldSchema,
+        taxReliefs: FieldSchema,
+        advancesPaid: FieldSchema,
+      })
+      .strict(),
   })
   .strict()
   .superRefine((value, ctx) => {

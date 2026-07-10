@@ -1,62 +1,58 @@
 "use server"
 
-import { headers } from "next/headers"
+import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
-import { auth } from "@workspace/auth/server"
 import { withOrganization } from "@workspace/db"
 import { saveDppoAdjustments, type OrgCtx } from "@workspace/accounting"
 
+import { authorizeOrgAdmin } from "../../_lib/org-authz"
 import {
-  resolveOrgContext,
-  type OrgContext,
-} from "../../settings/_lib/settings-data"
-import { getOrgAccountingContext } from "../../_lib/accounting-data"
+  getHeaderPeriods,
+  PERIOD_COOKIE,
+  resolveActivePeriod,
+} from "../../_lib/header-periods"
 import {
   DppoAdjustmentInputSchema,
   toDppoSaveInput,
   type DppoAdjustmentInput,
 } from "./_lib/dppo-adjustment-form"
 
-export interface IncomeTaxActionResult {
-  ok: boolean
-  errorKey?: string
-}
-
-/**
- * Owner/admin gate — the same role check settings/actions.ts `authorize()`
- * enforces before any org mutation. Resolves the session, then the caller's
- * org membership role.
- */
-async function authorize(
-  slug: string,
-): Promise<{ userId: string; ctx: OrgContext } | null> {
-  const session = await auth.api.getSession({ headers: await headers() })
-  const userId = session?.user?.id
-  if (!userId) return null
-  const ctx = await resolveOrgContext(slug, userId)
-  if (!ctx || (ctx.role !== "owner" && ctx.role !== "admin")) return null
-  return { userId, ctx }
-}
+export type IncomeTaxActionResult =
+  | { ok: true }
+  | {
+      ok: false
+      errorKey: "forbidden" | "invalidInput" | "noPeriod" | "saveFailed"
+    }
 
 /**
  * Persist the provenanced DPPO worksheet inputs for the active accounting
- * period. The period is resolved SERVER-SIDE (from the active-period cookie),
- * never accepted from the client, and organization/workspace tenancy is
- * injected from the session — the Zod input schema carries none of it. buildDppo
- * reads the saved row on the next render (see income-tax-data.ts).
+ * period. The owner/admin gate (`authorizeOrgAdmin`) already resolved the org,
+ * so the active period is read directly (`getHeaderPeriods` + the active-period
+ * cookie) without re-resolving session + membership. The period is resolved
+ * SERVER-SIDE, never accepted from the client, and organization/workspace
+ * tenancy is injected from the resolved context — the Zod input schema carries
+ * none of it. buildDppo reads the saved row on the next render (see
+ * income-tax-data.ts).
  */
 export async function saveDppoAdjustmentsAction(
   slug: string,
   input: DppoAdjustmentInput,
 ): Promise<IncomeTaxActionResult> {
-  const gate = await authorize(slug)
+  const gate = await authorizeOrgAdmin(slug)
   if (!gate) return { ok: false, errorKey: "forbidden" }
 
   const parsed = DppoAdjustmentInputSchema.safeParse(input)
   if (!parsed.success) return { ok: false, errorKey: "invalidInput" }
 
-  const accountingContext = await getOrgAccountingContext(slug)
-  const periodId = accountingContext?.periodId
+  const periods = await getHeaderPeriods({
+    organizationId: gate.ctx.organizationId,
+  })
+  const cookieStore = await cookies()
+  const period = resolveActivePeriod(
+    periods,
+    cookieStore.get(PERIOD_COOKIE)?.value,
+  )
+  const periodId = period?.id
   if (!periodId) return { ok: false, errorKey: "noPeriod" }
 
   const orgCtx: OrgCtx = {

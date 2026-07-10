@@ -83,7 +83,30 @@ CREATE TABLE IF NOT EXISTS dppo_annual_adjustment (
       ('STANDARD', 'BASIC_INVESTMENT_FUND', 'QUALIFYING_PENSION_INSTITUTION', 'OTHER')),
   CONSTRAINT dppo_annual_adjustment_period_fk
     FOREIGN KEY (period_id, organization_id)
-    REFERENCES accounting_period (id, organization_id)
+    REFERENCES accounting_period (id, organization_id),
+
+  -- Provenance is all-or-none per adjustment group: each group's four columns
+  -- (amount, source, reference, recorded_at) are either ALL NULL (not answered)
+  -- or ALL set (answered). loadDppoAdjustments trusts this — once the amount is
+  -- non-null it reads the three provenance columns as non-null, no fallbacks.
+  CONSTRAINT dppo_annual_adjustment_non_deductible_expenses_provenance_chk
+    CHECK (num_nulls(non_deductible_expenses_amount, non_deductible_expenses_source,
+                     non_deductible_expenses_reference, non_deductible_expenses_recorded_at) IN (0, 4)),
+  CONSTRAINT dppo_annual_adjustment_exempt_revenue_provenance_chk
+    CHECK (num_nulls(exempt_revenue_amount, exempt_revenue_source,
+                     exempt_revenue_reference, exempt_revenue_recorded_at) IN (0, 4)),
+  CONSTRAINT dppo_annual_adjustment_exclude_loss_activity_provenance_chk
+    CHECK (num_nulls(exclude_loss_making_main_activity_amount, exclude_loss_making_main_activity_source,
+                     exclude_loss_making_main_activity_reference, exclude_loss_making_main_activity_recorded_at) IN (0, 4)),
+  CONSTRAINT dppo_annual_adjustment_loss_carry_forward_provenance_chk
+    CHECK (num_nulls(loss_carry_forward_amount, loss_carry_forward_source,
+                     loss_carry_forward_reference, loss_carry_forward_recorded_at) IN (0, 4)),
+  CONSTRAINT dppo_annual_adjustment_tax_reliefs_provenance_chk
+    CHECK (num_nulls(tax_reliefs_amount, tax_reliefs_source,
+                     tax_reliefs_reference, tax_reliefs_recorded_at) IN (0, 4)),
+  CONSTRAINT dppo_annual_adjustment_advances_paid_provenance_chk
+    CHECK (num_nulls(advances_paid_amount, advances_paid_source,
+                     advances_paid_reference, advances_paid_recorded_at) IN (0, 4))
 );
 
 ALTER TABLE dppo_annual_adjustment ENABLE ROW LEVEL SECURITY;

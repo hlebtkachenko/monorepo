@@ -114,6 +114,12 @@ describe("DppoAdjustmentInputSchema", () => {
     expect(DppoAdjustmentInputSchema.safeParse(input).success).toBe(false)
   })
 
+  it("rejects an amount whose integer part exceeds 15 digits (numeric(19,4))", () => {
+    const input = validInput()
+    input.fields.taxReliefs = { amount: "1234567890123456", reference: "x" }
+    expect(DppoAdjustmentInputSchema.safeParse(input).success).toBe(false)
+  })
+
   it("accepts a null taxpayer category (save-in-progress)", () => {
     const input = { ...validInput(), taxpayerCategory: null }
     expect(DppoAdjustmentInputSchema.safeParse(input).success).toBe(true)

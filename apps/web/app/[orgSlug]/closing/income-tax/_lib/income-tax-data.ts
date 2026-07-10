@@ -15,7 +15,6 @@ import {
   resolvePeriodProfile,
   type PeriodProfileResult,
 } from "../../_lib/period-profile"
-import { resolveOrgContext } from "../../../settings/_lib/settings-data"
 
 /**
  * Server-side data for the Closing Income tax pages (Corporation tax / DPPO,
@@ -95,9 +94,12 @@ export async function getCorporateIncomeTax(
       return buildDppo(db, profile.periodId, input)
     },
   )
-  // Role for the edit affordance — same owner/admin gate the save action enforces.
-  const orgContext = await resolveOrgContext(orgSlug, profile.ctx.userId)
-  const canEdit = orgContext?.role === "owner" || orgContext?.role === "admin"
+  // Edit affordance — same owner/admin gate the save action enforces, read from
+  // the membership already resolved by resolvePeriodProfile (no extra query, no
+  // cross-feature seam into settings).
+  const canEdit =
+    profile.ctx.active &&
+    (profile.ctx.role === "owner" || profile.ctx.role === "admin")
   return {
     status: "ok",
     slug: orgSlug,

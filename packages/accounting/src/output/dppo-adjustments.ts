@@ -104,13 +104,14 @@ export async function loadDppoAdjustments(
   for (const { key, column } of ADJUSTMENT_COLUMNS) {
     const amount = row[`${column}_amount`]
     if (amount == null) continue
+    // The num_nulls(...) IN (0, 4) CHECK guarantees all-or-none per group, so a
+    // set amount means the three provenance columns are non-null too.
     input[key] = {
       amount,
       provenance: {
-        source: (row[`${column}_source`] ??
-          "USER") as AdjustmentProvenance["source"],
-        reference: row[`${column}_reference`] ?? "",
-        recordedAt: row[`${column}_recorded_at`] ?? "",
+        source: row[`${column}_source`] as AdjustmentProvenance["source"],
+        reference: row[`${column}_reference`]!,
+        recordedAt: row[`${column}_recorded_at`]!,
       },
     }
   }

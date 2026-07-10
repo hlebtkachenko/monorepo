@@ -6,7 +6,7 @@
  */
 import "server-only"
 import { sql } from "drizzle-orm"
-import { executeRows, withAdminBypass, withOrganization } from "@workspace/db"
+import { executeRows, withOrganization } from "@workspace/db"
 import {
   backfillDefaultNumberSeries,
   createTaxProfile,
@@ -17,7 +17,13 @@ import {
   type VatRegime,
 } from "@workspace/accounting"
 import { getRequestSession } from "../../_lib/request-session"
+import { resolveOrgContext, type OrgContext } from "../../_lib/org-authz"
 import { collectOrgUpdates, type OrgSettingsUpdate } from "./org-update"
+
+// Re-exported so existing settings imports (and the tax-profile test) keep
+// working; the implementations now live in ../../_lib/org-authz.
+export { resolveOrgContext }
+export type { OrgContext }
 
 /** Next účetní období bounds: prior end + 1 day → + 1 year − 1 day. */
 function nextBounds(priorEnd: string): { start: string; end: string } {
@@ -28,40 +34,6 @@ function nextBounds(priorEnd: string): { start: string; end: string } {
   e.setUTCFullYear(e.getUTCFullYear() + 1)
   e.setUTCDate(e.getUTCDate() - 1)
   return { start, end: e.toISOString().slice(0, 10) }
-}
-
-export interface OrgContext {
-  organizationId: string
-  workspaceId: string
-  role: "owner" | "admin" | "member" | "agent" | "guest"
-}
-
-export async function resolveOrgContext(
-  slug: string,
-  userId: string,
-): Promise<OrgContext | null> {
-  return await withAdminBypass(async (db) => {
-    const rows = await executeRows<{
-      organization_id: string
-      workspace_id: string
-      role: OrgContext["role"]
-    }>(
-      db,
-      sql`SELECT o.id AS organization_id, o.workspace_id, m.role
-          FROM organization o
-          JOIN organization_membership m
-            ON m.organization_id = o.id AND m.user_id = ${userId}::uuid AND m.active = true
-          WHERE o.slug = ${slug}
-          LIMIT 1`,
-    )
-    const row = rows[0]
-    if (!row) return null
-    return {
-      organizationId: row.organization_id,
-      workspaceId: row.workspace_id,
-      role: row.role,
-    }
-  })
 }
 
 /**

@@ -5283,7 +5283,7 @@ export interface components {
                  * @example EU
                  * @enum {string}
                  */
-                vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108";
                 /**
                  * @description Rate to freeze (null for exempt/outside).
                  * @example 21
@@ -5413,7 +5413,7 @@ export interface components {
                      * @example EU
                      * @enum {string}
                      */
-                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108";
                     /**
                      * @description Rate to freeze (null for exempt/outside).
                      * @example 21
@@ -5544,7 +5544,7 @@ export interface components {
                      * @example EU
                      * @enum {string}
                      */
-                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108";
                     /**
                      * @description Rate to freeze (null for exempt/outside).
                      * @example 21
@@ -5667,7 +5667,7 @@ export interface components {
                  * @example EU
                  * @enum {string}
                  */
-                vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108";
                 /**
                  * @description Rate to freeze (null for exempt/outside).
                  * @example 21
@@ -5782,7 +5782,7 @@ export interface components {
                      * @example EU
                      * @enum {string}
                      */
-                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT";
+                    vatJurisdiction: "DOMESTIC" | "REVERSE_CHARGE" | "EU" | "IMPORT" | "EXEMPT" | "OUTSIDE_VAT" | "SECTION_108";
                     /**
                      * @description Rate to freeze (null for exempt/outside).
                      * @example 21

@@ -8371,7 +8371,8 @@
                   "EU",
                   "IMPORT",
                   "EXEMPT",
-                  "OUTSIDE_VAT"
+                  "OUTSIDE_VAT",
+                  "SECTION_108"
                 ],
                 "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                 "example": "EU"
@@ -8631,7 +8632,8 @@
                         "EU",
                         "IMPORT",
                         "EXEMPT",
-                        "OUTSIDE_VAT"
+                        "OUTSIDE_VAT",
+                        "SECTION_108"
                       ],
                       "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                       "example": "EU"
@@ -8897,7 +8899,8 @@
                       "EU",
                       "IMPORT",
                       "EXEMPT",
-                      "OUTSIDE_VAT"
+                      "OUTSIDE_VAT",
+                      "SECTION_108"
                     ],
                     "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                     "example": "EU"
@@ -9152,7 +9155,8 @@
                   "EU",
                   "IMPORT",
                   "EXEMPT",
-                  "OUTSIDE_VAT"
+                  "OUTSIDE_VAT",
+                  "SECTION_108"
                 ],
                 "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                 "example": "EU"
@@ -9414,7 +9418,8 @@
                       "EU",
                       "IMPORT",
                       "EXEMPT",
-                      "OUTSIDE_VAT"
+                      "OUTSIDE_VAT",
+                      "SECTION_108"
                     ],
                     "description": "vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).",
                     "example": "EU"

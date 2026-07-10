@@ -142,6 +142,13 @@ export type AgreementInsuranceParticipation =
  * Evaluate a same-employer monthly gross total against the dated rule. The
  * Closing engine stores the resulting participation fact; it does not guess
  * income or cross-employer facts from the ledger.
+ *
+ * The threshold is inclusive (`>=`): participation arises on *reaching* the
+ * rozhodná částka, so income of exactly the threshold participates. Confirmed
+ * against ČSSZ, "Dohody o provedení práce – pravidla pro účast na pojištění od
+ * 1. 1. 2025": "Účast vzniká při jejím dosažení a již z příjmu 11 500 Kč se tak
+ * odvede pojistné" (Act 187/2006 Sb.). DPČ uses the same "činí aspoň" (`>=`)
+ * rule. The pre-2024 DPP "převyšuje" (`>`) wording no longer applies.
  */
 export function evaluateAgreementInsuranceParticipation(input: {
   kind: AgreementKind

@@ -6,9 +6,12 @@ import { BOOKABLE_IR_RECORD_TYPES } from "@workspace/brain"
 
 import * as irToCapture from "./ir-to-capture"
 import {
+  applyClassifyToCapture,
   bankToCapture,
   cashDocumentToCapture,
   invoiceToCapture,
+  parseClassifyThreading,
+  type ClassifyThreading,
   type IrToCaptureContext,
 } from "./ir-to-capture"
 
@@ -366,6 +369,152 @@ describe("gate envelope threading (extractionMethod / templateId / signals) — 
     })
     expect(cash.extractionMethod).toBe("ocr")
     expect(cash.templateId).toBe("0196f1de-0000-7000-8000-0000000000e2")
+  })
+})
+
+describe("parseClassifyThreading — parse the classify tool result", () => {
+  // A full, contract-valid classify_accounting_event response body (the JSON the MCP tool returns).
+  const classifyBody = (over: Record<string, unknown> = {}): string =>
+    JSON.stringify({
+      vatMode: "REVERSE_CHARGE",
+      vatJurisdiction: "REVERSE_CHARGE",
+      vatRate: "21",
+      scenario: "PURCHASE_SERVICE_RC",
+      saldoAccount: "321",
+      commodityCode: "4",
+      reasoning: ["§92e stavební a montážní práce", "PDP na příjemce (§92a)"],
+      ...over,
+    })
+
+  it("extracts only the threadable subset (vatMode/vatJurisdiction/commodityCode/reasoning)", () => {
+    expect(parseClassifyThreading(classifyBody())).toEqual({
+      vatMode: "REVERSE_CHARGE",
+      vatJurisdiction: "REVERSE_CHARGE",
+      commodityCode: "4",
+      reasoning: ["§92e stavební a montážní práce", "PDP na příjemce (§92a)"],
+    })
+  })
+
+  it("threads NOTHING (undefined) for a missing / non-JSON / schema-invalid body", () => {
+    expect(parseClassifyThreading(undefined)).toBeUndefined()
+    expect(parseClassifyThreading("not json")).toBeUndefined()
+    // The rate-limit tool-error text is not a classify response → undefined (identity merge downstream).
+    expect(
+      parseClassifyThreading("Rate limited. code=rate_limited"),
+    ).toBeUndefined()
+    // Missing the required vatMode → schema rejects → undefined (no partial-body threading).
+    expect(
+      parseClassifyThreading(
+        JSON.stringify({ vatJurisdiction: "DOMESTIC", reasoning: [] }),
+      ),
+    ).toBeUndefined()
+  })
+})
+
+describe("applyClassifyToCapture — harness-deterministic, NARROW-ONLY treatment merge", () => {
+  const standard: ClassifyThreading = {
+    vatMode: "STANDARD",
+    vatJurisdiction: "DOMESTIC",
+    commodityCode: null,
+    reasoning: [],
+  }
+  const reverseCharge: ClassifyThreading = {
+    vatMode: "REVERSE_CHARGE",
+    vatJurisdiction: "REVERSE_CHARGE",
+    commodityCode: "4",
+    reasoning: ["§92e stavební a montážní práce"],
+  }
+
+  it("classify === undefined is the identity (fail-safe: adapter treatment stands)", () => {
+    const req = invoiceToCapture(invoice(), ctx)
+    expect(applyClassifyToCapture(req, undefined)).toBe(req)
+  })
+
+  it("NARROW-ONLY: a classify STANDARD verdict must NOT widen an adapter-held OUTSIDE_VAT row", () => {
+    // A rate-less cash document is OUTSIDE_VAT (adapter-held). classify STANDARD cannot promote it to a
+    // verifiable-looking STANDARD row — that would dodge `unverified_vat_regime`. It must stay OUTSIDE_VAT.
+    const req = cashDocumentToCapture(cashDocument(), ctx)
+    const merged = applyClassifyToCapture(req, standard)
+    const partial = merged.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.vatMode).not.toBe("STANDARD")
+    expect(partial.vatRate).toBeUndefined()
+    // A special-regime classify verdict is allowed onto a held row (still held), but STANDARD is not.
+    const rc = applyClassifyToCapture(req, reverseCharge)
+    expect(rc.lines[0]!.partials[0]!.vatMode).toBe("OUTSIDE_VAT")
+  })
+
+  it("stamps a special regime onto an adapter STANDARD row (→ the veto then HOLDS it)", () => {
+    const req = invoiceToCapture(invoice(), ctx)
+    const merged = applyClassifyToCapture(req, reverseCharge)
+    const partial = merged.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("REVERSE_CHARGE")
+    expect(partial.vatJurisdiction).toBe("REVERSE_CHARGE")
+    expect(partial.commodityCode).toBe("4")
+    // Still a valid capture request (the server's `unverified_vat_regime` veto holds it downstream).
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(merged),
+    ).not.toThrow()
+  })
+
+  it("NEVER touches the money (baseAmount / vatAmount / currencyCode stay document-sourced)", () => {
+    const req = invoiceToCapture(invoice(), ctx)
+    const before = req.lines[0]!.partials[0]!
+    const merged = applyClassifyToCapture(req, reverseCharge)
+    const after = merged.lines[0]!.partials[0]!
+    expect(after.baseAmount).toBe(before.baseAmount)
+    expect(after.vatAmount).toBe(before.vatAmount)
+    expect(after.vatRate).toBe(before.vatRate) // source rate is not overwritten by classify
+    expect(after.currencyCode).toBe(before.currencyCode)
+  })
+
+  it("adapter STANDARD + classify STANDARD keeps the adapter's SOURCE treatment verbatim", () => {
+    const req = invoiceToCapture(invoice(), ctx)
+    const merged = applyClassifyToCapture(req, standard)
+    const partial = merged.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("STANDARD")
+    expect(partial.vatRate).toBe("21")
+    expect(partial.vatAmount).toBe("210.00")
+    expect(partial.vatJurisdiction).toBe("DOMESTIC")
+  })
+
+  it("is per-partial: a special regime stamps the rated partial but a rate-less partial stays OUTSIDE_VAT", () => {
+    // A mixed doklad: one rated (STANDARD) partial + one rate-less (OUTSIDE_VAT) partial.
+    const req = cashDocumentToCapture(
+      cashDocument({
+        direction: "income",
+        vat_summary: [
+          { rate: 21, base_minor: 100000n, tax_minor: 21000n },
+          { rate: 0, base_minor: 50000n, tax_minor: 0n },
+        ],
+      }),
+      ctx,
+    )
+    const merged = applyClassifyToCapture(req, reverseCharge)
+    const [rated, rateless] = merged.lines[0]!.partials
+    expect(rated!.vatMode).toBe("REVERSE_CHARGE") // adapter STANDARD → stamped
+    expect(rateless!.vatMode).toBe("OUTSIDE_VAT") // adapter held → never widened
+  })
+
+  it("derives the rationale from classify reasoning (additive — operator rationale preserved, audit-only)", () => {
+    const req = invoiceToCapture(invoice(), ctx)
+    const merged = applyClassifyToCapture(req, reverseCharge)
+    expect(merged.rationale).toContain(ctx.rationale)
+    expect(merged.rationale).toContain("classify:")
+    expect(merged.rationale).toContain("§92e stavební a montážní práce")
+    // No reasoning → the operator rationale is untouched.
+    const noReason = applyClassifyToCapture(req, {
+      ...reverseCharge,
+      reasoning: [],
+    })
+    expect(noReason.rationale).toBe(ctx.rationale)
+  })
+
+  it("does not mutate the input request (returns a fresh object)", () => {
+    const req = invoiceToCapture(invoice(), ctx)
+    const snapshot = JSON.stringify(req)
+    applyClassifyToCapture(req, reverseCharge)
+    expect(JSON.stringify(req)).toBe(snapshot)
   })
 })
 

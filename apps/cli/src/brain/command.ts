@@ -55,6 +55,7 @@ import {
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
+import { fetchOnboardingPlan, renderOnboardingPlan } from "./onboard"
 import { renderLiveResult } from "./session-config"
 
 /** Register `brain run` (+ subtree) on the CLI program. */
@@ -285,6 +286,25 @@ export function registerBrainCommand(program: Command): void {
         )
       },
     )
+
+  brain
+    .command("onboard")
+    .description(
+      "Discover whether this organization is bookable (an OPEN accounting period + a DOCUMENT/EVENT " +
+        "number series) and, if not, print the exact create_accounting_period/create_number_series calls " +
+        "that would fix it. READ-ONLY: two GETs, no writes, no agent session — the create calls are " +
+        "PROPOSED, never executed. Needs only BRAIN_API_KEY.",
+    )
+    .action(async () => {
+      const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
+      if (!apiKey) {
+        output.write("brain onboard blocked: missing BRAIN_API_KEY.\n")
+        process.exit(1)
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      const plan = await fetchOnboardingPlan(apiKey, mcpEndpoint, today)
+      output.write(renderOnboardingPlan(plan))
+    })
 }
 
 /**

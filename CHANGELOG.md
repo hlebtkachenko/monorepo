@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- **brain**: onboarding discovery — a pure `discoverBookability` predicate (an OPEN period + DOCUMENT/EVENT number series) plus `afframe brain onboard`, a read-only CLI command that reports whether an organization is bookable and, if not, proposes (never executes) the exact `create_accounting_period`/`create_number_series` calls that would fix it (M1.4 discovery + guided-create slice; the live conversational wizard is follow-up).
+
 ## [v0.17.3] — 2026-07-10
 
 Patch release: statutory-closing correctness remediation (#625). Correct statutory filing periods and Czech legal dates, separate schedules from actual obligations, derive VAT/KH/SH and payroll obligations from captured evidence, make DPPO/DPFO/year-end outputs truthful (unknown inputs stay explicit instead of fabricated zero/false), and enforce canonical workspace configuration. Plus follow-up cleanup: correct the pre-2024 DPPO rate citation, drop stale test scaffolding, and document the migration 0051 pre-deploy data check.

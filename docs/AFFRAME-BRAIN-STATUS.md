@@ -8,8 +8,19 @@ what's deferred to v2, and the open GitHub issues that gate each piece. Companio
 > gitignored (agent scratch). **This file is the durable, reviewable tracker** — keep it current when a
 > milestone or issue changes.
 
-**Last updated:** 2026-07-08 · **Umbrella epic:** [#524](https://github.com/hlebtkachenko/monorepo/issues/524)
+**Last updated:** 2026-07-11 · **Umbrella epic:** [#524](https://github.com/hlebtkachenko/monorepo/issues/524)
 (Finish Afframe Brain v1).
+
+> **2026-07-11 — M2/M3 ENGINEERING landed to `main`.** The code that enables the M2 marathon + M3 lift
+> merged (squash, reviewed brain-gate/Advisor, migrations 0055/0056): **#643** booking-template library
+> + model routing (+ the **§I9 constitution amendment**, Hleb-authored), **#644** librarian distillation
+> engine (propose-only), **#645** close #565 evidence-gate floor route-arounds, **#669** DPH ř.12/13 §108
+> + RENT→ř.5/6. The M3 engineering ships as **green, OPEN (unmerged) PRs, inert/floored** — **#647**
+> server-side extraction re-verifier (unconsumed), **#648** wire-calibration-into-gate + F1
+> shadow-preservation, **#646** run-log ingestion — all brain-gate/Advisor-GO on the merged state, kept
+> unmerged because ACTIVATION (un-flooring + the calibration fit) is data-gated on the M2.3 marathon and
+> re-gates then. Cold-start stays HELD everywhere; nothing auto-applies. **Still process-gated:** the M2
+> human-review marathon needs Hleb's labeled 2025 ground-truth folder.
 
 **Prod runtime:** `BRAIN_RUNTIME_ACTIVE=1` (admission lane open) — **every write still HELDs at cold start;
 nothing auto-applies.** The full live end-to-end loop was confirmed on production on 2026-07-07 (a real

@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.17.7] — 2026-07-11
+
+M2 — "Brain learns + statutory completeness": the booking-template library + model routing (with the §I9 constitution carve-out for a reviewable, human-confirmed template — never an opaque write template, still HELD/gated), the propose-only librarian distillation engine, the #565 evidence-gate floor close, and DPH ř.12/13 §108 residual-self-assessment-on-receipt + RENT place-of-supply routing (new `SECTION_108` jurisdiction, migrations 0055/0056). Every Brain write still HELDs at cold start; nothing auto-applies. Plus the Dependabot auto-merge tooling and a one-shot scheduled deploy.
+
 ### Added
 
 - Dependabot auto-merge workflow for safe bump classes (dev-deps patch/minor, pip, Docker digest-only; excludes Actions/prod/majors) via a Dependabot-secret PAT, plus scripts/governance/synthesize-dependency-changelog.mjs for release-cut Dependencies-section synthesis

@@ -120,12 +120,52 @@ function isPositiveOutcome(outcome: HumanReviewOutcome): boolean {
 }
 
 /**
+ * DEGENERATE-FIT GUARD (#569, W3.2/W3.3b). A fit is DEGENERATE when its inputs cannot support a
+ * trustworthy monotone map, so any departure from identity is pure EXTRAPOLATION — and an extrapolating
+ * map can RAISE a score, the confident-wrong cardinal sin. This complements (does not replace) the two
+ * existing floors: the N >= MIN_CALIBRATION_RUNS run-count guard (a fit needs enough distinct runs) and
+ * the post-calibration hard-class ceiling in `scoreProposal` (a fitted map can never lift a fired HARD
+ * class). Those cover run-count and the 5 hard classes; this rejects the remaining degenerate shapes,
+ * including the NON-hard-class caps the ceiling leaves calibration-liftable. Three cases, each FAILS
+ * CLOSED to the cold-start identity model (never a mapping that lifts a score):
+ *
+ *   (a) ZERO-VARIANCE predictor — fewer than 2 distinct `score` values. The fit has seen no spread in the
+ *       predictor, so it cannot know how correctness varies with score; its "map" is a constant that
+ *       extrapolates to every unseen score.
+ *   (b) SINGLE-BLOCK collapse — the PAV fit pools down to one block, i.e. a flat constant map, which
+ *       raises every score below the constant. ("too-few-distinct-bins to fit a monotone map".)
+ *   (c) ALL-SAME-LABEL — every outcome correct (the map lifts to ~1.0 everywhere) or every outcome wrong
+ *       (collapses to 0.0): an uninformative / extrapolating fit; the all-correct arm raises every score
+ *       below 1.0. This catches the multi-distinct-score all-correct case that (a)/(b) miss (PAV yields
+ *       several blocks all at y=1.0, so it is neither zero-variance nor single-block, yet still degenerate).
+ *
+ * Any one ⇒ refuse the fit. This is strictly HOLD-ADDING: a rejected fit becomes the identity model, which
+ * only ever LOWERS the effective calibrated ceiling (identity + the stricter 0.97 cold-start green threshold
+ * vs a fitted map + 0.95) and never lifts a score.
+ */
+function isDegenerateFit(
+  pairs: readonly CalibrationPair[],
+  fit: CalibrationModel,
+): boolean {
+  // (a) zero-variance predictor: all scores identical (or empty).
+  const distinctScores = new Set(pairs.map((p) => p.score))
+  if (distinctScores.size < 2) return true
+  // (b) single-block / too-few-distinct-bins: the PAV map is a flat constant.
+  if (fit.blocks.length < 2) return true
+  // (c) all-same-label: every outcome correct, or every outcome wrong.
+  const firstLabel = pairs[0]?.correct
+  if (pairs.every((p) => p.correct === firstLabel)) return true
+  return false
+}
+
+/**
  * Re-fit the calibration map from production run logs (M3). Derives the distinct-run count from the logs
  * themselves ([G1-F1/F5], never a caller-supplied number); returns the cold-start identity model until at
  * least MIN_CALIBRATION_RUNS DISTINCT runs are present. Otherwise fits the monotone PAV map over
- * {score, human-outcome} pairs. The result is a `CalibrationModel` consumed unchanged by `applyCalibration`
- * / `scoreProposal`. It is server-held + fixed between runs (never client-supplied) and, in v1, is NOT wired
- * into the live gate.
+ * {score, human-outcome} pairs, then REJECTS a degenerate fit ([#569] `isDegenerateFit`), failing closed to
+ * the cold-start identity so a zero-variance / single-block / all-same-label fit can never raise a score.
+ * The result is a `CalibrationModel` consumed unchanged by `applyCalibration` / `scoreProposal`. It is
+ * server-held + fixed between runs (never client-supplied) and, in v1, is NOT wired into the live gate.
  */
 export function refitCalibration(
   logs: readonly RunLogEntry[],
@@ -137,7 +177,10 @@ export function refitCalibration(
     score: log.score,
     correct: isPositiveOutcome(log.outcome),
   }))
-  return fitPav(pairs)
+  const fit = fitPav(pairs)
+  // [#569] Degenerate fits fail closed to the cold-start identity — never a map that could raise a score.
+  if (isDegenerateFit(pairs, fit)) return coldStartModel()
+  return fit
 }
 
 /** Apply the calibration map to a raw score. Cold-start (unfitted) => identity. */

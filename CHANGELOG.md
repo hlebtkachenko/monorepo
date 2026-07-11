@@ -15,6 +15,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- **docs**: mark the Afframe Brain M2 engineering PR train (#643, #644, #645, #669) as merged to `main` in `AFFRAME-BRAIN-STATUS.md`, and record the M3 code items (#646, #647, #648) as built + open for review; the M2 human-review marathon and the M3 calibration fit remain data-gated
 - **brain**: close #565 evidence-gate floor route-arounds (M2.4) — a declared `extractionMethod` can no longer skip the OCR-template screen, and `POST /v1/invoices` now wires the same screen `POST /v1/accounting/documents` uses (tightening-only)
 - One-shot scheduled deploy workflow: staging then production from latest main at 10:00 Europe/Prague on 2026-07-11
 

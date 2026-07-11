@@ -8,11 +8,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **brain**: run-log ingestion pipeline (M3.3): shape reviewed held-writes (shadow score + human approve/reject outcome) into CalibrationSample rows for the M3.2 calibration refit; fail-closed, never fabricates a label
+
+## [v0.17.7] — 2026-07-11
+
+M2 — "Brain learns + statutory completeness": the booking-template library + model routing (with the §I9 constitution carve-out for a reviewable, human-confirmed template — never an opaque write template, still HELD/gated), the propose-only librarian distillation engine, the #565 evidence-gate floor close, and DPH ř.12/13 §108 residual-self-assessment-on-receipt + RENT place-of-supply routing (new `SECTION_108` jurisdiction, migrations 0055/0056). Every Brain write still HELDs at cold start; nothing auto-applies. Plus the Dependabot auto-merge tooling and a one-shot scheduled deploy.
+
+### Added
+
 - Dependabot auto-merge workflow for safe bump classes (dev-deps patch/minor, pip, Docker digest-only; excludes Actions/prod/majors) via a Dependabot-secret PAT, plus scripts/governance/synthesize-dependency-changelog.mjs for release-cut Dependencies-section synthesis
 - **brain**: booking-template library (M2.1, amends §I9) — workspace-scoped, human-confirmed `booking_template` rows keyed on counterparty/direction/supply-kind/jurisdiction; a match still proposes through the unchanged gated write path (never auto-applies, never skips `runGatedWrite`); model routing picks Haiku for a confirmed match and escalates to the default reasoning model for a novel case; the I9 write-template tripwire gains a narrow, exact-match carve-out for the new `BookingTemplateMatch` routing type.
 - **brain**: the M2.2 librarian distillation engine (`packages/brain/src/librarian/`) — ingest human corrections of held Brain proposals, cluster by counterparty/direction/supply_kind/jurisdiction, distill a majority-vote candidate rule, gate it against the already-locked `booking_rule_pr_gate` threshold (0.90), and emit a `status: "proposed"` reviewable JSON artifact to a caller-supplied directory — never a default path, never an opaque prod row, never a live gate/floor/constitution change. Fixture-tested only (data-gated on M2.3); the real-corrections adapter and the GitHub PR automation ADR-0027 describes are explicit follow-up.
 - **accounting**: DPH přiznání lines ř.12/13 — §108 residual self-assessment on receipt (place of supply CZ, supplier not established in tuzemsku: gas/electricity §7a, §10–§10d special-place services incl. §10d means-of-transport hire, goods with assembly §7(6)), carried by a new `vat_jurisdiction = 'SECTION_108'` marker (migration 0056) that splits ř.12/13 out of the domestic §92 line ř.10/11 and routes §108 receipts to kontrolní hlášení A.2 (not B.1); deductible on ř.43/44, net-neutral (#540)
-- **brain**: run-log ingestion pipeline (M3.3): shape reviewed held-writes (shadow score + human approve/reject outcome) into CalibrationSample rows for the M3.2 calibration refit; fail-closed, never fabricates a label
 
 ### Changed
 

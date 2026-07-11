@@ -23,6 +23,18 @@ what's deferred to v2, and the open GitHub issues that gate each piece. Companio
 > re-gates then. Cold-start stays HELD everywhere; nothing auto-applies. **Still process-gated:** the M2
 > human-review marathon needs Hleb's labeled 2025 ground-truth folder.
 
+> **2026-07-11 — Path-to-launch plan (Advisor-verified ×2).** The forward order from here to v1
+> (auto-apply ON after certification) is the ownership-tagged, dependency-ordered
+> **`.context/afframe-brain/BRAIN-V1-ULTIMATE-PLAN.md`** — every remaining item tagged 🤖 AGENT
+> (buildable now) or 👤 HLEB (data/judgment/spine-merge). Both Advisors confirmed the four 👤 items
+> (labeled 2025 folder · KB ratify · spine-PR merge · auto-apply flip) are genuinely human-only.
+> Phases: **A** land the M3 rails (this session — re-synced onto v0.17.7) · **B** build the data-free
+> activation preconditions · **C** the M2.3 marathon (the long pole; starts on Hleb's folder) · **D**
+> fit + un-floor + re-gate · **E** certify + flip. The un-flooring precondition gate is tracked as
+> **[#678](https://github.com/hlebtkachenko/monorepo/issues/678)** (enforce + re-brain-gate before any
+> floor-lift). Marathon accelerators/hardening in flight as separate green PRs: #577 conversationId
+> uuid codegen, #569 calibration degenerate-fit guard.
+
 **Prod runtime:** `BRAIN_RUNTIME_ACTIVE=1` (admission lane open) — **every write still HELDs at cold start;
 nothing auto-applies.** The full live end-to-end loop was confirmed on production on 2026-07-07 (a real
 agent key drove `brain run --live` → `202 HELD` with a recorded shadow score).
@@ -85,9 +97,10 @@ field-by-field cold-start relaxation · the M2 human-review runs themselves (the
 | [#472](https://github.com/hlebtkachenko/monorepo/issues/472) | cross-instance admission caps                                                          | Deferred to v2.                                                                                       |
 | [#524](https://github.com/hlebtkachenko/monorepo/issues/524) | EPIC: Finish Afframe Brain v1                                                          | Umbrella.                                                                                             |
 
-**Issues whose fix already merged but the issue is still open** (treat the code as landed): #554 (primary
-OCR fail-closed leg shipped in PR #568, v0.16.8; residual tracked as #565) and #541 (issued-EU
-reverse-charge shipped in PR #567, v0.16.8).
+**Statutory issue hygiene (2026-07-11):** #554 (OCR fail-closed, PR #568), #541 (issued-EU ř.20/21,
+PR #567), #566 (export §66 + ř.22, PR #637) and #565 (floor route-arounds, PR #645) all merged and
+are now **CLOSED**. **#540** (ř.12/13 §108) code merged in PR #669 (v0.17.7) but stays **OPEN** — its
+close is gated on Hleb ratifying the ř.12/13 §108 KB draft + the RENT auto-classify flip (plan C4).
 
-**ADRs 0025–0029** are all still marked `Proposed` despite the subsystem being implemented + live — a
-status-line update pass to `Accepted` would let the ADRs reflect shipped reality.
+**ADRs 0025–0029** are all **`Accepted`** on `main` (verified 2026-07-11) — the earlier "still marked
+Proposed" note was stale; no action needed.

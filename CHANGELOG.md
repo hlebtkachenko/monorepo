@@ -6,6 +6,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- **docs**: refresh `docs/AFFRAME-BRAIN-STATUS.md` — record that M2 merged AND released as `v0.17.7` (booking-templates + §I9, librarian, floor-close, ř.12/13), and M3 (re-verifier + calibration-wire + run-log-ingestion) ships as green inert OPEN PRs with activation data-gated on the M2.3 marathon
+
+## [v0.17.7] — 2026-07-11
+
+M2 — "Brain learns + statutory completeness": the booking-template library + model routing (with the §I9 constitution carve-out for a reviewable, human-confirmed template — never an opaque write template, still HELD/gated), the propose-only librarian distillation engine, the #565 evidence-gate floor close, and DPH ř.12/13 §108 residual-self-assessment-on-receipt + RENT place-of-supply routing (new `SECTION_108` jurisdiction, migrations 0055/0056). Every Brain write still HELDs at cold start; nothing auto-applies. Plus the Dependabot auto-merge tooling and a one-shot scheduled deploy.
+
 ### Added
 
 - Dependabot auto-merge workflow for safe bump classes (dev-deps patch/minor, pip, Docker digest-only; excludes Actions/prod/majors) via a Dependabot-secret PAT, plus scripts/governance/synthesize-dependency-changelog.mjs for release-cut Dependencies-section synthesis
@@ -15,7 +23,6 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
-- **docs**: refresh `docs/AFFRAME-BRAIN-STATUS.md` — record the 2026-07-11 M2/M3 engineering landing (booking-templates + §I9, librarian, floor-close, ř.12/13 merged; re-verifier + calibration-wire + run-log-ingestion as green inert OPEN PRs, activation data-gated on the M2.3 marathon)
 - **brain**: close #565 evidence-gate floor route-arounds (M2.4) — a declared `extractionMethod` can no longer skip the OCR-template screen, and `POST /v1/invoices` now wires the same screen `POST /v1/accounting/documents` uses (tightening-only)
 - One-shot scheduled deploy workflow: staging then production from latest main at 10:00 Europe/Prague on 2026-07-11
 

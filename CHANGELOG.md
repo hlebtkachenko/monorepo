@@ -17,6 +17,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Add the ContentFooter block — the single sticky bottom action surface (selection + save modes, data-descriptor slots); replace ContentPanel's floating actionBar slot with a footer slot; migrate the 3 ActionBar pages (archetype-system P5/PR-6)
 - Add the archetype-body governance ratchet (`check:archetype-body`): a required CI check that AST-scans apps/web + apps/admin and fails when a new file renders a legacy `<ContentPanel>` body outside the archetype path, with a frozen shrink-only allowlist of the 47 grandfathered call sites.
 - AssistantPanel block (assistant-panel) and a first-class Inspector block extracted from ContentPanel (archetype-system P3)
+- **docs**: System Gap Log (`docs/SYSTEM-GAP-LOG.md` + generated `SYSTEM-GAP-LOG-INDEX.md`) — an append-only, GitHub-issue-shaped log of missing pieces / unwired surfaces / worked-around mechanisms found while operating the system, with a `scripts/gap-log/reindex.mjs` reindexer + public-remote secret/PII leak guard
 
 ### Changed
 

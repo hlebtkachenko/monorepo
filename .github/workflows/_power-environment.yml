@@ -130,9 +130,8 @@ jobs:
               '[.DBInstances[] | select(.DBInstanceIdentifier | startswith($p)) | .DBInstanceIdentifier] | first // empty')"
           TASK_DEF="$(aws ecs describe-services --cluster "$CLUSTER" \
             --services "$SVC" --query 'services[0].taskDefinition' --output text)"
-          DB_WAIT="$(aws ecs describe-task-definition --task-definition "$TASK_DEF" \
-            --query "taskDefinition.containerDefinitions[?name=='db-migrate'].environment[?name=='DB_CONNECT_WAIT_SECONDS'].value | [0]" \
-            --output text)"
+          DB_WAIT="$(aws ecs describe-task-definition --task-definition "$TASK_DEF" --output json \
+            | jq -r '[.taskDefinition.containerDefinitions[] | select(.name == "db-migrate") | .environment[]? | select(.name == "DB_CONNECT_WAIT_SECONDS") | .value][0] // empty')"
           if [ -z "$SID" ] || [ -z "$SVC" ] || [ "$SVC" = "None" ]; then
             echo "::error::Could not resolve RDS and ECS resources for ${ENV_NAME}."
             exit 1

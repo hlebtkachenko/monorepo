@@ -1078,6 +1078,13 @@ export class AppStack extends Stack {
       container: pgbouncerContainer,
       condition: ContainerDependencyCondition.HEALTHY,
     })
+    // web also uses pgbouncer. Starting the pool before db-migrate lets its
+    // listener become healthy during the migration window, while this gate
+    // still prevents web from accepting database work before the pool is ready.
+    webContainer.addContainerDependencies({
+      container: pgbouncerContainer,
+      condition: ContainerDependencyCondition.HEALTHY,
+    })
 
     // Cerbos PDP sidecar (ADR-0018 amendment 2026-05-14): L3 action-gate
     // engine. api calls localhost:3593 (gRPC). Policies + config baked into
@@ -1499,21 +1506,22 @@ export class AppStack extends Stack {
 
     // Essential-container dependsOn wiring. Three init containers run in
     // a strict chain: db-migrate → openfga-migrate → openfga-bootstrap.
-    // Essentials wait on the appropriate prefix:
-    //   - All essentials need db-migrate (creates app_user role, schemas).
+    // Database consumers wait on the appropriate prefix:
+    //   - pgbouncer and cerbos start immediately. They do not query the
+    //     database during startup, so their health checks can overlap the init
+    //     chain. Their consumers remain gated on both health and migrations.
+    //   - Runtime database consumers need db-migrate (creates roles, schemas).
     //   - openfga + api need openfga-migrate (goose schema tables exist).
     //   - api alone needs openfga-bootstrap (its SSM-sourced OPENFGA_STORE_ID
     //     + OPENFGA_MODEL_ID must resolve to the freshly-written values,
     //     not the previous deploy's snapshot or the seed placeholders).
-    const allEssentials = [
-      pgbouncerContainer,
-      cerbosContainer,
+    const databaseConsumers = [
       openfgaContainer,
       apiContainer,
       webContainer,
       adminContainer,
     ]
-    for (const c of allEssentials) {
+    for (const c of databaseConsumers) {
       c.addContainerDependencies({
         container: dbMigrateContainer,
         condition: ContainerDependencyCondition.SUCCESS,

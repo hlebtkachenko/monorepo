@@ -516,7 +516,7 @@ describe("AppStack Fargate hardening", () => {
     }
   })
 
-  it("init chain: openfga-bootstrap dependsOn openfga-migrate; api dependsOn openfga-bootstrap", () => {
+  it("starts independent sidecars before migrations while keeping database consumers gated", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
@@ -536,6 +536,21 @@ describe("AppStack Fargate hardening", () => {
     expect(byName["api"]).toContainEqual({
       ContainerName: "openfga-bootstrap",
       Condition: "SUCCESS",
+    })
+    for (const name of ["web", "admin", "openfga", "api"]) {
+      expect(byName[name]).toContainEqual({
+        ContainerName: "db-migrate",
+        Condition: "SUCCESS",
+      })
+    }
+    for (const name of ["pgbouncer", "cerbos"]) {
+      expect(byName[name]?.some((d) => d.ContainerName === "db-migrate")).toBe(
+        false,
+      )
+    }
+    expect(byName["web"]).toContainEqual({
+      ContainerName: "pgbouncer",
+      Condition: "HEALTHY",
     })
     // Sanity: web/admin do NOT wait on openfga-bootstrap (they don't read
     // OPENFGA_* SSM params). Catches accidental over-wiring.

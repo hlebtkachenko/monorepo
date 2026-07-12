@@ -38,7 +38,7 @@ vitest.config.ts, scripts/emit-openapi.ts}`.
    help no longer has a hosted surface (ADR-0024 Amendment 2026-05-21);
    put end-user-facing copy in the relevant Next.js page or wait for a
    future docs surface.
-2. Link from `docs/START-HERE.md` and from any related runbook.
+2. Link from `docs/README.md` and from any related runbook.
 3. If the runbook covers an incident class, also link from
    `docs/runbooks/INCIDENT.md`.
 
@@ -49,8 +49,7 @@ vitest.config.ts, scripts/emit-openapi.ts}`.
 2. MADR format. Keep `Status`, `Context`, `Decision`, `Consequences`.
 3. If the ADR supersedes an earlier one, set the older ADR's status to
    `Superseded by ADR-NNNN` in the same PR.
-4. Link from `docs/START-HERE.md` "Decisions backing this layout" if
-   the ADR is foundational.
+4. Link from `docs/README.md` if the ADR is foundational.
 
 ## A new GitHub Actions workflow
 

@@ -9,7 +9,7 @@ Each row records `status` (`pending` / `consumed` / `revoked` / `expired`),
 organizationId, role, etc.). Authentication outcomes — `auth.login.*`,
 `auth.mfa.*`, `auth.signup.*`, `auth.magic_link.*`, `auth.password_reset.*`,
 plus admin-gate decisions — land in `audit_event` (workspace-tier, written
-through the Better Auth `hooks.after` adapter; see [ADR-0011](../adr/0011-audit-event.md)).
+through the Better Auth `hooks.after` adapter; see [ADR-0011](../adr/0011-audit-log.md)).
 Together they cover every question an operator asks during an incident:
 "who attempted this", "from where", "did it succeed", "is this invite still
 live".

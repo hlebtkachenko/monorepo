@@ -9,7 +9,7 @@
 ## What this is
 
 The Brain v1 is a **headless Claude Code session that is an external CLIENT of the Afframe system** (MCP/HTTP,
-unprivileged — see [`REFRAME-v1.2.md`](../../.context/afframe-brain/REFRAME-v1.2.md)). It logs into Brain with
+unprivileged; see [ADR-0025](../adr/0025-brain-runtime-placement.md)). It logs into Brain with
 a context-pack, uses the accounting domain's own MCP tools to read + propose bookings, and the **server**
 enforces tenant isolation + the confidence gate. A client structurally cannot forge a green booking.
 
@@ -208,7 +208,9 @@ genuinely deploy-gated and needs live inputs:
 - **M2** supervised-prod quarantine → promote, **M3** real ≥10-run calibration fit, **M4** autonomous
   certification.
 
-See [`V1-DELIVERY-PLAN.md`](../../.context/afframe-brain/V1-DELIVERY-PLAN.md) §4.
+See [`AFFRAME-BRAIN-STATUS.md`](../AFFRAME-BRAIN-STATUS.md) for current delivery
+status and [`BRAIN-OPERATOR-SESSION.md`](BRAIN-OPERATOR-SESSION.md) for the
+operator workflow.
 
 ## Dependency update tracking
 

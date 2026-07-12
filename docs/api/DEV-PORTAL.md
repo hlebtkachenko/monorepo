@@ -153,7 +153,8 @@ Lets partners gauge content freshness without reading every line.
 
 ### R9 — Inline cross-references use anchor text, not raw URLs
 
-`See [Authentication](./authentication.md)`. Never `See https://...`.
+`See [API authentication](./README.md#authentication)`. Never use a raw URL
+when a descriptive link is available.
 
 ### R10 — `/llms.txt` mirror is non-optional
 

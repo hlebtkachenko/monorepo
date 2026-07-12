@@ -1,21 +1,112 @@
-# docs/
+# Documentation
 
-Reference material for the monorepo. Live planning and issue tracking are in GitHub Issues plus the active GitHub Project configured by Hleb for the current planning horizon — read the issue before reading a file here. (Project field conventions live in `AGENTS.md`.)
+Documentation map and ownership rules for the monorepo. Agents use this file
+to find the canonical document for a task without duplicating the project
+overview in the root [`README.md`](../README.md).
 
-## Subdirectories
+GitHub Issues are authoritative for active work. Documentation explains the
+system, decisions, contracts, and repeatable procedures. It does not replace
+issue status, assignees, priorities, or sprint planning.
 
-| Directory                                                  | Purpose                                                                                                                                                                                                                              |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`adr/`](adr/)                                             | Architecture Decision Records. Immutable after merge. Documents the _why_ behind non-obvious choices and constraints. Format: MADR-like. See `adr/README.md` for authoring rules and the full index.                                 |
-| [`AFFRAME-BRAIN.md`](AFFRAME-BRAIN.md)                     | Afframe Brain — A-Z landing doc: what it is, the client-not-server architecture, the safety spine, the write gate, the M1–M4 roadmap, an operator quickstart, and a doc map.                                                         |
-| [`AFFRAME-BRAIN-TECHNICAL.md`](AFFRAME-BRAIN-TECHNICAL.md) | Brain debug-level technical reference with `file:line` citations throughout, an end-to-end trace, and a symptom→cause→file troubleshooting playbook.                                                                                 |
-| [`AFFRAME-BRAIN-STATUS.md`](AFFRAME-BRAIN-STATUS.md)       | Brain v1 status/roadmap tracker: milestones done/outstanding, the engineering-done boundary, what's deferred to v2, and the open GitHub issues that gate each piece.                                                                 |
-| [`api/`](api/)                                             | OpenAPI and Zod schema definitions for the versioned REST API (`/v1/*` surface, see ADR-0020).                                                                                                                                       |
-| [`compliance/`](compliance/)                               | Security & secrets control attestations (e.g. `SECRETS-CONTROLS.md`) backing the DORA register.                                                                                                                                      |
-| [`conventions/`](conventions/)                             | Team conventions enforced by tooling or review: commit format (`COMMITS.md`), CI policy (`CI-POLICY.md`), TypeScript rules (`typescript.md`), code naming (`code-naming.md`).                                                        |
-| [`env-vars.md`](env-vars.md)                               | Catalogue of every environment variable the runtime consumes, grouped by package. Required vs optional, expected values, and which service provides each.                                                                            |
-| [`INVENTORY.md`](INVENTORY.md)                             | DORA Article 8 ICT asset register. Lists third-party services, data classifications, and retention commitments.                                                                                                                      |
-| [`LAUNCH-CHECKLIST.md`](LAUNCH-CHECKLIST.md)               | v1 launch gates: legal blockers, infra/cost posture flips, ops, auth decisions, deferred tracks. Owner: Hleb.                                                                                                                        |
-| [`plans/`](plans/)                                         | Stable reference dossiers that GitHub issues point to: large audits, migration plans, research too big for an issue body. Progress tracking stays in GitHub Issues and the Roadmap project. Add/lifecycle policy: `plans/README.md`. |
-| [`runbooks/`](runbooks/)                                   | Operational runbooks: deploy, rollback, incident response, local dev setup, supply-chain verification, cost incident response, and component/showcase migration guides.                                                              |
-| [`specs/`](specs/)                                         | Design specifications: auth layout, OIDC trust model, supply-chain policy. Stable enough to survive across sprints.                                                                                                                  |
+## Agent navigation
+
+For a fresh session:
+
+1. Read the root [`README.md`](../README.md) for the monorepo purpose and basic workflow.
+2. Read [`AGENTS.md`](../AGENTS.md) for mandatory repository rules.
+3. Read the GitHub issue that defines the work.
+4. Open the task-specific documentation below.
+5. Run `pnpm codegraph:ready` before structural code exploration.
+
+| Task                                          | Read                                                                                                                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add or change an API endpoint                 | [`runbooks/ENDPOINT-ADDITION-RUNBOOK.md`](runbooks/ENDPOINT-ADDITION-RUNBOOK.md)                                                                                                   |
+| Add a package, app, runbook, ADR, or workflow | [`runbooks/ADDING-X-TO-MONOREPO.md`](runbooks/ADDING-X-TO-MONOREPO.md)                                                                                                             |
+| Work on app-shell pages or navigation         | [`runbooks/APP-SHELL-PANELS.md`](runbooks/APP-SHELL-PANELS.md) and [`specs/SITEMAP.md`](specs/SITEMAP.md)                                                                          |
+| Choose a content layout                       | [`specs/CONTENT-ARCHETYPES.md`](specs/CONTENT-ARCHETYPES.md)                                                                                                                       |
+| Work on local development                     | [`runbooks/LOCAL-DEV.md`](runbooks/LOCAL-DEV.md)                                                                                                                                   |
+| Query production or staging data              | [`runbooks/DB-ACCESS.md`](runbooks/DB-ACCESS.md)                                                                                                                                   |
+| Deploy or promote                             | [`runbooks/DEPLOY.md`](runbooks/DEPLOY.md) and [`runbooks/PROMOTE-TO-PRODUCTION.md`](runbooks/PROMOTE-TO-PRODUCTION.md)                                                            |
+| Roll back                                     | [`runbooks/ROLLBACK.md`](runbooks/ROLLBACK.md)                                                                                                                                     |
+| Respond to an incident                        | [`runbooks/INCIDENT.md`](runbooks/INCIDENT.md)                                                                                                                                     |
+| Rotate or manage secrets                      | [`runbooks/SECRETS.md`](runbooks/SECRETS.md) and [`runbooks/SECRETS-ROTATION.md`](runbooks/SECRETS-ROTATION.md)                                                                    |
+| Configure CI                                  | [`conventions/CI-POLICY.md`](conventions/CI-POLICY.md)                                                                                                                             |
+| Prepare a release                             | [`conventions/RELEASES.md`](conventions/RELEASES.md)                                                                                                                               |
+| Build or review UI components                 | [`runbooks/SHOWCASE.md`](runbooks/SHOWCASE.md) and [`runbooks/COMPONENT-MIGRATION.md`](runbooks/COMPONENT-MIGRATION.md)                                                            |
+| Understand or operate Afframe Brain           | [`AFFRAME-BRAIN.md`](AFFRAME-BRAIN.md), [`AFFRAME-BRAIN-TECHNICAL.md`](AFFRAME-BRAIN-TECHNICAL.md), and [`runbooks/BRAIN-OPERATOR-SESSION.md`](runbooks/BRAIN-OPERATOR-SESSION.md) |
+| Check Brain delivery status                   | [`AFFRAME-BRAIN-STATUS.md`](AFFRAME-BRAIN-STATUS.md)                                                                                                                               |
+
+## Taxonomy
+
+| Location                                   | Owns                                                                                              | Does not own                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [`../ARCHITECTURE.md`](../ARCHITECTURE.md) | Concise current system shape and major runtime boundaries                                         | Decision history or operating procedures                         |
+| [`adr/`](adr/)                             | Immutable architecture decisions, alternatives, and consequences                                  | Current task status or implementation tutorials                  |
+| [`api/`](api/)                             | Public API architecture, client-platform guidance, and clearly labelled live or concept contracts | Generated endpoint inventory                                     |
+| [`compliance/`](compliance/)               | Control mappings and audit evidence indexes                                                       | General security tutorials or incident procedures                |
+| [`conventions/`](conventions/)             | Normative repository rules enforced by tooling or review                                          | Step-by-step operations                                          |
+| [`plans/`](plans/)                         | Durable research and context dossiers shared by GitHub issues                                     | Active checklists, owners, due dates, or progress tracking       |
+| [`runbooks/`](runbooks/)                   | Repeatable, ordered procedures for operating production or maintaining the repository             | Product intent, architecture decisions, or historical narratives |
+| [`specs/`](specs/)                         | Stable product, UI, security, and data contracts                                                  | Runtime status or procedural instructions                        |
+| Root reference files                       | Cross-system registries that need one obvious location                                            | Topic-specific implementation notes                              |
+
+Root reference files currently include:
+
+- [`env-vars.md`](env-vars.md): environment-variable registry
+- [`DOMAINS-AND-EMAIL.md`](DOMAINS-AND-EMAIL.md): public hosts and email inventory
+- [`INVENTORY.md`](INVENTORY.md): DORA ICT asset register
+- [`LAUNCH-CHECKLIST.md`](LAUNCH-CHECKLIST.md): product launch gates
+- [`AFFRAME-BRAIN.md`](AFFRAME-BRAIN.md): Brain overview and document map
+- [`AFFRAME-BRAIN-TECHNICAL.md`](AFFRAME-BRAIN-TECHNICAL.md): Brain internals and debugging reference
+- [`AFFRAME-BRAIN-STATUS.md`](AFFRAME-BRAIN-STATUS.md): Brain delivery status and roadmap boundary
+
+## Canonical sources
+
+When prose and an executable source disagree, verify the executable source and
+update the prose in the same change.
+
+| Concern                           | Canonical source                                                               | Human-readable mirror                                             |
+| --------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Workspace inventory and commands  | Root and workspace `package.json` files, `pnpm-workspace.yaml`, `turbo.json`   | [`../README.md`](../README.md) and package READMEs                |
+| Current architecture              | Running code and infrastructure configuration                                  | [`../ARCHITECTURE.md`](../ARCHITECTURE.md)                        |
+| Architecture rationale            | Individual ADR file                                                            | [`adr/README.md`](adr/README.md) index                            |
+| Public API schemas and operations | `packages/shared/src/api/registry.ts` and generated `apps/api/openapi/v1.json` | [`api/README.md`](api/README.md) and Scalar at `api.afframe.com/` |
+| Org navigation and routes         | Typed `nav.ts` trees under `apps/web/app/[orgSlug]`                            | [`specs/SITEMAP.md`](specs/SITEMAP.md)                            |
+| App structure API snapshot        | `scripts/gen-structure.ts` output and `packages/shared/src/api/structure.ts`   | [`api/AGENT-STRUCTURE.md`](api/AGENT-STRUCTURE.md)                |
+| Environment variables             | Runtime `process.env` readers and deployment wiring                            | [`env-vars.md`](env-vars.md)                                      |
+| Release process                   | [`conventions/RELEASES.md`](conventions/RELEASES.md) and release workflows     | [`../CHANGELOG.md`](../CHANGELOG.md)                              |
+| Active work and delivery status   | GitHub Issues and active GitHub Project                                        | Plans provide context only                                        |
+| Brain implementation status       | Code plus [`AFFRAME-BRAIN-STATUS.md`](AFFRAME-BRAIN-STATUS.md)                 | Brain overview and technical reference                            |
+
+Generated files are never edited by hand. Run their generator and commit the
+result. Transient analysis under `.context/` is workspace-local and must not be
+the only target of a link from tracked documentation.
+
+## Document lifecycle
+
+Every document must fit one taxonomy row and have one clear owner source.
+
+- Live documentation states current behavior without legacy tracker promises.
+- Concept content starts with an explicit `Concept` status note and cannot be
+  presented as a shipped contract.
+- Snapshot documents include a date and become read-only after their event.
+- Completed plans either remain as labelled reference or move to `_junk/`.
+- Files are never permanently deleted during cleanup. Move obsolete material
+  to `_junk/` and preserve Git history.
+- New documents must be linked from this file, a directory index, or a relevant
+  parent document.
+
+## Change rules
+
+When code changes a documented surface, update its closest human-readable
+mirror in the same PR:
+
+- Workspace changes: root README and relevant package README.
+- API changes: Zod registry, generated OpenAPI, SDK/MCP output, and API docs.
+- Navigation changes: typed nav, generated structure, and sitemap annotation.
+- Environment changes: deployment wiring and `env-vars.md`.
+- Operational changes: affected runbook and rollback path.
+- New architectural constraint: ADR plus architecture overview when system-wide.
+
+Keep links relative, use one H1, and prefer direct links to canonical files over
+duplicated inventories.

@@ -60,6 +60,7 @@ Do NOT add a file here when:
 | [`SECRETS-MIGRATION.md`](SECRETS-MIGRATION.md)                                   | Legacy AFF-245/AFF-243/AFF-244                               | Vault-on-VPS + AWS SSM SecureString secrets migration plan. 11 milestones, 6 advisor gates. Delete when no longer useful as reference.                   |
 | [`SECRETS-101.md`](SECRETS-101.md)                                               | n/a — primer                                                 | Conceptual reference primer for secrets in a fintech / SaaS context, grounded in the Afframe stack. Stays for onboarding even after the migration ships. |
 | [`STATUTORY-CLOSING-REMEDIATION-PLAN.md`](STATUTORY-CLOSING-REMEDIATION-PLAN.md) | [#625](https://github.com/hlebtkachenko/monorepo/issues/625) | Cross-PR statutory-period, obligation, VAT, payroll, annual-tax, and workspace remediation scope.                                                        |
+| [`CZ-ACCOUNTING-KB-GROWTH-PLAN.md`](CZ-ACCOUNTING-KB-GROWTH-PLAN.md)             | Brain accounting-KB growth track                             | Research and staged expansion plan for the machine-readable Czech accounting knowledge base.                                                             |
 
 ## Archived
 

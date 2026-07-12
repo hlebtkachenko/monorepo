@@ -23,15 +23,17 @@ Flow: `Authorization: Bearer affk_live_...` header → SHA-256 hash → lookup i
 
 Key format: `affk_live_<43-char base64url>` (256-bit random). Only the SHA-256 hash is stored, never the raw key. Same opaque-token + DB-hash pattern as invite tokens. See `packages/auth/src/api-key-verifier.ts` for the `verifyApiKey` function.
 
-Issuing keys: no UI yet. Seed manually in the `api_key` table. Future: admin dashboard key management (AFF-73).
+Issuing keys: no UI or public issuance endpoint exists yet. Operators issue
+keys through the controlled database path described in
+[`DB-ACCESS.md`](../runbooks/DB-ACCESS.md).
 
 #### Scopes
 
 `api_key.scopes` (`text[]`) carries coarse capability scopes. Routes declare requirements via `@RequireScopes(...)` (`apps/api/src/auth/require-scopes.decorator.ts`); `ApiKeyGuard` enforces them after the key resolves — the key must hold EVERY required scope, else `403` with the missing scope(s) named in the error message. Undecorated routes ignore scopes entirely.
 
-| Scope              | Grants                                                                              |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `accounting:write` | `POST /v1/accounting/{events,documents,postings}` — the accounting mutation surface. |
+| Scope              | Grants                                                                                                                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accounting:write` | Accounting setup and mutation routes, account edits, invoice writes, and learned-template writes. Read-only routes remain available to authenticated keys without this scope. |
 
 **Legacy-empty rule (deliberate back-compat):** a key with an EMPTY `scopes` array is treated as a legacy full-access key and passes every scope check, with a server-side warning logged. Enforcement flips to strict (empty = deny) once all issued keys carry explicit scopes.
 
@@ -58,12 +60,15 @@ Response envelope: `{ error: { code, message, details? } }`. Errors logged serve
 
 Per-API-key, NOT per-IP. Behind the Cloudflare Tunnel, all requests share the sidecar's loopback IP, so an IP-based throttler would create one global bucket for all clients. `ThrottlerModule` uses a custom `ApiKeyThrottlerGuard` that keys on sha256(bearer token), with IP fallback for unauthenticated requests.
 
-Default: 100 requests / 60s per API key. Configurable via `THROTTLE_TTL` / `THROTTLE_LIMIT` env vars (not yet exposed in `docs/env-vars.md` — defaults are fine for now).
+Default: 100 requests per 60 seconds per API key. Configure the limit with
+`V1_THROTTLE_LIMIT` and the window in milliseconds with
+`V1_THROTTLE_TTL_MS`. Production currently raises the limit through CDK. Both
+variables are registered in [`docs/env-vars.md`](../env-vars.md).
 
 ## OpenAPI
 
 - Spec emitted at build time: `apps/api/scripts/emit-openapi.ts` → `apps/api/openapi/v1.json`.
-- Spectral lint: `.spectral.yaml` at repo root.
+- Spectral lint: `apps/api/.spectral.yaml`.
 - CI: `.github/workflows/openapi-lint.yml` (advisory) — catches spec drift (re-emits + `git diff --exit-code`) and Spectral violations.
 - Spec served live at `api.afframe.com/v1/openapi.json` (same document, same path on staging under `api-staging.afframe.com`).
 - Interactive API reference (Scalar): `api.afframe.com/` — see [`API-REFERENCE.md`](./API-REFERENCE.md) for the full rules + extension guide. (`/v1/docs` 301-redirects here.)
@@ -77,23 +82,30 @@ Deployment uses `pnpm deploy --config.node-linker=hoisted` so the bundle's exter
 ## Container
 
 - Port: 3001 (both BFF and public API).
-- `essential: true` in the Fargate task definition — a crash kills the whole task (web, admin, sidecars restart too). Locally verified on arm64; Fargate runtime verification is pending on first deploy (AFF-33).
+- `essential: true` in the Fargate task definition. A crash kills the whole task so web, admin, and sidecars restart together.
 - Dockerfile: `apps/api/Dockerfile`. Multi-stage: build → deploy with `pnpm deploy --prod`.
 - Health: `GET /api/health` returns `{ status: "ok", buildSha, buildVersion, uptimeSeconds }`.
 
-## Endpoints (v1 foundation)
+## Endpoint groups
 
-| Method | Path                       | Auth    | Description                                                          |
-| ------ | -------------------------- | ------- | -------------------------------------------------------------------- |
-| `GET`  | `/v1/ping`                 | API key | Connectivity check. Returns `{ ok: true }`.                          |
-| `GET`  | `/v1/organization`         | API key | Returns the API key's organization details.                          |
-| `GET`  | `/v1/status`               | None    | Service health summary (proxies status.afframe.com).                 |
-| `POST` | `/v1/feedback`             | None    | Partner feedback ingestion.                                          |
-| `GET`  | `/v1/structure`            | None    | App structure — modules, pages, layout archetypes (agent discovery). |
-| `GET`  | `/v1/structure/archetypes` | None    | The content-panel layout archetypes.                                 |
-| `GET`  | `/api/health`              | None    | Container health (used by ECS, Cloudflare).                          |
+The generated OpenAPI document is the authoritative endpoint inventory. Do not
+copy its complete path list into prose.
 
-Domain endpoints (invoices, accounts, journals) land with AFF-71. Authz (Cerbos L3 + OpenFGA L2) wires in with the first resource endpoint (AFF-46).
+Current groups include:
+
+- Connectivity and discovery: ping, organization, status, feedback, structure,
+  and archetypes.
+- Accounting setup: periods and number series.
+- Accounting writes and review: events, documents, postings, classification,
+  held writes, and held-write resolution.
+- Accounting reads and outputs: journal, ledger, open items, saldokonto, VAT,
+  income-tax, EC Sales List, control-statement, and financial-statement outputs.
+- Resource APIs: accounts and invoices.
+- Learned state: OCR templates and booking templates.
+
+Read [`apps/api/openapi/v1.json`](../../apps/api/openapi/v1.json) or Scalar at
+`api.afframe.com/` for exact methods, paths, schemas, authentication, and
+responses.
 
 ## Auxiliary developer routes
 
@@ -119,21 +131,21 @@ already public via `/v1/openapi.json`.
 
 The Scalar reference is one surface. The public-launch story is broader — narrative docs, CLI, MCP, SDK, webhooks, sandbox. Each lives in its own file:
 
-| Doc                                      | Purpose                                                                   | Status                    |
-| ---------------------------------------- | ------------------------------------------------------------------------- | ------------------------- |
-| [`API-REFERENCE.md`](./API-REFERENCE.md) | Rules for the `/v1/docs` Scalar surface                                   | Live                      |
-| [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md) | Master launch checklist (security, legal, comms, surfaces)                | Wip                       |
-| [`DEV-PORTAL.md`](./DEV-PORTAL.md)       | Page map + sidebar IA for `api.afframe.com/docs`                          | Concept                   |
-| [`ERRORS.md`](./ERRORS.md)               | Error envelope + code registry                                            | Live + concept extension  |
-| [`RATE-LIMITS.md`](./RATE-LIMITS.md)     | Throttle contract, `RateLimit-*` headers, 429                             | Live + concept upgrades   |
-| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes                      | Live (accounting) + concept |
-| [`VERSIONING.md`](./VERSIONING.md)       | URL-path versioning, RFC 8594 Sunset, deprecation policy                  | Live + concept signalling |
-| [`SANDBOX.md`](./SANDBOX.md)             | `affk_test_…` keys, seeded fixtures, force-trigger endpoints              | Concept                   |
-| [`WEBHOOKS.md`](./WEBHOOKS.md)           | Standard Webhooks contract, Svix Cloud backend                            | Concept                   |
-| [`SDK.md`](./SDK.md)                     | `@afframe/sdk` TypeScript design (`openapi-typescript` + `openapi-fetch`) | Concept                   |
-| [`CLI.md`](./CLI.md)                     | `afframe` CLI (oclif + Homebrew tap)                                      | Concept                   |
-| [`MCP.md`](./MCP.md)                     | `@afframe/mcp` server (npx + hosted)                                      | Concept                   |
-| [`CHANGELOG.md`](./CHANGELOG.md)         | Public changelog format + entries                                         | Wip                       |
+| Doc                                      | Purpose                                                                   | Status                                |
+| ---------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
+| [`API-REFERENCE.md`](./API-REFERENCE.md) | Rules for the `/` Scalar surface                                          | Live                                  |
+| [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md) | Master launch checklist (security, legal, comms, surfaces)                | Wip                                   |
+| [`DEV-PORTAL.md`](./DEV-PORTAL.md)       | Page map + sidebar IA for `api.afframe.com/docs`                          | Concept                               |
+| [`ERRORS.md`](./ERRORS.md)               | Error envelope + code registry                                            | Live + concept extension              |
+| [`RATE-LIMITS.md`](./RATE-LIMITS.md)     | Throttle contract, `RateLimit-*` headers, 429                             | Live + concept upgrades               |
+| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes                      | Live (accounting) + concept           |
+| [`VERSIONING.md`](./VERSIONING.md)       | URL-path versioning, RFC 8594 Sunset, deprecation policy                  | Live + concept signalling             |
+| [`SANDBOX.md`](./SANDBOX.md)             | `affk_test_…` keys, seeded fixtures, force-trigger endpoints              | Concept                               |
+| [`WEBHOOKS.md`](./WEBHOOKS.md)           | Standard Webhooks contract, Svix Cloud backend                            | Concept                               |
+| [`SDK.md`](./SDK.md)                     | `@afframe/sdk` TypeScript design (`openapi-typescript` + `openapi-fetch`) | Wip: implemented in-repo, unpublished |
+| [`CLI.md`](./CLI.md)                     | `afframe` CLI                                                             | Wip: implemented in-repo, unpublished |
+| [`MCP.md`](./MCP.md)                     | `@afframe/mcp` stdio server                                               | Wip: implemented in-repo, unpublished |
+| [`CHANGELOG.md`](./CHANGELOG.md)         | Public changelog format + entries                                         | Wip                                   |
 
 The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-public-api-developer-platform.md).
 
@@ -142,7 +154,7 @@ The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-publi
 - [ADR-0020](../adr/0020-public-api-foundation.md) — public API foundation decision
 - [ADR-0023](../adr/0023-public-api-developer-platform.md) — developer platform (pages, CLI, MCP, SDK, webhooks)
 - [ADR-0008](../adr/0008-cloudflare-tunnel-and-email.md) — Cloudflare tunnel + domain routing
-- [ADR-0018](../adr/0018-three-layer-authorization.md) — authz layers (deferred to AFF-46/71)
+- [ADR-0018](../adr/0018-three-layer-authz.md) — three-layer authorization
 - [env-vars.md](../env-vars.md) — all environment variables
 - [AWS-SETUP.md](../runbooks/AWS-SETUP.md) — deploy procedure + tunnel config
 - [PUBLIC-REPO-CHECKLIST.md](../runbooks/PUBLIC-REPO-CHECKLIST.md) — repo-side public hardening (separate from API launch)

@@ -8,7 +8,7 @@ import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
   "kind": z.enum(["double","monetary"]),
-  "entry": z.unknown(),
+  "entry": z.union([z.object({ "periodId": z.string().uuid(), "summaryRecordId": z.string().uuid(), "accountingEventId": z.string().uuid(), "postingDate": z.string().describe("Datum (§5.2) — ISO date."), "lines": z.array(z.object({ "accountId": z.string().uuid(), "side": z.enum(["DEBIT","CREDIT"]), "amount": z.string().describe("Unsigned decimal amount as a string."), "partialRecordId": z.string().uuid().nullable().optional() })) }), z.object({ "periodId": z.string().uuid(), "summaryRecordId": z.string().uuid(), "accountingEventId": z.string().uuid(), "postingDate": z.string().describe("Datum (§5.2) — ISO date."), "lines": z.array(z.object({ "location": z.enum(["CASH","BANK"]), "direction": z.enum(["INFLOW","OUTFLOW"]), "isTaxRelevant": z.boolean(), "isClearing": z.boolean().optional(), "categoryId": z.string().uuid().nullable().optional(), "taxBase": z.string().nullable().describe("Unsigned decimal amount as a string.").optional(), "amount": z.string().describe("Unsigned decimal amount as a string."), "partialRecordId": z.string().uuid().nullable().optional() })) })]),
   "confidence": z.number().min(0).max(1).describe("Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required."),
   "rationale": z.string().min(1).max(2000).describe("Why this write — persisted to the audit trail. Required."),
   "conversationId": z.string().uuid().describe("Audit-correlation id of the driving agent conversation.").optional(),

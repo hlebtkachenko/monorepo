@@ -3,17 +3,21 @@ import { buildLoginContext } from "@workspace/brain"
 import type {
   AgentSessionLaunchOptions,
   BrainDryRunPlan,
+  BrainPostingPlan,
   LiveBrainSessionResult,
 } from "@workspace/intake"
 import {
   CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
   CLASSIFY_ACCOUNTING_EVENT_TOOL,
+  CREATE_ACCOUNTING_POSTING_TOOL,
   LANE_OFF_MESSAGE,
   buildBrainKickoff,
   buildBrainQueryOptions,
   buildBrainSessionEnv,
+  buildPostingKickoff,
   detectCaptureError,
   isLaneOffOutcome,
+  minorToDecimal,
   parseCaptureOutcome,
   parseCaptureResultText,
   readToolResultText,
@@ -38,6 +42,48 @@ function stubPlan(): BrainDryRunPlan {
     toolPlan: [],
     captureRequest: { periodId: "period-uuid-1", seriesId: "series-uuid-2" },
   } as unknown as BrainDryRunPlan
+}
+
+// A posting-lane plan: the kickoff reads `invoice` + `posting`; the amounts drive the pre-computed totals.
+function stubPostingPlan(vatMinor = 1050000n): BrainPostingPlan {
+  const loginPack = buildLoginContext({
+    constitution: "CONSTITUTION",
+    kb: { id: "kb-1", version: "2026-07" },
+    lawSummary: "LAW",
+    confidenceProtocol: "PROTOCOL",
+    escalationPolicy: "ESCALATION",
+  })
+  return {
+    loginPack,
+    policy: loginPack.toolPolicy,
+    toolPlan: [],
+    invoice: {
+      record_type: "invoice",
+      direction: "received",
+      doc_type: "invoice",
+      number: "FP-2025-0042",
+      issue_date: "2025-03-14",
+      tax_point_date: "2025-03-14",
+      currency: "CZK",
+      lines: [],
+      vat_summary: [
+        {
+          rate: vatMinor === 0n ? 0 : 21,
+          base_minor: 5000000n,
+          tax_minor: vatMinor,
+        },
+      ],
+      total_minor: 5000000n + vatMinor,
+      supplier: { name: "Stavebniny DEK a.s.", ico: "27946939" },
+    },
+    posting: {
+      periodId: "period-uuid-1",
+      summaryRecordId: "summary-uuid-2",
+      accountingEventId: "event-uuid-3",
+      postingDate: "2025-03-14",
+      conversationId: "11111111-1111-4111-8111-111111111111",
+    },
+  } as unknown as BrainPostingPlan
 }
 
 function launchOptions(): AgentSessionLaunchOptions {
@@ -463,5 +509,66 @@ describe("constants", () => {
     expect(kickoff).toContain("do not generate your own")
     // Absent a key, the kickoff never mentions the idempotency-key argument (unchanged single-doc behavior).
     expect(buildBrainKickoff(plan)).not.toContain('"idempotency-key"')
+  })
+})
+
+describe("minorToDecimal (haléř bigint → Kč decimal string)", () => {
+  it.each([
+    [5680000n, "56800.00"],
+    [0n, "0.00"],
+    [5n, "0.05"],
+    [123n, "1.23"],
+    [100n, "1.00"],
+    [-100n, "-1.00"],
+  ])("%s → %s", (minor, expected) => {
+    expect(minorToDecimal(minor)).toBe(expected)
+  })
+})
+
+describe("buildPostingKickoff (double-entry lane — model reasons the account)", () => {
+  it("repeats the untrusted-data hardening clause (the model reasons over document data)", () => {
+    expect(buildPostingKickoff(stubPostingPlan())).toContain("UNTRUSTED")
+  })
+
+  it("presents the curated invoice facts + deterministically-computed net/VAT/gross totals", () => {
+    const kickoff = buildPostingKickoff(stubPostingPlan())
+    expect(kickoff).toContain("Stavebniny DEK a.s.")
+    expect(kickoff).toContain("IČO 27946939")
+    expect(kickoff).toContain("Net base total: 50000.00 CZK")
+    expect(kickoff).toContain("Input VAT total: 10500.00 CZK")
+    expect(kickoff).toContain("Gross total: 60500.00 CZK")
+  })
+
+  it("pins the operator id envelope + conversationId verbatim (no model-generated ids)", () => {
+    const kickoff = buildPostingKickoff(stubPostingPlan())
+    expect(kickoff).toContain("period-uuid-1")
+    expect(kickoff).toContain("summary-uuid-2")
+    expect(kickoff).toContain("event-uuid-3")
+    expect(kickoff).toContain("11111111-1111-4111-8111-111111111111")
+    expect(kickoff).toContain("do not generate your own")
+  })
+
+  it("instructs the posting + chart tools but embeds NO pre-chosen cost account (the answer under test)", () => {
+    const kickoff = buildPostingKickoff(stubPostingPlan())
+    expect(kickoff).toContain(CREATE_ACCOUNTING_POSTING_TOOL)
+    expect(kickoff).toContain("mcp__afframe__list_accounts")
+    // Structural accounts (input VAT 343, supplier 321) are named; the COST account is deliberately NOT — the
+    // model must reason it. This is the anti-leak property that makes the test meaningful (GAP-007).
+    expect(kickoff).toContain("343")
+    expect(kickoff).toContain("321")
+    expect(kickoff).not.toContain("501")
+    expect(kickoff).not.toContain("518")
+  })
+
+  it("does NOT force a předkontace template — common case as default, non-standard classes flagged", () => {
+    const kickoff = buildPostingKickoff(stubPostingPlan())
+    // The debit CLASS + the VAT-deduction treatment are part of the judgment, so the model must choose them —
+    // a forced class-5 / full-343 template would mis-book assets/advances/non-deductible VAT (brain-gate must-fix).
+    expect(kickoff).toContain("CHOOSE the accounts")
+    expect(kickoff).toContain("do not assume a template")
+    expect(kickoff).toContain("fixed-asset")
+    expect(kickoff).toContain("non-deductible")
+    expect(kickoff).toContain("§92a")
+    expect(kickoff).not.toContain("the ONE class-5")
   })
 })

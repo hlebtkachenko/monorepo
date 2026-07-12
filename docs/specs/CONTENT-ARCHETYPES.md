@@ -1,28 +1,36 @@
 # Content-panel archetypes — pick one and build a page
 
-Four page shapes cover almost every org-app screen. Each is a reusable **block**
+Five page shapes cover almost every org-app screen. Each is a reusable **block**
 (or block set) in `packages/ui/src/blocks/app-content` plus a thin **data demo**
 in `apps/web/app/_components/<name>-demo`. To build a new page you pick an
 archetype, mount the shared chrome, drop the block into a `ContentPanel`, and
 feed it data. Nothing here is bespoke per page — the blocks are the contract.
 
-Issue #425 is the origin. The four demos below are **dev-only reference pages**
-(404 in production, hidden from nav via `scripts/check-nav.ts`); copy them, don't
-import them.
+Issue #425 is the origin. The four demo routes below are **dev-only reference
+pages** (404 in production, hidden from nav via `scripts/check-nav.ts`); copy
+them, don't import them. **Blank** has no demo route because it is the
+zero-chrome `ContentPanel` case.
 
-| Archetype     | Route              | Demo source                              | Block(s)                                             |
-| ------------- | ------------------ | ---------------------------------------- | --------------------------------------------------- |
-| **Table**     | `/<org>/demo-table`     | `_components/table-demo/`           | `DataGridView` + `useDataTable` + `filter-bar`      |
-| **Launchpad** | `/<org>/demo-launchpad` | `_components/launchpad-demo/`       | `LaunchpadGrid`                                      |
-| **Dashboard** | `/<org>/demo-dashboard` | `_components/dashboard-demo/`       | `DashboardGrid` + `DashboardChartCard`              |
-| **Single**    | `/<org>/demo-single`    | `_components/single-demo/`          | `RecordWorkspace` (`formLayout="panels"`)           |
+| Archetype     | Route                   | Demo source                   | Block(s)                                       |
+| ------------- | ----------------------- | ----------------------------- | ---------------------------------------------- |
+| **Table**     | `/<org>/demo-table`     | `_components/table-demo/`     | `DataGridView` + `useDataTable` + `filter-bar` |
+| **Blank**     | —                       | —                             | `ContentPanel` body only                       |
+| **Launchpad** | `/<org>/demo-launchpad` | `_components/launchpad-demo/` | `LaunchpadGrid`                                |
+| **Dashboard** | `/<org>/demo-dashboard` | `_components/dashboard-demo/` | `DashboardGrid` + `DashboardChartCard`         |
+| **Single**    | `/<org>/demo-single`    | `_components/single-demo/`    | `RecordWorkspace` (`formLayout="panels"`)      |
 
 ## Which one?
 
 - **Table** — a dense list you filter, sort, page, and inspect (invoices, transactions, counterparties). Row selection + bulk actions + a per-row inspector.
+- **Blank** — a one-off body straight in the content panel. Use when toolbar, status, and page-specific blocks add no value.
 - **Launchpad** — a folder / overview hub: a grid of cards linking to subpages, with follow-stars and a Followed group. No data table.
 - **Dashboard** — analytics: KPI tiles with sparklines, chart cards, a period filter, and a metrics-as-rows matrix (which is itself a selectable, sortable Table).
 - **Single** — one record on show as an editable document: side-by-side form panels + a full-width editable line-items grid + live totals.
+
+The admin app carries a static reference catalog of these archetypes at
+`/platform/archetypes` (`apps/admin/app/(gated)/platform/archetypes`) — each
+archetype's label, one-line description, and slot recipe. It documents the set;
+the buildable demos live in the web routes above.
 
 ## The shared foundation (every archetype uses this)
 
@@ -57,7 +65,7 @@ export default function MyPage() {
 Shared header helpers live in `apps/web/app/_components/_shared/content-header-extras.tsx`:
 
 - **`PageHeaderActions`** — the standard favorite-star + config cluster for `ContentHeader.actions`.
-- **`ManageTabsMenu`** — the header `⋯` menu body (Choose tabs + Show-in-section + Sort). Identical across all four archetypes; pass it to `ContentHeader.manageTabs`.
+- **`ManageTabsMenu`** — the header `⋯` menu body (Choose tabs + Show-in-section + Sort). Identical across all five archetypes; pass it to `ContentHeader.manageTabs`.
 - **`useTabVisibility(tabs, active)`** — controlled show/hide state for the tabs, returning a `visible` list and an `activeValue` clamped to it (hiding the active tab falls back to the first visible one, derived in render — no header/body desync).
 
 `ContentToolbar` (36px, `left`/`right` slots) and `ContentStatusBar` (24px,
@@ -79,6 +87,12 @@ select-checkbox column + `DataTableColumnHeader`), `table-demo-body.tsx`
 `DataTableColumnManager` + a split "Add" button + the inspector-mode switch),
 `table-demo-header.tsx`, `data.ts`, and `context.tsx` (links the portaled header
 to the body). Swap `data.ts` for query results.
+
+## Blank
+
+The zero-chrome case. Mount `<ContentPanel>` with the page body as `children`;
+omit the toolbar, filters, status bar, action bar, and inspector. Use it for a
+unique, focused body that does not need another archetype's structure.
 
 ## Launchpad
 
@@ -144,7 +158,8 @@ the chart/table format toggle.
 Props: `children` (the panels / form), `aside`, `lineItems`, `footer`,
 `maxWidth`, `formLayout`. Mount in a `ContentPanel` with
 `bodyClassName="flex min-h-0 flex-col p-0"` so the workspace owns its own scroll
-+ footer.
+
+- footer.
 
 **Build it:** copy `single-demo/` — `single-demo.tsx` (the three panels + local
 tab state + chrome), `line-items.tsx` (editable-grid columns), `data.ts`

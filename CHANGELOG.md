@@ -16,6 +16,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - ci: split environment resume into parallel database and application lanes, remove the setup runner, overlap ECS, API boot, independent sidecar preparation, and migration-journal reads, prevent the bootstrap/runtime OpenFGA metrics-port race, tighten readiness detection without reducing failure tolerance, and gate sleeping-page removal on ECS task health
 - infra: keep production continuously available through 2026-07-26 by temporarily deferring the 5h auto-cold-pause TTL; staging remains unchanged and production auto-stop resumes automatically at 2026-07-27 00:00 Europe/Prague
 
+### Fixed
+
+- fix(brain): posting-lane MCP tool now types the double-entry `entry` (gen-tools emits z.union for OpenAPI anyOf/oneOf instead of z.unknown), so the model can build a valid posting body (#690)
+
 ## [v0.17.7] — 2026-07-11
 
 M2 — "Brain learns + statutory completeness": the booking-template library + model routing (with the §I9 constitution carve-out for a reviewable, human-confirmed template — never an opaque write template, still HELD/gated), the propose-only librarian distillation engine, the #565 evidence-gate floor close, and DPH ř.12/13 §108 residual-self-assessment-on-receipt + RENT place-of-supply routing (new `SECTION_108` jurisdiction, migrations 0055/0056). Every Brain write still HELDs at cold start; nothing auto-applies. Plus the Dependabot auto-merge tooling and a one-shot scheduled deploy.

@@ -37,7 +37,7 @@ Positive:
 
 Negative / trade-offs:
 
-- Cloudflare becomes a Tier-3 CI dependency (registered in `docs/INVENTORY.md`). Not Tier-1 because of the fail-open path.
+- Cloudflare becomes a Tier-3 CI dependency (registered in `docs/compliance/ICT-ASSET-INVENTORY.md`). Not Tier-1 because of the fail-open path.
 - Vendored upstream source (`infra/cloudflare/src/`) requires manual upgrade per `infra/cloudflare/SOURCE.md`. Upstream is small (~500 LOC), MIT-licensed.
 - `vars.TURBO_API` is a manual GitHub repo variable set after first Worker deploy. One-time setup friction.
 - New tooling: Wrangler CLI added to dev surface (not used by app code, only the deploy workflow).

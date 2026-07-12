@@ -1,6 +1,6 @@
 [Unit]
 Description=Vault → AWS SSM SecureString sync (every 5 min)
-Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m4--migrate-2-secrets-to-vault--aws-ssm-securestring-tunnel_token-direct-to-ssm
+Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/runbooks/VAULT-OPS.md#adding-a-new-secret
 After=docker.service network-online.target
 Wants=network-online.target
 

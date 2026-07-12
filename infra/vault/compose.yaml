@@ -2,7 +2,7 @@
 # Tunnel. Lives at /srv/secrets/vault/compose.yaml. See ../README.md for the
 # deploy procedure and infra/vault/README.md for full context.
 #
-# Tracks: AFF-245 M1 step 4. Plan: docs/plans/SECRETS-MIGRATION.md.
+# Tracks: AFF-245 M1 step 4. Runbook: docs/runbooks/VAULT-OPS.md.
 #
 # Both images are pinned by tag AND digest. Bump procedure:
 #   1. Edit the tag, run `docker pull <repo>:<tag>` on any amd64 host.

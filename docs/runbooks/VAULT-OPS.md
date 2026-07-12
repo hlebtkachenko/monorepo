@@ -1,13 +1,9 @@
 # Vault Operations Runbook
 
-> **Status:** M1–M5 live as of 2026-05-31. M1/M2 (Vault bring-up + KMS
-> auto-unseal + restic→R2 backup), M3 (ECS AWS IAM auth), M3.5 (root token
-> revoked → operator-admin), M4 (3 app secrets Vault→SSM→ECS in staging +
-> production), M5 (GitHub OIDC→Vault JWT pilot; retired after the issue
-> backlink workflow moved to GitHub's built-in token). Remaining:
-> M10 rotation drill + cost audit. DR drill and B2 secondary backup remain
-> deferred until the Roadmap project prioritizes them. Milestone
-> history: [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md).
+> **Status:** Current operating procedure. Vault is the source of truth for
+> application secrets, SSM SecureString is the ECS runtime cache, and RDS-managed
+> credentials remain in AWS Secrets Manager. Deferred DR and secondary-backup
+> work belongs in GitHub Issues.
 >
 > **Backs:** legacy AFF-245.
 >
@@ -19,17 +15,17 @@
 
 | Asset                 | Identifier / location                                                                                                                                                                                                                                                                                                                                                                                                  |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| KMS CMK               | `ed05513d-eb4d-4ad4-b829-7afd69080b6c` (alias `alias/monorepo-vault-unseal`, eu-central-1) — `infra/cdk/lib/secrets-stack.ts`, stack `SecretsBootstrap`, AWS account `637560253662`                                                                                                                                                                                                                                    |
+| KMS CMK               | `<INFRASTRUCTURE_ID>` (alias `alias/monorepo-vault-unseal`, eu-central-1) — `infra/cdk/lib/secrets-stack.ts`, stack `SecretsBootstrap`, AWS account `<AWS_ACCOUNT_ID>`                                                                                                                                                                                                                                                 |
 | IAM user for KMS      | `vault-unseal-vps` — programmatic creds in `/srv/secrets/vault/.env` (mode 0600); 90-day rotation reminder (calendar)                                                                                                                                                                                                                                                                                                  |
-| Cloudflare Tunnel     | `afframe-vault` (`5cd03299-3e6f-43ad-a795-3d1f25447517`); ingress `secrets-admin.afframe.com → http://vault:8200`; tunnel token in `.env`                                                                                                                                                                                                                                                                              |
-| DNS                   | CNAME `secrets-admin.afframe.com → 5cd03299-3e6f-43ad-a795-3d1f25447517.cfargotunnel.com` (proxied)                                                                                                                                                                                                                                                                                                                    |
-| Cloudflare Access app | `Afframe Secrets Admin` (`e20a72eb-e8e0-493a-bc01-240a4d739432`); exact host (not wildcard); 24h session                                                                                                                                                                                                                                                                                                               |
-| Access policy         | "Allow operator" → include email `developer@hapdglobal.com`; single-mailbox SPOF acknowledged                                                                                                                                                                                                                                                                                                                          |
-| Access IdP            | One-time PIN only (`b5dc889e-8e8c-4f3e-94d9-efb432444dbc`); account-level. Google Workspace was scoped but not wired                                                                                                                                                                                                                                                                                                   |
+| Cloudflare Tunnel     | `afframe-vault` (`<INFRASTRUCTURE_ID>`); ingress `secrets-admin.afframe.com → http://vault:8200`; tunnel token in `.env`                                                                                                                                                                                                                                                                                               |
+| DNS                   | CNAME `secrets-admin.afframe.com → <INFRASTRUCTURE_ID>.cfargotunnel.com` (proxied)                                                                                                                                                                                                                                                                                                                                     |
+| Cloudflare Access app | `Afframe Secrets Admin` (`<INFRASTRUCTURE_ID>`); exact host (not wildcard); 24h session                                                                                                                                                                                                                                                                                                                                |
+| Access policy         | "Allow operator" → include email `<OPERATOR_EMAIL>`; single-mailbox SPOF acknowledged                                                                                                                                                                                                                                                                                                                                  |
+| Access IdP            | One-time PIN only (`<INFRASTRUCTURE_ID>`); account-level. Google Workspace was scoped but not wired                                                                                                                                                                                                                                                                                                                    |
 | Vault `operator init` | `vault operator init -recovery-shares=5 -recovery-threshold=3` (NOT `-key-shares` — KMS auto-unseal rejects Shamir flags with `400 not applicable to seal type awskms`)                                                                                                                                                                                                                                                |
 | Escrow                | 5 recovery keys in **offline escrow** (verified 2026-05-31: 3 used to regenerate root during the M3.5 cascade-recovery — proven working). Initial root token **revoked at M3.5**; daily admin is the `afframe-vault-operator-admin-token` in macOS Keychain (account `hleb`). **Recovery keys regenerate root tokens; they do NOT unseal Vault.** NOTE: recovery keys are NOT in macOS Keychain — offline escrow only. |
 | Audit device          | `vault audit enable file file_path=/vault/audit/audit.log`; logrotate at `/etc/logrotate.d/vault-audit` (13 weekly, copytruncate)                                                                                                                                                                                                                                                                                      |
-| Test secret           | `platform/test-secret = hello-from-m1` (verifies kv-v2 + audit chain end-to-end)                                                                                                                                                                                                                                                                                                                                       |
+| Test secret           | `platform/<test-key> = <test-value>` (verifies kv-v2 + audit chain end-to-end)                                                                                                                                                                                                                                                                                                                                         |
 
 ### 30-second smoke procedure
 
@@ -258,7 +254,7 @@ vault audit disable file
 1. Operator writes to Vault: `vault kv put platform/data/${env}/${name} value=<v>`
 2. Operator extends `/usr/local/sbin/vault-to-ssm-sync` to include the new `(env, name)` tuple.
 3. Operator extends `infra/cdk/lib/app-stack.ts` to wire `EcsSecret.fromSsmParameter` to the new SSM path.
-4. Operator updates `docs/env-vars.md` with the new entry.
+4. Operator updates `docs/ENVIRONMENT-VARIABLES.md` with the new entry.
 5. `pnpm verify` → PR → green CI → deploy.
 
 ### Deleting a secret
@@ -278,7 +274,8 @@ or a running task loses a secret it still references.
    `vault kv metadata delete platform/${env}/${name}` (full destroy incl.
    version history) — or `vault kv delete …` to soft-delete the latest
    version only.
-5. Update `docs/env-vars.md` + `SECRETS.md` decision matrix.
+5. Update `docs/ENVIRONMENT-VARIABLES.md` and
+   `docs/conventions/SECRETS-AND-VARIABLES.md`.
 
 Never delete the Vault value first — the sync would then write an empty/
 absent param and a still-referencing task would fail on next rollout.
@@ -487,8 +484,15 @@ sudo tail -200 /srv/secrets/vault/audit/audit.log | \
 
 ## Irreversible operations register
 
-See [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md#irreversible-operations-register).
-Operations listed there are NEVER executed without:
+| Operation                                | Primary risk                          | Required safeguard                                                                  |
+| ---------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `vault operator init`                    | Unrecoverable loss of recovery access | Run only for a new cluster; escrow recovery material before storing production data |
+| Schedule deletion of the Vault KMS key   | Vault can no longer auto-unseal       | Require `cdk diff` review and retain deletion protection                            |
+| Revoke the active root or operator token | Operator lockout                      | Verify scoped operator login and recovery-root procedure first                      |
+| Delete a legacy runtime secret           | Runtime outage or failed deployment   | Remove all consumers, verify backup, then observe the replacement through a soak    |
+| Disable the Vault audit device           | Loss of compliance evidence           | Add and verify a replacement device before removing the old one                     |
+
+These operations are NEVER executed without:
 
 - Advisor confirmation;
 - Two-person check (advisor + operator) on the irreversible action;
@@ -507,7 +511,7 @@ Operations listed there are NEVER executed without:
 
 ## Related runbooks
 
-- [`SECRETS.md`](SECRETS.md) — secrets convention (post-migration form)
+- [`SECRETS-AND-VARIABLES.md`](../conventions/SECRETS-AND-VARIABLES.md) — secrets convention
 - [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md) — rotation playbooks per secret type
 - [`DR-DRILL.md`](DR-DRILL.md) — disaster recovery drill (Vault restore)
 - [`AWS-SETUP.md`](AWS-SETUP.md) — CDK deploy wiring chain

@@ -141,7 +141,7 @@ Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
 - **Pinned:** Overview (books vitals: period posting status · open-item & analytical↔synthetic reconciliation) · **Posting approvals** (the AI→human approval path — the Assistant's automatically-prepared postings wait here for a human to review + approve; unposted + low-confidence + this-org exceptions; cross-client queue lives in `/workspace/inbox`)
 - **Books** _(regime-aware; ordered by regime — TODO(regime))_ — the statutory **účetní knihy** (563/1991 §13)
   - _cash regime (jednoduché / daňová evidence):_ **Cash journal** (peněžní deník) is the primary book — shown **first**; the double-entry books below are hidden.
-  - _double-entry:_ Journal (deník) · General ledger (hlavní kniha) · **Off-balance ledger** (the statutory 4th book _kniha podrozvahová_ §13 — guarantees / leased-custody / off-balance items — its own page) · Analytical ledger (knihy analytické evidence) · Trial balance (obratová předvaha) — Cash journal hidden.
+  - _double-entry:_ Journal (deník) · General ledger (hlavní kniha) · **Saldokonto** · **Off-balance ledger** (the statutory 4th book _kniha podrozvahová_ §13 — guarantees / leased-custody / off-balance items — its own page) · Analytical ledger (knihy analytické evidence) · Trial balance (obratová předvaha) — Cash journal hidden.
 - **Structure** _(regime-aware)_
   - _double-entry:_ Chart of accounts (účtový rozvrh) · Posting rules (předkontace — agent posting config, no statutory book)
   - _cash regime:_ Categories (income/expense — replaces the chart)
@@ -235,9 +235,9 @@ file — AI-denied). No competitor unifies this.
 - **Obligations** _(always-on pages — each obligation KIND has a stable navigable home; the dynamic per-period instances render inside it, opened from the cockpit)_
   - **VAT** _(vat_status-gated)_ — subpages: VAT return (DAP) · Control statement (kontrolní hlášení) · EC Sales List (souhrnné hlášení) · OSS · IOSS
   - **Payroll** _(has_employees-gated)_ — subpages: Monthly employer report (JMHZ) · Social insurance · Health insurance · Withholding tax
-  - **Income tax** — subpages: Corporation tax (DPPO) · Personal income tax (DPFO) · Advances
+  - **Income tax** — subpages: Corporation tax (DPPO) · Section 7 tax-record worksheet (DPFO) · Advances
   - **Intrastat** _(activity-gated: intra-EU goods trade ≥ 15M CZK/flow/yr — statistical, no tax)_ — subpages: Dispatches (odeslání) · Arrivals (přijetí)
-  - **Year-end** — subpages: Accruals · Provisions · Value adjustments · Deferred tax · Statements · Publication · Year close
+  - **Year-end** — subpages: Accruals · Provisions · Value adjustments · Deferred tax · Draft closing worksheet · Publication · Year close
 - **Archive** — filed periods + výstupy (submitted DAP/KH/SH, závěrka, protocols/confirmations)
 
 **Universal close flow** (the UVP loop — opened per obligation from the cockpit, not nav pages):
@@ -311,7 +311,7 @@ Accounting; bank/cash masters → Finance; asset types/locations → Assets; pay
 codebooks → HR). Law/reference tables shown **seeded read-only**.
 
 - **Pinned: Overview**
-- **Organisation** — Identity · Periods & fiscal year (regime · size · currency) · VAT status · Business activities · Branding (client logo on outputs)
+- **Organisation** — Identity · Periods & fiscal year (regime · size · currency) · VAT status · Tax profile · Business activities · Branding (client logo on outputs)
 - **Reference** — org choices + cross-cutting codebooks:
   - **Number series**
   - **FX rates** — subpages: Method (daily/fixed §24) · Central bank feed (ČNB rate-list)

@@ -8,9 +8,17 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Restore the AI financial agents plan to docs/plans as durable reference for EPIC #485/#487; remaining active plan and public-API launch context migrated to GitHub issues #686/#687/#688 in the Roadmap v1 project.
+- Simplify documentation structure, archive obsolete material, and make documentation validation taxonomy-agnostic.
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.
+- Reclassify documentation into plans, runbooks, specifications, compliance, and reference material; archive obsolete files; and add automated documentation validation.
+- Restructure documentation entry points, define canonical source ownership, and correct stale API, sitemap, archetype, ADR, environment, and link references.
 - ci: split environment resume into parallel database and application lanes, remove the setup runner, overlap ECS, API boot, independent sidecar preparation, and migration-journal reads, prevent the bootstrap/runtime OpenFGA metrics-port race, tighten readiness detection without reducing failure tolerance, and gate sleeping-page removal on ECS task health
 - infra: keep production continuously available through 2026-07-26 by temporarily deferring the 5h auto-cold-pause TTL; staging remains unchanged and production auto-stop resumes automatically at 2026-07-27 00:00 Europe/Prague
+
+### Fixed
+
+- Documentation link check ignores Markdown links inside code fences and inline code, preventing false positives on illustrative examples.
 
 ## [v0.17.7] — 2026-07-11
 

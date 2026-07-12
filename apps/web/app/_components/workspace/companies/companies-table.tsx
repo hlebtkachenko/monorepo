@@ -2,19 +2,15 @@
 
 import * as React from "react"
 
-import { ContentPanel, DetailField } from "@workspace/ui/blocks/content-panel"
 import {
-  ActionBar,
-  ActionBarGroup,
-  ActionBarItem,
-  ActionBarSelection,
-  ActionBarSeparator,
-} from "@workspace/ui/components/action-bar"
+  ContentFooter,
+  ContentPanel,
+  DetailField,
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { useDataTable } from "@workspace/ui/components/data-table"
 import { toast } from "@workspace/ui/components/sonner"
-import { useIcons } from "@workspace/ui/icon-packs"
 
 import { TableStatusBar } from "../_shared/table-status-bar"
 import { companyColumns } from "./columns"
@@ -60,10 +56,9 @@ function CompanyDetail({ row }: { row: CompanyRow }) {
  * Companies body — the Table archetype on the workspace shell. Real company rows
  * (resolved server-side) drive a TanStack `DataGridView`: tab-filtered by
  * status, a universal search, the faceted Status filter, row selection with a
- * bulk `ActionBar`, and a per-row `Inspector`. Mounts as the shell `children`.
+ * bulk `ContentFooter`, and a per-row `Inspector`. Mounts as the shell `children`.
  */
 export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
-  const icons = useIcons()
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
     useCompanies()
 
@@ -99,9 +94,6 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
   const isFiltered =
     search.trim() !== "" || table.getState().columnFilters.length > 0
 
-  const ArchiveIcon = icons.Archive
-  const ExportIcon = icons.Download
-
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
@@ -127,38 +119,33 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
           isFiltered={isFiltered}
         />
       }
-      actionBar={
-        <ActionBar
-          open={selectedCount > 0}
-          onOpenChange={(open) => {
-            if (!open) table.resetRowSelection()
+      footer={
+        <ContentFooter
+          selection={{
+            count: selectedCount,
+            onClear: () => table.resetRowSelection(),
+            actions: [
+              {
+                id: "export",
+                label: "Export",
+                icon: "Download",
+                onSelect: () => {
+                  toast("Export — coming soon")
+                  table.resetRowSelection()
+                },
+              },
+              {
+                id: "archive",
+                label: "Archive",
+                icon: "Archive",
+                onSelect: () => {
+                  toast("Archive — coming soon")
+                  table.resetRowSelection()
+                },
+              },
+            ],
           }}
-          aria-label="Bulk actions"
-          sideOffset="var(--app-statusbar-clearance, 16px)"
-        >
-          <ActionBarSelection>{selectedCount} selected</ActionBarSelection>
-          <ActionBarSeparator />
-          <ActionBarGroup>
-            <ActionBarItem
-              onSelect={() => {
-                toast("Export — coming soon")
-                table.resetRowSelection()
-              }}
-            >
-              <ExportIcon />
-              Export
-            </ActionBarItem>
-            <ActionBarItem
-              onSelect={() => {
-                toast("Archive — coming soon")
-                table.resetRowSelection()
-              }}
-            >
-              <ArchiveIcon />
-              Archive
-            </ActionBarItem>
-          </ActionBarGroup>
-        </ActionBar>
+        />
       }
     >
       <DataGridView table={table} className="min-h-0 flex-1" />

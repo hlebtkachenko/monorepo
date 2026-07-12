@@ -25,7 +25,15 @@ export interface RecordWorkspaceProps {
    * scrolls inside it instead of pushing the whole page.
    */
   lineItems?: React.ReactNode
-  /** Optional sticky footer (Save / Close), pinned to the bottom of the body. */
+  /**
+   * Optional sticky footer (Save / Close), pinned to the bottom of the body.
+   *
+   * @deprecated Selection and save actions should move to the `ContentFooter`
+   * block (the Content Panel's `footer` slot) so the sticky bottom action
+   * surface lives in one place. Prefer `ContentFooter` with its `selection` /
+   * `save` data props over passing bespoke footer nodes here, to dedupe the two
+   * footer surfaces.
+   */
   footer?: React.ReactNode
   /** Width of the centered form/aside band. Default `"5xl"`. */
   maxWidth?: "3xl" | "4xl" | "5xl" | "full"

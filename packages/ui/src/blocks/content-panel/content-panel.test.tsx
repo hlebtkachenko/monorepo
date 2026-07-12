@@ -121,12 +121,12 @@ describe("ContentStatusBar", () => {
 })
 
 describe("ContentPanel", () => {
-  it("stacks the toolbar, body, status bar and action bar", () => {
+  it("stacks the toolbar, body, status bar and footer", () => {
     const { container } = wrap(
       <ContentPanel
         toolbar={<div data-testid="tb">toolbar</div>}
         statusBar={<div data-testid="sb">status</div>}
-        actionBar={<div data-testid="ab">actions</div>}
+        footer={<div data-testid="ft">footer</div>}
       >
         <div>body</div>
       </ContentPanel>,
@@ -134,7 +134,7 @@ describe("ContentPanel", () => {
     expect(screen.getByTestId("tb")).toBeInTheDocument()
     expect(screen.getByText("body")).toBeInTheDocument()
     expect(screen.getByTestId("sb")).toBeInTheDocument()
-    expect(screen.getByTestId("ab")).toBeInTheDocument()
+    expect(screen.getByTestId("ft")).toBeInTheDocument()
     expect(container.querySelector('[data-slot="content-body"]')).not.toBeNull()
   })
 })

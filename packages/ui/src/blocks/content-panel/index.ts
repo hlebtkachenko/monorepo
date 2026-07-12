@@ -27,6 +27,14 @@ export type { ContentPanelProps } from "./content-panel"
 export { Inspector } from "./inspector"
 export type { InspectorProps, InspectorMode } from "./inspector"
 export * from "./content-body"
+export { ContentFooter } from "./content-footer"
+export type {
+  ContentFooterProps,
+  ContentFooterAction,
+  ContentFooterActionVariant,
+  ContentFooterSelection,
+  ContentFooterSave,
+} from "./content-footer"
 export { DetailField } from "./detail-field"
 export type { DetailFieldProps } from "./detail-field"
 

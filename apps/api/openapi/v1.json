@@ -1399,7 +1399,7 @@
                 "slots": {
                   "type": "string",
                   "description": "Which `ContentPanel` slots this archetype fills.",
-                  "example": "toolbar + body + statusBar (+ inspector, actionBar)"
+                  "example": "toolbar + body + statusBar (+ inspector, footer)"
                 },
                 "useWhen": {
                   "type": "string",
@@ -1455,7 +1455,7 @@
           "slots": {
             "type": "string",
             "description": "Which `ContentPanel` slots this archetype fills.",
-            "example": "toolbar + body + statusBar (+ inspector, actionBar)"
+            "example": "toolbar + body + statusBar (+ inspector, footer)"
           },
           "useWhen": {
             "type": "string",

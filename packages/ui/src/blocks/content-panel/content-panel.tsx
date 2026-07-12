@@ -26,11 +26,11 @@ export interface ContentPanelProps {
    */
   statusBar?: React.ReactNode
   /**
-   * The floating bulk-action bar (an `ActionBar`). Rendered as-is.
-   * @deprecated Leaving the Content Panel — selection actions move to the sticky
-   * `ContentFooter`. `ActionBar` stays a component but is retired from the CP.
+   * The sticky bottom action surface (a `ContentFooter`). Optional; nothing
+   * scrolls below it. Replaces the retired floating `actionBar` slot — selection
+   * and changed-data (Save / Discard) actions live here.
    */
-  actionBar?: React.ReactNode
+  footer?: React.ReactNode
   /**
    * The Inspector — detail of the element chosen in the body (an invoice, a
    * transaction, …). Presented two ways (user's choice via `inspectorMode`):
@@ -77,7 +77,7 @@ export function ContentPanel({
   toolbar,
   filters,
   statusBar,
-  actionBar,
+  footer,
   inspector,
   inspectorOpen,
   inspectorMode = "panel",
@@ -112,7 +112,7 @@ export function ContentPanel({
         </Inspector>
       </div>
       {statusBar}
-      {actionBar}
+      {footer}
     </div>
   )
 }

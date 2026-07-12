@@ -45,6 +45,13 @@ describe("AppShell", () => {
       container.querySelector("[data-slot='app-shell-sidebar']"),
     ).toBeTruthy()
     expect(container.querySelector("[data-slot='app-shell-main']")).toBeTruthy()
+    // AppBody owns the panel row and wraps the content card.
+    expect(container.querySelector("[data-slot='app-shell-body']")).toBeTruthy()
+    expect(
+      container.querySelector(
+        "[data-slot='app-shell-body'] [data-slot='app-shell-content']",
+      ),
+    ).toBeTruthy()
     expect(screen.getByTestId("body")).toBeInTheDocument()
     expect(
       container.querySelector("[data-slot='app-shell-assistant']"),

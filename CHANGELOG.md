@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Extract AppBody presentational panel-row component from AppShell; all shell state stays in AppShell (archetype-system P3)
 - Reshape content-panel block: move ContentHeader + ContentToolbar into subfolders with re-export (archetype-system P2, behavior-preserving)
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.
 - Rename UI blocks `app-content` → `content-panel` and `app-sidebar` → `sidebar-panel` (archetype-system restructure, phase 1)

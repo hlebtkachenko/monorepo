@@ -66,7 +66,7 @@ vi.mock("@aws-sdk/client-sns", () => {
 })
 
 // @ts-expect-error - .mjs handler ships without declaration types
-import { handler } from "../lib/lambda/autostop/index.mjs"
+import { handler, resolveDeferral } from "../lib/lambda/autostop/index.mjs"
 
 const HOUR = 3_600_000
 
@@ -118,6 +118,24 @@ describe("autostop handler", () => {
     expect(updates.length).toBe(1)
     expect(rdsStops.length).toBe(1)
     expect(snsSend.mock.calls.length).toBe(1)
+  })
+
+  it("defers auto-stop only until the configured instant", () => {
+    const notBefore = "2026-07-26T22:00:00Z"
+
+    expect(resolveDeferral(notBefore, Date.parse("2026-07-26T21:59:59Z"))).toBe(
+      "2026-07-26T22:00:00.000Z",
+    )
+    expect(
+      resolveDeferral(notBefore, Date.parse("2026-07-26T22:00:00Z")),
+    ).toBeNull()
+  })
+
+  it("leaves auto-stop active without a deferral and rejects invalid config", () => {
+    expect(resolveDeferral(undefined, Date.now())).toBeNull()
+    expect(() => resolveDeferral("not-a-date", Date.now())).toThrow(
+      "AUTO_STOP_NOT_BEFORE must be a valid ISO instant",
+    )
   })
 
   it("no-ops while the task is still within the TTL", async () => {

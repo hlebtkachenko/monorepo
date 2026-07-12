@@ -38,6 +38,13 @@ import { safeNext } from "./lib/safe-next"
 export function proxy(request: NextRequest): NextResponse {
   const pathname = request.nextUrl.pathname
 
+  // Dev-only: /dev/* debug pages are reachable without a session in
+  // non-production. Each /dev page still self-guards against prod via
+  // notFound(), and the matcher continues to gate them in production.
+  if (process.env.NODE_ENV !== "production" && pathname.startsWith("/dev/")) {
+    return NextResponse.next()
+  }
+
   // Auth-flow request hygiene: applies to /auth/* and /onboarding/*.
   if (pathname.startsWith("/auth/") || pathname.startsWith("/onboarding/")) {
     const response = NextResponse.next()

@@ -112,17 +112,19 @@ export class AccountsController {
   })
   @ApiQuery({ name: "periodId", required: false, format: "uuid" })
   @ApiQuery({ name: "isSynthetic", required: false, enum: ["true", "false"] })
+  @ApiQuery({ name: "number", required: false })
   @ApiOkResponse({ type: ListAccountsResponseDto })
   async list(
     @Query() query: ListAccountsQueryDto,
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<ListAccountsResponse> {
-    const { periodId, isSynthetic } = query
+    const { periodId, isSynthetic, number } = query
     const filters = [
       periodId ? eq(account.period_id, periodId) : undefined,
       isSynthetic !== undefined
         ? eq(account.is_synthetic, isSynthetic === "true")
         : undefined,
+      number ? eq(account.number, number) : undefined,
     ].filter((f): f is NonNullable<typeof f> => f !== undefined)
 
     const rows = await withOrganization(

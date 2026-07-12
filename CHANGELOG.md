@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- feat(brain): posting lane (`brain run --mode posting`) — the Brain reasons the double-entry účet předkontace (cost account vs 321 + 343) and proposes a HELD posting, so its account choice is testable against the real book (GAP-007)
+
 ### Changed
 
 - Add an in-admin Platform Archetypes reference catalog at `/platform/archetypes` listing the content-panel archetypes and their slot recipes.
@@ -19,6 +23,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- fix(api): add a `number` filter to GET /v1/accounts so an agent resolves one account by number (with periodId) without paging the whole period chart — unblocks the posting lane's account number→id lookup (#690)
+- fix(brain): posting-lane MCP tool now types the double-entry `entry` (gen-tools emits z.union for OpenAPI anyOf/oneOf instead of z.unknown), so the model can build a valid posting body (#690)
 - Documentation link check ignores Markdown links inside code fences and inline code, preventing false positives on illustrative examples.
 
 ## [v0.17.7] — 2026-07-11

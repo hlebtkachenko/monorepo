@@ -1,4 +1,4 @@
-import type { LaunchpadSection } from "@workspace/ui/blocks/app-content"
+import type { LaunchpadSection } from "@workspace/ui/blocks/content-panel"
 
 /**
  * Launchpad nav structure for the accounting module overview hub. Lays out the

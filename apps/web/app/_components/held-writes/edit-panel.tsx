@@ -18,7 +18,7 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@workspace/ui/components/combobox"
-import { DetailField } from "@workspace/ui/blocks/app-content"
+import { DetailField } from "@workspace/ui/blocks/content-panel"
 import { Field, FieldLabel } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import {

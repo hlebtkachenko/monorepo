@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { usePathname } from "next/navigation"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
 import { Logo } from "@workspace/ui/brand-assets"
 

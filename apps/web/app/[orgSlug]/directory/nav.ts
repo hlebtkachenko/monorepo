@@ -1,4 +1,4 @@
-import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
+import type { SidebarNavEntry } from "@workspace/ui/blocks/sidebar-panel"
 
 /**
  * Directory module sidebar nav (workspace-shared registries). Derived from

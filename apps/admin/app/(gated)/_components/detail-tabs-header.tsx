@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 
 import { AdminPageHeader } from "./admin-page-header"
 

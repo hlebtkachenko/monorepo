@@ -3,7 +3,7 @@
 import type { Table } from "@tanstack/react-table"
 import Link from "next/link"
 
-import { ContentToolbar } from "@workspace/ui/blocks/app-content"
+import { ContentToolbar } from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   DataTableColumnManager,

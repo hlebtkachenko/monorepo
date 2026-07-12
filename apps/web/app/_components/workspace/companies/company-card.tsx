@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-import { DetailField } from "@workspace/ui/blocks/app-content"
+import { DetailField } from "@workspace/ui/blocks/content-panel"
 import { initialsOf } from "@workspace/ui/blocks/app-header"
 import {
   Avatar,

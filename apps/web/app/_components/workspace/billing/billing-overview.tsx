@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 
-import { ContentPanel } from "@workspace/ui/blocks/app-content"
+import { ContentPanel } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {

@@ -1,6 +1,6 @@
 import type { RailMenuEntry } from "@workspace/ui/blocks/app-rail"
 import type { BottomNavItem } from "@workspace/ui/blocks/app-shell"
-import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
+import type { SidebarNavEntry } from "@workspace/ui/blocks/sidebar-panel"
 
 import { accountingNav } from "../accounting/nav"
 import { assetsNav } from "../assets/nav"

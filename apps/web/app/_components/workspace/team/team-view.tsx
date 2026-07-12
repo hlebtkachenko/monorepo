@@ -7,7 +7,7 @@ import {
   ContentPanel,
   ContentStatusBar,
   ContentToolbar,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { initialsOf } from "@workspace/ui/blocks/app-header"
 import {
   Avatar,

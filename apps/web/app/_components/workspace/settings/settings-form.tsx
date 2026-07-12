@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
-import { ContentPanel, RecordWorkspace } from "@workspace/ui/blocks/app-content"
+import { ContentPanel, RecordWorkspace } from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,

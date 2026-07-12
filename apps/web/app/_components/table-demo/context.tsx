@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import type { InspectorMode } from "@workspace/ui/blocks/app-content"
+import type { InspectorMode } from "@workspace/ui/blocks/content-panel"
 
 import type { InvoiceRow } from "./data"
 

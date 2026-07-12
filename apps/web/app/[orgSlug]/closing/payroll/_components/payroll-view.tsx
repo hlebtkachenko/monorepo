@@ -2,7 +2,7 @@ import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 
 import { AppPageHeader } from "../../../../_components/app-page-header"
 import type { PayrollObligationsResult } from "../_lib/payroll-data"

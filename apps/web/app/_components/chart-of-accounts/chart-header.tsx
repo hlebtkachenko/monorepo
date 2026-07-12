@@ -3,7 +3,7 @@
 import {
   ContentHeader,
   type ContentTab,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 
 import { PageHeaderActions } from "../_shared/content-header-extras"
 

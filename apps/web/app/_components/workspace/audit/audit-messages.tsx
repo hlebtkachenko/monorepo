@@ -6,7 +6,7 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Avatar, AvatarFallback } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"

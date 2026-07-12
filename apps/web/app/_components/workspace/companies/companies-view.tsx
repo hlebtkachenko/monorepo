@@ -10,7 +10,7 @@ import { LayoutGrid, Rows3 } from "lucide-react"
 import {
   ContentHeader,
   type ContentTab,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import { toast } from "@workspace/ui/components/sonner"
 import {

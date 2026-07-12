@@ -1,5 +1,13 @@
 # App Shell Panels — build guide for agents
 
+> **⚠️ UNDER REDESIGN (2026-07-12).** The shell + content-panel "archetype system"
+> is being restructured — locked target in
+> `.context/archetype-system/03-target-architecture.md` (4 panels incl. a new
+> Drawer, `cp-*` blocks, a CPBody archetype-blocker, no status bar in the Content
+> Panel). Block folders were renamed (`app-content → content-panel`,
+> `app-sidebar → sidebar-panel`); paths below are updated but the composition model
+> is changing. Treat this doc as current-state reference, not the target.
+
 How the application shell is structured and how to build **page content** inside
 it without reinventing primitives or breaking the layout. Read this before
 touching the sidebar or the content panel, or before wiring a new page.
@@ -28,7 +36,7 @@ touching the sidebar or the content panel, or before wiring a new page.
 
 | Layer                        | Location                                                                     | Rule                                                                                                                 |
 | ---------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Shell + panels (reusable UI) | `packages/ui/src/blocks/app-shell`, `app-rail`, `app-sidebar`, `app-content` | All reusable composition goes here. **Never** put shell/panel UI in `apps/web`.                                      |
+| Shell + panels (reusable UI) | `packages/ui/src/blocks/app-shell`, `app-rail`, `sidebar-panel`, `content-panel` | All reusable composition goes here. **Never** put shell/panel UI in `apps/web`.                                      |
 | Leaf components              | `packages/ui/src/components/*`                                               | shadcn-derived primitives (Button, Tabs, DataTable, ActionBar, …).                                                   |
 | App data wrappers            | `apps/web/app/_components/*`                                                 | Thin client components that feed **data** (mock today) + live `usePathname()` into the blocks. No layout logic.      |
 | Shell mount                  | `apps/web/app/[orgSlug]/layout.tsx`                                          | Mounts the persistent `OrgShell` **once** (rail + sidebar + chrome). Page bodies swap underneath it.                 |
@@ -130,7 +138,7 @@ content → global tokens.** Never write a hex value in a component.
 
 ---
 
-## Sidebar panel (`app-sidebar`)
+## Sidebar panel (`sidebar-panel`)
 
 Five sections, every one self-hides when empty:
 
@@ -174,7 +182,7 @@ pinned slot.
 
 ---
 
-## Content panel (`app-content`)
+## Content panel (`content-panel`)
 
 The content panel is a vertical stack. The shell draws row 1 (the 45px header);
 **you** own rows 2…n via `ContentPanel` in `children`:
@@ -188,7 +196,7 @@ The content panel is a vertical stack. The shell draws row 1 (the 45px header);
 └ action bar (floating, on selection) ───────────────────────────────┘  ← ActionBar
 ```
 
-### The blocks (`packages/ui/src/blocks/app-content`)
+### The blocks (`packages/ui/src/blocks/content-panel`)
 
 - **`ContentHeader`** — `title` + an inset vertical `Separator` + `Tabs`
   (`variant="line"`, underline) + a "manage tabs" ⋯ dropdown + right-aligned
@@ -209,7 +217,7 @@ The content panel is a vertical stack. The shell draws row 1 (the 45px header);
 `ContentPanel` is **one frame, no `variant` prop**. Every chrome slot is optional,
 so a "variant" is just which slots a page fills — not a different component. Five
 named archetypes cover every page; pick one when scaffolding. Live examples:
-`packages/ui/src/blocks/app-content/content-panel.stories.tsx` (one story each).
+`packages/ui/src/blocks/content-panel/content-panel.stories.tsx` (one story each).
 
 | Variant       | Slots filled                                                | Use for                                                                                                                |
 | ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -225,7 +233,7 @@ table fills edge-to-edge), and a status bar in `statusBar`. Add `inspector*` for
 detail view and `actionBar` for bulk selection. Copy the `Table` story's wiring.
 
 **Archetype blocks (#425):** Launchpad / Dashboard / Single ship as
-data-driven blocks in `packages/ui/src/blocks/app-content` (`LaunchpadGrid`,
+data-driven blocks in `packages/ui/src/blocks/content-panel` (`LaunchpadGrid`,
 `DashboardGrid` + `MetricTile` + `DashboardChartCard`, `RecordWorkspace`). They
 take data via props and drop straight into a `ContentPanel`'s `children`;
 mock-data examples are the matching stories in `content-panel.stories.tsx` and

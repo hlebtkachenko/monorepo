@@ -1,6 +1,6 @@
 "use client"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { IconButton } from "@workspace/ui/components/icon-button"

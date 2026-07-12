@@ -1,4 +1,4 @@
-import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
+import type { SidebarNavEntry } from "@workspace/ui/blocks/sidebar-panel"
 
 /**
  * Accounting module sidebar nav. Derived from `docs/specs/SITEMAP.md`. `base` =

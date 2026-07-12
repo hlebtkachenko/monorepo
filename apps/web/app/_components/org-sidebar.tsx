@@ -5,7 +5,7 @@ import {
   AppSidebar,
   type SidebarFooterLink,
   type SidebarNavEntry,
-} from "@workspace/ui/blocks/app-sidebar"
+} from "@workspace/ui/blocks/sidebar-panel"
 
 /**
  * Org-surface sidebar body — feeds the AppSidebar block the module nav + footer

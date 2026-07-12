@@ -1,7 +1,16 @@
 # Content-panel archetypes — pick one and build a page
 
+> **⚠️ SUPERSEDED / UNDER REDESIGN (2026-07-12).** The archetype system is being
+> restructured — see `.context/archetype-system/03-target-architecture.md` for the
+> locked target. In the new model an archetype is a **composed, importable
+> grouping** you feed data, NOT a demo you copy. **Ignore the "copy them, don't
+> import them" guidance below** — it is the anti-model the redesign removes. Block
+> paths here were repointed (`app-content → content-panel`) but the compose-by-copy
+> pattern is on its way out. Do not start new work from this doc until the redesign
+> lands; ask Hleb.
+
 Four page shapes cover almost every org-app screen. Each is a reusable **block**
-(or block set) in `packages/ui/src/blocks/app-content` plus a thin **data demo**
+(or block set) in `packages/ui/src/blocks/content-panel` plus a thin **data demo**
 in `apps/web/app/_components/<name>-demo`. To build a new page you pick an
 archetype, mount the shared chrome, drop the block into a `ContentPanel`, and
 feed it data. Nothing here is bespoke per page — the blocks are the contract.

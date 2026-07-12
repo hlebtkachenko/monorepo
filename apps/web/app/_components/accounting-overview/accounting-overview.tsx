@@ -10,7 +10,7 @@ import {
   LaunchpadGrid,
   type ContentTab,
   type LaunchpadView,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 
 import {
   ManageTabsMenu,

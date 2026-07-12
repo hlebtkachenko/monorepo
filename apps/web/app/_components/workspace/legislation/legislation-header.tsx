@@ -3,7 +3,7 @@
 import {
   ContentHeader,
   type ContentTab,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 
 import { PageHeaderActions } from "../../_shared/content-header-extras"
 import { useLegislation } from "./context"

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Banknote, Building2, Calendar, FileText } from "lucide-react"
 
-import { ContentPanel, DetailField } from "@workspace/ui/blocks/app-content"
+import { ContentPanel, DetailField } from "@workspace/ui/blocks/content-panel"
 import {
   ActionBar,
   ActionBarGroup,

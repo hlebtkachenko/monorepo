@@ -7,7 +7,7 @@ import {
   ContentPanel,
   DashboardChartCard,
   DashboardGrid,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 
 import { AppPageHeader } from "../../app-page-header"
 import { PageHeaderActions } from "../../_shared/content-header-extras"

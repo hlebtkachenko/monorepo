@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 
-import { ContentPanel, ContentToolbar } from "@workspace/ui/blocks/app-content"
+import { ContentPanel, ContentToolbar } from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   Empty,

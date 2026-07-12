@@ -3,7 +3,7 @@
 import * as React from "react"
 import { usePathname } from "next/navigation"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
 

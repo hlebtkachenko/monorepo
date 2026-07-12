@@ -2,7 +2,7 @@ import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Card, CardContent } from "@workspace/ui/components/card"
 import {
   Table,

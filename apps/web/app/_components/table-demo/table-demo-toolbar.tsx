@@ -2,8 +2,8 @@
 
 import type { Table } from "@tanstack/react-table"
 
-import { ContentToolbar } from "@workspace/ui/blocks/app-content"
-import type { InspectorMode } from "@workspace/ui/blocks/app-content"
+import { ContentToolbar } from "@workspace/ui/blocks/content-panel"
+import type { InspectorMode } from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
 import {

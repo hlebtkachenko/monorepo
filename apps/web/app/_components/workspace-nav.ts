@@ -1,6 +1,6 @@
 import type { RailMenuEntry } from "@workspace/ui/blocks/app-rail"
 import type { BottomNavItem } from "@workspace/ui/blocks/app-shell"
-import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
+import type { SidebarNavEntry } from "@workspace/ui/blocks/sidebar-panel"
 
 /**
  * Workspace-surface nav, single source — the accountant-office hub. There is no

@@ -1,7 +1,7 @@
 import type {
   SidebarNavEntry,
   SidebarNavPage,
-} from "@workspace/ui/blocks/app-sidebar"
+} from "@workspace/ui/blocks/sidebar-panel"
 
 /**
  * Longest-prefix active-route match. `/acme/finance/123` matches `/acme/finance`

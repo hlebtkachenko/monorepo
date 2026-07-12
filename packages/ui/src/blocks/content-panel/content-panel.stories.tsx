@@ -43,7 +43,7 @@ import { RecordWorkspace } from "./record-workspace"
  * bodies you drop into `children` and refine when a real page earns it.
  */
 const meta: Meta<typeof ContentPanel> = {
-  title: "Blocks/App Content/ContentPanel",
+  title: "Blocks/Content Panel/ContentPanel",
   component: ContentPanel,
   parameters: { layout: "fullscreen" },
   decorators: [

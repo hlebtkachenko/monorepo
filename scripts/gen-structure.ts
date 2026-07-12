@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url"
 import type {
   SidebarNavEntry,
   SidebarNavPage,
-} from "@workspace/ui/blocks/app-sidebar"
+} from "@workspace/ui/blocks/sidebar-panel"
 
 import {
   MODULE_NAV,

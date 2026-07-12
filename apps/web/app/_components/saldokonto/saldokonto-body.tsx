@@ -7,7 +7,7 @@ import {
   ContentStatusBar,
   ContentToolbar,
   DetailField,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import {

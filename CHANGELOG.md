@@ -15,6 +15,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Register content-panel/sidebar-panel/assistant-panel blocks in the UI registry; reconcile the CONTENT-ARCHETYPES shared-foundation example to the closed ContentHeader/ContentToolbar/ContentBody/ContentFooter API (archetype-system P6/PR-7)
 - Close the ContentToolbar API: descriptor-only named slots (statusFilter/search/filter/viewTools/actions/add/modeToggle), rename the ReactNode left/right toolbar to ContentToolbarLegacy for not-yet-migrated pages, migrate demo-table as canonical (archetype-system P4/PR-4)
 - Close the ContentHeader API (remove actions/icon/tabs/manageTabs ReactNode holes; add breadcrumb + titleIcon; internal Favorite/Configure + data-driven manageViews); split into content-header-* sub-blocks (archetype-system P4/PR-3). Header-jammed content on companies/doklad/single-demo dropped behind TODO(archetype-redo).
 - Extract AppBody presentational panel-row component from AppShell; all shell state stays in AppShell (archetype-system P3)

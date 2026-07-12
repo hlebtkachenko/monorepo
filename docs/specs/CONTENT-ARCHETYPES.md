@@ -57,26 +57,47 @@ export default function MyPage() {
   return (
     <>
       <OrgPageHeader>
-        <ContentHeader title="My page" tabs={tabs} value={tab} onValueChange={setTab}
-          manageTabs={<ManageTabsMenu tabs={TAB_DEFS} hidden={hidden} onToggle={toggle} />}
-          actions={<PageHeaderActions />} />
+        {/* Closed header: viewTabs + manageViews are DATA, Favorite/Configure are
+            internal. No actions/icon/tabs/manageTabs props. */}
+        <ContentHeader
+          title="My page"
+          viewTabs={visible}
+          value={tab}
+          onValueChange={setTab}
+          manageViews={{ tabs: TAB_DEFS, hidden, onToggle: toggle }}
+        />
       </OrgPageHeader>
-      <ContentPanel toolbar={<ContentToolbar left={…} right={…} />} statusBar={…}>
-        {/* the archetype block goes here */}
+      {/* Closed toolbar: named DATA slots, never ReactNode. */}
+      <ContentPanel
+        toolbar={
+          <ContentToolbar
+            search={{ value: q, onChange: setQ }}
+            filter={filterDescriptor}
+            add={{ label: "Add", onAdd }}
+          />
+        }
+        footer={<ContentFooter selection={{ count, actions, onClear }} />}
+      >
+        {/* the archetype body: <ContentPanel body={archetypeEmpty({ title })} /> */}
       </ContentPanel>
     </>
   )
 }
 ```
 
-Shared header helpers live in `apps/web/app/_components/_shared/content-header-extras.tsx`:
+Shared view-state helper in `apps/web/app/_components/_shared/content-header-extras.tsx`:
 
-- **`PageHeaderActions`** — the standard favorite-star + config cluster for `ContentHeader.actions`.
-- **`ManageTabsMenu`** — the header `⋯` menu body (Choose tabs + Show-in-section + Sort). Shared by every page that exposes managed tabs; pass it to `ContentHeader.manageTabs`.
-- **`useTabVisibility(tabs, active)`** — controlled show/hide state for the tabs, returning a `visible` list and an `activeValue` clamped to it (hiding the active tab falls back to the first visible one, derived in render — no header/body desync).
+- **`useTabVisibility(tabs, active)`** — controlled show/hide state for the views,
+  returning a `visible` list (feed `ContentHeader.viewTabs`) and an `activeValue`
+  clamped to it. Feed `{ tabs, hidden, onToggle }` to `ContentHeader.manageViews`.
+  (The old `PageHeaderActions` + `ManageTabsMenu` helpers are gone — Favorite/
+  Configure and the ⋯ configure menu are now internal to `ContentHeader`.)
 
-`ContentToolbar` (36px, `left`/`right` slots) and `ContentStatusBar` (24px,
-`left`/`right`) are the toolbar + status rows; both are token-styled shell chrome.
+`ContentToolbar` is a closed named-data-slot container (`statusFilter` · `search` ·
+`filter` · `viewTools` · `actions[]` · `add` · `modeToggle`; active-filter chips
+render in a band below the 36px bar). `ContentFooter` is the sticky bottom action
+surface (selection / save). The status bar now belongs to the Table section, not
+the Content Panel. All are token-styled shell chrome.
 
 ## Table
 

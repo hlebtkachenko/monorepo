@@ -52,6 +52,48 @@ export const registry: Record<string, ComponentMeta> = {
       "textarea",
     ],
   },
+  "content-panel": {
+    source: "src/blocks/content-panel",
+    sourceType: "custom",
+    description:
+      "Block — the Content Panel: the page surface below the shell's 45px panel header. Composed from closed sub-blocks: ContentHeader (title/breadcrumb/view-tabs + a fixed {Favorite, Configure} action cluster; no page injection), ContentToolbar (a closed named-data-slot vocabulary — statusFilter/search/filter/viewTools/actions/add/modeToggle, never ReactNode; the legacy left/right ReactNode toolbar survives as ContentToolbarLegacy for not-yet-migrated pages), ContentBody (the archetype-blocker — the body holds ONLY a branded Archetype descriptor via a module-private symbol, never bespoke JSX), ContentFooter (the sticky bottom action surface: selection + save modes), and the Inspector (right-docked detail, panel/dialog). Also ships the Empty archetype + the Section rulebook (SectionEmpty) and the deferred archetype prototypes (LaunchpadGrid/DashboardGrid/RecordWorkspace). Chrome uses the shell token family; in-flow body uses shadcn tokens.",
+    categories: ["block", "layout", "app"],
+    dependencies: [
+      "badge",
+      "button",
+      "button-group",
+      "dialog",
+      "dropdown-menu",
+      "empty",
+      "icon-button",
+      "input",
+      "separator",
+      "tabs",
+      "toggle-group",
+      "tooltip",
+    ],
+  },
+  "sidebar-panel": {
+    source: "src/blocks/sidebar-panel",
+    sourceType: "custom",
+    description:
+      "Block — the per-module Sidebar Panel for the AppShell sidebar slot. Five fixed sections (Header, Insight, Navigation [Pinned/Group/Page/Subpage], Reminders, Footer), each self-hiding when empty; the single SidebarRow primitive drives every nav/footer row. Presentational + router-agnostic (data + hrefs in). Reminders persist dismissal to localStorage per scope.",
+    categories: ["block", "navigation", "app"],
+    dependencies: [
+      "button",
+      "checkbox",
+      "icon-button",
+      "progress",
+      "separator",
+    ],
+  },
+  "assistant-panel": {
+    source: "src/blocks/assistant-panel",
+    sourceType: "custom",
+    description:
+      'Block — the Assistant (Sidekick AI) panel body for the AppShell assistant slot. A scaffold today: centered, muted placeholder copy (label defaults to "Assistant"; the admin app passes "Sidekick") until the real assistant surface is built.',
+    categories: ["block", "app"],
+  },
   "icon-button": {
     source: "src/components/icon-button",
     sourceType: "custom",

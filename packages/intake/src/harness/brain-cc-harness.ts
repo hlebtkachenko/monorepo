@@ -1,7 +1,7 @@
 // WP-H (#469c) — the live headless-Claude-Code harness scaffold.
 //
-// This is the THIN, HONEST scaffold for the harness that will run the first end-to-end Brain session once
-// live Agent-SDK + AWS + deployed-MCP creds exist. It composes the ALREADY-BUILT, creds-free pieces
+// This is the thin harness contract for dry-run planning and live Brain sessions. It composes the
+// creds-free pieces
 // (WP-A intake adapter + WP-B login-pack + sandbox) into one documented entry point. The two halves are
 // deliberately separated:
 //
@@ -26,7 +26,7 @@
 //     LOCAL stdio MCP bridge pointed at the deployed REST API, and drives the session against the real tools +
 //     the server gate.
 //     It is NOT wired here and does NOT fake runnability: it THROWS a precise "requires <exact creds/env>"
-//     error until the harness is wired at deploy time. See `docs/runbooks/BRAIN-CC-HARNESS.md`.
+//     error when required inputs are missing. See `docs/runbooks/BRAIN-OPERATOR-SESSION.md`.
 //
 // HARD RULE (no fake runnability): every function that would need live creds/MCP throws a clear
 // requirements error. There is no stub that pretends to work. The Agent-SDK is referenced in TYPES and the
@@ -477,7 +477,7 @@ export class BrainHarnessNotWiredError extends Error {
       "runLiveBrainSession cannot run: its creds gate is unmet or no Agent-SDK session launcher " +
         "was injected (the @anthropic-ai/claude-agent-sdk-backed launcher lives in apps/cli — NOT a dependency of " +
         `@workspace/intake). Missing/unmet: ${missing.join(", ")}. ` +
-        "See docs/runbooks/BRAIN-CC-HARNESS.md for the wiring + first-live-run procedure.",
+        "See docs/runbooks/BRAIN-OPERATOR-SESSION.md for the live-run procedure.",
     )
     this.name = "BrainHarnessNotWiredError"
   }

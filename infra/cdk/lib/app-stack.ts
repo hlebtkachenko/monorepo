@@ -196,7 +196,7 @@ export class AppStack extends Stack {
     // Drift detection: `.github/workflows/secrets-drift.yml` runs daily
     // and fails on Vault ≠ SSM divergence (better-auth-secret + resend-api-key).
     //
-    // See docs/plans/SECRETS-MIGRATION.md § M4.
+    // See docs/runbooks/VAULT-OPS.md § Adding a new secret.
     const tunnelTokenParam =
       StringParameter.fromSecureStringParameterAttributes(
         this,
@@ -515,7 +515,7 @@ export class AppStack extends Stack {
         // │  TO FLIP: delete this line AND the matching line in the admin
         // │  container below — server.ts then falls back to a host-only
         // │  cookie per app. Operators re-login on admin once. Tracked as
-        // │  docs/LAUNCH-CHECKLIST.md #7. Telegram ask NOT yet sent (no
+        // │  docs/plans/V1-LAUNCH-GATES.md #7. Telegram ask NOT yet sent (no
         // │  secret in the Wave H workspace) — run the ask.ts command
         // └─ logged in .context/exec/wave-h.md, or decide at checklist #7.
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.domain),
@@ -831,7 +831,7 @@ export class AppStack extends Stack {
         // `admin.afframe.com`. See web container comment above.
         // H6 PREP: delete together with the web container's line to scope
         // cookies per-host (see the H6 PREP block above; flip is gated on
-        // Hleb's approval — docs/LAUNCH-CHECKLIST.md #7).
+        // Hleb's approval, docs/plans/V1-LAUNCH-GATES.md #7).
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.adminDomain),
         // Comma-separated workspace ids whose members may sign into admin.
         // Empty => nobody is authorized (the gate fails closed). Changing

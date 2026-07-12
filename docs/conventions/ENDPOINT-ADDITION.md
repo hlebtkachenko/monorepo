@@ -84,8 +84,8 @@ Non-breaking:
 - Widens an enum.
 - Loosens auth (lowers required scope).
 
-Breaking changes require a major SDK bump + a migration note in
-`docs/api/CHANGELOG.md` + a deprecation window with the `Deprecation:` /
+Breaking changes require a major SDK bump, a migration note in
+`CHANGELOG.md`, and a deprecation window with the `Deprecation:` /
 `Sunset:` response headers (the SDK forwards these to the
 `onDeprecation` callback).
 

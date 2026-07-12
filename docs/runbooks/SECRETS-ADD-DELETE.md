@@ -15,7 +15,7 @@ for the exact commands.
 - You almost never touch SSM by hand. You write Vault; the sync + a
   deploy/restart carry it to the app.
 
-Full picture + tiers: [`SECRETS.md`](SECRETS.md). Vault ops + exact
+Full picture + tiers: [`SECRETS-AND-VARIABLES.md`](../conventions/SECRETS-AND-VARIABLES.md). Vault ops + exact
 commands: [`VAULT-OPS.md`](VAULT-OPS.md).
 
 ## "Where does my new value go?" — decision tree
@@ -51,7 +51,7 @@ Is it an app-runtime secret the web/api/admin containers read?
    `infra/vault/vps-overlay/usr/local/sbin/vault-to-ssm-sync`.
 3. Wire `EcsSecret.fromSsmParameter` for the new SSM path in
    `infra/cdk/lib/app-stack.ts`.
-4. Document the var in [`../env-vars.md`](../env-vars.md).
+4. Document the var in [`../ENVIRONMENT-VARIABLES.md`](../ENVIRONMENT-VARIABLES.md).
 5. `pnpm verify` → PR → deploy.
 
 ## Change / rotate a secret

@@ -111,7 +111,6 @@ Follow-up work required:
 ## See also
 
 - [Remediation issue #625](https://github.com/hlebtkachenko/monorepo/issues/625)
-- [`docs/plans/STATUTORY-CLOSING-REMEDIATION-PLAN.md`](../plans/STATUTORY-CLOSING-REMEDIATION-PLAN.md)
 - [Financial Administration: VAT control-statement periods](https://financnisprava.gov.cz/cs/dane/dane/dan-z-pridane-hodnoty/kontrolni-hlaseni-dph/kdy),
   verified 2026-07-09
 - [Financial Administration: EC sales-list periods](https://financnisprava.gov.cz/cs/dane/dane/dan-z-pridane-hodnoty/informace-stanoviska-a-sdeleni/souhrnna-hlaseni/podavani-souhrnneho-hlaseni-od-roku-2010-a-dale),

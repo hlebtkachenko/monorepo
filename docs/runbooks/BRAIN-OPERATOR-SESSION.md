@@ -2,7 +2,8 @@
 
 > **Who this is for.** Hleb, running a **live** Afframe Brain booking session from his Mac against the
 > deployed accounting MCP endpoint, pushing a real org's documents through the **HELD write loop**. This is the
-> operator counterpart to [`BRAIN-CC-HARNESS.md`](BRAIN-CC-HARNESS.md) (which documents the harness internals):
+> operator counterpart to the harness implementation in
+> `packages/intake/src/harness/brain-cc-harness.ts`:
 > this file is the exact "here is how you start a session and where the writes land" procedure.
 
 The whole point of a cold-start session: **every write is HELD.** The Brain (an `actor_kind='agent'` API key)
@@ -335,8 +336,8 @@ unchanged; only its transport moved to a 4xx at the request boundary.
 
 ## Cross-references
 
-- [`BRAIN-CC-HARNESS.md`](BRAIN-CC-HARNESS.md) — the harness internals (`planBrainDryRun` / `runLiveBrainSession`,
-  the sandbox, the dry-run inspector).
+- `packages/intake/src/harness/brain-cc-harness.ts` — harness internals
+  (`planBrainDryRun`, `runLiveBrainSession`, sandbox, and dry-run inspector).
 - `apps/cli/src/brain/command.ts` — the `brain extract` / `brain book` / `brain run` subcommands + flags.
 - `apps/api/src/v1/accounting/accounting-writes.gate.ts` — the server three-way-AND gate + the 422/403/429 legs.
 - `.brain/constitution.md` — the human-authorship-only invariant (the agent proposes and gates, never commits).

@@ -1,4 +1,4 @@
-# Sandbox + Test Mode
+# Sandbox and Test Mode
 
 > **[Concept]** Not implemented. The contract below is what `api.afframe.com/v1` ships before public launch.
 >
@@ -36,17 +36,17 @@ There is no separate hostname (`api-sandbox.afframe.com` is **not** a thing). Sa
 
 On signup, sandbox org is populated with:
 
-| Resource           | Count | Notes                                                                                                       |
-| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------- |
-| `organization`     | 1     | "Acme Test s.r.o.", DIČ `CZ12345678`, IČO `12345678`, fiscal year Jan-Dec                                   |
-| `bank_account`     | 2     | One Kč (KB `0100`), one EUR (Fio `2010`) — see [`SECRETS.md`](../runbooks/SECRETS.md) for sandbox redaction |
-| `account` (chart)  | 50    | Standard CZ small-business chart                                                                            |
-| `customer`         | 10    | Mix CZ + EU + non-EU for VAT logic                                                                          |
-| `supplier`         | 10    |                                                                                                             |
-| `invoice`          | 100   | 60 paid, 30 draft, 10 overdue. Spread across last 12 months.                                                |
-| `journal_entry`    | 200   | Posted entries linked to the invoices                                                                       |
-| `api_key`          | 1     | `affk_test_…` returned at signup; user copies once                                                          |
-| `webhook_endpoint` | 0     | Partner creates their own                                                                                   |
+| Resource           | Count | Notes                                                                                                                                        |
+| ------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `organization`     | 1     | "Acme Test s.r.o.", DIČ `CZ12345678`, IČO `12345678`, fiscal year Jan-Dec                                                                    |
+| `bank_account`     | 2     | One Kč (KB `0100`), one EUR (Fio `2010`); see [`SECRETS-AND-VARIABLES.md`](../../conventions/SECRETS-AND-VARIABLES.md) for sandbox redaction |
+| `account` (chart)  | 50    | Standard CZ small-business chart                                                                                                             |
+| `customer`         | 10    | Mix CZ + EU + non-EU for VAT logic                                                                                                           |
+| `supplier`         | 10    |                                                                                                                                              |
+| `invoice`          | 100   | 60 paid, 30 draft, 10 overdue. Spread across last 12 months.                                                                                 |
+| `journal_entry`    | 200   | Posted entries linked to the invoices                                                                                                        |
+| `api_key`          | 1     | `affk_test_…` returned at signup; user copies once                                                                                           |
+| `webhook_endpoint` | 0     | Partner creates their own                                                                                                                    |
 
 Re-seed available via `POST /v1/sandbox/reset` (returns the org to factory fixtures; existing IDs are NOT preserved).
 
@@ -65,7 +65,7 @@ POST /v1/sandbox/raise_error
 
 The next call against `/v1/invoices/<id>` returns that error, regardless of actual state. One-shot. Lets partners test error handlers without engineering the precondition.
 
-Codes available: every entry in [`ERRORS.md`](./ERRORS.md) §4. CI ensures each registered code is exercisable here.
+Codes available: every entry in [`ERRORS.md`](../../api/ERRORS.md) §4. CI ensures each registered code is exercisable here.
 
 ### Webhook events
 
@@ -141,7 +141,8 @@ Partners should not test against `affk_live_…` until they've passed against sa
 
 ## 9. Limits
 
-- Sandbox keys never expire automatically. Live keys roll on 90 days ([`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md) §1.7).
+- Sandbox keys never expire automatically. Live keys roll on 90 days. Public
+  launch criteria live in [`V1-LAUNCH-GATES.md`](../../plans/V1-LAUNCH-GATES.md).
 - Force-trigger endpoints rate-limit at 60/60s per key — abuse-shield for an external load test.
 - `POST /v1/sandbox/reset` rate-limits at 1/60s per key.
 
@@ -152,4 +153,4 @@ Partners should not test against `affk_live_…` until they've passed against sa
 - [Plaid Sandbox](https://plaid.com/docs/sandbox/) — the model
 - [Mercury Sandbox](https://docs.mercury.com/docs/using-mercury-sandbox) — accountancy-specific pattern
 - [Stripe test mode](https://docs.stripe.com/test-mode)
-- [`ERRORS.md`](./ERRORS.md), [`WEBHOOKS.md`](./WEBHOOKS.md), [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md)
+- [`ERRORS.md`](../../api/ERRORS.md), [`WEBHOOKS.md`](./WEBHOOKS.md), [`V1-LAUNCH-GATES.md`](../../plans/V1-LAUNCH-GATES.md)

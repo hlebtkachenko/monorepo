@@ -135,7 +135,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 
 Agent-specific runbooks live in `docs/runbooks/`:
 
-- `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the four-archetype catalog (Table / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the dev-only `/demo-*` routes as living examples
+- `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the five-archetype catalog (Table / Blank / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the four dev-only `/demo-*` routes as living examples
 - `CODEGRAPH.md`: how the repo-local CodeGraph MCP/index setup works, how to initialize/sync per Conductor worktree, and when agents should use it before grep/read exploration
 - `DB-ACCESS.md`: operator DB access — `scripts/db-query.sh` (fast ~2s reads via ECS Exec) vs the EC2 bastion (`staging-bastion-migrate.sh`) for raw write SQL
 - `BRAIN-OPERATOR-SESSION.md`: how Hleb starts a live Brain session and pushes a real org's docs through the HELD write loop — issue the `actor_kind='agent'` key, the exact env vars (`mlive.example.sh` template), the `brain extract` → `brain book` command sequence, and the `/{orgSlug}/accounting/approvals` review gate
@@ -345,12 +345,16 @@ Rule: never format a Telegram message or hold the bot token anywhere but `apps/b
 
 - `docs/adr/` — Architecture Decision Records (MADR format)
 - `docs/api/` — API architecture guide + OpenAPI specs
+- `docs/compliance/` — control mappings and audit evidence indexes
 - `docs/conventions/` — commit + CI conventions
 - `docs/plans/` — strategic execution plans
 - `docs/runbooks/` — operational runbooks
 - `docs/specs/` — design specifications
-- `docs/INVENTORY.md` — DORA Article 8 ICT asset register
-- `docs/AFFRAME-BRAIN.md` — Afframe Brain landing doc (A-Z); `docs/AFFRAME-BRAIN-TECHNICAL.md` (internals) + `docs/AFFRAME-BRAIN-STATUS.md` (v1/v2 roadmap + open issues)
+- `docs/brain/` — cross-package Brain overview and technical architecture
+- `docs/DOMAINS-AND-EMAIL.md` — public host and email registry
+- `docs/ENVIRONMENT-VARIABLES.md` — environment-variable registry
+- `docs/compliance/ICT-ASSET-INVENTORY.md` — DORA Article 8 ICT asset register
+- `docs/brain/README.md` — Afframe Brain landing doc; `docs/brain/TECHNICAL.md` contains internals, and GitHub epic #524 owns delivery status
 
 ## Endpoint Addition Rules
 
@@ -381,7 +385,8 @@ tracked as future work; do not add `.changeset/` entries.
 
 Full procedure with diffs: `docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`.
 Convention reference: `docs/conventions/ENDPOINT-ADDITION.md`.
-Canonical fresh-session entry: `docs/START-HERE.md`.
+Canonical fresh-session entry: `README.md`. Documentation navigation:
+`docs/README.md`.
 
 The `/add-endpoint <resource>` Claude skill at `.claude/skills/add-endpoint/`
 walks a contributor through the steps with the exact paths and refuses

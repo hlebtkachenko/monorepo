@@ -133,7 +133,13 @@ Both share `buildQueryOptions` (`session-config.ts:90-112`): same MCP descriptor
   `create_feedback`, `classify_accounting_event`) + 14 reads. `resolve_accounting_held_write` +
   `list_accounting_held_writes` are absent → denied (also server-side 403 for the agent key). Kickoff
   (`session-config.ts:133-149`) pins `get_structure` → `list_accounting_number_series` →
-  `capture_accounting_document` embedding `plan.captureRequest` **verbatim**.
+  `capture_accounting_document` embedding `plan.captureRequest` **verbatim**. `brain run` also has a **posting
+  mode** (`--mode posting`, GAP-007 / PR #685): the SAME policy, but `buildPostingKickoff` drives `get_structure`
+  → `list_accounts` → `create_accounting_posting` with **no** verbatim body — the model reasons the double-entry
+  předkontace (account class + account + VAT treatment) and builds the posting itself, so its account choice —
+  not an operator-supplied capture — is what's exercised. `planForPosting`/`isPostingPlan`
+  (`brain-cc-harness.ts`) discriminate it structurally; inputs are `{invoice, sections, posting}`. Still HELD by
+  the same three-way-AND gate at cold start (no server change, no sandbox widening).
 - **EXTRACT lane** — policy `BRAIN_EXTRACT_POLICY` (`extract-config.ts:70-76`): `allowedMcpTools[afframe]` =
   exactly `["list_ocr_templates","create_ocr_template"]`; every write + `confirm_ocr_template` denied. The
   document is fed as a **content block, not a Read tool** — the CLI reads the bytes in trusted code
@@ -158,7 +164,11 @@ nowhere in the tree.)
 ### 1.5 dry-run vs live + the operator context files
 
 - `brain run`: `--dry-run` prints the plan (no creds); otherwise live. **No `--live` flag** — live is "not
-  `--dry-run`".
+  `--dry-run`". `--mode capture` (default) proposes a capture; `--mode posting` drives the double-entry posting
+  lane (§1.3). Posting-mode inputs are `{invoice, sections, posting}` (`posting` = `periodId` +
+  operator-synthetic `summaryRecordId`/`accountingEventId` + `postingDate` + UUID `conversationId`) instead of
+  `{invoice, sections, captureContext}`; the dry-run serializer renders the invoice's `bigint` money fields as
+  strings.
 - `brain book`: `--dry-run` prints only; otherwise requires TTY `[y/N]` confirmation or `--yes`
   (`command.ts:441-458`). _(Help text mentions "`--live`" but no such option is registered on `book` —
   `command.ts:72` vs `:83-99`. Harmless help drift.)_

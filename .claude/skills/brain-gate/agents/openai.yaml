@@ -1,0 +1,6 @@
+interface:
+  display_name: "Brain Safety Gate"
+  short_description: "Run the mandatory adversarial Brain safety review"
+
+policy:
+  allow_implicit_invocation: false

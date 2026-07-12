@@ -1,0 +1,11 @@
+[mcp_servers.codegraph]
+command = "pnpm"
+args = ["-w", "exec", "node", "scripts/codegraph.mjs", "serve"]
+
+[[hooks.UserPromptSubmit]]
+
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = "pnpm -w exec node scripts/codegraph.mjs prompt-hook"
+timeout = 30
+statusMessage = "Loading CodeGraph context"

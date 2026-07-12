@@ -193,10 +193,19 @@ If those conditions are not met, leave explicit, actionable feedback and push fo
 
 ## Deterministic multi-agent runner (this repo)
 
-For a rigorous, reproducible pass, run the committed workflow instead of reviewing inline:
+`.claude/workflows/thermo-review.js` is the canonical review runner and the
+single source of truth for reviewer lenses, schemas, and synthesis rules.
+
+When the `Workflow` tool is available, run:
 
 ```
 Workflow({ scriptPath: ".claude/workflows/thermo-review.js", args: "<diff scope + file list + questions>" })
 ```
 
 `thermo-review.js` fans out three independent Fable-5-high reviewers (simplification / spaghetti-boundary / canonical-layer lenses) over the branch diff and synthesizes one ranked, deduped, high-conviction finding list — each with a concrete behavior-preserving remedy. The skill above is the methodology; the workflow is its deterministic execution. Its sibling `.claude/workflows/brain-gate.js` is the mandatory Brain/accounting-safety gate (Fable 5 high + Opus 4.8 xhigh) — run that on any change to the Brain write-gate / safety spine.
+
+When `Workflow` is unavailable, read `thermo-review.js` completely, then use
+the client's subagent controls to reproduce its three independent review lenses
+and stricter synthesis. Do not copy the embedded standards into another file.
+If independent subagents are unavailable, report that the deterministic review
+cannot run instead of silently downgrading it to one inline opinion.

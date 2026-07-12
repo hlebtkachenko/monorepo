@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- AssistantPanel block (assistant-panel) and a first-class Inspector block extracted from ContentPanel (archetype-system P3)
+
 ### Changed
 
 - Reshape content-panel block: move ContentHeader + ContentToolbar into subfolders with re-export (archetype-system P2, behavior-preserving)

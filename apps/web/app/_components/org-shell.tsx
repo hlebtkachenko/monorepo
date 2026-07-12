@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
+import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 
 import {
   MODULE_NAV,
@@ -59,11 +60,7 @@ export function OrgShell({
         contentHeader={
           <AppContentHeaderSlot fallback={<ContentHeader title={title} />} />
         }
-        assistant={
-          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-            Assistant — coming soon
-          </div>
-        }
+        assistant={<AssistantPanel />}
         logoHref={`/${orgSlug}`}
       >
         {children}

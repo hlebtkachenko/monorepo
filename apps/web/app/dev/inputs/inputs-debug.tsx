@@ -761,7 +761,7 @@ export function InputsDebug() {
         title="Input"
         blurb="Base text field. One CVA variant: inputSize (default | xl). The native size attribute is left free — the design-system prop is inputSize on purpose. type is the standard HTML attribute."
       >
-        <Row name="<Input>" desc="default — inputSize='default', h-8, text-sm">
+        <Row name="<Input>" desc="default — inputSize='default', h-9, text-sm">
           <Input placeholder="Placeholder" className="max-w-xs" />
         </Row>
         <Row
@@ -1035,7 +1035,7 @@ export function InputsDebug() {
         title="NativeSelect"
         blurb="Real <select> styled to match (keeps native mobile picker). size: sm | default. Options via NativeSelectOption / NativeSelectOptGroup."
       >
-        <Row name="<NativeSelect size='default'>" desc="standard height h-8">
+        <Row name="<NativeSelect size='default'>" desc="standard height h-9">
           <NativeSelect defaultValue="cz">
             <NativeSelectOption value="cz">Czechia</NativeSelectOption>
             <NativeSelectOption value="sk">Slovakia</NativeSelectOption>

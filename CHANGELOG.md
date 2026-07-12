@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Default form-control height bumped `h-8` → `h-9` across Input, Select trigger, NativeSelect, InputGroup (also lifts PasswordInput + Combobox), and the Autocomplete field so paired fields align; `sm` sizes unchanged
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.
 
 ## [v0.17.7] — 2026-07-11
